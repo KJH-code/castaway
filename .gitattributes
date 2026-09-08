@@ -1,1 +1,4 @@
 * text=auto eol=lf
+
+# Binary assets - never touch line endings or try to diff these
+*.glb binary

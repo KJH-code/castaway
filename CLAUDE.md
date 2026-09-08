@@ -1,51 +1,60 @@
-# castaway
+# CASTAWAY
 
-브라우저 게임. TypeScript + Vite + Canvas 2D. 협업 프로젝트.
+무인도 생존 게임. **단일 HTML 파일 · Three.js r128 · 빌드 과정 없음.**
 
 ## 스택
 
-- TypeScript (strict), Vite 8, Canvas 2D
-- 프레임워크·게임엔진 라이브러리 없음. 렌더링은 `CanvasRenderingContext2D` 직접 사용
+- Three.js r128을 cdnjs에서 `<script src>`로 직접 로드. 번들러·패키지 매니저·`node_modules` 없음
+- 게임 전체가 `island_world.html` 한 파일(4,786줄) 안에 있다. 모듈 분할되어 있지 않다
 - 라이선스 GPL-3.0
 
-## 명령
+## 실행
 
-| | |
+빌드 없음. 파일을 열면 끝이다.
+
+```
+island_world.html
+```
+
+`.glb` 모델을 로드하는 코드를 넣는 순간부터는 `file://`에서 CORS로 막히므로 정적 서버가 필요하다:
+
+```bash
+python -m http.server 5173
+```
+
+## 파일
+
+| 파일 | 내용 |
 |---|---|
-| `npm run dev` | 개발 서버 |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | `src/*.test.ts` 자체 검사 (tsx로 직접 실행, 테스트 프레임워크 없음) |
-| `npm run build` | `tsc && vite build` → `dist/` |
-| `npm run preview` | 빌드 결과 확인 |
+| `island_world.html` | 메인 게임. 아이템 64종 · 레시피 51개 |
+| `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
+| `CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
+| `CASTAWAY_전사_초반부.md`, `CASTAWAY_전사_2차.md` | 개발 대화 원문 |
+| `bear_high.glb`, `stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |
 
-## 구조
-
-```
-index.html      캔버스 하나
-src/main.ts     엔트리 — 리사이즈, 게임 상태, update/render
-src/loop.ts     고정 스텝 루프 (60Hz update, 보간 render)
-src/loop.test.ts
-src/input.ts    키 눌림 상태
-src/style.css
-```
+`island_world.html` 안은 `/* ===== 제목 ===== */` 배너로 구역이 나뉘어 있다
+(시드 PRNG · 침식 · 하천 · 기후 · 바이옴 · 자원 배치 · 식생 · 하늘 · 아이템 · 제작 · 설비 …).
+수정할 곳을 찾을 때 이 배너로 먼저 좁힐 것.
 
 ## 규칙
 
-- **update는 고정 스텝, render는 보간.** `update(dt)`에서 `dt`는 항상 `1/60`이다.
-  물리·게임 로직에 프레임 시간을 직접 쓰지 말 것. 화면에 그리는 위치만
-  `render(alpha)`에서 이전 상태와 현재 상태를 `alpha`로 섞는다.
-  협업자가 이 규칙을 깨면 기기마다 게임이 달라진다.
-- **캔버스 좌표는 CSS 픽셀.** 백킹 스토어는 `devicePixelRatio`로 스케일되고
-  `ctx.setTransform`이 이미 보정한다. 로직에서 `canvas.width`를 읽지 말고
-  `main.ts`의 `width`/`height`를 쓸 것.
-- 새 상태를 추가하면 이전 프레임 값(`px`/`py` 같은)도 같이 두어 보간이 유지되게 한다.
-- 비자명한 로직(분기·루프·파서)에는 `src/*.test.ts` 자체 검사를 하나 남긴다.
-  프레임워크는 쓰지 않는다. `assert` + `npm test`로 충분하다.
-- 사용자 눈에 보이는 변경은 실제 브라우저에서 확인하고 커밋한다.
+- **지형은 시드 하나에서 결정론적으로 생성된다.** 같은 시드는 언제나 같은 섬이어야 한다.
+  지형·자원 배치 경로에서 `Math.random()`을 쓰지 말고 시드 PRNG를 쓸 것.
+  저장 파일이 시드 + 변경분만 담아 8.8KB인 것도 이 성질에 기대고 있다 —
+  깨뜨리면 기존 세이브가 전부 다른 섬을 연다.
+- **프레임률에 의존하는 로직을 만들지 말 것.** 이동 판정이 한 번 이 문제로 깨졌다
+  (`높이차/프레임이동거리` → 지형 경사 기반으로 교체, 오판율 0.11% → 0%).
+  거리·속도·시간 판정은 프레임당 이동량이 아니라 물리량으로 쓴다.
+- **상자·화덕·제련로는 같은 용기다.** 슬롯 배열과 `contAdd`/`contTake`/`contFuel`을
+  공유한다. 설비를 추가할 때 넣고 빼는 규칙을 따로 만들지 말 것.
+- 제작 트리는 8단계 순서를 건너뛸 수 없게 되어 있다. 레시피를 추가하면
+  재료→산출 의존성 기계 검증에 걸리는지 확인할 것.
 
 ## 함정
 
-- `tsconfig.json`의 `noUnusedLocals`/`noUnusedParameters`가 켜져 있다.
-  쓰지 않는 변수는 빌드를 깬다.
-- `npm install` 후 esbuild postinstall이 npm 11의 allow-scripts 게이트에 막힌다.
-  빌드가 esbuild를 못 찾으면 `npm approve-scripts esbuild`.
+- **`flatShading: true`는 `MeshLambertMaterial`에서 무시된다.** r128에서 확인해 14곳을 걷어냈다.
+  각진 면이 필요하면 정점을 분리해야지 이 플래그로는 안 된다.
+- **Three.js를 cdnjs에서 받는다.** 오프라인에서는 실행되지 않는다.
+- **레포가 이미 ~15MB다** (GLB 10.1MB + `gargoyle_arena.html` 5MB). Git LFS를 쓰지 않는다.
+  모델을 더 커밋하기 전에 LFS 전환을 먼저 결정할 것 — 나중에 옮기려면 히스토리를 다시 써야 한다.
+- `.gitattributes`가 `* text=auto eol=lf`이므로 `*.glb binary`를 반드시 유지할 것.

@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "castaway",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5173"],
       "port": 5173
     }
   ]
