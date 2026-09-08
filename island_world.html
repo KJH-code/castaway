@@ -1843,29 +1843,30 @@ const ITEMS={
                tool:{pick:2,speed:1.9,wear:1}, durMax:260},
   spear:      {n:'돌창',       kg:1.6,  c:0x7a6a4a,
                use:'찌르기 — 길지만 무르다',
-               tool:{weapon:1, dmg:22, reach:2.4, rate:0.9, stam:9, swing:'thrust'},
+               tool:{weapon:1, dmg:22, reach:2.6, rate:0.9, stam:9, swing:'thrust'},
                durMax:60},
 
   /* 철기 무기 — 넷이 서로 다른 값을 판다.
      검은 빠르게 여러 번, 창은 멀리서, 도끼는 한 번에 크게, 해머는 상대를 멈춰 세운다.
-     경직 1.15초짜리 틈에 넣을 수 있는 피해로 재보면
-       검 90 · 창 80 · 도끼 80 · 해머 55(+기절) 로 엇비슷하고,
-     길게 끌었을 때의 초당 피해는 검 60 · 도끼 50 · 창 40 · 해머 32 순이다. */
+     북극곰 경직 1.05초짜리 틈에 넣을 수 있는 피해는
+       검 3타 90 · 창 2타 80 · 도끼 1타 80 · 해머 1타 55(+기절) 로 엇비슷하다.
+     길게 끌면 검이 초당 75 로 가장 세지만, 사거리가 1.5 m 라 곰 품에 들어가야 한다 —
+     빠른 만큼 가까이 붙는 것이 검의 값이다. */
   sword_iron: {n:'철 검',      kg:1.9,  c:0xb9bcc0,
                use:'베기 — 가장 빠르다. 짧은 틈에 여러 번 넣는다',
-               tool:{weapon:1, dmg:30, reach:2.2, rate:0.50, stam:5, swing:'slash'},
+               tool:{weapon:1, dmg:30, reach:1.5, rate:0.40, stam:5, swing:'slash'},
                durMax:700},
   spear_iron: {n:'철 창',      kg:2.4,  c:0xa8adb2,
-               use:'찌르기 — 사거리 3.4 m. 닿지 않는 데서 먼저 닿는다',
-               tool:{weapon:1, dmg:40, reach:3.4, rate:1.00, stam:8, swing:'thrust'},
+               use:'찌르기 — 사거리 2.6 m. 닿지 않는 데서 먼저 닿는다',
+               tool:{weapon:1, dmg:40, reach:2.6, rate:1.00, stam:8, swing:'thrust'},
                durMax:650},
   axe_war:    {n:'철 전투도끼', kg:3.0,  c:0x9aa0a6,
                use:'내리찍기 — 한 방이 가장 크다. 대신 느리다',
-               tool:{weapon:1, dmg:80, reach:2.3, rate:1.60, stam:15, swing:'slash'},
+               tool:{weapon:1, dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
                durMax:800},
   hammer_iron:{n:'철 해머',    kg:4.2,  c:0x8f959b,
                use:'후려치기 — 맞은 것은 0.2초 동안 못 움직인다',
-               tool:{weapon:1, dmg:55, reach:2.5, rate:1.70, stam:17, swing:'smash',
+               tool:{weapon:1, dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash',
                      stun:0.2},
                durMax:950},
   torch:      {n:'횃불',       kg:0.8,  c:0xc07a30, use:'휴대 조명 · 화덕 점화 · 약한 화입',
