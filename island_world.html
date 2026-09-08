@@ -3671,6 +3671,58 @@ function updateWeapon(dt){
 }
 
 /* ============================================================================
+   12-d) 몹 스폰 — 파워레벨
+   ----------------------------------------------------------------------------
+   리썰 컴퍼니의 방식을 땄다. 섬에는 날마다 정해진 '파워레벨' 예산이 있고 몹은
+   저마다 값을 갖는다. 예산이 남아 있는 동안에만 새 몹이 들어서므로, 약한 것이
+   깔려 있으면 강한 것이 설 자리가 없다 — 머릿수와 질이 하나의 저울에 얹힌다.
+
+   · 1일차는 0. 표류 첫날은 아무것도 나오지 않는다.
+   · 예산은 20일까지 가파르게 오르다 그 뒤로 완만해진다. 후반의 난이도는 머릿수가
+     아니라 '무엇이 나오는가'로 올린다 — 그 일은 아래 가중치 곡선이 맡는다.
+   ========================================================================== */
+const START_HOUR=8.5;                        // 표류 첫날 눈을 뜬 시각
+const dayNo=()=>1+Math.floor((gameHours+START_HOUR)/24);
+// 날짜별 파워레벨 예산. 첨자가 곧 날짜다(0번은 자리 채움).
+const DAY_POWER=[0,
+   0, 1, 2, 3, 4, 6, 8,10,12,14,             //  1 ~ 10일  — 한둘이 어슬렁거리는 정도
+  16,18,20,22,24,25,26,27,28,29,             // 11 ~ 20일  — 이 구간에서 가장 가파르다
+  30,31,31,32,32,33,33,34,34,35];            // 21 ~ 30일  — 수는 멎고 질이 오른다
+// 30일 뒤로는 이틀에 1씩. 50에서 멈춘다 — 768 m 섬이 감당할 수 있는 한계.
+const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
+                           : Math.min(50, 35+Math.floor((d-30)/2));
+
+/* 몹 명세 — power 는 예산에서 차지하는 값, first 는 처음 나올 수 있는 날.
+   가중치는 first 일의 w0 에서 full 일의 w1 로 곧게 옮겨 간다. w1 을 w0 보다
+   낮춰 두면 그 몹은 날이 갈수록 저절로 덜 뽑힌다 — 초반 잡몹은 그렇게 물린다.
+   first 는 예산이 그 몹을 감당하는 날(powerBudget >= power)보다 앞설 수 없다.
+   개체를 본 게임에 넣기 전까지 아래 둘은 아레나에서 가져온 자리표다. */
+const MOBS=[
+  {id:'gargoyle', n:'곤충형 가고일', power:4, first:6, w0:20, w1:70, full:18},
+  {id:'bear',     n:'북극곰',        power:6, first:9, w0: 8, w1:55, full:26}
+];
+function mobWeight(M,d){
+  if(d<M.first) return 0;
+  const k=clamp((d-M.first)/Math.max(1,M.full-M.first),0,1);
+  return M.w0+(M.w1-M.w0)*k;
+}
+/* 그날 섬에 깔 몹을 뽑는다. 예산이 모자라 못 들어가는 몹은 후보에서 빠지므로
+   마지막 한 자리는 값싼 쪽으로 채워진다. rnd 를 주면 결정론적으로 재현된다. */
+function rollSpawns(d,rnd){
+  rnd=rnd||Math.random;
+  const out=[]; let left=powerBudget(d);
+  for(let guard=0; guard<200; guard++){
+    const pool=MOBS.filter(M=>M.power<=left && mobWeight(M,d)>0);
+    if(!pool.length) break;
+    let sum=0; for(const M of pool) sum+=mobWeight(M,d);
+    let r=rnd()*sum, pick=pool[pool.length-1];
+    for(const M of pool){ r-=mobWeight(M,d); if(r<=0){ pick=M; break; } }
+    out.push(pick.id); left-=pick.power;
+  }
+  return out;
+}
+
+/* ============================================================================
    13) 1인칭 플레이어
    ========================================================================== */
 const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, JUMP=7.6,
@@ -4440,7 +4492,8 @@ addEventListener('keydown',e=>{
       +' hasMouse='+hasMouse+' touchOnly='+touchOnly
       +' lock='+(document.pointerLockElement===cv)
       +' chunks='+chunks.length+' props='+PROPS.length
-      +' hour='+hourOfDay.toFixed(2)+' fps='+fps);
+      +' hour='+hourOfDay.toFixed(2)+' fps='+fps
+      +' day='+dayNo()+' power='+powerBudget(dayNo()));
   }
   if(e.code==='F5'){ e.preventDefault(); saveLocal(); }
   if(e.code==='F9'){ e.preventDefault(); loadLocal(); }
