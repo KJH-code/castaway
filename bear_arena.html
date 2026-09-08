@@ -72,7 +72,7 @@
   <div class="pnl" id="gear">
     <div><span class="k">무기</span><span id="wep">–</span></div>
     <div style="color:var(--dim);font-size:9px;margin:2px 0 4px">
-      1 돌창 · 2 철 검 · 3 철 창 · 4 철 전투도끼 · 5 철 해머</div>
+      1 돌창 · 2 철 검 · 3 철 창 · 4 철 전투도끼 · 5 철 해머 · 6 볼트 소총 (X 재장전)</div>
     <div><span class="k">갑옷</span><b>청동 비늘</b> 방어 6</div>
     <div><span class="k">머리</span><b>청동 투구</b> 방어 3</div>
     <div><span class="k">옷</span>섬유 옷 방어 1</div>
@@ -134,7 +134,8 @@
     <div><span>WASD</span>이동 · Shift 달리기</div>
     <div><span>Space</span>점프</div>
     <div><span>좌클릭</span>휘두르기</div>
-    <div><span>1 ~ 5</span>무기 바꾸기 (돌창 · 검 · 창 · 도끼 · 해머)</div>
+    <div><span>1 ~ 6</span>무기 바꾸기 (돌창 · 검 · 창 · 도끼 · 해머 · 소총)</div>
+    <div><span>X</span>재장전 (소총)</div>
     <div><span>R</span>되살리기 · Tab 설정 접기</div>
     <div><span>Esc</span>커서 되찾기 (일시정지)</div>
   </div>
@@ -317,8 +318,13 @@ const WEAPONS=[
   {id:'sword_iron', n:'철 검',       dmg:30, reach:1.5, rate:0.40, stam: 5, swing:'slash'},
   {id:'spear_iron', n:'철 창',       dmg:40, reach:2.6, rate:1.00, stam: 8, swing:'thrust'},
   {id:'axe_war',    n:'철 전투도끼',  dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
-  {id:'hammer_iron',n:'철 해머',     dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash', stun:0.2}
+  {id:'hammer_iron',n:'철 해머',     dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash', stun:0.2},
+  {id:'rifle_bolt', n:'볼트 소총',    dmg:150,reach: 50, rate:1.40, stam: 3, swing:'shot',
+   gun:1, mag:5, reload:3.6}
 ];
+const RELOAD={t:0};                         // 재장전 남은 시간
+let magLeft=5;                              // 탄창에 남은 발수 (아레나는 예비탄 무한)
+let tracer=null, tracerT=0, flashT=0;
 let WI=0;                                   // 지금 든 무기
 const SPEAR=WEAPONS[0];                     // 옛 이름 — 아래에서 cone 만 따로 쓴다
 const CONE=0.77;
@@ -599,7 +605,75 @@ function flashStun(){
   const e=document.getElementById('stunv');
   e.style.opacity=1; setTimeout(()=>e.style.opacity=0,Math.max(200,P.pstun*1000));
 }
+
+/* ─ 총 ── 눈에서 뻗은 선으로 맞힌다. 예비탄은 이 시험장에서 무한이다. ── */
+function initTracer(){
+  tracer=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1,5),
+    new THREE.MeshBasicMaterial({color:0xffe6a8,transparent:true,opacity:0}));
+  tracer.visible=false; scene.add(tracer);
+}
+function showTracer(a,b){
+  if(!tracer) return;
+  const d=new THREE.Vector3().subVectors(b,a), len=d.length();
+  tracer.position.copy(a).addScaledVector(d,0.5);
+  tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize());
+  tracer.scale.set(1,len,1);
+  tracer.visible=true; tracer.material.opacity=0.85; tracerT=0.09;
+}
+/* 선이 표적 구를 지나가는가 — 지나가면 맞은 거리를 준다 */
+function rayTarget(o,dir,range,cx,cy,cz,r){
+  const ox=cx-o.x, oy=cy-o.y, oz=cz-o.z;
+  const t=ox*dir.x+oy*dir.y+oz*dir.z;
+  if(t<0||t>range) return -1;
+  const px=ox-dir.x*t, py=oy-dir.y*t, pz=oz-dir.z*t;
+  return (px*px+py*py+pz*pz<=r*r) ? t : -1;
+}
+function startReload(){
+  const W=WEAPONS[WI];
+  if(!W.gun||RELOAD.t>0||magLeft>=W.mag) return false;
+  RELOAD.t=W.reload; msg('재장전…'); return true;
+}
+function updateGun(dt){
+  if(RELOAD.t>0){
+    RELOAD.t-=dt;
+    if(RELOAD.t<=0){ magLeft=WEAPONS[WI].mag; msg('장전 '+magLeft+' / '+magLeft); }
+  }
+  if(flashT>0){
+    flashT-=dt;
+    if(flashT<=0&&weaponFx&&weaponFx.userData.flash) weaponFx.userData.flash.visible=false;
+  }
+  if(tracerT>0){
+    tracerT-=dt;
+    tracer.material.opacity=Math.max(0,tracerT/0.09)*0.85;
+    if(tracerT<=0) tracer.visible=false;
+  }
+}
+function shoot(){
+  const W=WEAPONS[WI];
+  if(RELOAD.t>0) return;
+  if(magLeft<=0){ startReload(); msg('철컥 — 비었다'); return; }
+  PL.atkCd=W.rate; PL.swing=0.28; PL.swingMax=0.28;
+  PL.stam=clamp(PL.stam-W.stam,0,100);
+  magLeft--;
+  const o=new THREE.Vector3(), d=new THREE.Vector3();
+  camera.getWorldPosition(o); camera.getWorldDirection(d);
+  let t=-1;
+  if(B.alive) t=rayTarget(o,d,W.reach,B.pos.x,B.pos.y+BEAR_H*0.55,B.pos.z, BODY_R*0.9);
+  showTracer(o.clone().addScaledVector(d,0.6),
+             o.clone().addScaledVector(d,t>0?t:W.reach));
+  if(weaponFx&&weaponFx.userData.flash){ weaponFx.userData.flash.visible=true; flashT=0.05; }
+  if(t>0){
+    B.hp-=W.dmg; B.flash=1; PL.hits2=(PL.hits2||0)+1;
+    if(B.hp<=0){ B.hp=0; B.alive=false; setState('dead');
+      msg('쓰러뜨렸다'); }
+    else msg('명중 '+Math.round(t)+' m −'+W.dmg);
+  }else msg('빗나갔다');
+}
 function attack(){
+  if(WEAPONS[WI].gun){
+    if(paused||PL.hp<=0||PL.atkCd>0||PL.stam<WEAPONS[WI].stam||PL.stun>0) return;
+    shoot(); return;
+  }
   const W=WEAPONS[WI];
   if(paused||PL.hp<=0||PL.atkCd>0||PL.stam<W.stam||PL.stun>0) return;
   PL.atkCd=W.rate;
@@ -727,6 +801,41 @@ const WEAPON_FX={
     g.add(wbind(L-0.20,0.036));
     return {mesh:g, grip:0.30};
   },
+  rifle_bolt(){                              // 볼트 소총 — 나무 개머리 · 강철 총열
+    const g=new THREE.Group(), L=1.22;
+    const wood=WMAT(0x6b5442), steel=WMAT(0x6e747a), dark=WMAT(0x3a3d40);
+    // 개머리판에서 총열까지 하나로 이어지는 몸통
+    const stock=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.46,0.115),wood);
+    stock.position.y=0.20; g.add(stock);
+    const butt=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.13,0.165),wood);
+    butt.position.set(0,0.02,0.015); g.add(butt);
+    const fore=new THREE.Mesh(new THREE.BoxGeometry(0.062,0.52,0.085),wood);
+    fore.position.y=0.72; g.add(fore);
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(0.019,0.021,L-0.28,10),steel);
+    barrel.position.y=0.42+(L-0.28)/2; g.add(barrel);
+    const recv=new THREE.Mesh(new THREE.BoxGeometry(0.062,0.20,0.075),steel);
+    recv.position.y=0.50; g.add(recv);
+    // 노리쇠 — 오른쪽으로 젖혀 나온 손잡이
+    const bolt=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.13,6),steel);
+    bolt.rotation.z=Math.PI/2; bolt.position.set(0.052,0.47,0.02); g.add(bolt);
+    const knob=new THREE.Mesh(new THREE.SphereGeometry(0.021,8,6),steel);
+    knob.position.set(0.115,0.47,0.02); g.add(knob);
+    // 탄창 · 방아쇠울
+    const mag=new THREE.Mesh(new THREE.BoxGeometry(0.052,0.10,0.055),dark);
+    mag.position.set(0,0.395,-0.005); g.add(mag);
+    const guard=new THREE.Mesh(new THREE.TorusGeometry(0.032,0.007,6,10,Math.PI),dark);
+    guard.rotation.y=Math.PI/2; guard.position.set(0,0.34,-0.012); g.add(guard);
+    // 가늠쇠 · 총구
+    const sight=new THREE.Mesh(new THREE.BoxGeometry(0.010,0.030,0.010),dark);
+    sight.position.y=L-0.04; g.add(sight);
+    const muzzle=new THREE.Mesh(new THREE.CylinderGeometry(0.024,0.024,0.035,10),dark);
+    muzzle.position.y=L-0.015; g.add(muzzle);
+    // 총구 화염 — 쏠 때만 보인다
+    const fl=new THREE.Mesh(new THREE.ConeGeometry(0.075,0.26,5),
+      new THREE.MeshBasicMaterial({color:0xffd07a}));
+    fl.position.y=L+0.11; fl.visible=false; fl.name='flash'; g.add(fl);
+    return {mesh:g, grip:0.36, muzzle:L+0.02};
+  },
   hammer_iron(){                             // 철 해머 — 통짜 머리
     const g=new THREE.Group(), L=0.98;
     g.add(haft(L,0.030,0.034));
@@ -748,10 +857,12 @@ function setWeaponFx(id){
   weaponFxId=id;
   if(weaponFx){ camera.remove(weaponFx); weaponFx=null; }
   if(!id||!WEAPON_FX[id]) return;
-  const {mesh,grip}=WEAPON_FX[id]();
+  const {mesh,grip,muzzle}=WEAPON_FX[id]();
   mesh.position.y=-grip;
   weaponFx=new THREE.Group();
   weaponFx.add(mesh);
+  weaponFx.userData.muzzle=(muzzle||0)-grip;
+  weaponFx.userData.flash=mesh.getObjectByName('flash')||null;
   weaponFx.rotation.set(-Math.PI/2+0.20,0,0.12);
   weaponFx.position.copy(WEAPON_HOME);
   camera.add(weaponFx);
@@ -768,6 +879,11 @@ function swingPose(style,p){
   const o=WPOSE;
   o.rx=WRX; o.ry=0; o.rz=WRZ; o.px=0; o.py=0; o.pz=0;
   if(p<=0||p>=1) return o;
+  if(style==='shot'){                        // 반동 — 뒤로 차고 총구가 들렸다 내려온다
+    const k=p<0.22 ? p/0.22 : 1-(p-0.22)/0.78;
+    o.rx=WRX+0.30*k; o.pz=0.14*k; o.py=0.03*k;
+    return o;
+  }
   if(style==='thrust'){                      // 찌르기 — 손이 앞으로 나간다
     const k=Math.sin(p*Math.PI);
     o.pz=-0.55*k; o.px=-0.10*k; o.rx=WRX-0.10*k;
@@ -801,13 +917,14 @@ function swingPose(style,p){
 }
 function makeSpear(){ setWeaponFx(WEAPONS[WI].id); }
 /* 무기를 바꿔 든다 */
-function syncWeapon(){
-  setWeaponFx(WEAPONS[WI].id);
-  const W=WEAPONS[WI];
-  const e=document.getElementById('wep');
+function syncWeapon(){ setWeaponFx(WEAPONS[WI].id); wepLine(); }
+/* 무기 줄은 탄창이 줄어드는 것도 보여야 하므로 매 프레임 다시 쓴다 */
+function wepLine(){
+  const W=WEAPONS[WI], e=document.getElementById('wep');
   if(e) e.innerHTML='<b>'+W.n+'</b> 피해 '+W.dmg+' · 사거리 '+W.reach.toFixed(1)
     +' m · '+(1/W.rate).toFixed(2)+'회/초 · 초당 '+Math.round(W.dmg/W.rate)
-    +(W.stun?' · 기절 '+W.stun+'초':'');
+    +(W.stun?' · 기절 '+W.stun+'초':'')
+    +(W.gun?' · 탄창 '+magLeft+' / '+W.mag+(RELOAD.t>0?' (재장전 '+RELOAD.t.toFixed(1)+'초)':(magLeft?' [X]':' — 비었다 [X]')):'');
 }
 /* 휘두르는 결 — 창은 찌르고, 검·도끼는 베고, 해머는 내리친다 */
 function updateSpear(dt){
@@ -833,7 +950,7 @@ function init(){
   scene.add(new THREE.AmbientLight(0x5a6a78,0.55));
   const key=new THREE.DirectionalLight(0xffeedd,0.8); key.position.set(30,50,20); scene.add(key);
   const rim=new THREE.DirectionalLight(0x6fa8d8,0.4); rim.position.set(-25,18,-30); scene.add(rim);
-  makeGround(); makeRings(); makeSpear();
+  makeGround(); makeRings(); makeSpear(); initTracer();
 
   const sg=new THREE.CircleGeometry(1.44*SCL,22); sg.rotateX(-Math.PI/2);
   shadowM=new THREE.Mesh(sg,new THREE.MeshBasicMaterial({color:0x000000,
@@ -876,10 +993,12 @@ addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='Space') e.preventDefault();
   if(e.code==='KeyR') reset();
-  if(e.code>='Digit1'&&e.code<='Digit5'){          // 1~5 로 무기를 바꿔 든다
+  if(e.code>='Digit1'&&e.code<='Digit6'){          // 1~6 으로 무기를 바꿔 든다
     const i=+e.code.slice(5)-1;
-    if(i<WEAPONS.length){ WI=i; PL.atkCd=0; syncWeapon(); msg(WEAPONS[i].n); }
+    if(i<WEAPONS.length){ WI=i; PL.atkCd=0; RELOAD.t=0;
+      magLeft=WEAPONS[i].mag||0; syncWeapon(); msg(WEAPONS[i].n); }
   }
+  if(e.code==='KeyX') startReload();               // 재장전
   if(e.code==='Tab'){ e.preventDefault();
     const c=document.getElementById('cfg');
     c.style.display=c.style.display==='none'?'block':'none'; }
@@ -996,6 +1115,7 @@ function hud(dt){
   if(B.state==='attack') left=Math.max(0,P.atk-B.t).toFixed(2)+'초';
   else if(B.frz>0) left=B.frz.toFixed(2)+'초';
   document.getElementById('sT').textContent=left;
+  wepLine();
   document.getElementById('sHit').textContent=PL.hits;
   document.getElementById('sMiss').textContent=PL.miss;
   document.getElementById('sFps').textContent=fps;
@@ -1011,7 +1131,7 @@ function loop(){
   if(slow) dt*=0.25;
   if(!paused){
     tAcc+=dt;
-    updateB(dt); updatePL(dt); updateSpear(dt);
+    updateB(dt); updatePL(dt); updateSpear(dt); updateGun(dt);
   }
   // 자세 — 멈춰 있어도 그린다
   if(bMesh){

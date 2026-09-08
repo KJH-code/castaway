@@ -1810,7 +1810,17 @@ const ITEMS={
   sulfur:     {n:'유황',       kg:1.0,  c:0xd8c23a, use:'화약 재료 · 분기공에서만 난다'},
   nitric:     {n:'질산',       kg:3.4,  c:0xb8b060, use:'잿물과 섞어 초석으로'},
   saltpeter:  {n:'초석',       kg:0.8,  c:0xdedac8, use:'화약의 주재료 (질산칼륨)'},
-  gunpowder:  {n:'화약',       kg:0.9,  c:0x4a463e, use:'흑색화약 — 아직 쓸 곳이 없다'},
+  gunpowder:  {n:'화약',       kg:0.9,  c:0x4a463e, use:'흑색화약 — 탄약의 장약'},
+  cartridge:  {n:'소총탄',     kg:0.05, c:0xc08a3e,
+               use:'구리 탄피에 화약과 철 탄두 — 볼트 소총에 든다'},
+  /* 볼트 소총 — 화승총과 현대 소총 사이. 뒤로 열리는 약실에 탄피째 물리고,
+     노리쇠를 손으로 젖혀 한 발씩 밀어 넣는다. 자동은 없다.
+     사거리 50 m 는 활비비로 불을 켜던 섬에서는 다른 세계의 값이다. */
+  rifle_bolt: {n:'볼트 소총',  kg:4.6,  c:0x7a6a52,
+               use:'사거리 50 m · 5발 탄창 — 노리쇠를 젖혀 한 발씩',
+               tool:{weapon:1, gun:1, dmg:150, reach:50, rate:1.40, stam:3,
+                     swing:'shot', mag:5, reload:3.6, ammo:'cartridge'},
+               durMax:400},
   // 금속 가공 · 전기
   ring_platinum:{n:'백금 반지', kg:0.05, c:0xd8dce0,
                use:'표류 전부터 끼고 있던 것 — 백금은 촉매가 된다'},
@@ -1913,6 +1923,7 @@ function invAdd(id,n){
       const sl={id,n:1};
       if(T.burn!==undefined){ sl.fuel=T.burn; sl.lit=false; }   // 횃불
       else sl.dur=T.durMax;
+      if(T.tool.gun) sl.mag=0;                                  // 총은 빈 탄창으로 나온다
       INV.slots.push(sl);
     }
   }else{
@@ -2573,7 +2584,20 @@ const RECIPES=[
   {id:'gunpowder', tier:'화학', n:'화약 빻기', out:{id:'gunpowder',n:2},
    time:30, stam:22,
    note:'초석·유황·숯을 따로 곱게 빻은 뒤 함께 섞는다. 불티가 튀면 안 된다.',
-   in:[{id:'saltpeter',n:8},{id:'sulfur',n:2},{id:'charcoal',n:3}]}
+   in:[{id:'saltpeter',n:8},{id:'sulfur',n:2},{id:'charcoal',n:3}]},
+
+  {id:'cartridge', tier:'화학', n:'소총탄 만들기', out:{id:'cartridge',n:10},
+   time:34, stam:24, station:'anvil',
+   note:'구리를 인발판에 통과시켜 탄피를 뽑고, 장약을 재고 철 탄두를 물린다.',
+   in:[{id:'ingot_copper',n:1},{id:'gunpowder',n:2},{id:'iron_wrought',n:1}],
+   need:[{id:'drawplate',n:1},{id:'hammer_stone',n:1}]},
+
+  {id:'rifle_bolt', tier:'화학', n:'볼트 소총', out:{id:'rifle_bolt',n:1},
+   time:110, stam:80, station:'anvil',
+   note:'총열을 길게 뽑아 뒤를 열리게 깎고, 노리쇠와 탄창을 물린다. 섬에서 만들 수 있는 끝이다.',
+   in:[{id:'iron_wrought',n:6},{id:'charcoal',n:4},{id:'log',n:1},
+       {id:'ingot_copper',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1},{id:'drawplate',n:1}]}
 ];
 // 분류(tag) 조건은 그 분류에 속한 실제 아이템 이름으로 보여준다.
 // "망치돌 필요"라고만 쓰면 인벤토리의 '돌멩이'와 같은 물건인 줄 알 수가 없다.
@@ -3508,6 +3532,7 @@ function toolSpec(t,it){
     p.push('피해 '+t.dmg+' · 사거리 '+t.reach+' m · '+(1/t.rate).toFixed(2)+'회/초');
     p.push('초당 피해 '+Math.round(t.dmg/t.rate));
     if(t.stun) p.push('기절 '+t.stun+'초');
+    if(t.gun) p.push('탄창 '+t.mag+'발 · 재장전 '+t.reload+'초 · '+ITEMS[t.ammo].n);
   }
   if(t.speed&&t.speed!==1) p.push('작업 속도 ×'+t.speed);
   if(it.durMax) p.push('내구 '+it.durMax);
@@ -3650,7 +3675,7 @@ function closeCfg(){ cfgOpen=false; document.getElementById('cfg').style.display
    먼저 세워두고, 나중에 개체를 이 배열에 넣으면 그대로 동작한다.
    ========================================================================== */
 const CREATURES=[];
-const ATK={t:0, cd:0, swing:0, swingMax:0.30};
+const ATK={t:0, cd:0, swing:0, swingMax:0.30, flash:0};
 
 /* ============================================================================
    손에 든 무기
@@ -3724,6 +3749,41 @@ const WEAPON_FX={
     g.add(wbind(L-0.20,0.036));
     return {mesh:g, grip:0.30};
   },
+  rifle_bolt(){                              // 볼트 소총 — 나무 개머리 · 강철 총열
+    const g=new THREE.Group(), L=1.22;
+    const wood=WMAT(0x6b5442), steel=WMAT(0x6e747a), dark=WMAT(0x3a3d40);
+    // 개머리판에서 총열까지 하나로 이어지는 몸통
+    const stock=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.46,0.115),wood);
+    stock.position.y=0.20; g.add(stock);
+    const butt=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.13,0.165),wood);
+    butt.position.set(0,0.02,0.015); g.add(butt);
+    const fore=new THREE.Mesh(new THREE.BoxGeometry(0.062,0.52,0.085),wood);
+    fore.position.y=0.72; g.add(fore);
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(0.019,0.021,L-0.28,10),steel);
+    barrel.position.y=0.42+(L-0.28)/2; g.add(barrel);
+    const recv=new THREE.Mesh(new THREE.BoxGeometry(0.062,0.20,0.075),steel);
+    recv.position.y=0.50; g.add(recv);
+    // 노리쇠 — 오른쪽으로 젖혀 나온 손잡이
+    const bolt=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.13,6),steel);
+    bolt.rotation.z=Math.PI/2; bolt.position.set(0.052,0.47,0.02); g.add(bolt);
+    const knob=new THREE.Mesh(new THREE.SphereGeometry(0.021,8,6),steel);
+    knob.position.set(0.115,0.47,0.02); g.add(knob);
+    // 탄창 · 방아쇠울
+    const mag=new THREE.Mesh(new THREE.BoxGeometry(0.052,0.10,0.055),dark);
+    mag.position.set(0,0.395,-0.005); g.add(mag);
+    const guard=new THREE.Mesh(new THREE.TorusGeometry(0.032,0.007,6,10,Math.PI),dark);
+    guard.rotation.y=Math.PI/2; guard.position.set(0,0.34,-0.012); g.add(guard);
+    // 가늠쇠 · 총구
+    const sight=new THREE.Mesh(new THREE.BoxGeometry(0.010,0.030,0.010),dark);
+    sight.position.y=L-0.04; g.add(sight);
+    const muzzle=new THREE.Mesh(new THREE.CylinderGeometry(0.024,0.024,0.035,10),dark);
+    muzzle.position.y=L-0.015; g.add(muzzle);
+    // 총구 화염 — 쏠 때만 보인다
+    const fl=new THREE.Mesh(new THREE.ConeGeometry(0.075,0.26,5),
+      new THREE.MeshBasicMaterial({color:0xffd07a}));
+    fl.position.y=L+0.11; fl.visible=false; fl.name='flash'; g.add(fl);
+    return {mesh:g, grip:0.36, muzzle:L+0.02};
+  },
   hammer_iron(){                             // 철 해머 — 통짜 머리
     const g=new THREE.Group(), L=0.98;
     g.add(haft(L,0.030,0.034));
@@ -3745,10 +3805,12 @@ function setWeaponFx(id){
   weaponFxId=id;
   if(weaponFx){ camera.remove(weaponFx); weaponFx=null; }
   if(!id||!WEAPON_FX[id]) return;
-  const {mesh,grip}=WEAPON_FX[id]();
+  const {mesh,grip,muzzle}=WEAPON_FX[id]();
   mesh.position.y=-grip;
   weaponFx=new THREE.Group();
   weaponFx.add(mesh);
+  weaponFx.userData.muzzle=(muzzle||0)-grip;      // 총구까지의 국소 높이
+  weaponFx.userData.flash=mesh.getObjectByName('flash')||null;
   weaponFx.rotation.set(-Math.PI/2+0.20,0,0.12);
   weaponFx.position.copy(WEAPON_HOME);
   camera.add(weaponFx);
@@ -3765,6 +3827,11 @@ function swingPose(style,p){
   const o=WPOSE;
   o.rx=WRX; o.ry=0; o.rz=WRZ; o.px=0; o.py=0; o.pz=0;
   if(p<=0||p>=1) return o;
+  if(style==='shot'){                        // 반동 — 뒤로 차고 총구가 들렸다 내려온다
+    const k=p<0.22 ? p/0.22 : 1-(p-0.22)/0.78;
+    o.rx=WRX+0.30*k; o.pz=0.14*k; o.py=0.03*k;
+    return o;
+  }
   if(style==='thrust'){                      // 찌르기 — 손이 앞으로 나간다
     const k=Math.sin(p*Math.PI);
     o.pz=-0.55*k; o.px=-0.10*k; o.rx=WRX-0.10*k;
@@ -3801,10 +3868,98 @@ const equippedWeapon=()=>{
   const e=equippedTool();
   return (e && ITEMS[e.id].tool.weapon) ? e : null;
 };
+/* ─ 총 ────────────────────────────────────────────────────────────
+   근접과 달리 눈에서 뻗은 선으로 맞힌다. 사거리 50 m 안에서 그 선에 걸리는
+   개체 중 가장 가까운 것이 맞는다. 탄창이 비면 재장전해야 다시 쏜다. */
+const RELOAD={t:0, of:null};
+let tracer=null, tracerT=0;
+function initTracer(){
+  tracer=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1,5),
+    new THREE.MeshBasicMaterial({color:0xffe6a8,transparent:true,opacity:0}));
+  tracer.visible=false; scene.add(tracer);
+}
+function showTracer(a,b){
+  if(!tracer) return;
+  const d=new THREE.Vector3().subVectors(b,a), len=d.length();
+  tracer.position.copy(a).addScaledVector(d,0.5);
+  tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize());
+  tracer.scale.set(1,len,1);
+  tracer.visible=true; tracer.material.opacity=0.85; tracerT=0.09;
+}
+/* 눈에서 dir 로 뻗은 선에 걸리는 개체 — 가장 가까운 하나 */
+function rayCreature(o,dir,range){
+  let best=null, bt=range;
+  for(const c of CREATURES){
+    if(c.hp<=0) continue;
+    const r=(c.r||0.5)+0.35;
+    const ox=c.x-o.x, oy=(c.y||0)+1.0-o.y, oz=c.z-o.z;
+    const t=ox*dir.x+oy*dir.y+oz*dir.z;
+    if(t<0||t>bt) continue;
+    const px=ox-dir.x*t, py=oy-dir.y*t, pz=oz-dir.z*t;
+    if(px*px+py*py+pz*pz>r*r) continue;
+    bt=t; best=c;
+  }
+  return {c:best, t:bt};
+}
+const gunAmmo=()=>INV.slots.reduce((a,s)=>a+(s.id==='cartridge'?s.n:0),0);
+function startReload(w,W){
+  if(w.mag>=W.mag){ toast('탄창이 이미 찼다'); return false; }
+  if(gunAmmo()<=0){ toast(ITEMS[W.ammo].n+'이 없다'); return false; }
+  RELOAD.t=W.reload; RELOAD.of=w;
+  toast('재장전…');
+  return true;
+}
+function finishReload(){
+  const w=RELOAD.of; RELOAD.of=null; RELOAD.t=0;
+  if(!w||INV.slots.indexOf(w)<0) return;
+  const W=ITEMS[w.id].tool;
+  let need=W.mag-w.mag;
+  for(let i=INV.slots.length-1;i>=0&&need>0;i--){
+    const sl=INV.slots[i];
+    if(sl.id!==W.ammo) continue;
+    const take=Math.min(need,sl.n);
+    w.mag+=take; need-=take; invRemove(i,take);
+  }
+  toast('장전 '+w.mag+' / '+W.mag);
+  sfx('bind'); invDirty=true;
+}
+function updateReload(dt){
+  if(RELOAD.t<=0) return;
+  const w=RELOAD.of;
+  if(!w||INV.slots.indexOf(w)<0||EQUIP!==w){ RELOAD.t=0; RELOAD.of=null; return; }
+  RELOAD.t-=dt;
+  if(RELOAD.t<=0) finishReload();
+}
+function shoot(w,W){
+  if(RELOAD.t>0) return;
+  if(!w.mag){                                  // 빈 탄창 — 알아서 재장전에 들어간다
+    if(!startReload(w,W)) toast('철컥 — 비었다');
+    return;
+  }
+  ATK.cd=W.rate; ATK.swing=0.28; ATK.swingMax=0.28;
+  PL.stam=clamp(PL.stam-(W.stam||3),0,100);
+  w.mag--; w.dur-=1;
+  const o=new THREE.Vector3(), d=new THREE.Vector3();
+  camera.getWorldPosition(o); camera.getWorldDirection(d);
+  const hit=rayCreature(o,d,W.reach);
+  showTracer(o.clone().addScaledVector(d,0.6), o.clone().addScaledVector(d,hit.t));
+  if(weaponFx&&weaponFx.userData.flash){
+    weaponFx.userData.flash.visible=true; ATK.flash=0.05;
+  }
+  sfx('thrust');
+  if(hit.c){
+    hit.c.hp-=W.dmg;
+    toast(hit.c.hp<=0?'쓰러뜨렸다':'명중 '+Math.round(hit.t)+' m');
+  }else toast('빗나갔다');
+  if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
+  invDirty=true;
+}
+
 function attack(){
   const w=equippedWeapon();
   const W=w&&ITEMS[w.id].tool;
   if(!w || ATK.cd>0 || PL.stam<(W.stam||9)) return;
+  if(W.gun){ shoot(w,W); return; }
   ATK.cd=W.rate;
   ATK.swing=Math.min(0.30,W.rate*0.55);      // 빠른 무기는 모션도 짧아야 겹치지 않는다
   ATK.swingMax=ATK.swing;
@@ -3837,6 +3992,17 @@ function attack(){
 /* 휘두르는 결 — 창은 찌르고, 검·도끼는 베고, 해머는 내리친다 */
 function updateWeapon(dt){
   if(ATK.cd>0) ATK.cd=Math.max(0,ATK.cd-dt);
+  updateReload(dt);
+  if(ATK.flash>0){
+    ATK.flash-=dt;
+    if(ATK.flash<=0 && weaponFx && weaponFx.userData.flash)
+      weaponFx.userData.flash.visible=false;
+  }
+  if(tracerT>0){
+    tracerT-=dt;
+    tracer.material.opacity=Math.max(0,tracerT/0.09)*0.85;
+    if(tracerT<=0) tracer.visible=false;
+  }
   // 맞은 개체의 기절도 여기서 푼다
   for(const c of CREATURES) if(c.stun>0) c.stun=Math.max(0,c.stun-dt);
   const w=equippedWeapon();
@@ -3847,6 +4013,11 @@ function updateWeapon(dt){
   const p=ATK.swing>0 ? 1-ATK.swing/dur : 0;
   if(ATK.swing>0) ATK.swing=Math.max(0,ATK.swing-dt);
   const H=WEAPON_HOME, o=swingPose(W.swing,p);
+  if(RELOAD.t>0){                              // 재장전 — 총을 내리고 노리쇠를 젖힌다
+    const R=W.reload||1;
+    const k=Math.sin(clamp(1-RELOAD.t/R,0,1)*Math.PI);
+    o.rx+=0.55*k; o.py-=0.20*k; o.rz+=0.35*k;
+  }
   weaponFx.position.set(H.x+o.px, H.y+o.py, H.z+o.pz);
   weaponFx.rotation.set(o.rx,o.ry,o.rz);
 }
@@ -4397,6 +4568,13 @@ function updateHUD(dt){
       const bar=document.getElementById('toolD');
       bar.style.width=(e.fuel/T.burn*100)+'%';
       bar.style.background=e.lit?'#e08a3a':'#5d7a71';
+    }else if(T.tool&&T.tool.gun){               // 총 — 내구 대신 탄창을 보여 준다
+      document.getElementById('toolN').textContent=T.n+'  '+(e.mag|0)+' / '+T.tool.mag
+        +(RELOAD.t>0?'  (재장전 '+RELOAD.t.toFixed(1)+'초)':'  [X] 재장전')
+        +'  · 남은 탄 '+gunAmmo();
+      const bar=document.getElementById('toolD');
+      bar.style.width=((e.mag|0)/T.tool.mag*100)+'%';
+      bar.style.background=RELOAD.t>0?'#8fb8d8':(e.mag?'#d8724a':'#5d5a52');
     }else{
       document.getElementById('toolN').textContent=T.n;
       const bar=document.getElementById('toolD');
@@ -4438,7 +4616,7 @@ function initThree(){
   amb=new THREE.AmbientLight(0x8fa4b4,0.5); scene.add(amb);
   hemi=new THREE.HemisphereLight(0x9db4c6,0x2c3128,0.35); scene.add(hemi);
   sun=new THREE.DirectionalLight(0xc9c6b4,0.9); scene.add(sun);
-  initTorchFx(); initWeaponFx();
+  initTorchFx(); initWeaponFx(); initTracer();
   flash=new THREE.SpotLight(0xfff0d6,0,55,0.55,0.5,1.4);
   flash.position.set(0.2,-0.1,0); flash.target.position.set(0,0,-1);
   camera.add(flash); camera.add(flash.target); scene.add(camera);
@@ -4520,11 +4698,12 @@ function placeProps_(seed){ buildProps(); placePod(seed); }
    ========================================================================== */
 const SAVE_VER=1;
 /* 용기 속 슬롯은 소지품과 같은 모양으로 저장한다 */
-const saveSlots=a=>a.map(sl=>({id:sl.id,n:sl.n,dur:sl.dur,fuel:sl.fuel,lit:sl.lit}));
+const saveSlots=a=>a.map(sl=>({id:sl.id,n:sl.n,dur:sl.dur,fuel:sl.fuel,lit:sl.lit,mag:sl.mag}));
 const loadSlots=a=>(a||[]).filter(sl=>ITEMS[sl.id]).map(sl=>{
   const o={id:sl.id,n:sl.n};
   if(sl.dur!==undefined) o.dur=sl.dur;
   if(sl.fuel!==undefined){ o.fuel=sl.fuel; o.lit=!!sl.lit; }
+  if(sl.mag!==undefined) o.mag=sl.mag;
   return o;
 });
 
@@ -4547,7 +4726,7 @@ function snapshot(){
     t:{hour:hourOfDay, gh:gameHours, ts:timeScale},
     pl:{x:PL.pos.x,y:PL.pos.y,z:PL.pos.z,yaw:PL.yaw,pitch:PL.pitch,
         stam:PL.stam,oxy:PL.oxy,light:PL.light},
-    inv:INV.slots.map(sl=>({id:sl.id,n:sl.n,dur:sl.dur,fuel:sl.fuel,lit:sl.lit})),
+    inv:saveSlots(INV.slots),
     sel:INV.sel, eq:EQUIP?INV.slots.indexOf(EQUIP):-1,
     wear:{body:WEAR.body?INV.slots.indexOf(WEAR.body):-1,
           armor:WEAR.armor?INV.slots.indexOf(WEAR.armor):-1,
@@ -4607,12 +4786,7 @@ async function restore(d){
   buildColliderGrid();
 
   INV.slots.length=0;
-  for(const sl of d.inv||[]){
-    const o={id:sl.id,n:sl.n};
-    if(sl.dur!==undefined) o.dur=sl.dur;
-    if(sl.fuel!==undefined){ o.fuel=sl.fuel; o.lit=!!sl.lit; }
-    INV.slots.push(o);
-  }
+  for(const sl of loadSlots(d.inv)) INV.slots.push(sl);
   INV.sel=d.sel|0;
   EQUIP=(d.eq>=0&&INV.slots[d.eq])?INV.slots[d.eq]:null;
   for(const k in WEAR){
@@ -4731,6 +4905,10 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyV'){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
   if(e.code==='KeyT'){ timeScale = timeScale===1?60:(timeScale===60?300:1); }
   if(e.code==='KeyR'){ generateWorld(); }
+  if(e.code==='KeyX'){                         // 재장전
+    const w=equippedWeapon(), W=w&&ITEMS[w.id].tool;
+    if(w&&W.gun&&RELOAD.t<=0) startReload(w,W);
+  }
   if(e.code==='Tab'){
     e.preventDefault();
     cfgOpen=!cfgOpen;
