@@ -15,13 +15,15 @@
 | **CASTAWAY_전사_2차.md** | 2차 작업 기록 — 돌창 · 용기화 · 파워레벨 |
 | README.md | 저장소 첫 화면 |
 | gargoyle_arena.html | 곤충형 가고일 전투 시험장 (모델 내장) |
+| bear_high.glb | 북극곰 고해상 LOD — 39,998 삼각형 · 정점색(혈흔) · 1.2 MB |
+| stormscale_wyrm.glb | 폭풍비늘 와이엄 — 62,706 삼각형 · PBR 텍스처 3장 · 8.9 MB (미배치) |
 
-아래는 아직 저장소에 올리지 않은 것들입니다(모델·이미지 원본):
+아래는 아직 저장소에 올리지 않은 것들입니다:
 
 | 파일 | 내용 |
 |------|------|
 | gargoyle.glb | 가고일 최종 모델 (5만 삼각형) — `gargoyle_arena.html` 에 내장되어 있음 |
-| bear_mid/high/low.glb | 북극곰 몹 모델 (3단계 LOD) |
+| bear_mid/low.glb | 북극곰 중 · 저해상 LOD |
 | *_views.png, uv_compare.png | 모델 검토 이미지 |
 
 ---
