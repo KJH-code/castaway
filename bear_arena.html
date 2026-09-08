@@ -103,9 +103,9 @@
   <div class="grp">북극곰 — 내려찍기</div>
   <div class="row2"><label>추격 배율</label><input type="range" id="pMul" min="0.6" max="2" step="0.05" value="1.3"><span class="val" id="vMul"></span></div>
   <div class="row2"><label>공격 모션</label><input type="range" id="pAtk" min="0.3" max="2.5" step="0.05" value="1"><span class="val" id="vAtk"></span></div>
-  <div class="row2"><label>경직 시간</label><input type="range" id="pStun" min="0" max="5" step="0.1" value="1"><span class="val" id="vStun"></span></div>
+  <div class="row2"><label>경직 시간</label><input type="range" id="pStun" min="0" max="5" step="0.05" value="1.15"><span class="val" id="vStun"></span></div>
   <div class="row2"><label>인식 반경</label><input type="range" id="pSee" min="10" max="60" step="1" value="34"><span class="val" id="vSee"></span></div>
-  <div class="row2"><label>내려찍기 거리</label><input type="range" id="pReach" min="1.5" max="7" step="0.1" value="3.4"><span class="val" id="vReach"></span></div>
+  <div class="row2"><label>내려찍기 거리</label><input type="range" id="pReach" min="1.5" max="7" step="0.1" value="3.7"><span class="val" id="vReach"></span></div>
   <div class="row2"><label>내려찍기 피해</label><input type="range" id="pDmg" min="5" max="90" step="1" value="40"><span class="val" id="vDmg"></span></div>
   <div class="row2"><label>전진 거리</label><input type="range" id="pLunge" min="0" max="3" step="0.1" value="1.2"><span class="val" id="vLunge"></span></div>
   <div class="row2"><label>휘두를 때 선회</label><input type="range" id="pTurn" min="0" max="12" step="0.1" value="6"><span class="val" id="vTurn"></span></div>
@@ -127,7 +127,7 @@
     곰은 배회하다 여러분을 보면 <b>달리기보다 빠르게</b> 쫓아옵니다 — 도망쳐서 벗어날 수는 없습니다.
     사거리에 닿으면 뒷발로 서서 앞발을 치켜들고(모션 1초) 내려찍습니다.
     곰은 휘두르는 내내 여러분 쪽으로 몸을 돌리므로 <b>옆으로 도는 것만으로는 흘릴 수 없습니다</b> —
-    사거리(3.4 m) 밖으로 빠져야 합니다. 찍고 난 뒤 곰이 굳는 1초가 때릴 기회입니다.</div>
+    사거리(3.7 m) 밖으로 빠져야 합니다. 찍고 난 뒤 곰이 굳는 1.15초가 때릴 기회입니다.</div>
   <div class="k">
     <div><span>WASD</span>이동 · Shift 달리기</div>
     <div><span>Space</span>점프</div>
@@ -202,7 +202,7 @@ function b64ToBuf(b64){
    모델은 높이 3.00 · 폭 3.56 · 앞뒤 3.19 이고 +Z 쪽이 얼굴이다. 바닥은 y=0.
    아래 좌표(발끝·손끝·골반·가슴)는 정점 분포에서 뽑은 실측값이다.
    ========================================================================== */
-const MODEL_H=3.003, BEAR_H=2.6;              // 실제 크기 2.6 m 로 세운다
+const MODEL_H=3.003, BEAR_H=2.6*1.2;          // 실제 크기 3.12 m (2.6 m 의 1.2배)
 const SCL=BEAR_H/MODEL_H;
 const J_TORSO=0, J_HEAD=1, J_ARM_L=2, J_ARM_R=3, J_LEG_L=4, J_LEG_R=5;
 const JOINT=[
@@ -295,7 +295,7 @@ function h(x,z){
 }
 
 /* ---- 설정값 ---- */
-const P={mul:1.3, atk:1.0, stun:1.0, see:34, reach:3.4, dmg:40,
+const P={mul:1.3, atk:1.0, stun:1.15, see:34, reach:3.7, dmg:40,
          lunge:1.2, wander:1.5, pstun:0.0, turn:6.0};
 
 /* 내려찍기 모션 배분 — 합이 1 이 되게 비율로 둔다 (모션 길이를 바꿔도 모양이 유지된다) */
@@ -315,7 +315,9 @@ const B={pos:new THREE.Vector3(0,0,-18), yaw:0, hp:220, hpMax:220,
          state:'wander', t:0, target:new THREE.Vector3(), dir:new THREE.Vector3(0,0,1),
          speed:0, walkPh:0, hitDone:false, alive:true, flash:0, aimYaw:0};
 const SNAME={wander:'배회',chase:'추격',attack:'내려찍기',stun:'경직',dead:'쓰러짐'};
-const BODY_R=1.35;                    // 곰 몸통 + 사람 몸 반지름 — 이보다 붙지 않는다
+/* 곰 몸통 반지름(모델 좌표 1.07)은 덩치를 따라 커지고, 사람 반지름 0.42 는 그대로다.
+   이보다 가까이 붙지 않는다 — 붙으면 몸이 서로 뚫고 들어간다. */
+const BODY_R=1.07*SCL+0.42;
 
 let renderer,scene,camera,bMesh,bMat,ground,ringSee,ringHit,shadowM,shock,shockT=-1;
 let paused=true, slow=false, showRange=true, doLimb=true, showRig=false;
@@ -678,7 +680,7 @@ function init(){
   const rim=new THREE.DirectionalLight(0x6fa8d8,0.4); rim.position.set(-25,18,-30); scene.add(rim);
   makeGround(); makeRings(); makeSpear();
 
-  const sg=new THREE.CircleGeometry(1.25,22); sg.rotateX(-Math.PI/2);
+  const sg=new THREE.CircleGeometry(1.44*SCL,22); sg.rotateX(-Math.PI/2);
   shadowM=new THREE.Mesh(sg,new THREE.MeshBasicMaterial({color:0x000000,
     transparent:true,opacity:0.34,depthWrite:false}));
   scene.add(shadowM);
@@ -787,7 +789,7 @@ function rng(id,vid,key,fmt,after){
 }
 rng('pMul','vMul','mul',v=>'×'+v.toFixed(2));
 rng('pAtk','vAtk','atk',v=>v.toFixed(2)+'초');
-rng('pStun','vStun','stun',v=>v.toFixed(1)+'초');
+rng('pStun','vStun','stun',v=>v.toFixed(2)+'초');
 rng('pSee','vSee','see',v=>v+' m',()=>updateRings());
 rng('pReach','vReach','reach',v=>v.toFixed(1)+' m',()=>updateRings());
 rng('pDmg','vDmg','dmg',v=>String(v));
