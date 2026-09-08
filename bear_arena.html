@@ -324,6 +324,7 @@ const WEAPONS=[
 ];
 const RELOAD={t:0};                         // 재장전 남은 시간
 let magLeft=5;                              // 탄창에 남은 발수 (아레나는 예비탄 무한)
+const MAG_FULL=5;
 let tracer=null, tracerT=0, flashT=0;
 let WI=0;                                   // 지금 든 무기
 const SPEAR=WEAPONS[0];                     // 옛 이름 — 아래에서 cone 만 따로 쓴다
@@ -998,8 +999,10 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyR') reset();
   if(e.code>='Digit1'&&e.code<='Digit6'){          // 1~6 으로 무기를 바꿔 든다
     const i=+e.code.slice(5)-1;
-    if(i<WEAPONS.length){ WI=i; PL.atkCd=0; RELOAD.t=0;
-      magLeft=WEAPONS[i].mag||0; syncWeapon(); msg(WEAPONS[i].n); }
+    /* 바꿔 들어도 쿨타임은 그대로 남는다 — 초기화하면 도끼로 한 대 치고 검으로
+       갈아 들어 쿨타임을 건너뛸 수 있다. 탄창도 그대로 둔다(갈아 들어 재장전을
+       건너뛰지 못하게). 다만 하던 재장전은 끊긴다. */
+    if(i<WEAPONS.length && i!==WI){ WI=i; RELOAD.t=0; syncWeapon(); msg(WEAPONS[i].n); }
   }
   if(e.code==='KeyX') startReload();               // 재장전
   if(e.code==='Tab'){ e.preventDefault();
@@ -1022,7 +1025,7 @@ function reset(){
   PL.hp=100; PL.stam=100; PL.hits=0; PL.miss=0; PL.stun=0;
   PL.pos.set(0,h(0,16),16); PL.vel.set(0,0,0); PL.yaw=Math.PI;
   B.hp=B.hpMax; B.alive=true; B.pos.set(0,0,-18); B.yaw=0; B.frz=0; B.alerted=false;
-  WI=0; magLeft=0; syncWeapon();
+  WI=0; magLeft=MAG_FULL; RELOAD.t=0; syncWeapon();
   setState('wander'); newWanderTarget();
   msg('되살렸다');
 }
