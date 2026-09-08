@@ -319,8 +319,8 @@ const WEAPONS=[
   {id:'spear_iron', n:'철 창',       dmg:40, reach:2.6, rate:1.00, stam: 8, swing:'thrust'},
   {id:'axe_war',    n:'철 전투도끼',  dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
   {id:'hammer_iron',n:'철 해머',     dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash', stun:0.2},
-  {id:'rifle_bolt', n:'볼트 소총',    dmg:150,reach: 50, rate:1.40, stam: 3, swing:'shot',
-   gun:1, mag:5, reload:3.6}
+  {id:'rifle_bolt', n:'볼트 소총',    dmg:150,reach: 50, rate:2.40, stam: 3, swing:'shot',
+   gun:1, mag:5, reload:6.5}
 ];
 const RELOAD={t:0};                         // 재장전 남은 시간
 let magLeft=5;                              // 탄창에 남은 발수 (아레나는 예비탄 무한)
@@ -331,7 +331,7 @@ const CONE=0.77;
 const mitigate=d=>Math.max(1,d*(1-clamp(ARMOR/24,0,0.72)));
 
 /* ---- 북극곰 ---- */
-const B={pos:new THREE.Vector3(0,0,-18), yaw:0, hp:220, hpMax:220, frz:0,
+const B={pos:new THREE.Vector3(0,0,-18), yaw:0, hp:220, hpMax:220, frz:0, alerted:false,
          state:'wander', t:0, target:new THREE.Vector3(), dir:new THREE.Vector3(0,0,1),
          speed:0, walkPh:0, hitDone:false, alive:true, flash:0, aimYaw:0};
 const SNAME={wander:'배회',chase:'추격',attack:'내려찍기',stun:'경직',dead:'쓰러짐'};
@@ -513,9 +513,9 @@ function updateB(dt){
     const tx=B.target.x-B.pos.x, tz=B.target.z-B.pos.z, td=Math.hypot(tx,tz);
     if(td<2) newWanderTarget();
     else { B.dir.set(tx/td,0,tz/td); B.speed=P.wander; }
-    if(dist<P.see) setState('chase');
+    if(dist<P.see||B.alerted) setState('chase');   // 총에 맞았으면 거리와 무관하게 쫓는다
   }else if(B.state==='chase'){
-    if(dist>P.see*1.35){ setState('wander'); newWanderTarget(); }
+    if(dist>P.see*1.35&&!B.alerted){ setState('wander'); newWanderTarget(); }
     else{
       B.dir.set(dx/(dist||1),0,dz/(dist||1));
       B.speed=chaseSpeed();
@@ -664,6 +664,9 @@ function shoot(){
   if(weaponFx&&weaponFx.userData.flash){ weaponFx.userData.flash.visible=true; flashT=0.05; }
   if(t>0){
     B.hp-=W.dmg; B.flash=1; PL.hits2=(PL.hits2||0)+1;
+    /* 총에 맞으면 인식 반경 밖이라도 쏜 쪽을 알아챈다 — 한 번 알아채면 잊지 않는다 */
+    B.alerted=true;
+    if(B.state==='wander') setState('chase');
     if(B.hp<=0){ B.hp=0; B.alive=false; setState('dead');
       msg('쓰러뜨렸다'); }
     else msg('명중 '+Math.round(t)+' m −'+W.dmg);
@@ -1018,7 +1021,8 @@ addEventListener('mousemove',e=>{
 function reset(){
   PL.hp=100; PL.stam=100; PL.hits=0; PL.miss=0; PL.stun=0;
   PL.pos.set(0,h(0,16),16); PL.vel.set(0,0,0); PL.yaw=Math.PI;
-  B.hp=B.hpMax; B.alive=true; B.pos.set(0,0,-18); B.yaw=0; B.frz=0; WI=0; syncWeapon();
+  B.hp=B.hpMax; B.alive=true; B.pos.set(0,0,-18); B.yaw=0; B.frz=0; B.alerted=false;
+  WI=0; magLeft=0; syncWeapon();
   setState('wander'); newWanderTarget();
   msg('되살렸다');
 }

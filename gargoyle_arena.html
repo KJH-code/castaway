@@ -210,8 +210,8 @@ const WEAPONS=[
   {id:'spear_iron', n:'철 창',       dmg:40, reach:2.6, rate:1.00, stam: 8, swing:'thrust'},
   {id:'axe_war',    n:'철 전투도끼',  dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
   {id:'hammer_iron',n:'철 해머',     dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash', stun:0.2},
-  {id:'rifle_bolt', n:'볼트 소총',    dmg:150,reach: 50, rate:1.40, stam: 3, swing:'shot',
-   gun:1, mag:5, reload:3.6}
+  {id:'rifle_bolt', n:'볼트 소총',    dmg:150,reach: 50, rate:2.40, stam: 3, swing:'shot',
+   gun:1, mag:5, reload:6.5}
 ];
 const RELOAD={t:0};                         // 재장전 남은 시간
 let magLeft=5;                              // 탄창에 남은 발수 (아레나는 예비탄 무한)
@@ -221,7 +221,7 @@ const CONE=0.77;
 const mitigate=d=>Math.max(1,d*(1-clamp(ARMOR/24,0,0.72)));
 
 /* ---- 가고일 ---- */
-const G={pos:new THREE.Vector3(0,0,-16), yaw:0, hp:120, hpMax:120, frz:0,
+const G={pos:new THREE.Vector3(0,0,-16), yaw:0, hp:120, hpMax:120, frz:0, alerted:false,
          state:'wander', t:0, target:new THREE.Vector3(), dir:new THREE.Vector3(0,0,1),
          dashLeft:0, speed:0, wing:0, wingPh:0, hitDone:false, alive:true};
 const SNAME={wander:'배회',chase:'추격',prep:'준비',dash:'돌진',stun:'경직',dead:'쓰러짐'};
@@ -314,7 +314,7 @@ function updateG(dt){
   let move=new THREE.Vector3(), spd=0;
 
   if(G.state==='wander'){
-    if(dist<P.see){ setState('chase'); }
+    if(dist<P.see||G.alerted){ setState('chase'); }  // 총에 맞았으면 거리와 무관하게
     else{
       const d=new THREE.Vector3().subVectors(G.target,G.pos); d.y=0;
       if(d.length()<2.5){ newWanderTarget(); }
@@ -322,7 +322,7 @@ function updateG(dt){
     }
   }
   else if(G.state==='chase'){
-    if(dist>P.see*1.35){ setState('wander'); newWanderTarget(); }
+    if(dist>P.see*1.35&&!G.alerted){ setState('wander'); newWanderTarget(); }
     else if(dist<P.trig){ setState('prep'); }
     else { move=toP.clone().normalize(); spd=RUN*P.chase; }
   }
@@ -446,6 +446,9 @@ function shoot(){
   if(weaponFx&&weaponFx.userData.flash){ weaponFx.userData.flash.visible=true; flashT=0.05; }
   if(t>0){
     G.hp-=W.dmg; G.flash=1; PL.hits2=(PL.hits2||0)+1;
+    /* 총에 맞으면 인식 반경 밖이라도 쏜 쪽을 알아챈다 — 한 번 알아채면 잊지 않는다 */
+    G.alerted=true;
+    if(G.state==='wander') setState('chase');
     if(G.hp<=0){ G.hp=0; G.alive=false; setState('dead');
       msg('쓰러뜨렸다'); }
     else msg('명중 '+Math.round(t)+' m −'+W.dmg);
@@ -787,7 +790,8 @@ document.addEventListener('pointerlockchange',()=>{
 function reset(){
   PL.hp=100; PL.stam=100; PL.hits=0;
   PL.pos.set(0,h(0,14),14); PL.vel.set(0,0,0); PL.yaw=Math.PI;
-  G.hp=G.hpMax; G.alive=true; G.frz=0; G.pos.set(0,0,-16);
+  G.hp=G.hpMax; G.alive=true; G.frz=0; G.alerted=false; G.pos.set(0,0,-16);
+  magLeft=0;
   WI=0; syncWeapon(); setState('wander'); newWanderTarget();
   msg('되살렸다');
 }

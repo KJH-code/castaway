@@ -1818,8 +1818,8 @@ const ITEMS={
      사거리 50 m 는 활비비로 불을 켜던 섬에서는 다른 세계의 값이다. */
   rifle_bolt: {n:'볼트 소총',  kg:4.6,  c:0x7a6a52,
                use:'사거리 50 m · 5발 탄창 — 노리쇠를 젖혀 한 발씩',
-               tool:{weapon:1, gun:1, dmg:150, reach:50, rate:1.40, stam:3,
-                     swing:'shot', mag:5, reload:3.6, ammo:'cartridge'},
+               tool:{weapon:1, gun:1, dmg:150, reach:50, rate:2.40, stam:3,
+                     swing:'shot', mag:5, reload:6.5, ammo:'cartridge'},
                durMax:400},
   // 금속 가공 · 전기
   ring_platinum:{n:'백금 반지', kg:0.05, c:0xd8dce0,
@@ -3949,6 +3949,9 @@ function shoot(w,W){
   sfx('thrust');
   if(hit.c){
     hit.c.hp-=W.dmg;
+    /* 총에 맞은 개체는 인식 반경 밖이라도 쏜 쪽을 알아챈다.
+       개체 AI 는 c.alerted 가 서면 거리와 무관하게 사람을 쫓으면 된다. */
+    hit.c.alerted=true;
     toast(hit.c.hp<=0?'쓰러뜨렸다':'명중 '+Math.round(hit.t)+' m');
   }else toast('빗나갔다');
   if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
