@@ -1842,8 +1842,32 @@ const ITEMS={
                use:'경도 2까지 채굴 — 가장 빠르고 오래간다',
                tool:{pick:2,speed:1.9,wear:1}, durMax:260},
   spear:      {n:'돌창',       kg:1.6,  c:0x7a6a4a,
-               use:'찌르기 — 사거리 2.4 m · 아직 겨눌 것이 없다',
-               tool:{weapon:1, dmg:22, reach:2.4, rate:0.9}, durMax:60},
+               use:'찌르기 — 길지만 무르다',
+               tool:{weapon:1, dmg:22, reach:2.4, rate:0.9, stam:9, swing:'thrust'},
+               durMax:60},
+
+  /* 철기 무기 — 넷이 서로 다른 값을 판다.
+     검은 빠르게 여러 번, 창은 멀리서, 도끼는 한 번에 크게, 해머는 상대를 멈춰 세운다.
+     경직 1.15초짜리 틈에 넣을 수 있는 피해로 재보면
+       검 90 · 창 80 · 도끼 80 · 해머 55(+기절) 로 엇비슷하고,
+     길게 끌었을 때의 초당 피해는 검 60 · 도끼 50 · 창 40 · 해머 32 순이다. */
+  sword_iron: {n:'철 검',      kg:1.9,  c:0xb9bcc0,
+               use:'베기 — 가장 빠르다. 짧은 틈에 여러 번 넣는다',
+               tool:{weapon:1, dmg:30, reach:2.2, rate:0.50, stam:5, swing:'slash'},
+               durMax:700},
+  spear_iron: {n:'철 창',      kg:2.4,  c:0xa8adb2,
+               use:'찌르기 — 사거리 3.4 m. 닿지 않는 데서 먼저 닿는다',
+               tool:{weapon:1, dmg:40, reach:3.4, rate:1.00, stam:8, swing:'thrust'},
+               durMax:650},
+  axe_war:    {n:'철 전투도끼', kg:3.0,  c:0x9aa0a6,
+               use:'내리찍기 — 한 방이 가장 크다. 대신 느리다',
+               tool:{weapon:1, dmg:80, reach:2.3, rate:1.60, stam:15, swing:'slash'},
+               durMax:800},
+  hammer_iron:{n:'철 해머',    kg:4.2,  c:0x8f959b,
+               use:'후려치기 — 맞은 것은 0.2초 동안 못 움직인다',
+               tool:{weapon:1, dmg:55, reach:2.5, rate:1.70, stam:17, swing:'smash',
+                     stun:0.2},
+               durMax:950},
   torch:      {n:'횃불',       kg:0.8,  c:0xc07a30, use:'휴대 조명 · 화덕 점화 · 약한 화입',
                tool:{torch:1}, burn:3.0},   // burn = 게임시간(h)
 
@@ -2446,6 +2470,30 @@ const RECIPES=[
    time:36, stam:38, station:'anvil',
    note:'양 끝을 뾰족하게 뽑는다. 화강암도 불 없이 직접 쪼갤 수 있다.',
    in:[{id:'iron_wrought',n:2},{id:'charcoal',n:2},{id:'log',n:1}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'spear_iron', tier:'철기', n:'철 창', out:{id:'spear_iron',n:1},
+   time:26, stam:28, station:'anvil',
+   note:'긴 자루에 물릴 소켓까지 한 몸으로 뽑는다. 멀찍이서 먼저 닿는다.',
+   in:[{id:'iron_wrought',n:1},{id:'charcoal',n:1},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'sword_iron', tier:'철기', n:'철 검', out:{id:'sword_iron',n:1},
+   time:44, stam:42, station:'anvil',
+   note:'얇고 길게 늘여 양날을 세우고 슴베에 자루를 끼운다. 가벼워 빨리 휘둘린다.',
+   in:[{id:'iron_wrought',n:3},{id:'charcoal',n:3},{id:'cord',n:3}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'axe_war', tier:'철기', n:'철 전투도끼', out:{id:'axe_war',n:1},
+   time:38, stam:40, station:'anvil',
+   note:'날을 넓게 펴 무게를 날 끝에 몰아준다. 나무를 베기엔 얇다.',
+   in:[{id:'iron_wrought',n:3},{id:'charcoal',n:2},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'hammer_iron', tier:'철기', n:'철 해머', out:{id:'hammer_iron',n:1},
+   time:46, stam:46, station:'anvil',
+   note:'덩이째 남긴 머리를 자루에 박는다. 갑옷째 짓눌러 잠시 멈춰 세운다.',
+   in:[{id:'iron_wrought',n:4},{id:'charcoal',n:2},{id:'log',n:1},{id:'cord',n:3}],
    need:[{id:'hammer_stone',n:1}]},
 
   {id:'scale_iron', tier:'철기', n:'철 비늘 갑옷', out:{id:'scale_iron',n:1},
@@ -3455,7 +3503,11 @@ function toolSpec(t,it){
   if(t.pick) p.push('채굴 경도 '+t.pick+'까지');
   if(t.fire) p.push('마찰 발화');
   if(t.torch) p.push('휴대 조명');
-  if(t.weapon) p.push('피해 '+t.dmg+' · 사거리 '+t.reach+' m');
+  if(t.weapon){
+    p.push('피해 '+t.dmg+' · 사거리 '+t.reach+' m · '+(1/t.rate).toFixed(2)+'회/초');
+    p.push('초당 피해 '+Math.round(t.dmg/t.rate));
+    if(t.stun) p.push('기절 '+t.stun+'초');
+  }
   if(t.speed&&t.speed!==1) p.push('작업 속도 ×'+t.speed);
   if(it.durMax) p.push('내구 '+it.durMax);
   if(it.burn) p.push('연소 '+it.burn+'시간');
@@ -3597,42 +3649,120 @@ function closeCfg(){ cfgOpen=false; document.getElementById('cfg').style.display
    먼저 세워두고, 나중에 개체를 이 배열에 넣으면 그대로 동작한다.
    ========================================================================== */
 const CREATURES=[];
-const ATK={t:0, cd:0, swing:0};
-let spearFx=null;
-const SPEAR_HOME=new THREE.Vector3(0.32,-0.30,-0.60);   // 손에 쥔 기본 위치
-function initWeaponFx(){
-  /* 창을 국소 +Y 축에 똑바로 세워 만들고, 다 만든 뒤 통째로 눕힌다.
-     부품마다 각도를 따로 주면 자루와 날이 어긋난다 — 이전 판이 그랬다. */
-  const L=1.55;                                   // 자루 길이
-  const body=new THREE.Group();
-  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.021,0.027,L,6),
-    new THREE.MeshLambertMaterial({color:0x6b5a3c}));
-  shaft.position.y=L/2;                           // 자루 밑동이 원점에 오게
-  const tip=new THREE.Mesh(new THREE.ConeGeometry(0.052,0.24,4),
-    new THREE.MeshLambertMaterial({color:0x59636b}));
-  tip.position.y=L+0.10; tip.rotation.y=Math.PI/4; // 뗀석기 날 — 넓은 면이 보이도록
-  const bind=new THREE.Mesh(new THREE.CylinderGeometry(0.034,0.034,0.10,6),
-    new THREE.MeshLambertMaterial({color:0xa89a68}));
-  bind.position.y=L-0.04;                         // 날을 묶은 노끈
-  body.add(shaft); body.add(tip); body.add(bind);
-  body.position.y=-0.42;                          // 자루 아래쪽 1/4 지점을 쥔다
+const ATK={t:0, cd:0, swing:0, swingMax:0.30};
 
-  spearFx=new THREE.Group();
-  spearFx.add(body);
-  spearFx.rotation.set(-Math.PI/2+0.20, 0, 0.12); // 앞으로 눕히고 화면 중앙으로 살짝 겨눔
-  spearFx.position.copy(SPEAR_HOME);
-  spearFx.visible=false; camera.add(spearFx);
+/* ============================================================================
+   손에 든 무기
+   ----------------------------------------------------------------------------
+   무기마다 모양과 휘두르는 결이 다르다. 부품은 전부 국소 +Y 축에 세워 만들고
+   다 만든 뒤 통째로 눕힌다 — 부품마다 각도를 따로 주면 자루와 날이 어긋난다.
+   ========================================================================== */
+let weaponFx=null, weaponFxId=null;
+const WEAPON_HOME=new THREE.Vector3(0.32,-0.30,-0.60);
+const WMAT=c=>new THREE.MeshLambertMaterial({color:c});
+const W_WOOD=0x6b5a3c, W_CORD=0xa89a68;
+function haft(len,r0,r1,col){                // 자루 — 밑동이 원점에 오도록 세운다
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(r0,r1,len,6),WMAT(col||W_WOOD));
+  m.position.y=len/2; return m;
 }
+function wbind(y,r){                         // 날을 묶은 노끈
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.09,6),WMAT(W_CORD));
+  m.position.y=y; return m;
+}
+/* 무기 하나를 만든다. grip 은 자루의 어디를 쥐는가(국소 y). */
+const WEAPON_FX={
+  spear(){                                   // 돌창 — 짧은 뗀석기 날
+    const g=new THREE.Group(), L=1.55;
+    g.add(haft(L,0.021,0.027));
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.052,0.24,4),WMAT(0x59636b));
+    tip.position.y=L+0.10; tip.rotation.y=Math.PI/4; g.add(tip);
+    g.add(wbind(L-0.04,0.034));
+    return {mesh:g, grip:0.42};
+  },
+  spear_iron(){                              // 철 창 — 자루도 날도 길다
+    const g=new THREE.Group(), L=2.05;
+    g.add(haft(L,0.022,0.028));
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.048,0.40,6),WMAT(0xb4b9be));
+    tip.position.y=L+0.19; g.add(tip);
+    const sock=new THREE.Mesh(new THREE.CylinderGeometry(0.038,0.045,0.16,6),WMAT(0x9aa0a6));
+    sock.position.y=L-0.03; g.add(sock);
+    g.add(wbind(L-0.16,0.035));
+    return {mesh:g, grip:0.60};
+  },
+  sword_iron(){                              // 철 검 — 자루 · 코등이 · 양날
+    const g=new THREE.Group(), H=0.26, B=0.92;
+    g.add(haft(H,0.028,0.032,0x4a3a29));
+    const pom=new THREE.Mesh(new THREE.SphereGeometry(0.042,8,6),WMAT(0x8f959b));
+    pom.position.y=0.01; g.add(pom);
+    const gd=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.045,0.06),WMAT(0x9aa0a6));
+    gd.position.y=H+0.02; g.add(gd);
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(0.085,B,0.022),WMAT(0xc3c7cb));
+    bl.position.y=H+0.05+B/2; g.add(bl);
+    const pt=new THREE.Mesh(new THREE.ConeGeometry(0.060,0.16,4),WMAT(0xc3c7cb));
+    pt.position.y=H+0.05+B+0.07; pt.rotation.y=Math.PI/4;
+    pt.scale.set(1,1,0.36); g.add(pt);
+    return {mesh:g, grip:0.16};
+  },
+  axe_war(){                                 // 철 전투도끼 — 무게가 날 끝에 몰려 있다
+    const g=new THREE.Group(), L=0.92;
+    g.add(haft(L,0.026,0.030));
+    const head=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.22,0.11),WMAT(0x8f959b));
+    head.position.y=L-0.04; g.add(head);
+    /* 날은 윤곽을 직접 그려 뽑는다 — 원통을 잘라 쓰면 자루에서 떨어져 보인다.
+       자루(x=0)에 물려 시작해 바깥으로 넓게 퍼지는 초승달꼴이다. */
+    const sh=new THREE.Shape();
+    sh.moveTo(0.00,-0.11);
+    sh.lineTo(0.20,-0.21);
+    sh.quadraticCurveTo(0.36,-0.04, 0.30,0.19);
+    sh.lineTo(0.00, 0.11);
+    sh.closePath();
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,
+      {depth:0.030, bevelEnabled:true, bevelThickness:0.006, bevelSize:0.006,
+       bevelSegments:1, curveSegments:8}),WMAT(0xb4b9be));
+    bl.position.set(0.02,L-0.04,-0.021); g.add(bl);
+    g.add(wbind(L-0.20,0.036));
+    return {mesh:g, grip:0.30};
+  },
+  hammer_iron(){                             // 철 해머 — 통짜 머리
+    const g=new THREE.Group(), L=0.98;
+    g.add(haft(L,0.030,0.034));
+    const head=new THREE.Mesh(new THREE.BoxGeometry(0.17,0.19,0.36),WMAT(0x8f959b));
+    head.position.y=L-0.02; g.add(head);
+    for(const sz of [-1,1]){                 // 때리는 면을 조금 밝게
+      const f=new THREE.Mesh(new THREE.BoxGeometry(0.175,0.195,0.02),WMAT(0xb4b9be));
+      f.position.set(0,L-0.02,sz*0.185); g.add(f);
+    }
+    g.add(wbind(L-0.20,0.040));
+    return {mesh:g, grip:0.34};
+  }
+};
+/* 지금 든 무기에 맞춰 손의 것을 갈아 끼운다 */
+function setWeaponFx(id){
+  if(weaponFxId===id) return;
+  weaponFxId=id;
+  if(weaponFx){ camera.remove(weaponFx); weaponFx=null; }
+  if(!id||!WEAPON_FX[id]) return;
+  const {mesh,grip}=WEAPON_FX[id]();
+  mesh.position.y=-grip;                     // 쥔 자리를 원점으로
+  weaponFx=new THREE.Group();
+  weaponFx.add(mesh);
+  weaponFx.rotation.set(-Math.PI/2+0.20,0,0.12);
+  weaponFx.position.copy(WEAPON_HOME);
+  camera.add(weaponFx);
+}
+function initWeaponFx(){ setWeaponFx(null); }
 const equippedWeapon=()=>{
   const e=equippedTool();
   return (e && ITEMS[e.id].tool.weapon) ? e : null;
 };
 function attack(){
   const w=equippedWeapon();
-  if(!w || ATK.cd>0 || PL.stam<6) return;
-  const W=ITEMS[w.id].tool;
-  ATK.cd=W.rate; ATK.swing=0.30;
-  PL.stam=clamp(PL.stam-9,0,100);
+  const W=w&&ITEMS[w.id].tool;
+  if(!w || ATK.cd>0 || PL.stam<(W.stam||9)) return;
+  ATK.cd=W.rate;
+  ATK.swing=Math.min(0.30,W.rate*0.55);      // 빠른 무기는 모션도 짧아야 겹치지 않는다
+  ATK.swingMax=ATK.swing;
+  PL.stam=clamp(PL.stam-(W.stam||9),0,100);
 
   // 시선 방향 원뿔 판정 — 사거리 안, 정면 40° 이내
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
@@ -3647,26 +3777,38 @@ function attack(){
   }
   if(hit){
     hit.hp-=W.dmg;
+    // 해머는 맞은 것을 잠깐 멈춰 세운다. 개체 AI 는 c.stun>0 이면 움직이지 않는다.
+    if(W.stun) hit.stun=Math.max(hit.stun||0,W.stun);
     w.dur-=1;
     if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
-    toast(hit.hp<=0?'쓰러뜨렸다':'명중');
+    toast(hit.hp<=0?'쓰러뜨렸다':(W.stun?'명중 — 기절':'명중'));
     sfx('thrust');
   }else{ toast('허공을 갈랐다'); sfx('thrust'); }
   invDirty=true;
 }
+/* 휘두르는 결 — 창은 찌르고, 검·도끼는 베고, 해머는 내리친다 */
 function updateWeapon(dt){
   if(ATK.cd>0) ATK.cd=Math.max(0,ATK.cd-dt);
+  // 맞은 개체의 기절도 여기서 푼다
+  for(const c of CREATURES) if(c.stun>0) c.stun=Math.max(0,c.stun-dt);
   const w=equippedWeapon();
-  spearFx.visible=!!w;
-  if(!w) return;
-  if(ATK.swing>0){
-    ATK.swing-=dt;
-    const k=Math.sin((1-ATK.swing/0.30)*Math.PI);   // 앞으로 찔렀다 되돌아온다
-    spearFx.position.z=SPEAR_HOME.z-k*0.55;
-    spearFx.position.x=SPEAR_HOME.x-k*0.10;
-  }else{
-    spearFx.position.z+=(SPEAR_HOME.z-spearFx.position.z)*clamp(12*dt,0,1);
-    spearFx.position.x+=(SPEAR_HOME.x-spearFx.position.x)*clamp(12*dt,0,1);
+  setWeaponFx(w?w.id:null);
+  if(!weaponFx) return;
+  const W=ITEMS[w.id].tool;
+  const dur=ATK.swingMax||0.30;
+  const k=ATK.swing>0 ? Math.sin((1-ATK.swing/dur)*Math.PI) : 0;
+  if(ATK.swing>0) ATK.swing=Math.max(0,ATK.swing-dt);
+  const H=WEAPON_HOME;
+  if(W.swing==='slash'){                     // 오른쪽 위에서 왼쪽 아래로 베어 내린다
+    weaponFx.position.set(H.x-k*0.30, H.y+k*0.16, H.z-k*0.26);
+    weaponFx.rotation.set(-Math.PI/2+0.20+k*0.55, -k*0.30, 0.12-k*1.9);
+  }else if(W.swing==='smash'){               // 머리 위로 들었다가 내리친다
+    const up=Math.sin(Math.min(1,k*1.6)*Math.PI*0.5);
+    weaponFx.position.set(H.x-k*0.10, H.y+up*0.34-k*0.40, H.z-k*0.30);
+    weaponFx.rotation.set(-Math.PI/2+0.20-up*0.9+k*2.0, 0, 0.12-k*0.25);
+  }else{                                     // 찌르기
+    weaponFx.position.set(H.x-k*0.10, H.y, H.z-k*0.55);
+    weaponFx.rotation.set(-Math.PI/2+0.20,0,0.12);
   }
 }
 
