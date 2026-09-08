@@ -3678,38 +3678,61 @@ function updateWeapon(dt){
    깔려 있으면 강한 것이 설 자리가 없다 — 머릿수와 질이 하나의 저울에 얹힌다.
 
    · 1일차는 0. 표류 첫날은 아무것도 나오지 않는다.
-   · 예산은 5·(4/3)^(d-2). 섬이 768 m 나 되어 예산이 얕으면 하루 종일 걸어도
+   · 예산은 5·(6/5)^(d-2). 섬이 768 m 나 되어 예산이 얕으면 하루 종일 걸어도
      아무것도 못 만난다 — 그래서 2일차를 5로 잡았다.
-   · 30일에서 멈춘다. 그대로 두면 40일에 23만이 되어 섬이 못 버틴다.
+   · 40일(5103)에서 멎는다. 가장 무거운 몹이 1000이니 그쯤은 되어야 몇 마리가
+     같이 설 자리가 나온다.
    ========================================================================== */
 const START_HOUR=8.5;                        // 표류 첫날 눈을 뜬 시각
 const dayNo=()=>1+Math.floor((gameHours+START_HOUR)/24);
 /* 날짜별 파워레벨 예산 — 첨자가 곧 날짜다(0번은 자리 채움).
-   2일차부터 round(5 · (4/3)^(d-2)) — 사흘에 갑절꼴로 불어난다. */
+   2일차부터 round(5 · (6/5)^(d-2)) — 나흘에 갑절꼴로 불어난다. */
 const DAY_POWER=[0,
-    0,   5,   7,   9,  12,  16,  21,  28,  37,  50,   //  1 ~ 10일
-   67,  89, 118, 158, 210, 281, 374, 499, 665, 887,   // 11 ~ 20일
- 1183,1577,2102,2803,3737,4983,6644,8859,11812,15749]; // 21 ~ 30일
-const POWER_CAP=DAY_POWER[30];               // 30일 이후는 여기서 멎는다
-const powerBudget=d=>d>=30?POWER_CAP:DAY_POWER[clamp(d,1,30)];
+    0,   5,   6,   7,   9,  10,  12,  15,  18,  21,   //  1 ~ 10일
+   26,  31,  37,  45,  53,  64,  77,  92, 111, 133,   // 11 ~ 20일
+  160, 192, 230, 276, 331, 397, 477, 572, 687, 824];  // 21 ~ 30일
+const POWER_LAST=40;                         // 예산이 자라는 마지막 날
+const POWER_CAP=Math.round(5*Math.pow(6/5,POWER_LAST-2));   // = 5103
+const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
+       : Math.min(POWER_CAP, Math.round(5*Math.pow(6/5,d-2)));
 
-/* 몹 명세 — power 는 예산에서 차지하는 값, first 는 처음 나올 수 있는 날.
-   가중치는 날마다 변한다: w · rate^(d - cross). rate>1 이면 날이 갈수록 자주,
-   <1 이면 점점 뜸해진다. 두 몹의 rate 가 서로 역수이고 w·cross 가 같으면 cross
-   일에 뽑힐 확률이 같아진다 — 한 번 뽑을 때 한 마리이므로 그날 개체수가 맞는다.
-   여기서는 12일에 북극곰과 가고일이 같은 수가 되도록 맞췄다(50 대 50).
-   first 는 예산이 그 몹을 감당하는 날보다 앞설 수 없다.
-   hold 가 붙은 것은 표에만 있고 아직 섬에 나오지 않는다. */
-const CROSS_DAY=12;
+/* 몹 명세
+   ----------------------------------------------------------------------------
+   power  예산에서 차지하는 값
+   first  처음 나올 수 있는 날. 예산이 그 몹을 감당하는 날보다 앞설 수 없다
+   peak   전성기. 이 날 가중치가 100 으로 가장 높다
+   rise   전성기 전, 며칠마다 가중치가 갑절이 되는가
+   fall   전성기 후, 며칠마다 절반이 되는가 (길게 두면 오래 남아 잡몹 노릇을 한다)
+   hold   표에만 있고 아직 섬에 나오지 않는다 — 모델이 붙으면 이 줄을 지운다
+
+   가중치는 전성기에서 멀어질수록 반씩 줄어드는 종 모양이라 날마다 값이 바뀐다.
+   그래서 몹들이 저절로 순서대로 들어왔다 물러난다.
+   북극곰의 전성기 16일·배증 3일은 12일에 가고일과 개체수가 맞도록 맞춘 값이다.
+   가중치는 가고일 25 대 북극곰 40 으로 곰이 높은데, 예산이 바닥날 무렵엔 값싼
+   가고일만 들어갈 수 있어 마지막 자리를 가고일이 쓸어가기 때문이다. 그만큼을
+   곰 쪽에 얹어야 실제 마릿수가 같아진다 (12일 실측 3.16 대 3.12). */
 const MOBS=[
-  {id:'bear',     n:'북극곰',        power:3, first:2, w:50, cross:CROSS_DAY, rate:1.25},
-  // 가고일은 아레나에서만 논다 — 본 게임에 넣을 때 hold 를 지운다.
-  {id:'gargoyle', n:'곤충형 가고일', power:1, first:2, w:50, cross:CROSS_DAY, rate:0.80,
-   hold:true}
+  //  id            이름              power first peak rise fall
+  {id:'gargoyle',  n:'곤충형 가고일', power:   1, first: 2, peak: 4, rise:2, fall: 4},
+  {id:'bear',      n:'북극곰',        power:   3, first: 2, peak:16, rise:3, fall: 8},
+  {id:'saltcrab',  n:'소금게',        power:   4, first: 3, peak:18, rise:3, fall: 6},
+  {id:'mudangler', n:'갯벌 아귀',     power:  10, first: 6, peak:21, rise:3, fall: 6},
+  {id:'sulfnewt',  n:'유황 도롱뇽',   power:  20, first:10, peak:24, rise:3, fall: 6},
+  {id:'stonewing', n:'석화 가고일',   power:  35, first:13, peak:27, rise:3, fall: 6},
+  {id:'stormcrow', n:'폭풍 갈까마귀', power:  60, first:16, peak:29, rise:3, fall: 6},
+  {id:'mossgiant', n:'이끼 거인',     power: 100, first:19, peak:31, rise:3, fall: 6},
+  {id:'ironfang',  n:'철니 늑대',     power: 130, first:20, peak:33, rise:3, fall: 6},
+  {id:'deeparm',   n:'심해 촉수',     power: 200, first:23, peak:35, rise:3, fall: 8},
+  {id:'plutonspawn',n:'관입체의 것',  power: 500, first:28, peak:38, rise:3, fall:10},
+  {id:'islandlord',n:'섬의 주인',     power:1000, first:32, peak:40, rise:3, fall:60}
 ];
+/* 모델이 있는 것은 북극곰뿐이다. 나머지는 표만 있고 섬에는 나오지 않는다 —
+   개체를 붙일 때마다 그 줄의 hold 를 지운다. */
+for(const M of MOBS) if(M.id!=='bear') M.hold=true;
 function mobWeight(M,d){
   if(d<M.first) return 0;
-  return M.w*Math.pow(M.rate,d-M.cross);
+  const H=(d<=M.peak)?M.rise:M.fall;     // 전성기 전후로 기울기가 다르다
+  return 100*Math.pow(2,-Math.abs(d-M.peak)/H);
 }
 /* 그날 섬에 깔 몹을 뽑는다. 예산이 모자라 못 들어가는 몹은 후보에서 빠지므로
    마지막 한 자리는 값싼 쪽으로 채워진다. rnd 를 주면 결정론적으로 재현된다. */
