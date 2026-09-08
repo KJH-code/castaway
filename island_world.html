@@ -103,6 +103,13 @@
 
   #crf{right:12px;top:12px;width:250px;max-height:calc(100% - 24px);overflow:auto;
     display:none;pointer-events:auto}
+  /* 레시피가 쉰 개가 넘어 번호로는 못 닿는다 — 이름으로 걸러 낸다 */
+  #crfQ{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  #crfQ input{flex:1;min-width:0;font:inherit;font-size:10px;color:var(--ink);
+    background:rgba(0,0,0,.35);border:1px solid var(--line);padding:4px 6px;outline:none}
+  #crfQ input:focus{border-color:var(--acc)}
+  #crfQ input::placeholder{color:var(--dim)}
+  #crfQ span{font-size:9px;color:var(--dim);flex:0 0 auto}
   #crf .ih{font-size:10px;letter-spacing:.12em;color:var(--dim);
     padding-bottom:7px;border-bottom:1px solid var(--line)}
   .ch{font-size:9px;letter-spacing:.16em;color:var(--dim);margin:12px 0 2px;
@@ -260,9 +267,11 @@
 
 <div class="pnl" id="crf">
   <div class="ih">제작 — 맨손</div>
+  <div id="crfQ"><input id="crfS" type="text" placeholder="이름으로 찾기 — 예: 철, 도끼, 참숯"
+    autocomplete="off" spellcheck="false"><span id="crfN"></span></div>
   <div id="crfL"></div>
   <div id="crfP"><i id="crfF"></i></div>
-  <div class="if" style="color:var(--dim);font-size:9px;margin-top:8px">C 닫기 · 항목을 누르거나 숫자키로 제작</div>
+  <div class="if" style="color:var(--dim);font-size:9px;margin-top:8px">C 닫기 · 항목을 눌러 제작 · Esc 검색 지우기</div>
 </div>
 
 <div class="pnl" id="cfg">
@@ -2747,10 +2756,31 @@ function updateCraft(dt){
   craftDirty=true; invDirty=true;
 }
 let craftOpen=false, craftDirty=true;
+/* 이름 · 단계 · 산출물 · 재료 어디에든 걸리면 남긴다 */
+let craftQuery='';
+function craftMatch(R){
+  const q=craftQuery.trim();
+  if(!q) return true;
+  const hay=[R.n, R.tier, R.out?ITEMS[R.out.id].n:'',
+             ...R.in.map(r=>matName(r)),
+             ...(R.need||[]).map(r=>matName(r))].join(' ');
+  return hay.indexOf(q)>=0;
+}
 function drawCraft(){
   if(!craftOpen) return;
   let lastTier=null;
-  document.getElementById('crfL').innerHTML=RECIPES.map((R,i)=>{
+  const hit=RECIPES.filter(craftMatch);
+  const nEl=document.getElementById('crfN');
+  if(nEl) nEl.textContent=craftQuery.trim()
+    ? hit.length+' / '+RECIPES.length : RECIPES.length+'개';
+  if(!hit.length){
+    document.getElementById('crfL').innerHTML=
+      '<div style="color:var(--dim);font-size:10px;padding:10px 2px">'
+      +'\''+craftQuery.trim()+'\' 에 걸리는 제작법이 없다</div>';
+    return;
+  }
+  document.getElementById('crfL').innerHTML=hit.map(R=>{
+    const i=RECIPES.indexOf(R);
     let head='';
     if(R.tier!==lastTier){
       lastTier=R.tier;
@@ -2775,7 +2805,7 @@ function drawCraft(){
         +STATION[R.station].n+' 곁에서 작업</span></div>' : '';
     const pct='';
     return head+'<div class="cr'+(ok?'':' no')+'" data-i="'+i+'">'
-      +'<div class="cn">'+'<span style="color:var(--dim)">'+(i+1)+'.</span> '+R.n+'<span class="ck">'
+      +'<div class="cn">'+R.n+'<span class="ck">'
         +(R.out?ITEMS[R.out.id].kg+' kg':'설치')+'</span></div>'
       +'<div class="cm">'+mats+(needs?'<div class="cm" style="margin-top:3px">'
         +'<span style="color:var(--dim)">도구(소모 안 됨) </span>'+needs+'</div>':'')
@@ -4916,6 +4946,16 @@ function setTouchUI(on){
   if(on&&document.pointerLockElement) document.exitPointerLock();
 }
 addEventListener('keydown',e=>{
+  /* 검색칸(이나 시드칸)에 글자를 치는 중이면 게임 키로 받지 않는다.
+     이게 없으면 '철'을 치는 동안 캐릭터가 걷고 창을 여닫는다. */
+  const el=document.activeElement;
+  if(el && (el.tagName==='INPUT'||el.tagName==='TEXTAREA')){
+    if(e.code==='Escape'){
+      if(el.id==='crfS'&&el.value){ el.value=''; craftQuery=''; craftDirty=true; }
+      el.blur();
+    }
+    return;
+  }
   keys[e.code]=true;
   if(e.code==='Space') e.preventDefault();
   if(e.code==='KeyF'){ PL.light=!PL.light; }
@@ -4932,7 +4972,11 @@ addEventListener('keydown',e=>{
     craftOpen=!craftOpen;
     document.getElementById('crf').style.display=craftOpen?'block':'none';
     if(craftOpen){ closeCfg(); invOpen=false;
-                   document.getElementById('inv').style.display='none'; }
+                   document.getElementById('inv').style.display='none';
+                   const q=document.getElementById('crfS');
+                   q.value=''; craftQuery='';        // 열 때마다 새로 찾는다
+                   setTimeout(()=>q.focus(),0); }
+    else document.getElementById('crfS').blur();
     craftDirty=true; syncLock();
   }
   if(e.code==='F3'){
@@ -4965,11 +5009,10 @@ addEventListener('keydown',e=>{
   }
   if(/^Digit[1-9]$/.test(e.code)){
     const i=+e.code.slice(5)-1;
-    // 제작창이 열려 있으면 숫자키가 곧 레시피 번호,
     // 소지품창이 열려 있으면 슬롯 번호, 아무것도 안 열려 있으면 빠른 칸이다.
-    if(craftOpen){ if(i<RECIPES.length) startCraft(RECIPES[i]); }
-    else if(invOpen||boxOpen||dexOpen){ if(i<INV.slots.length){ INV.sel=i; invDirty=true; } }
-    else if(i<QUICK.length) quickSwap(i);
+    // (제작은 레시피가 쉰 개가 넘어 번호로 못 닿는다 — 검색칸으로 찾는다)
+    if(invOpen||boxOpen||dexOpen){ if(i<INV.slots.length){ INV.sel=i; invDirty=true; } }
+    else if(!craftOpen && i<QUICK.length) quickSwap(i);
   }
   if(e.code==='KeyV'){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
   if(e.code==='KeyT'){ timeScale = timeScale===1?60:(timeScale===60?300:1); }
@@ -5133,6 +5176,10 @@ document.getElementById('pLimb').addEventListener('input',e=>{
 });
 document.getElementById('vLimb').textContent=P.limb.toFixed(2);
 document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.value);
+/* 검색칸 — 글자를 칠 때마다 목록을 다시 그린다 */
+document.getElementById('crfS').addEventListener('input',e=>{
+  craftQuery=e.target.value; craftDirty=true; drawCraft();
+});
 document.getElementById('bGen').onclick=generateWorld;
 document.getElementById('bSeed').onclick=()=>{
   const w=['tide','ashen','vireo','kelp','marrow','glass','hollow','ember','driftwood','saltgrave'];
