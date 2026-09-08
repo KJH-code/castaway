@@ -122,6 +122,17 @@
 
   #tool{position:absolute;left:12px;bottom:118px;font-size:10px;display:none}
   #tool .tn{color:var(--ink)}
+  /* 손에 든 것 아래의 빠른 칸 다섯. 숫자를 누르면 손의 것과 서로 바뀐다. */
+  #quick{position:absolute;left:12px;bottom:92px;display:flex;gap:4px}
+  #quick .q{display:flex;align-items:center;gap:4px;background:var(--panel);
+    border:1px solid var(--line);padding:3px 6px 3px 4px;font-size:9px;
+    color:var(--dim);min-width:64px;max-width:96px}
+  #quick .q b{font-weight:500;color:#8fa8a0;font-size:8px;min-width:6px}
+  #quick .q .sw{width:8px;height:8px;border-radius:2px;background:transparent;
+    border:1px solid rgba(140,175,165,.35);flex:0 0 auto}
+  #quick .q span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #quick .q.on{border-color:var(--acc)}
+  #quick .q.has span{color:var(--ink)}
   #tool .td{height:4px;width:110px;margin-top:3px;background:rgba(0,0,0,.55);border:1px solid var(--line)}
   #tool .td i{display:block;height:100%;background:#d8c96a}
 
@@ -208,6 +219,13 @@
 
   <div id="look"><span id="lookT"></span><div id="lookB"><i id="lookF"></i></div></div>
   <div class="pnl" id="tool"><div class="tn" id="toolN">–</div><div class="td"><i id="toolD"></i></div></div>
+  <div id="quick">
+    <div class="q" data-i="0"><b>1</b><i class="sw"></i><span>–</span></div>
+    <div class="q" data-i="1"><b>2</b><i class="sw"></i><span>–</span></div>
+    <div class="q" data-i="2"><b>3</b><i class="sw"></i><span>–</span></div>
+    <div class="q" data-i="3"><b>4</b><i class="sw"></i><span>–</span></div>
+    <div class="q" data-i="4"><b>5</b><i class="sw"></i><span>–</span></div>
+  </div>
   <div class="pnl" id="cbar">
     <div class="t"><span id="cbN">–</span><em id="cbP">0%</em></div>
     <div class="tr"><i id="cbF"></i></div>
@@ -295,6 +313,7 @@
     <div><span>I / C / B</span>소지품 · 제작 · 사전</div>
     <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
     <div><span>Q</span>도구 장착 · G 버리기</div>
+    <div><span>1 ~ 5</span>빠른 칸 — 손의 것과 맞바꾼다</div>
     <div><span>좌클릭</span>무기 찌르기</div>
     <div><span>Tab</span>생성 설정 · R 새 섬 · F3 진단</div>
     <div><span>F5 / F9</span>저장 · 불러오기</div>
@@ -1935,7 +1954,7 @@ function invAdd(id,n){
 function invRemove(idx,n){
   const s=INV.slots[idx]; if(!s) return;
   s.n-=(n===undefined?1:n);
-  if(s.n<=0) INV.slots.splice(idx,1);
+  if(s.n<=0){ INV.slots.splice(idx,1); quickDirty=true; }
   INV.sel=clamp(INV.sel,0,Math.max(0,INV.slots.length-1));
   invDirty=true;
 }
@@ -2025,6 +2044,42 @@ const HARV={near:null, t:0, active:false, mode:null, cont:null, fire:null};
 const EK={hold:0, tgt:null};
 const E_TAP=0.35;
 let EQUIP=null;                                     // 장착 중인 도구 슬롯
+
+/* ── 빠른 칸 ────────────────────────────────────────────────────────────
+   손에 든 것 아래의 다섯 칸. 숫자를 누르면 그 칸의 것을 손에 들고, 들고 있던
+   것이 그 칸으로 들어간다 — 넣고 빼는 것이 아니라 자리를 맞바꾼다.
+   그래서 빈 칸을 누르면 손이 비고, 한 번 더 누르면 도로 손에 돌아온다.
+   칸은 소지품 슬롯을 가리킬 뿐이라 무게에는 아무 영향이 없다. */
+const QUICK=[null,null,null,null,null];
+let quickDirty=true;
+function pruneQuick(){                              // 사라진 물건을 가리키던 칸은 비운다
+  for(let i=0;i<QUICK.length;i++)
+    if(QUICK[i] && INV.slots.indexOf(QUICK[i])<0){ QUICK[i]=null; quickDirty=true; }
+}
+function quickSwap(i){
+  if(i<0||i>=QUICK.length) return;
+  pruneQuick();
+  const held=equippedTool(), want=QUICK[i];
+  if(!held && !want){ toast((i+1)+'번 칸이 비어 있다'); return; }
+  QUICK[i]=held||null;
+  EQUIP=want||null;
+  for(let k=0;k<QUICK.length;k++)                    // 같은 물건이 두 칸에 남지 않게
+    if(k!==i && QUICK[k] && QUICK[k]===QUICK[i]) QUICK[k]=null;
+  toast(EQUIP?ITEMS[EQUIP.id].n+' 들었다':(i+1)+'번 칸에 넣었다');
+  invDirty=true; quickDirty=true; sfx('bind');
+}
+function drawQuick(){
+  const bar=document.getElementById('quick');
+  if(!bar) return;
+  pruneQuick();
+  bar.querySelectorAll('.q').forEach(el=>{
+    const sl=QUICK[+el.dataset.i], it=sl&&ITEMS[sl.id];
+    el.querySelector('span').textContent=it?it.n:'–';
+    el.querySelector('.sw').style.background=
+      it?('#'+it.c.toString(16).padStart(6,'0')):'transparent';
+    el.classList.toggle('has',!!it);
+  });
+}
 
 function equippedTool(){
   if(EQUIP && (INV.slots.indexOf(EQUIP)<0)) EQUIP=null;
@@ -4561,6 +4616,8 @@ function updateHUD(dt){
       }else look.style.display='none';
     }
   }
+  if(quickDirty){ quickDirty=false; drawQuick(); }
+  document.getElementById('quick').style.display=uiOpen()?'none':'flex';
   // 장착 도구 표시
   const e=equippedTool(), tp=document.getElementById('tool');
   if(e){
@@ -4666,6 +4723,7 @@ async function generateWorld(){
                                     invAdd('ring_platinum',1); // 표류 전부터 끼고 있던 반지
                                     HARV.near=null; HARV.t=0; REGROW.length=0;
                                     EQUIP=null; CRAFT.recipe=null; craftDirty=true;
+                                    QUICK.fill(null); quickDirty=true;
                                     FIRES.forEach(f=>scene.remove(f.mesh)); FIRES.length=0;
                                     GRINDS.forEach(g=>scene.remove(g.mesh)); GRINDS.length=0;
                                     FURNACES.forEach(g=>scene.remove(g.mesh)); FURNACES.length=0;
@@ -4735,6 +4793,7 @@ function snapshot(){
           armor:WEAR.armor?INV.slots.indexOf(WEAR.armor):-1,
           head:WEAR.head?INV.slots.indexOf(WEAR.head):-1,
           back:WEAR.back?INV.slots.indexOf(WEAR.back):-1},
+    quick:QUICK.map(sl=>sl?INV.slots.indexOf(sl):-1),
     props:propDiff(),
     fires:FIRES.map(f=>({x:f.x,y:f.y,z:f.z,lit:f.lit,fuel:f.fuel,
       cook:f.cook?{id:f.cook.id,t:f.cook.t}:null, slots:saveSlots(f.slots)})),
@@ -4796,6 +4855,11 @@ async function restore(d){
     const ix=d.wear?d.wear[k]:-1;
     WEAR[k]=(ix>=0&&INV.slots[ix])?INV.slots[ix]:null;
   }
+  for(let i=0;i<QUICK.length;i++){
+    const ix=d.quick?d.quick[i]:-1;
+    QUICK[i]=(ix>=0&&INV.slots[ix])?INV.slots[ix]:null;
+  }
+  quickDirty=true;
   refreshWear();
   invDirty=true; craftDirty=true;
 
@@ -4901,9 +4965,11 @@ addEventListener('keydown',e=>{
   }
   if(/^Digit[1-9]$/.test(e.code)){
     const i=+e.code.slice(5)-1;
-    // 제작창이 열려 있으면 숫자키가 곧 레시피 번호다
+    // 제작창이 열려 있으면 숫자키가 곧 레시피 번호,
+    // 소지품창이 열려 있으면 슬롯 번호, 아무것도 안 열려 있으면 빠른 칸이다.
     if(craftOpen){ if(i<RECIPES.length) startCraft(RECIPES[i]); }
-    else if(i<INV.slots.length){ INV.sel=i; invDirty=true; }
+    else if(invOpen||boxOpen||dexOpen){ if(i<INV.slots.length){ INV.sel=i; invDirty=true; } }
+    else if(i<QUICK.length) quickSwap(i);
   }
   if(e.code==='KeyV'){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
   if(e.code==='KeyT'){ timeScale = timeScale===1?60:(timeScale===60?300:1); }
