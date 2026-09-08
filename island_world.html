@@ -3680,7 +3680,7 @@ function updateWeapon(dt){
    · 1일차는 0. 표류 첫날은 아무것도 나오지 않는다.
    · 예산은 5·(6/5)^(d-2). 섬이 768 m 나 되어 예산이 얕으면 하루 종일 걸어도
      아무것도 못 만난다 — 그래서 2일차를 5로 잡았다.
-   · 40일(5103)에서 멎는다. 가장 무거운 몹이 1000이니 그쯤은 되어야 몇 마리가
+   · 38일(3544)에서 멎는다. 가장 무거운 몹이 500이니 그쯤은 되어야 몇 마리가
      같이 설 자리가 나온다.
    ========================================================================== */
 const START_HOUR=8.5;                        // 표류 첫날 눈을 뜬 시각
@@ -3691,8 +3691,8 @@ const DAY_POWER=[0,
     0,   5,   6,   7,   9,  10,  12,  15,  18,  21,   //  1 ~ 10일
    26,  31,  37,  45,  53,  64,  77,  92, 111, 133,   // 11 ~ 20일
   160, 192, 230, 276, 331, 397, 477, 572, 687, 824];  // 21 ~ 30일
-const POWER_LAST=40;                         // 예산이 자라는 마지막 날
-const POWER_CAP=Math.round(5*Math.pow(6/5,POWER_LAST-2));   // = 5103
+const POWER_LAST=38;                         // 예산이 자라는 마지막 날
+const POWER_CAP=Math.round(5*Math.pow(6/5,POWER_LAST-2));   // = 3544
 const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
        : Math.min(POWER_CAP, Math.round(5*Math.pow(6/5,d-2)));
 
@@ -3723,8 +3723,7 @@ const MOBS=[
   {id:'mossgiant', n:'이끼 거인',     power: 100, first:19, peak:31, rise:3, fall: 6},
   {id:'ironfang',  n:'철니 늑대',     power: 130, first:20, peak:33, rise:3, fall: 6},
   {id:'deeparm',   n:'심해 촉수',     power: 200, first:23, peak:35, rise:3, fall: 8},
-  {id:'plutonspawn',n:'관입체의 것',  power: 500, first:28, peak:38, rise:3, fall:10},
-  {id:'islandlord',n:'섬의 주인',     power:1000, first:32, peak:40, rise:3, fall:60}
+  {id:'plutonspawn',n:'관입체의 것',  power: 500, first:28, peak:38, rise:3, fall:60}
 ];
 /* 모델이 있는 것은 북극곰뿐이다. 나머지는 표만 있고 섬에는 나오지 않는다 —
    개체를 붙일 때마다 그 줄의 hold 를 지운다. */
