@@ -215,7 +215,7 @@ const CONE=0.77;
 const mitigate=d=>Math.max(1,d*(1-clamp(ARMOR/24,0,0.72)));
 
 /* ---- 가고일 ---- */
-const G={pos:new THREE.Vector3(0,0,-16), yaw:0, hp:120, hpMax:120, stun:0,
+const G={pos:new THREE.Vector3(0,0,-16), yaw:0, hp:120, hpMax:120, frz:0,
          state:'wander', t:0, target:new THREE.Vector3(), dir:new THREE.Vector3(0,0,1),
          dashLeft:0, speed:0, wing:0, wingPh:0, hitDone:false, alive:true};
 const SNAME={wander:'배회',chase:'추격',prep:'준비',dash:'돌진',stun:'경직',dead:'쓰러짐'};
@@ -292,8 +292,16 @@ function setState(s){ G.state=s; G.t=0; G.hitDone=false; }
 
 function updateG(dt){
   if(!G.alive){ G.speed=0; G.wing=0; return; }
-  // 해머에 맞으면 그 동안 굳는다 — 모션도 진행도 서지 않는다
-  if(G.stun>0){ G.stun=Math.max(0,G.stun-dt); G.speed=0; G.wing=0; return; }
+  /* 굳어 있는 동안은 아무것도 하지 않는다.
+     돌진 뒤의 경직과 해머 기절이 같은 시계(G.frz)를 쓰고, 서로 더해진다. */
+  if(G.frz>0){
+    G.frz=Math.max(0,G.frz-dt); G.speed=0; G.wing=0;
+    if(G.frz<=0 && G.state==='stun'){
+      const dd=Math.hypot(PL.pos.x-G.pos.x,PL.pos.z-G.pos.z);
+      setState(dd<P.see?'chase':'wander');
+    }
+    return;
+  }
   const toP=new THREE.Vector3(PL.pos.x-G.pos.x,0,PL.pos.z-G.pos.z);
   const dist=toP.length();
   G.t+=dt;
@@ -330,10 +338,10 @@ function updateG(dt){
       G.hitDone=true;
       hurtPlayer(P.dmg);
     }
-    if(G.dashLeft<=0.001) setState('stun');
+    if(G.dashLeft<=0.001){ setState('stun'); G.frz+=P.stun; }
   }
-  else if(G.state==='stun'){
-    if(G.t>=P.stun) setState(dist<P.see?'chase':'wander');
+  else if(G.state==='stun'){         // G.frz 가 다 풀린 뒤에만 여기 닿는다
+    setState(dist<P.see?'chase':'wander');
   }
 
   if(spd>0&&move.lengthSq()>0){
@@ -342,7 +350,7 @@ function updateG(dt){
     if(Math.abs(G.pos.x)>lim||Math.abs(G.pos.z)>lim){
       G.pos.x=clamp(G.pos.x,-lim,lim); G.pos.z=clamp(G.pos.z,-lim,lim);
       if(G.state==='wander') newWanderTarget();
-      if(G.state==='dash'){ G.dashLeft=0; setState('stun'); }
+      if(G.state==='dash'){ G.dashLeft=0; setState('stun'); G.frz+=P.stun; }
     }
     const want=Math.atan2(move.x,move.z);
     let d=want-G.yaw; while(d>Math.PI)d-=6.283; while(d<-Math.PI)d+=6.283;
@@ -386,7 +394,7 @@ function attack(){
   if(d<=W.reach+0.6 && (dx/d)*fx+(dz/d)*fz>=CONE
      && Math.abs(G.pos.y-PL.pos.y)<2.4){
     G.hp-=W.dmg; PL.hits++;
-    if(W.stun) G.stun=Math.max(G.stun||0,W.stun);   // 해머 — 가고일을 잠깐 멈춰 세운다
+    if(W.stun) G.frz+=W.stun;                  // 해머 — 굳은 시간에 그대로 더해진다
     if(G.hp<=0){ G.hp=0; G.alive=false; setState('dead'); msg('가고일을 쓰러뜨렸다'); }
     else msg(W.n+' −'+W.dmg+(W.stun?' · 기절':'')+' · 남은 체력 '+G.hp);
   }else msg('허공을 갈랐다');
@@ -659,7 +667,7 @@ document.addEventListener('pointerlockchange',()=>{
 function reset(){
   PL.hp=100; PL.stam=100; PL.hits=0;
   PL.pos.set(0,h(0,14),14); PL.vel.set(0,0,0); PL.yaw=Math.PI;
-  G.hp=G.hpMax; G.alive=true; G.stun=0; G.pos.set(0,0,-16);
+  G.hp=G.hpMax; G.alive=true; G.frz=0; G.pos.set(0,0,-16);
   WI=0; syncWeapon(); setState('wander'); newWanderTarget();
   msg('되살렸다');
 }
@@ -725,16 +733,16 @@ function hud(dt){
   document.getElementById('ehpF').style.width=(G.hp/G.hpMax*100)+'%';
   set('ehpT',G.alive?G.hp+' / '+G.hpMax:'쓰러짐');
   const st=document.getElementById('stName');
-  st.textContent=(G.stun>0&&G.alive)?'기절':(SNAME[G.state]||G.state);
-  st.className='st'+(G.state==='dash'?' dash':G.state==='prep'?' prep':
-    G.state==='stun'?' stun':'');
+  st.textContent=(G.frz>0&&G.alive)?'굳음':(SNAME[G.state]||G.state);
+  st.className='st'+(G.frz>0?' stun':G.state==='dash'?' dash':
+    G.state==='prep'?' prep':'');
   const d=Math.hypot(G.pos.x-PL.pos.x,G.pos.z-PL.pos.z);
   set('sDist',d.toFixed(1)+' m');
   set('sSpd',G.speed.toFixed(1)+' m/s');
   set('sAlt',(G.pos.y-h(G.pos.x,G.pos.z)).toFixed(2)+' m');
   set('sWing',doWing?G.wing.toFixed(2):'끔');
-  set('sT', G.state==='prep'?(P.prep-G.t).toFixed(2)+' s'
-         : G.state==='stun'?(P.stun-G.t).toFixed(2)+' s'
+  set('sT', G.frz>0?G.frz.toFixed(2)+' s (경직·기절 합)'
+         : G.state==='prep'?(P.prep-G.t).toFixed(2)+' s'
          : G.state==='dash'?G.dashLeft.toFixed(1)+' m 남음' : '–');
   set('sHit',PL.hits);
   set('sFps',fps);

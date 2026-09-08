@@ -325,7 +325,7 @@ const CONE=0.77;
 const mitigate=d=>Math.max(1,d*(1-clamp(ARMOR/24,0,0.72)));
 
 /* ---- 북극곰 ---- */
-const B={pos:new THREE.Vector3(0,0,-18), yaw:0, hp:220, hpMax:220, stun:0,
+const B={pos:new THREE.Vector3(0,0,-18), yaw:0, hp:220, hpMax:220, frz:0,
          state:'wander', t:0, target:new THREE.Vector3(), dir:new THREE.Vector3(0,0,1),
          speed:0, walkPh:0, hitDone:false, alive:true, flash:0, aimYaw:0};
 const SNAME={wander:'배회',chase:'추격',attack:'내려찍기',stun:'경직',dead:'쓰러짐'};
@@ -493,8 +493,14 @@ function updateB(dt){
   const dx=PL.pos.x-B.pos.x, dz=PL.pos.z-B.pos.z;
   const dist=Math.hypot(dx,dz);
   if(!B.alive){ B.t+=dt; B.speed=0; return; }
-  // 해머에 맞으면 그 동안 시간이 멈춘 듯 굳는다 — 모션도 진행도 서지 않는다
-  if(B.stun>0){ B.stun=Math.max(0,B.stun-dt); B.speed=0; return; }
+  /* 굳어 있는 동안은 아무것도 하지 않는다 — 모션도 상태도 서 있다.
+     내려찍고 난 경직과 해머 기절이 같은 시계(B.frz)를 쓰고, 서로 더해진다.
+     그래서 굳은 곰을 해머로 다시 때리면 그만큼 더 오래 굳는다. */
+  if(B.frz>0){
+    B.frz=Math.max(0,B.frz-dt); B.speed=0;
+    if(B.frz<=0 && B.state==='stun') setState(dist<P.see?'chase':'wander');
+    return;
+  }
   B.t+=dt;
 
   if(B.state==='wander'){
@@ -526,10 +532,9 @@ function updateB(dt){
       B.hitDone=true;
       slamLand();
     }
-    if(u>=1) setState('stun');
-  }else if(B.state==='stun'){
-    B.speed=0;
-    if(B.t>=P.stun) setState(dist<P.see?'chase':'wander');
+    if(u>=1){ setState('stun'); B.frz+=P.stun; }
+  }else if(B.state==='stun'){        // B.frz 가 다 풀린 뒤에만 여기 닿는다
+    B.speed=0; setState(dist<P.see?'chase':'wander');
   }
 
   if(B.speed>0){
@@ -607,7 +612,7 @@ function attack(){
   if(d>W.reach+BODY_R-0.25) return;             // 곰은 덩치가 커서 몸통 반지름을 얹어 준다
   if((dx/d)*fx+(dz/d)*fz<CONE) return;
   B.hp-=W.dmg; B.flash=1;
-  if(W.stun){ B.stun=Math.max(B.stun||0,W.stun); }   // 해머 — 곰을 잠깐 멈춰 세운다
+  if(W.stun) B.frz+=W.stun;                     // 해머 — 굳은 시간에 그대로 더해진다
   if(B.hp<=0){ B.hp=0; B.alive=false; setState('dead');
     msg('쓰러뜨렸다'); paused=true; unlock();
     showOv('북극곰을 잡았다','내려찍기를 '+PL.hits+'번 맞고 '+PL.miss+'번 흘렸습니다.','다시');
@@ -894,7 +899,7 @@ addEventListener('mousemove',e=>{
 function reset(){
   PL.hp=100; PL.stam=100; PL.hits=0; PL.miss=0; PL.stun=0;
   PL.pos.set(0,h(0,16),16); PL.vel.set(0,0,0); PL.yaw=Math.PI;
-  B.hp=B.hpMax; B.alive=true; B.pos.set(0,0,-18); B.yaw=0; B.stun=0; WI=0; syncWeapon();
+  B.hp=B.hpMax; B.alive=true; B.pos.set(0,0,-18); B.yaw=0; B.frz=0; WI=0; syncWeapon();
   setState('wander'); newWanderTarget();
   msg('되살렸다');
 }
@@ -971,8 +976,8 @@ function hud(dt){
   document.getElementById('ehpF').style.width=(B.hp/B.hpMax*100)+'%';
   document.getElementById('armR').textContent=Math.round(clamp(ARMOR/24,0,0.72)*100)+' %';
   const st=document.getElementById('stName');
-  st.textContent=(B.stun>0&&B.alive)?'기절':(SNAME[B.state]||B.state);
-  st.className='st'+(B.state==='chase'?' chase':B.state==='stun'?' stun':'');
+  st.textContent=(B.frz>0&&B.alive)?'굳음':(SNAME[B.state]||B.state);
+  st.className='st'+(B.frz>0?' stun':B.state==='chase'?' chase':'');
   const ph=document.getElementById('phase');
   if(B.state==='attack'){
     const u=clamp(B.t/P.atk,0,1);
@@ -980,7 +985,8 @@ function hud(dt){
     st.className='st'+(u<Q.rise+Q.hold?' wind':' slam');
   }else if(B.state==='chase') ph.textContent='이동속도 ×'+P.mul.toFixed(2)+' — 달려도 벌어지지 않는다';
   else if(B.state==='stun') ph.textContent='굳었다 — 때릴 기회';
-  if(B.stun>0&&B.alive) ph.textContent='해머에 눌렸다 — '+B.stun.toFixed(2)+'초';
+  if(B.frz>0&&B.alive)
+    ph.textContent='굳었다 — '+B.frz.toFixed(2)+'초 (경직·기절이 함께 쌓인다)';
   else ph.textContent='–';
   const d=Math.hypot(PL.pos.x-B.pos.x,PL.pos.z-B.pos.z);
   document.getElementById('sDist').textContent=d.toFixed(1)+' m';
@@ -988,7 +994,7 @@ function hud(dt){
   document.getElementById('sPspd').textContent=Math.hypot(PL.vel.x,PL.vel.z).toFixed(1)+' m/s';
   let left='–';
   if(B.state==='attack') left=Math.max(0,P.atk-B.t).toFixed(2)+'초';
-  else if(B.state==='stun') left=Math.max(0,P.stun-B.t).toFixed(2)+'초';
+  else if(B.frz>0) left=B.frz.toFixed(2)+'초';
   document.getElementById('sT').textContent=left;
   document.getElementById('sHit').textContent=PL.hits;
   document.getElementById('sMiss').textContent=PL.miss;
@@ -1013,7 +1019,7 @@ function loop(){
     if(doLimb){
       if(!B.alive) poseDead(tAcc,B.t);
       else if(B.state==='attack') poseSlam(clamp(B.t/P.atk,0,1));
-      else if(B.state==='stun') poseStun(tAcc,Math.max(0,P.stun-B.t));
+      else if(B.frz>0||B.state==='stun') poseStun(tAcc,B.frz);
       else if(B.speed>0.2) poseWalk(B.walkPh,clamp(B.speed/RUN,0.35,1.25));
       else poseIdle(tAcc);
     }

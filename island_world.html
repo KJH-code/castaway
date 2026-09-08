@@ -3823,8 +3823,10 @@ function attack(){
   }
   if(hit){
     hit.hp-=W.dmg;
-    // 해머는 맞은 것을 잠깐 멈춰 세운다. 개체 AI 는 c.stun>0 이면 움직이지 않는다.
-    if(W.stun) hit.stun=Math.max(hit.stun||0,W.stun);
+    /* 해머는 맞은 것을 잠깐 멈춰 세운다. c.stun 은 '굳어 있는 남은 시간' 하나로,
+       개체의 경직도 여기에 넣는다 — 둘이 같은 시계를 쓰고 서로 더해진다.
+       개체 AI 는 c.stun>0 이면 움직이지도 모션을 진행하지도 않으면 된다. */
+    if(W.stun) hit.stun=(hit.stun||0)+W.stun;
     w.dur-=1;
     if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
     toast(hit.hp<=0?'쓰러뜨렸다':(W.stun?'명중 — 기절':'명중'));
