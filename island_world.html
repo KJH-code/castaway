@@ -3691,16 +3691,16 @@ const WEAPON_FX={
     return {mesh:g, grip:0.60};
   },
   sword_iron(){                              // 철 검 — 자루 · 코등이 · 양날
-    const g=new THREE.Group(), H=0.26, B=0.92;
+    const g=new THREE.Group(), H=0.26, B2=0.92;
     g.add(haft(H,0.028,0.032,0x4a3a29));
     const pom=new THREE.Mesh(new THREE.SphereGeometry(0.042,8,6),WMAT(0x8f959b));
     pom.position.y=0.01; g.add(pom);
     const gd=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.045,0.06),WMAT(0x9aa0a6));
     gd.position.y=H+0.02; g.add(gd);
-    const bl=new THREE.Mesh(new THREE.BoxGeometry(0.085,B,0.022),WMAT(0xc3c7cb));
-    bl.position.y=H+0.05+B/2; g.add(bl);
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(0.085,B2,0.022),WMAT(0xc3c7cb));
+    bl.position.y=H+0.05+B2/2; g.add(bl);
     const pt=new THREE.Mesh(new THREE.ConeGeometry(0.060,0.16,4),WMAT(0xc3c7cb));
-    pt.position.y=H+0.05+B+0.07; pt.rotation.y=Math.PI/4;
+    pt.position.y=H+0.05+B2+0.07; pt.rotation.y=Math.PI/4;
     pt.scale.set(1,1,0.36); g.add(pt);
     return {mesh:g, grip:0.16};
   },
@@ -3737,19 +3737,64 @@ const WEAPON_FX={
     return {mesh:g, grip:0.34};
   }
 };
-/* 지금 든 무기에 맞춰 손의 것을 갈아 끼운다 */
+/* 지금 든 무기에 맞춰 손의 것을 갈아 끼운다.
+   mesh 를 -grip 만큼 내려 두므로 weaponFx 의 원점이 곧 손잡이다 —
+   아래 휘두르기의 회전은 전부 이 손잡이를 축으로 돈다. */
 function setWeaponFx(id){
   if(weaponFxId===id) return;
   weaponFxId=id;
   if(weaponFx){ camera.remove(weaponFx); weaponFx=null; }
   if(!id||!WEAPON_FX[id]) return;
   const {mesh,grip}=WEAPON_FX[id]();
-  mesh.position.y=-grip;                     // 쥔 자리를 원점으로
+  mesh.position.y=-grip;
   weaponFx=new THREE.Group();
   weaponFx.add(mesh);
   weaponFx.rotation.set(-Math.PI/2+0.20,0,0.12);
   weaponFx.position.copy(WEAPON_HOME);
   camera.add(weaponFx);
+}
+
+/* 휘두르는 자세 — 손은 거의 제자리에 두고 날만 손잡이를 축으로 크게 돈다.
+   p 는 0→1 진행도. 창은 찌르고, 검·도끼는 베고, 해머는 내리친다. */
+const WRX=-Math.PI/2+0.20, WRZ=0.12;         // 쉴 때의 자세
+const wlerp=(a,b,t)=>a+(b-a)*t;
+const wease=t=>t*t*(3-2*t);
+const wIn=t=>t*t*t;
+const WPOSE={rx:0,ry:0,rz:0,px:0,py:0,pz:0};
+function swingPose(style,p){
+  const o=WPOSE;
+  o.rx=WRX; o.ry=0; o.rz=WRZ; o.px=0; o.py=0; o.pz=0;
+  if(p<=0||p>=1) return o;
+  if(style==='thrust'){                      // 찌르기 — 손이 앞으로 나간다
+    const k=Math.sin(p*Math.PI);
+    o.pz=-0.55*k; o.px=-0.10*k; o.rx=WRX-0.10*k;
+    return o;
+  }
+  if(style==='smash'){                       // 내리치기 — 머리 위로 들었다 내린다
+    if(p<0.34){ const k=wease(p/0.34);
+      o.rx=wlerp(WRX,WRX-1.15,k); o.rz=wlerp(WRZ,0.30,k); o.py=0.16*k;
+    }else if(p<0.56){ const k=wIn((p-0.34)/0.22);
+      o.rx=wlerp(WRX-1.15,WRX+1.30,k); o.rz=wlerp(0.30,0.02,k);
+      o.py=wlerp(0.16,-0.16,k); o.pz=-0.22*k;
+    }else{ const k=wease((p-0.56)/0.44);
+      o.rx=wlerp(WRX+1.30,WRX,k); o.rz=wlerp(0.02,WRZ,k);
+      o.py=wlerp(-0.16,0,k); o.pz=wlerp(-0.22,0,k);
+    }
+    return o;
+  }
+  // 베기 — 오른쪽 위로 치켜들었다가 왼쪽 아래로 그어 내린다
+  if(p<0.30){ const k=wease(p/0.30);
+    o.rx=wlerp(WRX,WRX-0.55,k); o.ry=wlerp(0,0.50,k); o.rz=wlerp(WRZ,1.20,k);
+    o.px=0.10*k; o.py=0.10*k;
+  }else if(p<0.56){ const k=wIn((p-0.30)/0.26);
+    o.rx=wlerp(WRX-0.55,WRX+0.70,k); o.ry=wlerp(0.50,-0.60,k);
+    o.rz=wlerp(1.20,-1.35,k);
+    o.px=wlerp(0.10,-0.22,k); o.py=wlerp(0.10,-0.08,k); o.pz=-0.16*k;
+  }else{ const k=wease((p-0.56)/0.44);
+    o.rx=wlerp(WRX+0.70,WRX,k); o.ry=wlerp(-0.60,0,k); o.rz=wlerp(-1.35,WRZ,k);
+    o.px=wlerp(-0.22,0,k); o.py=wlerp(-0.08,0,k); o.pz=wlerp(-0.16,0,k);
+  }
+  return o;
 }
 function initWeaponFx(){ setWeaponFx(null); }
 const equippedWeapon=()=>{
@@ -3797,20 +3842,11 @@ function updateWeapon(dt){
   if(!weaponFx) return;
   const W=ITEMS[w.id].tool;
   const dur=ATK.swingMax||0.30;
-  const k=ATK.swing>0 ? Math.sin((1-ATK.swing/dur)*Math.PI) : 0;
+  const p=ATK.swing>0 ? 1-ATK.swing/dur : 0;
   if(ATK.swing>0) ATK.swing=Math.max(0,ATK.swing-dt);
-  const H=WEAPON_HOME;
-  if(W.swing==='slash'){                     // 오른쪽 위에서 왼쪽 아래로 베어 내린다
-    weaponFx.position.set(H.x-k*0.30, H.y+k*0.16, H.z-k*0.26);
-    weaponFx.rotation.set(-Math.PI/2+0.20+k*0.55, -k*0.30, 0.12-k*1.9);
-  }else if(W.swing==='smash'){               // 머리 위로 들었다가 내리친다
-    const up=Math.sin(Math.min(1,k*1.6)*Math.PI*0.5);
-    weaponFx.position.set(H.x-k*0.10, H.y+up*0.34-k*0.40, H.z-k*0.30);
-    weaponFx.rotation.set(-Math.PI/2+0.20-up*0.9+k*2.0, 0, 0.12-k*0.25);
-  }else{                                     // 찌르기
-    weaponFx.position.set(H.x-k*0.10, H.y, H.z-k*0.55);
-    weaponFx.rotation.set(-Math.PI/2+0.20,0,0.12);
-  }
+  const H=WEAPON_HOME, o=swingPose(W.swing,p);
+  weaponFx.position.set(H.x+o.px, H.y+o.py, H.z+o.pz);
+  weaponFx.rotation.set(o.rx,o.ry,o.rz);
 }
 
 /* ============================================================================
