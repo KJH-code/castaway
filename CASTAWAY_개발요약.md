@@ -17,6 +17,7 @@
 | gargoyle_arena.html | 곤충형 가고일 전투 시험장 (모델 내장) |
 | bear_high.glb | 북극곰 고해상 LOD — 39,998 삼각형 · 정점색(혈흔) · 1.2 MB |
 | stormscale_wyrm.glb | 번개비늘 와이엄(power 60) — 62,706 삼각형 · PBR 텍스처 3장 · 8.9 MB |
+| stone_colossus.glb | 용암 골렘 — 543,156 → **250,012 삼각형** 감축 · PBR 텍스처 3장 · 17.3 MB (미배치) |
 
 아래는 아직 저장소에 올리지 않은 것들입니다:
 
