@@ -23,7 +23,7 @@ island_world.html 을 브라우저로 열면 끝입니다.
 | **CASTAWAY_전사_2차.md** | 2차 작업 기록 — 돌창 · 설비 용기화 · 파워레벨 |
 | bear_high.glb | 북극곰 고해상 LOD (39,998 삼각형 · 정점색) |
 | stormscale_wyrm.glb | 번개비늘 와이엄, power 60 (62,706 삼각형 · PBR 텍스처) |
-| stone_colossus.glb | 용암 골렘 (250,012 삼각형 · PBR 텍스처) — 아직 어느 파워레벨에도 배정하지 않음 |
+| stone_colossus.glb | 용암 골렘, power 100 (250,012 삼각형 · PBR 텍스처) |
 
 ---
 
