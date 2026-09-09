@@ -466,7 +466,7 @@ const RESOURCES=[
    d:0.55, max:400, min:40},
   {k:'granite',n:'화강암 노두',   c:0x6b6b66, use:'화입법으로만 채석 (불 필요)', d:0.07, max:520,  min:45},
   {k:'clay',   n:'점토 노출지',   c:0x8a7150, use:'토기 · 도가니 · 화로',    d:0.09, max:320,  min:28},
-  {k:'sand',   n:'모래 언덕',     c:0xc9b98a, use:'유리 원료 — 해빈·사구에만',  d:0.30, max:600,  min:30},
+  {k:'sand',   n:'모래 언덕',     c:0xc9b98a, use:'유리 원료 — 빈 토기에 담는다',  d:0.30, max:600,  min:30},
   {k:'grass',  n:'풀숲',          c:0x55702f, use:'풀잎 · 베리 · 노끈 재료',  d:3.40, max:40000,min:400},
   {k:'reed',   n:'갈대/부들',     c:0x7d8a4e, use:'섬유 · 밧줄 · 지붕',      d:1.10, max:5000, min:45},
   {k:'copper', n:'공작석(구리)',  c:0x3fa98a, use:'제련 → 구리 도구',        d:0.05, max:160,  min:22},
@@ -1803,7 +1803,8 @@ const ITEMS={
 
   // 채굴 산출물
   clay_lump:  {n:'점토',       kg:2.0,  c:0x8a7150, use:'토기 · 도가니 · 화로 내벽'},
-  sand:       {n:'모래',       kg:1.8,  c:0xc9b98a, use:'유리 원료 · 숫돌 연마재'},
+  pot_sand:   {n:'모래 담은 토기', kg:3.4, c:0xc9b98a,
+               use:'유리 원료 — 모래는 흘러서 토기에 담아 나른다'},
   glass:      {n:'유리',       kg:1.2,  c:0x9fc6cc, use:'창짝 — 규사를 녹여 굳힌 판'},
   bog_iron:   {n:'늪철광',     kg:3.0,  c:0x9c5a2e, use:'괴련철 제련 → 철기'},
   cassiterite:{n:'석석',       kg:1.5,  c:0x6d5a44, use:'구리와 합금 → 청동'},
@@ -1960,6 +1961,7 @@ function refreshWear(){
 const armorTotal =()=>wornSum('armor');
 const warmthTotal=()=>wornSum('warm');
 
+const countId=id=>INV.slots.reduce((a,s)=>a+(s.id===id?s.n:0),0);
 function invWeight(){
   refreshWear();
   let w=0; for(const s of INV.slots) w+=ITEMS[s.id].kg*s.n;
@@ -2050,9 +2052,10 @@ const HARVEST={
   reed: {item:'reed_stalk', label:'갈대 베기', dur:1.4, stam:4, yield:[2,4], uses:[2,3],
          regrow:6},
   // 단괴와 자갈은 도구 없이 그냥 줍는다 — 주우면 그 자리에서 사라진다
-  // 모래는 도구가 필요 없다 — 두 손으로 퍼 담는다. 바람에 다시 쌓이므로 재생한다
-  sand:  {item:'sand',   label:'모래 퍼담기', dur:1.1, stam:3, yield:[2,3], uses:[4,7],
-          regrow:8},
+  // 모래는 손으로 퍼도 손가락 사이로 흐른다 — 빈 토기에 담아 나른다.
+  // 한 번 담을 때 토기 하나가 든다. 바람에 다시 쌓이므로 재생한다.
+  sand:  {item:'pot_sand', label:'모래 담기', dur:1.6, stam:3, yield:[1,1], uses:[4,7],
+          need:'pot', regrow:8},
   flint: {item:'flint',  label:'부싯돌 줍기', dur:0.6, stam:1.5, yield:[1,1], uses:[1,1], vanish:true},
   pebble:{item:'pebble', label:'돌멩이 줍기', dur:0.5, stam:1, yield:[1,1], uses:[1,1], vanish:true}
 };
@@ -2142,7 +2145,11 @@ function pickMode(t){
     }
     return null;                       // 등급 미달 — 사유는 blockReason 이 설명한다
   }
-  if(HARVEST[t.k] && t.br>0) return {H:HARVEST[t.k], field:'br', tool:false};
+  if(HARVEST[t.k] && t.br>0){
+    const H=HARVEST[t.k];
+    if(H.need && countId(H.need)<1) return null;    // 담을 그릇이 없다
+    return {H, field:'br', tool:false};
+  }
   return null;
 }
 // '~로 / ~으로' 조사 선택 (받침 유무 판정, ㄹ 받침은 '로')
@@ -2169,6 +2176,9 @@ function blockReason(t){
     return josaRo(ITEMS[e.id].n)+'는 어림없다 — 돌 곡괭이가 필요하다';
   }
   if(CHOP[t.k] && t.logs>0 && t.br<=0) return '줄기를 베려면 도끼를 들어야 한다';
+  const H=HARVEST[t.k];
+  if(H && H.need && t.br>0 && countId(H.need)<1)
+    return ITEMS[H.need].n+'가 있어야 담는다 — 모래는 손가락 사이로 흘러내린다';
   return null;
 }
 
@@ -2317,6 +2327,14 @@ function updateHarvest(dt){
   if(got<1){
     toast('더 들 수 없다 — '+INV.max+' kg 한계');
     HARV.active=false; return;
+  }
+  if(H.need){                                       // 담은 만큼 빈 그릇이 든다
+    let left=got;
+    for(let i=INV.slots.length-1;i>=0&&left>0;i--){
+      const sl=INV.slots[i];
+      if(sl.id!==H.need||sl.dur!==undefined) continue;
+      const take=Math.min(left,sl.n); left-=take; invRemove(i,take);
+    }
   }
   invAdd(H.item,got);
   let msg=ITEMS[H.item].n+' +'+got;
@@ -3017,8 +3035,10 @@ const SMELT=[
    in:[{id:'ingot_copper',n:3},{id:'ingot_tin',n:1},{id:'charcoal',n:2}],
    need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]},
   {id:'melt_glass', n:'유리 굽기', hours:1.1, out:{id:'glass',n:2},
-   note:'규사만으로는 1700 ℃가 필요하다. 재를 섞어 녹는점을 낮추고 도가니째 굽는다.',
-   in:[{id:'sand',n:4},{id:'charcoal',n:4}],
+   note:'규사만으로는 1700 ℃가 필요하다. 재를 섞어 녹는점을 낮추고 도가니째 굽는다. '
+       +'모래를 쏟아 넣고 나면 빈 토기가 그대로 남는다.',
+   in:[{id:'pot_sand',n:2},{id:'charcoal',n:4}],
+   back:[{id:'pot',n:2}],                          // 비운 그릇은 돌려받는다
    need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]},
   {id:'smelt_iron', n:'괴련철 제련', hours:1.4, out:{id:'bloom_iron',n:1},
    note:'철은 녹지 않는다. 노 바닥에 쇠똥과 뒤엉킨 해면철 덩이로 남는다.',
@@ -4328,6 +4348,7 @@ function updateFurnaces(dt,dh){
         g.t-=R.hours;
         for(const r of R.in) contTake(g,r.id,r.n);
         contAdd(g,R.out.id,R.out.n);
+        if(R.back) for(const r of R.back) contAdd(g,r.id,r.n);   // 비운 그릇 되돌려주기
         if(Math.hypot(g.x-PL.pos.x,g.z-PL.pos.z)<28)
           toast(ITEMS[R.out.id].n+' ×'+R.out.n+' 제련 완료');
       }
