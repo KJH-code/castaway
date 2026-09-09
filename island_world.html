@@ -2043,13 +2043,13 @@ function drawInv(){
    나무 한 그루가 내주는 가지 수도 유한하다. 채집 중에는 기력이 빠진다.
    ========================================================================== */
 const HARVEST={
-  oak:  {item:'branch', label:'나뭇가지 꺾기', dur:2.4,  stam:7, yield:[1,1], uses:[3,6]},
-  fir:  {item:'branch', label:'나뭇가지 꺾기', dur:1.8,  stam:5.5, yield:[1,1], uses:[3,6]},
+  oak:  {item:'branch', label:'나뭇가지 꺾기', dur:1.92,  stam:7, yield:[1,1], uses:[3,6]},
+  fir:  {item:'branch', label:'나뭇가지 꺾기', dur:1.44,  stam:5.5, yield:[1,1], uses:[3,6]},
   // 풀은 한 줌씩 뜯긴다. 힘이 거의 안 들고, 덤불에 열매가 달려 있으면 같이 딸려 온다
-  grass:{item:'grass_blade', label:'풀 뜯기',      dur:0.85, stam:2.5,  yield:[2,4], uses:[2,3],
+  grass:{item:'grass_blade', label:'풀 뜯기',      dur:0.68, stam:2.5,  yield:[2,4], uses:[2,3],
          regrow:4},                                  // 게임 4시간 뒤 재생
   // 갈대는 줄기를 꺾어 벤다. 풀보다 질겨 시간과 기력이 더 들지만 섬유 수율이 높다
-  reed: {item:'reed_stalk', label:'갈대 베기', dur:1.4, stam:4, yield:[2,4], uses:[2,3],
+  reed: {item:'reed_stalk', label:'갈대 베기', dur:1.12, stam:4, yield:[2,4], uses:[2,3],
          regrow:6},
   // 단괴와 자갈은 도구 없이 그냥 줍는다 — 주우면 그 자리에서 사라진다
   // 모래는 손으로 퍼도 손가락 사이로 흐른다 — 빈 토기에 담아 나른다.
@@ -2057,7 +2057,7 @@ const HARVEST={
   sand:  {item:'pot_sand', label:'모래 담기', dur:1.6, stam:3, yield:[1,1], uses:[4,7],
           need:'pot', regrow:8},
   flint: {item:'flint',  label:'부싯돌 줍기', dur:0.6, stam:1.5, yield:[1,1], uses:[1,1], vanish:true},
-  pebble:{item:'pebble', label:'돌멩이 줍기', dur:0.5, stam:1, yield:[1,1], uses:[1,1], vanish:true}
+  pebble:{item:'pebble', label:'돌멩이 줍기', dur:0.4, stam:1, yield:[1,1], uses:[1,1], vanish:true}
 };
 // 도끼를 들었을 때만 열리는 작업 — 줄기를 베어 통나무를 얻는다
 /* 채굴 — tier 는 광물 경도 등급
@@ -2450,15 +2450,15 @@ const RECIPES=[
    note:'돌멩이를 나뭇가지에 얹고 풀잎을 꼬아 묶는다. 결속이 약해 오래 못 간다.',
    in:[{id:'branch',n:1},{id:'grass_blade',n:8},{id:'pebble',n:1}]},
 
-  {id:'fiber', tier:'풀과 돌', n:'섬유', out:{id:'fiber',n:1}, time:3, stam:4,
+  {id:'fiber', tier:'풀과 돌', n:'섬유', out:{id:'fiber',n:1}, time:2.4, stam:4,
    note:'날카로운 돌로 풀잎을 긁어 겉껍질을 벗기고 속섬유만 추린다.',
    in:[{id:'grass_blade',n:4}], need:[{tag:'sharp',n:1}]},
 
-  {id:'fiber_reed', tier:'풀과 돌', n:'섬유 (갈대)', out:{id:'fiber',n:2}, time:4, stam:6,
+  {id:'fiber_reed', tier:'풀과 돌', n:'섬유 (갈대)', out:{id:'fiber',n:2}, time:3.2, stam:6,
    note:'갈대 줄기를 쪼개 겉대를 벗긴다. 대가 길어 한 대에서 나오는 속섬유가 많다.',
    in:[{id:'reed_stalk',n:3}], need:[{tag:'sharp',n:1}]},
 
-  {id:'cord', tier:'풀과 돌', n:'노끈', out:{id:'cord',n:1}, time:4, stam:5,
+  {id:'cord', tier:'풀과 돌', n:'노끈', out:{id:'cord',n:1}, time:3.2, stam:5,
    note:'섬유 가닥을 반대 방향으로 꼬아 겹치면 풀리지 않는 줄이 된다.',
    in:[{id:'fiber',n:3}]},
 
