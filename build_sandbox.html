@@ -186,6 +186,16 @@
   #bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .12s}
   #ovLoad{color:var(--acc);font-size:10px;letter-spacing:.18em;margin-top:14px;min-height:14px}
 
+  #bld{left:50%;transform:translateX(-50%);bottom:92px;display:none;pointer-events:auto;
+    text-align:center;min-width:340px}
+  #bld .rw{display:flex;gap:4px;justify-content:center;margin:3px 0}
+  #bld .rw b{font-size:9px;letter-spacing:.14em;color:var(--dim);align-self:center;
+    margin-right:4px;min-width:34px;text-align:right}
+  #bld button{font:inherit;font-size:10px;letter-spacing:.06em;color:var(--ink);cursor:pointer;
+    background:rgba(6,11,12,.5);border:1px solid var(--line);padding:3px 7px}
+  #bld button.on{background:rgba(143,214,180,.18);border-color:var(--acc);color:var(--acc)}
+  #bld .wy{font-size:10px;letter-spacing:.06em;margin-top:4px;min-height:13px;color:var(--dim)}
+  #bld .wy.bad{color:#d8724a}
   #touch{position:fixed;inset:0;display:none;z-index:5;pointer-events:none}
   #stick,.tb{pointer-events:auto}
   #stick{position:absolute;left:22px;bottom:22px;width:110px;height:110px;border-radius:50%;
@@ -226,6 +236,12 @@
 
   <div id="look"><span id="lookT"></span><div id="lookB"><i id="lookF"></i></div></div>
   <div class="pnl" id="tool"><div class="tn" id="toolN">–</div><div class="td"><i id="toolD"></i></div></div>
+  <div class="pnl" id="bld">
+    <div class="rw"><b>조각</b><span id="bldK"></span></div>
+    <div class="rw"><b>등급</b><span id="bldT"></span></div>
+    <div class="rw"><b>방향</b><span id="bldR"></span></div>
+    <div class="wy" id="bldW"></div>
+  </div>
   <div id="quick">
     <div class="q" data-i="0"><b>1</b><i class="sw"></i><span>–</span></div>
     <div class="q" data-i="1"><b>2</b><i class="sw"></i><span>–</span></div>
@@ -321,6 +337,7 @@
     <div><span>Z</span>짓기 모드 켜기 / 끄기</div>
     <div><span>1 ~ 5</span>토대 · 벽 · 지붕 · 경사 지붕 · 삼각 벽</div>
     <div><span>6 · 7 · 8</span>초가 · 나무 · 돌</div>
+    <div><span>R</span>놓을 변 돌리기 — 자동 · 북 · 동 · 남 · 서</div>
     <div><span>Q</span>삼각 벽 방향 좌 / 우</div>
     <div><span>좌클릭</span>놓기 · <b>G</b> 걷어내기</div>
     <div><span>I / C</span>소지품 · 제작</div>
@@ -2503,7 +2520,7 @@ const RECIPES=[
    in:[{id:'branch',n:5},{id:'fiber',n:8},{id:'cord',n:2}]},
   {id:'b_thatch_slope', tier:'불', n:'초가 경사 지붕', out:null, place:'build',
    build:'slope', btier:0, time:0, stam:0,
-   note:'한 칸을 가로지르며 2.4 m 솟는 38.7° 지붕이다 — 걸어서 올라갈 수 있다. 바라보는 변 쪽이 솟는다. 내구 80. 누르면 짓기 모드로 들어간다.',
+   note:'한 칸을 가로지르며 2.4 m 솟는 38.7° 비탈이다 — 걸어서 올라간다. 벽과 같은 층 자리라 1층에 놓으면 계단 노릇을 해 지붕 위로 올려 준다. 바라보는 변 쪽이 솟는다. 내구 80. 누르면 짓기 모드로 들어간다.',
    in:[{id:'branch',n:6},{id:'fiber',n:8},{id:'cord',n:3}]},
   {id:'b_thatch_gable', tier:'불', n:'초가 삼각 벽', out:null, place:'build',
    build:'gable', btier:0, time:0, stam:0,
@@ -2523,7 +2540,7 @@ const RECIPES=[
    in:[{id:'log',n:1},{id:'branch',n:6},{id:'cord',n:3}]},
   {id:'b_wood_slope', tier:'나무와 점토', n:'나무 경사 지붕', out:null, place:'build',
    build:'slope', btier:1, time:0, stam:0,
-   note:'한 칸을 가로지르며 2.4 m 솟는 38.7° 지붕이다 — 걸어서 올라갈 수 있다. 바라보는 변 쪽이 솟는다. 내구 300. 누르면 짓기 모드로 들어간다.',
+   note:'한 칸을 가로지르며 2.4 m 솟는 38.7° 비탈이다 — 걸어서 올라간다. 벽과 같은 층 자리라 1층에 놓으면 계단 노릇을 해 지붕 위로 올려 준다. 바라보는 변 쪽이 솟는다. 내구 300. 누르면 짓기 모드로 들어간다.',
    in:[{id:'log',n:2},{id:'branch',n:4},{id:'cord',n:3}]},
   {id:'b_wood_gable', tier:'나무와 점토', n:'나무 삼각 벽', out:null, place:'build',
    build:'gable', btier:1, time:0, stam:0,
@@ -2543,7 +2560,7 @@ const RECIPES=[
    in:[{id:'stone_block',n:3},{id:'log',n:1},{id:'clay_lump',n:1}]},
   {id:'b_stone_slope', tier:'간석기', n:'돌 경사 지붕', out:null, place:'build',
    build:'slope', btier:2, time:0, stam:0,
-   note:'한 칸을 가로지르며 2.4 m 솟는 38.7° 지붕이다 — 걸어서 올라갈 수 있다. 바라보는 변 쪽이 솟는다. 내구 900. 누르면 짓기 모드로 들어간다.',
+   note:'한 칸을 가로지르며 2.4 m 솟는 38.7° 비탈이다 — 걸어서 올라간다. 벽과 같은 층 자리라 1층에 놓으면 계단 노릇을 해 지붕 위로 올려 준다. 바라보는 변 쪽이 솟는다. 내구 900. 누르면 짓기 모드로 들어간다.',
    in:[{id:'stone_block',n:4},{id:'log',n:1},{id:'clay_lump',n:2}]},
   {id:'b_stone_gable', tier:'간석기', n:'돌 삼각 벽', out:null, place:'build',
    build:'gable', btier:2, time:0, stam:0,
@@ -3222,8 +3239,12 @@ const wkey=(gx,gz,L,s)=>gx+','+gz+','+L+','+s;
 const rkey=(gx,gz,L)=>gx+','+gz+','+L;
 const SIDE=[[0,-1],[1,0],[0,1],[-1,0]];             // 북 동 남 서 — 변의 바깥 방향
 
-const BUILD={on:false, kind:'found', tier:1, lvl:0, hand:1,
+const BUILD={on:false, kind:'found', tier:1, lvl:0, hand:1, side:-1,
              ghost:null, tgt:null, ok:false, why:''};
+/* BUILD.side — 벽·경사 지붕·삼각 벽이 붙을 변을 손으로 고른다.
+   -1 이면 바라보는 변을 저절로 고르고(예전 방식), 0~3 이면 그 변에 못 박는다.
+   R 로 자동 → 북 → 동 → 남 → 서 순으로 돌린다. 조준이 흔들려도 안 바뀐다. */
+const SIDE_N=['북','동','남','서'];
 /* 삼각 벽의 두 방향 — 아크의 Sloped Wall Left / Right 와 같다.
    변 s 의 접선 t 를 기준으로 직각(높은 쪽)이 +t 에 서면 h=+1, -t 면 h=-1. */
 const gableTan=s=>[-SIDE[s][1], SIDE[s][0]];
@@ -3239,11 +3260,13 @@ function gableAuto(gx,gz,L,s){
   return d>0.5?1:(d<-0.5?-1:0);                     // 0 = 경사와 나란한 변이라 안 맞는다
 }
 
-/* 경사 지붕 위의 높이 — 낮은 쪽 모서리에서 0, 솟는 쪽 모서리에서 RISE */
+/* 경사 지붕 위의 높이 — 낮은 쪽 모서리에서 0, 솟는 쪽 모서리에서 RISE.
+   벽과 같은 층 띠를 차지한다: L 층 바닥에서 시작해 그 층 천장까지 오른다.
+   그래서 1층에 놓으면 땅에서 지붕으로 걸어 올라가는 계단 노릇을 한다. */
 function slopeSurface(sl,f,x,z){
   const [ox,oz]=SIDE[sl.s];
   const u=clamp(0.5+((x-f.x)*ox+(z-f.z)*oz)/CELL_B,0,1);
-  return f.y+(sl.L+1)*WALL_H+RISE*u;
+  return f.y+sl.L*WALL_H+RISE*u;
 }
 /* ---- 바닥 높이 — 토대 윗면과 밟고 다닐 수 있는 지붕까지 친다 ---- */
 function builtFloorAt(x,z){
@@ -3424,7 +3447,7 @@ function placeSlope(gx,gz,L,s,tier){
   const f=FOUNDS.get(fkey(gx,gz)); if(!f) return null;
   const T=BTIER[tier], [ox,oz]=SIDE[s];
   const m=makeSlope(T.c);
-  m.position.set(f.x,f.y+(L+1)*WALL_H,f.z);
+  m.position.set(f.x,f.y+L*WALL_H,f.z);          // 벽과 같은 층 바닥에서 시작한다
   m.rotation.y=Math.atan2(ox,oz);                    // 국소 +Z → 솟는 쪽
   scene.add(m);
   const o={gx,gz,L,s,tier,hp:T.hp,mesh:m};
@@ -3436,7 +3459,7 @@ function placeGable(gx,gz,L,s,h,tier){
   const T=BTIER[tier], P0=wallPose(gx,gz,s);
   h=(h<0)?-1:1;
   const m=makeGable(T.c);
-  m.position.set(P0.x,f.y+(L+1)*WALL_H,P0.z);
+  m.position.set(P0.x,f.y+L*WALL_H,P0.z);        // 같은 층 벽 자리의 삼각형 반쪽
   m.rotation.y=gableYaw(s,h);                        // 국소 +X → 직각이 서는 쪽
   scene.add(m);
   const o={gx,gz,L,s,h,tier,hp:T.hp,mesh:m};
@@ -3485,9 +3508,11 @@ function buildTarget(){
       const dd=Math.hypot(lx-ox*CELL_B/2, lz-oz*CELL_B/2);
       if(dd<best){ best=dd; s=i; }
     }
+    if(BUILD.side>=0) s=BUILD.side;                  // 손으로 고른 변이 있으면 그쪽에 못 박는다
     if(k!=='gable') return {kind:k, gx, gz, L, s};
     const a=gableAuto(gx,gz,L,s);                    // 경사 지붕이 있으면 방향을 맞춘다
     return {kind:k, gx, gz, L, s, h:a||BUILD.hand};
+
   }
   return {kind:k, gx, gz, L};
 }
@@ -3516,12 +3541,14 @@ function buildCheck(t){
     if(WALLS.has(wkey(gx,gz,L,s))) return {ok:false, why:'이미 벽이 있다'};
   }else if(kind==='gable'){
     if(GABLES.has(wkey(gx,gz,L,s))) return {ok:false, why:'이미 삼각 벽이 있다'};
+    if(WALLS.has(wkey(gx,gz,L,s))) return {ok:false, why:'같은 자리에 벽이 있다'};
     const sl=SLOPES.get(rkey(gx,gz,L));
     if(sl&&gableAuto(gx,gz,L,s)===0)
       return {ok:false, why:'경사 지붕과 나란한 변이다 — 옆 변에 세워야 빈틈이 메워진다'};
   }else if(kind==='slope'){
-    if(ROOFS.has(rkey(gx,gz,L))) return {ok:false, why:'이미 지붕이 있다'};
+    // 경사 지붕은 벽과 같은 층 띠를 쓴다 — 그 층 천장을 덮은 지붕 밑으로는 못 넣는다
     if(SLOPES.has(rkey(gx,gz,L))) return {ok:false, why:'이미 경사 지붕이 있다'};
+    if(ROOFS.has(rkey(gx,gz,L))) return {ok:false, why:'이 칸은 지붕이 덮고 있다 — 옆 칸에 놓아 올라간다'};
   }else{
     if(ROOFS.has(rkey(gx,gz,L))) return {ok:false, why:'이미 지붕이 있다'};
     if(SLOPES.has(rkey(gx,gz,L))) return {ok:false, why:'경사 지붕이 있다'};
@@ -3538,10 +3565,59 @@ function enterBuild(kind,tier){
   if(tier!==undefined) BUILD.tier=tier;
   if(!BUILD.ghost){ BUILD.ghost=new THREE.Group(); scene.add(BUILD.ghost); }
   ghostRebuild();
+  bldSig=null; bldBar();
   toast('짓기 — '+BTIER[BUILD.tier].n+' '+BKIND_N[BUILD.kind]
-    +' (1~5 조각 · 6·7·8 등급 · Q 삼각 벽 방향 · 좌클릭 놓기 · G 걷어내기 · Z 끝)');
+    +' (1~5 조각 · 6·7·8 등급 · R 방향 · Q 삼각 벽 좌우 · 좌클릭 놓기 · G 걷어내기 · Z 끝)');
 }
-function exitBuild(){ BUILD.on=false; if(BUILD.ghost) BUILD.ghost.visible=false; }
+function exitBuild(){
+  BUILD.on=false;
+  if(BUILD.ghost) BUILD.ghost.visible=false;
+  const el=document.getElementById('bld'); if(el) el.style.display='none';
+}
+/* 짓기 막대 — 조각·등급·방향을 눈으로 보고 손으로도 누른다.
+   시점이 잠겨 있으면 마우스로 못 누르니 키(1~5 · 6·7·8 · R · Q)가 본줄이고,
+   막대는 지금 상태를 보여 주는 곳이자 터치·창 모드에서 누르는 곳이다. */
+let bldSig=null;
+function bldBar(){
+  const box=document.getElementById('bld'); if(!box) return;
+  box.style.display=BUILD.on?'block':'none';
+  if(!BUILD.on) return;
+  const gable=BUILD.kind==='gable';
+  const sig=[BUILD.kind,BUILD.tier,BUILD.side,BUILD.hand,gable].join('|');
+  if(sig!==bldSig){
+    bldSig=sig;
+    const btn=(txt,on,fn)=>{
+      const b=document.createElement('button');
+      b.textContent=txt; if(on) b.className='on';
+      b.onmousedown=e=>{ e.preventDefault(); e.stopPropagation(); };
+      b.onclick=e=>{ e.preventDefault(); e.stopPropagation(); fn(); bldSig=null; bldBar(); };
+      return b;
+    };
+    const fill=(id,els)=>{ const h=document.getElementById(id);
+      h.textContent=''; for(const e of els) h.appendChild(e); };
+    fill('bldK', BKIND.map((k,i)=>btn((i+1)+' '+BKIND_N[k], BUILD.kind===k,
+      ()=>{ BUILD.kind=k; })));
+    fill('bldT', BTIER.map((T,i)=>btn((i+6)+' '+T.n, BUILD.tier===i,
+      ()=>{ BUILD.tier=i; })));
+    const dirs=[btn('자동', BUILD.side<0, ()=>{ BUILD.side=-1; })];
+    for(let i=0;i<4;i++) dirs.push(btn(SIDE_N[i], BUILD.side===i, (j=>()=>{ BUILD.side=j; })(i)));
+    dirs.push(btn('R 돌리기', false, ()=>{ BUILD.side=BUILD.side>=3?-1:BUILD.side+1; }));
+    if(gable){
+      dirs.push(btn('Q 왼쪽', BUILD.hand<0, ()=>{ BUILD.hand=-1; }));
+      dirs.push(btn('오른쪽', BUILD.hand>0, ()=>{ BUILD.hand=1; }));
+    }
+    fill('bldR', dirs);
+  }
+  const w=document.getElementById('bldW');
+  w.textContent=BUILD.ok?(BUILD.why||'놓을 수 있다'):(BUILD.why||'여기엔 못 놓는다');
+  w.className='wy'+(BUILD.ok?'':' bad');
+}
+function buildRotate(d){                              // R — 자동 → 북 → 동 → 남 → 서 → 자동
+  const n=BUILD.side+ (d||1);
+  BUILD.side = n>3 ? -1 : (n< -1 ? 3 : n);
+  toast('방향 — '+(BUILD.side<0?'자동 (바라보는 변)':SIDE_N[BUILD.side]+'쪽'));
+  bldSig=null;
+}
 let ghostSig=null;
 function ghostRebuild(){
   if(!BUILD.ghost) return;
@@ -3568,17 +3644,18 @@ function updateBuild(){
     g.position.set(P0.x, base+t.L*WALL_H, P0.z); g.rotation.y=P0.rot;
   }else if(t.kind==='gable'){
     const P0=wallPose(t.gx,t.gz,t.s);
-    g.position.set(P0.x, base+(t.L+1)*WALL_H, P0.z);
+    g.position.set(P0.x, base+t.L*WALL_H, P0.z);
     g.rotation.y=gableYaw(t.s, t.h);
   }else if(t.kind==='slope'){
     const [ox,oz]=SIDE[t.s];
-    g.position.set(t.gx*CELL_B, base+(t.L+1)*WALL_H, t.gz*CELL_B);
+    g.position.set(t.gx*CELL_B, base+t.L*WALL_H, t.gz*CELL_B);
     g.rotation.y=Math.atan2(ox,oz);
   }else{
     g.position.set(t.gx*CELL_B, base+(t.L+1)*WALL_H, t.gz*CELL_B); g.rotation.y=0;
   }
   const col=BUILD.ok?0x8fd6b4:0xd8724a;
   g.traverse(o=>{ if(o.isMesh) o.material.color.setHex(col); });
+  bldBar();
 }
 function doBuild(){
   if(!BUILD.on||!BUILD.tgt) return;
@@ -5563,7 +5640,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyQ'&&BUILD.on){               // 삼각 벽 방향 뒤집기 (아크의 좌/우 경사벽)
     BUILD.hand=-BUILD.hand;
     toast('삼각 벽 방향 — '+(BUILD.hand>0?'오른쪽':'왼쪽'));
-    return;
+    bldSig=null; return;
   }
   if(e.code==='KeyQ'&&INV.slots.length){
     const sl=INV.slots[INV.sel], it=sl&&ITEMS[sl.id];
@@ -5588,13 +5665,14 @@ addEventListener('keydown',e=>{
     // (제작은 레시피가 쉰 개가 넘어 번호로 못 닿는다 — 검색칸으로 찾는다)
     if(invOpen||boxOpen||dexOpen){ if(i<INV.slots.length){ INV.sel=i; invDirty=true; } }
     else if(BUILD.on){                           // 1~5 조각 · 6·7·8 등급
-      if(i<5){ BUILD.kind=BKIND[i]; toast(BKIND_N[BUILD.kind]); }
-      else if(i<8){ BUILD.tier=i-5; toast(BTIER[BUILD.tier].n+' 등급'); }
+      if(i<5){ BUILD.kind=BKIND[i]; toast(BKIND_N[BUILD.kind]); bldSig=null; }
+      else if(i<8){ BUILD.tier=i-5; toast(BTIER[BUILD.tier].n+' 등급'); bldSig=null; }
     }
     else if(!craftOpen && i<QUICK.length) quickSwap(i);
   }
   if(e.code==='KeyV'){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
   if(e.code==='KeyT'){ timeScale = timeScale===1?60:(timeScale===60?300:1); }
+  if(e.code==='KeyR'&&BUILD.on){ buildRotate(1); return; }   // 짓기 중엔 방향 돌리기
   if(e.code==='KeyR'){ generateWorld(); }
   if(e.code==='KeyZ'){                         // 짓기 모드
     if(BUILD.on){ exitBuild(); toast('짓기 끝'); }
