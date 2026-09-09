@@ -290,6 +290,7 @@
     <button class="on" id="bProps">자원</button>
     <button class="on" id="bGuar">자원 보장</button>
     <button id="bFly">자유 카메라</button>
+    <button id="bFlat">평지 건축</button>
     <button id="bTouch">터치 UI</button>
   </div>
   <div class="g">
@@ -459,7 +460,17 @@ const RESOURCES=[
 ];
 
 /* ---------------- 파라미터 ---------------- */
-const P = { seed:'castaway', size:0.70, ridge:0.85, ero:0.60, sea:0, rain:1.0, limb:0.8 };
+const P = { seed:'castaway', size:0.70, ridge:0.85, ero:0.60, sea:0, rain:1.0, limb:0.8,
+            flat:0 };
+/* ----------------------------------------------------------------------------
+   평지 건축 모드 — 집만 지어 보는 모드
+   · 지형을 통째로 평평한 대지 하나로 깎는다 (침식 단계도 건너뛴다)
+   · 건축 재료가 들지 않고, 지고 다니는 무게 제한도 없다
+   P.flat 에 담아 두므로 저장하면 그대로 되살아난다.
+   -------------------------------------------------------------------------- */
+const FLAT_Y=10;                       // 평지 대지의 높이 (해수면 위)
+const isFlat =()=>!!P.flat;            // 지형이 평지인가
+const isFree =()=>!!P.flat;            // 재료·무게가 공짜인가 (평지 모드와 함께 켜진다)
 let windDir={x:1,z:0,name:'서풍'};
 let stats={};
 
@@ -493,6 +504,11 @@ function genBase(seed){
       const ridge = Math.pow(ridged(n1,nx*1.45+12,nz*1.45-5,4),2.4); // 산릉 (파장을 길게)
 
       const land = mask*mask*(3-2*mask);
+      if(isFlat()){                                          // 평지 건축 — 대지 한 장
+        const t=smoothstep(0.42,0.60,land);                  // 물가만 부드럽게 떨어뜨린다
+        F.elev[IDX(x,z)]=t*FLAT_Y-(1-t)*22-P.sea;
+        continue;
+      }
       const h01  = cont*0.30 + ridge*rMask*P.ridge*0.80;
       let e = h01*100*land - (1-land)*26 - P.sea;
       // 해안 완만화: 해수면 ±BAND 구간을 압축 → 넓은 해빈·간석지·완사면 형성
@@ -1941,12 +1957,14 @@ function invWeight(){
   let w=0; for(const s of INV.slots) w+=ITEMS[s.id].kg*s.n;
   return w;
 }
-const invLoad=()=>clamp(invWeight()/INV.max,0,1);
+const invLoad=()=>isFree()?0:clamp(invWeight()/INV.max,0,1);
+const invCap =()=>isFree()?Infinity:INV.max;               // 평지 건축은 무게 제한이 없다
+const invCapN=()=>isFree()?'∞':INV.max;
 
 function invAdd(id,n){
   n=n||1;
   const T=ITEMS[id];
-  if(invWeight()+T.kg*n > INV.max+1e-6) return false;
+  if(!isFree() && invWeight()+T.kg*n > INV.max+1e-6) return false;
   if(T.tool){                       // 도구는 개별 내구도를 가지므로 겹치지 않는다
     for(let k=0;k<n;k++){
       const sl={id,n:1};
@@ -1971,7 +1989,7 @@ function invRemove(idx,n){
 let invDirty=true, invOpen=false;
 function drawInv(){
   const L=document.getElementById('invL'), w=invWeight();
-  const wt=w.toFixed(1)+' / '+INV.max+' kg';
+  const wt=w.toFixed(1)+' / '+invCapN()+' kg';
   const b=document.getElementById('invW');
   b.textContent=wt; b.className=invLoad()>0.85?'over':'';
   document.getElementById('wgT').textContent=wt;
@@ -2275,10 +2293,10 @@ function updateHarvest(dt){
   // 남은 적재량만큼만 담는다
   const Y=H.yield||[1,1];
   const want_n=Y[0]+((Math.random()*(Y[1]-Y[0]+1))|0);
-  const room=Math.floor((INV.max-invWeight())/ITEMS[H.item].kg+1e-9);
+  const room=isFree()?9999:Math.floor((INV.max-invWeight())/ITEMS[H.item].kg+1e-9);
   const got=Math.min(want_n,room);
   if(got<1){
-    toast('더 들 수 없다 — '+INV.max+' kg 한계');
+    toast('더 들 수 없다 — '+invCapN()+' kg 한계');
     HARV.active=false; return;
   }
   invAdd(H.item,got);
@@ -3147,7 +3165,7 @@ function toStore(i,all){
 function fromStore(i,all){
   const st=curStore, sl=st&&st.slots[i]; if(!sl) return;
   const T=ITEMS[sl.id];
-  const room=Math.floor((INV.max-invWeight())/T.kg+1e-9);
+  const room=isFree()?9999:Math.floor((INV.max-invWeight())/T.kg+1e-9);
   if(room<1){ toast('더 들 수 없다'); return; }
   const n=T.tool?1:Math.min(all?sl.n:1,room);
   if(T.tool) stackInto(INV.slots,sl.id,1,{dur:sl.dur,fuel:sl.fuel,lit:sl.lit});
@@ -3512,7 +3530,7 @@ function buildCheck(t){
   return {ok:true, why:''};
 }
 const buildCost=(k,tier)=>BTIER[tier===undefined?BUILD.tier:tier].cost[k];
-const canBuild=(k,tier)=>buildCost(k,tier).every(r=>countMat(r)>=r.n);
+const canBuild=(k,tier)=>isFree()||buildCost(k,tier).every(r=>countMat(r)>=r.n);
 
 /* ---- 짓기 모드 ---- */
 function enterBuild(kind,tier){
@@ -3567,7 +3585,7 @@ function doBuild(){
   if(!BUILD.on||!BUILD.tgt) return;
   if(!BUILD.ok){ toast(BUILD.why||'여기엔 못 놓는다'); return; }
   const t=BUILD.tgt, tier=BUILD.tier;
-  for(const r of buildCost(BUILD.kind)) consumeMat(r);
+  if(!isFree()) for(const r of buildCost(BUILD.kind)) consumeMat(r);
   if(t.kind==='found') placeFound(t.gx,t.gz,tier);
   else if(t.kind==='wall') placeWall(t.gx,t.gz,t.L,t.s,tier);
   else if(t.kind==='slope') placeSlope(t.gx,t.gz,t.L,t.s,tier);
@@ -3618,8 +3636,8 @@ function undoBuild(){
   toast('걷어낼 것이 없다');
 }
 function refundBuild(kind,tier){
-  for(const r of BTIER[tier].cost[kind]) invAdd(r.id,r.n);
-  toast(BTIER[tier].n+' '+BKIND_N[kind]+' 걷어냄 — 재료를 되돌려 받았다');
+  if(!isFree()) for(const r of BTIER[tier].cost[kind]) invAdd(r.id,r.n);
+  toast(BTIER[tier].n+' '+BKIND_N[kind]+' 걷어냄'+(isFree()?'':' — 재료를 되돌려 받았다'));
   sfx('bind'); invDirty=true; craftDirty=true;
 }
 
@@ -4201,7 +4219,7 @@ function drawBox(){
   document.getElementById('boxK').textContent=contStatus(st);
   document.getElementById('boxF').textContent=contHint(st);
   const w1=document.getElementById('boxW1'), w2=document.getElementById('boxW2');
-  w1.textContent=invWeight().toFixed(1)+' / '+INV.max+' kg';
+  w1.textContent=invWeight().toFixed(1)+' / '+invCapN()+' kg';
   w1.className=invLoad()>0.85?'over':'';
   const sw=contWeight(st);
   w2.textContent=sw.toFixed(1)+' / '+st.cap+' kg';
@@ -5267,10 +5285,12 @@ async function generateWorld(){
   const seed=hashStr(P.seed), t0=performance.now();
 
   await phase('지각 융기',6);       genBase(seed);
+  if(!isFlat()){                                            // 평지 모드는 깎지 않는다
   await phase('안식각 정리',18);    thermal(22,1.15*(CELL/4),0.5);
   await phase('하천 침식',34);      hydraulic(seed,Math.round(38000*P.ero*(16/(CELL*CELL))));
   await phase('사면 안정화',48);    thermal(8,1.45*(CELL/4),0.45);
                                     smoothTerrain(3,0.6);   // 표면 잡티 제거
+  }
                                     computeSlope();
   await phase('수계 추출',58);      hydrology(); computeSlope(); computeTWI();
                                     distanceField(F.dWater,i=>F.elev[i]<=0);
@@ -5382,6 +5402,7 @@ async function restore(d){
   const setv=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
   setv('pSeed',P.seed); setv('pSize',P.size); setv('pRidge',P.ridge);
   setv('pEro',P.ero); setv('pSea',P.sea); setv('pRain',P.rain); setv('pLimb',P.limb);
+  document.getElementById('bFlat').classList.toggle('on',isFlat());
   await generateWorld();                       // 같은 시드 → 같은 지형·같은 자원 배치
 
   for(const r of d.props||[]){
@@ -5762,6 +5783,11 @@ document.getElementById('dexM').onclick=()=>{ dexTab='mineral';
 tgl('bProps',v=>{ showProps=v; if(propGroup) propGroup.visible=v; });
 tgl('bGuar',v=>{ GUARANTEE=v; generateWorld(); });
 tgl('bFly',v=>{ flyMode=v; if(v&&document.pointerLockElement) document.exitPointerLock(); });
+tgl('bFlat',v=>{                                   // 평지 건축 — 지형을 다시 만든다
+  P.flat=v?1:0;
+  toast(v?'평지 건축 — 재료도 무게 제한도 없다':'보통 섬으로 되돌린다');
+  invDirty=true; craftDirty=true; generateWorld();
+});
 tgl('bTouch',v=>setTouchUI(v));
 document.getElementById('bSave').onclick=saveLocal;
 document.getElementById('bLoad').onclick=loadLocal;
