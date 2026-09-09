@@ -72,10 +72,11 @@
   <div class="pnl" id="gear">
     <div><span class="k">무기</span><span id="wep">–</span></div>
     <div style="color:var(--dim);font-size:9px;margin:2px 0 4px">
-      1 돌창 · 2 철 검 · 3 철 창 · 4 철 전투도끼 · 5 철 해머 · 6 볼트 소총 (X 재장전)</div>
-    <div><span class="k">갑옷</span><b>청동 비늘</b> 방어 6</div>
-    <div><span class="k">머리</span><b>청동 투구</b> 방어 3</div>
-    <div><span class="k">옷</span>섬유 옷 방어 1</div>
+      1 돌창 · 2~5 철(검·창·도끼·해머) · 6~9 키틴 검 · 뼈 창 · 키틴 도끼 · 뼈 해머 ·
+      0 볼트 소총 (X 재장전)</div>
+    <div><span class="k">방어구</span><b id="armN">–</b></div>
+    <div style="color:var(--dim);font-size:9px;margin:2px 0 4px">
+      F 로 갈아입기 · <span id="armD">–</span> · 무게 <span id="armK">–</span></div>
     <div><span class="k">방어 합</span><b id="armT">10</b> · 피해 감소 <b id="armR">–</b></div>
   </div>
   <div class="pnl" id="vit">
@@ -136,6 +137,7 @@
     <div><span>좌클릭</span>휘두르기</div>
     <div><span>1 ~ 9 · 0</span>무기 바꾸기 — 돌창 · 철(검·창·도끼·해머) · 키틴 검 · 뼈 창 · 키틴 도끼 · 뼈 해머 · 소총</div>
     <div><span>X</span>재장전 (소총)</div>
+    <div><span>F</span>방어구 갈아입기 — 청동 · 철 · 키틴 · 가죽 · 맨몸</div>
     <div><span>R</span>되살리기 · Tab 설정 접기</div>
     <div><span>Esc</span>커서 되찾기 (일시정지)</div>
   </div>
@@ -310,7 +312,18 @@ const WALK=4.3, RUN=7.4, JUMP=7.6, GRAV=-22, EYE=1.66;
 const PL={pos:new THREE.Vector3(0,0,16), vel:new THREE.Vector3(),
           yaw:Math.PI, pitch:-0.05, hp:100, stam:100, grounded:false,
           bob:0, camY:0, atkCd:0, swing:0, swingMax:0.30, hits:0, miss:0, stun:0};
-const ARMOR=10;
+/* 방어구 — A 로 갈아입는다. 방어 합이 클수록 곰의 내려찍기를 덜 맞는다.
+   사냥물 갑옷은 방어가 낮은 대신 무게가 3분의 1이다(무게는 본 게임에서만 쓴다). */
+const ARMORS=[
+  {n:'청동 비늘 + 청동 투구', body:'섬유 옷', arm:6, helm:3, cloth:1, kg:14.5},
+  {n:'철 비늘 + 청동 투구',   body:'섬유 옷', arm:10, helm:3, cloth:1, kg:17.0},
+  {n:'키틴 갑옷 + 키틴 투구', body:'섬유 옷', arm:8, helm:3, cloth:1, kg: 7.5},
+  {n:'가죽 외투 + 키틴 투구', body:'섬유 옷', arm:4, helm:3, cloth:1, kg: 6.0},
+  {n:'맨몸',                 body:'없음',   arm:0, helm:0, cloth:0, kg: 0.0}
+];
+let AI_=0;                                  // 지금 입은 것
+const armSum=()=>ARMORS[AI_].arm+ARMORS[AI_].helm+ARMORS[AI_].cloth;
+const ARMOR=10;                             // 옛 이름 — 아래에서 armSum() 을 쓴다
 /* 무기 — 본 게임의 ITEMS 값을 그대로 옮겨 왔다. 숫자 1~5 로 바꿔 든다.
    검은 빠르게 여러 번, 창은 멀리서, 도끼는 한 번에 크게, 해머는 곰을 멈춰 세운다. */
 const WEAPONS=[
@@ -339,7 +352,7 @@ let tracer=null, tracerT=0, flashT=0;
 let WI=0;                                   // 지금 든 무기
 const SPEAR=WEAPONS[0];                     // 옛 이름 — 아래에서 cone 만 따로 쓴다
 const CONE=0.77;
-const mitigate=d=>Math.max(1,d*(1-clamp(ARMOR/24,0,0.72)));
+const mitigate=d=>Math.max(1,d*(1-clamp(armSum()/24,0,0.72)));
 
 /* ---- 북극곰 ---- */
 const B={pos:new THREE.Vector3(0,0,-18), yaw:0, hp:220, hpMax:220, frz:0, alerted:false,
@@ -1078,6 +1091,10 @@ addEventListener('keydown',e=>{
        건너뛰지 못하게). 다만 하던 재장전은 끊긴다. */
     if(i<WEAPONS.length && i!==WI){ WI=i; RELOAD.t=0; syncWeapon(); msg(WEAPONS[i].n); }
   }
+  if(e.code==='KeyF'){                              // 방어구 갈아입기 (A 는 이동 키다)
+    AI_=(AI_+1)%ARMORS.length; msg('방어구 — '+ARMORS[AI_].n
+      +' (방어 합 '+armSum()+')');
+  }
   if(e.code==='KeyX') startReload();               // 재장전
   if(e.code==='Tab'){ e.preventDefault();
     const c=document.getElementById('cfg');
@@ -1174,7 +1191,13 @@ function hud(dt){
   document.getElementById('stF').style.width=PL.stam+'%';
   document.getElementById('ehpT').textContent=B.alive?Math.round(B.hp)+' / '+B.hpMax:'쓰러짐';
   document.getElementById('ehpF').style.width=(B.hp/B.hpMax*100)+'%';
-  document.getElementById('armR').textContent=Math.round(clamp(ARMOR/24,0,0.72)*100)+' %';
+  document.getElementById('armR').textContent=Math.round(clamp(armSum()/24,0,0.72)*100)+' %';
+  document.getElementById('armT').textContent=armSum();
+  const A=ARMORS[AI_];
+  document.getElementById('armN').textContent=A.n;
+  document.getElementById('armK').textContent=A.kg.toFixed(1)+' kg';
+  document.getElementById('armD').textContent='갑옷 '+A.arm+' · 투구 '+A.helm
+    +' · 옷 '+A.cloth;
   const st=document.getElementById('stName');
   st.textContent=(B.frz>0&&B.alive)?'굳음':(SNAME[B.state]||B.state);
   st.className='st'+(B.frz>0?' stun':B.state==='chase'?' chase':'');

@@ -1880,6 +1880,17 @@ const ITEMS={
   scale_iron: {n:'철 비늘 갑옷', kg:12.0, c:0x9a938c,
                use:'철 비늘을 겹쳐 꿰었다 — 가장 단단하고 가장 무겁다',
                wear:{slot:'armor', armor:10, warm:1}},
+  /* 사냥물 방어구 — 무기와 같은 셈법이다. 방어는 청동·철에 못 미치지만
+     무게가 3분의 1이라 짐을 지고도 뛸 수 있고, 가죽은 따뜻하기까지 하다. */
+  coat_hide:  {n:'가죽 외투',  kg:3.0,  c:0x8a6a4a,
+               use:'북극곰 가죽을 통째로 걸친다 — 가볍고 몹시 따뜻하다',
+               wear:{slot:'armor', armor:4, warm:6}},
+  scale_chitin:{n:'키틴 갑옷', kg:4.5,  c:0x4a5a4e,
+               use:'키틴 판을 비늘처럼 겹쳐 꿰었다 — 청동보다 낫고 절반 무게다',
+               wear:{slot:'armor', armor:8, warm:1}},
+  helm_chitin:{n:'키틴 투구',  kg:1.2,  c:0x53685a,
+               use:'머리 껍질을 통째로 다듬어 쓴다 — 청동 투구와 같은데 훨씬 가볍다',
+               wear:{slot:'head', armor:3}},
   // 물 · 재
   pot_water:  {n:'물 담은 토기', kg:3.6, c:0x4f86ae, use:'담수 — 우려내고 졸이는 데 쓴다'},
   ash:        {n:'재',         kg:0.3,  c:0x9a958c, use:'물에 우리면 잿물이 된다'},
@@ -2808,6 +2819,26 @@ const RECIPES=[
    time:28, stam:26,
    note:'관절 뼈를 통째로 자루에 박고 가죽으로 조여 묶는다. 철 해머의 절반 무게다.',
    in:[{id:'bone',n:4},{id:'hide',n:1},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'coat_hide', tier:'뼈와 키틴', n:'가죽 외투', out:{id:'coat_hide',n:1},
+   time:30, stam:24,
+   note:'가죽을 무두질해 어깨에서 무릎까지 덮는다. 방어는 낮아도 3 kg 이고, '
+       +'북극곰 가죽이라 몹시 따뜻하다.',
+   in:[{id:'hide',n:3},{id:'bone',n:1},{id:'cord',n:3}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'scale_chitin', tier:'뼈와 키틴', n:'키틴 갑옷', out:{id:'scale_chitin',n:1},
+   time:48, stam:38,
+   note:'키틴 판을 비늘처럼 겹쳐 가죽 바탕에 꿴다. 청동 비늘보다 단단한데 '
+       +'무게는 절반도 안 된다. 대신 깨지면 그걸로 끝이다.',
+   in:[{id:'chitin',n:6},{id:'hide',n:2},{id:'cord',n:4}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'helm_chitin', tier:'뼈와 키틴', n:'키틴 투구', out:{id:'helm_chitin',n:1},
+   time:24, stam:20,
+   note:'가고일 머리 껍질을 통째로 다듬어 쓴다. 청동 투구와 같은 값에 1.2 kg 이다.',
+   in:[{id:'chitin',n:3},{id:'hide',n:1},{id:'cord',n:2}],
    need:[{tag:'sharp',n:1}]},
 
   {id:'scale_iron', tier:'철기', n:'철 비늘 갑옷', out:{id:'scale_iron',n:1},
