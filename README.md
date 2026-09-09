@@ -71,3 +71,23 @@ island_world.html 을 브라우저로 열면 끝입니다.
 - 은신처 · 수면 · 탈출 목표
 
 자세한 내용은 [CASTAWAY_개발요약.md](CASTAWAY_개발요약.md) 에 있습니다.
+
+## 검사 (CI)
+
+푸시할 때마다 깃허브 액션이 두 가지를 돌린다.
+
+| 검사 | 하는 일 | 걸리는 시간 |
+|------|---------|-------------|
+| **문법 검사** | 각 HTML 의 인라인 스크립트를 뽑아 `node --check` | 몇 초 |
+| **구동 검사** | 헤드리스 크로뮴에 띄워 오류 없이 뜨는지 확인 | 파일당 4~21초 |
+
+손으로 돌리려면:
+
+```
+npm i -D playwright three@0.128.0 && npx playwright install chromium
+node tools/check-syntax.mjs *.html
+node tools/smoke.mjs                 # 특정 파일만: node tools/smoke.mjs island_world.html
+```
+
+구동 검사는 three.js CDN 요청을 가로채 `node_modules` 의 r128 로 돌려주므로
+네트워크가 없어도 돈다.

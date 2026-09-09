@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  syntax:
+    name: 문법 검사
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: 인라인 스크립트 문법 검사
+        run: node tools/check-syntax.mjs *.html
+
+  smoke:
+    name: 구동 검사
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: 브라우저 준비
+        run: |
+          npm i -D playwright@1.49.0 three@0.128.0
+          npx playwright install --with-deps chromium
+      - name: 오류 없이 뜨는지 확인
+        run: node tools/smoke.mjs
