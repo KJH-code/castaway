@@ -1968,24 +1968,24 @@ const ITEMS={
                tool:{weapon:1, dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash',
                      stun:0.2},
                durMax:950},
-  /* 사냥물 무기 — 철과 같은 피해·사거리·속도인데 **훨씬 가볍고 훨씬 빨리 닳는다**.
-     짐 무게가 곧 이동 속도인 이 게임에서는, 같은 값이면 가벼운 쪽이 값이 있다.
-     무게 55~60% · 내구 45% 쯤이 기준이다. */
+  /* 사냥물 무기 — 철보다 **약하고 빨리 닳는 대신, 훨씬 가볍고 조금 빠르다**.
+     피해는 철의 3/4, 쿨타임은 9/10, 무게는 55~60%, 내구는 45% 쯤이 기준이다.
+     짐 무게가 곧 이동 속도인 이 게임에서, 가벼움은 그 자체로 값이다. */
   sword_chitin:{n:'키틴 검',    kg:1.1,  c:0x5b6d5e,
-               use:'가고일 껍질을 겹쳐 세운 날 — 철 검과 같은 값에 절반 무게다',
-               tool:{weapon:1, dmg:30, reach:1.5, rate:0.40, stam:5, swing:'slash'},
+               use:'가고일 껍질을 겹쳐 세운 날 — 철 검보다 약하지만 절반 무게에 더 빠르다',
+               tool:{weapon:1, dmg:22, reach:1.5, rate:0.36, stam:5, swing:'slash'},
                durMax:320},
   spear_bone: {n:'뼈 창',      kg:1.4,  c:0xcfc6a8,
-               use:'긴 뼈를 갈아 세운 창끝 — 철 창과 같은 사거리에 훨씬 가볍다',
-               tool:{weapon:1, dmg:40, reach:2.6, rate:1.00, stam:8, swing:'thrust'},
+               use:'긴 뼈를 갈아 세운 창끝 — 철 창과 같은 사거리에 훨씬 가볍고 빠르다',
+               tool:{weapon:1, dmg:30, reach:2.6, rate:0.90, stam:8, swing:'thrust'},
                durMax:300},
   axe_chitin: {n:'키틴 도끼',   kg:1.8,  c:0x53685a,
-               use:'키틴 판을 뼈 심에 물린 큰 날 — 한 방은 철 도끼와 같다',
-               tool:{weapon:1, dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
+               use:'키틴 판을 뼈 심에 물린 큰 날 — 철 도끼의 4분의 3을 더 빨리 넣는다',
+               tool:{weapon:1, dmg:60, reach:2.1, rate:1.44, stam:15, swing:'slash'},
                durMax:360},
   hammer_bone:{n:'뼈 해머',    kg:2.5,  c:0xc7bfa2,
-               use:'관절 뼈를 통째로 박은 머리 — 맞은 것은 0.2초 동안 못 움직인다',
-               tool:{weapon:1, dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash',
+               use:'관절 뼈를 통째로 박은 머리 — 철 해머보다 약하나 빠르다. 0.2초 기절',
+               tool:{weapon:1, dmg:41, reach:2.1, rate:1.08, stam:17, swing:'smash',
                      stun:0.2},
                durMax:420},
   torch:      {n:'횃불',       kg:0.8,  c:0xc07a30, use:'휴대 조명 · 화덕 점화 · 약한 화입',
@@ -2799,25 +2799,25 @@ const RECIPES=[
   {id:'sword_chitin', tier:'뼈와 키틴', n:'키틴 검', out:{id:'sword_chitin',n:1},
    time:26, stam:22,
    note:'가고일 껍질을 결대로 쪼개 겹쳐 세우고, 가죽으로 손잡이를 감는다. '
-       +'철 검과 같은 값인데 절반 무게다. 대신 절반도 못 버틴다.',
+       +'철 검보다 무른 대신 절반 무게이고 조금 더 빠르다.',
    in:[{id:'chitin',n:3},{id:'hide',n:1},{id:'cord',n:2}],
    need:[{tag:'sharp',n:1}]},
 
   {id:'spear_bone', tier:'뼈와 키틴', n:'뼈 창', out:{id:'spear_bone',n:1},
    time:22, stam:20,
-   note:'긴 뼈를 비스듬히 갈아 창끝을 세우고 자루에 묶는다. 철 창만큼 멀리 닿는다.',
+   note:'긴 뼈를 비스듬히 갈아 창끝을 세우고 자루에 묶는다. 철 창만큼 멀리 닿고 더 빠르다.',
    in:[{id:'bone',n:3},{id:'log',n:1},{id:'cord',n:2}],
    need:[{tag:'sharp',n:1}]},
 
   {id:'axe_chitin', tier:'뼈와 키틴', n:'키틴 도끼', out:{id:'axe_chitin',n:1},
    time:30, stam:26,
-   note:'키틴 판 여러 장을 뼈 심에 물려 넓은 날을 만든다. 한 방은 철 도끼와 같다.',
+   note:'키틴 판 여러 장을 뼈 심에 물려 넓은 날을 만든다. 한 방은 철 도끼의 4분의 3이다.',
    in:[{id:'chitin',n:3},{id:'bone',n:1},{id:'log',n:1},{id:'cord',n:2}],
    need:[{tag:'sharp',n:1}]},
 
   {id:'hammer_bone', tier:'뼈와 키틴', n:'뼈 해머', out:{id:'hammer_bone',n:1},
    time:28, stam:26,
-   note:'관절 뼈를 통째로 자루에 박고 가죽으로 조여 묶는다. 철 해머의 절반 무게다.',
+   note:'관절 뼈를 통째로 자루에 박고 가죽으로 조여 묶는다. 철 해머의 절반 무게다. 기절은 같다.',
    in:[{id:'bone',n:4},{id:'hide',n:1},{id:'log',n:1},{id:'cord',n:2}],
    need:[{tag:'sharp',n:1}]},
 

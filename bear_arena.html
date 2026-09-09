@@ -78,6 +78,7 @@
     <div style="color:var(--dim);font-size:9px;margin:2px 0 4px">
       F 로 갈아입기 · <span id="armD">–</span> · 무게 <span id="armK">–</span></div>
     <div><span class="k">방어 합</span><b id="armT">10</b> · 피해 감소 <b id="armR">–</b></div>
+    <div><span class="k">무게</span><b id="wgT">–</b> · 이동 <b id="wgS">–</b></div>
   </div>
   <div class="pnl" id="vit">
     <div class="bar"><div class="l"><span>체력</span><span id="hpT">100</span></div>
@@ -138,6 +139,7 @@
     <div><span>1 ~ 9 · 0</span>무기 바꾸기 — 돌창 · 철(검·창·도끼·해머) · 키틴 검 · 뼈 창 · 키틴 도끼 · 뼈 해머 · 소총</div>
     <div><span>X</span>재장전 (소총)</div>
     <div><span>F</span>방어구 갈아입기 — 청동 · 철 · 키틴 · 가죽 · 맨몸</div>
+    <div><span>무게</span>든 무기 + 입은 방어구만큼 느려진다 (한계 70 kg)</div>
     <div><span>R</span>되살리기 · Tab 설정 접기</div>
     <div><span>Esc</span>커서 되찾기 (일시정지)</div>
   </div>
@@ -327,17 +329,17 @@ const ARMOR=10;                             // 옛 이름 — 아래에서 armSu
 /* 무기 — 본 게임의 ITEMS 값을 그대로 옮겨 왔다. 숫자 1~5 로 바꿔 든다.
    검은 빠르게 여러 번, 창은 멀리서, 도끼는 한 번에 크게, 해머는 곰을 멈춰 세운다. */
 const WEAPONS=[
-  {id:'spear',      n:'돌창',        dmg:22, reach:2.6, rate:0.90, stam: 9, swing:'thrust'},
-  {id:'sword_iron', n:'철 검',       dmg:30, reach:1.5, rate:0.40, stam: 5, swing:'slash'},
-  {id:'spear_iron', n:'철 창',       dmg:40, reach:2.6, rate:1.00, stam: 8, swing:'thrust'},
-  {id:'axe_war',    n:'철 전투도끼',  dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
-  {id:'hammer_iron',n:'철 해머',     dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash', stun:0.2},
-  {id:'sword_chitin',n:'키틴 검',    dmg:30, reach:1.5, rate:0.40, stam: 5, swing:'slash'},
-  {id:'spear_bone', n:'뼈 창',       dmg:40, reach:2.6, rate:1.00, stam: 8, swing:'thrust'},
-  {id:'axe_chitin', n:'키틴 도끼',    dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
-  {id:'hammer_bone',n:'뼈 해머',     dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash', stun:0.2},
+  {id:'spear',      n:'돌창',        dmg:22, reach:2.6, rate:0.90, stam: 9, swing:'thrust', kg:1.7},
+  {id:'sword_iron', n:'철 검',       dmg:30, reach:1.5, rate:0.40, stam: 5, swing:'slash',  kg:1.9},
+  {id:'spear_iron', n:'철 창',       dmg:40, reach:2.6, rate:1.00, stam: 8, swing:'thrust', kg:2.4},
+  {id:'axe_war',    n:'철 전투도끼',  dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash',  kg:3.0},
+  {id:'hammer_iron',n:'철 해머',     dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash', stun:0.2, kg:4.2},
+  {id:'sword_chitin',n:'키틴 검',    dmg:22, reach:1.5, rate:0.36, stam: 5, swing:'slash',  kg:1.1},
+  {id:'spear_bone', n:'뼈 창',       dmg:30, reach:2.6, rate:0.90, stam: 8, swing:'thrust', kg:1.4},
+  {id:'axe_chitin', n:'키틴 도끼',    dmg:60, reach:2.1, rate:1.44, stam:15, swing:'slash',  kg:1.8},
+  {id:'hammer_bone',n:'뼈 해머',     dmg:41, reach:2.1, rate:1.08, stam:17, swing:'smash', stun:0.2, kg:2.5},
   {id:'rifle_bolt', n:'볼트 소총',    dmg:150,reach: 50, rate:2.40, stam: 3, swing:'shot',
-   gun:1, mag:5, reload:6.5}
+   gun:1, mag:5, reload:6.5, kg:4.6}
 ];
 /* 잡으면 나오는 것 — 본 게임의 MOBS 표와 같은 값이다.
    뼈 창 3 · 뼈 해머 4 이니, 한 마리에 무기 두 자루 분이 나온다. */
@@ -345,6 +347,15 @@ const LOOT=[{n:'뼈', k:8},{n:'가죽', k:3}];
 function dropLoot(){
   msg('쓰러뜨렸다 — '+LOOT.map(l=>l.n+' ×'+l.k).join(' · ')+' 를 얻었다');
 }
+/* ---- 무게 ----------------------------------------------------------------
+   본 게임과 같은 셈법이다. 지금 든 무기와 입은 방어구의 무게를 더해
+   적재 한계(70 kg)로 나눈 것이 하중이고, 하중만큼 느려진다.
+     걷기·달리기 속도 ×(1 − 0.45·하중) · 하중 0.8 을 넘으면 아예 못 달린다
+   사냥물 장비의 값이 여기서 드러난다 — 같은 몫을 하면서 몸이 덜 무겁다. */
+const CARRY=70;
+const gearKg=()=>WEAPONS[WI].kg+ARMORS[AI_].kg;
+const loadF =()=>clamp(gearKg()/CARRY,0,1);
+const spMul =()=>1-0.45*loadF();
 const RELOAD={t:0};                         // 재장전 남은 시간
 let magLeft=5;                              // 탄창에 남은 발수 (아레나는 예비탄 무한)
 const MAG_FULL=5;
@@ -729,8 +740,8 @@ function updatePL(dt){
   if(PL.hp<=0){ PL.vel.set(0,0,0); return; }
   const froze=PL.stun>0;
   const f=froze?0:(keys.KeyW?1:0)-(keys.KeyS?1:0), s=froze?0:(keys.KeyD?1:0)-(keys.KeyA?1:0);
-  const run=!froze&&!!keys.ShiftLeft&&PL.stam>1&&f>0;
-  let sp=run?RUN:WALK;
+  const run=!froze&&!!keys.ShiftLeft&&PL.stam>1&&f>0&&loadF()<=0.8;
+  let sp=(run?RUN:WALK)*spMul();          // 짐이 무거울수록 느리다
   const si=Math.sin(PL.yaw), co=Math.cos(PL.yaw);
   let dx=(-si*f+co*s), dz=(-co*f-si*s);
   const L=Math.hypot(dx,dz)||1; dx/=L; dz/=L;
@@ -1198,6 +1209,11 @@ function hud(dt){
   document.getElementById('armK').textContent=A.kg.toFixed(1)+' kg';
   document.getElementById('armD').textContent='갑옷 '+A.arm+' · 투구 '+A.helm
     +' · 옷 '+A.cloth;
+  document.getElementById('wgT').textContent=
+    gearKg().toFixed(1)+' / '+CARRY+' kg  (무기 '+WEAPONS[WI].kg.toFixed(1)
+    +' + 방어구 '+A.kg.toFixed(1)+')';
+  document.getElementById('wgS').textContent=
+    '−'+Math.round((1-spMul())*100)+' %  달리기 '+(RUN*spMul()).toFixed(2)+' m/s';
   const st=document.getElementById('stName');
   st.textContent=(B.frz>0&&B.alive)?'굳음':(SNAME[B.state]||B.state);
   st.className='st'+(B.frz>0?' stun':B.state==='chase'?' chase':'');
