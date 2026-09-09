@@ -1803,6 +1803,13 @@ const ITEMS={
 
   // 채굴 산출물
   clay_lump:  {n:'점토',       kg:2.0,  c:0x8a7150, use:'토기 · 도가니 · 화로 내벽'},
+  // 사냥물 — 잡은 몹에서 나온다. 철보다 무르지만 훨씬 가볍다.
+  chitin:     {n:'키틴',       kg:0.5,  c:0x4a5a4e,
+               use:'가고일 껍질 — 철보다 무르지만 절반 무게다'},
+  bone:       {n:'뼈',         kg:0.7,  c:0xd6cfb4,
+               use:'북극곰 뼈 — 창대와 망치 머리로 쓴다'},
+  hide:       {n:'가죽',       kg:1.1,  c:0x8a6a4a,
+               use:'북극곰 가죽 — 손잡이를 감고 이음매를 묶는다'},
   pot_sand:   {n:'모래 담은 토기', kg:3.4, c:0xc9b98a,
                use:'유리 원료 — 모래는 흘러서 토기에 담아 나른다'},
   glass:      {n:'유리',       kg:1.2,  c:0x9fc6cc, use:'창짝 — 규사를 녹여 굳힌 판'},
@@ -1933,6 +1940,26 @@ const ITEMS={
                tool:{weapon:1, dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash',
                      stun:0.2},
                durMax:950},
+  /* 사냥물 무기 — 철과 같은 피해·사거리·속도인데 **훨씬 가볍고 훨씬 빨리 닳는다**.
+     짐 무게가 곧 이동 속도인 이 게임에서는, 같은 값이면 가벼운 쪽이 값이 있다.
+     무게 55~60% · 내구 45% 쯤이 기준이다. */
+  sword_chitin:{n:'키틴 검',    kg:1.1,  c:0x5b6d5e,
+               use:'가고일 껍질을 겹쳐 세운 날 — 철 검과 같은 값에 절반 무게다',
+               tool:{weapon:1, dmg:30, reach:1.5, rate:0.40, stam:5, swing:'slash'},
+               durMax:320},
+  spear_bone: {n:'뼈 창',      kg:1.4,  c:0xcfc6a8,
+               use:'긴 뼈를 갈아 세운 창끝 — 철 창과 같은 사거리에 훨씬 가볍다',
+               tool:{weapon:1, dmg:40, reach:2.6, rate:1.00, stam:8, swing:'thrust'},
+               durMax:300},
+  axe_chitin: {n:'키틴 도끼',   kg:1.8,  c:0x53685a,
+               use:'키틴 판을 뼈 심에 물린 큰 날 — 한 방은 철 도끼와 같다',
+               tool:{weapon:1, dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
+               durMax:360},
+  hammer_bone:{n:'뼈 해머',    kg:2.5,  c:0xc7bfa2,
+               use:'관절 뼈를 통째로 박은 머리 — 맞은 것은 0.2초 동안 못 움직인다',
+               tool:{weapon:1, dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash',
+                     stun:0.2},
+               durMax:420},
   torch:      {n:'횃불',       kg:0.8,  c:0xc07a30, use:'휴대 조명 · 화덕 점화 · 약한 화입',
                tool:{torch:1}, burn:3.0},   // burn = 게임시간(h)
 
@@ -2736,6 +2763,33 @@ const RECIPES=[
    note:'덩이째 남긴 머리를 자루에 박는다. 갑옷째 짓눌러 잠시 멈춰 세운다.',
    in:[{id:'iron_wrought',n:4},{id:'charcoal',n:2},{id:'log',n:1},{id:'cord',n:3}],
    need:[{id:'hammer_stone',n:1}]},
+
+  /* 사냥물 무기 — 모루가 아니라 맨손으로 깎고 묶는다(석기 수준의 손질).
+     한 마리에서 나오는 양이 대략 두 자루 분이다. */
+  {id:'sword_chitin', tier:'뼈와 키틴', n:'키틴 검', out:{id:'sword_chitin',n:1},
+   time:26, stam:22,
+   note:'가고일 껍질을 결대로 쪼개 겹쳐 세우고, 가죽으로 손잡이를 감는다. '
+       +'철 검과 같은 값인데 절반 무게다. 대신 절반도 못 버틴다.',
+   in:[{id:'chitin',n:3},{id:'hide',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'spear_bone', tier:'뼈와 키틴', n:'뼈 창', out:{id:'spear_bone',n:1},
+   time:22, stam:20,
+   note:'긴 뼈를 비스듬히 갈아 창끝을 세우고 자루에 묶는다. 철 창만큼 멀리 닿는다.',
+   in:[{id:'bone',n:3},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'axe_chitin', tier:'뼈와 키틴', n:'키틴 도끼', out:{id:'axe_chitin',n:1},
+   time:30, stam:26,
+   note:'키틴 판 여러 장을 뼈 심에 물려 넓은 날을 만든다. 한 방은 철 도끼와 같다.',
+   in:[{id:'chitin',n:3},{id:'bone',n:1},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'hammer_bone', tier:'뼈와 키틴', n:'뼈 해머', out:{id:'hammer_bone',n:1},
+   time:28, stam:26,
+   note:'관절 뼈를 통째로 자루에 박고 가죽으로 조여 묶는다. 철 해머의 절반 무게다.',
+   in:[{id:'bone',n:4},{id:'hide',n:1},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
 
   {id:'scale_iron', tier:'철기', n:'철 비늘 갑옷', out:{id:'scale_iron',n:1},
    time:64, stam:52, station:'anvil',
@@ -4745,6 +4799,70 @@ const WEAPON_FX={
     g.add(wbind(L-0.20,0.036));
     return {mesh:g, grip:0.30};
   },
+  sword_chitin(){                            // 키틴 검 — 겹쳐 세운 껍질 날
+    const g=new THREE.Group(), H=0.24, B2=0.88;
+    g.add(haft(H,0.028,0.032,0x4a3a29));
+    const wrap=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.038,H-0.03,8),
+      WMAT(0x8a6a4a));
+    wrap.position.y=H/2; g.add(wrap);        // 가죽으로 감은 손잡이
+    const gd=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.040,0.06),WMAT(0x3f4f44));
+    gd.position.y=H+0.02; g.add(gd);
+    for(let i=0;i<3;i++){                    // 껍질을 세 겹으로 겹쳐 붙였다
+      const bl=new THREE.Mesh(new THREE.BoxGeometry(0.075-i*0.012,B2-i*0.16,0.020),
+        WMAT(i%2?0x5b6d5e:0x4a5a4e));
+      bl.position.set(0,H+0.05+(B2-i*0.16)/2,(i-1)*0.010); g.add(bl);
+    }
+    const pt=new THREE.Mesh(new THREE.ConeGeometry(0.052,0.17,4),WMAT(0x6b7d6e));
+    pt.position.y=H+0.05+B2+0.07; pt.rotation.y=Math.PI/4;
+    pt.scale.set(1,1,0.34); g.add(pt);
+    return {mesh:g, grip:0.15};
+  },
+  spear_bone(){                              // 뼈 창 — 비스듬히 간 창끝
+    const g=new THREE.Group(), L=2.00;
+    g.add(haft(L,0.022,0.028));
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.046,0.36,5),WMAT(0xd6cfb4));
+    tip.position.y=L+0.17; g.add(tip);
+    const collar=new THREE.Mesh(new THREE.CylinderGeometry(0.034,0.040,0.12,6),
+      WMAT(0xbdb497));
+    collar.position.y=L-0.02; g.add(collar);
+    g.add(wbind(L-0.13,0.034));
+    g.add(wbind(0.52,0.034));
+    return {mesh:g, grip:0.58};
+  },
+  axe_chitin(){                              // 키틴 도끼 — 뼈 심에 물린 넓은 날
+    const g=new THREE.Group(), L=0.90;
+    g.add(haft(L,0.026,0.030));
+    const core=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.21,0.10),WMAT(0xd6cfb4));
+    core.position.y=L-0.04; g.add(core);     // 뼈 심
+    const sh=new THREE.Shape();
+    sh.moveTo(0.00,-0.11);
+    sh.lineTo(0.19,-0.20);
+    sh.quadraticCurveTo(0.35,-0.03, 0.29,0.18);
+    sh.lineTo(0.00, 0.11);
+    sh.closePath();
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,
+      {depth:0.026, bevelEnabled:true, bevelThickness:0.005, bevelSize:0.005,
+       bevelSegments:1, curveSegments:8}),WMAT(0x53685a));
+    bl.position.set(0.02,L-0.04,-0.018); g.add(bl);
+    g.add(wbind(L-0.19,0.036));
+    return {mesh:g, grip:0.29};
+  },
+  hammer_bone(){                             // 뼈 해머 — 관절 뼈를 통째로
+    const g=new THREE.Group(), L=0.95;
+    g.add(haft(L,0.030,0.034));
+    const head=new THREE.Mesh(new THREE.CylinderGeometry(0.085,0.085,0.34,8),
+      WMAT(0xd6cfb4));
+    head.rotation.x=Math.PI/2; head.position.y=L-0.02; g.add(head);
+    for(const sz of [-1,1]){                 // 관절 끝이 불룩하다
+      const k=new THREE.Mesh(new THREE.SphereGeometry(0.098,8,6),WMAT(0xc7bfa2));
+      k.position.set(0,L-0.02,sz*0.17); k.scale.set(1,0.9,0.8); g.add(k);
+    }
+    const lash=new THREE.Mesh(new THREE.CylinderGeometry(0.040,0.040,0.10,8),
+      WMAT(0x8a6a4a));
+    lash.position.y=L-0.19; g.add(lash);     // 가죽으로 조여 묶은 자리
+    g.add(wbind(L-0.28,0.040));
+    return {mesh:g, grip:0.32};
+  },
   rifle_bolt(){                              // 볼트 소총 — 나무 개머리 · 강철 총열
     const g=new THREE.Group(), L=1.22;
     const wood=WMAT(0x6b5442), steel=WMAT(0x6e747a), dark=WMAT(0x3a3d40);
@@ -5062,10 +5180,14 @@ const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
    가중치는 가고일 25 대 북극곰 40 으로 곰이 높은데, 예산이 바닥날 무렵엔 값싼
    가고일만 들어갈 수 있어 마지막 자리를 가고일이 쓸어가기 때문이다. 그만큼을
    곰 쪽에 얹어야 실제 마릿수가 같아진다 (12일 실측 3.16 대 3.12). */
+/* drop — 한 마리를 잡으면 나오는 것. 그 재료로 만드는 무기 두 자루 분이 기준이다
+   (키틴 검 3 · 키틴 도끼 3 → 키틴 6 / 뼈 창 3 · 뼈 해머 4 → 뼈 8 에 가죽 3). */
 const MOBS=[
   //  id            이름              power first peak rise fall
-  {id:'gargoyle',  n:'곤충형 가고일', power:   1, first: 2, peak: 4, rise:2, fall: 4},
-  {id:'bear',      n:'북극곰',        power:   3, first: 2, peak:16, rise:3, fall: 8},
+  {id:'gargoyle',  n:'곤충형 가고일', power:   1, first: 2, peak: 4, rise:2, fall: 4,
+   drop:[{id:'chitin',n:6}]},
+  {id:'bear',      n:'북극곰',        power:   3, first: 2, peak:16, rise:3, fall: 8,
+   drop:[{id:'bone',n:8},{id:'hide',n:3}]},
   {id:'saltcrab',  n:'소금게',        power:   4, first: 3, peak:18, rise:3, fall: 6},
   {id:'mudangler', n:'갯벌 아귀',     power:  10, first: 6, peak:21, rise:3, fall: 6},
   {id:'sulfnewt',  n:'유황 도롱뇽',   power:  20, first:10, peak:24, rise:3, fall: 6},

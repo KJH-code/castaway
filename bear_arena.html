@@ -134,7 +134,7 @@
     <div><span>WASD</span>이동 · Shift 달리기</div>
     <div><span>Space</span>점프</div>
     <div><span>좌클릭</span>휘두르기</div>
-    <div><span>1 ~ 6</span>무기 바꾸기 (돌창 · 검 · 창 · 도끼 · 해머 · 소총)</div>
+    <div><span>1 ~ 9 · 0</span>무기 바꾸기 — 돌창 · 철(검·창·도끼·해머) · 키틴 검 · 뼈 창 · 키틴 도끼 · 뼈 해머 · 소총</div>
     <div><span>X</span>재장전 (소총)</div>
     <div><span>R</span>되살리기 · Tab 설정 접기</div>
     <div><span>Esc</span>커서 되찾기 (일시정지)</div>
@@ -319,9 +319,19 @@ const WEAPONS=[
   {id:'spear_iron', n:'철 창',       dmg:40, reach:2.6, rate:1.00, stam: 8, swing:'thrust'},
   {id:'axe_war',    n:'철 전투도끼',  dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
   {id:'hammer_iron',n:'철 해머',     dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash', stun:0.2},
+  {id:'sword_chitin',n:'키틴 검',    dmg:30, reach:1.5, rate:0.40, stam: 5, swing:'slash'},
+  {id:'spear_bone', n:'뼈 창',       dmg:40, reach:2.6, rate:1.00, stam: 8, swing:'thrust'},
+  {id:'axe_chitin', n:'키틴 도끼',    dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
+  {id:'hammer_bone',n:'뼈 해머',     dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash', stun:0.2},
   {id:'rifle_bolt', n:'볼트 소총',    dmg:150,reach: 50, rate:2.40, stam: 3, swing:'shot',
    gun:1, mag:5, reload:6.5}
 ];
+/* 잡으면 나오는 것 — 본 게임의 MOBS 표와 같은 값이다.
+   뼈 창 3 · 뼈 해머 4 이니, 한 마리에 무기 두 자루 분이 나온다. */
+const LOOT=[{n:'뼈', k:8},{n:'가죽', k:3}];
+function dropLoot(){
+  msg('쓰러뜨렸다 — '+LOOT.map(l=>l.n+' ×'+l.k).join(' · ')+' 를 얻었다');
+}
 const RELOAD={t:0};                         // 재장전 남은 시간
 let magLeft=5;                              // 탄창에 남은 발수 (아레나는 예비탄 무한)
 const MAG_FULL=5;
@@ -669,7 +679,7 @@ function shoot(){
     B.alerted=true;
     if(B.state==='wander') setState('chase');
     if(B.hp<=0){ B.hp=0; B.alive=false; setState('dead');
-      msg('쓰러뜨렸다'); }
+      dropLoot(); }
     else msg('명중 '+Math.round(t)+' m −'+W.dmg);
   }else msg('빗나갔다');
 }
@@ -692,7 +702,7 @@ function attack(){
   B.hp-=W.dmg; B.flash=1;
   if(W.stun) B.frz+=W.stun;                     // 해머 — 굳은 시간에 그대로 더해진다
   if(B.hp<=0){ B.hp=0; B.alive=false; setState('dead');
-    msg('쓰러뜨렸다'); paused=true; unlock();
+    dropLoot(); paused=true; unlock();
     showOv('북극곰을 잡았다','내려찍기를 '+PL.hits+'번 맞고 '+PL.miss+'번 흘렸습니다.','다시');
   }else msg(W.n+' −'+W.dmg+(W.stun?' · 기절':''));
 }
@@ -804,6 +814,70 @@ const WEAPON_FX={
     bl.position.set(0.02,L-0.04,-0.021); g.add(bl);
     g.add(wbind(L-0.20,0.036));
     return {mesh:g, grip:0.30};
+  },
+  sword_chitin(){                            // 키틴 검 — 겹쳐 세운 껍질 날
+    const g=new THREE.Group(), H=0.24, B2=0.88;
+    g.add(haft(H,0.028,0.032,0x4a3a29));
+    const wrap=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.038,H-0.03,8),
+      WMAT(0x8a6a4a));
+    wrap.position.y=H/2; g.add(wrap);        // 가죽으로 감은 손잡이
+    const gd=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.040,0.06),WMAT(0x3f4f44));
+    gd.position.y=H+0.02; g.add(gd);
+    for(let i=0;i<3;i++){                    // 껍질을 세 겹으로 겹쳐 붙였다
+      const bl=new THREE.Mesh(new THREE.BoxGeometry(0.075-i*0.012,B2-i*0.16,0.020),
+        WMAT(i%2?0x5b6d5e:0x4a5a4e));
+      bl.position.set(0,H+0.05+(B2-i*0.16)/2,(i-1)*0.010); g.add(bl);
+    }
+    const pt=new THREE.Mesh(new THREE.ConeGeometry(0.052,0.17,4),WMAT(0x6b7d6e));
+    pt.position.y=H+0.05+B2+0.07; pt.rotation.y=Math.PI/4;
+    pt.scale.set(1,1,0.34); g.add(pt);
+    return {mesh:g, grip:0.15};
+  },
+  spear_bone(){                              // 뼈 창 — 비스듬히 간 창끝
+    const g=new THREE.Group(), L=2.00;
+    g.add(haft(L,0.022,0.028));
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.046,0.36,5),WMAT(0xd6cfb4));
+    tip.position.y=L+0.17; g.add(tip);
+    const collar=new THREE.Mesh(new THREE.CylinderGeometry(0.034,0.040,0.12,6),
+      WMAT(0xbdb497));
+    collar.position.y=L-0.02; g.add(collar);
+    g.add(wbind(L-0.13,0.034));
+    g.add(wbind(0.52,0.034));
+    return {mesh:g, grip:0.58};
+  },
+  axe_chitin(){                              // 키틴 도끼 — 뼈 심에 물린 넓은 날
+    const g=new THREE.Group(), L=0.90;
+    g.add(haft(L,0.026,0.030));
+    const core=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.21,0.10),WMAT(0xd6cfb4));
+    core.position.y=L-0.04; g.add(core);     // 뼈 심
+    const sh=new THREE.Shape();
+    sh.moveTo(0.00,-0.11);
+    sh.lineTo(0.19,-0.20);
+    sh.quadraticCurveTo(0.35,-0.03, 0.29,0.18);
+    sh.lineTo(0.00, 0.11);
+    sh.closePath();
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,
+      {depth:0.026, bevelEnabled:true, bevelThickness:0.005, bevelSize:0.005,
+       bevelSegments:1, curveSegments:8}),WMAT(0x53685a));
+    bl.position.set(0.02,L-0.04,-0.018); g.add(bl);
+    g.add(wbind(L-0.19,0.036));
+    return {mesh:g, grip:0.29};
+  },
+  hammer_bone(){                             // 뼈 해머 — 관절 뼈를 통째로
+    const g=new THREE.Group(), L=0.95;
+    g.add(haft(L,0.030,0.034));
+    const head=new THREE.Mesh(new THREE.CylinderGeometry(0.085,0.085,0.34,8),
+      WMAT(0xd6cfb4));
+    head.rotation.x=Math.PI/2; head.position.y=L-0.02; g.add(head);
+    for(const sz of [-1,1]){                 // 관절 끝이 불룩하다
+      const k=new THREE.Mesh(new THREE.SphereGeometry(0.098,8,6),WMAT(0xc7bfa2));
+      k.position.set(0,L-0.02,sz*0.17); k.scale.set(1,0.9,0.8); g.add(k);
+    }
+    const lash=new THREE.Mesh(new THREE.CylinderGeometry(0.040,0.040,0.10,8),
+      WMAT(0x8a6a4a));
+    lash.position.y=L-0.19; g.add(lash);     // 가죽으로 조여 묶은 자리
+    g.add(wbind(L-0.28,0.040));
+    return {mesh:g, grip:0.32};
   },
   rifle_bolt(){                              // 볼트 소총 — 나무 개머리 · 강철 총열
     const g=new THREE.Group(), L=1.22;
@@ -997,8 +1071,8 @@ addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='Space') e.preventDefault();
   if(e.code==='KeyR') reset();
-  if(e.code>='Digit1'&&e.code<='Digit6'){          // 1~6 으로 무기를 바꿔 든다
-    const i=+e.code.slice(5)-1;
+  if(e.code>='Digit0'&&e.code<='Digit9'){          // 1~9·0 으로 무기를 바꿔 든다
+    const i=(+e.code.slice(5)+9)%10;              // 0 은 열 번째 자리
     /* 바꿔 들어도 쿨타임은 그대로 남는다 — 초기화하면 도끼로 한 대 치고 검으로
        갈아 들어 쿨타임을 건너뛸 수 있다. 탄창도 그대로 둔다(갈아 들어 재장전을
        건너뛰지 못하게). 다만 하던 재장전은 끊긴다. */
