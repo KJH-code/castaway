@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CASTAWAY — 섬 생성 + 3D 월드</title>
+<title>CASTAWAY 건축장 — 평지 · 재료 무제한</title>
 <style>
   :root{--ink:#c2d6ce;--dim:#66807a;--acc:#8fd6b4;--panel:rgba(6,11,12,.8);--line:rgba(130,180,165,.2)}
   *{box-sizing:border-box}
@@ -311,25 +311,24 @@
 </div>
 
 <div id="ov">
-  <h1>CASTAWAY</h1>
-  <div class="s">보급선은 좌표만 남기고 떠났다. 섬은 시드 하나로 만들어진다 —
-    융기, 침식, 하천, 기후, 식생, 광상이 그 순서대로 결정된다.</div>
+  <h1>CASTAWAY 건축장</h1>
+  <div class="s">평평한 터 한 장. 재료도 무게 제한도 없다 —
+    집 짓는 것만 해 보는 자리다. 본 게임은 island_world.html.</div>
   <div class="k">
     <div><span>WASD</span>이동 · Shift 달리기</div>
     <div><span>Space</span>점프 · Ctrl 앉기</div>
     <div><span>F</span>손전등 · V 자유 카메라</div>
-    <div><span>E</span>맨손 채집 (길게)</div>
-    <div><span>I / C / B</span>소지품 · 제작 · 사전</div>
-    <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
-    <div><span>Q</span>도구 장착 · G 버리기</div>
-    <div><span>1 ~ 5</span>빠른 칸 — 손의 것과 맞바꾼다</div>
-    <div><span>Z</span>집 짓기 — 1~5 토대·벽·지붕·경사 지붕·삼각 벽 · 6·7·8 초가·나무·돌 · Q 삼각 벽 방향</div>
-    <div><span>좌클릭</span>무기 찌르기</div>
-    <div><span>Tab</span>생성 설정 · R 새 섬 · F3 진단</div>
+    <div><span>Z</span>짓기 모드 켜기 / 끄기</div>
+    <div><span>1 ~ 5</span>토대 · 벽 · 지붕 · 경사 지붕 · 삼각 벽</div>
+    <div><span>6 · 7 · 8</span>초가 · 나무 · 돌</div>
+    <div><span>Q</span>삼각 벽 방향 좌 / 우</div>
+    <div><span>좌클릭</span>놓기 · <b>G</b> 걷어내기</div>
+    <div><span>I / C</span>소지품 · 제작</div>
+    <div><span>Tab</span>설정 · R 새 터 · F3 진단</div>
     <div><span>F5 / F9</span>저장 · 불러오기</div>
     <div><span>T</span>시간 가속 · Esc 일시정지</div>
   </div>
-  <button id="bStart">상륙</button>
+  <button id="bStart">들어가기</button>
   <div id="bar"><i id="barF"></i></div>
   <div id="ovLoad"></div>
 </div>
@@ -459,7 +458,18 @@ const RESOURCES=[
 ];
 
 /* ---------------- 파라미터 ---------------- */
-const P = { seed:'castaway', size:0.70, ridge:0.85, ero:0.60, sea:0, rain:1.0, limb:0.8 };
+const P = { seed:'castaway', size:0.70, ridge:0.85, ero:0.60, sea:0, rain:1.0, limb:0.8,
+            flat:1 };
+/* ----------------------------------------------------------------------------
+   건축장 — 집만 지어 보는 별도 파일 (본 게임은 island_world.html)
+   · 지형이 통째로 평평한 대지 하나다 (침식 단계를 건너뛴다)
+   · 건축 재료가 들지 않고, 지고 다니는 무게 제한도 없다
+   · 나무·바위 같은 자원은 놓지 않는다 — 터가 비어 있어야 짓기 좋다
+   본 게임의 짓기 규칙(격자·높이 계승·층 쌓기·걷어내는 차례)은 그대로다.
+   -------------------------------------------------------------------------- */
+const FLAT_Y=10;                       // 평지 대지의 높이 (해수면 위)
+const isFlat =()=>!!P.flat;            // 지형이 평지인가
+const isFree =()=>!!P.flat;            // 재료·무게가 공짜인가 (평지 모드와 함께 켜진다)
 let windDir={x:1,z:0,name:'서풍'};
 let stats={};
 
@@ -493,6 +503,11 @@ function genBase(seed){
       const ridge = Math.pow(ridged(n1,nx*1.45+12,nz*1.45-5,4),2.4); // 산릉 (파장을 길게)
 
       const land = mask*mask*(3-2*mask);
+      if(isFlat()){                                          // 평지 건축 — 대지 한 장
+        const t=smoothstep(0.42,0.60,land);                  // 물가만 부드럽게 떨어뜨린다
+        F.elev[IDX(x,z)]=t*FLAT_Y-(1-t)*22-P.sea;
+        continue;
+      }
       const h01  = cont*0.30 + ridge*rMask*P.ridge*0.80;
       let e = h01*100*land - (1-land)*26 - P.sea;
       // 해안 완만화: 해수면 ±BAND 구간을 압축 → 넓은 해빈·간석지·완사면 형성
@@ -1941,12 +1956,14 @@ function invWeight(){
   let w=0; for(const s of INV.slots) w+=ITEMS[s.id].kg*s.n;
   return w;
 }
-const invLoad=()=>clamp(invWeight()/INV.max,0,1);
+const invLoad=()=>isFree()?0:clamp(invWeight()/INV.max,0,1);
+const invCap =()=>isFree()?Infinity:INV.max;               // 평지 건축은 무게 제한이 없다
+const invCapN=()=>isFree()?'∞':INV.max;
 
 function invAdd(id,n){
   n=n||1;
   const T=ITEMS[id];
-  if(invWeight()+T.kg*n > INV.max+1e-6) return false;
+  if(!isFree() && invWeight()+T.kg*n > INV.max+1e-6) return false;
   if(T.tool){                       // 도구는 개별 내구도를 가지므로 겹치지 않는다
     for(let k=0;k<n;k++){
       const sl={id,n:1};
@@ -1971,7 +1988,7 @@ function invRemove(idx,n){
 let invDirty=true, invOpen=false;
 function drawInv(){
   const L=document.getElementById('invL'), w=invWeight();
-  const wt=w.toFixed(1)+' / '+INV.max+' kg';
+  const wt=w.toFixed(1)+' / '+invCapN()+' kg';
   const b=document.getElementById('invW');
   b.textContent=wt; b.className=invLoad()>0.85?'over':'';
   document.getElementById('wgT').textContent=wt;
@@ -2275,10 +2292,10 @@ function updateHarvest(dt){
   // 남은 적재량만큼만 담는다
   const Y=H.yield||[1,1];
   const want_n=Y[0]+((Math.random()*(Y[1]-Y[0]+1))|0);
-  const room=Math.floor((INV.max-invWeight())/ITEMS[H.item].kg+1e-9);
+  const room=isFree()?9999:Math.floor((INV.max-invWeight())/ITEMS[H.item].kg+1e-9);
   const got=Math.min(want_n,room);
   if(got<1){
-    toast('더 들 수 없다 — '+INV.max+' kg 한계');
+    toast('더 들 수 없다 — '+invCapN()+' kg 한계');
     HARV.active=false; return;
   }
   invAdd(H.item,got);
@@ -3147,7 +3164,7 @@ function toStore(i,all){
 function fromStore(i,all){
   const st=curStore, sl=st&&st.slots[i]; if(!sl) return;
   const T=ITEMS[sl.id];
-  const room=Math.floor((INV.max-invWeight())/T.kg+1e-9);
+  const room=isFree()?9999:Math.floor((INV.max-invWeight())/T.kg+1e-9);
   if(room<1){ toast('더 들 수 없다'); return; }
   const n=T.tool?1:Math.min(all?sl.n:1,room);
   if(T.tool) stackInto(INV.slots,sl.id,1,{dur:sl.dur,fuel:sl.fuel,lit:sl.lit});
@@ -3512,7 +3529,7 @@ function buildCheck(t){
   return {ok:true, why:''};
 }
 const buildCost=(k,tier)=>BTIER[tier===undefined?BUILD.tier:tier].cost[k];
-const canBuild=(k,tier)=>buildCost(k,tier).every(r=>countMat(r)>=r.n);
+const canBuild=(k,tier)=>isFree()||buildCost(k,tier).every(r=>countMat(r)>=r.n);
 
 /* ---- 짓기 모드 ---- */
 function enterBuild(kind,tier){
@@ -3567,7 +3584,7 @@ function doBuild(){
   if(!BUILD.on||!BUILD.tgt) return;
   if(!BUILD.ok){ toast(BUILD.why||'여기엔 못 놓는다'); return; }
   const t=BUILD.tgt, tier=BUILD.tier;
-  for(const r of buildCost(BUILD.kind)) consumeMat(r);
+  if(!isFree()) for(const r of buildCost(BUILD.kind)) consumeMat(r);
   if(t.kind==='found') placeFound(t.gx,t.gz,tier);
   else if(t.kind==='wall') placeWall(t.gx,t.gz,t.L,t.s,tier);
   else if(t.kind==='slope') placeSlope(t.gx,t.gz,t.L,t.s,tier);
@@ -3618,8 +3635,8 @@ function undoBuild(){
   toast('걷어낼 것이 없다');
 }
 function refundBuild(kind,tier){
-  for(const r of BTIER[tier].cost[kind]) invAdd(r.id,r.n);
-  toast(BTIER[tier].n+' '+BKIND_N[kind]+' 걷어냄 — 재료를 되돌려 받았다');
+  if(!isFree()) for(const r of BTIER[tier].cost[kind]) invAdd(r.id,r.n);
+  toast(BTIER[tier].n+' '+BKIND_N[kind]+' 걷어냄'+(isFree()?'':' — 재료를 되돌려 받았다'));
   sfx('bind'); invDirty=true; craftDirty=true;
 }
 
@@ -4201,7 +4218,7 @@ function drawBox(){
   document.getElementById('boxK').textContent=contStatus(st);
   document.getElementById('boxF').textContent=contHint(st);
   const w1=document.getElementById('boxW1'), w2=document.getElementById('boxW2');
-  w1.textContent=invWeight().toFixed(1)+' / '+INV.max+' kg';
+  w1.textContent=invWeight().toFixed(1)+' / '+invCapN()+' kg';
   w1.className=invLoad()>0.85?'over':'';
   const sw=contWeight(st);
   w2.textContent=sw.toFixed(1)+' / '+st.cap+' kg';
@@ -5267,10 +5284,12 @@ async function generateWorld(){
   const seed=hashStr(P.seed), t0=performance.now();
 
   await phase('지각 융기',6);       genBase(seed);
+  if(!isFlat()){                                            // 평지 모드는 깎지 않는다
   await phase('안식각 정리',18);    thermal(22,1.15*(CELL/4),0.5);
   await phase('하천 침식',34);      hydraulic(seed,Math.round(38000*P.ero*(16/(CELL*CELL))));
   await phase('사면 안정화',48);    thermal(8,1.45*(CELL/4),0.45);
                                     smoothTerrain(3,0.6);   // 표면 잡티 제거
+  }
                                     computeSlope();
   await phase('수계 추출',58);      hydrology(); computeSlope(); computeTWI();
                                     distanceField(F.dWater,i=>F.elev[i]<=0);
@@ -5278,7 +5297,7 @@ async function generateWorld(){
   await phase('기후 계산',68);      climate(seed);
   await phase('식생 분류',76);      classify();
                                     hydrothermal(seed); classify();
-  await phase('광상 탐사',82);      placeResources(seed);
+  await phase('터 고르기',82);      PROPS=[];   // 건축장은 자원을 놓지 않는다
   await phase('지형 메시',90);      buildChunks(); buildWater();
   await phase('자원 배치',96);      placeProps_(seed);
   await phase('상륙 준비',99);      cacheMap(); spawnPlayer();
@@ -5300,13 +5319,14 @@ async function generateWorld(){
                                     ARCS.forEach(g=>scene.remove(g.mesh)); ARCS.length=0;
                                     boxOpen=false; curStore=null;
                                     CREATURES.length=0; ATK.cd=0; ATK.swing=0;
+                                    enterBuild('found',1);   // 건축장은 바로 짓기 모드
 
   document.getElementById('iSeed').textContent=P.seed;
   console.log('[생성]',P.seed,Math.round(performance.now()-t0)+'ms',
               '육지',(stats.landCells/(N*N)*100).toFixed(1)+'%','자원',stats.props);
   ovLoad.textContent='';
   document.getElementById('bStart').style.display='';
-  document.getElementById('bStart').textContent='상륙';
+  document.getElementById('bStart').textContent='들어가기';
   }catch(e){
     showErr('생성',e);
     ovLoad.textContent='생성 실패 — 위 오류를 확인하세요';
@@ -5314,7 +5334,7 @@ async function generateWorld(){
   }
   busy=false;                           // 실패해도 잠기지 않게 반드시 해제
 }
-function placeProps_(seed){ buildProps(); placePod(seed); }
+function placeProps_(seed){ }        // 건축장은 빈 터 — 나무도 바위도 놓지 않는다
 
 /* ============================================================================
    저장 / 불러오기
