@@ -210,7 +210,7 @@ function b64ToBuf(b64){
    모델은 높이 3.00 · 폭 3.56 · 앞뒤 3.19 이고 +Z 쪽이 얼굴이다. 바닥은 y=0.
    아래 좌표(발끝·손끝·골반·가슴)는 정점 분포에서 뽑은 실측값이다.
    ========================================================================== */
-const MODEL_H=3.003, BEAR_H=2.6*1.2;          // 실제 크기 3.12 m (2.6 m 의 1.2배)
+const MODEL_H=3.003, BEAR_H=2.6*1.32;         // 실제 크기 3.43 m (2.6 m 의 1.32배)
 const SCL=BEAR_H/MODEL_H;
 const J_TORSO=0, J_HEAD=1, J_ARM_L=2, J_ARM_R=3, J_LEG_L=4, J_LEG_R=5;
 const JOINT=[
@@ -366,7 +366,7 @@ const CONE=0.77;
 const mitigate=d=>Math.max(1,d*(1-clamp(armSum()/24,0,0.72)));
 
 /* ---- 북극곰 ---- */
-const B={pos:new THREE.Vector3(0,0,-18), yaw:0, hp:220, hpMax:220, frz:0, alerted:false,
+const B={pos:new THREE.Vector3(0,0,-18), yaw:0, hp:400, hpMax:400, frz:0, alerted:false,
          state:'wander', t:0, target:new THREE.Vector3(), dir:new THREE.Vector3(0,0,1),
          speed:0, walkPh:0, hitDone:false, alive:true, flash:0, aimYaw:0};
 const SNAME={wander:'배회',chase:'추격',attack:'내려찍기',stun:'경직',dead:'쓰러짐'};
