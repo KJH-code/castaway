@@ -4133,7 +4133,6 @@ function placeWheelAt(px,py,pz){
   COLLIDERS.push({x:px,z:pz,r:0.8}); buildColliderGrid();
   return obj;
 }
-const nearWheel=()=>WHEELS.some(w=>Math.hypot(w.x-PL.pos.x,w.z-PL.pos.z)<7);
 
 /* 발전기 — 물레방아 축에 물린다. 물레방아 7 m 안에만 놓을 수 있다. */
 function placeDynamoAt(px,py,pz){
@@ -5986,18 +5985,24 @@ async function restore(d){
   }
   buildColliderGrid();
 
+  // 소지품도 용기와 같은 규칙(loadSlots)으로 거른다. 없어진 아이템 id 가 슬롯에
+  // 남으면 invWeight 가 매 프레임 터져 화면이 통째로 멎는다.
+  // eq·wear 는 저장 당시의 inv 인덱스이므로, 버린 만큼 인덱스를 옮겨준다.
+  const raw=d.inv||[], remap=[];
+  let kept=0;
+  for(const sl of raw) remap.push(ITEMS[sl.id]?kept++:-1);
   INV.slots.length=0;
-  for(const sl of loadSlots(d.inv)) INV.slots.push(sl);
+  for(const o of loadSlots(raw)) INV.slots.push(o);
+  const slotAt=ix=>(ix>=0&&remap[ix]>=0)?INV.slots[remap[ix]]:null;
+
   INV.sel=d.sel|0;
-  EQUIP=(d.eq>=0&&INV.slots[d.eq])?INV.slots[d.eq]:null;
+  EQUIP=slotAt(d.eq);
   for(const k in WEAR){
-    const ix=d.wear?d.wear[k]:-1;
-    WEAR[k]=(ix>=0&&INV.slots[ix])?INV.slots[ix]:null;
+    const sl=slotAt(d.wear?d.wear[k]:-1);
+    WEAR[k]=(sl&&ITEMS[sl.id].wear)?sl:null;   // 착용 못 하는 것이 칸에 앉으면 wornSum 이 터진다
   }
-  for(let i=0;i<QUICK.length;i++){
-    const ix=d.quick?d.quick[i]:-1;
-    QUICK[i]=(ix>=0&&INV.slots[ix])?INV.slots[ix]:null;
-  }
+  for(let i=0;i<QUICK.length;i++)             // 빠른 칸도 같은 규칙으로 옮긴다
+    QUICK[i]=slotAt(d.quick?d.quick[i]:-1);
   quickDirty=true;
   refreshWear();
   invDirty=true; craftDirty=true;
