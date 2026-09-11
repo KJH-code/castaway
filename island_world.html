@@ -349,7 +349,7 @@
     <div><span>I / C / B</span>소지품 · 제작 · 사전</div>
     <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
     <div><span>I</span>소지품 — <b>끌어다 손·옷·입 칸에 놓는다</b> · G 버리기</div>
-    <div><span>F</span>고른 것을 먹는다 (날것은 탈이 난다)</div>
+    <div><span>F</span>고른 것을 먹거나 감는다 (날것은 탈이 난다)</div>
     <div><span>그물</span>무릎 위까지 잠기는 물에 들어가 좌클릭</div>
     <div><span>1 ~ 5</span>빠른 칸 — 손의 것과 맞바꾼다</div>
     <div><span>Z</span>집 짓기 — 1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽 좌우</div>
@@ -1843,6 +1843,10 @@ const ITEMS={
                use:'모방 거미의 실 — 노끈보다 가늘고 훨씬 질기다'},
   mimic_flesh:{n:'모방 조직',   kg:0.9,  c:0x6a4a5a,
                use:'삼킨 것의 모습을 베끼는 살 — 무엇이든 될 수 있어 아무것도 아니다'},
+  // 모방 조직은 닿은 것을 베낀다 — 살에 대면 그 살이 되어 앉는다
+  bandage_mimic:{n:'모방 붕대', kg:0.3, c:0xa87f86,
+               use:'모방 조직을 얇게 펴 거미 실로 누빈 띠 — 감으면 속병이 가신다',
+               heal:{ill:1, stam:40}},
   pot_sand:   {n:'모래 담은 토기', kg:3.4, c:0xc9b98a,
                use:'유리 원료 — 모래는 흘러서 토기에 담아 나른다'},
   glass:      {n:'유리',       kg:1.2,  c:0x9fc6cc, use:'창짝 — 규사를 녹여 굳힌 판'},
@@ -2087,8 +2091,8 @@ function drawInv(){
       +(sl?'<b draggable="true">'+ITEMS[sl.id].n+'</b>':'<i>비어 있음</i>')+'</div>';
   }
   // 입 — 먹을 것을 끌어다 놓으면 먹는다
-  wh+='<div class="ws slot" data-slot="eat"><span>입</span>'
-    +'<i>먹을 것을 여기로</i></div>';
+  wh+='<div class="ws slot" data-slot="eat"><span>쓰기</span>'
+    +'<i>먹을 것 · 붕대를 여기로</i></div>';
   wh+='<div class="ws"><span>방어 / 보온</span><b>'+armorTotal()+' / '+warmthTotal()+'</b></div>';
   if(wornSum('carry')) wh+='<div class="ws"><span>적재 보너스</span><b>+'
     +wornSum('carry')+' kg</b></div>';
@@ -2228,13 +2232,26 @@ const EK={hold:0, tgt:null};
 const E_TAP=0.35;
 let EQUIP=null;                                     // 장착 중인 도구 슬롯
 
-/* ── 먹기 ───────────────────────────────────────────────────────────────
-   날것(raw)은 배는 채우되 한동안 앓는다 — 기력이 더디 차오른다.
-   구우면 그런 일이 없고 채우는 양도 훨씬 크다. */
+/* ── 쓰기(먹기·감기) ────────────────────────────────────────────────────
+   먹는 것은 배를 채운다. 날것(raw)은 배는 채우되 한동안 앓는다 —
+   기력이 더디 차오른다. 구우면 그런 일이 없고 채우는 양도 훨씬 크다.
+   감는 것(heal)은 앓는 것을 가라앉히고 기력을 돌려준다. */
 function eatSlot(sl){
   if(!sl) return false;
   const T=ITEMS[sl.id];
-  if(!T||!T.food){ toast('먹을 수 있는 것이 아니다'); return false; }
+  if(T&&T.heal){                                  // 붕대 따위
+    const H=T.heal;
+    if(H.ill && PL.ill<=0 && !(H.stam&&PL.stam<99)){
+      toast('지금은 감을 데가 없다'); return false;
+    }
+    if(H.ill) PL.ill=0;
+    if(H.stam) PL.stam=clamp(PL.stam+H.stam,0,100);
+    const j=INV.slots.indexOf(sl);
+    if(j>=0) invRemove(j,1);
+    toast(T.n+' — 속이 가라앉는다');
+    sfx('bind'); invDirty=true; return true;
+  }
+  if(!T||!T.food){ toast('먹거나 감을 수 있는 것이 아니다'); return false; }
   if(PL.food>=99.5){ toast('더는 들어가지 않는다'); return false; }
   PL.food=clamp(PL.food+T.food,0,100);
   const i=INV.slots.indexOf(sl);
@@ -2903,6 +2920,13 @@ const RECIPES=[
 
   /* 사냥물 무기 — 모루가 아니라 맨손으로 깎고 묶는다(석기 수준의 손질).
      한 마리에서 나오는 양이 대략 두 자루 분이다. */
+  {id:'bandage_mimic', tier:'뼈와 키틴', n:'모방 붕대', out:{id:'bandage_mimic',n:2},
+   time:14, stam:8,
+   note:'모방 조직을 얇게 저며 거미 실로 누빈다. 살에 대면 그 살을 베껴 눌러앉아 '
+       +'속이 뒤집힌 것을 가라앉힌다. 무엇이든 될 수 있는 살이라 무엇에든 맞는다.',
+   in:[{id:'mimic_flesh',n:1},{id:'spider_silk',n:2},{id:'fiber',n:3}],
+   need:[{tag:'sharp',n:1}]},
+
   {id:'net_silk', tier:'뼈와 키틴', n:'거미줄 그물', out:{id:'net_silk',n:1},
    time:26, stam:14,
    note:'모방 거미의 실은 노끈보다 가늘면서 질기다. 촘촘히 떠도 무겁지 않아 '
