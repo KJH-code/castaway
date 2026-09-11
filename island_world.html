@@ -59,6 +59,9 @@
   #inv .ws span{color:var(--dim)}
   #inv .ws b{color:var(--ink);font-weight:500}
   #inv .ws i{color:var(--dim);font-style:normal;opacity:.6}
+  /* 다쳤을 때 화면 가장자리가 붉어진다 */
+  #hurt{position:fixed;inset:0;pointer-events:none;display:none;z-index:40;
+    box-shadow:inset 0 0 120px 30px rgba(190,40,30,.9)}
   /* 끌어 놓기 — 받는 칸은 테두리를 두르고, 올려놓으면 밝아진다 */
   #inv .ws{border:1px dashed transparent;padding:0 4px;border-radius:3px}
   #inv .ws.slot{border-color:rgba(143,214,180,.28)}
@@ -233,6 +236,7 @@
   </div>
 
   <div class="pnl" id="vitals">
+    <div class="bar"><div class="l"><span>체력</span><span id="hpT">100</span></div><div class="t"><div class="f" id="hpF"></div></div></div>
     <div class="bar"><div class="l"><span>기력</span><span id="stT">100</span></div><div class="t"><div class="f" id="stF"></div></div></div>
     <div class="bar"><div class="l"><span>배</span><span id="fdT">100</span></div><div class="t"><div class="f" id="fdF"></div></div></div>
     <div class="bar" id="oxWrap" style="display:none"><div class="l"><span>산소</span><span id="oxT">100</span></div><div class="t"><div class="f" id="oxF"></div></div></div>
@@ -264,6 +268,7 @@
     <div class="tr"><i id="cbF"></i></div>
     <div class="s" id="cbS">–</div>
   </div>
+  <div id="hurt"></div>
   <div id="hint">화면을 클릭하면 시점 조작이 시작됩니다</div>
 </div>
 
@@ -350,6 +355,7 @@
     <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
     <div><span>I</span>소지품 — <b>끌어다 손·옷·입 칸에 놓는다</b> · G 버리기</div>
     <div><span>F</span>고른 것을 먹거나 감는다 (날것은 탈이 난다)</div>
+    <div><span>체력</span>높은 데서 떨어지거나 · 숨이 다하거나 · 굶으면 깎인다</div>
     <div><span>그물</span>무릎 위까지 잠기는 물에 들어가 좌클릭</div>
     <div><span>1 ~ 5</span>빠른 칸 — 손의 것과 맞바꾼다</div>
     <div><span>Z</span>집 짓기 — 1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽 좌우</div>
@@ -1845,8 +1851,8 @@ const ITEMS={
                use:'삼킨 것의 모습을 베끼는 살 — 무엇이든 될 수 있어 아무것도 아니다'},
   // 모방 조직은 닿은 것을 베낀다 — 살에 대면 그 살이 되어 앉는다
   bandage_mimic:{n:'모방 붕대', kg:0.3, c:0xa87f86,
-               use:'모방 조직을 얇게 펴 거미 실로 누빈 띠 — 감으면 속병이 가신다',
-               heal:{ill:1, stam:40}},
+               use:'모방 조직을 얇게 펴 거미 실로 누빈 띠 — 상처를 덮고 속병을 가라앉힌다',
+               heal:{hp:35, ill:1, stam:40}},
   pot_sand:   {n:'모래 담은 토기', kg:3.4, c:0xc9b98a,
                use:'유리 원료 — 모래는 흘러서 토기에 담아 나른다'},
   glass:      {n:'유리',       kg:1.2,  c:0x9fc6cc, use:'창짝 — 규사를 녹여 굳힌 판'},
@@ -2241,9 +2247,9 @@ function eatSlot(sl){
   const T=ITEMS[sl.id];
   if(T&&T.heal){                                  // 붕대 따위
     const H=T.heal;
-    if(H.ill && PL.ill<=0 && !(H.stam&&PL.stam<99)){
-      toast('지금은 감을 데가 없다'); return false;
-    }
+    const need=(H.hp&&PL.hp<HPMAX-0.5)||(H.ill&&PL.ill>0)||(H.stam&&PL.stam<99);
+    if(!need){ toast('지금은 감을 데가 없다'); return false; }
+    if(H.hp) PL.hp=Math.min(HPMAX,PL.hp+H.hp);
     if(H.ill) PL.ill=0;
     if(H.stam) PL.stam=clamp(PL.stam+H.stam,0,100);
     const j=INV.slots.indexOf(sl);
@@ -5456,12 +5462,18 @@ function rollSpawns(d,rnd){
 /* 배고픔이 줄어드는 빠르기(초당). 실시간 1분이 게임 1시간이므로 하루는 24분.
    그냥 걸어 다니면 하루 반쯤에 바닥난다 — 하루에 한 번은 먹어야 한다. */
 const FOOD_DRAIN=0.035;
+/* 체력 — 아직 몹이 되받아치지 않으므로, 지금 이 섬에서 사람을 죽일 수 있는 것은
+   높이 · 물 · 굶주림 셋뿐이다. 먹고 쉬면 더디게 아문다. */
+const HPMAX=100;
+const HP_FALL_V=17,  HP_FALL_K=6;    // 이보다 빨리 떨어지면 그 초과분만큼 다친다
+                                     // 한 층 2.4 m — 세 층(7.2 m)에서 뛰어내려도 거의 안 다친다
+const HP_DROWN=14, HP_STARVE=0.8, HP_REGEN=0.7;   // 초당
 const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, JUMP=7.6,
       EYE=1.66, EYE_C=0.98, PRAD=0.42, MAXSLOPE=1.15,   // 49° 넘는 사면은 오르지 못함
       STEPUP=0.55;                                      // 이 높이 이하 턱은 그냥 올라선다
 const PL={pos:new THREE.Vector3(),vel:new THREE.Vector3(),yaw:0,pitch:0,
   grounded:false,crouch:false,run:false,swim:false,wade:0,
-  stam:100,oxy:100,food:100,ill:0,light:false,bob:0,dist:0,eye:EYE};
+  hp:100,stam:100,oxy:100,food:100,ill:0,light:false,bob:0,dist:0,eye:EYE};
 const keys={};
 /* 뚫고 내려가기 — 이 시간 동안에는 DROP.y 아래의 지은 바닥만 밟는다.
    Ctrl+Space 로 지붕을 뚫고 내려올 때 쓴다. */
@@ -5469,11 +5481,48 @@ const DROP={t:0, y:0};
 let flyMode=false, paused=true;
 const fly={r:520,th:0.8,ph:0.95,tx:0,ty:0,tz:0};
 
+/* 다치기 — 갑옷이 조금 받아 준다. 아레나와 같은 식으로 최대 72%까지 덜어낸다.
+   숨이 막히고 굶주리는 것은 갑옷이 막아 주지 못한다. */
+let hurtFlash=0, lastHurtMsg=0;
+function hurtPL(dmg,why,armored){
+  if(PL.dead||dmg<=0) return;
+  if(armored) dmg*=1-clamp(armorTotal()/24,0,0.72);
+  PL.hp-=dmg;
+  hurtFlash=Math.min(1,hurtFlash+Math.min(0.9,dmg/30));
+  if(why && dmg>=1 && performance.now()-lastHurtMsg>900){
+    lastHurtMsg=performance.now(); toast(why+' — 체력 '+Math.max(0,Math.round(PL.hp)));
+  }
+  if(PL.hp<=0) diePL(why||'쓰러졌다');
+}
+function diePL(why){
+  if(PL.dead) return;
+  PL.hp=0; PL.dead=true; paused=true;
+  try{ if(document.pointerLockElement===cv) document.exitPointerLock(); }catch(e){}
+  const ov=document.getElementById('ov');
+  ov.querySelector('h1').textContent='쓰러졌다';
+  ov.querySelector('.s').textContent=why+'. 눈을 떠 보니 표류물 곁이다 — '
+    +'가진 것은 그대로지만 배는 절반만 차 있다.';
+  document.getElementById('bStart').textContent='깨어나기';
+  ov.style.display='flex';
+}
+/* 깨어나기 — 짐은 그대로 두고 표류물 곁으로 돌려보낸다. 죽음이 가벼우면
+   높이도 물도 무섭지 않으니, 배를 절반으로 깎아 대가를 남긴다. */
+function revivePL(){
+  const a=Math.random()*6.28;
+  PL.pos.set(podPos.x+Math.cos(a)*3, podPos.y+1, podPos.z+Math.sin(a)*3);
+  PL.pos.y=Math.max(0.2,heightAt(PL.pos.x,PL.pos.z))+0.2;
+  PL.vel.set(0,0,0); PL.camY=undefined;
+  PL.hp=HPMAX; PL.stam=60; PL.oxy=100; PL.ill=0;
+  PL.food=Math.min(PL.food,50);
+  PL.dead=false; hurtFlash=0;
+  toast('깨어났다');
+}
 function spawnPlayer(){
   const a=Math.random()*6.28;
   PL.pos.set(podPos.x+Math.cos(a)*3, podPos.y+1, podPos.z+Math.sin(a)*3);
   PL.pos.y=Math.max(0.2,heightAt(PL.pos.x,PL.pos.z))+0.2;
-  PL.vel.set(0,0,0); PL.stam=100; PL.oxy=100; PL.food=100; PL.ill=0;
+  PL.vel.set(0,0,0); PL.hp=HPMAX; PL.stam=100; PL.oxy=100; PL.food=100; PL.ill=0;
+  PL.dead=false; hurtFlash=0;
   PL.yaw=Math.atan2(podPos.x-PL.pos.x, podPos.z-PL.pos.z)+Math.PI;
   PL.pitch=-0.05;
 }
@@ -5499,6 +5548,7 @@ function walkable(x,z,fromH){
 }
 
 function updatePlayer(dt){
+  if(PL.dead) return;                              // 쓰러져 있는 동안에는 아무것도 안 한다
   const p=PL.pos;
   const fwd=(keys.KeyW?1:0)-(keys.KeyS?1:0);
   const str=(keys.KeyD?1:0)-(keys.KeyA?1:0);
@@ -5560,7 +5610,11 @@ function updatePlayer(dt){
   let ng=floorAt(p.x,p.z,p.y);                 // 지은 바닥이 있으면 그 위에 선다
   if(DROP.t>0) ng=Math.min(ng, floorAt(p.x,p.z,DROP.y-1.0));   // 뚫고 내려가는 중
   if(p.y<=ng){
-    if(PL.vel.y<-13 && !PL.swim && depth<0.5) PL.stam=clamp(PL.stam-Math.abs(PL.vel.y+13)*4,0,100);
+    if(PL.vel.y<-13 && !PL.swim && depth<0.5){
+      PL.stam=clamp(PL.stam-Math.abs(PL.vel.y+13)*4,0,100);
+      const v=-PL.vel.y;
+      if(v>HP_FALL_V) hurtPL((v-HP_FALL_V)*HP_FALL_K, '떨어졌다');
+    }
     p.y=ng; PL.vel.y=0; PL.grounded=true; DROP.t=0;
   }else PL.grounded=false;
 
@@ -5579,6 +5633,13 @@ function updatePlayer(dt){
                                 *(PL.food<=0?0:(PL.ill>0?0.45:1));
   if(PL.food<=0) PL.stam-=3.5*dt;                    // 굶으면 도로 빠진다
   PL.stam=clamp(PL.stam,0,cap);
+
+  /* 체력 — 물에 잠겨 숨이 다하거나, 굶어 바닥나면 깎인다.
+     배가 웬만큼 차 있고 앓지 않으면 더디게 아문다. */
+  if(PL.oxy<=0)      hurtPL(HP_DROWN*dt,  '숨이 막힌다');
+  else if(PL.food<=0)hurtPL(HP_STARVE*dt, '굶주린다');
+  else if(PL.food>35 && PL.ill<=0 && PL.hp<HPMAX)
+    PL.hp=Math.min(HPMAX, PL.hp+HP_REGEN*dt);
 
   // 헤드밥 + 발소리
   const hs=Math.hypot(PL.vel.x,PL.vel.z);
@@ -5852,6 +5913,18 @@ function updateHUD(dt){
   document.getElementById('iAlt').textContent=(PL.swim?'수중 ':'')+Math.round(PL.pos.y)+' m';
   document.getElementById('iBio').textContent=BIOME_INFO[s.biome].n;
   document.getElementById('iFps').textContent=fps;
+  const hpF=document.getElementById('hpF'), hpT=document.getElementById('hpT');
+  if(hpF){
+    hpF.style.width=clamp(PL.hp,0,HPMAX)+'%';
+    hpF.style.background=PL.hp<25?'#c9453a':(PL.hp<55?'#d8724a':'#c96a6a');
+    hpT.textContent=Math.max(0,Math.round(PL.hp));
+  }
+  // 맞으면 화면 가장자리가 붉어진다
+  if(hurtFlash>0){
+    hurtFlash=Math.max(0,hurtFlash-dt*1.6);
+    const hv=document.getElementById('hurt');
+    if(hv){ hv.style.opacity=hurtFlash*0.55; hv.style.display=hurtFlash>0.01?'block':'none'; }
+  }
   document.getElementById('stF').style.width=PL.stam+'%';
   document.getElementById('stT').textContent=Math.round(PL.stam);
   const fdF=document.getElementById('fdF'), fdT=document.getElementById('fdT');
@@ -6120,7 +6193,7 @@ function snapshot(){
     P:Object.assign({},P),
     t:{hour:hourOfDay, gh:gameHours, ts:timeScale},
     pl:{x:PL.pos.x,y:PL.pos.y,z:PL.pos.z,yaw:PL.yaw,pitch:PL.pitch,
-        stam:PL.stam,oxy:PL.oxy,food:PL.food,ill:PL.ill,light:PL.light},
+        hp:PL.hp,stam:PL.stam,oxy:PL.oxy,food:PL.food,ill:PL.ill,light:PL.light},
     inv:saveSlots(INV.slots),
     sel:INV.sel, eq:EQUIP?INV.slots.indexOf(EQUIP):-1,
     wear:{body:WEAR.body?INV.slots.indexOf(WEAR.body):-1,
@@ -6226,6 +6299,7 @@ async function restore(d){
   PL.stam=d.pl.stam; PL.oxy=d.pl.oxy; PL.light=!!d.pl.light;
   // 옛 저장 파일에는 배고픔이 없다 — 그때는 배부른 채로 시작한다
   PL.food=(d.pl.food===undefined)?100:d.pl.food; PL.ill=d.pl.ill||0;
+  PL.hp=(d.pl.hp===undefined)?HPMAX:d.pl.hp; PL.dead=false; hurtFlash=0;
   PL.camY=undefined;
   toast('불러왔습니다 — '+d.at);
 }
@@ -6431,6 +6505,7 @@ function pause(){
   ov.style.display='flex';
 }
 function start(){
+  if(PL.dead) revivePL();
   paused=false; initAudio();
   document.getElementById('ov').style.display='none';
   if(!flyMode&&hasMouse) cv.requestPointerLock();
