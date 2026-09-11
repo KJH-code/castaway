@@ -59,6 +59,15 @@
   #inv .ws span{color:var(--dim)}
   #inv .ws b{color:var(--ink);font-weight:500}
   #inv .ws i{color:var(--dim);font-style:normal;opacity:.6}
+  /* 끌어 놓기 — 받는 칸은 테두리를 두르고, 올려놓으면 밝아진다 */
+  #inv .ws{border:1px dashed transparent;padding:0 4px;border-radius:3px}
+  #inv .ws.slot{border-color:rgba(143,214,180,.28)}
+  #inv .ws.slot.on{border-color:#8fd6b4;background:rgba(143,214,180,.12)}
+  #inv .ws.slot b{cursor:grab}
+  .it{cursor:grab}
+  .it.drag{opacity:.45}
+  #invL.on{outline:1px dashed rgba(216,114,74,.5);outline-offset:-2px}
+  #quick .q.on{outline:1px solid #8fd6b4}
   #inv .ie{color:var(--dim);font-size:10px;padding:14px 2px;text-align:center}
   #inv .if{color:var(--dim);font-size:9px;margin-top:8px;line-height:1.6}
   .it .eq{color:#e0a24a;font-size:9px;margin-left:5px}
@@ -225,6 +234,7 @@
 
   <div class="pnl" id="vitals">
     <div class="bar"><div class="l"><span>기력</span><span id="stT">100</span></div><div class="t"><div class="f" id="stF"></div></div></div>
+    <div class="bar"><div class="l"><span>배</span><span id="fdT">100</span></div><div class="t"><div class="f" id="fdF"></div></div></div>
     <div class="bar" id="oxWrap" style="display:none"><div class="l"><span>산소</span><span id="oxT">100</span></div><div class="t"><div class="f" id="oxF"></div></div></div>
     <div class="bar"><div class="l"><span>적재</span><span id="wgT">0.0 / 70 kg</span></div><div class="t"><div class="f" id="wgF" style="width:0"></div></div></div>
   </div>
@@ -260,7 +270,8 @@
 <div class="pnl" id="inv">
   <div class="ih"><span>소지품</span><b id="invW">0.0 / 70 kg</b></div>
   <div id="invL"></div>
-  <div class="if">I 닫기 · 1~9 선택 · Q 장착/착용 · G 1개 버리기 · Shift+G 전부</div>
+  <div class="if">I 닫기 · <b>끌어다 칸에 놓아 들거나 입는다</b> · 칸에서 목록으로 끌면 벗는다
+    · G 1개 버리기 · Shift+G 전부</div>
 </div>
 
 <div class="pnl" id="dex">
@@ -337,7 +348,9 @@
     <div><span>E</span>맨손 채집 (길게)</div>
     <div><span>I / C / B</span>소지품 · 제작 · 사전</div>
     <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
-    <div><span>Q</span>도구 장착 · G 버리기</div>
+    <div><span>I</span>소지품 — <b>끌어다 손·옷·입 칸에 놓는다</b> · G 버리기</div>
+    <div><span>F</span>고른 것을 먹는다 (날것은 탈이 난다)</div>
+    <div><span>그물</span>무릎 위까지 잠기는 물에 들어가 좌클릭</div>
     <div><span>1 ~ 5</span>빠른 칸 — 손의 것과 맞바꾼다</div>
     <div><span>Z</span>집 짓기 — 1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽 좌우</div>
     <div><span>좌클릭</span>무기 찌르기</div>
@@ -1808,6 +1821,22 @@ const ITEMS={
                use:'가고일 껍질 — 철보다 무르지만 절반 무게다'},
   bone:       {n:'뼈',         kg:0.7,  c:0xd6cfb4,
                use:'북극곰 뼈 — 창대와 망치 머리로 쓴다'},
+  // 먹을 것 — food 는 배를 채우는 양, raw 면 날것이라 탈이 난다
+  meat_bear:  {n:'북극곰 고기', kg:2.2, c:0x9d5a54, use:'날고기 — 구워 먹어야 탈이 없다',
+               food:10, raw:true},
+  meat_cooked:{n:'구운 고기',   kg:1.8, c:0x7a4a33, use:'불에 익힌 고기 — 배를 든든히 채운다',
+               food:42},
+  fish:       {n:'물고기',     kg:0.9, c:0x7f9bb0, use:'그물로 건진 것 — 구워 먹는다',
+               food:7, raw:true},
+  fish_cooked:{n:'구운 물고기', kg:0.8, c:0xa8886a, use:'불에 익힌 물고기',
+               food:24},
+  // 그물 — 물에 들어가 던진다. 거미줄 쪽이 질기고 가볍고 많이 건진다
+  net_cord:   {n:'노끈 그물',   kg:2.6, c:0x9a8a5e, durMax:40,
+               use:'물에 들어가 던져 물고기를 건진다',
+               tool:{net:1, catch:[1,2], stam:12}},
+  net_silk:   {n:'거미줄 그물', kg:1.3, c:0xc9c2d4, durMax:90,
+               use:'거미 실로 뜬 그물 — 가볍고 질기고 많이 걸린다',
+               tool:{net:2, catch:[2,4], stam:9}},
   hide:       {n:'가죽',       kg:1.1,  c:0x8a6a4a,
                use:'북극곰 가죽 — 손잡이를 감고 이음매를 묶는다'},
   spider_silk:{n:'거미 실',     kg:0.2,  c:0xd8d4c8,
@@ -2049,11 +2078,17 @@ function drawInv(){
   if(!invOpen) return;
   // 착용 칸 · 방어 · 보온 요약
   let wh='<div class="wr">';
+  // 손 — 도구·무기·그물을 드는 자리
+  wh+='<div class="ws slot" data-slot="hand"><span>손</span>'
+    +(EQUIP?'<b draggable="true">'+ITEMS[EQUIP.id].n+'</b>':'<i>비어 있음</i>')+'</div>';
   for(const k of ['body','armor','head','back']){
     const sl=WEAR[k];
-    wh+='<div class="ws"><span>'+WEAR_N[k]+'</span>'
-      +(sl?'<b>'+ITEMS[sl.id].n+'</b>':'<i>비어 있음</i>')+'</div>';
+    wh+='<div class="ws slot" data-slot="'+k+'"><span>'+WEAR_N[k]+'</span>'
+      +(sl?'<b draggable="true">'+ITEMS[sl.id].n+'</b>':'<i>비어 있음</i>')+'</div>';
   }
+  // 입 — 먹을 것을 끌어다 놓으면 먹는다
+  wh+='<div class="ws slot" data-slot="eat"><span>입</span>'
+    +'<i>먹을 것을 여기로</i></div>';
   wh+='<div class="ws"><span>방어 / 보온</span><b>'+armorTotal()+' / '+warmthTotal()+'</b></div>';
   if(wornSum('carry')) wh+='<div class="ws"><span>적재 보너스</span><b>+'
     +wornSum('carry')+' kg</b></div>';
@@ -2061,7 +2096,7 @@ function drawInv(){
   if(!INV.slots.length){ L.innerHTML=wh+'<div class="ie">비어 있음</div>'; return; }
   L.innerHTML=INV.slots.map((s,i)=>{
     const t=ITEMS[s.id];
-    return '<div class="it'+(i===INV.sel?' sel':'')+'" data-i="'+i+'">'
+    return '<div class="it'+(i===INV.sel?' sel':'')+'" data-i="'+i+'" draggable="true">'
       +'<i class="sw" style="background:#'+t.c.toString(16).padStart(6,'0')+'"></i>'
       +'<span class="nm">'+t.n+' <span class="qt">×'+s.n+'</span>'
       +(s===EQUIP?'<span class="eq">장착</span>':'')
@@ -2075,6 +2110,72 @@ function drawInv(){
   L.innerHTML=wh+L.innerHTML;
   L.querySelectorAll('.it').forEach(el=>{
     el.onclick=()=>{ INV.sel=+el.dataset.i; invDirty=true; };
+  });
+  wireDrag(L);
+}
+
+/* ── 끌어 놓기 ──────────────────────────────────────────────────────────
+   목록에서 칸으로 끌면 들거나 입고, 칸에서 목록으로 끌면 내려놓는다.
+   빠른 칸(1~5)에도 끌어다 넣을 수 있다. 쥔 것은 소지품 슬롯 자체를 가리키므로
+   무게는 그대로다 — 자리만 옮긴다. */
+let DRAG=null;                                      // 지금 끌고 있는 슬롯
+function dragPut(where){
+  const sl=DRAG; DRAG=null;
+  if(!sl || INV.slots.indexOf(sl)<0) return;
+  const T=ITEMS[sl.id];
+  if(where==='eat'){ eatSlot(sl); return; }
+  if(where==='hand'){
+    if(!T.tool){ toast('들 수 있는 물건이 아니다'); return; }
+    EQUIP=sl; toast(T.n+' 들었다'); sfx('bind'); invDirty=true; return;
+  }
+  if(where==='list'){                               // 목록으로 되돌리면 내려놓는다
+    if(EQUIP===sl){ EQUIP=null; toast(T.n+' 내려놓음'); }
+    for(const k in WEAR) if(WEAR[k]===sl){ WEAR[k]=null; toast(T.n+' 벗음'); }
+    for(let i=0;i<QUICK.length;i++) if(QUICK[i]===sl) QUICK[i]=null;
+    refreshWear(); invDirty=true; quickDirty=true; return;
+  }
+  if(where.slice(0,2)==='q:'){                      // 빠른 칸
+    const i=+where.slice(2);
+    if(!T.tool){ toast('빠른 칸에는 도구만 넣는다'); return; }
+    for(let k=0;k<QUICK.length;k++) if(QUICK[k]===sl) QUICK[k]=null;
+    QUICK[i]=sl; toast((i+1)+'번 칸에 넣었다');
+    sfx('bind'); invDirty=true; quickDirty=true; return;
+  }
+  // 입는 칸
+  if(!T.wear || T.wear.slot!==where){ toast(WEAR_N[where]+' 자리에 걸치는 물건이 아니다'); return; }
+  WEAR[where]=sl; toast(T.n+' 입었다'); sfx('bind');
+  refreshWear(); invDirty=true;
+}
+function wireDrag(L){
+  const mark=(el,on)=>el.classList.toggle('on',on);
+  L.querySelectorAll('.it').forEach(el=>{
+    el.ondragstart=ev=>{ DRAG=INV.slots[+el.dataset.i]; el.classList.add('drag');
+      ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain','x'); };
+    el.ondragend=()=>{ el.classList.remove('drag'); DRAG=null; };
+  });
+  L.querySelectorAll('.ws.slot').forEach(el=>{
+    const k=el.dataset.slot;
+    const b=el.querySelector('b[draggable]');
+    if(b) b.ondragstart=ev=>{
+      DRAG=(k==='hand')?EQUIP:WEAR[k];
+      ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain','x'); };
+    el.ondragover=ev=>{ ev.preventDefault(); mark(el,true); };
+    el.ondragleave=()=>mark(el,false);
+    el.ondrop=ev=>{ ev.preventDefault(); mark(el,false); dragPut(k); };
+  });
+  // 목록 바탕 — 여기로 끌면 내려놓는다
+  L.ondragover=ev=>{ if(DRAG){ ev.preventDefault(); L.classList.add('on'); } };
+  L.ondragleave=()=>L.classList.remove('on');
+  L.ondrop=ev=>{
+    if(ev.target.closest&&ev.target.closest('.ws.slot')) return;   // 칸이 먼저 받는다
+    ev.preventDefault(); L.classList.remove('on'); dragPut('list');
+  };
+  // 빠른 칸
+  const bar=document.getElementById('quick');
+  if(bar) bar.querySelectorAll('.q').forEach(el=>{
+    el.ondragover=ev=>{ if(DRAG){ ev.preventDefault(); mark(el,true); } };
+    el.ondragleave=()=>mark(el,false);
+    el.ondrop=ev=>{ ev.preventDefault(); mark(el,false); dragPut('q:'+el.dataset.i); };
   });
 }
 
@@ -2126,6 +2227,22 @@ const HARV={near:null, t:0, active:false, mode:null, cont:null, fire:null, fit:n
 const EK={hold:0, tgt:null};
 const E_TAP=0.35;
 let EQUIP=null;                                     // 장착 중인 도구 슬롯
+
+/* ── 먹기 ───────────────────────────────────────────────────────────────
+   날것(raw)은 배는 채우되 한동안 앓는다 — 기력이 더디 차오른다.
+   구우면 그런 일이 없고 채우는 양도 훨씬 크다. */
+function eatSlot(sl){
+  if(!sl) return false;
+  const T=ITEMS[sl.id];
+  if(!T||!T.food){ toast('먹을 수 있는 것이 아니다'); return false; }
+  if(PL.food>=99.5){ toast('더는 들어가지 않는다'); return false; }
+  PL.food=clamp(PL.food+T.food,0,100);
+  const i=INV.slots.indexOf(sl);
+  if(i>=0) invRemove(i,1);
+  if(T.raw){ PL.ill=Math.max(PL.ill,45); toast(T.n+' — 날로 먹어 속이 뒤집힌다'); }
+  else toast(T.n+' 먹었다');
+  sfx('bind'); invDirty=true; return true;
+}
 
 /* ── 빠른 칸 ────────────────────────────────────────────────────────────
    손에 든 것 아래의 다섯 칸. 숫자를 누르면 그 칸의 것을 손에 들고, 들고 있던
@@ -2504,6 +2621,11 @@ const RECIPES=[
    note:'섬유 가닥을 반대 방향으로 꼬아 겹치면 풀리지 않는 줄이 된다.',
    in:[{id:'fiber',n:3}]},
 
+  {id:'net_cord', tier:'풀과 돌', n:'노끈 그물', out:{id:'net_cord',n:1}, time:22, stam:18,
+   note:'노끈을 한 뼘 간격으로 매듭지어 그물코를 뜬다. 물에 들어가 던지면 '
+       +'물고기가 걸린다. 코가 굵어 작은 것은 빠져나간다.',
+   in:[{id:'cord',n:8},{id:'branch',n:2}]},
+
   {id:'tinder', tier:'풀과 돌', n:'부싯깃', out:{id:'tinder',n:1}, time:3, stam:3,
    note:'풀잎을 비벼 부수고 뭉쳐 불씨가 옮겨 붙을 둥지를 만든다.',
    in:[{id:'grass_blade',n:5}]},
@@ -2781,6 +2903,13 @@ const RECIPES=[
 
   /* 사냥물 무기 — 모루가 아니라 맨손으로 깎고 묶는다(석기 수준의 손질).
      한 마리에서 나오는 양이 대략 두 자루 분이다. */
+  {id:'net_silk', tier:'뼈와 키틴', n:'거미줄 그물', out:{id:'net_silk',n:1},
+   time:26, stam:14,
+   note:'모방 거미의 실은 노끈보다 가늘면서 질기다. 촘촘히 떠도 무겁지 않아 '
+       +'절반 무게에 두 배로 건진다.',
+   in:[{id:'spider_silk',n:6},{id:'cord',n:2},{id:'branch',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
   {id:'sword_chitin', tier:'뼈와 키틴', n:'키틴 검', out:{id:'sword_chitin',n:1},
    time:26, stam:22,
    note:'가고일 껍질을 결대로 쪼개 겹쳐 세우고, 가죽으로 손잡이를 감는다. '
@@ -3092,7 +3221,10 @@ const FIRING={
   crucible_raw:{out:'crucible', hours:0.9, count:1},   // 게임 54분 — 두꺼워 오래 걸린다
   // 숯가마: 흙을 덮어 산소를 막고 태우면 타 없어지지 않고 숯이 된다.
   // 통나무를 그대로 넣으면 연료로 쓸지 구울지 구분이 안 되므로 재료를 따로 둔다.
-  charcoal_pile:{out:'charcoal', hours:1.5, count:4}
+  charcoal_pile:{out:'charcoal', hours:1.5, count:4},
+  // 고기와 물고기는 화덕에 넣어두면 익는다 — 날로 먹으면 탈이 난다
+  meat_bear:   {out:'meat_cooked', hours:0.25, count:1},   // 게임 15분
+  fish:        {out:'fish_cooked', hours:0.15, count:1}
 };
 const FIRES=[];
 const IGNITE={t:0, dur:8, stam:9};   // 8초 × 9 = 72 — 기력이 가득하면 한 번에 붙는다
@@ -5106,10 +5238,44 @@ function shoot(w,W){
   invDirty=true;
 }
 
+/* ── 그물질 ─────────────────────────────────────────────────────────────
+   무릎 위(0.6 m)까지 잠기는 물에 서서 던진다. 그물코가 촘촘할수록 많이 건지고,
+   던질 때마다 그물이 조금 상한다. 같은 자리에서 계속 건질 수는 없다 —
+   물고기가 흩어져 잠시 뜸해진다. */
+const NET={cd:0, spot:null, spent:0};
+function castNet(w,T){
+  if(NET.cd>0){ toast('물고기가 흩어졌다 — '+NET.cd.toFixed(1)+'초'); return; }
+  if(!(PL.depth>0.6)){ toast('무릎 위까지 잠기는 물에 들어가야 한다'); return; }
+  if(PL.stam<T.stam){ toast('기력이 없다'); return; }
+  PL.stam=clamp(PL.stam-T.stam,0,100);
+  NET.cd=3.5;
+  ATK.cd=1.2; ATK.swing=0.45; ATK.swingMax=0.45;
+  sfx('bind');
+  // 같은 자리에서 자꾸 던지면 덜 걸린다
+  const here=Math.round(PL.pos.x/6)+','+Math.round(PL.pos.z/6);
+  if(NET.spot!==here){ NET.spot=here; NET.spent=0; }
+  const tired=Math.max(0.25,1-NET.spent*0.18);
+  const [lo,hi]=T.catch;
+  let got=Math.round((lo+Math.random()*(hi-lo))*tired);
+  if(Math.random()<0.12*(1-tired)) got=0;            // 자꾸 던지면 헛탕도 난다
+  NET.spent++;
+  w.dur-=1;
+  if(w.dur<=0){ toast(ITEMS[w.id].n+' 찢어졌다'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
+  if(got<=0){ toast('그물이 비었다'); return; }
+  let added=0;
+  for(let i=0;i<got;i++) if(invAdd('fish',1)) added++;
+  toast(added?('물고기 '+added+'마리'):'무거워서 더 못 든다');
+  invDirty=true;
+}
+
 function attack(){
+  /* 그물은 무기가 아니라서 equippedWeapon() 이 걸러낸다 — 손에 든 것을 먼저 본다 */
+  const hand=equippedTool(), HT=hand&&ITEMS[hand.id].tool;
+  if(HT&&HT.net){ if(ATK.cd<=0) castNet(hand,HT); return; }
   const w=equippedWeapon();
   const W=w&&ITEMS[w.id].tool;
-  if(!w || ATK.cd>0 || PL.stam<(W.stam||9)) return;
+  if(!w || ATK.cd>0) return;
+  if(PL.stam<(W.stam||9)) return;
   if(W.gun){ shoot(w,W); return; }
   ATK.cd=W.rate;
   ATK.swing=Math.min(0.30,W.rate*0.55);      // 빠른 무기는 모션도 짧아야 겹치지 않는다
@@ -5143,6 +5309,7 @@ function attack(){
 /* 휘두르는 결 — 창은 찌르고, 검·도끼는 베고, 해머는 내리친다 */
 function updateWeapon(dt){
   if(ATK.cd>0) ATK.cd=Math.max(0,ATK.cd-dt);
+  if(NET.cd>0) NET.cd=Math.max(0,NET.cd-dt);
   updateReload(dt);
   if(ATK.flash>0){
     ATK.flash-=dt;
@@ -5221,7 +5388,7 @@ const MOBS=[
   {id:'gargoyle',  n:'곤충형 가고일', power:   1, first: 2, peak: 4, rise:2, fall: 4,
    drop:[{id:'chitin',n:6}]},
   {id:'bear',      n:'북극곰',        power:   3, first: 2, peak:16, rise:3, fall: 8,
-   drop:[{id:'bone',n:8},{id:'hide',n:3}]},
+   drop:[{id:'bone',n:8},{id:'hide',n:3},{id:'meat_bear',n:5}]},
   {id:'saltcrab',  n:'소금게',        power:   4, first: 3, peak:18, rise:3, fall: 6},
   /* 모방 거미 — 먹은 것의 모습을 흉내 낸다. 멀티플레이가 붙으면 시신이나 산 사람을
      삼켜 그 사람으로 변신한다(계획). 지금은 혼자 하는 게임이라 변신할 대상이 없다. */
@@ -5262,12 +5429,15 @@ function rollSpawns(d,rnd){
 /* ============================================================================
    13) 1인칭 플레이어
    ========================================================================== */
+/* 배고픔이 줄어드는 빠르기(초당). 실시간 1분이 게임 1시간이므로 하루는 24분.
+   그냥 걸어 다니면 하루 반쯤에 바닥난다 — 하루에 한 번은 먹어야 한다. */
+const FOOD_DRAIN=0.035;
 const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, JUMP=7.6,
       EYE=1.66, EYE_C=0.98, PRAD=0.42, MAXSLOPE=1.15,   // 49° 넘는 사면은 오르지 못함
       STEPUP=0.55;                                      // 이 높이 이하 턱은 그냥 올라선다
 const PL={pos:new THREE.Vector3(),vel:new THREE.Vector3(),yaw:0,pitch:0,
   grounded:false,crouch:false,run:false,swim:false,wade:0,
-  stam:100,oxy:100,light:false,bob:0,dist:0,eye:EYE};
+  stam:100,oxy:100,food:100,ill:0,light:false,bob:0,dist:0,eye:EYE};
 const keys={};
 /* 뚫고 내려가기 — 이 시간 동안에는 DROP.y 아래의 지은 바닥만 밟는다.
    Ctrl+Space 로 지붕을 뚫고 내려올 때 쓴다. */
@@ -5279,7 +5449,7 @@ function spawnPlayer(){
   const a=Math.random()*6.28;
   PL.pos.set(podPos.x+Math.cos(a)*3, podPos.y+1, podPos.z+Math.sin(a)*3);
   PL.pos.y=Math.max(0.2,heightAt(PL.pos.x,PL.pos.z))+0.2;
-  PL.vel.set(0,0,0); PL.stam=100; PL.oxy=100;
+  PL.vel.set(0,0,0); PL.stam=100; PL.oxy=100; PL.food=100; PL.ill=0;
   PL.yaw=Math.atan2(podPos.x-PL.pos.x, podPos.z-PL.pos.z)+Math.PI;
   PL.pitch=-0.05;
 }
@@ -5309,7 +5479,7 @@ function updatePlayer(dt){
   const fwd=(keys.KeyW?1:0)-(keys.KeyS?1:0);
   const str=(keys.KeyD?1:0)-(keys.KeyA?1:0);
   PL.crouch=!!(keys.ControlLeft||keys.KeyC)&&!PL.swim;
-  PL.run=!!keys.ShiftLeft && !PL.crouch && PL.stam>1 && fwd>0;
+  PL.run=!!keys.ShiftLeft && !PL.crouch && PL.stam>1 && fwd>0 && PL.food>0;
 
   const gy=floorAt(p.x,p.z,p.y);
   // 바다는 해수면 0, 하천은 하도별 수면 표고를 쓴다
@@ -5318,6 +5488,7 @@ function updatePlayer(dt){
   const depth=Math.max(0,wl-gy);          // 수심
   const sub=Math.max(0,wl-p.y);           // 플레이어 발이 잠긴 깊이
   PL.swim = depth>1.7 && sub>0.6;
+  PL.depth = depth;                       // 그물질 판정에 쓴다
   PL.wade = clamp(depth/1.7,0,1);
 
   // 하중 페널티 — 만재에서 속도 55%, 80% 이상이면 달릴 수 없다
@@ -5369,12 +5540,21 @@ function updatePlayer(dt){
     p.y=ng; PL.vel.y=0; PL.grounded=true; DROP.t=0;
   }else PL.grounded=false;
 
-  // 기력
+  /* 배고픔 — 가만히 있어도 줄고, 움직이고 일할수록 빨리 준다.
+     굶으면 기력 한도가 내려가고, 바닥나면 달리지 못하고 기력이 도로 빠진다. */
+  const work=(PL.run&&moving)?2.2:(moving?1.3:1)+(HARV.active?1.1:0);
+  PL.food=clamp(PL.food-FOOD_DRAIN*work*dt*(1+load*0.4),0,100);
+  if(PL.ill>0) PL.ill=Math.max(0,PL.ill-dt);        // 날것을 먹고 앓는 동안
+
+  // 기력 — 굶으면 차오르는 한도가 내려간다
+  const cap=PL.food<=0?45:(PL.food<30?60+PL.food*4/3:100);
   const drain=1+load*1.1;                            // 짐이 무거울수록 빨리 지친다
   if(PL.run&&moving) PL.stam-=17*dt*drain;
   else if(PL.swim&&moving) PL.stam-=6*dt*drain;
-  else if(!HARV.active) PL.stam+=(PL.grounded?12:5)*dt*(1-load*0.5);
-  PL.stam=clamp(PL.stam,0,100);
+  else if(!HARV.active) PL.stam+=(PL.grounded?12:5)*dt*(1-load*0.5)
+                                *(PL.food<=0?0:(PL.ill>0?0.45:1));
+  if(PL.food<=0) PL.stam-=3.5*dt;                    // 굶으면 도로 빠진다
+  PL.stam=clamp(PL.stam,0,cap);
 
   // 헤드밥 + 발소리
   const hs=Math.hypot(PL.vel.x,PL.vel.z);
@@ -5650,6 +5830,13 @@ function updateHUD(dt){
   document.getElementById('iFps').textContent=fps;
   document.getElementById('stF').style.width=PL.stam+'%';
   document.getElementById('stT').textContent=Math.round(PL.stam);
+  const fdF=document.getElementById('fdF'), fdT=document.getElementById('fdT');
+  if(fdF){
+    fdF.style.width=PL.food+'%';
+    // 배가 꺼질수록 붉어진다. 날것을 먹고 앓는 동안에는 따로 표시한다
+    fdF.style.background=PL.food<=0?'#c9453a':(PL.food<30?'#d8724a':'#c9a86a');
+    fdT.textContent=Math.round(PL.food)+(PL.ill>0?' · 탈':'');
+  }
   const ow=document.getElementById('oxWrap');
   ow.style.display=PL.oxy<99.5?'block':'none';
   document.getElementById('oxF').style.width=PL.oxy+'%';
@@ -5909,7 +6096,7 @@ function snapshot(){
     P:Object.assign({},P),
     t:{hour:hourOfDay, gh:gameHours, ts:timeScale},
     pl:{x:PL.pos.x,y:PL.pos.y,z:PL.pos.z,yaw:PL.yaw,pitch:PL.pitch,
-        stam:PL.stam,oxy:PL.oxy,light:PL.light},
+        stam:PL.stam,oxy:PL.oxy,food:PL.food,ill:PL.ill,light:PL.light},
     inv:saveSlots(INV.slots),
     sel:INV.sel, eq:EQUIP?INV.slots.indexOf(EQUIP):-1,
     wear:{body:WEAR.body?INV.slots.indexOf(WEAR.body):-1,
@@ -6013,6 +6200,8 @@ async function restore(d){
   PL.pos.set(d.pl.x,d.pl.y,d.pl.z); PL.vel.set(0,0,0);
   PL.yaw=d.pl.yaw; PL.pitch=d.pl.pitch;
   PL.stam=d.pl.stam; PL.oxy=d.pl.oxy; PL.light=!!d.pl.light;
+  // 옛 저장 파일에는 배고픔이 없다 — 그때는 배부른 채로 시작한다
+  PL.food=(d.pl.food===undefined)?100:d.pl.food; PL.ill=d.pl.ill||0;
   PL.camY=undefined;
   toast('불러왔습니다 — '+d.at);
 }
@@ -6112,17 +6301,9 @@ addEventListener('keydown',e=>{
     toast('삼각 벽 방향 — '+(BUILD.hand>0?'오른쪽':'왼쪽'));
     bldSig=null; return;
   }
-  if(e.code==='KeyQ'&&INV.slots.length){
-    const sl=INV.slots[INV.sel], it=sl&&ITEMS[sl.id];
-    if(it&&it.tool){ EQUIP=(EQUIP===sl?null:sl); invDirty=true; }
-    else if(it&&it.wear){
-      const k=it.wear.slot;
-      if(WEAR[k]===sl){ WEAR[k]=null; toast(it.n+' 벗음'); }
-      else{ WEAR[k]=sl; toast(it.n+' 착용'); }
-      refreshWear(); invDirty=true;
-    }
-    else toast('장착하거나 입을 수 없는 물건이다');
-  }
+  /* 장착·착용은 이제 소지품 창에서 끌어다 놓는다(I). 먹는 것만 F 로 남겨 둔다 —
+     허기질 때마다 창을 열게 하면 번거롭다. */
+  if(e.code==='KeyF'&&INV.slots.length&&!BUILD.on) eatSlot(INV.slots[INV.sel]);
   if(e.code==='KeyG'&&BUILD.on){ undoBuild(); return; }   // 짓기 중엔 걷어내기
   if(e.code==='KeyG'&&INV.slots.length){
     const s0=INV.slots[INV.sel];
