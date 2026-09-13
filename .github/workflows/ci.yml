@@ -26,7 +26,7 @@ jobs:
         with: {node-version: '22'}
       - name: 브라우저 준비
         run: |
-          npm i -D playwright@1.49.0 three@0.128.0
+          npm i -D playwright@1.49.0
           npx playwright install --with-deps chromium
       - name: 오류 없이 뜨는지 확인
         run: node tools/smoke.mjs

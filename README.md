@@ -90,10 +90,11 @@ island_world.html 을 브라우저로 열면 끝입니다.
 손으로 돌리려면:
 
 ```
-npm i -D playwright three@0.128.0 && npx playwright install chromium
+npm i -D playwright && npx playwright install chromium
 node tools/check-syntax.mjs *.html
 node tools/smoke.mjs                 # 특정 파일만: node tools/smoke.mjs island_world.html
+node tools/probe.mjs island_world.html PL.hp RECIPES.length
 ```
 
-구동 검사는 three.js CDN 요청을 가로채 `node_modules` 의 r128 로 돌려주므로
-네트워크가 없어도 돈다.
+three.js 는 레포 안의 `three.min.js`(r128)를 쓴다. 게임도 검사도 바깥으로 나가지
+않으므로 네트워크 없이 돈다.

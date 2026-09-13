@@ -4,7 +4,8 @@
 
 ## 스택
 
-- Three.js r128을 cdnjs에서 `<script src>`로 직접 로드. 번들러·패키지 매니저·`node_modules` 없음
+- Three.js r128을 레포 안의 `three.min.js`(603KB)에서 `<script src>`로 로드.
+  번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - 게임 전체가 `island_world.html` 한 파일(6,680줄) 안에 있다. 모듈 분할되어 있지 않다
 - 라이선스 GPL-3.0
 
@@ -27,6 +28,7 @@ python -m http.server 5173
 | 파일 | 내용 |
 |---|---|
 | `island_world.html` | 메인 게임. 아이템 94종 · 레시피 97개 |
+| `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
 | `CASTAWAY_전사_초반부.md`, `CASTAWAY_전사_2차.md` | 개발 대화 원문 |
@@ -160,7 +162,6 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 
 - **`flatShading: true`는 `MeshLambertMaterial`에서 무시된다.** r128에서 확인해 14곳을 걷어냈다.
   각진 면이 필요하면 정점을 분리해야지 이 플래그로는 안 된다.
-- **Three.js를 cdnjs에서 받는다.** 오프라인에서는 실행되지 않는다.
 - **레포가 이미 ~15MB다** (GLB 10.1MB + `gargoyle_arena.html` 5MB). Git LFS를 쓰지 않는다.
   모델을 더 커밋하기 전에 LFS 전환을 먼저 결정할 것 — 나중에 옮기려면 히스토리를 다시 써야 한다.
 - `.gitattributes`가 `* text=auto eol=lf`이므로 `*.glb binary`를 반드시 유지할 것.
