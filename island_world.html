@@ -509,7 +509,10 @@ const RESOURCES=[
   {k:'copper', n:'공작석(구리)',  c:0x3fa98a, use:'제련 → 구리 도구',        d:0.05, max:160,  min:22},
   {k:'tin',    n:'석석(주석)',    c:0x6d5a44, use:'하천 사광 → 청동 합금',   d:0.05, max:80,   min:18},
   {k:'iron',   n:'늪철광',        c:0x9c5a2e, use:'괴련철 → 철기',           d:0.14, max:180,  min:24},
-  {k:'coal',   n:'석탄 노두',     c:0x1b1b1e, use:'고온 연료 · 코크스',      d:0.09, max:140,  min:20}
+  {k:'coal',   n:'석탄 노두',     c:0x1b1b1e, use:'고온 연료 · 코크스',      d:0.09, max:140,  min:20},
+  // 섬아연석: 열수 광맥에 구리와 함께 든다 — 분기공 가까운 암반일수록 짙다
+  {k:'zinc',   n:'섬아연석(아연)', c:0x5d4a52, use:'제련 → 아연 · 구리와 합금 → 황동',
+   d:0.04, max:110,  min:16}
 ];
 
 /* ---------------- 파라미터 ---------------- */
@@ -957,7 +960,9 @@ function placeResources(seed){
     // 늪철광: 혐기성 습지에서 철이 침전 — 이탄지 한정
     iron:i=> (b[i]===B.MARSH?1:0) + (m[i]>0.72&&h[i]<HI*0.28&&s[i]<0.22?0.45:0),
     // 석탄/이탄: 두꺼운 유기 퇴적이 압밀된 절벽 노두
-    coal:i=> ((b[i]===B.ROCK&&h[i]<HI*0.7&&s[i]>RS*1.1)?1:0) + (b[i]===B.MARSH?0.3:0)
+    coal:i=> ((b[i]===B.ROCK&&h[i]<HI*0.7&&s[i]>RS*1.1)?1:0) + (b[i]===B.MARSH?0.3:0),
+    // 섬아연석: 열수 광맥 광물 — 분기공 언저리 암반에 구리를 따라 붙는다
+    zinc:i=> ((b[i]===B.ROCK||b[i]===B.SCREE)?1:0)*(0.45+clamp(F.fuma[i]*1.6,0,1))
   };
 
   // 정규화 보조값 — 보정 배치 점수 계산용
@@ -984,7 +989,8 @@ function placeResources(seed){
     copper:  i=> nE(i)*0.6 + nS(i)*0.5,
     tin:     i=> dR(i)*0.8 + (1-nE(i))*0.3,
     iron:    i=> nT(i)*0.5 + m[i]*0.4 + (1-nS(i))*0.3,
-    coal:    i=> nS(i)*0.6 + (1-nE(i))*0.3 + nT(i)*0.2
+    coal:    i=> nS(i)*0.6 + (1-nE(i))*0.3 + nT(i)*0.2,
+    zinc:    i=> nS(i)*0.5 + nE(i)*0.4 + F.fuma[i]*0.6
   };
 
   // 육지가 좁으면 점유 반경을 줄인다 — 먼저 배치된 자원이 자리를 다 먹는 것을 방지
@@ -994,7 +1000,7 @@ function placeResources(seed){
   const DSCALE=(CELL*CELL)/16;
   const occ=new Uint8Array(N*N);          // 노드 과밀 방지 격자
   // 암석류는 크기 편차를 훨씬 크게 준다 — 자갈부터 큰 바위까지 섞여야 자연스럽다
-  const ROCKY={granite:1,pebble:1,flint:1,copper:1,iron:1,coal:1};
+  const ROCKY={granite:1,pebble:1,flint:1,copper:1,iron:1,coal:1,zinc:1};
   const push=(k,x,z)=>{
     const i=IDX(x,z);
     let sc=0.75+rnd()*0.6;                 // 공통 편차 0.75~1.35
@@ -1350,13 +1356,14 @@ function buildProps(){
     copper: [new THREE.IcosahedronGeometry(1.05,0)],
     tin:    [new THREE.IcosahedronGeometry(0.8,0)],
     iron:   [new THREE.IcosahedronGeometry(0.95,0)],
-    coal:   [new THREE.IcosahedronGeometry(0.95,0)]
+    coal:   [new THREE.IcosahedronGeometry(0.95,0)],
+    zinc:   [new THREE.IcosahedronGeometry(0.85,0)]
   };
   /* 광석·바위는 개체마다 그 자리에서 형상을 만든다.
      20면체를 한 단계 세분한 80면 껍질을 기준으로, 임의 축을 향한 매끄러운 혹 세 개를
      겹쳐 반지름을 흔든다. 같은 돌이 두 번 나오지 않는다.
      인스턴싱 대신 종류별로 정점을 한 버퍼에 이어 붙여 드로우콜은 1개로 유지한다. */
-  const ROCK_R={granite:1.8,copper:1.05,iron:0.95,coal:0.95,tin:0.8,
+  const ROCK_R={granite:1.8,copper:1.05,iron:0.95,coal:0.95,zinc:0.85,tin:0.8,
                 sulfur:0.55,flint:0.18,pebble:0.13};
   // 기준 껍질의 '중복 없는 꼭짓점' 목록을 한 번만 뽑아 둔다 (80면 → 꼭짓점 42개)
   const shell=new THREE.IcosahedronGeometry(1,1);
@@ -1445,7 +1452,7 @@ function buildProps(){
   }
 
   const RAD={oak:0.6,fir:0.5,granite:1.5,copper:0.9,iron:0.8,coal:0.8};
-  const SHADOW_R={oak:2.6,fir:2.0,granite:1.9,copper:1.2,iron:1.1,coal:1.1,clay:1.6};
+  const SHADOW_R={oak:2.6,fir:2.0,granite:1.9,copper:1.2,iron:1.1,coal:1.1,zinc:1.0,clay:1.6};
   const shadowList=[];
   const trunkMat=new THREE.MeshLambertMaterial({color:0x392f26});
   const limbMat =new THREE.MeshLambertMaterial({color:0x453729});
@@ -1878,6 +1885,7 @@ const ITEMS={
   cassiterite:{n:'석석',       kg:1.5,  c:0x6d5a44, use:'구리와 합금 → 청동'},
   coal_lump:  {n:'석탄',       kg:1.2,  c:0x26262a, use:'고온 연료 · 코크스'},
   malachite:  {n:'공작석',     kg:2.2,  c:0x3fa98a, use:'제련 → 구리'},
+  sphalerite: {n:'섬아연석',   kg:2.0,  c:0x5d4a52, use:'제련 → 아연. 구리와 합쳐 황동'},
 
   // 불
   tinder:     {n:'부싯깃',     kg:0.05, c:0xb8a86a, use:'불씨를 옮겨 붙이는 마른 풀뭉치'},
@@ -1909,6 +1917,15 @@ const ITEMS={
   ingot_copper:{n:'구리 주괴',  kg:2.0,  c:0xb87333, use:'무른 금속 — 청동의 바탕'},
   ingot_tin:  {n:'주석 주괴',   kg:1.5,  c:0xa8a8ae, use:'구리와 합쳐 청동'},
   ingot_bronze:{n:'청동 주괴',  kg:2.0,  c:0xa07b3c, use:'석기보다 훨씬 단단하고 오래간다'},
+  /* 합금 셋 — 무엇에 무엇을 섞느냐로 성질이 갈린다.
+     청동(구리+주석)은 단단하고, 황동(구리+아연)은 잘 늘어나 얇게 뽑히고,
+     강철(철+탄소)은 담금질이 먹어 날이 오래 선다. */
+  ingot_zinc: {n:'아연 주괴',   kg:1.4,  c:0x9aa3ab,
+               use:'구리와 합쳐 황동 — 낮은 온도에서 끓어 날아가니 도가니를 덮는다'},
+  ingot_brass:{n:'황동 주괴',   kg:1.9,  c:0xc4a747,
+               use:'잘 늘어난다 — 탄피를 얇게 뽑는 데 이만한 것이 없다'},
+  ingot_steel:{n:'강철 주괴',   kg:1.9,  c:0x74797f,
+               use:'연철에 탄소를 먹인 쇠 — 담금질하면 날이 오래 선다'},
   bloom_iron: {n:'괴련철',     kg:2.5,  c:0x6b5548,
                use:'불순물 섞인 철 덩이 — 단조로 벼려야 쓸 수 있다'},
   // 착용품 — slot: body 옷 · armor 갑옷 · head 투구 · back 등짐
@@ -1928,8 +1945,14 @@ const ITEMS={
                use:'한 장으로 두들겨 뽑은 투구',
                wear:{slot:'head', armor:3}},
   scale_iron: {n:'철 비늘 갑옷', kg:12.0, c:0x9a938c,
-               use:'철 비늘을 겹쳐 꿰었다 — 가장 단단하고 가장 무겁다',
+               use:'철 비늘을 겹쳐 꿰었다 — 철로 만들 수 있는 끝이다',
                wear:{slot:'armor', armor:10, warm:1}},
+  plate_steel:{n:'강철 판금',   kg:14.5, c:0x74797f,
+               use:'강철 판을 몸에 맞춰 두들겨 뽑았다 — 비늘과 달리 이음매가 없다',
+               wear:{slot:'armor', armor:14, warm:2}},
+  helm_steel: {n:'강철 투구',   kg:3.8,  c:0x74797f,
+               use:'챙과 목가리개를 한 장으로 뽑았다',
+               wear:{slot:'head', armor:5}},
   /* 사냥물 방어구 — 무기와 같은 셈법이다. 방어는 청동·철에 못 미치지만
      무게가 3분의 1이라 짐을 지고도 뛸 수 있고, 가죽은 따뜻하기까지 하다. */
   coat_hide:  {n:'가죽 외투',  kg:3.0,  c:0x8a6a4a,
@@ -1987,6 +2010,13 @@ const ITEMS={
   pick_iron:  {n:'철 곡괭이',  kg:3.2,  c:0x9a938c,
                use:'화강암까지 직접 캔다 — 불이 필요 없다',
                tool:{pick:3,speed:3.4,wear:1}, durMax:1000},
+  /* 강철 연장 — 담금질한 날이라 무디어지는 속도가 철의 절반이다 */
+  axe_steel:  {n:'강철 도끼',  kg:2.3,  c:0x74797f,
+               use:'벌목 — 한 번 벼려두면 오래 간다',
+               tool:{axe:1,speed:4.0,wear:1}, durMax:1800},
+  pick_steel: {n:'강철 곡괭이', kg:3.0,  c:0x74797f,
+               use:'화강암을 철 곡괭이보다 빠르게 깬다',
+               tool:{pick:3,speed:4.3,wear:1}, durMax:2000},
   axe_bronze: {n:'청동 도끼',   kg:2.2,  c:0xa07b3c, use:'벌목 — 석기와 비교가 안 된다',
                tool:{axe:1,speed:2.4,wear:1}, durMax:450},
   pick_bronze:{n:'청동 곡괭이', kg:3.0,  c:0xa07b3c,
@@ -2259,6 +2289,7 @@ const MINE={
   tin:    {item:'cassiterite',label:'석석 채취',   dur:3.0, stam:6, tier:1, uses:[2,3]},
   coal:   {item:'coal_lump',  label:'석탄 떼기',   dur:4.0, stam:8, tier:2, uses:[3,5]},
   copper: {item:'malachite',  label:'공작석 캐기', dur:5.0, stam:9, tier:2, uses:[2,4]},
+  zinc:   {item:'sphalerite', label:'섬아연석 캐기', dur:5.5, stam:10, tier:2, uses:[2,3]},
   // 화강암은 불에 달궈 균열이 생긴 뒤에야(tier 3 → 2) 떼어낼 수 있다
   granite:{item:'stone_block',label:'화강암 떼기', dur:6.0, stam:11, tier:3, uses:[3,6],
            fireset:0.35}   // 게임시간 21분 — 횃불이면 35분
@@ -3159,12 +3190,45 @@ const RECIPES=[
    in:[{id:'ingot_copper',n:1},{id:'gunpowder',n:2},{id:'iron_wrought',n:1}],
    need:[{id:'drawplate',n:1},{id:'hammer_stone',n:1}]},
 
+  /* 황동 탄피 — 구리보다 훨씬 잘 늘어나 얇고 고르게 뽑힌다.
+     같은 품으로 갑절 넘게 나오고, 탄피가 찢기지 않아 버리는 것이 없다. */
+  {id:'cartridge_brass', tier:'화학', n:'소총탄 만들기(황동)', out:{id:'cartridge',n:24},
+   time:34, stam:24, station:'anvil',
+   note:'황동을 인발판에 통과시켜 탄피를 뽑는다. 구리보다 얇고 고르게 늘어나 '
+       +'같은 품에 갑절 넘게 나오고 발사 뒤에도 탄피가 찢기지 않는다.',
+   in:[{id:'ingot_brass',n:1},{id:'gunpowder',n:2},{id:'iron_wrought',n:1}],
+   need:[{id:'drawplate',n:1},{id:'hammer_stone',n:1}]},
+
   {id:'rifle_bolt', tier:'화학', n:'볼트 소총', out:{id:'rifle_bolt',n:1},
    time:110, stam:80, station:'anvil',
    note:'총열을 길게 뽑아 뒤를 열리게 깎고, 노리쇠와 탄창을 물린다. 섬에서 만들 수 있는 끝이다.',
    in:[{id:'iron_wrought',n:6},{id:'charcoal',n:4},{id:'log',n:1},
        {id:'ingot_copper',n:1},{id:'cord',n:2}],
-   need:[{id:'hammer_stone',n:1},{id:'drawplate',n:1}]}
+   need:[{id:'hammer_stone',n:1},{id:'drawplate',n:1}]},
+
+  {id:'axe_steel', tier:'강철', n:'강철 도끼', out:{id:'axe_steel',n:1},
+   time:52, stam:42, station:'anvil',
+   note:'강철을 벼려 날을 세우고 물에 담가 굳힌다. 철 도끼보다 오래 간다.',
+   in:[{id:'ingot_steel',n:2},{id:'charcoal',n:2},{id:'log',n:1}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'pick_steel', tier:'강철', n:'강철 곡괭이', out:{id:'pick_steel',n:1},
+   time:56, stam:46, station:'anvil',
+   note:'부리를 길게 뽑아 담금질한다. 화강암을 철보다 빠르게 깬다.',
+   in:[{id:'ingot_steel',n:2},{id:'charcoal',n:2},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'plate_steel', tier:'강철', n:'강철 판금', out:{id:'plate_steel',n:1},
+   time:96, stam:70, station:'anvil',
+   note:'판을 몸에 맞춰 두들겨 곡면을 잡는다. 이음매가 없어 창끝이 미끄러진다.',
+   in:[{id:'ingot_steel',n:5},{id:'charcoal',n:4},{id:'cord',n:6},{id:'hide',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'helm_steel', tier:'강철', n:'강철 투구', out:{id:'helm_steel',n:1},
+   time:46, stam:36, station:'anvil',
+   note:'한 장으로 뽑아 챙과 목가리개를 붙인다.',
+   in:[{id:'ingot_steel',n:2},{id:'charcoal',n:2},{id:'hide',n:1}],
+   need:[{id:'hammer_stone',n:1}]}
 ];
 // 분류(tag) 조건은 그 분류에 속한 실제 아이템 이름으로 보여준다.
 // "망치돌 필요"라고만 쓰면 인벤토리의 '돌멩이'와 같은 물건인 줄 알 수가 없다.
@@ -3388,7 +3452,29 @@ const SMELT=[
   {id:'smelt_iron', n:'괴련철 제련', hours:1.4, out:{id:'bloom_iron',n:1},
    note:'철은 녹지 않는다. 노 바닥에 쇠똥과 뒤엉킨 해면철 덩이로 남는다.',
    in:[{id:'bog_iron',n:3},{id:'charcoal',n:5}],
-   need:[{id:'blowpipe',n:1}]}
+   need:[{id:'blowpipe',n:1}]},
+
+  /* 아연은 끓는점(907 ℃)이 녹는점보다 낮다 — 환원되는 족족 증기로 날아가므로
+     도가니를 엎어 덮고 식은 벽에 응결시켜 긁어낸다. 그래서 수율이 나쁘다. */
+  {id:'smelt_zinc', n:'아연 제련', hours:1.0, out:{id:'ingot_zinc',n:1},
+   note:'섬아연석을 구워 산화물로 바꾼 뒤 숯과 함께 밀폐해 환원한다. '
+       +'아연은 녹기 전에 끓으므로 증기를 받아 굳힌다 — 세 덩이에 주괴 하나뿐이다.',
+   in:[{id:'sphalerite',n:3},{id:'charcoal',n:4}],
+   need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]},
+
+  {id:'alloy_brass', n:'황동 합금', hours:0.8, out:{id:'ingot_brass',n:3},
+   note:'구리에 아연을 셋에 하나쯤 섞는다. 청동보다 무르지만 훨씬 잘 늘어나 '
+       +'얇은 관과 탄피로 뽑힌다. 금빛이 도는 것은 아연 덕이다.',
+   in:[{id:'ingot_copper',n:2},{id:'ingot_zinc',n:1},{id:'charcoal',n:2}],
+   need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]},
+
+  /* 도가니강 — 연철 조각과 숯을 함께 밀폐해 오래 달구면 탄소가 쇠로 스며든다.
+     괴련철을 두들겨 만든 연철이 있어야 시작할 수 있다. */
+  {id:'alloy_steel', n:'도가니강', hours:2.0, out:{id:'ingot_steel',n:2},
+   note:'연철 조각을 숯과 함께 도가니에 밀봉하고 오래 달군다. 탄소가 쇠 속으로 '
+       +'스며들어 굳기가 달라진다 — 섬에서 만들 수 있는 가장 좋은 쇠다.',
+   in:[{id:'iron_wrought',n:3},{id:'charcoal',n:6}],
+   need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]}
 ];
 const FURNACES=[];
 const nearFurnace=()=>FURNACES.some(g=>Math.hypot(g.x-PL.pos.x,g.z-PL.pos.z)<3.4);
