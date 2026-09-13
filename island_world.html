@@ -255,7 +255,7 @@
 
   <div class="pnl" id="mapw">
     <canvas id="map" width="768" height="768"></canvas>
-    <div class="c"><span>768 m</span><span id="mDist">–</span></div>
+    <div class="c"><span id="mSpan">– m</span><span id="mDist">–</span></div>
   </div>
 
   <div id="look"><span id="lookT"></span><div id="lookB"><i id="lookF"></i></div></div>
@@ -449,8 +449,8 @@ function makePerlin(seed){
 
 /* ---------------- 그리드 규격 ---------------- */
 const N = 768;              // 시뮬레이션 격자 (N×N)
-const CELL = 1;             // 셀 한 변 = 1 m — 월드 768 m 유지, 삼각형 2배
-const WORLD = N*CELL;   // 768 m
+const CELL = 2.5;           // 셀 한 변 = 2.5 m — 월드 1920 m
+const WORLD = N*CELL;       // 1920 m
 const HALF = WORLD/2;
 
 /* ---------------- 전역 필드 ---------------- */
@@ -1109,7 +1109,7 @@ function sampleAt(wx,wz){
    · 정점 색 + flatShading으로 텍스처 없이 바이옴을 표현하고,
      저해상도 렌더 타깃을 확대해 리썰 컴퍼니풍 픽셀 질감을 낸다.
    ========================================================================== */
-const CH=64, NC=N/CH;                 // 64 × 12 = 768 → 청크 144개
+const CH=32, NC=N/CH;                 // 32 × 24 = 768 → 청크 576개 (한 변 80 m)
 let renderer,scene,camera,sun,hemi,amb,flash,ocean,riverMesh,propGroup,podMesh;
 const chunks=[];
 let renderScale=0.5, farScale=1.0, showProps=true;
@@ -5514,23 +5514,26 @@ function updateWeapon(dt){
    깔려 있으면 강한 것이 설 자리가 없다 — 머릿수와 질이 하나의 저울에 얹힌다.
 
    · 1일차는 0. 표류 첫날은 아무것도 나오지 않는다.
-   · 예산은 5·(6/5)^(d-2). 섬이 768 m 나 되어 예산이 얕으면 하루 종일 걸어도
-     아무것도 못 만난다 — 그래서 2일차를 5로 잡았다.
-   · 38일(3544)에서 멎는다. 가장 무거운 몹이 500이니 그쯤은 되어야 몇 마리가
+   · 예산은 35·(6/5)^(d-2). 섬이 1920 m 나 되어 예산이 얕으면 하루 종일 걸어도
+     아무것도 못 만난다 — 그래서 2일차를 35로 잡았다.
+   · 38일(24808)에서 멎는다. 가장 무거운 몹이 500이니 그쯤이면 수십 마리가
      같이 설 자리가 나온다.
    ========================================================================== */
 const START_HOUR=8.5;                        // 표류 첫날 눈을 뜬 시각
 const dayNo=()=>1+Math.floor((gameHours+START_HOUR)/24);
 /* 날짜별 파워레벨 예산 — 첨자가 곧 날짜다(0번은 자리 채움).
-   2일차부터 round(5 · (6/5)^(d-2)) — 나흘에 갑절꼴로 불어난다. */
+   2일차부터 round(35 · (6/5)^(d-2)) — 나흘에 갑절꼴로 불어난다.
+   밑값 5 에서 35 로 올렸다(7배). 섬이 2.5배로 넓어져 예전 예산으로는
+   하루 종일 걸어도 아무것도 못 만난다. */
+const POWER_BASE=35;
 const DAY_POWER=[0,
-    0,   5,   6,   7,   9,  10,  12,  15,  18,  21,   //  1 ~ 10일
-   26,  31,  37,  45,  53,  64,  77,  92, 111, 133,   // 11 ~ 20일
-  160, 192, 230, 276, 331, 397, 477, 572, 687, 824];  // 21 ~ 30일
+    0,  35,  42,  50,  60,  73,  87, 105, 125, 150,   //  1 ~ 10일
+  181, 217, 260, 312, 374, 449, 539, 647, 777, 932,   // 11 ~ 20일
+ 1118,1342,1610,1932,2319,2782,3339,4007,4808,5770];  // 21 ~ 30일
 const POWER_LAST=38;                         // 예산이 자라는 마지막 날
-const POWER_CAP=Math.round(5*Math.pow(6/5,POWER_LAST-2));   // = 3544
+const POWER_CAP=Math.round(POWER_BASE*Math.pow(6/5,POWER_LAST-2));   // = 24808
 const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
-       : Math.min(POWER_CAP, Math.round(5*Math.pow(6/5,d-2)));
+       : Math.min(POWER_CAP, Math.round(POWER_BASE*Math.pow(6/5,d-2)));
 
 /* 몹 명세
    ----------------------------------------------------------------------------
@@ -5986,6 +5989,7 @@ function footstep(){
    11) HUD
    ========================================================================== */
 let mapImg=null;
+document.getElementById('mSpan').textContent=WORLD+' m';
 function cacheMap(){
   const ctx=document.getElementById('map').getContext('2d');
   const img=ctx.createImageData(N,N), d=img.data, col=new THREE.Color();

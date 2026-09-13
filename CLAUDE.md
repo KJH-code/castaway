@@ -43,7 +43,7 @@ python -m http.server 5173
 
 | 줄 | 구역 | 무엇이 있나 |
 |---|---|---|
-| 502 | 1) 기반 지형 | 시드 PRNG · 높이맵 |
+| 502 | 1) 기반 지형 | 시드 PRNG · 높이맵 · **`N`=768 · `CELL`=2.5 · `WORLD`=1920 m** (451) |
 | 542 | 2) 열적 침식 | 안식각 초과분 이동 |
 | 565 | 3) 수적 침식 | 물방울 시뮬레이션 |
 | 651 | 4) 수문 | D8 흐름 누적 → 하천 |
@@ -62,7 +62,7 @@ python -m http.server 5173
 | 4917 | 근접 공격 | `CREATURES` 4923 (비어 있음) |
 | 4926 | 손에 든 무기 | **`WEAPON_FX` 4945** — 무기 생김새를 id로 키잉한 조립 함수 10개 |
 | 5177~ | 전투 진입점 | `equippedWeapon` 5177 · `shoot` 5243 · `castNet` 5276 · `attack` 5301 |
-| 5373 | 몹 스폰 | `rollSpawns` 5445 (**아직 아무도 부르지 않는다**) · `MOBS` 5416 |
+| 5373 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
 | 5459 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
 | 5664 | 음향 | 물리 모델 합성 |
 | 5841 | HUD | `drawMap` 5863 · `drawCompass` 5885 · `updateHUD` 5906 |
