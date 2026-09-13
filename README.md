@@ -16,7 +16,7 @@ island_world.html 을 브라우저로 열면 끝입니다.
 
 | 파일 | 내용 |
 |------|------|
-| **island_world.html** | 메인 게임. 아이템 93종 · 레시피 94개 |
+| **island_world.html** | 메인 게임. 아이템 91종 · 레시피 94개 |
 | **build_sandbox.html** | 건축장 — 평평한 터에서 재료·무게 제한 없이 집만 지어 본다 |
 | **mixed_arena.html** | 섞인 시험장 — 북극곰 1 · 가고일 3 · 입장 전 장비와 짐을 정한다 |
 | **gargoyle_arena.html** | 곤충형 가고일 전투 시험장 — 무기 5종 · 모델 내장 5 MB |

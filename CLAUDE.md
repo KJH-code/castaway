@@ -5,7 +5,7 @@
 ## 스택
 
 - Three.js r128을 cdnjs에서 `<script src>`로 직접 로드. 번들러·패키지 매니저·`node_modules` 없음
-- 게임 전체가 `island_world.html` 한 파일(4,786줄) 안에 있다. 모듈 분할되어 있지 않다
+- 게임 전체가 `island_world.html` 한 파일(6,680줄) 안에 있다. 모듈 분할되어 있지 않다
 - 라이선스 GPL-3.0
 
 ## 실행
@@ -26,7 +26,7 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` | 메인 게임. 아이템 64종 · 레시피 51개 |
+| `island_world.html` | 메인 게임. 아이템 91종 · 레시피 94개 |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
 | `CASTAWAY_전사_초반부.md`, `CASTAWAY_전사_2차.md` | 개발 대화 원문 |
@@ -58,7 +58,7 @@ python -m http.server 5173
 | 3519 | 집 짓기 | `BUILD` 3586 · `floorAt` 3631 · `BUILD_MESH` 3835 |
 | 4674 | 사전 | `MINERALS` 4699 — 표를 역으로 훑어 획득 경로를 만든다 |
 | 4917 | 근접 공격 | `CREATURES` 4923 (비어 있음) |
-| 4926 | 손에 든 무기 | **`WEAPON_FX` 4945** — 무기 생김새를 id로 키잉한 조립 함수 22개 |
+| 4926 | 손에 든 무기 | **`WEAPON_FX` 4945** — 무기 생김새를 id로 키잉한 조립 함수 10개 |
 | 5177~ | 전투 진입점 | `equippedWeapon` 5177 · `shoot` 5243 · `castNet` 5276 · `attack` 5301 |
 | 5373 | 몹 스폰 | `rollSpawns` 5445 (**아직 아무도 부르지 않는다**) · `MOBS` 5416 |
 | 5459 | 13) 1인칭 플레이어 | `PL` 5474 · `hurtPL` 5487 · `diePL` 5497 · `revivePL` 5510 · `walkable` 5542 |
@@ -85,6 +85,8 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
 
 1. **무기는 `WEAPON_FX`(4945)에 생김새 함수를 따로 써야 한다.** 성능은 데이터인데
    모양은 아니다. 안 쓰면 5117에서 조용히 `return` 하고 손에 아무것도 안 잡힌다.
+   `tool.weapon` 을 단 아이템은 10개인데 `WEAPON_FX` 항목도 10개다 — 하나라도
+   어긋나면 그 무기는 손에 안 잡힌다.
 2. **id가 직접 박힌 자리가 11곳 있다** — `tinder`(발화) · `cartridge`(탄약) ·
    `codex` · `ring_platinum` · `stone_block`. `grep -n "id==='"` 로 확인할 것.
 3. **`attack()`(5301)은 그물을 특례로 가로챈다.** `equippedWeapon()` 이 무기 아닌
@@ -92,6 +94,50 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
    또 생긴다 — 필드 분기로 합치는 쪽을 먼저 볼 것.
 4. **`build_sandbox.html` 이 `ITEMS` 를 204줄 통째로 복사해 갖고 있다.**
    이미 20줄 어긋나 있다. 본편 표를 고쳐도 저기는 안 따라간다.
+
+## 읽지 말 것
+
+- **`CASTAWAY_전사_초반부.md`(96KB) · `CASTAWAY_전사_2차.md`(38KB) 는 개발 대화 원문이다.**
+  결론은 이미 코드와 `CASTAWAY_개발요약.md` 에 들어가 있다. 여기 적힌 건 역사일 뿐이니
+  **현재 동작의 근거로 삼지 말 것.** 왜 그렇게 정했는지가 정말 궁금할 때만 `grep` 으로
+  해당 대목만 뽑아 볼 것 — 통독하면 13만 자를 그냥 태운다.
+- 현재 동작이 궁금하면 문서가 아니라 코드를 본다. 문서와 코드가 다르면 **코드가 맞다**
+  (아래 '확인하는 법' 으로 재 볼 것).
+
+## 어느 쪽이 정본인가
+
+같은 표가 여러 파일에 복사돼 있다. 고칠 때 **본편만 고치면 아레나는 안 따라간다.**
+
+| 표 | 정본 | 복사본 |
+|---|---|---|
+| `ITEMS` · `RECIPES` · 지형 생성 | `island_world.html` | `build_sandbox.html` (`ITEMS` 204줄 복제, 이미 20줄 어긋남) |
+| 무기 성능(피해·사거리·쿨) | `island_world.html` 의 `ITEMS[].tool` | 아레나 5개가 각자 인라인으로 들고 있다 |
+| 몹 거동 | 각 아레나 | 본편에는 아직 없다 |
+
+아레나는 시험장이라 갈라져도 되지만, **수치를 만졌으면 어느 쪽을 만졌는지 밝힐 것.**
+"철·키틴 무기 쿨을 4/5로" 같은 변경은 6개 파일을 전부 고쳐야 했다.
+
+## 확인하는 법
+
+빌드가 없으니 검사도 브라우저에 직접 띄워서 한다. 스크립트를 새로 짜지 말고 이걸 쓸 것.
+
+```bash
+node tools/check-syntax.mjs                 # <script> 를 뽑아 node --check
+node tools/smoke.mjs                        # 전부 띄워 오류 없이 뜨는지 (파일 이름을 주면 그것만)
+node tools/probe.mjs island_world.html PL.hp RECIPES.length
+node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
+```
+
+`probe.mjs` 가 값을 재 오는 쪽이다 — `--do` 로 상태를 만들고, 표현식으로 결과를 읽는다.
+여러 단계를 재야 하면 `--run 파일.js`. 대상 목록과 브라우저 설정은 `tools/pages.mjs`.
+
+- **브라우저가 없다고 하면** `CHROMIUM_PATH` 를 준다:
+  `CHROMIUM_PATH=/opt/pw-browsers/chromium-*/chrome-linux/chrome node tools/smoke.mjs`
+- **헤드리스는 실시간의 1/20 쯤으로 돈다.** `--tick 4` 를 줘도 게임 안에서는 0.2초다.
+  시간이 걸리는 변화는 기다리지 말고 함수를 직접 부를 것.
+- **사진(`--shot`)은 눈으로 봐야 할 때만.** 한 장이 1,500토큰쯤 된다. 수치로 확인되는
+  건 수치로 확인한다.
+- `mimic_arena.html` 은 21MB 라 `smoke.mjs` 기본 목록에서 빠져 있다. 이름을 대면 검사한다.
 
 ## 규칙
 
