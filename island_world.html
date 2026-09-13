@@ -59,6 +59,18 @@
   #inv .ws span{color:var(--dim)}
   #inv .ws b{color:var(--ink);font-weight:500}
   #inv .ws i{color:var(--dim);font-style:normal;opacity:.6}
+  /* 다쳤을 때 화면 가장자리가 붉어진다 */
+  #hurt{position:fixed;inset:0;pointer-events:none;display:none;z-index:40;
+    box-shadow:inset 0 0 120px 30px rgba(190,40,30,.9)}
+  /* 끌어 놓기 — 받는 칸은 테두리를 두르고, 올려놓으면 밝아진다 */
+  #inv .ws{border:1px dashed transparent;padding:0 4px;border-radius:3px}
+  #inv .ws.slot{border-color:rgba(143,214,180,.28)}
+  #inv .ws.slot.on{border-color:#8fd6b4;background:rgba(143,214,180,.12)}
+  #inv .ws.slot b{cursor:grab}
+  .it{cursor:grab}
+  .it.drag{opacity:.45}
+  #invL.on{outline:1px dashed rgba(216,114,74,.5);outline-offset:-2px}
+  #quick .q.on{outline:1px solid #8fd6b4}
   #inv .ie{color:var(--dim);font-size:10px;padding:14px 2px;text-align:center}
   #inv .if{color:var(--dim);font-size:9px;margin-top:8px;line-height:1.6}
   .it .eq{color:#e0a24a;font-size:9px;margin-left:5px}
@@ -103,6 +115,13 @@
 
   #crf{right:12px;top:12px;width:250px;max-height:calc(100% - 24px);overflow:auto;
     display:none;pointer-events:auto}
+  /* 레시피가 쉰 개가 넘어 번호로는 못 닿는다 — 이름으로 걸러 낸다 */
+  #crfQ{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  #crfQ input{flex:1;min-width:0;font:inherit;font-size:10px;color:var(--ink);
+    background:rgba(0,0,0,.35);border:1px solid var(--line);padding:4px 6px;outline:none}
+  #crfQ input:focus{border-color:var(--acc)}
+  #crfQ input::placeholder{color:var(--dim)}
+  #crfQ span{font-size:9px;color:var(--dim);flex:0 0 auto}
   #crf .ih{font-size:10px;letter-spacing:.12em;color:var(--dim);
     padding-bottom:7px;border-bottom:1px solid var(--line)}
   .ch{font-size:9px;letter-spacing:.16em;color:var(--dim);margin:12px 0 2px;
@@ -122,6 +141,17 @@
 
   #tool{position:absolute;left:12px;bottom:118px;font-size:10px;display:none}
   #tool .tn{color:var(--ink)}
+  /* 손에 든 것 아래의 빠른 칸 다섯. 숫자를 누르면 손의 것과 서로 바뀐다. */
+  #quick{position:absolute;left:12px;bottom:92px;display:flex;gap:4px}
+  #quick .q{display:flex;align-items:center;gap:4px;background:var(--panel);
+    border:1px solid var(--line);padding:3px 6px 3px 4px;font-size:9px;
+    color:var(--dim);min-width:64px;max-width:96px}
+  #quick .q b{font-weight:500;color:#8fa8a0;font-size:8px;min-width:6px}
+  #quick .q .sw{width:8px;height:8px;border-radius:2px;background:transparent;
+    border:1px solid rgba(140,175,165,.35);flex:0 0 auto}
+  #quick .q span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #quick .q.on{border-color:var(--acc)}
+  #quick .q.has span{color:var(--ink)}
   #tool .td{height:4px;width:110px;margin-top:3px;background:rgba(0,0,0,.55);border:1px solid var(--line)}
   #tool .td i{display:block;height:100%;background:#d8c96a}
 
@@ -167,7 +197,26 @@
   #bar{width:220px;height:3px;background:#0f1c1a;margin-top:16px}
   #bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .12s}
   #ovLoad{color:var(--acc);font-size:10px;letter-spacing:.18em;margin-top:14px;min-height:14px}
+  /* 예/아니오를 묻는 상자 — 시작 화면 위에도 떠야 하므로 z 를 더 높인다 */
+  #ask{position:fixed;inset:0;background:rgba(3,6,8,.82);display:none;
+       align-items:center;justify-content:center;z-index:60}
+  #ask .box{background:#0b1114;border:1px solid var(--acc);padding:26px 30px;
+            text-align:center;max-width:360px}
+  #ask p{margin:0 0 6px;font-size:13px;letter-spacing:.06em;color:#dff3ea;line-height:1.7}
+  #ask .sub{font-size:10px;color:var(--dim);letter-spacing:.1em;margin:0 0 18px}
+  #ask button{font-size:12px;letter-spacing:.14em;padding:8px 22px;margin:0 5px}
+  #askY{color:var(--acc);border-color:var(--acc)}
 
+  #bld{left:50%;transform:translateX(-50%);bottom:92px;display:none;pointer-events:auto;
+    text-align:center;min-width:340px}
+  #bld .rw{display:flex;gap:4px;justify-content:center;margin:3px 0}
+  #bld .rw b{font-size:9px;letter-spacing:.14em;color:var(--dim);align-self:center;
+    margin-right:4px;min-width:34px;text-align:right}
+  #bld button{font:inherit;font-size:10px;letter-spacing:.06em;color:var(--ink);cursor:pointer;
+    background:rgba(6,11,12,.5);border:1px solid var(--line);padding:3px 7px}
+  #bld button.on{background:rgba(143,214,180,.18);border-color:var(--acc);color:var(--acc)}
+  #bld .wy{font-size:10px;letter-spacing:.06em;margin-top:4px;min-height:13px;color:var(--dim)}
+  #bld .wy.bad{color:#d8724a}
   #touch{position:fixed;inset:0;display:none;z-index:5;pointer-events:none}
   #stick,.tb{pointer-events:auto}
   #stick{position:absolute;left:22px;bottom:22px;width:110px;height:110px;border-radius:50%;
@@ -196,30 +245,48 @@
   </div>
 
   <div class="pnl" id="vitals">
+    <div class="bar"><div class="l"><span>체력</span><span id="hpT">100</span></div><div class="t"><div class="f" id="hpF"></div></div></div>
     <div class="bar"><div class="l"><span>기력</span><span id="stT">100</span></div><div class="t"><div class="f" id="stF"></div></div></div>
+    <div class="bar"><div class="l"><span>배</span><span id="fdT">100</span></div><div class="t"><div class="f" id="fdF"></div></div></div>
+    <div class="bar"><div class="l"><span>목</span><span id="wtT">100</span></div><div class="t"><div class="f" id="wtF"></div></div></div>
     <div class="bar" id="oxWrap" style="display:none"><div class="l"><span>산소</span><span id="oxT">100</span></div><div class="t"><div class="f" id="oxF"></div></div></div>
     <div class="bar"><div class="l"><span>적재</span><span id="wgT">0.0 / 70 kg</span></div><div class="t"><div class="f" id="wgF" style="width:0"></div></div></div>
   </div>
 
   <div class="pnl" id="mapw">
     <canvas id="map" width="768" height="768"></canvas>
-    <div class="c"><span>768 m</span><span id="mDist">–</span></div>
+    <div class="c"><span id="mSpan">– m</span><span id="mDist">–</span></div>
   </div>
 
   <div id="look"><span id="lookT"></span><div id="lookB"><i id="lookF"></i></div></div>
   <div class="pnl" id="tool"><div class="tn" id="toolN">–</div><div class="td"><i id="toolD"></i></div></div>
+  <div class="pnl" id="bld">
+    <div class="rw"><b>조각</b><span id="bldK"></span></div>
+    <div class="rw"><b>등급</b><span id="bldT"></span></div>
+    <div class="rw"><b>방향</b><span id="bldR"></span></div>
+    <div class="wy" id="bldW"></div>
+  </div>
+  <div id="quick">
+    <div class="q" data-i="0"><b>1</b><i class="sw"></i><span>–</span></div>
+    <div class="q" data-i="1"><b>2</b><i class="sw"></i><span>–</span></div>
+    <div class="q" data-i="2"><b>3</b><i class="sw"></i><span>–</span></div>
+    <div class="q" data-i="3"><b>4</b><i class="sw"></i><span>–</span></div>
+    <div class="q" data-i="4"><b>5</b><i class="sw"></i><span>–</span></div>
+  </div>
   <div class="pnl" id="cbar">
     <div class="t"><span id="cbN">–</span><em id="cbP">0%</em></div>
     <div class="tr"><i id="cbF"></i></div>
     <div class="s" id="cbS">–</div>
   </div>
+  <div id="hurt"></div>
   <div id="hint">화면을 클릭하면 시점 조작이 시작됩니다</div>
 </div>
 
 <div class="pnl" id="inv">
   <div class="ih"><span>소지품</span><b id="invW">0.0 / 70 kg</b></div>
   <div id="invL"></div>
-  <div class="if">I 닫기 · 1~9 선택 · Q 장착/착용 · G 1개 버리기 · Shift+G 전부</div>
+  <div class="if">I 닫기 · <b>끌어다 칸에 놓아 들거나 입는다</b> · 칸에서 목록으로 끌면 벗는다
+    · G 1개 버리기 · Shift+G 전부</div>
 </div>
 
 <div class="pnl" id="dex">
@@ -242,9 +309,11 @@
 
 <div class="pnl" id="crf">
   <div class="ih">제작 — 맨손</div>
+  <div id="crfQ"><input id="crfS" type="text" placeholder="이름으로 찾기 — 예: 철, 도끼, 참숯"
+    autocomplete="off" spellcheck="false"><span id="crfN"></span></div>
   <div id="crfL"></div>
   <div id="crfP"><i id="crfF"></i></div>
-  <div class="if" style="color:var(--dim);font-size:9px;margin-top:8px">C 닫기 · 항목을 누르거나 숫자키로 제작</div>
+  <div class="if" style="color:var(--dim);font-size:9px;margin-top:8px">C 닫기 · 항목을 눌러 제작 · Esc 검색 지우기</div>
 </div>
 
 <div class="pnl" id="cfg">
@@ -289,15 +358,20 @@
     융기, 침식, 하천, 기후, 식생, 광상이 그 순서대로 결정된다.</div>
   <div class="k">
     <div><span>WASD</span>이동 · Shift 달리기</div>
-    <div><span>Space</span>점프 · Ctrl 앉기</div>
+    <div><span>Space</span>점프 · Ctrl 앉기 · <b>Ctrl+Space</b> 지붕에서 내려가기</div>
     <div><span>F</span>손전등 · V 자유 카메라</div>
     <div><span>E</span>맨손 채집 (길게)</div>
     <div><span>I / C / B</span>소지품 · 제작 · 사전</div>
     <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
-    <div><span>Q</span>도구 장착 · G 버리기</div>
+    <div><span>I</span>소지품 — <b>끌어다 손·옷·입 칸에 놓는다</b> · G 버리기</div>
+    <div><span>F</span>고른 것을 먹거나 감는다 (날것은 탈이 난다)</div>
+    <div><span>체력</span>높은 데서 떨어지거나 · 숨이 다하거나 · 굶으면 깎인다</div>
+    <div><span>그물</span>무릎 위까지 잠기는 물에 들어가 좌클릭</div>
+    <div><span>1 ~ 5</span>빠른 칸 — 손의 것과 맞바꾼다</div>
+    <div><span>Z</span>집 짓기 — 1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽 좌우</div>
     <div><span>좌클릭</span>무기 찌르기</div>
-    <div><span>Tab</span>생성 설정 · R 새 섬 · F3 진단</div>
-    <div><span>F5 / F9</span>저장 · 불러오기</div>
+    <div><span>Tab</span>생성 설정 · R 새 섬(짓기 중엔 방향) · F3 진단</div>
+    <div><span>F5 / F9</span>저장 · 불러오기 (F9 은 묻고 나서 불러온다)</div>
     <div><span>T</span>시간 가속 · Esc 일시정지</div>
   </div>
   <button id="bStart">상륙</button>
@@ -305,7 +379,15 @@
   <div id="ovLoad"></div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<div id="ask">
+  <div class="box">
+    <p id="askT"></p>
+    <p class="sub" id="askS"></p>
+    <div><button id="askY">예</button><button id="askN">아니오</button></div>
+  </div>
+</div>
+
+<script src="three.min.js"></script>
 <script>
 "use strict";
 /* 브라우저에서만 나는 오류를 화면에 그대로 띄운다. 콘솔을 열지 않아도 원인이 보인다. */
@@ -367,8 +449,8 @@ function makePerlin(seed){
 
 /* ---------------- 그리드 규격 ---------------- */
 const N = 768;              // 시뮬레이션 격자 (N×N)
-const CELL = 1;             // 셀 한 변 = 1 m — 월드 768 m 유지, 삼각형 2배
-const WORLD = N*CELL;   // 768 m
+const CELL = 2.5;           // 셀 한 변 = 2.5 m — 월드 1920 m
+const WORLD = N*CELL;       // 1920 m
 const HALF = WORLD/2;
 
 /* ---------------- 전역 필드 ---------------- */
@@ -421,6 +503,7 @@ const RESOURCES=[
    d:0.55, max:400, min:40},
   {k:'granite',n:'화강암 노두',   c:0x6b6b66, use:'화입법으로만 채석 (불 필요)', d:0.07, max:520,  min:45},
   {k:'clay',   n:'점토 노출지',   c:0x8a7150, use:'토기 · 도가니 · 화로',    d:0.09, max:320,  min:28},
+  {k:'sand',   n:'모래 언덕',     c:0xc9b98a, use:'유리 원료 — 빈 토기에 담는다',  d:0.30, max:600,  min:30},
   {k:'grass',  n:'풀숲',          c:0x55702f, use:'풀잎 · 베리 · 노끈 재료',  d:3.40, max:40000,min:400},
   {k:'reed',   n:'갈대/부들',     c:0x7d8a4e, use:'섬유 · 밧줄 · 지붕',      d:1.10, max:5000, min:45},
   {k:'copper', n:'공작석(구리)',  c:0x3fa98a, use:'제련 → 구리 도구',        d:0.05, max:160,  min:22},
@@ -860,6 +943,8 @@ function placeResources(seed){
     granite:i=> (b[i]===B.ROCK?1:0) + (b[i]===B.SCREE?0.8:0) + (s[i]>RS*0.7?0.4:0),
     // 점토: 하천 범람원의 세립 퇴적 — 저지·완경사·하천 근접
     clay:i=> ((h[i]<HI*0.35 && s[i]<0.26 && F.dRiver[i]<20)?1:0) + (b[i]===B.MARSH?0.6:0),
+    // 모래: 해빈과 사구. 파도와 바람이 골라 쌓아 둔 규사다
+    sand:i=> (b[i]===B.BEACH?1:0) + (b[i]===B.DUNE?0.85:0),
     reed:i=> (b[i]===B.MARSH?1:0) + (F.dRiver[i]<6&&h[i]>0?0.6:0),
     // 풀숲: 초원이 본진, 활엽수림 임상 하층과 습지 가장자리까지. 암반·해빈에는 안 남
     grass:i=> b[i]===B.MEADOW?1 : (b[i]===B.BROADLEAF?0.55 :
@@ -893,6 +978,7 @@ function placeResources(seed){
     sulfur:  i=> F.fuma[i],
     pebble:  i=> dR(i)*0.6 + nS(i)*0.4 + dW(i)*0.3,
     clay:    i=> (1-nS(i))*0.5 + dR(i)*0.5 + (1-nE(i))*0.3,
+    sand:    i=> dW(i)*0.9 + (1-nE(i))*0.4 + (1-nS(i))*0.3,
     reed:    i=> m[i]*0.5 + (1-nS(i))*0.3 + dW(i)*0.4,
     grass:   i=> m[i]*0.5 + (1-nS(i))*0.3 + (1-nE(i))*0.2,
     copper:  i=> nE(i)*0.6 + nS(i)*0.5,
@@ -1023,7 +1109,7 @@ function sampleAt(wx,wz){
    · 정점 색 + flatShading으로 텍스처 없이 바이옴을 표현하고,
      저해상도 렌더 타깃을 확대해 리썰 컴퍼니풍 픽셀 질감을 낸다.
    ========================================================================== */
-const CH=64, NC=N/CH;                 // 64 × 12 = 768 → 청크 144개
+const CH=32, NC=N/CH;                 // 32 × 24 = 768 → 청크 576개 (한 변 80 m)
 let renderer,scene,camera,sun,hemi,amb,flash,ocean,riverMesh,propGroup,podMesh;
 const chunks=[];
 let renderScale=0.5, farScale=1.0, showProps=true;
@@ -1258,6 +1344,7 @@ function buildProps(){
     granite:[new THREE.IcosahedronGeometry(1.8,0)],
     sulfur: [new THREE.IcosahedronGeometry(0.55,0)],
     clay:   [new THREE.CylinderGeometry(1.5,1.7,0.5,6)],
+    sand:   [new THREE.CylinderGeometry(0.9,1.6,0.55,7)],
     grass:  [grassTuft],
     reed:   [reedTuft],
     copper: [new THREE.IcosahedronGeometry(1.05,0)],
@@ -1435,6 +1522,7 @@ function buildProps(){
         let off;
         if(tree) off = (R.k==='fir'?3.5:2.6)*p.s;
         else if(R.k==='clay') off=0.4*p.s;
+        else if(R.k==='sand') off=0.22*p.s;
         else if(R.k==='reed'||R.k==='grass') off=0;
         else if(R.k==='flint') off=0.15*p.s;
         else if(R.k==='pebble') off=0.11*p.s;
@@ -1491,7 +1579,7 @@ function buildProps(){
           p._fm=ms[0];
           p._foff=(R.k==='flint'?0.15:R.k==='pebble'?0.11:
                    (R.k==='grass'||R.k==='reed')?0:
-                   R.k==='clay'?0.4:0.5)*p.s;
+                   R.k==='clay'?0.4:R.k==='sand'?0.22:0.5)*p.s;
         }
       }
       if(RAD[R.k]){
@@ -1752,6 +1840,40 @@ const ITEMS={
 
   // 채굴 산출물
   clay_lump:  {n:'점토',       kg:2.0,  c:0x8a7150, use:'토기 · 도가니 · 화로 내벽'},
+  // 사냥물 — 잡은 몹에서 나온다. 철보다 무르지만 훨씬 가볍다.
+  chitin:     {n:'키틴',       kg:0.5,  c:0x4a5a4e,
+               use:'가고일 껍질 — 철보다 무르지만 절반 무게다'},
+  bone:       {n:'뼈',         kg:0.7,  c:0xd6cfb4,
+               use:'북극곰 뼈 — 창대와 망치 머리로 쓴다'},
+  // 먹을 것 — food 는 배를 채우는 양, raw 면 날것이라 탈이 난다
+  meat_bear:  {n:'북극곰 고기', kg:2.2, c:0x9d5a54, use:'날고기 — 구워 먹어야 탈이 없다',
+               food:10, raw:true},
+  meat_cooked:{n:'구운 고기',   kg:1.8, c:0x7a4a33, use:'불에 익힌 고기 — 배를 든든히 채운다',
+               food:42},
+  fish:       {n:'물고기',     kg:0.9, c:0x7f9bb0, use:'그물로 건진 것 — 구워 먹는다',
+               food:7, raw:true},
+  fish_cooked:{n:'구운 물고기', kg:0.8, c:0xa8886a, use:'불에 익힌 물고기',
+               food:24},
+  // 그물 — 물에 들어가 던진다. 거미줄 쪽이 질기고 가볍고 많이 건진다
+  net_cord:   {n:'노끈 그물',   kg:2.6, c:0x9a8a5e, durMax:40,
+               use:'물에 들어가 던져 물고기를 건진다',
+               tool:{net:1, catch:[1,2], stam:12}},
+  net_silk:   {n:'거미줄 그물', kg:1.3, c:0xc9c2d4, durMax:90,
+               use:'거미 실로 뜬 그물 — 가볍고 질기고 많이 걸린다',
+               tool:{net:2, catch:[2,4], stam:9}},
+  hide:       {n:'가죽',       kg:1.1,  c:0x8a6a4a,
+               use:'북극곰 가죽 — 손잡이를 감고 이음매를 묶는다'},
+  spider_silk:{n:'거미 실',     kg:0.2,  c:0xd8d4c8,
+               use:'모방 거미의 실 — 노끈보다 가늘고 훨씬 질기다'},
+  mimic_flesh:{n:'모방 조직',   kg:0.9,  c:0x6a4a5a,
+               use:'삼킨 것의 모습을 베끼는 살 — 무엇이든 될 수 있어 아무것도 아니다'},
+  // 모방 조직은 닿은 것을 베낀다 — 살에 대면 그 살이 되어 앉는다
+  bandage_mimic:{n:'모방 붕대', kg:0.3, c:0xa87f86,
+               use:'모방 조직을 얇게 펴 거미 실로 누빈 띠 — 상처를 덮고 속병을 가라앉힌다',
+               heal:{hp:35, ill:1, stam:40}},
+  pot_sand:   {n:'모래 담은 토기', kg:3.4, c:0xc9b98a,
+               use:'유리 원료 — 모래는 흘러서 토기에 담아 나른다'},
+  glass:      {n:'유리',       kg:1.2,  c:0x9fc6cc, use:'창짝 — 규사를 녹여 굳힌 판'},
   bog_iron:   {n:'늪철광',     kg:3.0,  c:0x9c5a2e, use:'괴련철 제련 → 철기'},
   cassiterite:{n:'석석',       kg:1.5,  c:0x6d5a44, use:'구리와 합금 → 청동'},
   coal_lump:  {n:'석탄',       kg:1.2,  c:0x26262a, use:'고온 연료 · 코크스'},
@@ -1761,6 +1883,12 @@ const ITEMS={
   tinder:     {n:'부싯깃',     kg:0.05, c:0xb8a86a, use:'불씨를 옮겨 붙이는 마른 풀뭉치'},
   bowdrill:   {n:'활비비',     kg:1.0,  c:0x8a7a52, use:'마찰 발화 — 힘이 많이 든다',
                tool:{fire:1}, durMax:25},
+  /* 긴 라이터 — 철관 끝에 부싯돌 톱니를 물려 방아쇠로 긁는다. 팔 길이만큼 떨어져
+     화덕 속에 바로 불꽃을 떨어뜨리므로 부싯깃을 따로 받쳐 둘 필요가 없다.
+     tool.fire 가 클수록 빨리 붙고, 2 이상이면 부싯깃 없이도 붙는다. */
+  igniter:    {n:'긴 라이터',   kg:0.45, c:0xb9bec4,
+               use:'부싯깃 없이 한 번에 불을 붙인다 — 화덕 속까지 닿는다',
+               tool:{fire:3}, durMax:120},
   stone_block:{n:'석재',       kg:5.0,  c:0x7a7a74, use:'숫돌 축조 · 마제 석기날 · 석축'},
   // 토기 — 빚어 말린 생것을 화덕에 구워야 비로소 그릇이 된다
   pot_raw:    {n:'마르지 않은 그릇', kg:1.8, c:0x8a7150,
@@ -1802,15 +1930,45 @@ const ITEMS={
   scale_iron: {n:'철 비늘 갑옷', kg:12.0, c:0x9a938c,
                use:'철 비늘을 겹쳐 꿰었다 — 가장 단단하고 가장 무겁다',
                wear:{slot:'armor', armor:10, warm:1}},
+  /* 사냥물 방어구 — 무기와 같은 셈법이다. 방어는 청동·철에 못 미치지만
+     무게가 3분의 1이라 짐을 지고도 뛸 수 있고, 가죽은 따뜻하기까지 하다. */
+  coat_hide:  {n:'가죽 외투',  kg:3.0,  c:0x8a6a4a,
+               use:'북극곰 가죽을 통째로 걸친다 — 가볍고 몹시 따뜻하다',
+               wear:{slot:'armor', armor:4, warm:6}},
+  scale_chitin:{n:'키틴 갑옷', kg:4.5,  c:0x4a5a4e,
+               use:'키틴 판을 비늘처럼 겹쳐 꿰었다 — 청동보다 낫고 절반 무게다',
+               wear:{slot:'armor', armor:8, warm:1}},
+  helm_chitin:{n:'키틴 투구',  kg:1.2,  c:0x53685a,
+               use:'머리 껍질을 통째로 다듬어 쓴다 — 청동 투구와 같은데 훨씬 가볍다',
+               wear:{slot:'head', armor:3}},
   // 물 · 재
-  pot_water:  {n:'물 담은 토기', kg:3.6, c:0x4f86ae, use:'담수 — 우려내고 졸이는 데 쓴다'},
+  /* 물을 담는 것 — 마시면 빈 그릇이 손에 남는다.
+     sips 를 단 것은 여러 번 나눠 마신다(칸마다 남은 모금을 따로 센다). */
+  pot_water:  {n:'물 담은 토기', kg:3.6, c:0x4f86ae,
+               use:'담수 — 마시거나, 우려내고 졸이는 데 쓴다',
+               drink:{n:55, empty:'pot'}},
+  bucket_iron:{n:'철 양동이',   kg:2.4, c:0x9aa0a6,
+               use:'연철을 두드려 편 통 — 물을 네 모금 담아 나른다'},
+  bucket_water:{n:'물 담은 양동이', kg:12.4, c:0x5a86a2,
+               use:'하천에서 길어 온 물 — 나눠 마신다',
+               sips:4, drink:{n:40, empty:'bucket_iron'}},
   ash:        {n:'재',         kg:0.3,  c:0x9a958c, use:'물에 우리면 잿물이 된다'},
   lye:        {n:'잿물',       kg:3.4,  c:0xc9c9a8, use:'질산과 만나면 초석이 된다'},
   // 화약
   sulfur:     {n:'유황',       kg:1.0,  c:0xd8c23a, use:'화약 재료 · 분기공에서만 난다'},
   nitric:     {n:'질산',       kg:3.4,  c:0xb8b060, use:'잿물과 섞어 초석으로'},
   saltpeter:  {n:'초석',       kg:0.8,  c:0xdedac8, use:'화약의 주재료 (질산칼륨)'},
-  gunpowder:  {n:'화약',       kg:0.9,  c:0x4a463e, use:'흑색화약 — 아직 쓸 곳이 없다'},
+  gunpowder:  {n:'화약',       kg:0.9,  c:0x4a463e, use:'흑색화약 — 탄약의 장약'},
+  cartridge:  {n:'소총탄',     kg:0.05, c:0xc08a3e,
+               use:'구리 탄피에 화약과 철 탄두 — 볼트 소총에 든다'},
+  /* 볼트 소총 — 화승총과 현대 소총 사이. 뒤로 열리는 약실에 탄피째 물리고,
+     노리쇠를 손으로 젖혀 한 발씩 밀어 넣는다. 자동은 없다.
+     사거리 50 m 는 활비비로 불을 켜던 섬에서는 다른 세계의 값이다. */
+  rifle_bolt: {n:'볼트 소총',  kg:4.6,  c:0x7a6a52,
+               use:'사거리 50 m · 5발 탄창 — 노리쇠를 젖혀 한 발씩',
+               tool:{weapon:1, gun:1, dmg:150, reach:50, rate:2.40, stam:3,
+                     swing:'shot', mag:5, reload:6.5, ammo:'cartridge'},
+               durMax:400},
   // 금속 가공 · 전기
   ring_platinum:{n:'백금 반지', kg:0.05, c:0xd8dce0,
                use:'표류 전부터 끼고 있던 것 — 백금은 촉매가 된다'},
@@ -1842,8 +2000,53 @@ const ITEMS={
                use:'경도 2까지 채굴 — 가장 빠르고 오래간다',
                tool:{pick:2,speed:1.9,wear:1}, durMax:260},
   spear:      {n:'돌창',       kg:1.6,  c:0x7a6a4a,
-               use:'찌르기 — 사거리 2.4 m · 아직 겨눌 것이 없다',
-               tool:{weapon:1, dmg:22, reach:2.4, rate:0.9}, durMax:60},
+               use:'찌르기 — 길지만 무르다',
+               tool:{weapon:1, dmg:22, reach:2.6, rate:0.9, stam:9, swing:'thrust'},
+               durMax:60},
+
+  /* 철기 무기 — 넷이 서로 다른 값을 판다.
+     검은 빠르게 여러 번, 창은 멀리서, 도끼는 한 번에 크게, 해머는 상대를 멈춰 세운다.
+     북극곰 경직 1.05초짜리 틈에 넣을 수 있는 피해는
+       검 3타 90 · 창 2타 80 · 도끼 1타 80 · 해머 1타 55(+기절) 로 엇비슷하다.
+     길게 끌면 검이 초당 75 로 가장 세지만, 사거리가 1.5 m 라 곰 품에 들어가야 한다 —
+     빠른 만큼 가까이 붙는 것이 검의 값이다. */
+  sword_iron: {n:'철 검',      kg:1.9,  c:0xb9bcc0,
+               use:'베기 — 가장 빠르다. 짧은 틈에 여러 번 넣는다',
+               tool:{weapon:1, dmg:30, reach:1.5, rate:0.40, stam:5, swing:'slash'},
+               durMax:700},
+  spear_iron: {n:'철 창',      kg:2.4,  c:0xa8adb2,
+               use:'찌르기 — 사거리 2.6 m. 닿지 않는 데서 먼저 닿는다',
+               tool:{weapon:1, dmg:40, reach:2.6, rate:1.00, stam:8, swing:'thrust'},
+               durMax:650},
+  axe_war:    {n:'철 전투도끼', kg:3.0,  c:0x9aa0a6,
+               use:'내리찍기 — 한 방이 가장 크다. 대신 느리다',
+               tool:{weapon:1, dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
+               durMax:800},
+  hammer_iron:{n:'철 해머',    kg:4.2,  c:0x8f959b,
+               use:'후려치기 — 맞은 것은 0.2초 동안 못 움직인다',
+               tool:{weapon:1, dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash',
+                     stun:0.2},
+               durMax:950},
+  /* 사냥물 무기 — 철보다 **약하고 빨리 닳는 대신, 훨씬 가볍고 조금 빠르다**.
+     피해는 철의 3/4, 쿨타임은 9/10, 무게는 55~60%, 내구는 45% 쯤이 기준이다.
+     짐 무게가 곧 이동 속도인 이 게임에서, 가벼움은 그 자체로 값이다. */
+  sword_chitin:{n:'키틴 검',    kg:1.1,  c:0x5b6d5e,
+               use:'가고일 껍질을 겹쳐 세운 날 — 철 검의 4분의 3 피해를 5분의 4 쿨로 — 절반 무게다',
+               tool:{weapon:1, dmg:22, reach:1.5, rate:0.32, stam:5, swing:'slash'},
+               durMax:320},
+  spear_bone: {n:'뼈 창',      kg:1.4,  c:0xcfc6a8,
+               use:'긴 뼈를 갈아 세운 창끝 — 철 창과 같은 사거리 · 4분의 3 피해를 5분의 4 쿨로',
+               tool:{weapon:1, dmg:30, reach:2.6, rate:0.80, stam:8, swing:'thrust'},
+               durMax:300},
+  axe_chitin: {n:'키틴 도끼',   kg:1.8,  c:0x53685a,
+               use:'키틴 판을 뼈 심에 물린 큰 날 — 철 도끼의 4분의 3 피해를 5분의 4 쿨로',
+               tool:{weapon:1, dmg:60, reach:2.1, rate:1.28, stam:15, swing:'slash'},
+               durMax:360},
+  hammer_bone:{n:'뼈 해머',    kg:2.5,  c:0xc7bfa2,
+               use:'관절 뼈를 통째로 박은 머리 — 철 해머의 4분의 3 피해를 5분의 4 쿨로. 0.2초 기절',
+               tool:{weapon:1, dmg:41, reach:2.1, rate:0.96, stam:17, swing:'smash',
+                     stun:0.2},
+               durMax:420},
   torch:      {n:'횃불',       kg:0.8,  c:0xc07a30, use:'휴대 조명 · 화덕 점화 · 약한 화입',
                tool:{torch:1}, burn:3.0},   // burn = 게임시간(h)
 
@@ -1872,6 +2075,7 @@ function refreshWear(){
 const armorTotal =()=>wornSum('armor');
 const warmthTotal=()=>wornSum('warm');
 
+const countId=id=>INV.slots.reduce((a,s)=>a+(s.id===id?s.n:0),0);
 function invWeight(){
   refreshWear();
   let w=0; for(const s of INV.slots) w+=ITEMS[s.id].kg*s.n;
@@ -1883,15 +2087,17 @@ function invAdd(id,n){
   n=n||1;
   const T=ITEMS[id];
   if(invWeight()+T.kg*n > INV.max+1e-6) return false;
-  if(T.tool){                       // 도구는 개별 내구도를 가지므로 겹치지 않는다
+  if(T.tool||T.sips){               // 도구와 물통은 칸마다 남은 양이 달라 겹치지 않는다
     for(let k=0;k<n;k++){
       const sl={id,n:1};
-      if(T.burn!==undefined){ sl.fuel=T.burn; sl.lit=false; }   // 횃불
+      if(T.sips) sl.sip=T.sips;                                 // 남은 모금
+      else if(T.burn!==undefined){ sl.fuel=T.burn; sl.lit=false; }   // 횃불
       else sl.dur=T.durMax;
+      if(T.tool&&T.tool.gun) sl.mag=0;                          // 총은 빈 탄창으로 나온다
       INV.slots.push(sl);
     }
   }else{
-    const s=INV.slots.find(x=>x.id===id&&x.dur===undefined);
+    const s=INV.slots.find(x=>x.id===id&&x.dur===undefined&&x.sip===undefined);
     if(s) s.n+=n; else INV.slots.push({id,n:n});
   }
   invDirty=true; return true;
@@ -1899,7 +2105,7 @@ function invAdd(id,n){
 function invRemove(idx,n){
   const s=INV.slots[idx]; if(!s) return;
   s.n-=(n===undefined?1:n);
-  if(s.n<=0) INV.slots.splice(idx,1);
+  if(s.n<=0){ INV.slots.splice(idx,1); quickDirty=true; }
   INV.sel=clamp(INV.sel,0,Math.max(0,INV.slots.length-1));
   invDirty=true;
 }
@@ -1916,11 +2122,17 @@ function drawInv(){
   if(!invOpen) return;
   // 착용 칸 · 방어 · 보온 요약
   let wh='<div class="wr">';
+  // 손 — 도구·무기·그물을 드는 자리
+  wh+='<div class="ws slot" data-slot="hand"><span>손</span>'
+    +(EQUIP?'<b draggable="true">'+ITEMS[EQUIP.id].n+'</b>':'<i>비어 있음</i>')+'</div>';
   for(const k of ['body','armor','head','back']){
     const sl=WEAR[k];
-    wh+='<div class="ws"><span>'+WEAR_N[k]+'</span>'
-      +(sl?'<b>'+ITEMS[sl.id].n+'</b>':'<i>비어 있음</i>')+'</div>';
+    wh+='<div class="ws slot" data-slot="'+k+'"><span>'+WEAR_N[k]+'</span>'
+      +(sl?'<b draggable="true">'+ITEMS[sl.id].n+'</b>':'<i>비어 있음</i>')+'</div>';
   }
+  // 입 — 먹을 것을 끌어다 놓으면 먹는다
+  wh+='<div class="ws slot" data-slot="eat"><span>쓰기</span>'
+    +'<i>먹을 것 · 마실 것 · 붕대를 여기로</i></div>';
   wh+='<div class="ws"><span>방어 / 보온</span><b>'+armorTotal()+' / '+warmthTotal()+'</b></div>';
   if(wornSum('carry')) wh+='<div class="ws"><span>적재 보너스</span><b>+'
     +wornSum('carry')+' kg</b></div>';
@@ -1928,12 +2140,13 @@ function drawInv(){
   if(!INV.slots.length){ L.innerHTML=wh+'<div class="ie">비어 있음</div>'; return; }
   L.innerHTML=INV.slots.map((s,i)=>{
     const t=ITEMS[s.id];
-    return '<div class="it'+(i===INV.sel?' sel':'')+'" data-i="'+i+'">'
+    return '<div class="it'+(i===INV.sel?' sel':'')+'" data-i="'+i+'" draggable="true">'
       +'<i class="sw" style="background:#'+t.c.toString(16).padStart(6,'0')+'"></i>'
       +'<span class="nm">'+t.n+' <span class="qt">×'+s.n+'</span>'
       +(s===EQUIP?'<span class="eq">장착</span>':'')
       +(t.wear&&WEAR[t.wear.slot]===s?'<span class="eq">착용</span>':'')
       +(s.dur!==undefined?'<span class="eq" style="color:#8fd6b4">'+s.dur+'/'+t.durMax+'</span>':'')
+      +(s.sip!==undefined?'<span class="eq" style="color:#6f9ec9">'+s.sip+'모금</span>':'')
       +(s.fuel!==undefined?'<span class="eq" style="color:'+(s.lit?'#e08a3a':'#5d7a71')+'">'
         +(s.lit?'타는 중 ':'꺼짐 ')+Math.round(s.fuel/t.burn*100)+'%</span>':'')
       +'<span class="u">'+t.use+'</span></span>'
@@ -1942,6 +2155,72 @@ function drawInv(){
   L.innerHTML=wh+L.innerHTML;
   L.querySelectorAll('.it').forEach(el=>{
     el.onclick=()=>{ INV.sel=+el.dataset.i; invDirty=true; };
+  });
+  wireDrag(L);
+}
+
+/* ── 끌어 놓기 ──────────────────────────────────────────────────────────
+   목록에서 칸으로 끌면 들거나 입고, 칸에서 목록으로 끌면 내려놓는다.
+   빠른 칸(1~5)에도 끌어다 넣을 수 있다. 쥔 것은 소지품 슬롯 자체를 가리키므로
+   무게는 그대로다 — 자리만 옮긴다. */
+let DRAG=null;                                      // 지금 끌고 있는 슬롯
+function dragPut(where){
+  const sl=DRAG; DRAG=null;
+  if(!sl || INV.slots.indexOf(sl)<0) return;
+  const T=ITEMS[sl.id];
+  if(where==='eat'){ eatSlot(sl); return; }
+  if(where==='hand'){
+    if(!T.tool){ toast('들 수 있는 물건이 아니다'); return; }
+    EQUIP=sl; toast(T.n+' 들었다'); sfx('bind'); invDirty=true; return;
+  }
+  if(where==='list'){                               // 목록으로 되돌리면 내려놓는다
+    if(EQUIP===sl){ EQUIP=null; toast(T.n+' 내려놓음'); }
+    for(const k in WEAR) if(WEAR[k]===sl){ WEAR[k]=null; toast(T.n+' 벗음'); }
+    for(let i=0;i<QUICK.length;i++) if(QUICK[i]===sl) QUICK[i]=null;
+    refreshWear(); invDirty=true; quickDirty=true; return;
+  }
+  if(where.slice(0,2)==='q:'){                      // 빠른 칸
+    const i=+where.slice(2);
+    if(!T.tool){ toast('빠른 칸에는 도구만 넣는다'); return; }
+    for(let k=0;k<QUICK.length;k++) if(QUICK[k]===sl) QUICK[k]=null;
+    QUICK[i]=sl; toast((i+1)+'번 칸에 넣었다');
+    sfx('bind'); invDirty=true; quickDirty=true; return;
+  }
+  // 입는 칸
+  if(!T.wear || T.wear.slot!==where){ toast(WEAR_N[where]+' 자리에 걸치는 물건이 아니다'); return; }
+  WEAR[where]=sl; toast(T.n+' 입었다'); sfx('bind');
+  refreshWear(); invDirty=true;
+}
+function wireDrag(L){
+  const mark=(el,on)=>el.classList.toggle('on',on);
+  L.querySelectorAll('.it').forEach(el=>{
+    el.ondragstart=ev=>{ DRAG=INV.slots[+el.dataset.i]; el.classList.add('drag');
+      ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain','x'); };
+    el.ondragend=()=>{ el.classList.remove('drag'); DRAG=null; };
+  });
+  L.querySelectorAll('.ws.slot').forEach(el=>{
+    const k=el.dataset.slot;
+    const b=el.querySelector('b[draggable]');
+    if(b) b.ondragstart=ev=>{
+      DRAG=(k==='hand')?EQUIP:WEAR[k];
+      ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain','x'); };
+    el.ondragover=ev=>{ ev.preventDefault(); mark(el,true); };
+    el.ondragleave=()=>mark(el,false);
+    el.ondrop=ev=>{ ev.preventDefault(); mark(el,false); dragPut(k); };
+  });
+  // 목록 바탕 — 여기로 끌면 내려놓는다
+  L.ondragover=ev=>{ if(DRAG){ ev.preventDefault(); L.classList.add('on'); } };
+  L.ondragleave=()=>L.classList.remove('on');
+  L.ondrop=ev=>{
+    if(ev.target.closest&&ev.target.closest('.ws.slot')) return;   // 칸이 먼저 받는다
+    ev.preventDefault(); L.classList.remove('on'); dragPut('list');
+  };
+  // 빠른 칸
+  const bar=document.getElementById('quick');
+  if(bar) bar.querySelectorAll('.q').forEach(el=>{
+    el.ondragover=ev=>{ if(DRAG){ ev.preventDefault(); mark(el,true); } };
+    el.ondragleave=()=>mark(el,false);
+    el.ondrop=ev=>{ ev.preventDefault(); mark(el,false); dragPut('q:'+el.dataset.i); };
   });
 }
 
@@ -1952,17 +2231,21 @@ function drawInv(){
    나무 한 그루가 내주는 가지 수도 유한하다. 채집 중에는 기력이 빠진다.
    ========================================================================== */
 const HARVEST={
-  oak:  {item:'branch', label:'나뭇가지 꺾기', dur:2.4,  stam:7, yield:[1,1], uses:[3,6]},
-  fir:  {item:'branch', label:'나뭇가지 꺾기', dur:1.8,  stam:5.5, yield:[1,1], uses:[3,6]},
+  oak:  {item:'branch', label:'나뭇가지 꺾기', dur:1.92,  stam:7, yield:[1,1], uses:[3,6]},
+  fir:  {item:'branch', label:'나뭇가지 꺾기', dur:1.44,  stam:5.5, yield:[1,1], uses:[3,6]},
   // 풀은 한 줌씩 뜯긴다. 힘이 거의 안 들고, 덤불에 열매가 달려 있으면 같이 딸려 온다
-  grass:{item:'grass_blade', label:'풀 뜯기',      dur:0.85, stam:2.5,  yield:[2,4], uses:[2,3],
+  grass:{item:'grass_blade', label:'풀 뜯기',      dur:0.68, stam:2.5,  yield:[2,4], uses:[2,3],
          regrow:4},                                  // 게임 4시간 뒤 재생
   // 갈대는 줄기를 꺾어 벤다. 풀보다 질겨 시간과 기력이 더 들지만 섬유 수율이 높다
-  reed: {item:'reed_stalk', label:'갈대 베기', dur:1.4, stam:4, yield:[2,4], uses:[2,3],
+  reed: {item:'reed_stalk', label:'갈대 베기', dur:1.12, stam:4, yield:[2,4], uses:[2,3],
          regrow:6},
   // 단괴와 자갈은 도구 없이 그냥 줍는다 — 주우면 그 자리에서 사라진다
+  // 모래는 손으로 퍼도 손가락 사이로 흐른다 — 빈 토기에 담아 나른다.
+  // 한 번 담을 때 토기 하나가 든다. 바람에 다시 쌓이므로 재생한다.
+  sand:  {item:'pot_sand', label:'모래 담기', dur:1.6, stam:3, yield:[1,1], uses:[4,7],
+          need:'pot', regrow:8},
   flint: {item:'flint',  label:'부싯돌 줍기', dur:0.6, stam:1.5, yield:[1,1], uses:[1,1], vanish:true},
-  pebble:{item:'pebble', label:'돌멩이 줍기', dur:0.5, stam:1, yield:[1,1], uses:[1,1], vanish:true}
+  pebble:{item:'pebble', label:'돌멩이 줍기', dur:0.4, stam:1, yield:[1,1], uses:[1,1], vanish:true}
 };
 // 도끼를 들었을 때만 열리는 작업 — 줄기를 베어 통나무를 얻는다
 /* 채굴 — tier 는 광물 경도 등급
@@ -1984,11 +2267,106 @@ const CHOP={
   oak:{item:'log', label:'나무 베기', dur:5.0, stam:10, yield:[1,1], logs:[2,3]},
   fir:{item:'log', label:'나무 베기', dur:4.0, stam:8.5, yield:[1,1], logs:[2,4]}
 };
-const HARV={near:null, t:0, active:false, mode:null, cont:null, fire:null};
+const HARV={near:null, t:0, active:false, mode:null, cont:null, fire:null, fit:null};
 /* E 짧게 누르기 = 용기 열기 / 길게 누르기 = 화덕 다루기 */
 const EK={hold:0, tgt:null};
 const E_TAP=0.35;
 let EQUIP=null;                                     // 장착 중인 도구 슬롯
+
+/* ── 쓰기(먹기·감기·마시기) ─────────────────────────────────────────────
+   먹는 것은 배를 채운다. 날것(raw)은 배는 채우되 한동안 앓는다 —
+   기력이 더디 차오른다. 구우면 그런 일이 없고 채우는 양도 훨씬 크다.
+   감는 것(heal)은 앓는 것을 가라앉히고 기력을 돌려준다.
+   마시는 것(drink)은 목을 축이고 빈 그릇을 돌려준다. sips 를 단 그릇은
+   칸에 남은 모금(sip)을 하나씩 덜어 쓰고, 다 비면 그제야 빈 그릇이 된다.
+
+   손에 쥔 것이 셋 중 어느 것도 아니면 담수 곁인지 본다 — 하천이나 온천에
+   서 있으면 그냥 엎드려 들이켠다. 그릇 없이도 물가에서는 살 수 있어야 한다. */
+function eatSlot(sl){
+  if(!sl) return drinkSource();
+  const T=ITEMS[sl.id];
+  if(T&&T.drink){
+    if(PL.water>=99.5){ toast('더는 들어가지 않는다'); return false; }
+    const D=T.drink;
+    PL.water=clamp(PL.water+D.n,0,100);
+    const i=INV.slots.indexOf(sl);
+    if(sl.sip>1){ sl.sip--; toast(T.n+' — 한 모금 (남은 '+sl.sip+')'); }
+    else{
+      if(i>=0) invRemove(i,1);
+      if(D.empty && !invAdd(D.empty,1)) toast('빈 '+ITEMS[D.empty].n+'을 들 자리가 없어 버렸다');
+      toast(T.n+' — 다 마셨다');
+    }
+    sfx('bind'); invDirty=true; return true;
+  }
+  if(T&&T.heal){                                  // 붕대 따위
+    const H=T.heal;
+    const need=(H.hp&&PL.hp<HPMAX-0.5)||(H.ill&&PL.ill>0)||(H.stam&&PL.stam<99);
+    if(!need){ toast('지금은 감을 데가 없다'); return false; }
+    if(H.hp) PL.hp=Math.min(HPMAX,PL.hp+H.hp);
+    if(H.ill) PL.ill=0;
+    if(H.stam) PL.stam=clamp(PL.stam+H.stam,0,100);
+    const j=INV.slots.indexOf(sl);
+    if(j>=0) invRemove(j,1);
+    toast(T.n+' — 속이 가라앉는다');
+    sfx('bind'); invDirty=true; return true;
+  }
+  if(!T||!T.food) return drinkSource();
+  if(PL.food>=99.5){ toast('더는 들어가지 않는다'); return false; }
+  PL.food=clamp(PL.food+T.food,0,100);
+  const i=INV.slots.indexOf(sl);
+  if(i>=0) invRemove(i,1);
+  if(T.raw){ PL.ill=Math.max(PL.ill,45); toast(T.n+' — 날로 먹어 속이 뒤집힌다'); }
+  else toast(T.n+' 먹었다');
+  sfx('bind'); invDirty=true; return true;
+}
+
+/* 물가에서 그냥 마신다. 담수면 가득 채우고, 바닷물이면 마시지 못한다. */
+function drinkSource(){
+  if(nearFreshWater()){
+    if(PL.water>=99.5){ toast('목이 마르지 않다'); return false; }
+    PL.water=100; PL.stam=clamp(PL.stam+8,0,100);
+    toast('물을 들이켰다'); sfx('bind'); return true;
+  }
+  if(PL.swim||PL.wade>0.3){ toast('바닷물은 마실 수 없다 — 하천이나 온천을 찾아라'); return false; }
+  toast('먹거나 감거나 마실 수 있는 것이 아니다');
+  return false;
+}
+
+/* ── 빠른 칸 ────────────────────────────────────────────────────────────
+   손에 든 것 아래의 다섯 칸. 숫자를 누르면 그 칸의 것을 손에 들고, 들고 있던
+   것이 그 칸으로 들어간다 — 넣고 빼는 것이 아니라 자리를 맞바꾼다.
+   그래서 빈 칸을 누르면 손이 비고, 한 번 더 누르면 도로 손에 돌아온다.
+   칸은 소지품 슬롯을 가리킬 뿐이라 무게에는 아무 영향이 없다. */
+const QUICK=[null,null,null,null,null];
+let quickDirty=true;
+function pruneQuick(){                              // 사라진 물건을 가리키던 칸은 비운다
+  for(let i=0;i<QUICK.length;i++)
+    if(QUICK[i] && INV.slots.indexOf(QUICK[i])<0){ QUICK[i]=null; quickDirty=true; }
+}
+function quickSwap(i){
+  if(i<0||i>=QUICK.length) return;
+  pruneQuick();
+  const held=equippedTool(), want=QUICK[i];
+  if(!held && !want){ toast((i+1)+'번 칸이 비어 있다'); return; }
+  QUICK[i]=held||null;
+  EQUIP=want||null;
+  for(let k=0;k<QUICK.length;k++)                    // 같은 물건이 두 칸에 남지 않게
+    if(k!==i && QUICK[k] && QUICK[k]===QUICK[i]) QUICK[k]=null;
+  toast(EQUIP?ITEMS[EQUIP.id].n+' 들었다':(i+1)+'번 칸에 넣었다');
+  invDirty=true; quickDirty=true; sfx('bind');
+}
+function drawQuick(){
+  const bar=document.getElementById('quick');
+  if(!bar) return;
+  pruneQuick();
+  bar.querySelectorAll('.q').forEach(el=>{
+    const sl=QUICK[+el.dataset.i], it=sl&&ITEMS[sl.id];
+    el.querySelector('span').textContent=it?it.n:'–';
+    el.querySelector('.sw').style.background=
+      it?('#'+it.c.toString(16).padStart(6,'0')):'transparent';
+    el.classList.toggle('has',!!it);
+  });
+}
 
 function equippedTool(){
   if(EQUIP && (INV.slots.indexOf(EQUIP)<0)) EQUIP=null;
@@ -2014,7 +2392,11 @@ function pickMode(t){
     }
     return null;                       // 등급 미달 — 사유는 blockReason 이 설명한다
   }
-  if(HARVEST[t.k] && t.br>0) return {H:HARVEST[t.k], field:'br', tool:false};
+  if(HARVEST[t.k] && t.br>0){
+    const H=HARVEST[t.k];
+    if(H.need && countId(H.need)<1) return null;    // 담을 그릇이 없다
+    return {H, field:'br', tool:false};
+  }
   return null;
 }
 // '~로 / ~으로' 조사 선택 (받침 유무 판정, ㄹ 받침은 '로')
@@ -2041,6 +2423,9 @@ function blockReason(t){
     return josaRo(ITEMS[e.id].n)+'는 어림없다 — 돌 곡괭이가 필요하다';
   }
   if(CHOP[t.k] && t.logs>0 && t.br<=0) return '줄기를 베려면 도끼를 들어야 한다';
+  const H=HARVEST[t.k];
+  if(H && H.need && t.br>0 && countId(H.need)<1)
+    return ITEMS[H.need].n+'가 있어야 담는다 — 모래는 손가락 사이로 흘러내린다';
   return null;
 }
 
@@ -2075,9 +2460,10 @@ function findHarvestTarget(){
   });
   return best;
 }
-/* 화덕 상호작용 — 이제 여기서 하는 일은 '불'뿐이다.
-   땔감·구울 것·구워진 것은 모두 화덕 안(용기)에 넣고 뺀다. E를 짧게 누르면
-   화덕이 열리고, 길게 누르면 아래의 점화 동작이 이어진다. */
+/* 화덕·제련로 상호작용 — 이제 여기서 하는 일은 '불'뿐이다.
+   땔감·구울 것·구워진 것은 모두 안(용기)에 넣고 뺀다. E를 짧게 누르면
+   창이 열리고, 길게 누르면 아래의 점화 동작이 이어진다.
+   제련로도 불을 붙여야 돌아간다 — 켜는 방법은 화덕과 똑같다. */
 function updateFireInteract(dt,f){
   const e=equippedTool(), canFire=e&&ITEMS[e.id].tool.fire;
   const isTorch=e&&ITEMS[e.id].tool.torch;
@@ -2104,23 +2490,24 @@ function updateFireInteract(dt,f){
   }
 
   if(!f.lit){
-    // 활비비질 — 화덕 안에 땔감이 들어 있어야 불이 옮겨 붙을 자리가 있다
-    if(!keys.KeyE||!canFire||ti<0||PL.stam<5||!contFuel(f)){
+    // 불 만들기 — 안에 땔감이 들어 있어야 불이 옮겨 붙을 자리가 있다
+    const tin=needsTinder(e), dur=igniteDur(e);
+    if(!keys.KeyE||!canFire||(tin&&ti<0)||PL.stam<5||!contFuel(f)){
       IGNITE.t=Math.max(0,IGNITE.t-dt*2); return; }
     const pv=IGNITE.t;
     IGNITE.t+=dt;
-    PL.stam=clamp(PL.stam-IGNITE.stam*dt,0,100);   // 활비비질은 몹시 힘들다
-    // 활을 앞뒤로 켜는 마찰음 — 진행될수록 빨라진다
-    const iv=Math.max(0.16,0.34-IGNITE.t/IGNITE.dur*0.18);
+    if(tin) PL.stam=clamp(PL.stam-IGNITE.stam*dt,0,100);   // 활비비질은 몹시 힘들다
+    // 활을 앞뒤로 켜는 마찰음 — 진행될수록 빨라진다. 라이터는 긁는 소리만 난다
+    const iv=Math.max(0.16,0.34-IGNITE.t/dur*0.18);
     if(Math.floor(pv/iv)!==Math.floor(IGNITE.t/iv))
       nz(T0(),0.13,0.05,'bandpass',rr(500,900),1.3,rr(0.35,0.55));
-    if(IGNITE.t<IGNITE.dur) return;
+    if(IGNITE.t<dur) return;
     IGNITE.t=0;
-    invRemove(ti,1);                                // 불씨를 받아낸 부싯깃은 타 없어진다
+    if(tin) invRemove(ti,1);            // 불씨를 받아낸 부싯깃은 타 없어진다
     e.dur-=1;
-    if(e.dur<=0){ toast('활비비 파손'); invRemove(INV.slots.indexOf(e),1); EQUIP=null; }
+    if(e.dur<=0){ toast(ITEMS[e.id].n+' 파손'); invRemove(INV.slots.indexOf(e),1); EQUIP=null; }
     lightFire(f);
-    toast('부싯깃에 불이 옮겨 붙었다'); sfx('ignite');
+    toast(tin?'부싯깃에 불이 옮겨 붙었다':'불이 붙었다'); sfx('ignite');
     invDirty=true;
     return;
   }
@@ -2131,7 +2518,10 @@ function lightFire(f){
   const id=contFuel(f);
   if(!id) return false;
   contTake(f,id,1); f.fuel+=FUEL[id];
-  f.lit=true; f.flame.visible=true; f.light.visible=true;
+  f.lit=true;
+  if(f.flame) f.flame.visible=true;      // 화덕은 불꽃, 제련로는 아치 속 잔열
+  if(f.glow)  f.glow.visible=true;
+  f.light.visible=true;
   boxDirty=true; return true;
 }
 const fmtFuel=h=>Math.floor(h)+'시간 '+Math.round((h%1)*60)+'분';
@@ -2139,10 +2529,20 @@ const fmtFuel=h=>Math.floor(h)+'시간 '+Math.round((h%1)*60)+'분';
 function updateHarvest(dt){
   // 용기(상자·화덕·제련로)와 채집 대상 중 가장 가까운 쪽을 상호작용 대상으로 삼는다
   if(boxOpen){                                   // 열려 있는 동안은 세상 쪽 조작을 멈춘다
-    HARV.cont=HARV.fire=HARV.near=HARV.mode=null;
+    HARV.cont=HARV.fire=HARV.near=HARV.mode=HARV.fit=null;
     HARV.active=false; EK.hold=0; EK.tgt=null; IGNITE.t=0;
     return;
   }
+  // 문짝·창짝이 눈앞이면 그쪽이 먼저다 — 짧게 E 로 여닫는다
+  const fit=BUILD.on?null:findFit();
+  if(fit){
+    HARV.cont=null; HARV.fire=null; HARV.near=null; HARV.mode=null;
+    HARV.active=false; HARV.t=0; IGNITE.t=0; HARV.fit=fit;
+    if(keys.KeyE){ EK.hold+=dt; EK.tgt={kind:'fit', w:fit}; }
+    else{ EK.hold=0; EK.tgt=null; }
+    return;
+  }
+  HARV.fit=null;
   const cont=findContainer(), prop=findHarvestTarget();
   const dc=cont?Math.hypot(cont.x-PL.pos.x,cont.z-PL.pos.z):1e9;
   const dp=prop?Math.hypot(prop.x-PL.pos.x,prop.z-PL.pos.z):1e9;
@@ -2151,7 +2551,7 @@ function updateHarvest(dt){
     HARV.near=null; HARV.mode=null; HARV.active=false; HARV.t=0;
     // 누른 시간을 재둔다 — 짧게 떼면 열고(releaseE), 계속 누르면 불을 다룬다
     if(keys.KeyE){ EK.hold+=dt; EK.tgt=cont; }else{ EK.hold=0; EK.tgt=null; }
-    if(cont.kind==='fire') updateFireInteract(dt,cont);
+    if(cont.kind==='fire'||cont.kind==='furnace') updateFireInteract(dt,cont);
     else IGNITE.t=0;
     return;
   }
@@ -2179,6 +2579,14 @@ function updateHarvest(dt){
   if(got<1){
     toast('더 들 수 없다 — '+INV.max+' kg 한계');
     HARV.active=false; return;
+  }
+  if(H.need){                                       // 담은 만큼 빈 그릇이 든다
+    let left=got;
+    for(let i=INV.slots.length-1;i>=0&&left>0;i--){
+      const sl=INV.slots[i];
+      if(sl.id!==H.need||sl.dur!==undefined) continue;
+      const take=Math.min(left,sl.n); left-=take; invRemove(i,take);
+    }
   }
   invAdd(H.item,got);
   let msg=ITEMS[H.item].n+' +'+got;
@@ -2294,17 +2702,22 @@ const RECIPES=[
    note:'돌멩이를 나뭇가지에 얹고 풀잎을 꼬아 묶는다. 결속이 약해 오래 못 간다.',
    in:[{id:'branch',n:1},{id:'grass_blade',n:8},{id:'pebble',n:1}]},
 
-  {id:'fiber', tier:'풀과 돌', n:'섬유', out:{id:'fiber',n:1}, time:3, stam:4,
+  {id:'fiber', tier:'풀과 돌', n:'섬유', out:{id:'fiber',n:1}, time:2.4, stam:4,
    note:'날카로운 돌로 풀잎을 긁어 겉껍질을 벗기고 속섬유만 추린다.',
    in:[{id:'grass_blade',n:4}], need:[{tag:'sharp',n:1}]},
 
-  {id:'fiber_reed', tier:'풀과 돌', n:'섬유 (갈대)', out:{id:'fiber',n:2}, time:4, stam:6,
+  {id:'fiber_reed', tier:'풀과 돌', n:'섬유 (갈대)', out:{id:'fiber',n:2}, time:3.2, stam:6,
    note:'갈대 줄기를 쪼개 겉대를 벗긴다. 대가 길어 한 대에서 나오는 속섬유가 많다.',
    in:[{id:'reed_stalk',n:3}], need:[{tag:'sharp',n:1}]},
 
-  {id:'cord', tier:'풀과 돌', n:'노끈', out:{id:'cord',n:1}, time:4, stam:5,
+  {id:'cord', tier:'풀과 돌', n:'노끈', out:{id:'cord',n:1}, time:3.2, stam:5,
    note:'섬유 가닥을 반대 방향으로 꼬아 겹치면 풀리지 않는 줄이 된다.',
    in:[{id:'fiber',n:3}]},
+
+  {id:'net_cord', tier:'풀과 돌', n:'노끈 그물', out:{id:'net_cord',n:1}, time:22, stam:18,
+   note:'노끈을 한 뼘 간격으로 매듭지어 그물코를 뜬다. 물에 들어가 던지면 '
+       +'물고기가 걸린다. 코가 굵어 작은 것은 빠져나간다.',
+   in:[{id:'cord',n:8},{id:'branch',n:2}]},
 
   {id:'tinder', tier:'풀과 돌', n:'부싯깃', out:{id:'tinder',n:1}, time:3, stam:3,
    note:'풀잎을 비벼 부수고 뭉쳐 불씨가 옮겨 붙을 둥지를 만든다.',
@@ -2370,6 +2783,115 @@ const RECIPES=[
   {id:'crucible_raw', tier:'나무와 점토', n:'도가니 빚기', out:{id:'crucible_raw',n:1}, time:32, stam:18,
    note:'벽을 두껍게 올린다. 얇으면 쇳물 열에 갈라진다.',
    in:[{id:'clay_lump',n:2}]},
+
+  {id:'b_thatch_found', tier:'불', n:'초가 토대', out:null, place:'build',
+   build:'found', btier:0, time:0, stam:0,
+   note:'바닥 널을 깔고 네 귀퉁이에 기둥을 받친다. 옆에 붙여 놓으면 높이가 저절로 맞는다. 내구 80. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'branch',n:6},{id:'cord',n:3}]},
+  {id:'b_thatch_wall', tier:'불', n:'초가 벽', out:null, place:'build',
+   build:'wall', btier:0, time:0, stam:0,
+   note:'토대의 네 변 중 바라보는 쪽에 붙는다. 내구 80. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'branch',n:5},{id:'fiber',n:6},{id:'cord',n:2}]},
+  {id:'b_thatch_roof', tier:'불', n:'초가 지붕', out:null, place:'build',
+   build:'roof', btier:0, time:0, stam:0,
+   note:'밟고 다닐 수 있는 바닥이 된다 — 그 위에 다시 벽을 세워 이층을 올린다. 내구 80. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'branch',n:5},{id:'fiber',n:8},{id:'cord',n:2}]},
+  {id:'b_thatch_slope', tier:'불', n:'초가 경사 지붕', out:null, place:'build',
+   build:'slope', btier:0, time:0, stam:0,
+   note:'한 칸을 가로지르며 2.4 m 솟는 38.7° 비탈이다 — 걸어서 올라간다. 벽과 같은 층 자리라 1층에 놓으면 계단 노릇을 해 지붕 위로 올려 준다. 바라보는 변 쪽이 솟는다. 내구 80. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'branch',n:6},{id:'fiber',n:8},{id:'cord',n:3}]},
+  {id:'b_thatch_gable', tier:'불', n:'초가 삼각 벽', out:null, place:'build',
+   build:'gable', btier:0, time:0, stam:0,
+   note:'밑변 3 m · 높이 2.4 m 인 직각삼각형 벽. 경사 지붕 밑 빈 삼각형을 딱 메운다. 방향이 둘이라 Q 로 좌·우를 뒤집는다. 내구 80. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'branch',n:4},{id:'fiber',n:5},{id:'cord',n:2}]},
+  {id:'b_thatch_door', tier:'불', n:'초가 문', out:null, place:'build',
+   build:'door', btier:0, time:0, stam:0,
+   note:'폭 1.2 m · 높이 2.0 m 로 뚫은 문틀. 벽과 같은 자리에 서고, 뚫린 만큼 충돌체를 빼서 그냥 걸어 지난다. 내구 80. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'branch',n:4},{id:'fiber',n:4},{id:'cord',n:2}]},
+  {id:'b_thatch_window', tier:'불', n:'초가 창문', out:null, place:'build',
+   build:'window', btier:0, time:0, stam:0,
+   note:'폭 1.4 m · 높이 0.9 m 창을 턱 1.0 m 높이에 낸다. 뚫려 보이지만 벽처럼 막는다. 내구 80. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'branch',n:4},{id:'fiber',n:5},{id:'cord',n:2}]},
+  {id:'b_thatch_leaf', tier:'불', n:'초가 문짝', out:null, place:'build',
+   build:'leaf', btier:0, time:0, stam:0,
+   note:'문틀에 다는 널문. E 로 여닫고, 닫으면 뚫려 있던 자리가 도로 막힌다. 여는 각 95°. 내구 80.',
+   in:[{id:'branch',n:6},{id:'cord',n:3}]},
+  {id:'b_thatch_pane', tier:'불', n:'초가 창짝', out:null, place:'build',
+   build:'pane', btier:0, time:0, stam:0,
+   note:'창틀에 다는 유리 여닫이. 규사를 녹여 만든 유리판을 창살에 끼운다. E 로 여닫는다. 내구 80.',
+   in:[{id:'glass',n:2},{id:'branch',n:3},{id:'cord',n:2}]},
+  {id:'b_wood_found', tier:'나무와 점토', n:'나무 토대', out:null, place:'build',
+   build:'found', btier:1, time:0, stam:0,
+   note:'바닥 널을 깔고 네 귀퉁이에 기둥을 받친다. 옆에 붙여 놓으면 높이가 저절로 맞는다. 내구 300. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'log',n:3},{id:'cord',n:3}]},
+  {id:'b_wood_wall', tier:'나무와 점토', n:'나무 벽', out:null, place:'build',
+   build:'wall', btier:1, time:0, stam:0,
+   note:'토대의 네 변 중 바라보는 쪽에 붙는다. 내구 300. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'log',n:1},{id:'branch',n:5},{id:'cord',n:3}]},
+  {id:'b_wood_roof', tier:'나무와 점토', n:'나무 지붕', out:null, place:'build',
+   build:'roof', btier:1, time:0, stam:0,
+   note:'밟고 다닐 수 있는 바닥이 된다 — 그 위에 다시 벽을 세워 이층을 올린다. 내구 300. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'log',n:1},{id:'branch',n:6},{id:'cord',n:3}]},
+  {id:'b_wood_slope', tier:'나무와 점토', n:'나무 경사 지붕', out:null, place:'build',
+   build:'slope', btier:1, time:0, stam:0,
+   note:'한 칸을 가로지르며 2.4 m 솟는 38.7° 비탈이다 — 걸어서 올라간다. 벽과 같은 층 자리라 1층에 놓으면 계단 노릇을 해 지붕 위로 올려 준다. 바라보는 변 쪽이 솟는다. 내구 300. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'log',n:2},{id:'branch',n:4},{id:'cord',n:3}]},
+  {id:'b_wood_gable', tier:'나무와 점토', n:'나무 삼각 벽', out:null, place:'build',
+   build:'gable', btier:1, time:0, stam:0,
+   note:'밑변 3 m · 높이 2.4 m 인 직각삼각형 벽. 경사 지붕 밑 빈 삼각형을 딱 메운다. 방향이 둘이라 Q 로 좌·우를 뒤집는다. 내구 300. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'log',n:1},{id:'branch',n:3},{id:'cord',n:2}]},
+  {id:'b_wood_door', tier:'나무와 점토', n:'나무 문', out:null, place:'build',
+   build:'door', btier:1, time:0, stam:0,
+   note:'폭 1.2 m · 높이 2.0 m 로 뚫은 문틀. 벽과 같은 자리에 서고, 뚫린 만큼 충돌체를 빼서 그냥 걸어 지난다. 내구 300. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'log',n:1},{id:'branch',n:3},{id:'cord',n:3}]},
+  {id:'b_wood_window', tier:'나무와 점토', n:'나무 창문', out:null, place:'build',
+   build:'window', btier:1, time:0, stam:0,
+   note:'폭 1.4 m · 높이 0.9 m 창을 턱 1.0 m 높이에 낸다. 뚫려 보이지만 벽처럼 막는다. 내구 300. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'log',n:1},{id:'branch',n:4},{id:'cord',n:2}]},
+  {id:'b_wood_leaf', tier:'나무와 점토', n:'나무 문짝', out:null, place:'build',
+   build:'leaf', btier:1, time:0, stam:0,
+   note:'문틀에 다는 널문. E 로 여닫고, 닫으면 뚫려 있던 자리가 도로 막힌다. 여는 각 95°. 내구 300.',
+   in:[{id:'log',n:1},{id:'branch',n:4},{id:'cord',n:3}]},
+  {id:'b_wood_pane', tier:'나무와 점토', n:'나무 창짝', out:null, place:'build',
+   build:'pane', btier:1, time:0, stam:0,
+   note:'창틀에 다는 유리 여닫이. 규사를 녹여 만든 유리판을 창살에 끼운다. E 로 여닫는다. 내구 300.',
+   in:[{id:'glass',n:2},{id:'log',n:1},{id:'cord',n:2}]},
+  {id:'b_stone_found', tier:'간석기', n:'돌 토대', out:null, place:'build',
+   build:'found', btier:2, time:0, stam:0,
+   note:'바닥 널을 깔고 네 귀퉁이에 기둥을 받친다. 옆에 붙여 놓으면 높이가 저절로 맞는다. 내구 900. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'stone_block',n:4},{id:'clay_lump',n:2}]},
+  {id:'b_stone_wall', tier:'간석기', n:'돌 벽', out:null, place:'build',
+   build:'wall', btier:2, time:0, stam:0,
+   note:'토대의 네 변 중 바라보는 쪽에 붙는다. 내구 900. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'stone_block',n:3},{id:'clay_lump',n:2}]},
+  {id:'b_stone_roof', tier:'간석기', n:'돌 지붕', out:null, place:'build',
+   build:'roof', btier:2, time:0, stam:0,
+   note:'밟고 다닐 수 있는 바닥이 된다 — 그 위에 다시 벽을 세워 이층을 올린다. 내구 900. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'stone_block',n:3},{id:'log',n:1},{id:'clay_lump',n:1}]},
+  {id:'b_stone_slope', tier:'간석기', n:'돌 경사 지붕', out:null, place:'build',
+   build:'slope', btier:2, time:0, stam:0,
+   note:'한 칸을 가로지르며 2.4 m 솟는 38.7° 비탈이다 — 걸어서 올라간다. 벽과 같은 층 자리라 1층에 놓으면 계단 노릇을 해 지붕 위로 올려 준다. 바라보는 변 쪽이 솟는다. 내구 900. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'stone_block',n:4},{id:'log',n:1},{id:'clay_lump',n:2}]},
+  {id:'b_stone_gable', tier:'간석기', n:'돌 삼각 벽', out:null, place:'build',
+   build:'gable', btier:2, time:0, stam:0,
+   note:'밑변 3 m · 높이 2.4 m 인 직각삼각형 벽. 경사 지붕 밑 빈 삼각형을 딱 메운다. 방향이 둘이라 Q 로 좌·우를 뒤집는다. 내구 900. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'stone_block',n:2},{id:'clay_lump',n:1}]},
+  {id:'b_stone_door', tier:'간석기', n:'돌 문', out:null, place:'build',
+   build:'door', btier:2, time:0, stam:0,
+   note:'폭 1.2 m · 높이 2.0 m 로 뚫은 문틀. 벽과 같은 자리에 서고, 뚫린 만큼 충돌체를 빼서 그냥 걸어 지난다. 내구 900. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'stone_block',n:2},{id:'log',n:1},{id:'clay_lump',n:2}]},
+  {id:'b_stone_window', tier:'간석기', n:'돌 창문', out:null, place:'build',
+   build:'window', btier:2, time:0, stam:0,
+   note:'폭 1.4 m · 높이 0.9 m 창을 턱 1.0 m 높이에 낸다. 뚫려 보이지만 벽처럼 막는다. 내구 900. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'stone_block',n:2},{id:'log',n:1},{id:'clay_lump',n:1}]},
+  {id:'b_stone_leaf', tier:'간석기', n:'돌 문짝', out:null, place:'build',
+   build:'leaf', btier:2, time:0, stam:0,
+   note:'문틀에 다는 널문. E 로 여닫고, 닫으면 뚫려 있던 자리가 도로 막힌다. 여는 각 95°. 내구 900.',
+   in:[{id:'log',n:2},{id:'branch',n:4},{id:'cord',n:4}]},
+  {id:'b_stone_pane', tier:'간석기', n:'돌 창짝', out:null, place:'build',
+   build:'pane', btier:2, time:0, stam:0,
+   note:'창틀에 다는 유리 여닫이. 규사를 녹여 만든 유리판을 창살에 끼운다. E 로 여닫는다. 내구 900.',
+   in:[{id:'glass',n:3},{id:'log',n:1},{id:'cord',n:2}]},
 
   {id:'charcoal_pile', tier:'나무와 점토', n:'숯가마 쌓기', out:{id:'charcoal_pile',n:1}, time:20, stam:14,
    note:'통나무를 쌓고 점토와 흙으로 덮어 공기를 막는다. 화덕에 묻으면 숯이 된다.',
@@ -2448,16 +2970,121 @@ const RECIPES=[
    in:[{id:'iron_wrought',n:2},{id:'charcoal',n:2},{id:'log',n:1}],
    need:[{id:'hammer_stone',n:1}]},
 
+  {id:'spear_iron', tier:'철기', n:'철 창', out:{id:'spear_iron',n:1},
+   time:26, stam:28, station:'anvil',
+   note:'긴 자루에 물릴 소켓까지 한 몸으로 뽑는다. 멀찍이서 먼저 닿는다.',
+   in:[{id:'iron_wrought',n:1},{id:'charcoal',n:1},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'sword_iron', tier:'철기', n:'철 검', out:{id:'sword_iron',n:1},
+   time:44, stam:42, station:'anvil',
+   note:'얇고 길게 늘여 양날을 세우고 슴베에 자루를 끼운다. 가벼워 빨리 휘둘린다.',
+   in:[{id:'iron_wrought',n:3},{id:'charcoal',n:3},{id:'cord',n:3}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'axe_war', tier:'철기', n:'철 전투도끼', out:{id:'axe_war',n:1},
+   time:38, stam:40, station:'anvil',
+   note:'날을 넓게 펴 무게를 날 끝에 몰아준다. 나무를 베기엔 얇다.',
+   in:[{id:'iron_wrought',n:3},{id:'charcoal',n:2},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'hammer_iron', tier:'철기', n:'철 해머', out:{id:'hammer_iron',n:1},
+   time:46, stam:46, station:'anvil',
+   note:'덩이째 남긴 머리를 자루에 박는다. 갑옷째 짓눌러 잠시 멈춰 세운다.',
+   in:[{id:'iron_wrought',n:4},{id:'charcoal',n:2},{id:'log',n:1},{id:'cord',n:3}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  /* 사냥물 무기 — 모루가 아니라 맨손으로 깎고 묶는다(석기 수준의 손질).
+     한 마리에서 나오는 양이 대략 두 자루 분이다. */
+  {id:'bandage_mimic', tier:'뼈와 키틴', n:'모방 붕대', out:{id:'bandage_mimic',n:2},
+   time:14, stam:8,
+   note:'모방 조직을 얇게 저며 거미 실로 누빈다. 살에 대면 그 살을 베껴 눌러앉아 '
+       +'속이 뒤집힌 것을 가라앉힌다. 무엇이든 될 수 있는 살이라 무엇에든 맞는다.',
+   in:[{id:'mimic_flesh',n:1},{id:'spider_silk',n:2},{id:'fiber',n:3}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'net_silk', tier:'뼈와 키틴', n:'거미줄 그물', out:{id:'net_silk',n:1},
+   time:26, stam:14,
+   note:'모방 거미의 실은 노끈보다 가늘면서 질기다. 촘촘히 떠도 무겁지 않아 '
+       +'절반 무게에 두 배로 건진다.',
+   in:[{id:'spider_silk',n:6},{id:'cord',n:2},{id:'branch',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'sword_chitin', tier:'뼈와 키틴', n:'키틴 검', out:{id:'sword_chitin',n:1},
+   time:26, stam:22,
+   note:'가고일 껍질을 결대로 쪼개 겹쳐 세우고, 가죽으로 손잡이를 감는다. '
+       +'철 검보다 무른 대신 절반 무게이고 조금 더 빠르다.',
+   in:[{id:'chitin',n:3},{id:'hide',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'spear_bone', tier:'뼈와 키틴', n:'뼈 창', out:{id:'spear_bone',n:1},
+   time:22, stam:20,
+   note:'긴 뼈를 비스듬히 갈아 창끝을 세우고 자루에 묶는다. 철 창만큼 멀리 닿고 더 빠르다.',
+   in:[{id:'bone',n:3},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'axe_chitin', tier:'뼈와 키틴', n:'키틴 도끼', out:{id:'axe_chitin',n:1},
+   time:30, stam:26,
+   note:'키틴 판 여러 장을 뼈 심에 물려 넓은 날을 만든다. 한 방은 철 도끼의 4분의 3이다.',
+   in:[{id:'chitin',n:3},{id:'bone',n:1},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'hammer_bone', tier:'뼈와 키틴', n:'뼈 해머', out:{id:'hammer_bone',n:1},
+   time:28, stam:26,
+   note:'관절 뼈를 통째로 자루에 박고 가죽으로 조여 묶는다. 철 해머의 절반 무게다. 기절은 같다.',
+   in:[{id:'bone',n:4},{id:'hide',n:1},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'coat_hide', tier:'뼈와 키틴', n:'가죽 외투', out:{id:'coat_hide',n:1},
+   time:30, stam:24,
+   note:'가죽을 무두질해 어깨에서 무릎까지 덮는다. 방어는 낮아도 3 kg 이고, '
+       +'북극곰 가죽이라 몹시 따뜻하다.',
+   in:[{id:'hide',n:3},{id:'bone',n:1},{id:'cord',n:3}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'scale_chitin', tier:'뼈와 키틴', n:'키틴 갑옷', out:{id:'scale_chitin',n:1},
+   time:48, stam:38,
+   note:'키틴 판을 비늘처럼 겹쳐 가죽 바탕에 꿴다. 청동 비늘보다 단단한데 '
+       +'무게는 절반도 안 된다. 대신 깨지면 그걸로 끝이다.',
+   in:[{id:'chitin',n:6},{id:'hide',n:2},{id:'cord',n:4}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'helm_chitin', tier:'뼈와 키틴', n:'키틴 투구', out:{id:'helm_chitin',n:1},
+   time:24, stam:20,
+   note:'가고일 머리 껍질을 통째로 다듬어 쓴다. 청동 투구와 같은 값에 1.2 kg 이다.',
+   in:[{id:'chitin',n:3},{id:'hide',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
   {id:'scale_iron', tier:'철기', n:'철 비늘 갑옷', out:{id:'scale_iron',n:1},
    time:64, stam:52, station:'anvil',
    note:'연철을 얇게 늘려 비늘로 자르고 겹쳐 꿴다. 무겁지만 창끝을 튕겨낸다.',
    in:[{id:'iron_wrought',n:5},{id:'charcoal',n:3},{id:'cord',n:6},{id:'fiber',n:8}],
    need:[{id:'hammer_stone',n:1}]},
 
-  {id:'pot_water', tier:'화학', n:'물 긷기', out:{id:'pot_water',n:1},
+  /* 토기를 구운 단계에서 바로 길을 수 있어야 한다 — 목이 마르는데 화학까지
+     가야 물을 담을 수 있으면 그릇이 그릇 노릇을 못 한다. */
+  {id:'pot_water', tier:'나무와 점토', n:'물 긷기', out:{id:'pot_water',n:1},
    time:5, stam:3, station:'water',
    note:'하천이나 분기공 온천에서 토기에 담수를 받는다. 바닷물은 쓸 수 없다.',
    in:[{id:'pot',n:1}]},
+
+  {id:'igniter', tier:'철기', n:'긴 라이터', out:{id:'igniter',n:1},
+   time:30, stam:24, station:'anvil',
+   note:'철관 끝에 부싯돌 톱니와 쇠 줄을 물린다. 방아쇠를 당기면 관 끝에서 불꽃이 튄다. '
+       +'팔 길이만큼 떨어져 화덕 속에 바로 떨어뜨리므로 부싯깃을 받쳐 둘 필요가 없다.',
+   in:[{id:'iron_wrought',n:1},{id:'flint',n:3},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'bucket_iron', tier:'철기', n:'철 양동이', out:{id:'bucket_iron',n:1},
+   time:38, stam:30, station:'anvil',
+   note:'연철을 얇게 펴 통으로 말고 테를 두른다. 토기보다 무겁지만 깨지지 않고 네 모금이 들어간다.',
+   in:[{id:'iron_wrought',n:3},{id:'charcoal',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'bucket_water', tier:'철기', n:'물 긷기(양동이)', out:{id:'bucket_water',n:1},
+   time:6, stam:4, station:'water',
+   note:'하천이나 분기공 온천에서 양동이를 채운다. 바닷물은 쓸 수 없다.',
+   in:[{id:'bucket_iron',n:1}]},
 
   {id:'ash', tier:'화학', n:'재 긁어내기', out:{id:'ash',n:3},
    time:8, stam:5, station:'fire',
@@ -2524,7 +3151,20 @@ const RECIPES=[
   {id:'gunpowder', tier:'화학', n:'화약 빻기', out:{id:'gunpowder',n:2},
    time:30, stam:22,
    note:'초석·유황·숯을 따로 곱게 빻은 뒤 함께 섞는다. 불티가 튀면 안 된다.',
-   in:[{id:'saltpeter',n:8},{id:'sulfur',n:2},{id:'charcoal',n:3}]}
+   in:[{id:'saltpeter',n:8},{id:'sulfur',n:2},{id:'charcoal',n:3}]},
+
+  {id:'cartridge', tier:'화학', n:'소총탄 만들기', out:{id:'cartridge',n:10},
+   time:34, stam:24, station:'anvil',
+   note:'구리를 인발판에 통과시켜 탄피를 뽑고, 장약을 재고 철 탄두를 물린다.',
+   in:[{id:'ingot_copper',n:1},{id:'gunpowder',n:2},{id:'iron_wrought',n:1}],
+   need:[{id:'drawplate',n:1},{id:'hammer_stone',n:1}]},
+
+  {id:'rifle_bolt', tier:'화학', n:'볼트 소총', out:{id:'rifle_bolt',n:1},
+   time:110, stam:80, station:'anvil',
+   note:'총열을 길게 뽑아 뒤를 열리게 깎고, 노리쇠와 탄창을 물린다. 섬에서 만들 수 있는 끝이다.',
+   in:[{id:'iron_wrought',n:6},{id:'charcoal',n:4},{id:'log',n:1},
+       {id:'ingot_copper',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1},{id:'drawplate',n:1}]}
 ];
 // 분류(tag) 조건은 그 분류에 속한 실제 아이템 이름으로 보여준다.
 // "망치돌 필요"라고만 쓰면 인벤토리의 '돌멩이'와 같은 물건인 줄 알 수가 없다.
@@ -2594,6 +3234,12 @@ function updateCraft(dt){
   CRAFT.recipe=null; CRAFT.t=0;
   if(!canCraft(R)){ toast('재료가 모자란다'); return; }
   // 설치형은 자리부터 확인 — 실패하면 재료를 쓰지 않는다
+  if(R.place==='build'){                       // 집 조각은 짓기 모드에서 놓는다
+    craftOpen=false; document.getElementById('crf').style.display='none';
+    document.getElementById('crfS').blur();
+    enterBuild(R.build,R.btier); syncLock();
+    return;
+  }
   if(R.place){
     const spot=(R.place==='wheel')?wheelSpot():campfireSpot();
     if(!spot.ok){ toast(spot.why); return; }
@@ -2619,10 +3265,31 @@ function updateCraft(dt){
   craftDirty=true; invDirty=true;
 }
 let craftOpen=false, craftDirty=true;
+/* 이름 · 단계 · 산출물 · 재료 어디에든 걸리면 남긴다 */
+let craftQuery='';
+function craftMatch(R){
+  const q=craftQuery.trim();
+  if(!q) return true;
+  const hay=[R.n, R.tier, R.out?ITEMS[R.out.id].n:'',
+             ...R.in.map(r=>matName(r)),
+             ...(R.need||[]).map(r=>matName(r))].join(' ');
+  return hay.indexOf(q)>=0;
+}
 function drawCraft(){
   if(!craftOpen) return;
   let lastTier=null;
-  document.getElementById('crfL').innerHTML=RECIPES.map((R,i)=>{
+  const hit=RECIPES.filter(craftMatch);
+  const nEl=document.getElementById('crfN');
+  if(nEl) nEl.textContent=craftQuery.trim()
+    ? hit.length+' / '+RECIPES.length : RECIPES.length+'개';
+  if(!hit.length){
+    document.getElementById('crfL').innerHTML=
+      '<div style="color:var(--dim);font-size:10px;padding:10px 2px">'
+      +'\''+craftQuery.trim()+'\' 에 걸리는 제작법이 없다</div>';
+    return;
+  }
+  document.getElementById('crfL').innerHTML=hit.map(R=>{
+    const i=RECIPES.indexOf(R);
     let head='';
     if(R.tier!==lastTier){
       lastTier=R.tier;
@@ -2647,7 +3314,7 @@ function drawCraft(){
         +STATION[R.station].n+' 곁에서 작업</span></div>' : '';
     const pct='';
     return head+'<div class="cr'+(ok?'':' no')+'" data-i="'+i+'">'
-      +'<div class="cn">'+'<span style="color:var(--dim)">'+(i+1)+'.</span> '+R.n+'<span class="ck">'
+      +'<div class="cn">'+R.n+'<span class="ck">'
         +(R.out?ITEMS[R.out.id].kg+' kg':'설치')+'</span></div>'
       +'<div class="cm">'+mats+(needs?'<div class="cm" style="margin-top:3px">'
         +'<span style="color:var(--dim)">도구(소모 안 됨) </span>'+needs+'</div>':'')
@@ -2674,10 +3341,17 @@ const FIRING={
   crucible_raw:{out:'crucible', hours:0.9, count:1},   // 게임 54분 — 두꺼워 오래 걸린다
   // 숯가마: 흙을 덮어 산소를 막고 태우면 타 없어지지 않고 숯이 된다.
   // 통나무를 그대로 넣으면 연료로 쓸지 구울지 구분이 안 되므로 재료를 따로 둔다.
-  charcoal_pile:{out:'charcoal', hours:1.5, count:4}
+  charcoal_pile:{out:'charcoal', hours:1.5, count:4},
+  // 고기와 물고기는 화덕에 넣어두면 익는다 — 날로 먹으면 탈이 난다
+  meat_bear:   {out:'meat_cooked', hours:0.25, count:1},   // 게임 15분
+  fish:        {out:'fish_cooked', hours:0.15, count:1}
 };
 const FIRES=[];
 const IGNITE={t:0, dur:8, stam:9};   // 8초 × 9 = 72 — 기력이 가득하면 한 번에 붙는다
+/* 켜는 데 걸리는 시간과 부싯깃이 드는지는 손에 든 것이 정한다.
+   활비비(fire 1)는 8초에 부싯깃이 들고, 긴 라이터(fire 3)는 2.7초에 그냥 붙는다. */
+const igniteDur=e=>IGNITE.dur/((e&&ITEMS[e.id].tool.fire)||1);
+const needsTinder=e=>((e&&ITEMS[e.id].tool.fire)||1)<2;
 
 // 플레이어 앞 1.4 m 지점을 검사한다. 재료를 소모하기 전에 먼저 부른다.
 function campfireSpot(){
@@ -2704,6 +3378,12 @@ const SMELT=[
   {id:'alloy_bronze', n:'청동 합금', hours:0.7, out:{id:'ingot_bronze',n:3},
    note:'구리에 주석을 9대 1쯤 섞는다. 둘 다보다 단단하고 녹는점은 오히려 낮다.',
    in:[{id:'ingot_copper',n:3},{id:'ingot_tin',n:1},{id:'charcoal',n:2}],
+   need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]},
+  {id:'melt_glass', n:'유리 굽기', hours:1.1, out:{id:'glass',n:2},
+   note:'규사만으로는 1700 ℃가 필요하다. 재를 섞어 녹는점을 낮추고 도가니째 굽는다. '
+       +'모래를 쏟아 넣고 나면 빈 토기가 그대로 남는다.',
+   in:[{id:'pot_sand',n:2},{id:'charcoal',n:4}],
+   back:[{id:'pot',n:2}],                          // 비운 그릇은 돌려받는다
    need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]},
   {id:'smelt_iron', n:'괴련철 제련', hours:1.4, out:{id:'bloom_iron',n:1},
    note:'철은 녹지 않는다. 노 바닥에 쇠똥과 뒤엉킨 해면철 덩이로 남는다.',
@@ -2792,8 +3472,9 @@ function placeFurnaceAt(px,py,pz){
 
   grp.rotation.y=Math.random()*Math.PI*2;
   grp.position.set(px,py,pz); scene.add(grp);
-  const fu={kind:'furnace', cname:'제련로', cap:60, slots:[],
-            x:px,y:py,z:pz, mesh:grp, glow:glow, light:li, t:0, job:null};
+  const fu={kind:'furnace', cname:'제련로', cap:60, slotCap:10, slots:[],
+            x:px,y:py,z:pz, mesh:grp, glow:glow, light:li,
+            lit:false, fuel:0, jobs:{}};
   FURNACES.push(fu);
   COLLIDERS.push({x:px,z:pz,r:1.05}); buildColliderGrid();
   return fu;
@@ -2869,17 +3550,40 @@ function contTake(c,id,n){                         // 안에서 n 개 덜어낸�
 }
 function contAdd(c,id,n){                          // 산출물은 상한을 넘겨도 안에 남긴다
   const T=ITEMS[id];
-  if(T.tool){
+  if(indiv(T)){
     for(let k=0;k<n;k++)
-      stackInto(c.slots,id,1,(T.burn!==undefined)?{fuel:T.burn,lit:false}:{dur:T.durMax});
+      stackInto(c.slots,id,1, T.sips?{sip:T.sips}
+                            : (T.burn!==undefined)?{fuel:T.burn,lit:false}:{dur:T.durMax});
   }else stackInto(c.slots,id,n);
   boxDirty=true;
 }
-// 안에 든 땔감 — 값싼 것부터 태운다. 참숯은 제련에 써야 하니 마지막이다.
+/* 안에 든 땔감 — 값싼 것부터 태운다. 참숯은 제련에 써야 하니 마지막이다.
+   제련로에서는 참숯이 아예 땔감이 아니다 — 거기서 참숯은 연료가 아니라
+   광석에서 산소를 떼어내는 환원제이고, 노를 데우는 것은 장작과 석탄이 맡는다. */
 const FUEL_ORDER=['branch','log','coal_lump','charcoal'];
 function contFuel(c){
-  for(const id of FUEL_ORDER) if(contCount(c,id)>0) return id;
+  for(const id of FUEL_ORDER){
+    if(c.kind==='furnace' && id==='charcoal') continue;
+    if(contCount(c,id)>0) return id;
+  }
   return null;
+}
+/* 불붙은 설비의 땔감을 축낸다. 다 타면 안에 든 다음 땔감을 스스로 끌어다 문다.
+   화덕과 제련로가 같은 규칙을 쓴다. 꺼졌으면 false 를 돌려준다. */
+function burnFuel(f,dh){
+  f.fuel-=dh;
+  while(f.fuel<=0){
+    const id=contFuel(f);
+    if(!id) break;
+    contTake(f,id,1); f.fuel+=FUEL[id];
+  }
+  if(f.fuel>0) return true;
+  f.fuel=0; f.lit=false;
+  if(f.flame) f.flame.visible=false;
+  if(f.glow)  f.glow.visible=false;
+  f.light.visible=false;
+  boxDirty=true;
+  return false;
 }
 // 시선 앞의 용기 — 상자든 화덕이든 제련로든 가장 가까운 하나
 function findContainer(){
@@ -2897,10 +3601,11 @@ function findContainer(){
   return best;
 }
 /* 넣고 빼기 — 도구는 개별 내구가 있으므로 슬롯을 통째로 옮긴다 */
+const indiv=T=>!!(T.tool||T.sips);       // 칸마다 상태가 달라 겹칠 수 없는 것
 function stackInto(arr,id,n,extra){
   const T=ITEMS[id];
-  if(T.tool||extra){ arr.push(Object.assign({id,n:1},extra||{})); return 1; }
-  const s=arr.find(x=>x.id===id&&x.dur===undefined&&x.fuel===undefined);
+  if(indiv(T)||extra){ arr.push(Object.assign({id,n:1},extra||{})); return 1; }
+  const s=arr.find(x=>x.id===id&&x.dur===undefined&&x.fuel===undefined&&x.sip===undefined);
   if(s) s.n+=n; else arr.push({id,n});
   return n;
 }
@@ -2909,8 +3614,16 @@ function toStore(i,all){
   const T=ITEMS[sl.id];
   const room=Math.floor((st.cap-contWeight(st))/T.kg+1e-9);
   if(room<1){ toast(st.cname+'가 가득 찼다'); return; }
-  if(T.tool){
-    stackInto(st.slots,sl.id,1,{dur:sl.dur,fuel:sl.fuel,lit:sl.lit});
+  /* 화덕과 제련로는 칸 수도 제한된다. 안에 든 것이 저마다 함께 익으므로
+     칸을 무제한으로 두면 설비 하나가 온갖 것을 동시에 처리해 버린다.
+     이미 쌓여 있는 칸에 더 얹는 것은 칸이 늘지 않으니 막지 않는다. */
+  if(st.slotCap && st.slots.length>=st.slotCap
+     && !(!indiv(T) && st.slots.some(x=>x.id===sl.id&&x.dur===undefined
+                                       &&x.fuel===undefined&&x.sip===undefined))){
+    toast(st.cname+'에 넣을 자리가 없다 — '+st.slotCap+'칸까지만 들어간다'); return;
+  }
+  if(indiv(T)){
+    stackInto(st.slots,sl.id,1,{dur:sl.dur,fuel:sl.fuel,lit:sl.lit,sip:sl.sip});
     invRemove(i,1);
   }else{
     const n=Math.min(all?sl.n:1,room);
@@ -2923,11 +3636,744 @@ function fromStore(i,all){
   const T=ITEMS[sl.id];
   const room=Math.floor((INV.max-invWeight())/T.kg+1e-9);
   if(room<1){ toast('더 들 수 없다'); return; }
-  const n=T.tool?1:Math.min(all?sl.n:1,room);
-  if(T.tool) stackInto(INV.slots,sl.id,1,{dur:sl.dur,fuel:sl.fuel,lit:sl.lit});
+  const n=indiv(T)?1:Math.min(all?sl.n:1,room);
+  if(indiv(T)) stackInto(INV.slots,sl.id,1,{dur:sl.dur,fuel:sl.fuel,lit:sl.lit,sip:sl.sip});
   else stackInto(INV.slots,sl.id,n);
   sl.n-=n; if(sl.n<=0) st.slots.splice(i,1);
   invDirty=true; boxDirty=true; sfx('bind');
+}
+
+/* ============================================================================
+   집 짓기 — 토대 · 벽 · 지붕 · 경사 지붕 · 삼각 벽 (아크 서바이벌식 구조)
+   ----------------------------------------------------------------------------
+   · 3 m 격자에 붙는다. 토대가 칸을 차지하고, 벽은 칸의 네 변에, 지붕은 칸 위에.
+   · **인접 토대에 높이를 맞춘다** — 이미 놓인 토대 옆에 놓으면 지형이 어떻든
+     같은 높이로 붙는다. 비탈에 지어도 바닥 한 장이 평평하게 이어진다.
+   · **층을 쌓는다** — 지붕은 밟고 다닐 수 있는 바닥이 되고, 그 위에 다시 벽을
+     세워 이층을 올린다. 아크의 천장이 하는 일과 같다.
+   · **등급 셋** — 초가 · 나무 · 돌. 재료와 튼튼함(내구)이 다르다.
+   ========================================================================== */
+const CELL_B=3.0;                                   // 격자 한 칸
+const WALL_H=2.4, FOUND_UP=0.30;                    // 한 층 높이 · 토대를 지면에서 띄우는 높이
+const BTIER=[
+  {id:'thatch', n:'초가', hp: 80, c:{beam:0x8a7550, fill:0x9a8a52, deck:0x9a8a52},
+   cost:{found:[{id:'branch',n:6},{id:'cord',n:3}],
+         wall :[{id:'branch',n:5},{id:'fiber',n:6},{id:'cord',n:2}],
+         roof :[{id:'branch',n:5},{id:'fiber',n:8},{id:'cord',n:2}],
+         slope:[{id:'branch',n:6},{id:'fiber',n:8},{id:'cord',n:3}],
+         gable:[{id:'branch',n:4},{id:'fiber',n:5},{id:'cord',n:2}],
+         door :[{id:'branch',n:4},{id:'fiber',n:4},{id:'cord',n:2}],
+         window:[{id:'branch',n:4},{id:'fiber',n:5},{id:'cord',n:2}],
+         leaf :[{id:'branch',n:6},{id:'cord',n:3}],
+         pane :[{id:'glass',n:2},{id:'branch',n:3},{id:'cord',n:2}]}},
+  {id:'wood',   n:'나무', hp:300, c:{beam:0x6b5a3c, fill:0x8a7550, deck:0x7d6a48},
+   cost:{found:[{id:'log',n:3},{id:'cord',n:3}],
+         wall :[{id:'log',n:1},{id:'branch',n:5},{id:'cord',n:3}],
+         roof :[{id:'log',n:1},{id:'branch',n:6},{id:'cord',n:3}],
+         slope:[{id:'log',n:2},{id:'branch',n:4},{id:'cord',n:3}],
+         gable:[{id:'log',n:1},{id:'branch',n:3},{id:'cord',n:2}],
+         door :[{id:'log',n:1},{id:'branch',n:3},{id:'cord',n:3}],
+         window:[{id:'log',n:1},{id:'branch',n:4},{id:'cord',n:2}],
+         leaf :[{id:'log',n:1},{id:'branch',n:4},{id:'cord',n:3}],
+         pane :[{id:'glass',n:2},{id:'log',n:1},{id:'cord',n:2}]}},
+  {id:'stone',  n:'돌',   hp:900, c:{beam:0x74716a, fill:0x82807a, deck:0x6f6d67},
+   cost:{found:[{id:'stone_block',n:4},{id:'clay_lump',n:2}],
+         wall :[{id:'stone_block',n:3},{id:'clay_lump',n:2}],
+         roof :[{id:'stone_block',n:3},{id:'log',n:1},{id:'clay_lump',n:1}],
+         slope:[{id:'stone_block',n:4},{id:'log',n:1},{id:'clay_lump',n:2}],
+         gable:[{id:'stone_block',n:2},{id:'clay_lump',n:1}],
+         door :[{id:'stone_block',n:2},{id:'log',n:1},{id:'clay_lump',n:2}],
+         window:[{id:'stone_block',n:2},{id:'log',n:1},{id:'clay_lump',n:1}],
+         leaf :[{id:'log',n:2},{id:'branch',n:4},{id:'cord',n:4}],
+         pane :[{id:'glass',n:3},{id:'log',n:1},{id:'cord',n:2}]}}
+];
+/* 경사 지붕 — 한 칸을 가로지르며 RISE 만큼 솟는다.
+   3 m 를 가는 동안 2.4 m 오르니 38.7°. 지형 걷기 한계(49°)보다 완만해 걸어 오른다. */
+const RISE=WALL_H;                                  // 경사 지붕이 솟는 높이
+const SLOPE_A=Math.atan2(RISE,CELL_B);              // 38.66°
+const SLOPE_L=Math.hypot(RISE,CELL_B);              // 빗면 길이 3.84 m
+const BKIND=['found','wall','door','leaf','window','pane','roof','slope','gable'];
+const BKIND_N={found:'토대', wall:'벽', door:'문틀', leaf:'문짝',
+               window:'창틀', pane:'창짝',
+               roof:'지붕', slope:'경사 지붕', gable:'삼각 벽'};
+/* 문짝 · 창짝은 문틀 · 창틀에 달린다. 벽 항목의 leaf 에 얹혀 함께 움직인다.
+   문짝은 E 로 여닫고, 닫으면 뚫려 있던 충돌체가 되살아난다. */
+const FITS={leaf:'door', pane:'window'};
+const WALLV=['wall','door','window'];               // 벽 자리에 들어가는 세 가지
+const FOUNDS=new Map();      // "gx,gz"     → {gx,gz,x,z,y,tier,hp,mesh}
+const WALLS =new Map();      // "gx,gz,L,s" → {gx,gz,L,s,v,tier,hp,mesh,cols}  v = 벽/문/창문
+const ROOFS =new Map();      // "gx,gz,L"   → {gx,gz,L,tier,hp,mesh}
+const SLOPES=new Map();      // "gx,gz,L"   → {gx,gz,L,s,tier,hp,mesh}  s = 솟는 쪽
+const GABLES=new Map();      // "gx,gz,L,s" → {gx,gz,L,s,h,tier,hp,mesh}  h = ±1 방향
+const fkey=(gx,gz)=>gx+','+gz;
+const wkey=(gx,gz,L,s)=>gx+','+gz+','+L+','+s;
+const rkey=(gx,gz,L)=>gx+','+gz+','+L;
+const SIDE=[[0,-1],[1,0],[0,1],[-1,0]];             // 북 동 남 서 — 변의 바깥 방향
+
+const BUILD={on:false, kind:'found', tier:1, lvl:0, hand:1, side:-1,
+             ghost:null, tgt:null, ok:false, why:''};
+/* BUILD.side — 벽·경사 지붕·삼각 벽이 붙을 변을 손으로 고른다.
+   -1 이면 바라보는 변을 저절로 고르고(예전 방식), 0~3 이면 그 변에 못 박는다.
+   R 로 자동 → 북 → 동 → 남 → 서 순으로 돌린다. 조준이 흔들려도 안 바뀐다. */
+const SIDE_N=['북','동','남','서'];
+/* 삼각 벽의 두 방향 — 아크의 Sloped Wall Left / Right 와 같다.
+   변 s 의 접선 t 를 기준으로 직각(높은 쪽)이 +t 에 서면 h=+1, -t 면 h=-1. */
+const gableTan=s=>[-SIDE[s][1], SIDE[s][0]];
+function gableYaw(s,h){                             // 국소 +X → h·t
+  const [ox,oz]=SIDE[s];
+  return Math.atan2(-h*ox, -h*oz);
+}
+/* 같은 칸에 경사 지붕이 있으면 그 솟는 쪽에 직각을 맞춰 준다 */
+function gableAuto(gx,gz,L,s){
+  const sl=SLOPES.get(rkey(gx,gz,L)); if(!sl) return 0;
+  const [tx,tz]=gableTan(s), [dx,dz]=SIDE[sl.s];
+  const d=tx*dx+tz*dz;
+  return d>0.5?1:(d<-0.5?-1:0);                     // 0 = 경사와 나란한 변이라 안 맞는다
+}
+
+/* 경사 지붕 위의 높이 — 낮은 쪽 모서리에서 0, 솟는 쪽 모서리에서 RISE.
+   벽과 같은 층 띠를 차지한다: L 층 바닥에서 시작해 그 층 천장까지 오른다.
+   그래서 1층에 놓으면 땅에서 지붕으로 걸어 올라가는 계단 노릇을 한다. */
+function slopeSurface(sl,f,x,z){
+  const [ox,oz]=SIDE[sl.s];
+  const u=clamp(0.5+((x-f.x)*ox+(z-f.z)*oz)/CELL_B,0,1);
+  return f.y+sl.L*WALL_H+RISE*u;
+}
+/* ---- 바닥 높이 — 토대 윗면과 밟고 다닐 수 있는 지붕까지 친다 ---- */
+function builtFloorAt(x,z){
+  const gx=Math.round(x/CELL_B), gz=Math.round(z/CELL_B);
+  const f=FOUNDS.get(fkey(gx,gz));
+  if(!f) return -1e9;
+  if(Math.abs(x-f.x)>CELL_B/2||Math.abs(z-f.z)>CELL_B/2) return -1e9;
+  let best=f.y;
+  for(let L=0;L<8;L++){                              // 밟고 선 층보다 낮은 지붕 중 가장 높은 것
+    const r=ROOFS.get(rkey(gx,gz,L));
+    if(r) best=Math.max(best,f.y+(L+1)*WALL_H);
+    const sl=SLOPES.get(rkey(gx,gz,L));
+    if(sl) best=Math.max(best,slopeSurface(sl,f,x,z));
+  }
+  return best;
+}
+/* 발밑 — 지금 서 있는 높이보다 위에 있는 지붕은 천장이지 바닥이 아니다 */
+function floorAt(x,z,fromY){
+  const t=heightAt(x,z);
+  const gx=Math.round(x/CELL_B), gz=Math.round(z/CELL_B);
+  const f=FOUNDS.get(fkey(gx,gz));
+  if(!f||Math.abs(x-f.x)>CELL_B/2||Math.abs(z-f.z)>CELL_B/2) return t;
+  const y=(fromY===undefined)?1e9:fromY+0.6;
+  let best=t;
+  if(f.y<=y) best=Math.max(best,f.y);
+  for(let L=0;L<8;L++){
+    const r=ROOFS.get(rkey(gx,gz,L));
+    if(r){ const ry=f.y+(L+1)*WALL_H; if(ry<=y) best=Math.max(best,ry); }
+    const sl=SLOPES.get(rkey(gx,gz,L));
+    if(sl){ const sy=slopeSurface(sl,f,x,z); if(sy<=y) best=Math.max(best,sy); }
+  }
+  return best;
+}
+
+/* ---- 조각 만들기 ---- */
+const bmat=c=>new THREE.MeshLambertMaterial({color:c});
+function makeFound(C){
+  const g=new THREE.Group(), H=CELL_B/2;
+  const beam=bmat(C.beam), deck=bmat(C.deck);
+  for(let i=0;i<5;i++){                              // 바닥 널
+    const pl=new THREE.Mesh(new THREE.BoxGeometry(CELL_B-0.06,0.10,CELL_B/5-0.05),deck);
+    pl.position.set(0,-0.05,-H+CELL_B/10+i*CELL_B/5); g.add(pl);
+  }
+  for(const [ax,az] of [[1,0],[-1,0],[0,1],[0,-1]]){  // 테두리 귀틀
+    const bm=new THREE.Mesh(new THREE.BoxGeometry(ax?0.12:CELL_B,0.16,az?0.12:CELL_B),beam);
+    bm.position.set(ax*H,-0.04,az*H); g.add(bm);
+  }
+  for(const sx of [-1,1]) for(const sz of [-1,1]){    // 네 귀퉁이 기둥
+    const post=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.13,FOUND_UP+0.24,6),beam);
+    post.position.set(sx*(H-0.16),-0.14-FOUND_UP/2,sz*(H-0.16)); g.add(post);
+  }
+  return g;
+}
+function makeWall(C){
+  const g=new THREE.Group(), H=CELL_B/2;
+  const beam=bmat(C.beam), fill=bmat(C.fill);
+  for(const sx of [-1,1]){
+    const p2=new THREE.Mesh(new THREE.BoxGeometry(0.16,WALL_H,0.20),beam);
+    p2.position.set(sx*(H-0.08),WALL_H/2,0); g.add(p2);
+  }
+  const top=new THREE.Mesh(new THREE.BoxGeometry(CELL_B,0.16,0.20),beam);
+  top.position.y=WALL_H-0.08; g.add(top);
+  for(let i=0;i<7;i++){
+    const w=new THREE.Mesh(new THREE.BoxGeometry(CELL_B-0.3,WALL_H/7-0.04,0.11),fill);
+    w.position.set(0,WALL_H/14+i*WALL_H/7,(i%2?0.03:-0.03)); g.add(w);
+  }
+  for(const sx of [-0.7,0,0.7]){
+    const v=new THREE.Mesh(new THREE.BoxGeometry(0.07,WALL_H-0.2,0.13),beam);
+    v.position.set(sx,WALL_H/2-0.05,0); g.add(v);
+  }
+  return g;
+}
+function makeRoof(C){
+  const g=new THREE.Group(), S=CELL_B, H=S/2;
+  const beam=bmat(C.beam), deck=bmat(C.deck);
+  const d=new THREE.Mesh(new THREE.BoxGeometry(S,0.16,S),deck);
+  d.position.y=-0.08; g.add(d);                      // 윗면이 0 — 그 위를 밟고 다닌다
+  for(const [ax,az] of [[1,0],[-1,0],[0,1],[0,-1]]){
+    const l=new THREE.Mesh(new THREE.BoxGeometry(ax?0.12:S,0.20,az?0.12:S),beam);
+    l.position.set(ax*H,-0.10,az*H); g.add(l);
+  }
+  for(let i=0;i<4;i++){                              // 서까래
+    const bm=new THREE.Mesh(new THREE.BoxGeometry(S-0.1,0.10,0.10),beam);
+    bm.position.set(0,-0.20,-H+S/5+i*S/5); g.add(bm);
+  }
+  return g;
+}
+/* 경사 지붕 — 국소 +Z 가 솟는 쪽. 윗면이 낮은 쪽 모서리에서 y=0 을 지난다. */
+function makeSlope(C){
+  const g=new THREE.Group(), S=CELL_B, H=S/2;
+  const beam=bmat(C.beam), deck=bmat(C.deck);
+  const d=new THREE.Mesh(new THREE.BoxGeometry(S,0.16,SLOPE_L),deck);
+  d.rotation.x=-SLOPE_A;
+  d.position.set(0,RISE/2-0.08*Math.cos(SLOPE_A),0); g.add(d);
+  for(let i=0;i<4;i++){                              // 빗면을 따라 놓인 서까래
+    const b2=new THREE.Mesh(new THREE.BoxGeometry(0.10,0.10,SLOPE_L-0.1),beam);
+    b2.rotation.x=-SLOPE_A;
+    b2.position.set(-H+S/5+i*S/5,RISE/2-0.19,0); g.add(b2);
+  }
+  const eave=new THREE.Mesh(new THREE.BoxGeometry(S,0.16,0.14),beam);
+  eave.position.set(0,-0.06,-H); g.add(eave);        // 낮은 쪽 처마
+  const ridge=new THREE.Mesh(new THREE.BoxGeometry(S,0.16,0.16),beam);
+  ridge.position.set(0,RISE-0.04,H); g.add(ridge);   // 솟은 쪽 마루
+  return g;
+}
+/* 직각삼각형 벽 — 밑변 3 m · 높이 2.4 m 로 경사 지붕 밑을 정확히 메운다.
+   국소 +X 가 솟는 쪽(직각이 서는 쪽), 두께는 ±Z. */
+function makeGable(C){
+  const g=new THREE.Group(), H=CELL_B/2, T=0.18;
+  const sh=new THREE.Shape();
+  sh.moveTo(-H,0); sh.lineTo(H,0); sh.lineTo(H,RISE); sh.closePath();
+  const m=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:T,bevelEnabled:false}),
+    bmat(C.fill));
+  m.position.z=-T/2; g.add(m);
+  const post=new THREE.Mesh(new THREE.BoxGeometry(0.14,RISE,T+0.04),bmat(C.beam));
+  post.position.set(H-0.07,RISE/2,0); g.add(post);   // 직각이 서는 기둥
+  const sill=new THREE.Mesh(new THREE.BoxGeometry(CELL_B,0.13,T+0.04),bmat(C.beam));
+  sill.position.set(0,0.065,0); g.add(sill);         // 밑변
+  const rafter=new THREE.Mesh(new THREE.BoxGeometry(SLOPE_L,0.13,T+0.04),bmat(C.beam));
+  rafter.position.set(0,RISE/2,0); rafter.rotation.z=SLOPE_A; g.add(rafter);  // 빗변
+  return g;
+}
+/* 문 — 폭 1.2 m · 높이 2.0 m 로 뚫는다. 벽과 같은 자리를 쓰고, 뚫린 만큼
+   충돌체를 빼서 그냥 걸어 지난다. 여닫는 문짝은 없다(아크의 문틀에 가깝다). */
+const DOOR_W=1.20, DOOR_H=2.00;
+function makeDoor(C){
+  const g=new THREE.Group(), H=CELL_B/2, DW=DOOR_W/2;
+  const beam=bmat(C.beam), fill=bmat(C.fill);
+  for(const sx of [-1,1]){                            // 바깥 기둥
+    const p2=new THREE.Mesh(new THREE.BoxGeometry(0.16,WALL_H,0.20),beam);
+    p2.position.set(sx*(H-0.08),WALL_H/2,0); g.add(p2);
+  }
+  const top=new THREE.Mesh(new THREE.BoxGeometry(CELL_B,0.16,0.20),beam);
+  top.position.y=WALL_H-0.08; g.add(top);
+  const side=(H-DW);                                  // 문 옆에 남는 벽 폭
+  for(const sx of [-1,1]){
+    const w=new THREE.Mesh(new THREE.BoxGeometry(side,WALL_H,0.11),fill);
+    w.position.set(sx*(DW+side/2),WALL_H/2,0); g.add(w);
+    const jamb=new THREE.Mesh(new THREE.BoxGeometry(0.10,DOOR_H,0.22),beam);
+    jamb.position.set(sx*DW,DOOR_H/2,0); g.add(jamb);  // 문설주
+  }
+  const lint=new THREE.Mesh(new THREE.BoxGeometry(DOOR_W+0.2,0.14,0.22),beam);
+  lint.position.y=DOOR_H+0.07; g.add(lint);            // 상인방
+  const over=new THREE.Mesh(new THREE.BoxGeometry(DOOR_W,WALL_H-DOOR_H-0.14,0.11),fill);
+  over.position.y=(DOOR_H+0.14+WALL_H)/2; g.add(over); // 문 위 벽
+  return g;
+}
+/* 창문 — 폭 1.4 m · 높이 0.9 m, 턱 높이 1.0 m. 뚫려 보이지만 막는다. */
+const WIN_W=1.40, WIN_H=0.90, WIN_SILL=1.00;
+function makeWindow(C){
+  const g=new THREE.Group(), H=CELL_B/2, WW=WIN_W/2;
+  const beam=bmat(C.beam), fill=bmat(C.fill);
+  for(const sx of [-1,1]){
+    const p2=new THREE.Mesh(new THREE.BoxGeometry(0.16,WALL_H,0.20),beam);
+    p2.position.set(sx*(H-0.08),WALL_H/2,0); g.add(p2);
+  }
+  const top=new THREE.Mesh(new THREE.BoxGeometry(CELL_B,0.16,0.20),beam);
+  top.position.y=WALL_H-0.08; g.add(top);
+  const side=(H-WW);
+  for(const sx of [-1,1]){                            // 창 옆 벽
+    const w=new THREE.Mesh(new THREE.BoxGeometry(side,WALL_H,0.11),fill);
+    w.position.set(sx*(WW+side/2),WALL_H/2,0); g.add(w);
+  }
+  const below=new THREE.Mesh(new THREE.BoxGeometry(WIN_W,WIN_SILL,0.11),fill);
+  below.position.y=WIN_SILL/2; g.add(below);          // 창 아래 벽
+  const above=new THREE.Mesh(new THREE.BoxGeometry(WIN_W,WALL_H-WIN_SILL-WIN_H,0.11),fill);
+  above.position.y=(WIN_SILL+WIN_H+WALL_H)/2; g.add(above);
+  for(const y of [WIN_SILL, WIN_SILL+WIN_H]){         // 창턱 · 창 상방
+    const b2=new THREE.Mesh(new THREE.BoxGeometry(WIN_W+0.2,0.12,0.24),beam);
+    b2.position.y=y; g.add(b2);
+  }
+  for(const sx of [-1,1]){
+    const j=new THREE.Mesh(new THREE.BoxGeometry(0.10,WIN_H,0.22),beam);
+    j.position.set(sx*WW,WIN_SILL+WIN_H/2,0); g.add(j);
+  }
+  const mull=new THREE.Mesh(new THREE.BoxGeometry(0.07,WIN_H,0.13),beam);
+  mull.position.y=WIN_SILL+WIN_H/2; g.add(mull);      // 창살
+  return g;
+}
+/* 문짝 — 문틀 안에 꼭 맞는 널문. 경첩이 한쪽 문설주에 있어 그쪽을 축으로 돈다.
+   여는 각 95°. 바깥으로 열린다. */
+const LEAF_OPEN=95*Math.PI/180;
+function makeLeaf(C){
+  const g=new THREE.Group();                        // 이 그룹의 원점이 경첩이다
+  const beam=bmat(C.beam), fill=bmat(C.fill);
+  const W=DOOR_W-0.06, H=DOOR_H-0.06;
+  const slab=new THREE.Mesh(new THREE.BoxGeometry(W,H,0.07),fill);
+  slab.position.set(W/2,H/2,0); g.add(slab);        // 경첩에서 +x 로 뻗는다
+  for(const y of [H*0.18, H*0.82]){                 // 띠장 둘
+    const b2=new THREE.Mesh(new THREE.BoxGeometry(W-0.04,0.11,0.10),beam);
+    b2.position.set(W/2,y,0); g.add(b2);
+  }
+  const brace=new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(W,H*0.64)-0.06,0.09,0.10),beam);
+  brace.position.set(W/2,H/2,0);
+  brace.rotation.z=Math.atan2(H*0.64,W); g.add(brace);   // 빗장
+  for(const y of [H*0.18, H*0.82]){                 // 경첩 쇠
+    const hg=new THREE.Mesh(new THREE.BoxGeometry(0.10,0.16,0.14),beam);
+    hg.position.set(0.03,y,0); g.add(hg);
+  }
+  const knob=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.10,0.14),beam);
+  knob.position.set(W-0.14,H*0.5,0); g.add(knob);   // 손잡이
+  return g;
+}
+/* 창짝 — 유리 낀 여닫이. 창틀 구멍에 꼭 맞고 경첩은 한쪽 옆이다. */
+const glassMat=()=>new THREE.MeshLambertMaterial({
+  color:0x9fc6cc, transparent:true, opacity:0.32, depthWrite:false});
+function makePane(C){
+  const g=new THREE.Group();
+  const beam=bmat(C.beam);
+  const W=WIN_W-0.06, H=WIN_H-0.06;
+  const gl=new THREE.Mesh(new THREE.BoxGeometry(W-0.10,H-0.10,0.03),glassMat());
+  gl.position.set(W/2,H/2,0); g.add(gl);            // 유리판
+  for(const [w,h,x,y] of [[W,0.07,W/2,0.035],[W,0.07,W/2,H-0.035],
+                          [0.07,H,0.035,H/2],[0.07,H,W-0.035,H/2]]){
+    const b2=new THREE.Mesh(new THREE.BoxGeometry(w,h,0.08),beam);
+    b2.position.set(x,y,0); g.add(b2);              // 창살 테두리
+  }
+  const mid=new THREE.Mesh(new THREE.BoxGeometry(0.05,H-0.14,0.07),beam);
+  mid.position.set(W/2,H/2,0); g.add(mid);
+  return g;
+}
+const BUILD_MESH={found:makeFound, wall:makeWall, door:makeDoor, window:makeWindow,
+                  leaf:makeLeaf, pane:makePane,
+                  roof:makeRoof, slope:makeSlope, gable:makeGable};
+/* 문짝·창짝이 틀 안에서 앉는 자리 (벽 메시의 국소 좌표) */
+const fitPose=k=> k==='leaf'
+  ? {x:-DOOR_W/2+0.03, y:0.03, open:LEAF_OPEN}
+  : {x:-WIN_W/2+0.03,  y:WIN_SILL+0.03, open:LEAF_OPEN};
+
+/* ---- 놓기 · 걷어내기 ---- */
+function wallPose(gx,gz,s){
+  const [ox,oz]=SIDE[s];
+  return {x:gx*CELL_B+ox*CELL_B/2, z:gz*CELL_B+oz*CELL_B/2, rot:(ox?Math.PI/2:0)};
+}
+/* 문짝을 여닫을 때 충돌체를 다시 깐다 */
+function rebuildWallCols(w){
+  if(w.cols&&w.cols.length){
+    for(const c of w.cols){ const i=COLLIDERS.indexOf(c); if(i>=0) COLLIDERS.splice(i,1); }
+  }
+  w.cols=[];
+  addWallCols(w);
+}
+function addWallCols(w){
+  const P0=wallPose(w.gx,w.gz,w.s);
+  const [ox,oz]=SIDE[w.s], tx=-oz, tz=ox;
+  w.cols=[];
+  if(w.L!==0) return;                                // 이층 벽은 지면 충돌과 무관하다
+  for(let i=-3;i<=3;i++){
+    // 문틀은 가운데 세 자리를 비운다 — 남는 원 사이가 1.32 m 라 몸(반지름 0.42)이 지난다
+    // 다만 문짝이 달려 닫혀 있으면 도로 막는다.
+    const shut=w.leaf && w.leaf.kind==='leaf' && !w.leaf.open;
+    if(w.v==='door' && !shut && Math.abs(i)<2) continue;
+    const c={x:P0.x+tx*i*0.5, z:P0.z+tz*i*0.5, r:0.34};
+    COLLIDERS.push(c); w.cols.push(c);
+  }
+  buildColliderGrid();
+}
+/* 이웃 토대가 있으면 그 높이에 맞춘다 — 아크처럼 바닥 한 장이 평평하게 이어진다 */
+function foundHeight(gx,gz){
+  for(const [ox,oz] of SIDE){
+    const n=FOUNDS.get(fkey(gx+ox,gz+oz));
+    if(n) return {y:n.y, snapped:true};
+  }
+  return {y:heightAt(gx*CELL_B,gz*CELL_B)+FOUND_UP, snapped:false};
+}
+function placeFound(gx,gz,tier,y){
+  const x=gx*CELL_B, z=gz*CELL_B;
+  const T=BTIER[tier];
+  const top=(y===undefined)?foundHeight(gx,gz).y:y;
+  const m=makeFound(T.c); m.position.set(x,top,z); scene.add(m);
+  const f={gx,gz,x,z,y:top,tier,hp:T.hp,mesh:m};
+  FOUNDS.set(fkey(gx,gz),f);
+  return f;
+}
+function placeWall(gx,gz,L,s,tier,v){
+  const f=FOUNDS.get(fkey(gx,gz)); if(!f) return null;
+  v=WALLV.indexOf(v)<0?'wall':v;
+  const T=BTIER[tier], P0=wallPose(gx,gz,s);
+  const m=BUILD_MESH[v](T.c); m.position.set(P0.x,f.y+L*WALL_H,P0.z); m.rotation.y=P0.rot;
+  scene.add(m);
+  const w={gx,gz,L,s,v,tier,hp:T.hp,mesh:m,cols:[]};
+  addWallCols(w);
+  WALLS.set(wkey(gx,gz,L,s),w);
+  return w;
+}
+/* 문짝·창짝을 틀에 단다. 벽 메시의 자식이라 틀과 함께 움직인다. */
+function placeFit(gx,gz,L,s,kind,tier,open){
+  const w=WALLS.get(wkey(gx,gz,L,s)); if(!w) return null;
+  if(w.v!==FITS[kind] || w.leaf) return null;
+  const T=BTIER[tier], P=fitPose(kind);
+  const hinge=new THREE.Group();
+  hinge.position.set(P.x,P.y,0);
+  hinge.add(BUILD_MESH[kind](T.c));
+  w.mesh.add(hinge);
+  w.leaf={kind, tier, hp:T.hp, open:!!open, mesh:hinge};
+  hinge.rotation.y=w.leaf.open?-P.open:0;
+  rebuildWallCols(w);
+  return w.leaf;
+}
+function dropFit(w){
+  if(!w.leaf) return;
+  w.mesh.remove(w.leaf.mesh);
+  w.leaf=null;
+  rebuildWallCols(w);
+}
+function toggleFit(w){
+  if(!w||!w.leaf) return;
+  const P=fitPose(w.leaf.kind);
+  w.leaf.open=!w.leaf.open;
+  w.leaf.mesh.rotation.y=w.leaf.open?-P.open:0;
+  rebuildWallCols(w);
+  sfx('bind');
+  toast(BKIND_N[w.leaf.kind]+(w.leaf.open?' 열림':' 닫힘'));
+}
+/* 눈앞의 문짝·창짝 — 상호작용 대상으로 삼는다 */
+function findFit(){
+  const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
+  let best=null,bd=1e9;
+  for(const w of WALLS.values()){
+    if(!w.leaf) continue;
+    const P0=wallPose(w.gx,w.gz,w.s);
+    const f=FOUNDS.get(fkey(w.gx,w.gz)); if(!f) continue;
+    const y=f.y+w.L*WALL_H;
+    if(PL.pos.y<y-1.2||PL.pos.y>y+WALL_H+0.6) continue;   // 다른 층 문은 안 잡는다
+    const dx=P0.x-PL.pos.x, dz=P0.z-PL.pos.z, d=Math.hypot(dx,dz);
+    if(d>2.6||d<0.05||d>=bd) continue;
+    if((dx/d)*fx+(dz/d)*fz<0.35) continue;
+    bd=d; best=w;
+  }
+  return best;
+}
+function placeRoof(gx,gz,L,tier){
+  const f=FOUNDS.get(fkey(gx,gz)); if(!f) return null;
+  const T=BTIER[tier];
+  const m=makeRoof(T.c); m.position.set(f.x,f.y+(L+1)*WALL_H,f.z); scene.add(m);
+  const r={gx,gz,L,tier,hp:T.hp,mesh:m};
+  ROOFS.set(rkey(gx,gz,L),r);
+  return r;
+}
+function placeSlope(gx,gz,L,s,tier){
+  const f=FOUNDS.get(fkey(gx,gz)); if(!f) return null;
+  const T=BTIER[tier], [ox,oz]=SIDE[s];
+  const m=makeSlope(T.c);
+  m.position.set(f.x,f.y+L*WALL_H,f.z);          // 벽과 같은 층 바닥에서 시작한다
+  m.rotation.y=Math.atan2(ox,oz);                    // 국소 +Z → 솟는 쪽
+  scene.add(m);
+  const o={gx,gz,L,s,tier,hp:T.hp,mesh:m};
+  SLOPES.set(rkey(gx,gz,L),o);
+  return o;
+}
+function placeGable(gx,gz,L,s,h,tier){
+  const f=FOUNDS.get(fkey(gx,gz)); if(!f) return null;
+  const T=BTIER[tier], P0=wallPose(gx,gz,s);
+  h=(h<0)?-1:1;
+  const m=makeGable(T.c);
+  m.position.set(P0.x,f.y+L*WALL_H,P0.z);        // 같은 층 벽 자리의 삼각형 반쪽
+  m.rotation.y=gableYaw(s,h);                        // 국소 +X → 직각이 서는 쪽
+  scene.add(m);
+  const o={gx,gz,L,s,h,tier,hp:T.hp,mesh:m};
+  GABLES.set(wkey(gx,gz,L,s),o);
+  return o;
+}
+function dropBuild(o,map,k){
+  scene.remove(o.mesh);
+  if(o.cols&&o.cols.length){
+    for(const c of o.cols){ const i=COLLIDERS.indexOf(c); if(i>=0) COLLIDERS.splice(i,1); }
+    buildColliderGrid();
+  }
+  map.delete(k);
+}
+function clearBuilds(){
+  for(const m of [FOUNDS,WALLS,ROOFS,SLOPES,GABLES]){
+    for(const o of m.values()){
+      scene.remove(o.mesh);
+      if(o.cols) for(const c of o.cols){ const i=COLLIDERS.indexOf(c); if(i>=0) COLLIDERS.splice(i,1); }
+    }
+    m.clear();
+  }
+  buildColliderGrid();
+}
+
+/* ---- 어디에 놓을지 ---- */
+function buildTarget(){
+  const o=new THREE.Vector3(), d=new THREE.Vector3();
+  camera.getWorldPosition(o); camera.getWorldDirection(d);
+  let hx=o.x+d.x*6, hz=o.z+d.z*6, hy=o.y+d.y*6;
+  for(let t=1.0;t<=9.0;t+=0.12){
+    const x=o.x+d.x*t, y=o.y+d.y*t, z=o.z+d.z*t;
+    if(y<=builtFloorAt(x,z)+0.06 || y<=heightAt(x,z)+0.05){ hx=x; hy=y; hz=z; break; }
+  }
+  const gx=Math.round(hx/CELL_B), gz=Math.round(hz/CELL_B);
+  const f=FOUNDS.get(fkey(gx,gz));
+  // 몇 층에 놓을지 — 바라본 높이를 토대 위에서부터 층으로 나눈다
+  let L=0;
+  if(f) L=clamp(Math.floor((hy-f.y+0.4)/WALL_H),0,7);
+  const k=BUILD.kind;
+  if(k==='wall'||k==='door'||k==='window'||k==='leaf'||k==='pane'
+     ||k==='gable'||k==='slope'){
+    const lx=hx-gx*CELL_B, lz=hz-gz*CELL_B;
+    let s=0, best=1e9;
+    for(let i=0;i<4;i++){                            // 바라본 변 — 경사 지붕은 그쪽이 솟는다
+      const [ox,oz]=SIDE[i];
+      const dd=Math.hypot(lx-ox*CELL_B/2, lz-oz*CELL_B/2);
+      if(dd<best){ best=dd; s=i; }
+    }
+    if(BUILD.side>=0) s=BUILD.side;                  // 손으로 고른 변이 있으면 그쪽에 못 박는다
+    if(k!=='gable') return {kind:k, gx, gz, L, s};
+    const a=gableAuto(gx,gz,L,s);                    // 경사 지붕이 있으면 방향을 맞춘다
+    return {kind:k, gx, gz, L, s, h:a||BUILD.hand};
+
+  }
+  return {kind:k, gx, gz, L};
+}
+function buildCheck(t){
+  if(!t) return {ok:false, why:'바닥이 보이지 않는다'};
+  const {kind,gx,gz,L,s}=t;
+  const x=gx*CELL_B, z=gz*CELL_B;
+  if(Math.abs(x)>HALF-8||Math.abs(z)>HALF-8) return {ok:false, why:'섬 밖이다'};
+  if(kind==='found'){
+    if(FOUNDS.has(fkey(gx,gz))) return {ok:false, why:'이미 토대가 있다'};
+    if(heightAt(x,z)<0.5) return {ok:false, why:'물가에는 놓을 수 없다'};
+    const H=foundHeight(gx,gz);
+    if(H.snapped) return {ok:true, why:'', snapped:true};   // 이웃에 붙으면 지형을 안 따진다
+    let lo=1e9, hi=-1e9;
+    for(const sx of [-1,1]) for(const sz of [-1,1]){
+      const h=heightAt(x+sx*CELL_B/2, z+sz*CELL_B/2);
+      lo=Math.min(lo,h); hi=Math.max(hi,h);
+    }
+    if(hi-lo>1.2) return {ok:false, why:'땅이 너무 고르지 않다 ('+(hi-lo).toFixed(1)+' m) — 옆에 붙여 놓으면 높이가 맞는다'};
+    return {ok:true, why:''};
+  }
+  if(!FOUNDS.has(fkey(gx,gz))) return {ok:false, why:'토대 위에만 세울 수 있다'};
+  if(L>0 && !ROOFS.has(rkey(gx,gz,L-1)))
+    return {ok:false, why:(L+1)+'층은 아래 지붕을 먼저 덮어야 한다'};
+  if(kind==='wall'||kind==='door'||kind==='window'){
+    const w=WALLS.get(wkey(gx,gz,L,s));
+    if(w) return {ok:false, why:'이미 '+BKIND_N[w.v||'wall']+'이 있다'};
+    if(GABLES.has(wkey(gx,gz,L,s))) return {ok:false, why:'같은 자리에 삼각 벽이 있다'};
+  }else if(kind==='leaf'||kind==='pane'){
+    const w=WALLS.get(wkey(gx,gz,L,s));
+    const need=BKIND_N[FITS[kind]];
+    if(!w||w.v!==FITS[kind]) return {ok:false, why:need+'에만 달 수 있다'};
+    if(w.leaf) return {ok:false, why:'이미 '+BKIND_N[w.leaf.kind]+'이 달려 있다'};
+  }else if(kind==='gable'){
+    if(GABLES.has(wkey(gx,gz,L,s))) return {ok:false, why:'이미 삼각 벽이 있다'};
+    if(WALLS.has(wkey(gx,gz,L,s))) return {ok:false, why:'같은 자리에 벽이 있다'};
+    const sl=SLOPES.get(rkey(gx,gz,L));
+    if(sl&&gableAuto(gx,gz,L,s)===0)
+      return {ok:false, why:'경사 지붕과 나란한 변이다 — 옆 변에 세워야 빈틈이 메워진다'};
+  }else if(kind==='slope'){
+    // 경사 지붕은 벽과 같은 층 띠를 쓴다 — 그 층 천장을 덮은 지붕 밑으로는 못 넣는다
+    if(SLOPES.has(rkey(gx,gz,L))) return {ok:false, why:'이미 경사 지붕이 있다'};
+    if(ROOFS.has(rkey(gx,gz,L))) return {ok:false, why:'이 칸은 지붕이 덮고 있다 — 옆 칸에 놓아 올라간다'};
+  }else{
+    if(ROOFS.has(rkey(gx,gz,L))) return {ok:false, why:'이미 지붕이 있다'};
+    if(SLOPES.has(rkey(gx,gz,L))) return {ok:false, why:'경사 지붕이 있다'};
+  }
+  return {ok:true, why:''};
+}
+const buildCost=(k,tier)=>BTIER[tier===undefined?BUILD.tier:tier].cost[k];
+const canBuild=(k,tier)=>buildCost(k,tier).every(r=>countMat(r)>=r.n);
+
+/* ---- 짓기 모드 ---- */
+function enterBuild(kind,tier){
+  BUILD.on=true;
+  if(kind) BUILD.kind=kind;
+  if(tier!==undefined) BUILD.tier=tier;
+  if(!BUILD.ghost){ BUILD.ghost=new THREE.Group(); scene.add(BUILD.ghost); }
+  ghostRebuild();
+  bldSig=null; bldBar();
+  toast('짓기 — '+BTIER[BUILD.tier].n+' '+BKIND_N[BUILD.kind]
+    +' (1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽 좌우 · 좌클릭 놓기 · G 걷어내기 · Z 끝)');
+}
+function exitBuild(){
+  BUILD.on=false;
+  if(BUILD.ghost) BUILD.ghost.visible=false;
+  const el=document.getElementById('bld'); if(el) el.style.display='none';
+}
+/* 짓기 막대 — 조각·등급·방향을 눈으로 보고 손으로도 누른다.
+   시점이 잠겨 있으면 마우스로 못 누르니 키(1~5 · 6·7·8 · R · Q)가 본줄이고,
+   막대는 지금 상태를 보여 주는 곳이자 터치·창 모드에서 누르는 곳이다. */
+let bldSig=null;
+function bldBar(){
+  const box=document.getElementById('bld'); if(!box) return;
+  box.style.display=BUILD.on?'block':'none';
+  if(!BUILD.on) return;
+  const gable=BUILD.kind==='gable';
+  const sig=[BUILD.kind,BUILD.tier,BUILD.side,BUILD.hand,gable].join('|');
+  if(sig!==bldSig){
+    bldSig=sig;
+    const btn=(txt,on,fn)=>{
+      const b=document.createElement('button');
+      b.textContent=txt; if(on) b.className='on';
+      b.onmousedown=e=>{ e.preventDefault(); e.stopPropagation(); };
+      b.onclick=e=>{ e.preventDefault(); e.stopPropagation(); fn(); bldSig=null; bldBar(); };
+      return b;
+    };
+    const fill=(id,els)=>{ const h=document.getElementById(id);
+      h.textContent=''; for(const e of els) h.appendChild(e); };
+    fill('bldK', BKIND.map((k,i)=>btn((i+1)+' '+BKIND_N[k], BUILD.kind===k,
+      ()=>{ BUILD.kind=k; })));
+    fill('bldT', BTIER.map((T,i)=>btn('0 '+T.n, BUILD.tier===i,
+      ()=>{ BUILD.tier=i; })));
+    const dirs=[btn('자동', BUILD.side<0, ()=>{ BUILD.side=-1; })];
+    for(let i=0;i<4;i++) dirs.push(btn(SIDE_N[i], BUILD.side===i, (j=>()=>{ BUILD.side=j; })(i)));
+    dirs.push(btn('R 돌리기', false, ()=>{ BUILD.side=BUILD.side>=3?-1:BUILD.side+1; }));
+    if(gable){
+      dirs.push(btn('Q 왼쪽', BUILD.hand<0, ()=>{ BUILD.hand=-1; }));
+      dirs.push(btn('오른쪽', BUILD.hand>0, ()=>{ BUILD.hand=1; }));
+    }
+    fill('bldR', dirs);
+  }
+  const w=document.getElementById('bldW');
+  w.textContent=BUILD.ok?(BUILD.why||'놓을 수 있다'):(BUILD.why||'여기엔 못 놓는다');
+  w.className='wy'+(BUILD.ok?'':' bad');
+}
+function buildRotate(d){                              // R — 자동 → 북 → 동 → 남 → 서 → 자동
+  const n=BUILD.side+ (d||1);
+  BUILD.side = n>3 ? -1 : (n< -1 ? 3 : n);
+  toast('방향 — '+(BUILD.side<0?'자동 (바라보는 변)':SIDE_N[BUILD.side]+'쪽'));
+  bldSig=null;
+}
+let ghostSig=null;
+function ghostRebuild(){
+  if(!BUILD.ghost) return;
+  while(BUILD.ghost.children.length) BUILD.ghost.remove(BUILD.ghost.children[0]);
+  const m=BUILD_MESH[BUILD.kind](BTIER[BUILD.tier].c);
+  m.traverse(o=>{ if(o.isMesh) o.material=new THREE.MeshBasicMaterial({
+    color:0x8fd6b4, transparent:true, opacity:0.35, depthWrite:false}); });
+  BUILD.ghost.add(m);
+  ghostSig=BUILD.kind+BUILD.tier;
+}
+function updateBuild(){
+  if(!BUILD.on){ if(BUILD.ghost) BUILD.ghost.visible=false; return; }
+  if(ghostSig!==BUILD.kind+BUILD.tier) ghostRebuild();
+  const t=buildTarget(), chk=buildCheck(t), enough=canBuild(BUILD.kind);
+  BUILD.tgt=t; BUILD.ok=chk.ok&&enough;
+  BUILD.why=chk.ok?(enough?(chk.snapped?'옆 토대에 높이를 맞춘다':''):'재료가 모자란다'):chk.why;
+  BUILD.lvl=t.L||0;
+  const g=BUILD.ghost; g.visible=true;
+  const f=FOUNDS.get(fkey(t.gx,t.gz));
+  const base=f?f.y:foundHeight(t.gx,t.gz).y;
+  if(t.kind==='found'){ g.position.set(t.gx*CELL_B,base,t.gz*CELL_B); g.rotation.y=0; }
+  else if(t.kind==='wall'||t.kind==='door'||t.kind==='window'){
+    const P0=wallPose(t.gx,t.gz,t.s);
+    g.position.set(P0.x, base+t.L*WALL_H, P0.z); g.rotation.y=P0.rot;
+  }else if(t.kind==='leaf'||t.kind==='pane'){
+    const P0=wallPose(t.gx,t.gz,t.s), P=fitPose(t.kind);
+    const cr=Math.cos(P0.rot), sr=Math.sin(P0.rot);
+    g.position.set(P0.x+P.x*cr, base+t.L*WALL_H+P.y, P0.z-P.x*sr);
+    g.rotation.y=P0.rot;
+  }else if(t.kind==='gable'){
+    const P0=wallPose(t.gx,t.gz,t.s);
+    g.position.set(P0.x, base+t.L*WALL_H, P0.z);
+    g.rotation.y=gableYaw(t.s, t.h);
+  }else if(t.kind==='slope'){
+    const [ox,oz]=SIDE[t.s];
+    g.position.set(t.gx*CELL_B, base+t.L*WALL_H, t.gz*CELL_B);
+    g.rotation.y=Math.atan2(ox,oz);
+  }else{
+    g.position.set(t.gx*CELL_B, base+(t.L+1)*WALL_H, t.gz*CELL_B); g.rotation.y=0;
+  }
+  const col=BUILD.ok?0x8fd6b4:0xd8724a;
+  g.traverse(o=>{ if(o.isMesh) o.material.color.setHex(col); });
+  bldBar();
+}
+function doBuild(){
+  if(!BUILD.on||!BUILD.tgt) return;
+  if(!BUILD.ok){ toast(BUILD.why||'여기엔 못 놓는다'); return; }
+  const t=BUILD.tgt, tier=BUILD.tier;
+  for(const r of buildCost(BUILD.kind)) consumeMat(r);
+  if(t.kind==='found') placeFound(t.gx,t.gz,tier);
+  else if(t.kind==='wall'||t.kind==='door'||t.kind==='window')
+    placeWall(t.gx,t.gz,t.L,t.s,tier,t.kind);
+  else if(t.kind==='leaf'||t.kind==='pane')
+    placeFit(t.gx,t.gz,t.L,t.s,t.kind,tier,false);
+  else if(t.kind==='slope') placeSlope(t.gx,t.gz,t.L,t.s,tier);
+  else if(t.kind==='gable') placeGable(t.gx,t.gz,t.L,t.s,t.h,tier);
+  else placeRoof(t.gx,t.gz,t.L,tier);
+  toast(BTIER[tier].n+' '+BKIND_N[t.kind]+' 놓음'+(t.L?' ('+(t.L+1)+'층)':''));
+  sfx('bind'); invDirty=true; craftDirty=true;
+}
+function undoBuild(){
+  if(!BUILD.on||!BUILD.tgt) return;
+  const t=BUILD.tgt;
+  if(t.kind==='leaf'||t.kind==='pane'){
+    const o=WALLS.get(wkey(t.gx,t.gz,t.L,t.s));
+    if(o&&o.leaf){ const k=o.leaf.kind, tr=o.leaf.tier;
+                   dropFit(o); return refundBuild(k,tr); }
+  }
+  if(t.kind==='wall'||t.kind==='door'||t.kind==='window'){
+    const o=WALLS.get(wkey(t.gx,t.gz,t.L,t.s));
+    if(o){
+      if(o.leaf){ toast(BKIND_N[o.leaf.kind]+'부터 떼어내야 한다'); return; }
+      dropBuild(o,WALLS,wkey(t.gx,t.gz,t.L,t.s));
+      return refundBuild(o.v||'wall',o.tier);
+    }
+  }
+  if(t.kind==='gable'){
+    const o=GABLES.get(wkey(t.gx,t.gz,t.L,t.s));
+    if(o){ dropBuild(o,GABLES,wkey(t.gx,t.gz,t.L,t.s)); return refundBuild('gable',o.tier); }
+  }
+  if(t.kind==='slope'){
+    const o=SLOPES.get(rkey(t.gx,t.gz,t.L));
+    if(o){
+      for(let i=0;i<4;i++) if(GABLES.has(wkey(t.gx,t.gz,t.L,i))){
+        toast('삼각 벽부터 걷어내야 한다'); return; }
+      dropBuild(o,SLOPES,rkey(t.gx,t.gz,t.L)); return refundBuild('slope',o.tier);
+    }
+  }
+  if(t.kind==='roof'){
+    const o=ROOFS.get(rkey(t.gx,t.gz,t.L));
+    if(o){
+      for(let i=0;i<4;i++) if(WALLS.has(wkey(t.gx,t.gz,t.L+1,i))){
+        toast('위층 벽부터 걷어내야 한다'); return; }
+      dropBuild(o,ROOFS,rkey(t.gx,t.gz,t.L)); return refundBuild('roof',o.tier);
+    }
+  }
+  if(t.kind==='found'){
+    const o=FOUNDS.get(fkey(t.gx,t.gz));
+    if(o){
+      for(let L=0;L<8;L++){
+        if(ROOFS.has(rkey(t.gx,t.gz,L))||SLOPES.has(rkey(t.gx,t.gz,L))){
+          toast('지붕부터 걷어내야 한다'); return; }
+        for(let i=0;i<4;i++) if(WALLS.has(wkey(t.gx,t.gz,L,i))||GABLES.has(wkey(t.gx,t.gz,L,i))){
+          toast('벽부터 걷어내야 한다'); return; }
+      }
+      dropBuild(o,FOUNDS,fkey(t.gx,t.gz)); return refundBuild('found',o.tier);
+    }
+  }
+  toast('걷어낼 것이 없다');
+}
+function refundBuild(kind,tier){
+  for(const r of BTIER[tier].cost[kind]) invAdd(r.id,r.n);
+  toast(BTIER[tier].n+' '+BKIND_N[kind]+' 걷어냄 — 재료를 되돌려 받았다');
+  sfx('bind'); invDirty=true; craftDirty=true;
 }
 
 /* 물레방아 — 유량이 많은 하도에만 놓을 수 있다. 흐름 누적값이 곧 발전량이 된다. */
@@ -3171,8 +4617,8 @@ function placeCampfireAt(x,y,z){
   light.visible=false; g.add(light);
 
   g.position.set(x,y,z); scene.add(g);
-  const fire={kind:'fire', cname:'화덕', cap:40, slots:[],
-    x,y,z,lit:false,fuel:0,cook:null,mesh:g,flame,light,t:Math.random()*10};
+  const fire={kind:'fire', cname:'화덕', cap:40, slotCap:10, slots:[],
+    x,y,z,lit:false,fuel:0,cook:{},mesh:g,flame,light,t:Math.random()*10};
   FIRES.push(fire);
   COLLIDERS.push({x,z,r:0.75}); buildColliderGrid();
   return fire;
@@ -3254,71 +4700,79 @@ function updatePower(dt){
 }
 
 /* 화덕 안에 든 것 중 구울 수 있는 첫 항목 */
-function fireJob(f){
-  for(const sl of f.slots) if(FIRING[sl.id]) return sl.id;
-  return null;
+/* 안에 든 것 중 구울 수 있는 것을 전부 모은다 — 한 가지씩 차례로가 아니라
+   들어 있는 것이 저마다 제 속도로 함께 익는다. */
+function fireJobs(f){
+  const out=[];
+  for(const sl of f.slots) if(FIRING[sl.id] && out.indexOf(sl.id)<0) out.push(sl.id);
+  return out;
 }
-/* 제련로 안의 재료로 지금 돌릴 수 있는 제련 — 표의 앞쪽이 우선 */
-function furnaceJob(g){
-  for(const R of SMELT){
-    if(!R.in.every(r=>contCount(g,r.id)>=r.n)) continue;
-    if(R.need && !R.need.every(r=>contCount(g,r.id)>=r.n)) continue;
-    return R;
-  }
-  return null;
+const fireJob=f=>fireJobs(f)[0]||null;          // 한 줄 요약에 쓰는 대표 작업
+/* 제련로 안의 재료로 지금 돌릴 수 있는 제련을 전부 모은다.
+   재료를 나눠 쓰는 제련이 함께 걸릴 수 있다 — 먼저 끝나는 쪽이 먼저 가져간다. */
+function furnaceJobs(g){
+  return SMELT.filter(R=>
+    R.in.every(r=>contCount(g,r.id)>=r.n) &&
+    (!R.need || R.need.every(r=>contCount(g,r.id)>=r.n)));
 }
+const furnaceJob=g=>furnaceJobs(g)[0]||null;
 /* 제련로 — 재료가 들어 있는 동안 저 혼자 돌아간다. 도가니와 송풍관은 닳지 않는다. */
 function updateFurnaces(dt,dh){
   for(const g of FURNACES){
-    const R=furnaceJob(g);
-    if(!R){ g.job=null; g.t=0; }
-    else{
-      if(g.job!==R.id){ g.job=R.id; g.t=0; }
-      g.t+=dh;
-      while(g.t>=R.hours && furnaceJob(g)===R){
-        g.t-=R.hours;
-        for(const r of R.in) contTake(g,r.id,r.n);
-        contAdd(g,R.out.id,R.out.n);
-        if(Math.hypot(g.x-PL.pos.x,g.z-PL.pos.z)<28)
-          toast(ITEMS[R.out.id].n+' ×'+R.out.n+' 제련 완료');
+    if(!g.jobs) g.jobs={};
+    /* 불이 붙어 있는 동안에만 녹는다. 꺼지면 제자리에 멈춰 서고,
+       다시 붙이면 녹던 데서 이어진다 — 화덕의 굽기와 같은 규칙이다. */
+    if(g.lit && dh>0 && burnFuel(g,dh)){
+      const live=furnaceJobs(g);
+      for(const R of live){
+        g.jobs[R.id]=(g.jobs[R.id]||0)+dh;
+        while(g.jobs[R.id]>=R.hours
+              && R.in.every(r=>contCount(g,r.id)>=r.n)
+              && (!R.need||R.need.every(r=>contCount(g,r.id)>=r.n))){
+          g.jobs[R.id]-=R.hours;
+          for(const r of R.in) contTake(g,r.id,r.n);
+          contAdd(g,R.out.id,R.out.n);
+          if(R.back) for(const r of R.back) contAdd(g,r.id,r.n);   // 비운 그릇 되돌려주기
+          if(Math.hypot(g.x-PL.pos.x,g.z-PL.pos.z)<28)
+            toast(ITEMS[R.out.id].n+' ×'+R.out.n+' 제련 완료');
+        }
       }
-      if(furnaceJob(g)!==R) g.job=null;             // 재료가 떨어졌다
+      // 재료가 떨어진 제련은 진척을 지운다
+      for(const k of Object.keys(g.jobs))
+        if(!live.some(R=>R.id===k)) delete g.jobs[k];
     }
-    const live=!!g.job;
-    g.glow.visible=live; g.light.visible=live;
-    if(live){
+    g.glow.visible=g.lit; g.light.visible=g.lit;
+    if(g.lit){
       const fl=0.7+Math.sin(gameHours*260)*0.2+Math.sin(gameHours*97)*0.1;
-      g.light.intensity=clamp(0.9*fl,0.2,1.6);
+      g.light.intensity=clamp(0.9*fl*clamp(g.fuel/0.3,0.4,1),0.2,1.6);
     }
   }
 }
 function updateFires(dt,dh){
   for(const f of FIRES){
-    // 소성: 불이 붙어 있는 동안에만 진행한다. 꺼지면 그 자리에서 멈춘다.
-    const job=fireJob(f);
-    if(!job) f.cook=null;
-    else if(f.lit && dh>0){
-      if(!f.cook || f.cook.id!==job) f.cook={id:job,t:0};
-      const R=FIRING[job];
-      f.cook.t+=dh;
-      while(f.cook.t>=R.hours && contCount(f,job)>0){
-        f.cook.t-=R.hours;
-        contTake(f,job,1);
-        contAdd(f,R.out,R.count||1);
-        if(Math.hypot(f.x-PL.pos.x,f.z-PL.pos.z)<28)
-          toast(ITEMS[R.out].n+' 하나가 다 구워졌다');
+    /* 소성: 불이 붙어 있는 동안에만 진행한다. 꺼지면 그 자리에서 멈춘다.
+       안에 든 구울 것은 전부 함께 익는다 — 고기와 그릇을 같이 넣어도
+       한쪽이 끝나기를 기다리지 않는다. */
+    if(!f.cook) f.cook={};
+    const jobs=fireJobs(f);
+    if(f.lit && dh>0){
+      for(const job of jobs){
+        const R=FIRING[job];
+        f.cook[job]=(f.cook[job]||0)+dh;
+        while(f.cook[job]>=R.hours && contCount(f,job)>0){
+          f.cook[job]-=R.hours;
+          contTake(f,job,1);
+          contAdd(f,R.out,R.count||1);
+          if(Math.hypot(f.x-PL.pos.x,f.z-PL.pos.z)<28)
+            toast(ITEMS[R.out].n+' 하나가 다 구워졌다');
+        }
       }
-      if(!contCount(f,job)) f.cook=null;
     }
+    for(const k of Object.keys(f.cook))       // 다 꺼내 간 것은 진척을 지운다
+      if(jobs.indexOf(k)<0) delete f.cook[k];
     if(!f.lit) continue;
-    f.fuel-=dh;
     // 안에 든 땔감을 알아서 끌어다 문다 — 넣어두기만 하면 계속 탄다
-    while(f.fuel<=0){
-      const id=contFuel(f);
-      if(!id) break;
-      contTake(f,id,1); f.fuel+=FUEL[id];
-    }
-    if(f.fuel<=0){ f.fuel=0; f.lit=false; f.flame.visible=false; f.light.visible=false; continue; }
+    if(!burnFuel(f,dh)) continue;
     f.t+=dt;
     // 불꽃 흔들림 — 연료가 적으면 사그라든다
     const low=clamp(f.fuel/0.2,0.35,1);
@@ -3376,7 +4830,7 @@ const GEO={
            note:'석영·장석·운모가 뭉친 조립질 암석. 때려도 날이 서지 않고 부스러진다. '
                 +'불로 달궈 균열을 낸 뒤에야 떼어낼 수 있다.'}
 };
-const MINERALS=['flint','pebble','clay','iron','tin','coal','copper','granite'];
+const MINERALS=['flint','pebble','clay','sand','iron','tin','coal','copper','granite'];
 
 /* 광물 삽화 — 게임 안 암석과 같은 원리(임의 축 혹 3개)로 윤곽을 만들고,
    중심에서 정점으로 면을 쪼개 광원 방향에 따라 밝기를 달리한다.
@@ -3454,7 +4908,12 @@ function toolSpec(t,it){
   if(t.pick) p.push('채굴 경도 '+t.pick+'까지');
   if(t.fire) p.push('마찰 발화');
   if(t.torch) p.push('휴대 조명');
-  if(t.weapon) p.push('피해 '+t.dmg+' · 사거리 '+t.reach+' m');
+  if(t.weapon){
+    p.push('피해 '+t.dmg+' · 사거리 '+t.reach+' m · '+(1/t.rate).toFixed(2)+'회/초');
+    p.push('초당 피해 '+Math.round(t.dmg/t.rate));
+    if(t.stun) p.push('기절 '+t.stun+'초');
+    if(t.gun) p.push('탄창 '+t.mag+'발 · 재장전 '+t.reload+'초 · '+ITEMS[t.ammo].n);
+  }
   if(t.speed&&t.speed!==1) p.push('작업 속도 ×'+t.speed);
   if(it.durMax) p.push('내구 '+it.durMax);
   if(it.burn) p.push('연소 '+it.burn+'시간');
@@ -3462,36 +4921,38 @@ function toolSpec(t,it){
 }
 let boxOpen=false, boxDirty=true, curStore=null, boxT=0;
 /* 용기의 지금 상태 한 줄 — 머리글과 조준 프롬프트가 같이 쓴다 */
+const isHearth=c=>c.kind==='fire'||c.kind==='furnace';
 function contStatus(c){
-  if(c.kind==='fire'){
+  if(isHearth(c)){
     if(!c.lit)
       return contFuel(c)?'꺼져 있다 — 불을 붙일 수 있다':'꺼져 있다 · 땔감을 넣어라';
     let t='타는 중 · 남은 연료 '+fmtFuel(c.fuel);
-    const j=fireJob(c);
-    if(j) t+=' · '+ITEMS[j].n+' 굽는 중 '
-          +Math.round(clamp((c.cook?c.cook.t:0)/FIRING[j].hours,0,1)*100)+'%';
+    // 안에서 함께 돌아가는 것을 전부 적는다
+    const parts=(c.kind==='fire')
+      ? fireJobs(c).map(j=>ITEMS[j].n+' '
+          +Math.round(clamp((c.cook&&c.cook[j]||0)/FIRING[j].hours,0,1)*100)+'%')
+      : furnaceJobs(c).map(R=>R.n+' '
+          +Math.round(clamp((c.jobs&&c.jobs[R.id]||0)/R.hours,0,1)*100)+'%');
+    if(parts.length) t+=' · '+parts.join(' · ');
     return t;
-  }
-  if(c.kind==='furnace'){
-    const R=furnaceJob(c);
-    if(!R) return '멈춰 있다 · 재료가 모자란다';
-    return R.n+' 진행 '+Math.round(clamp(c.t/R.hours,0,1)*100)+'%';
   }
   return c.slots.length+'종';
 }
 /* 용기 아래에 붙는 안내 — 무엇을 넣으면 되는지 알려준다 */
 function contHint(c){
   const tail=' · 항목을 눌러 1개 이동 · Shift+클릭으로 전부 · E 또는 Esc로 닫기';
+  const cap=c.slotCap?' · '+c.slots.length+'/'+c.slotCap+'칸':'';
   if(c.kind==='fire')
     return '땔감(나뭇가지 · 통나무 · 석탄 · 참숯)을 넣으면 알아서 타고, '
       +'구울 것(' +Object.keys(FIRING).map(k=>ITEMS[k].n).join(' · ')
-      +')을 넣으면 알아서 구워진다'+tail;
+      +')을 넣으면 들어 있는 것이 모두 함께 구워진다'+cap+tail;
   if(c.kind==='furnace'){
-    const R=furnaceJob(c);
-    if(R) return R.note+tail;
-    return '넣을 것 — '+SMELT.map(r=>r.n+'('
+    const live=furnaceJobs(c);
+    if(live.length) return live.map(R=>R.note).join(' / ')+cap+tail;
+    return '불을 붙여야 돈다(참숯은 땔감이 아니라 환원제다 — 장작이나 석탄을 같이 넣어라). '
+      +'넣을 것 — '+SMELT.map(r=>r.n+'('
       +r.in.map(x=>ITEMS[x.id].n+' '+x.n).join('+')
-      +(r.need?' +'+r.need.map(x=>ITEMS[x.id].n).join('+'):'')+')').join(' · ')+tail;
+      +(r.need?' +'+r.need.map(x=>ITEMS[x.id].n).join('+'):'')+')').join(' · ')+cap+tail;
   }
   return '적재 상한과 무관하게 쌓아둘 수 있다'+tail;
 }
@@ -3596,42 +5057,396 @@ function closeCfg(){ cfgOpen=false; document.getElementById('cfg').style.display
    먼저 세워두고, 나중에 개체를 이 배열에 넣으면 그대로 동작한다.
    ========================================================================== */
 const CREATURES=[];
-const ATK={t:0, cd:0, swing:0};
-let spearFx=null;
-const SPEAR_HOME=new THREE.Vector3(0.32,-0.30,-0.60);   // 손에 쥔 기본 위치
-function initWeaponFx(){
-  /* 창을 국소 +Y 축에 똑바로 세워 만들고, 다 만든 뒤 통째로 눕힌다.
-     부품마다 각도를 따로 주면 자루와 날이 어긋난다 — 이전 판이 그랬다. */
-  const L=1.55;                                   // 자루 길이
-  const body=new THREE.Group();
-  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.021,0.027,L,6),
-    new THREE.MeshLambertMaterial({color:0x6b5a3c}));
-  shaft.position.y=L/2;                           // 자루 밑동이 원점에 오게
-  const tip=new THREE.Mesh(new THREE.ConeGeometry(0.052,0.24,4),
-    new THREE.MeshLambertMaterial({color:0x59636b}));
-  tip.position.y=L+0.10; tip.rotation.y=Math.PI/4; // 뗀석기 날 — 넓은 면이 보이도록
-  const bind=new THREE.Mesh(new THREE.CylinderGeometry(0.034,0.034,0.10,6),
-    new THREE.MeshLambertMaterial({color:0xa89a68}));
-  bind.position.y=L-0.04;                         // 날을 묶은 노끈
-  body.add(shaft); body.add(tip); body.add(bind);
-  body.position.y=-0.42;                          // 자루 아래쪽 1/4 지점을 쥔다
+const ATK={t:0, cd:0, swing:0, swingMax:0.30, flash:0};
 
-  spearFx=new THREE.Group();
-  spearFx.add(body);
-  spearFx.rotation.set(-Math.PI/2+0.20, 0, 0.12); // 앞으로 눕히고 화면 중앙으로 살짝 겨눔
-  spearFx.position.copy(SPEAR_HOME);
-  spearFx.visible=false; camera.add(spearFx);
+/* ============================================================================
+   손에 든 무기
+   ----------------------------------------------------------------------------
+   무기마다 모양과 휘두르는 결이 다르다. 부품은 전부 국소 +Y 축에 세워 만들고
+   다 만든 뒤 통째로 눕힌다 — 부품마다 각도를 따로 주면 자루와 날이 어긋난다.
+   ========================================================================== */
+let weaponFx=null, weaponFxId=null;
+const WEAPON_HOME=new THREE.Vector3(0.32,-0.30,-0.60);
+const WMAT=c=>new THREE.MeshLambertMaterial({color:c});
+const W_WOOD=0x6b5a3c, W_CORD=0xa89a68;
+function haft(len,r0,r1,col){                // 자루 — 밑동이 원점에 오도록 세운다
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(r0,r1,len,6),WMAT(col||W_WOOD));
+  m.position.y=len/2; return m;
 }
+function wbind(y,r){                         // 날을 묶은 노끈
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.09,6),WMAT(W_CORD));
+  m.position.y=y; return m;
+}
+/* 무기 하나를 만든다. grip 은 자루의 어디를 쥐는가(국소 y). */
+const WEAPON_FX={
+  spear(){                                   // 돌창 — 짧은 뗀석기 날
+    const g=new THREE.Group(), L=1.55;
+    g.add(haft(L,0.021,0.027));
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.052,0.24,4),WMAT(0x59636b));
+    tip.position.y=L+0.10; tip.rotation.y=Math.PI/4; g.add(tip);
+    g.add(wbind(L-0.04,0.034));
+    return {mesh:g, grip:0.42};
+  },
+  spear_iron(){                              // 철 창 — 자루도 날도 길다
+    const g=new THREE.Group(), L=2.05;
+    g.add(haft(L,0.022,0.028));
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.048,0.40,6),WMAT(0xb4b9be));
+    tip.position.y=L+0.19; g.add(tip);
+    const sock=new THREE.Mesh(new THREE.CylinderGeometry(0.038,0.045,0.16,6),WMAT(0x9aa0a6));
+    sock.position.y=L-0.03; g.add(sock);
+    g.add(wbind(L-0.16,0.035));
+    return {mesh:g, grip:0.60};
+  },
+  sword_iron(){                              // 철 검 — 자루 · 코등이 · 양날
+    const g=new THREE.Group(), H=0.26, B2=0.92;
+    g.add(haft(H,0.028,0.032,0x4a3a29));
+    const pom=new THREE.Mesh(new THREE.SphereGeometry(0.042,8,6),WMAT(0x8f959b));
+    pom.position.y=0.01; g.add(pom);
+    const gd=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.045,0.06),WMAT(0x9aa0a6));
+    gd.position.y=H+0.02; g.add(gd);
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(0.085,B2,0.022),WMAT(0xc3c7cb));
+    bl.position.y=H+0.05+B2/2; g.add(bl);
+    const pt=new THREE.Mesh(new THREE.ConeGeometry(0.060,0.16,4),WMAT(0xc3c7cb));
+    pt.position.y=H+0.05+B2+0.07; pt.rotation.y=Math.PI/4;
+    pt.scale.set(1,1,0.36); g.add(pt);
+    return {mesh:g, grip:0.16};
+  },
+  axe_war(){                                 // 철 전투도끼 — 무게가 날 끝에 몰려 있다
+    const g=new THREE.Group(), L=0.92;
+    g.add(haft(L,0.026,0.030));
+    const head=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.22,0.11),WMAT(0x8f959b));
+    head.position.y=L-0.04; g.add(head);
+    /* 날은 윤곽을 직접 그려 뽑는다 — 원통을 잘라 쓰면 자루에서 떨어져 보인다.
+       자루(x=0)에 물려 시작해 바깥으로 넓게 퍼지는 초승달꼴이다. */
+    const sh=new THREE.Shape();
+    sh.moveTo(0.00,-0.11);
+    sh.lineTo(0.20,-0.21);
+    sh.quadraticCurveTo(0.36,-0.04, 0.30,0.19);
+    sh.lineTo(0.00, 0.11);
+    sh.closePath();
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,
+      {depth:0.030, bevelEnabled:true, bevelThickness:0.006, bevelSize:0.006,
+       bevelSegments:1, curveSegments:8}),WMAT(0xb4b9be));
+    bl.position.set(0.02,L-0.04,-0.021); g.add(bl);
+    g.add(wbind(L-0.20,0.036));
+    return {mesh:g, grip:0.30};
+  },
+  sword_chitin(){                            // 키틴 검 — 겹쳐 세운 껍질 날
+    const g=new THREE.Group(), H=0.24, B2=0.88;
+    g.add(haft(H,0.028,0.032,0x4a3a29));
+    const wrap=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.038,H-0.03,8),
+      WMAT(0x8a6a4a));
+    wrap.position.y=H/2; g.add(wrap);        // 가죽으로 감은 손잡이
+    const gd=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.040,0.06),WMAT(0x3f4f44));
+    gd.position.y=H+0.02; g.add(gd);
+    for(let i=0;i<3;i++){                    // 껍질을 세 겹으로 겹쳐 붙였다
+      const bl=new THREE.Mesh(new THREE.BoxGeometry(0.075-i*0.012,B2-i*0.16,0.020),
+        WMAT(i%2?0x5b6d5e:0x4a5a4e));
+      bl.position.set(0,H+0.05+(B2-i*0.16)/2,(i-1)*0.010); g.add(bl);
+    }
+    const pt=new THREE.Mesh(new THREE.ConeGeometry(0.052,0.17,4),WMAT(0x6b7d6e));
+    pt.position.y=H+0.05+B2+0.07; pt.rotation.y=Math.PI/4;
+    pt.scale.set(1,1,0.34); g.add(pt);
+    return {mesh:g, grip:0.15};
+  },
+  spear_bone(){                              // 뼈 창 — 비스듬히 간 창끝
+    const g=new THREE.Group(), L=2.00;
+    g.add(haft(L,0.022,0.028));
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.046,0.36,5),WMAT(0xd6cfb4));
+    tip.position.y=L+0.17; g.add(tip);
+    const collar=new THREE.Mesh(new THREE.CylinderGeometry(0.034,0.040,0.12,6),
+      WMAT(0xbdb497));
+    collar.position.y=L-0.02; g.add(collar);
+    g.add(wbind(L-0.13,0.034));
+    g.add(wbind(0.52,0.034));
+    return {mesh:g, grip:0.58};
+  },
+  axe_chitin(){                              // 키틴 도끼 — 뼈 심에 물린 넓은 날
+    const g=new THREE.Group(), L=0.90;
+    g.add(haft(L,0.026,0.030));
+    const core=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.21,0.10),WMAT(0xd6cfb4));
+    core.position.y=L-0.04; g.add(core);     // 뼈 심
+    const sh=new THREE.Shape();
+    sh.moveTo(0.00,-0.11);
+    sh.lineTo(0.19,-0.20);
+    sh.quadraticCurveTo(0.35,-0.03, 0.29,0.18);
+    sh.lineTo(0.00, 0.11);
+    sh.closePath();
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,
+      {depth:0.026, bevelEnabled:true, bevelThickness:0.005, bevelSize:0.005,
+       bevelSegments:1, curveSegments:8}),WMAT(0x53685a));
+    bl.position.set(0.02,L-0.04,-0.018); g.add(bl);
+    g.add(wbind(L-0.19,0.036));
+    return {mesh:g, grip:0.29};
+  },
+  hammer_bone(){                             // 뼈 해머 — 관절 뼈를 통째로
+    const g=new THREE.Group(), L=0.95;
+    g.add(haft(L,0.030,0.034));
+    const head=new THREE.Mesh(new THREE.CylinderGeometry(0.085,0.085,0.34,8),
+      WMAT(0xd6cfb4));
+    head.rotation.x=Math.PI/2; head.position.y=L-0.02; g.add(head);
+    for(const sz of [-1,1]){                 // 관절 끝이 불룩하다
+      const k=new THREE.Mesh(new THREE.SphereGeometry(0.098,8,6),WMAT(0xc7bfa2));
+      k.position.set(0,L-0.02,sz*0.17); k.scale.set(1,0.9,0.8); g.add(k);
+    }
+    const lash=new THREE.Mesh(new THREE.CylinderGeometry(0.040,0.040,0.10,8),
+      WMAT(0x8a6a4a));
+    lash.position.y=L-0.19; g.add(lash);     // 가죽으로 조여 묶은 자리
+    g.add(wbind(L-0.28,0.040));
+    return {mesh:g, grip:0.32};
+  },
+  rifle_bolt(){                              // 볼트 소총 — 나무 개머리 · 강철 총열
+    const g=new THREE.Group(), L=1.22;
+    const wood=WMAT(0x6b5442), steel=WMAT(0x6e747a), dark=WMAT(0x3a3d40);
+    // 개머리판에서 총열까지 하나로 이어지는 몸통
+    const stock=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.46,0.115),wood);
+    stock.position.y=0.20; g.add(stock);
+    const butt=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.13,0.165),wood);
+    butt.position.set(0,0.02,0.015); g.add(butt);
+    const fore=new THREE.Mesh(new THREE.BoxGeometry(0.062,0.52,0.085),wood);
+    fore.position.y=0.72; g.add(fore);
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(0.019,0.021,L-0.28,10),steel);
+    barrel.position.y=0.42+(L-0.28)/2; g.add(barrel);
+    const recv=new THREE.Mesh(new THREE.BoxGeometry(0.062,0.20,0.075),steel);
+    recv.position.y=0.50; g.add(recv);
+    // 노리쇠 — 오른쪽으로 젖혀 나온 손잡이
+    const bolt=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.13,6),steel);
+    bolt.rotation.z=Math.PI/2; bolt.position.set(0.052,0.47,0.02); g.add(bolt);
+    const knob=new THREE.Mesh(new THREE.SphereGeometry(0.021,8,6),steel);
+    knob.position.set(0.115,0.47,0.02); g.add(knob);
+    // 탄창 · 방아쇠울
+    const mag=new THREE.Mesh(new THREE.BoxGeometry(0.052,0.10,0.055),dark);
+    mag.position.set(0,0.395,-0.005); g.add(mag);
+    const guard=new THREE.Mesh(new THREE.TorusGeometry(0.032,0.007,6,10,Math.PI),dark);
+    guard.rotation.y=Math.PI/2; guard.position.set(0,0.34,-0.012); g.add(guard);
+    // 가늠쇠 · 총구
+    const sight=new THREE.Mesh(new THREE.BoxGeometry(0.010,0.030,0.010),dark);
+    sight.position.y=L-0.04; g.add(sight);
+    const muzzle=new THREE.Mesh(new THREE.CylinderGeometry(0.024,0.024,0.035,10),dark);
+    muzzle.position.y=L-0.015; g.add(muzzle);
+    // 총구 화염 — 쏠 때만 보인다
+    const fl=new THREE.Mesh(new THREE.ConeGeometry(0.075,0.26,5),
+      new THREE.MeshBasicMaterial({color:0xffd07a}));
+    fl.position.y=L+0.11; fl.visible=false; fl.name='flash'; g.add(fl);
+    return {mesh:g, grip:0.36, muzzle:L+0.02};
+  },
+  hammer_iron(){                             // 철 해머 — 통짜 머리
+    const g=new THREE.Group(), L=0.98;
+    g.add(haft(L,0.030,0.034));
+    const head=new THREE.Mesh(new THREE.BoxGeometry(0.17,0.19,0.36),WMAT(0x8f959b));
+    head.position.y=L-0.02; g.add(head);
+    for(const sz of [-1,1]){                 // 때리는 면을 조금 밝게
+      const f=new THREE.Mesh(new THREE.BoxGeometry(0.175,0.195,0.02),WMAT(0xb4b9be));
+      f.position.set(0,L-0.02,sz*0.185); g.add(f);
+    }
+    g.add(wbind(L-0.20,0.040));
+    return {mesh:g, grip:0.34};
+  }
+};
+/* 지금 든 무기에 맞춰 손의 것을 갈아 끼운다.
+   mesh 를 -grip 만큼 내려 두므로 weaponFx 의 원점이 곧 손잡이다 —
+   아래 휘두르기의 회전은 전부 이 손잡이를 축으로 돈다. */
+function setWeaponFx(id){
+  if(weaponFxId===id) return;
+  weaponFxId=id;
+  if(weaponFx){ camera.remove(weaponFx); weaponFx=null; }
+  if(!id||!WEAPON_FX[id]) return;
+  const {mesh,grip,muzzle}=WEAPON_FX[id]();
+  mesh.position.y=-grip;
+  weaponFx=new THREE.Group();
+  weaponFx.add(mesh);
+  weaponFx.userData.muzzle=(muzzle||0)-grip;      // 총구까지의 국소 높이
+  weaponFx.userData.flash=mesh.getObjectByName('flash')||null;
+  weaponFx.rotation.set(-Math.PI/2+0.20,0,0.12);
+  weaponFx.position.copy(WEAPON_HOME);
+  camera.add(weaponFx);
+}
+
+/* 휘두르는 자세 — 손은 거의 제자리에 두고 날만 손잡이를 축으로 크게 돈다.
+   p 는 0→1 진행도. 창은 찌르고, 검·도끼는 베고, 해머는 내리친다. */
+const WRX=-Math.PI/2+0.20, WRZ=0.12;         // 쉴 때의 자세
+const wlerp=(a,b,t)=>a+(b-a)*t;
+const wease=t=>t*t*(3-2*t);
+const wIn=t=>t*t*t;
+const WPOSE={rx:0,ry:0,rz:0,px:0,py:0,pz:0};
+function swingPose(style,p){
+  const o=WPOSE;
+  o.rx=WRX; o.ry=0; o.rz=WRZ; o.px=0; o.py=0; o.pz=0;
+  if(p<=0||p>=1) return o;
+  if(style==='shot'){                        // 반동 — 뒤로 차고 총구가 들렸다 내려온다
+    const k=p<0.22 ? p/0.22 : 1-(p-0.22)/0.78;
+    o.rx=WRX+0.30*k; o.pz=0.14*k; o.py=0.03*k;
+    return o;
+  }
+  if(style==='thrust'){                      // 찌르기 — 손이 앞으로 나간다
+    const k=Math.sin(p*Math.PI);
+    o.pz=-0.55*k; o.px=-0.10*k; o.rx=WRX-0.10*k;
+    return o;
+  }
+  if(style==='smash'){                       // 내리치기 — 머리 위로 들었다 내린다
+    if(p<0.34){ const k=wease(p/0.34);
+      o.rx=wlerp(WRX,WRX-1.15,k); o.rz=wlerp(WRZ,0.30,k); o.py=0.16*k;
+    }else if(p<0.56){ const k=wIn((p-0.34)/0.22);
+      o.rx=wlerp(WRX-1.15,WRX+1.30,k); o.rz=wlerp(0.30,0.02,k);
+      o.py=wlerp(0.16,-0.16,k); o.pz=-0.22*k;
+    }else{ const k=wease((p-0.56)/0.44);
+      o.rx=wlerp(WRX+1.30,WRX,k); o.rz=wlerp(0.02,WRZ,k);
+      o.py=wlerp(-0.16,0,k); o.pz=wlerp(-0.22,0,k);
+    }
+    return o;
+  }
+  // 베기 — 오른쪽 위로 치켜들었다가 왼쪽 아래로 그어 내린다
+  if(p<0.30){ const k=wease(p/0.30);
+    o.rx=wlerp(WRX,WRX-0.55,k); o.ry=wlerp(0,0.50,k); o.rz=wlerp(WRZ,1.20,k);
+    o.px=0.10*k; o.py=0.10*k;
+  }else if(p<0.56){ const k=wIn((p-0.30)/0.26);
+    o.rx=wlerp(WRX-0.55,WRX+0.70,k); o.ry=wlerp(0.50,-0.60,k);
+    o.rz=wlerp(1.20,-1.35,k);
+    o.px=wlerp(0.10,-0.22,k); o.py=wlerp(0.10,-0.08,k); o.pz=-0.16*k;
+  }else{ const k=wease((p-0.56)/0.44);
+    o.rx=wlerp(WRX+0.70,WRX,k); o.ry=wlerp(-0.60,0,k); o.rz=wlerp(-1.35,WRZ,k);
+    o.px=wlerp(-0.22,0,k); o.py=wlerp(-0.08,0,k); o.pz=wlerp(-0.16,0,k);
+  }
+  return o;
+}
+function initWeaponFx(){ setWeaponFx(null); }
 const equippedWeapon=()=>{
   const e=equippedTool();
   return (e && ITEMS[e.id].tool.weapon) ? e : null;
 };
-function attack(){
-  const w=equippedWeapon();
-  if(!w || ATK.cd>0 || PL.stam<6) return;
+/* ─ 총 ────────────────────────────────────────────────────────────
+   근접과 달리 눈에서 뻗은 선으로 맞힌다. 사거리 50 m 안에서 그 선에 걸리는
+   개체 중 가장 가까운 것이 맞는다. 탄창이 비면 재장전해야 다시 쏜다. */
+const RELOAD={t:0, of:null};
+let tracer=null, tracerT=0;
+function initTracer(){
+  tracer=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1,5),
+    new THREE.MeshBasicMaterial({color:0xffe6a8,transparent:true,opacity:0}));
+  tracer.visible=false; scene.add(tracer);
+}
+function showTracer(a,b){
+  if(!tracer) return;
+  const d=new THREE.Vector3().subVectors(b,a), len=d.length();
+  tracer.position.copy(a).addScaledVector(d,0.5);
+  tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize());
+  tracer.scale.set(1,len,1);
+  tracer.visible=true; tracer.material.opacity=0.85; tracerT=0.09;
+}
+/* 눈에서 dir 로 뻗은 선에 걸리는 개체 — 가장 가까운 하나 */
+function rayCreature(o,dir,range){
+  let best=null, bt=range;
+  for(const c of CREATURES){
+    if(c.hp<=0) continue;
+    const r=(c.r||0.5)+0.35;
+    const ox=c.x-o.x, oy=(c.y||0)+1.0-o.y, oz=c.z-o.z;
+    const t=ox*dir.x+oy*dir.y+oz*dir.z;
+    if(t<0||t>bt) continue;
+    const px=ox-dir.x*t, py=oy-dir.y*t, pz=oz-dir.z*t;
+    if(px*px+py*py+pz*pz>r*r) continue;
+    bt=t; best=c;
+  }
+  return {c:best, t:bt};
+}
+const gunAmmo=()=>INV.slots.reduce((a,s)=>a+(s.id==='cartridge'?s.n:0),0);
+function startReload(w,W){
+  if(w.mag>=W.mag){ toast('탄창이 이미 찼다'); return false; }
+  if(gunAmmo()<=0){ toast(ITEMS[W.ammo].n+'이 없다'); return false; }
+  RELOAD.t=W.reload; RELOAD.of=w;
+  toast('재장전…');
+  return true;
+}
+function finishReload(){
+  const w=RELOAD.of; RELOAD.of=null; RELOAD.t=0;
+  if(!w||INV.slots.indexOf(w)<0) return;
   const W=ITEMS[w.id].tool;
-  ATK.cd=W.rate; ATK.swing=0.30;
-  PL.stam=clamp(PL.stam-9,0,100);
+  let need=W.mag-w.mag;
+  for(let i=INV.slots.length-1;i>=0&&need>0;i--){
+    const sl=INV.slots[i];
+    if(sl.id!==W.ammo) continue;
+    const take=Math.min(need,sl.n);
+    w.mag+=take; need-=take; invRemove(i,take);
+  }
+  toast('장전 '+w.mag+' / '+W.mag);
+  sfx('bind'); invDirty=true;
+}
+function updateReload(dt){
+  if(RELOAD.t<=0) return;
+  const w=RELOAD.of;
+  if(!w||INV.slots.indexOf(w)<0||EQUIP!==w){ RELOAD.t=0; RELOAD.of=null; return; }
+  RELOAD.t-=dt;
+  if(RELOAD.t<=0) finishReload();
+}
+function shoot(w,W){
+  if(RELOAD.t>0) return;
+  if(!w.mag){                                  // 빈 탄창 — 알아서 재장전에 들어간다
+    if(!startReload(w,W)) toast('철컥 — 비었다');
+    return;
+  }
+  ATK.cd=W.rate; ATK.swing=0.28; ATK.swingMax=0.28;
+  PL.stam=clamp(PL.stam-(W.stam||3),0,100);
+  w.mag--; w.dur-=1;
+  const o=new THREE.Vector3(), d=new THREE.Vector3();
+  camera.getWorldPosition(o); camera.getWorldDirection(d);
+  const hit=rayCreature(o,d,W.reach);
+  showTracer(o.clone().addScaledVector(d,0.6), o.clone().addScaledVector(d,hit.t));
+  if(weaponFx&&weaponFx.userData.flash){
+    weaponFx.userData.flash.visible=true; ATK.flash=0.05;
+  }
+  sfx('thrust');
+  if(hit.c){
+    hit.c.hp-=W.dmg;
+    /* 총에 맞은 개체는 인식 반경 밖이라도 쏜 쪽을 알아챈다.
+       개체 AI 는 c.alerted 가 서면 거리와 무관하게 사람을 쫓으면 된다. */
+    hit.c.alerted=true;
+    toast(hit.c.hp<=0?'쓰러뜨렸다':'명중 '+Math.round(hit.t)+' m');
+  }else toast('빗나갔다');
+  if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
+  invDirty=true;
+}
+
+/* ── 그물질 ─────────────────────────────────────────────────────────────
+   무릎 위(0.6 m)까지 잠기는 물에 서서 던진다. 그물코가 촘촘할수록 많이 건지고,
+   던질 때마다 그물이 조금 상한다. 같은 자리에서 계속 건질 수는 없다 —
+   물고기가 흩어져 잠시 뜸해진다. */
+const NET={cd:0, spot:null, spent:0};
+function castNet(w,T){
+  if(NET.cd>0){ toast('물고기가 흩어졌다 — '+NET.cd.toFixed(1)+'초'); return; }
+  if(!(PL.depth>0.6)){ toast('무릎 위까지 잠기는 물에 들어가야 한다'); return; }
+  if(PL.stam<T.stam){ toast('기력이 없다'); return; }
+  PL.stam=clamp(PL.stam-T.stam,0,100);
+  NET.cd=3.5;
+  ATK.cd=1.2; ATK.swing=0.45; ATK.swingMax=0.45;
+  sfx('bind');
+  // 같은 자리에서 자꾸 던지면 덜 걸린다
+  const here=Math.round(PL.pos.x/6)+','+Math.round(PL.pos.z/6);
+  if(NET.spot!==here){ NET.spot=here; NET.spent=0; }
+  const tired=Math.max(0.25,1-NET.spent*0.18);
+  const [lo,hi]=T.catch;
+  let got=Math.round((lo+Math.random()*(hi-lo))*tired);
+  if(Math.random()<0.12*(1-tired)) got=0;            // 자꾸 던지면 헛탕도 난다
+  NET.spent++;
+  w.dur-=1;
+  if(w.dur<=0){ toast(ITEMS[w.id].n+' 찢어졌다'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
+  if(got<=0){ toast('그물이 비었다'); return; }
+  let added=0;
+  for(let i=0;i<got;i++) if(invAdd('fish',1)) added++;
+  toast(added?('물고기 '+added+'마리'):'무거워서 더 못 든다');
+  invDirty=true;
+}
+
+function attack(){
+  /* 그물은 무기가 아니라서 equippedWeapon() 이 걸러낸다 — 손에 든 것을 먼저 본다 */
+  const hand=equippedTool(), HT=hand&&ITEMS[hand.id].tool;
+  if(HT&&HT.net){ if(ATK.cd<=0) castNet(hand,HT); return; }
+  const w=equippedWeapon();
+  const W=w&&ITEMS[w.id].tool;
+  if(!w || ATK.cd>0) return;
+  if(PL.stam<(W.stam||9)) return;
+  if(W.gun){ shoot(w,W); return; }
+  ATK.cd=W.rate;
+  ATK.swing=Math.min(0.30,W.rate*0.55);      // 빠른 무기는 모션도 짧아야 겹치지 않는다
+  ATK.swingMax=ATK.swing;
+  PL.stam=clamp(PL.stam-(W.stam||9),0,100);
 
   // 시선 방향 원뿔 판정 — 사거리 안, 정면 40° 이내
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
@@ -3646,27 +5461,49 @@ function attack(){
   }
   if(hit){
     hit.hp-=W.dmg;
+    /* 해머는 맞은 것을 잠깐 멈춰 세운다. c.stun 은 '굳어 있는 남은 시간' 하나로,
+       개체의 경직도 여기에 넣는다 — 둘이 같은 시계를 쓰고 서로 더해진다.
+       개체 AI 는 c.stun>0 이면 움직이지도 모션을 진행하지도 않으면 된다. */
+    if(W.stun) hit.stun=(hit.stun||0)+W.stun;
     w.dur-=1;
     if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
-    toast(hit.hp<=0?'쓰러뜨렸다':'명중');
+    toast(hit.hp<=0?'쓰러뜨렸다':(W.stun?'명중 — 기절':'명중'));
     sfx('thrust');
   }else{ toast('허공을 갈랐다'); sfx('thrust'); }
   invDirty=true;
 }
+/* 휘두르는 결 — 창은 찌르고, 검·도끼는 베고, 해머는 내리친다 */
 function updateWeapon(dt){
   if(ATK.cd>0) ATK.cd=Math.max(0,ATK.cd-dt);
-  const w=equippedWeapon();
-  spearFx.visible=!!w;
-  if(!w) return;
-  if(ATK.swing>0){
-    ATK.swing-=dt;
-    const k=Math.sin((1-ATK.swing/0.30)*Math.PI);   // 앞으로 찔렀다 되돌아온다
-    spearFx.position.z=SPEAR_HOME.z-k*0.55;
-    spearFx.position.x=SPEAR_HOME.x-k*0.10;
-  }else{
-    spearFx.position.z+=(SPEAR_HOME.z-spearFx.position.z)*clamp(12*dt,0,1);
-    spearFx.position.x+=(SPEAR_HOME.x-spearFx.position.x)*clamp(12*dt,0,1);
+  if(NET.cd>0) NET.cd=Math.max(0,NET.cd-dt);
+  updateReload(dt);
+  if(ATK.flash>0){
+    ATK.flash-=dt;
+    if(ATK.flash<=0 && weaponFx && weaponFx.userData.flash)
+      weaponFx.userData.flash.visible=false;
   }
+  if(tracerT>0){
+    tracerT-=dt;
+    tracer.material.opacity=Math.max(0,tracerT/0.09)*0.85;
+    if(tracerT<=0) tracer.visible=false;
+  }
+  // 맞은 개체의 기절도 여기서 푼다
+  for(const c of CREATURES) if(c.stun>0) c.stun=Math.max(0,c.stun-dt);
+  const w=equippedWeapon();
+  setWeaponFx(w?w.id:null);
+  if(!weaponFx) return;
+  const W=ITEMS[w.id].tool;
+  const dur=ATK.swingMax||0.30;
+  const p=ATK.swing>0 ? 1-ATK.swing/dur : 0;
+  if(ATK.swing>0) ATK.swing=Math.max(0,ATK.swing-dt);
+  const H=WEAPON_HOME, o=swingPose(W.swing,p);
+  if(RELOAD.t>0){                              // 재장전 — 총을 내리고 노리쇠를 젖힌다
+    const R=W.reload||1;
+    const k=Math.sin(clamp(1-RELOAD.t/R,0,1)*Math.PI);
+    o.rx+=0.55*k; o.py-=0.20*k; o.rz+=0.35*k;
+  }
+  weaponFx.position.set(H.x+o.px, H.y+o.py, H.z+o.pz);
+  weaponFx.rotation.set(o.rx,o.ry,o.rz);
 }
 
 /* ============================================================================
@@ -3677,23 +5514,26 @@ function updateWeapon(dt){
    깔려 있으면 강한 것이 설 자리가 없다 — 머릿수와 질이 하나의 저울에 얹힌다.
 
    · 1일차는 0. 표류 첫날은 아무것도 나오지 않는다.
-   · 예산은 5·(6/5)^(d-2). 섬이 768 m 나 되어 예산이 얕으면 하루 종일 걸어도
-     아무것도 못 만난다 — 그래서 2일차를 5로 잡았다.
-   · 38일(3544)에서 멎는다. 가장 무거운 몹이 500이니 그쯤은 되어야 몇 마리가
+   · 예산은 15·(6/5)^(d-2). 섬이 1920 m 나 되어 예산이 얕으면 하루 종일 걸어도
+     아무것도 못 만난다 — 그래서 2일차를 15로 잡았다.
+   · 38일(10632)에서 멎는다. 가장 무거운 몹이 500이니 그쯤이면 수십 마리가
      같이 설 자리가 나온다.
    ========================================================================== */
 const START_HOUR=8.5;                        // 표류 첫날 눈을 뜬 시각
 const dayNo=()=>1+Math.floor((gameHours+START_HOUR)/24);
 /* 날짜별 파워레벨 예산 — 첨자가 곧 날짜다(0번은 자리 채움).
-   2일차부터 round(5 · (6/5)^(d-2)) — 나흘에 갑절꼴로 불어난다. */
+   2일차부터 round(15 · (6/5)^(d-2)) — 나흘에 갑절꼴로 불어난다.
+   밑값 5 에서 15 로 올렸다(3배). 섬이 2.5배로 넓어져 예전 예산으로는
+   하루 종일 걸어도 아무것도 못 만난다. */
+const POWER_BASE=15;
 const DAY_POWER=[0,
-    0,   5,   6,   7,   9,  10,  12,  15,  18,  21,   //  1 ~ 10일
-   26,  31,  37,  45,  53,  64,  77,  92, 111, 133,   // 11 ~ 20일
-  160, 192, 230, 276, 331, 397, 477, 572, 687, 824];  // 21 ~ 30일
+    0,  15,  18,  22,  26,  31,  37,  45,  54,  64,   //  1 ~ 10일
+   77,  93, 111, 134, 160, 193, 231, 277, 333, 399,   // 11 ~ 20일
+  479, 575, 690, 828, 994,1192,1431,1717,2061,2473];  // 21 ~ 30일
 const POWER_LAST=38;                         // 예산이 자라는 마지막 날
-const POWER_CAP=Math.round(5*Math.pow(6/5,POWER_LAST-2));   // = 3544
+const POWER_CAP=Math.round(POWER_BASE*Math.pow(6/5,POWER_LAST-2));   // = 10632
 const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
-       : Math.min(POWER_CAP, Math.round(5*Math.pow(6/5,d-2)));
+       : Math.min(POWER_CAP, Math.round(POWER_BASE*Math.pow(6/5,d-2)));
 
 /* 몹 명세
    ----------------------------------------------------------------------------
@@ -3710,16 +5550,23 @@ const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
    가중치는 가고일 25 대 북극곰 40 으로 곰이 높은데, 예산이 바닥날 무렵엔 값싼
    가고일만 들어갈 수 있어 마지막 자리를 가고일이 쓸어가기 때문이다. 그만큼을
    곰 쪽에 얹어야 실제 마릿수가 같아진다 (12일 실측 3.16 대 3.12). */
+/* drop — 한 마리를 잡으면 나오는 것. 그 재료로 만드는 무기 두 자루 분이 기준이다
+   (키틴 검 3 · 키틴 도끼 3 → 키틴 6 / 뼈 창 3 · 뼈 해머 4 → 뼈 8 에 가죽 3). */
 const MOBS=[
   //  id            이름              power first peak rise fall
-  {id:'gargoyle',  n:'곤충형 가고일', power:   1, first: 2, peak: 4, rise:2, fall: 4},
-  {id:'bear',      n:'북극곰',        power:   3, first: 2, peak:16, rise:3, fall: 8},
+  {id:'gargoyle',  n:'곤충형 가고일', power:   1, first: 2, peak: 4, rise:2, fall: 4,
+   drop:[{id:'chitin',n:6}]},
+  {id:'bear',      n:'북극곰',        power:   3, first: 2, peak:16, rise:3, fall: 8,
+   drop:[{id:'bone',n:8},{id:'hide',n:3},{id:'meat_bear',n:5}]},
   {id:'saltcrab',  n:'소금게',        power:   4, first: 3, peak:18, rise:3, fall: 6},
-  {id:'mudangler', n:'갯벌 아귀',     power:  10, first: 6, peak:21, rise:3, fall: 6},
+  /* 모방 거미 — 먹은 것의 모습을 흉내 낸다. 멀티플레이가 붙으면 시신이나 산 사람을
+     삼켜 그 사람으로 변신한다(계획). 지금은 혼자 하는 게임이라 변신할 대상이 없다. */
+  {id:'mimicspider', n:'모방 거미',   power:  10, first: 6, peak:21, rise:3, fall: 6,
+   drop:[{id:'spider_silk',n:6},{id:'mimic_flesh',n:2}]},
   {id:'sulfnewt',  n:'유황 도롱뇽',   power:  20, first:10, peak:24, rise:3, fall: 6},
   {id:'stonewing', n:'석화 가고일',   power:  35, first:13, peak:27, rise:3, fall: 6},
   {id:'stormwyrm', n:'번개비늘 와이엄',power:  60, first:16, peak:29, rise:3, fall: 6},
-  {id:'mossgiant', n:'이끼 거인',     power: 100, first:19, peak:31, rise:3, fall: 6},
+  {id:'lavagolem', n:'용암 골렘',     power: 100, first:19, peak:31, rise:3, fall: 6},
   {id:'ironfang',  n:'철니 늑대',     power: 130, first:20, peak:33, rise:3, fall: 6},
   {id:'deeparm',   n:'심해 촉수',     power: 200, first:23, peak:35, rise:3, fall: 8},
   {id:'plutonspawn',n:'관입체의 것',  power: 500, first:28, peak:38, rise:3, fall:60}
@@ -3751,21 +5598,73 @@ function rollSpawns(d,rnd){
 /* ============================================================================
    13) 1인칭 플레이어
    ========================================================================== */
+/* 배고픔이 줄어드는 빠르기(초당). 실시간 1분이 게임 1시간이므로 하루는 24분.
+   그냥 걸어 다니면 하루 반쯤에 바닥난다 — 하루에 한 번은 먹어야 한다. */
+const FOOD_DRAIN=0.035;
+/* 목마름은 배고픔보다 두 배쯤 빨리 온다 — 물가를 끼고 도는 것이 탐사 반경을 정한다.
+   가만히 서 있어도 가득 찬 목이 17분(게임 17시간)이면 바닥난다. */
+const WATER_DRAIN=0.072;
+/* 체력 — 아직 몹이 되받아치지 않으므로, 지금 이 섬에서 사람을 죽일 수 있는 것은
+   높이 · 물 · 굶주림 셋뿐이다. 먹고 쉬면 더디게 아문다. */
+const HPMAX=100;
+const HP_FALL_V=17,  HP_FALL_K=6;    // 이보다 빨리 떨어지면 그 초과분만큼 다친다
+                                     // 한 층 2.4 m — 세 층(7.2 m)에서 뛰어내려도 거의 안 다친다
+const HP_DROWN=14, HP_STARVE=0.8, HP_THIRST=1.2, HP_REGEN=0.7;   // 초당
 const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, JUMP=7.6,
       EYE=1.66, EYE_C=0.98, PRAD=0.42, MAXSLOPE=1.15,   // 49° 넘는 사면은 오르지 못함
       STEPUP=0.55;                                      // 이 높이 이하 턱은 그냥 올라선다
 const PL={pos:new THREE.Vector3(),vel:new THREE.Vector3(),yaw:0,pitch:0,
   grounded:false,crouch:false,run:false,swim:false,wade:0,
-  stam:100,oxy:100,light:false,bob:0,dist:0,eye:EYE};
+  hp:100,stam:100,oxy:100,food:100,water:100,ill:0,light:false,bob:0,dist:0,eye:EYE};
 const keys={};
+/* 뚫고 내려가기 — 이 시간 동안에는 DROP.y 아래의 지은 바닥만 밟는다.
+   Ctrl+Space 로 지붕을 뚫고 내려올 때 쓴다. */
+const DROP={t:0, y:0};
 let flyMode=false, paused=true;
 const fly={r:520,th:0.8,ph:0.95,tx:0,ty:0,tz:0};
 
+/* 다치기 — 갑옷이 조금 받아 준다. 아레나와 같은 식으로 최대 72%까지 덜어낸다.
+   숨이 막히고 굶주리는 것은 갑옷이 막아 주지 못한다. */
+let hurtFlash=0, lastHurtMsg=0;
+function hurtPL(dmg,why,armored){
+  if(PL.dead||dmg<=0) return;
+  if(armored) dmg*=1-clamp(armorTotal()/24,0,0.72);
+  PL.hp-=dmg;
+  hurtFlash=Math.min(1,hurtFlash+Math.min(0.9,dmg/30));
+  if(why && dmg>=1 && performance.now()-lastHurtMsg>900){
+    lastHurtMsg=performance.now(); toast(why+' — 체력 '+Math.max(0,Math.round(PL.hp)));
+  }
+  if(PL.hp<=0) diePL(why||'쓰러졌다');
+}
+function diePL(why){
+  if(PL.dead) return;
+  PL.hp=0; PL.dead=true; paused=true;
+  try{ if(document.pointerLockElement===cv) document.exitPointerLock(); }catch(e){}
+  const ov=document.getElementById('ov');
+  ov.querySelector('h1').textContent='쓰러졌다';
+  ov.querySelector('.s').textContent=why+'. 눈을 떠 보니 표류물 곁이다 — '
+    +'가진 것은 그대로지만 배는 절반만 차 있다.';
+  document.getElementById('bStart').textContent='깨어나기';
+  ov.style.display='flex';
+}
+/* 깨어나기 — 짐은 그대로 두고 표류물 곁으로 돌려보낸다. 죽음이 가벼우면
+   높이도 물도 무섭지 않으니, 배를 절반으로 깎아 대가를 남긴다. */
+function revivePL(){
+  const a=Math.random()*6.28;
+  PL.pos.set(podPos.x+Math.cos(a)*3, podPos.y+1, podPos.z+Math.sin(a)*3);
+  PL.pos.y=Math.max(0.2,heightAt(PL.pos.x,PL.pos.z))+0.2;
+  PL.vel.set(0,0,0); PL.camY=undefined;
+  PL.hp=HPMAX; PL.stam=60; PL.oxy=100; PL.ill=0; PL.water=Math.min(PL.water,50);
+  PL.food=Math.min(PL.food,50);
+  PL.dead=false; hurtFlash=0;
+  toast('깨어났다');
+}
 function spawnPlayer(){
   const a=Math.random()*6.28;
   PL.pos.set(podPos.x+Math.cos(a)*3, podPos.y+1, podPos.z+Math.sin(a)*3);
   PL.pos.y=Math.max(0.2,heightAt(PL.pos.x,PL.pos.z))+0.2;
-  PL.vel.set(0,0,0); PL.stam=100; PL.oxy=100;
+  PL.vel.set(0,0,0); PL.hp=HPMAX; PL.stam=100; PL.oxy=100; PL.food=100; PL.water=100; PL.ill=0;
+  PL.dead=false; hurtFlash=0;
   PL.yaw=Math.atan2(podPos.x-PL.pos.x, podPos.z-PL.pos.z)+Math.PI;
   PL.pitch=-0.05;
 }
@@ -3777,28 +5676,35 @@ function slopeAt(wx,wz){
   const gx=clamp(Math.round(wx/CELL+N/2),0,N-1), gz=clamp(Math.round(wz/CELL+N/2),0,N-1);
   return F.slope[IDX(gx,gz)];
 }
+/* fromH 는 반드시 '지금 발이 딛고 선 높이'여야 한다.
+   예전에는 z 축만 지형 높이(heightAt)를 넘겨서, 토대·지붕·경사면 위에서는
+   턱 높이를 땅바닥부터 재고 있었다. 경사 지붕 초입에서 0.55 m 를 넘는 순간
+   앞으로 못 가고 걸리던 것이 이 때문이다.
+   공중에 뜬 동안에는 발 높이(p.y)를 기준으로 봐서, 뛰어서 턱을 넘을 수 있다. */
 function walkable(x,z,fromH){
   if(Math.abs(x)>HALF-6||Math.abs(z)>HALF-6) return false;
-  const rise=heightAt(x,z)-fromH;
+  const rise=floorAt(x,z,fromH)-fromH;         // 토대·지붕 윗면도 바닥으로 친다
   if(rise<=0.02) return true;                 // 평지·내리막은 항상 통과
   if(rise>STEPUP) return false;               // 한 번에 오르기엔 너무 높은 턱
   return slopeAt(x,z)<=MAXSLOPE;              // 지속적인 급사면만 막는다
 }
 
 function updatePlayer(dt){
+  if(PL.dead) return;                              // 쓰러져 있는 동안에는 아무것도 안 한다
   const p=PL.pos;
   const fwd=(keys.KeyW?1:0)-(keys.KeyS?1:0);
   const str=(keys.KeyD?1:0)-(keys.KeyA?1:0);
   PL.crouch=!!(keys.ControlLeft||keys.KeyC)&&!PL.swim;
-  PL.run=!!keys.ShiftLeft && !PL.crouch && PL.stam>1 && fwd>0;
+  PL.run=!!keys.ShiftLeft && !PL.crouch && PL.stam>1 && fwd>0 && PL.food>0 && PL.water>0;
 
-  const gy=heightAt(p.x,p.z);
+  const gy=floorAt(p.x,p.z,p.y);
   // 바다는 해수면 0, 하천은 하도별 수면 표고를 쓴다
   const sm=sampleAt(p.x,p.z);
   const wl=(sm.river&&sm.elev>0)?waterLevelAt(p.x,p.z):0;
   const depth=Math.max(0,wl-gy);          // 수심
   const sub=Math.max(0,wl-p.y);           // 플레이어 발이 잠긴 깊이
   PL.swim = depth>1.7 && sub>0.6;
+  PL.depth = depth;                       // 그물질 판정에 쓴다
   PL.wade = clamp(depth/1.7,0,1);
 
   // 하중 페널티 — 만재에서 속도 55%, 80% 이상이면 달릴 수 없다
@@ -3823,29 +5729,64 @@ function updatePlayer(dt){
     PL.oxy=clamp(PL.oxy + (p.y<wl-1.2?-9*dt:14*dt),0,100);
   }else{
     PL.vel.y+=GRAV*dt;
-    if(keys.Space&&PL.grounded){ PL.vel.y=JUMP; PL.grounded=false; }
+    // 지붕 위에서 Ctrl(앉기) + Space → 그 자리에서 아래로 떨어진다.
+    // 가장자리까지 걸어갈 자리가 없는 좁은 지붕에서도 내려올 수 있게 하는 길이다.
+    // 보통 점프보다 먼저 본다 — 안 그러면 점프가 먼저 걸려 위로 뛴다.
+    if(keys.Space&&keys.ControlLeft&&PL.grounded&&p.y>heightAt(p.x,p.z)+0.9){
+      DROP.t=0.45; DROP.y=p.y; PL.grounded=false; PL.vel.y=-1.2;
+    }
+    else if(keys.Space&&PL.grounded){ PL.vel.y=JUMP; PL.grounded=false; DROP.t=0; }
     PL.oxy=clamp(PL.oxy+18*dt,0,100);
   }
 
   // 축별로 나눠 이동시켜 급사면에서 미끄러지듯 막히게 한다
   const mx=PL.vel.x*dt, mz=PL.vel.z*dt;
-  if(walkable(p.x+mx,p.z,gy)) p.x+=mx; else PL.vel.x*=0.4;
-  if(walkable(p.x,p.z+mz,heightAt(p.x,p.z))) p.z+=mz; else PL.vel.z*=0.4;
+  // 두 축 모두 같은 기준을 쓴다. 떠 있는 동안에는 발 높이가 기준이라 뛰어 넘을 수 있다
+  const fh=PL.grounded?gy:Math.max(gy,p.y);
+  if(walkable(p.x+mx,p.z,fh)) p.x+=mx; else PL.vel.x*=0.4;
+  if(walkable(p.x,p.z+mz,fh)) p.z+=mz; else PL.vel.z*=0.4;
   resolveProps(p,PRAD);
   p.y+=PL.vel.y*dt;
 
-  const ng=heightAt(p.x,p.z);
+  if(DROP.t>0){ DROP.t-=dt; }
+  let ng=floorAt(p.x,p.z,p.y);                 // 지은 바닥이 있으면 그 위에 선다
+  if(DROP.t>0) ng=Math.min(ng, floorAt(p.x,p.z,DROP.y-1.0));   // 뚫고 내려가는 중
   if(p.y<=ng){
-    if(PL.vel.y<-13 && !PL.swim && depth<0.5) PL.stam=clamp(PL.stam-Math.abs(PL.vel.y+13)*4,0,100);
-    p.y=ng; PL.vel.y=0; PL.grounded=true;
+    if(PL.vel.y<-13 && !PL.swim && depth<0.5){
+      PL.stam=clamp(PL.stam-Math.abs(PL.vel.y+13)*4,0,100);
+      const v=-PL.vel.y;
+      if(v>HP_FALL_V) hurtPL((v-HP_FALL_V)*HP_FALL_K, '떨어졌다');
+    }
+    p.y=ng; PL.vel.y=0; PL.grounded=true; DROP.t=0;
   }else PL.grounded=false;
 
-  // 기력
+  /* 배고픔 — 가만히 있어도 줄고, 움직이고 일할수록 빨리 준다.
+     굶으면 기력 한도가 내려가고, 바닥나면 달리지 못하고 기력이 도로 빠진다. */
+  const work=(PL.run&&moving)?2.2:(moving?1.3:1)+(HARV.active?1.1:0);
+  PL.food=clamp(PL.food-FOOD_DRAIN*work*dt*(1+load*0.4),0,100);
+  /* 목마름 — 일할수록 빨리 마르고, 속병이 나면 더 빨리 마른다. */
+  PL.water=clamp(PL.water-WATER_DRAIN*work*dt*(PL.ill>0?1.5:1),0,100);
+  if(PL.ill>0) PL.ill=Math.max(0,PL.ill-dt);        // 날것을 먹고 앓는 동안
+
+  // 기력 — 굶으면 차오르는 한도가 내려간다
+  const cap=Math.min(PL.food<=0?45:(PL.food<30?60+PL.food*4/3:100),
+                     PL.water<=0?35:(PL.water<30?55+PL.water*1.5:100));
   const drain=1+load*1.1;                            // 짐이 무거울수록 빨리 지친다
   if(PL.run&&moving) PL.stam-=17*dt*drain;
   else if(PL.swim&&moving) PL.stam-=6*dt*drain;
-  else if(!HARV.active) PL.stam+=(PL.grounded?12:5)*dt*(1-load*0.5);
-  PL.stam=clamp(PL.stam,0,100);
+  else if(!HARV.active) PL.stam+=(PL.grounded?12:5)*dt*(1-load*0.5)
+                                *(PL.food<=0?0:(PL.ill>0?0.45:1));
+  if(PL.food<=0) PL.stam-=3.5*dt;                    // 굶으면 도로 빠진다
+  if(PL.water<=0) PL.stam-=5*dt;                     // 목이 마르면 더 빨리 빠진다
+  PL.stam=clamp(PL.stam,0,cap);
+
+  /* 체력 — 물에 잠겨 숨이 다하거나, 굶어 바닥나면 깎인다.
+     배가 웬만큼 차 있고 앓지 않으면 더디게 아문다. */
+  if(PL.oxy<=0)       hurtPL(HP_DROWN*dt,  '숨이 막힌다');
+  else if(PL.water<=0)hurtPL(HP_THIRST*dt, '목이 탄다');
+  else if(PL.food<=0) hurtPL(HP_STARVE*dt, '굶주린다');
+  else if(PL.food>35 && PL.water>25 && PL.ill<=0 && PL.hp<HPMAX)
+    PL.hp=Math.min(HPMAX, PL.hp+HP_REGEN*dt);
 
   // 헤드밥 + 발소리
   const hs=Math.hypot(PL.vel.x,PL.vel.z);
@@ -4017,7 +5958,7 @@ function harvestSfx(kind,field){
     case 'oak': case 'fir':   return 'branch';
     case 'grass': case 'reed':return 'grass';
     case 'flint': case 'pebble': return 'stone';
-    case 'clay':              return 'dig';
+    case 'clay': case 'sand':  return 'dig';
     case 'iron': case 'tin':  return 'gravel';
     case 'coal':              return 'brittle';
     case 'copper': case 'granite': return 'hardrock';
@@ -4048,6 +5989,7 @@ function footstep(){
    11) HUD
    ========================================================================== */
 let mapImg=null;
+document.getElementById('mSpan').textContent=WORLD+' m';
 function cacheMap(){
   const ctx=document.getElementById('map').getContext('2d');
   const img=ctx.createImageData(N,N), d=img.data, col=new THREE.Color();
@@ -4119,8 +6061,33 @@ function updateHUD(dt){
   document.getElementById('iAlt').textContent=(PL.swim?'수중 ':'')+Math.round(PL.pos.y)+' m';
   document.getElementById('iBio').textContent=BIOME_INFO[s.biome].n;
   document.getElementById('iFps').textContent=fps;
+  const hpF=document.getElementById('hpF'), hpT=document.getElementById('hpT');
+  if(hpF){
+    hpF.style.width=clamp(PL.hp,0,HPMAX)+'%';
+    hpF.style.background=PL.hp<25?'#c9453a':(PL.hp<55?'#d8724a':'#c96a6a');
+    hpT.textContent=Math.max(0,Math.round(PL.hp));
+  }
+  // 맞으면 화면 가장자리가 붉어진다
+  if(hurtFlash>0){
+    hurtFlash=Math.max(0,hurtFlash-dt*1.6);
+    const hv=document.getElementById('hurt');
+    if(hv){ hv.style.opacity=hurtFlash*0.55; hv.style.display=hurtFlash>0.01?'block':'none'; }
+  }
   document.getElementById('stF').style.width=PL.stam+'%';
   document.getElementById('stT').textContent=Math.round(PL.stam);
+  const fdF=document.getElementById('fdF'), fdT=document.getElementById('fdT');
+  if(fdF){
+    fdF.style.width=PL.food+'%';
+    // 배가 꺼질수록 붉어진다. 날것을 먹고 앓는 동안에는 따로 표시한다
+    fdF.style.background=PL.food<=0?'#c9453a':(PL.food<30?'#d8724a':'#c9a86a');
+    fdT.textContent=Math.round(PL.food)+(PL.ill>0?' · 탈':'');
+  }
+  const wtF=document.getElementById('wtF'), wtT=document.getElementById('wtT');
+  if(wtF){
+    wtF.style.width=PL.water+'%';
+    wtF.style.background=PL.water<=0?'#c9453a':(PL.water<30?'#d8724a':'#6f9ec9');
+    wtT.textContent=Math.round(PL.water);
+  }
   const ow=document.getElementById('oxWrap');
   ow.style.display=PL.oxy<99.5?'block':'none';
   document.getElementById('oxF').style.width=PL.oxy+'%';
@@ -4138,41 +6105,48 @@ function updateHUD(dt){
     toastT-=dt;
     look.style.display='block'; lb.style.display='none';
     lt.textContent=lt.dataset.toast||'';
+  }else if(HARV.fit){
+    const w=HARV.fit;
+    look.style.display='block'; lb.style.display='none';
+    lt.innerHTML='[E] '+BKIND_N[w.leaf.kind]+(w.leaf.open?' 닫기':' 열기');
   }else if(HARV.cont){
     const c=HARV.cont, e=equippedTool();
     const isTorch=e&&ITEMS[e.id].tool.torch;
     look.style.display='block'; lb.style.display='none';
     const head='[E] '+c.cname+' 열기';
     // 화덕은 E를 계속 누르면 불을 다루는 쪽으로 넘어간다
-    if(c.kind==='fire' && !c.lit && isTorch && e.lit && e.fuel>0.12 && contFuel(c)){
+    if(isHearth(c) && !c.lit && isTorch && e.lit && e.fuel>0.12 && contFuel(c)){
       lt.innerHTML=head+'<em>길게 누르면 횃불로 불 옮기기</em>';
       if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/1.5*100)+'%'; }
-    }else if(c.kind==='fire' && c.lit && isTorch && !e.lit && e.fuel>0){
+    }else if(isHearth(c) && c.lit && isTorch && !e.lit && e.fuel>0){
       lt.innerHTML=head+'<em>길게 누르면 횃불에 불 붙이기 · 연료 '+fmtFuel(e.fuel)+'</em>';
       if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/1.0*100)+'%'; }
-    }else if(c.kind==='fire' && !c.lit){
+    }else if(isHearth(c) && !c.lit){
       const canFire=e&&ITEMS[e.id].tool.fire;
+      const tin=needsTinder(e), dur=igniteDur(e);
       const hasTin=INV.slots.some(x=>x.id==='tinder');
       let why;
-      if(!contFuel(c))      why='안에 땔감을 넣어야 불이 붙는다';
-      else if(!canFire)     why='활비비나 불붙은 횃불이 필요하다';
-      else if(!hasTin)      why='부싯깃이 없다';
-      else if(IGNITE.t<=0)  why='길게 누르면 활비비로 비벼 불씨를 만든다';
-      else why=(IGNITE.t/IGNITE.dur<0.6)?'비비는 중 — 톱밥에 열이 오른다'
-                                        :'불씨를 부싯깃에 옮겨 불어넣는 중';
+      if(!contFuel(c))      why=(c.kind==='furnace')
+        ? '땔감을 넣어야 불이 붙는다 — 참숯은 환원제라 타지 않는다'
+        : '안에 땔감을 넣어야 불이 붙는다';
+      else if(!canFire)     why='활비비 · 긴 라이터 · 불붙은 횃불 중 하나가 필요하다';
+      else if(tin&&!hasTin) why='부싯깃이 없다';
+      else if(IGNITE.t<=0)  why=tin?'길게 누르면 활비비로 비벼 불씨를 만든다'
+                                   :'길게 누르면 라이터로 불을 붙인다';
+      else why=!tin?'불꽃을 떨어뜨리는 중'
+                   :(IGNITE.t/dur<0.6)?'비비는 중 — 톱밥에 열이 오른다'
+                                      :'불씨를 부싯깃에 옮겨 불어넣는 중';
       lt.innerHTML=head+'<em>'+why+'</em>';
-      if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/IGNITE.dur*100)+'%'; }
+      if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/dur*100)+'%'; }
     }else{
       lt.innerHTML=head+'<em>'+contStatus(c)+' · '
         +contWeight(c).toFixed(1)+' / '+c.cap+' kg</em>';
-      // 굽거나 녹는 중이면 진행률을 그대로 보여 준다
-      if(c.kind==='fire' && c.lit && fireJob(c)){
-        const R=FIRING[fireJob(c)];
-        lb.style.display='block';
-        lf.style.width=(clamp((c.cook?c.cook.t:0)/R.hours,0,1)*100)+'%';
-      }else if(c.kind==='furnace' && furnaceJob(c)){
-        lb.style.display='block';
-        lf.style.width=(clamp(c.t/furnaceJob(c).hours,0,1)*100)+'%';
+      /* 안에서 여럿이 함께 익으므로 막대는 가장 먼저 끝날 것을 보여 준다 */
+      if(c.lit){
+        const fr=(c.kind==='fire')
+          ? fireJobs(c).map(j=>clamp((c.cook&&c.cook[j]||0)/FIRING[j].hours,0,1))
+          : furnaceJobs(c).map(R=>clamp((c.jobs&&c.jobs[R.id]||0)/R.hours,0,1));
+        if(fr.length){ lb.style.display='block'; lf.style.width=(Math.max(...fr)*100)+'%'; }
       }
     }
   }else{
@@ -4205,6 +6179,8 @@ function updateHUD(dt){
       }else look.style.display='none';
     }
   }
+  if(quickDirty){ quickDirty=false; drawQuick(); }
+  document.getElementById('quick').style.display=uiOpen()?'none':'flex';
   // 장착 도구 표시
   const e=equippedTool(), tp=document.getElementById('tool');
   if(e){
@@ -4215,6 +6191,13 @@ function updateHUD(dt){
       const bar=document.getElementById('toolD');
       bar.style.width=(e.fuel/T.burn*100)+'%';
       bar.style.background=e.lit?'#e08a3a':'#5d7a71';
+    }else if(T.tool&&T.tool.gun){               // 총 — 내구 대신 탄창을 보여 준다
+      document.getElementById('toolN').textContent=T.n+'  '+(e.mag|0)+' / '+T.tool.mag
+        +(RELOAD.t>0?'  (재장전 '+RELOAD.t.toFixed(1)+'초)':'  [X] 재장전')
+        +'  · 남은 탄 '+gunAmmo();
+      const bar=document.getElementById('toolD');
+      bar.style.width=((e.mag|0)/T.tool.mag*100)+'%';
+      bar.style.background=RELOAD.t>0?'#8fb8d8':(e.mag?'#d8724a':'#5d5a52');
     }else{
       document.getElementById('toolN').textContent=T.n;
       const bar=document.getElementById('toolD');
@@ -4256,7 +6239,7 @@ function initThree(){
   amb=new THREE.AmbientLight(0x8fa4b4,0.5); scene.add(amb);
   hemi=new THREE.HemisphereLight(0x9db4c6,0x2c3128,0.35); scene.add(hemi);
   sun=new THREE.DirectionalLight(0xc9c6b4,0.9); scene.add(sun);
-  initTorchFx(); initWeaponFx();
+  initTorchFx(); initWeaponFx(); initTracer();
   flash=new THREE.SpotLight(0xfff0d6,0,55,0.55,0.5,1.4);
   flash.position.set(0.2,-0.1,0); flash.target.position.set(0,0,-1);
   camera.add(flash); camera.add(flash.target); scene.add(camera);
@@ -4303,6 +6286,8 @@ async function generateWorld(){
                                     invAdd('ring_platinum',1); // 표류 전부터 끼고 있던 반지
                                     HARV.near=null; HARV.t=0; REGROW.length=0;
                                     EQUIP=null; CRAFT.recipe=null; craftDirty=true;
+                                    QUICK.fill(null); quickDirty=true;
+                                    clearBuilds(); exitBuild();
                                     FIRES.forEach(f=>scene.remove(f.mesh)); FIRES.length=0;
                                     GRINDS.forEach(g=>scene.remove(g.mesh)); GRINDS.length=0;
                                     FURNACES.forEach(g=>scene.remove(g.mesh)); FURNACES.length=0;
@@ -4320,6 +6305,7 @@ async function generateWorld(){
   ovLoad.textContent='';
   document.getElementById('bStart').style.display='';
   document.getElementById('bStart').textContent='상륙';
+  offerLoadOnStart();                  // 저장된 것이 있으면 상륙 전에 한 번 물어본다
   }catch(e){
     showErr('생성',e);
     ovLoad.textContent='생성 실패 — 위 오류를 확인하세요';
@@ -4338,11 +6324,12 @@ function placeProps_(seed){ buildProps(); placePod(seed); }
    ========================================================================== */
 const SAVE_VER=1;
 /* 용기 속 슬롯은 소지품과 같은 모양으로 저장한다 */
-const saveSlots=a=>a.map(sl=>({id:sl.id,n:sl.n,dur:sl.dur,fuel:sl.fuel,lit:sl.lit}));
+const saveSlots=a=>a.map(sl=>({id:sl.id,n:sl.n,dur:sl.dur,fuel:sl.fuel,lit:sl.lit,mag:sl.mag}));
 const loadSlots=a=>(a||[]).filter(sl=>ITEMS[sl.id]).map(sl=>{
   const o={id:sl.id,n:sl.n};
   if(sl.dur!==undefined) o.dur=sl.dur;
   if(sl.fuel!==undefined){ o.fuel=sl.fuel; o.lit=!!sl.lit; }
+  if(sl.mag!==undefined) o.mag=sl.mag;
   return o;
 });
 
@@ -4364,18 +6351,27 @@ function snapshot(){
     P:Object.assign({},P),
     t:{hour:hourOfDay, gh:gameHours, ts:timeScale},
     pl:{x:PL.pos.x,y:PL.pos.y,z:PL.pos.z,yaw:PL.yaw,pitch:PL.pitch,
-        stam:PL.stam,oxy:PL.oxy,light:PL.light},
-    inv:INV.slots.map(sl=>({id:sl.id,n:sl.n,dur:sl.dur,fuel:sl.fuel,lit:sl.lit})),
+        hp:PL.hp,stam:PL.stam,oxy:PL.oxy,food:PL.food,water:PL.water,
+        ill:PL.ill,light:PL.light},
+    inv:saveSlots(INV.slots),
     sel:INV.sel, eq:EQUIP?INV.slots.indexOf(EQUIP):-1,
     wear:{body:WEAR.body?INV.slots.indexOf(WEAR.body):-1,
           armor:WEAR.armor?INV.slots.indexOf(WEAR.armor):-1,
           head:WEAR.head?INV.slots.indexOf(WEAR.head):-1,
           back:WEAR.back?INV.slots.indexOf(WEAR.back):-1},
+    quick:QUICK.map(sl=>sl?INV.slots.indexOf(sl):-1),
+    builds:{f:[...FOUNDS.values()].map(o=>[o.gx,o.gz,o.tier,+o.y.toFixed(2)]),
+            w:[...WALLS.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.tier,WALLV.indexOf(o.v||'wall'),
+               o.leaf?[o.leaf.kind,o.leaf.tier,o.leaf.open?1:0]:0]),
+            r:[...ROOFS.values()].map(o=>[o.gx,o.gz,o.L,o.tier]),
+            sl:[...SLOPES.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.tier]),
+            gb:[...GABLES.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.h,o.tier])},
     props:propDiff(),
     fires:FIRES.map(f=>({x:f.x,y:f.y,z:f.z,lit:f.lit,fuel:f.fuel,
-      cook:f.cook?{id:f.cook.id,t:f.cook.t}:null, slots:saveSlots(f.slots)})),
+      cook:Object.assign({},f.cook), slots:saveSlots(f.slots)})),
     grinds:GRINDS.map(g=>({x:g.x,y:g.y,z:g.z})),
-    furnaces:FURNACES.map(g=>({x:g.x,y:g.y,z:g.z,t:g.t,slots:saveSlots(g.slots)})),
+    furnaces:FURNACES.map(g=>({x:g.x,y:g.y,z:g.z,lit:g.lit,fuel:g.fuel,
+      jobs:Object.assign({},g.jobs), slots:saveSlots(g.slots)})),
     anvils:ANVILS.map(g=>({x:g.x,y:g.y,z:g.z})),
     stores:STORES.map(g=>({k:g.kind,x:g.x,y:g.y,z:g.z,slots:saveSlots(g.slots)}))
   };
@@ -4405,7 +6401,13 @@ async function restore(d){
     const nf=FIRES[FIRES.length-1];
     nf.lit=f.lit; nf.fuel=f.fuel;
     nf.slots=loadSlots(f.slots);
-    nf.cook=(f.cook&&FIRING[f.cook.id])?{id:f.cook.id,t:f.cook.t}:null;
+    /* 굽던 진척 — 지금은 {구울것: 시간} 꾸러미다.
+       한 가지씩만 굽던 옛 저장({id,t})도 그대로 받아 옮겨 준다. */
+    nf.cook={};
+    if(f.cook && typeof f.cook==='object'){
+      if(f.cook.id!==undefined){ if(FIRING[f.cook.id]) nf.cook[f.cook.id]=f.cook.t||0; }
+      else for(const k of Object.keys(f.cook)) if(FIRING[k]) nf.cook[k]=f.cook[k]||0;
+    }
     // 가마 방식으로 저장된 옛 파일 — 굽던 것과 다 구운 것을 화덕 안으로 옮겨 준다
     if(f.kiln){
       const K=f.kiln;
@@ -4415,12 +6417,28 @@ async function restore(d){
     }
     nf.flame.visible=f.lit; nf.light.visible=f.lit;
   }
+  clearBuilds();
+  if(d.builds){                                // 토대 → 벽 → 지붕 순서로 되살린다
+    for(const [gx,gz,tier,y] of d.builds.f||[]) placeFound(gx,gz,tier|0,y);
+    for(const [gx,gz,L,s,tier,v,lf] of d.builds.w||[]){
+      placeWall(gx,gz,L,s,tier|0,WALLV[v|0]);
+      if(lf) placeFit(gx,gz,L,s,lf[0],lf[1]|0,!!lf[2]);
+    }
+    for(const [gx,gz,L,tier] of d.builds.r||[]) placeRoof(gx,gz,L,tier|0);
+    for(const [gx,gz,L,s,tier] of d.builds.sl||[]) placeSlope(gx,gz,L,s,tier|0);
+    for(const [gx,gz,L,s,h,tier] of d.builds.gb||[]) placeGable(gx,gz,L,s,h,tier|0);
+  }
   for(const g of d.grinds||[]) placeGrindstoneAt(g.x,g.y,g.z);
   for(const g of d.anvils||[]) placeAnvilAt(g.x,g.y,g.z);
   for(const g of d.stores||[]) placeStoreAt(g.k,g.x,g.y,g.z,loadSlots(g.slots));
   for(const g of d.furnaces||[]){
     const fu=placeFurnaceAt(g.x,g.y,g.z);
-    fu.slots=loadSlots(g.slots); fu.t=g.t||0;
+    fu.slots=loadSlots(g.slots);
+    /* 불을 안 때던 판의 세이브 — 진척(t)만 있고 불이 없다. 꺼진 채로 연다.
+       땔감을 넣고 불을 붙이면 그때부터 돈다. */
+    fu.lit=!!g.lit; fu.fuel=g.fuel||0;
+    fu.jobs=(g.jobs&&typeof g.jobs==='object')?Object.assign({},g.jobs):{};
+    if(fu.lit){ fu.glow.visible=true; fu.light.visible=true; }
   }
   buildColliderGrid();
 
@@ -4440,6 +6458,9 @@ async function restore(d){
     const sl=slotAt(d.wear?d.wear[k]:-1);
     WEAR[k]=(sl&&ITEMS[sl.id].wear)?sl:null;   // 착용 못 하는 것이 칸에 앉으면 wornSum 이 터진다
   }
+  for(let i=0;i<QUICK.length;i++)             // 빠른 칸도 같은 규칙으로 옮긴다
+    QUICK[i]=slotAt(d.quick?d.quick[i]:-1);
+  quickDirty=true;
   refreshWear();
   invDirty=true; craftDirty=true;
 
@@ -4447,24 +6468,74 @@ async function restore(d){
   PL.pos.set(d.pl.x,d.pl.y,d.pl.z); PL.vel.set(0,0,0);
   PL.yaw=d.pl.yaw; PL.pitch=d.pl.pitch;
   PL.stam=d.pl.stam; PL.oxy=d.pl.oxy; PL.light=!!d.pl.light;
+  // 옛 저장 파일에는 배고픔이 없다 — 그때는 배부른 채로 시작한다
+  PL.food=(d.pl.food===undefined)?100:d.pl.food; PL.ill=d.pl.ill||0;
+  PL.water=(d.pl.water===undefined)?100:d.pl.water;   // 갈증이 없던 판에서 온 세이브
+  PL.hp=(d.pl.hp===undefined)?HPMAX:d.pl.hp; PL.dead=false; hurtFlash=0;
   PL.camY=undefined;
   toast('불러왔습니다 — '+d.at);
 }
 
+/* ── 예/아니오를 묻는 상자 ───────────────────────────────────────────────
+   불러오기는 지금 하던 판을 덮어쓴다. 되돌릴 수 없으므로 한 번 묻는다.
+   Y·Enter 가 예, N·Esc 가 아니오다. 상자가 떠 있는 동안에는 다른 키가 게임에
+   닿지 않도록 캡처 단계에서 가로챈다. */
+let askOpen=false, askYes=null;
+function ask(title,sub,onYes){
+  askOpen=true; askYes=onYes;
+  for(const k of Object.keys(keys)) keys[k]=false;   // 눌린 채로 멈추지 않게
+  document.getElementById('askT').textContent=title;
+  document.getElementById('askS').textContent=sub||'';
+  document.getElementById('ask').style.display='flex';
+  if(document.pointerLockElement===cv) document.exitPointerLock();
+}
+function askClose(yes){
+  if(!askOpen) return;
+  askOpen=false;
+  document.getElementById('ask').style.display='none';
+  const fn=askYes; askYes=null;
+  if(yes&&fn) fn();
+}
+window.addEventListener('keydown',e=>{
+  if(!askOpen) return;
+  e.stopPropagation(); e.preventDefault();
+  if(e.code==='KeyY'||e.code==='Enter'||e.code==='NumpadEnter') askClose(true);
+  else if(e.code==='KeyN'||e.code==='Escape') askClose(false);
+},true);
+
 /* 저장 슬롯 (브라우저 저장소). 파일 저장/열기는 어디서나 동작한다. */
 const SKEY='castaway.save1';
+const hasSave=()=>{ try{ return !!localStorage.getItem(SKEY); }catch(e){ return false; } };
 function saveLocal(){
   try{
     localStorage.setItem(SKEY,JSON.stringify(snapshot()));
     toast('저장했습니다');
   }catch(e){ showErr('저장',e); toast('저장 실패 — 파일로 저장을 쓰세요'); }
 }
-async function loadLocal(){
+async function loadLocal(){                      // 묻지 않고 바로 — 안쪽 일꾼
   try{
     const raw=localStorage.getItem(SKEY);
     if(!raw){ toast('저장된 기록이 없습니다'); return; }
     await restore(JSON.parse(raw));
   }catch(e){ showErr('불러오기',e); }
+}
+/* 사람이 부르는 쪽 — 한 번 묻고 나서 불러온다. */
+function askLoad(){
+  if(askOpen) return;
+  if(!hasSave()){ toast('저장된 기록이 없습니다'); return; }
+  ask('이전에 저장된 데이터를 불러오겠습니까?',
+      '지금 하던 것은 사라집니다 · Y 예 · N 아니오',
+      ()=>{ loadLocal(); });
+}
+/* 섬이 다 만들어진 뒤 한 번만 — 저장된 것이 있으면 먼저 물어본다.
+   아니오를 고르면 다시 묻지 않는다. 그때부터는 F9 이 불러오는 길이다. */
+let askedOnce=false;
+function offerLoadOnStart(){
+  if(askedOnce||!hasSave()) return;
+  askedOnce=true;
+  ask('이전에 저장된 데이터를 불러오겠습니까?',
+      '아니오를 고르면 새로 시작합니다 · 나중에 F9 으로 불러올 수 있습니다',
+      ()=>{ loadLocal(); });
 }
 function saveFile(){
   try{
@@ -4496,6 +6567,19 @@ function setTouchUI(on){
   if(on&&document.pointerLockElement) document.exitPointerLock();
 }
 addEventListener('keydown',e=>{
+  /* 예/아니오를 묻는 상자가 떠 있으면 게임은 아무 키도 받지 않는다.
+     상자 쪽 처리는 위에서 캡처로 끝냈다 — 여기서는 그냥 물러선다. */
+  if(askOpen) return;
+  /* 검색칸(이나 시드칸)에 글자를 치는 중이면 게임 키로 받지 않는다.
+     이게 없으면 '철'을 치는 동안 캐릭터가 걷고 창을 여닫는다. */
+  const el=document.activeElement;
+  if(el && (el.tagName==='INPUT'||el.tagName==='TEXTAREA')){
+    if(e.code==='Escape'){
+      if(el.id==='crfS'&&el.value){ el.value=''; craftQuery=''; craftDirty=true; }
+      el.blur();
+    }
+    return;
+  }
   keys[e.code]=true;
   if(e.code==='Space') e.preventDefault();
   if(e.code==='KeyF'){ PL.light=!PL.light; }
@@ -4512,7 +6596,11 @@ addEventListener('keydown',e=>{
     craftOpen=!craftOpen;
     document.getElementById('crf').style.display=craftOpen?'block':'none';
     if(craftOpen){ closeCfg(); invOpen=false;
-                   document.getElementById('inv').style.display='none'; }
+                   document.getElementById('inv').style.display='none';
+                   const q=document.getElementById('crfS');
+                   q.value=''; craftQuery='';        // 열 때마다 새로 찾는다
+                   setTimeout(()=>q.focus(),0); }
+    else document.getElementById('crfS').blur();
     craftDirty=true; syncLock();
   }
   if(e.code==='F3'){
@@ -4525,33 +6613,48 @@ addEventListener('keydown',e=>{
       +' day='+dayNo()+' power='+powerBudget(dayNo()));
   }
   if(e.code==='F5'){ e.preventDefault(); saveLocal(); }
-  if(e.code==='F9'){ e.preventDefault(); loadLocal(); }
+  if(e.code==='F9'){ e.preventDefault(); askLoad(); }
   if(e.code==='KeyB'){ toggleDex(); }
-  if(e.code==='KeyQ'&&INV.slots.length){
-    const sl=INV.slots[INV.sel], it=sl&&ITEMS[sl.id];
-    if(it&&it.tool){ EQUIP=(EQUIP===sl?null:sl); invDirty=true; }
-    else if(it&&it.wear){
-      const k=it.wear.slot;
-      if(WEAR[k]===sl){ WEAR[k]=null; toast(it.n+' 벗음'); }
-      else{ WEAR[k]=sl; toast(it.n+' 착용'); }
-      refreshWear(); invDirty=true;
-    }
-    else toast('장착하거나 입을 수 없는 물건이다');
+  if(e.code==='KeyQ'&&BUILD.on){               // 삼각 벽 방향 뒤집기 (아크의 좌/우 경사벽)
+    BUILD.hand=-BUILD.hand;
+    toast('삼각 벽 방향 — '+(BUILD.hand>0?'오른쪽':'왼쪽'));
+    bldSig=null; return;
   }
+  /* 장착·착용은 이제 소지품 창에서 끌어다 놓는다(I). 먹는 것만 F 로 남겨 둔다 —
+     허기질 때마다 창을 열게 하면 번거롭다. */
+  if(e.code==='KeyF'&&!BUILD.on) eatSlot(INV.slots[INV.sel]||null);
+  if(e.code==='KeyG'&&BUILD.on){ undoBuild(); return; }   // 짓기 중엔 걷어내기
   if(e.code==='KeyG'&&INV.slots.length){
     const s0=INV.slots[INV.sel];
     invRemove(INV.sel, e.shiftKey?s0.n:1);
     toast('버림');
   }
-  if(/^Digit[1-9]$/.test(e.code)){
-    const i=+e.code.slice(5)-1;
-    // 제작창이 열려 있으면 숫자키가 곧 레시피 번호다
-    if(craftOpen){ if(i<RECIPES.length) startCraft(RECIPES[i]); }
-    else if(i<INV.slots.length){ INV.sel=i; invDirty=true; }
+  if(/^Digit[0-9]$/.test(e.code)){
+    const i=(+e.code.slice(5)+9)%10;          // 0 은 열 번째 자리
+    // 소지품창이 열려 있으면 슬롯 번호, 아무것도 안 열려 있으면 빠른 칸이다.
+    // (제작은 레시피가 쉰 개가 넘어 번호로 못 닿는다 — 검색칸으로 찾는다)
+    if(invOpen||boxOpen||dexOpen){ if(i<INV.slots.length){ INV.sel=i; invDirty=true; } }
+    else if(BUILD.on){                           // 1~5 조각 · 6·7·8 등급
+      if(i<BKIND.length){ BUILD.kind=BKIND[i]; toast(BKIND_N[BUILD.kind]); bldSig=null; }
+      else if(i===BKIND.length){                 // 8 — 등급을 돌린다
+        BUILD.tier=(BUILD.tier+1)%BTIER.length;
+        toast(BTIER[BUILD.tier].n+' 등급'); bldSig=null;
+      }
+    }
+    else if(!craftOpen && i<QUICK.length) quickSwap(i);
   }
   if(e.code==='KeyV'){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
   if(e.code==='KeyT'){ timeScale = timeScale===1?60:(timeScale===60?300:1); }
+  if(e.code==='KeyR'&&BUILD.on){ buildRotate(1); return; }   // 짓기 중엔 방향 돌리기
   if(e.code==='KeyR'){ generateWorld(); }
+  if(e.code==='KeyZ'){                         // 짓기 모드
+    if(BUILD.on){ exitBuild(); toast('짓기 끝'); }
+    else enterBuild(null);
+  }
+  if(e.code==='KeyX'){                         // 재장전
+    const w=equippedWeapon(), W=w&&ITEMS[w.id].tool;
+    if(w&&W.gun&&RELOAD.t<=0) startReload(w,W);
+  }
   if(e.code==='Tab'){
     e.preventDefault();
     cfgOpen=!cfgOpen;
@@ -4569,7 +6672,9 @@ addEventListener('keyup',e=>{ keys[e.code]=false; if(e.code==='KeyE') releaseE()
 function releaseE(){
   const c=EK.tgt, held=EK.hold;
   EK.tgt=null; EK.hold=0;
-  if(c && held<E_TAP && !boxOpen && !paused && !busy) toggleBox(c);
+  if(!c || boxOpen || paused || busy) return;
+  if(c.kind==='fit'){ if(held<E_TAP+0.35) toggleFit(c.w); return; }
+  if(held<E_TAP) toggleBox(c);
 }
 // 알트탭 등으로 포커스를 잃으면 눌린 키가 그대로 남는다
 addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; });
@@ -4589,7 +6694,9 @@ addEventListener('mousemove',e=>{
 let dragF=false;
 cv.addEventListener('mousedown',e=>{
   if(flyMode){ dragF=true; return; }
-  if(e.button===0 && document.pointerLockElement===cv) attack();
+  if(e.button===0 && document.pointerLockElement===cv){
+    if(BUILD.on) doBuild(); else attack();
+  }
 });
 addEventListener('mouseup',()=>dragF=false);
 cv.addEventListener('wheel',e=>{ if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
@@ -4600,7 +6707,7 @@ document.addEventListener('pointerlockchange',()=>{
 /* 창(소지품·제작·사전·설정)이 열려 있으면 마우스를 풀어 줘야 클릭할 수 있다.
    포인터가 잠긴 채로는 커서가 없어 UI를 누를 방법이 없다. */
 let cfgOpen=false;
-const uiOpen=()=>invOpen||craftOpen||dexOpen||cfgOpen||boxOpen;
+const uiOpen=()=>invOpen||craftOpen||dexOpen||cfgOpen||boxOpen||askOpen;
 function syncLock(){
   if(!hasMouse||paused||flyMode) return;
   if(uiOpen()){
@@ -4619,6 +6726,7 @@ function pause(){
   ov.style.display='flex';
 }
 function start(){
+  if(PL.dead) revivePL();
   paused=false; initAudio();
   document.getElementById('ov').style.display='none';
   if(!flyMode&&hasMouse) cv.requestPointerLock();
@@ -4707,6 +6815,10 @@ document.getElementById('pLimb').addEventListener('input',e=>{
 });
 document.getElementById('vLimb').textContent=P.limb.toFixed(2);
 document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.value);
+/* 검색칸 — 글자를 칠 때마다 목록을 다시 그린다 */
+document.getElementById('crfS').addEventListener('input',e=>{
+  craftQuery=e.target.value; craftDirty=true; drawCraft();
+});
 document.getElementById('bGen').onclick=generateWorld;
 document.getElementById('bSeed').onclick=()=>{
   const w=['tide','ashen','vireo','kelp','marrow','glass','hollow','ember','driftwood','saltgrave'];
@@ -4726,7 +6838,9 @@ tgl('bGuar',v=>{ GUARANTEE=v; generateWorld(); });
 tgl('bFly',v=>{ flyMode=v; if(v&&document.pointerLockElement) document.exitPointerLock(); });
 tgl('bTouch',v=>setTouchUI(v));
 document.getElementById('bSave').onclick=saveLocal;
-document.getElementById('bLoad').onclick=loadLocal;
+document.getElementById('bLoad').onclick=askLoad;
+document.getElementById('askY').onclick=()=>askClose(true);
+document.getElementById('askN').onclick=()=>askClose(false);
 document.getElementById('bSaveF').onclick=saveFile;
 document.getElementById('bLoadF').onclick=loadFile;
 document.getElementById('loadIn').addEventListener('change',e=>{
@@ -4763,10 +6877,11 @@ function loop(){
       const h=document.getElementById('hint');
       if(h&&hasMouse&&!flyMode){
         const locked=document.pointerLockElement===cv;
-        const want=locked?'WASD 이동 · E 채집 · I 소지품 · C 제작 · B 사전'
+        const want=locked?'WASD 이동 · E 채집 · F 먹기/마시기 · I 소지품 · C 제작 · B 사전'
                          :'화면을 클릭하면 시점 조작이 시작됩니다';
         if(h.textContent!==want) h.textContent=want;
       }
+      updateBuild();
       updateHarvest(dt);
       updateCraft(dt);
       updateRegrow();
