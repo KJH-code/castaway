@@ -26,7 +26,7 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` | 메인 게임. 아이템 91종 · 레시피 94개 |
+| `island_world.html` | 메인 게임. 아이템 93종 · 레시피 96개 |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
 | `CASTAWAY_전사_초반부.md`, `CASTAWAY_전사_2차.md` | 개발 대화 원문 |
@@ -61,7 +61,7 @@ python -m http.server 5173
 | 4926 | 손에 든 무기 | **`WEAPON_FX` 4945** — 무기 생김새를 id로 키잉한 조립 함수 10개 |
 | 5177~ | 전투 진입점 | `equippedWeapon` 5177 · `shoot` 5243 · `castNet` 5276 · `attack` 5301 |
 | 5373 | 몹 스폰 | `rollSpawns` 5445 (**아직 아무도 부르지 않는다**) · `MOBS` 5416 |
-| 5459 | 13) 1인칭 플레이어 | `PL` 5474 · `hurtPL` 5487 · `diePL` 5497 · `revivePL` 5510 · `walkable` 5542 |
+| 5459 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
 | 5664 | 음향 | 물리 모델 합성 |
 | 5841 | HUD | `drawMap` 5863 · `drawCompass` 5885 · `updateHUD` 5906 |
 | 6070 | 초기화 · 루프 | `initThree` 6073 · `start` 6507 · `loop` 6634 |
