@@ -197,6 +197,15 @@
   #bar{width:220px;height:3px;background:#0f1c1a;margin-top:16px}
   #bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .12s}
   #ovLoad{color:var(--acc);font-size:10px;letter-spacing:.18em;margin-top:14px;min-height:14px}
+  /* 예/아니오를 묻는 상자 — 시작 화면 위에도 떠야 하므로 z 를 더 높인다 */
+  #ask{position:fixed;inset:0;background:rgba(3,6,8,.82);display:none;
+       align-items:center;justify-content:center;z-index:60}
+  #ask .box{background:#0b1114;border:1px solid var(--acc);padding:26px 30px;
+            text-align:center;max-width:360px}
+  #ask p{margin:0 0 6px;font-size:13px;letter-spacing:.06em;color:#dff3ea;line-height:1.7}
+  #ask .sub{font-size:10px;color:var(--dim);letter-spacing:.1em;margin:0 0 18px}
+  #ask button{font-size:12px;letter-spacing:.14em;padding:8px 22px;margin:0 5px}
+  #askY{color:var(--acc);border-color:var(--acc)}
 
   #bld{left:50%;transform:translateX(-50%);bottom:92px;display:none;pointer-events:auto;
     text-align:center;min-width:340px}
@@ -362,12 +371,20 @@
     <div><span>Z</span>집 짓기 — 1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽 좌우</div>
     <div><span>좌클릭</span>무기 찌르기</div>
     <div><span>Tab</span>생성 설정 · R 새 섬(짓기 중엔 방향) · F3 진단</div>
-    <div><span>F5 / F9</span>저장 · 불러오기</div>
+    <div><span>F5 / F9</span>저장 · 불러오기 (F9 은 묻고 나서 불러온다)</div>
     <div><span>T</span>시간 가속 · Esc 일시정지</div>
   </div>
   <button id="bStart">상륙</button>
   <div id="bar"><i id="barF"></i></div>
   <div id="ovLoad"></div>
+</div>
+
+<div id="ask">
+  <div class="box">
+    <p id="askT"></p>
+    <p class="sub" id="askS"></p>
+    <div><button id="askY">예</button><button id="askN">아니오</button></div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -6284,6 +6301,7 @@ async function generateWorld(){
   ovLoad.textContent='';
   document.getElementById('bStart').style.display='';
   document.getElementById('bStart').textContent='상륙';
+  offerLoadOnStart();                  // 저장된 것이 있으면 상륙 전에 한 번 물어본다
   }catch(e){
     showErr('생성',e);
     ovLoad.textContent='생성 실패 — 위 오류를 확인하세요';
@@ -6454,20 +6472,66 @@ async function restore(d){
   toast('불러왔습니다 — '+d.at);
 }
 
+/* ── 예/아니오를 묻는 상자 ───────────────────────────────────────────────
+   불러오기는 지금 하던 판을 덮어쓴다. 되돌릴 수 없으므로 한 번 묻는다.
+   Y·Enter 가 예, N·Esc 가 아니오다. 상자가 떠 있는 동안에는 다른 키가 게임에
+   닿지 않도록 캡처 단계에서 가로챈다. */
+let askOpen=false, askYes=null;
+function ask(title,sub,onYes){
+  askOpen=true; askYes=onYes;
+  for(const k of Object.keys(keys)) keys[k]=false;   // 눌린 채로 멈추지 않게
+  document.getElementById('askT').textContent=title;
+  document.getElementById('askS').textContent=sub||'';
+  document.getElementById('ask').style.display='flex';
+  if(document.pointerLockElement===cv) document.exitPointerLock();
+}
+function askClose(yes){
+  if(!askOpen) return;
+  askOpen=false;
+  document.getElementById('ask').style.display='none';
+  const fn=askYes; askYes=null;
+  if(yes&&fn) fn();
+}
+window.addEventListener('keydown',e=>{
+  if(!askOpen) return;
+  e.stopPropagation(); e.preventDefault();
+  if(e.code==='KeyY'||e.code==='Enter'||e.code==='NumpadEnter') askClose(true);
+  else if(e.code==='KeyN'||e.code==='Escape') askClose(false);
+},true);
+
 /* 저장 슬롯 (브라우저 저장소). 파일 저장/열기는 어디서나 동작한다. */
 const SKEY='castaway.save1';
+const hasSave=()=>{ try{ return !!localStorage.getItem(SKEY); }catch(e){ return false; } };
 function saveLocal(){
   try{
     localStorage.setItem(SKEY,JSON.stringify(snapshot()));
     toast('저장했습니다');
   }catch(e){ showErr('저장',e); toast('저장 실패 — 파일로 저장을 쓰세요'); }
 }
-async function loadLocal(){
+async function loadLocal(){                      // 묻지 않고 바로 — 안쪽 일꾼
   try{
     const raw=localStorage.getItem(SKEY);
     if(!raw){ toast('저장된 기록이 없습니다'); return; }
     await restore(JSON.parse(raw));
   }catch(e){ showErr('불러오기',e); }
+}
+/* 사람이 부르는 쪽 — 한 번 묻고 나서 불러온다. */
+function askLoad(){
+  if(askOpen) return;
+  if(!hasSave()){ toast('저장된 기록이 없습니다'); return; }
+  ask('이전에 저장된 데이터를 불러오겠습니까?',
+      '지금 하던 것은 사라집니다 · Y 예 · N 아니오',
+      ()=>{ loadLocal(); });
+}
+/* 섬이 다 만들어진 뒤 한 번만 — 저장된 것이 있으면 먼저 물어본다.
+   아니오를 고르면 다시 묻지 않는다. 그때부터는 F9 이 불러오는 길이다. */
+let askedOnce=false;
+function offerLoadOnStart(){
+  if(askedOnce||!hasSave()) return;
+  askedOnce=true;
+  ask('이전에 저장된 데이터를 불러오겠습니까?',
+      '아니오를 고르면 새로 시작합니다 · 나중에 F9 으로 불러올 수 있습니다',
+      ()=>{ loadLocal(); });
 }
 function saveFile(){
   try{
@@ -6499,6 +6563,9 @@ function setTouchUI(on){
   if(on&&document.pointerLockElement) document.exitPointerLock();
 }
 addEventListener('keydown',e=>{
+  /* 예/아니오를 묻는 상자가 떠 있으면 게임은 아무 키도 받지 않는다.
+     상자 쪽 처리는 위에서 캡처로 끝냈다 — 여기서는 그냥 물러선다. */
+  if(askOpen) return;
   /* 검색칸(이나 시드칸)에 글자를 치는 중이면 게임 키로 받지 않는다.
      이게 없으면 '철'을 치는 동안 캐릭터가 걷고 창을 여닫는다. */
   const el=document.activeElement;
@@ -6542,7 +6609,7 @@ addEventListener('keydown',e=>{
       +' day='+dayNo()+' power='+powerBudget(dayNo()));
   }
   if(e.code==='F5'){ e.preventDefault(); saveLocal(); }
-  if(e.code==='F9'){ e.preventDefault(); loadLocal(); }
+  if(e.code==='F9'){ e.preventDefault(); askLoad(); }
   if(e.code==='KeyB'){ toggleDex(); }
   if(e.code==='KeyQ'&&BUILD.on){               // 삼각 벽 방향 뒤집기 (아크의 좌/우 경사벽)
     BUILD.hand=-BUILD.hand;
@@ -6636,7 +6703,7 @@ document.addEventListener('pointerlockchange',()=>{
 /* 창(소지품·제작·사전·설정)이 열려 있으면 마우스를 풀어 줘야 클릭할 수 있다.
    포인터가 잠긴 채로는 커서가 없어 UI를 누를 방법이 없다. */
 let cfgOpen=false;
-const uiOpen=()=>invOpen||craftOpen||dexOpen||cfgOpen||boxOpen;
+const uiOpen=()=>invOpen||craftOpen||dexOpen||cfgOpen||boxOpen||askOpen;
 function syncLock(){
   if(!hasMouse||paused||flyMode) return;
   if(uiOpen()){
@@ -6767,7 +6834,9 @@ tgl('bGuar',v=>{ GUARANTEE=v; generateWorld(); });
 tgl('bFly',v=>{ flyMode=v; if(v&&document.pointerLockElement) document.exitPointerLock(); });
 tgl('bTouch',v=>setTouchUI(v));
 document.getElementById('bSave').onclick=saveLocal;
-document.getElementById('bLoad').onclick=loadLocal;
+document.getElementById('bLoad').onclick=askLoad;
+document.getElementById('askY').onclick=()=>askClose(true);
+document.getElementById('askN').onclick=()=>askClose(false);
 document.getElementById('bSaveF').onclick=saveFile;
 document.getElementById('bLoadF').onclick=loadFile;
 document.getElementById('loadIn').addEventListener('change',e=>{
