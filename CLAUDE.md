@@ -30,6 +30,9 @@ python -m http.server 5173
 | `island_world.html` | 메인 게임. 아이템 103종 · 레시피 102개 · 제련 8종 |
 | `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
+| `trio_arena.html` | **셋 시험장** — 모방 거미1 · 북극곰1 · 가고일2. mimic_arena 에
+  mixed_arena 의 곰·가고일을 옮겨 붙인 것(27MB). 이름 충돌은 BEAR_R·BSNAME·bSet·
+  bWanderTarget·bearMesh·bearMat 로 피했다 |
 | `CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
 | `CASTAWAY_전사_초반부.md`, `CASTAWAY_전사_2차.md` | 개발 대화 원문 |
 | `bear_high.glb`, `stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |

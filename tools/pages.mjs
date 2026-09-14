@@ -20,6 +20,7 @@ export const PAGES = [
   {f: 'gargoyle_arena.html',ready: '!!gMesh',                             ms: 240000},
   {f: 'mixed_arena.html',   ready: '!!bMesh && GS.every(g => g.mesh)',    ms: 300000},
   {f: 'mimic_arena.html',   ready: '!!bMesh',                             ms: 420000},
+  {f: 'trio_arena.html',    ready: '!!bMesh && !!bearMesh && GS.every(g=>g.mesh)', ms: 480000},
 ];
 
 export const pageInfo = f =>
