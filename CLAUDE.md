@@ -27,7 +27,7 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` | 메인 게임. 아이템 102종 · 레시피 102개 · 제련 8종 |
+| `island_world.html` | 메인 게임. 아이템 103종 · 레시피 102개 · 제련 8종 |
 | `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
@@ -89,8 +89,10 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
    모양은 아니다. 안 쓰면 5117에서 조용히 `return` 하고 손에 아무것도 안 잡힌다.
    `tool.weapon` 을 단 아이템은 10개인데 `WEAPON_FX` 항목도 10개다 — 하나라도
    어긋나면 그 무기는 손에 안 잡힌다.
-2. **id가 직접 박힌 자리가 11곳 있다** — `tinder`(발화) · `cartridge`(탄약) ·
-   `codex` · `ring_platinum` · `stone_block`. `grep -n "id==='"` 로 확인할 것.
+2. **id가 직접 박힌 자리가 여남은 곳 있다** — `tinder`(발화) · `codex` ·
+   `ring_platinum` · `stone_block`. `grep -n "id==='"` 로 확인할 것.
+   탄약은 여기서 빠졌다 — 이제 `ammo` 필드를 단 것이면 무엇이든 총에 들어가고,
+   `ammo.dmg` 가 총의 피해에 곱해진다. 새 탄은 `ITEMS` 한 줄이면 된다.
 3. **`attack()`(5301)은 그물을 특례로 가로챈다.** `equippedWeapon()` 이 무기 아닌
    걸 걸러내기 때문이다. "무기 칸에 들어가는데 무기가 아닌 것"을 또 만들면 특례가
    또 생긴다 — 필드 분기로 합치는 쪽을 먼저 볼 것.

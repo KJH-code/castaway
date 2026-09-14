@@ -1982,15 +1982,21 @@ const ITEMS={
   nitric:     {n:'질산',       kg:3.4,  c:0xb8b060, use:'잿물과 섞어 초석으로'},
   saltpeter:  {n:'초석',       kg:0.8,  c:0xdedac8, use:'화약의 주재료 (질산칼륨)'},
   gunpowder:  {n:'화약',       kg:0.9,  c:0x4a463e, use:'흑색화약 — 탄약의 장약'},
-  cartridge:  {n:'소총탄',     kg:0.05, c:0xc08a3e,
-               use:'구리 탄피에 화약과 철 탄두 — 볼트 소총에 든다'},
+  /* 탄약 — ammo.dmg 가 총의 피해에 곱해진다. 총은 id 가 아니라 'ammo' 분류로
+     받아들이므로, 새 탄을 만들려면 여기 한 줄이면 된다. */
+  cartridge:  {n:'소총탄',     kg:0.05, c:0xc08a3e, tags:['ammo'],
+               use:'구리 탄피에 화약과 철 탄두 — 볼트 소총에 든다',
+               ammo:{dmg:1.0}},
+  cartridge_brass:{n:'황동 소총탄', kg:0.05, c:0xc4a747, tags:['ammo'],
+               use:'황동 탄피는 얇고 질겨 더 센 장약을 견딘다 — 피해 1.25배',
+               ammo:{dmg:1.25}},
   /* 볼트 소총 — 화승총과 현대 소총 사이. 뒤로 열리는 약실에 탄피째 물리고,
      노리쇠를 손으로 젖혀 한 발씩 밀어 넣는다. 자동은 없다.
      사거리 50 m 는 활비비로 불을 켜던 섬에서는 다른 세계의 값이다. */
   rifle_bolt: {n:'볼트 소총',  kg:4.6,  c:0x7a6a52,
                use:'사거리 50 m · 5발 탄창 — 노리쇠를 젖혀 한 발씩',
                tool:{weapon:1, gun:1, dmg:150, reach:50, rate:2.40, stam:3,
-                     swing:'shot', mag:5, reload:6.5, ammo:'cartridge'},
+                     swing:'shot', mag:5, reload:6.5},   // 탄은 'ammo' 분류로 받는다
                durMax:400},
   // 금속 가공 · 전기
   ring_platinum:{n:'백금 반지', kg:0.05, c:0xd8dce0,
@@ -3192,11 +3198,11 @@ const RECIPES=[
 
   /* 황동 탄피 — 구리보다 훨씬 잘 늘어나 얇고 고르게 뽑힌다.
      같은 품으로 갑절 넘게 나오고, 탄피가 찢기지 않아 버리는 것이 없다. */
-  {id:'cartridge_brass', tier:'화학', n:'소총탄 만들기(황동)', out:{id:'cartridge',n:24},
-   time:34, stam:24, station:'anvil',
-   note:'황동을 인발판에 통과시켜 탄피를 뽑는다. 구리보다 얇고 고르게 늘어나 '
-       +'같은 품에 갑절 넘게 나오고 발사 뒤에도 탄피가 찢기지 않는다.',
-   in:[{id:'ingot_brass',n:1},{id:'gunpowder',n:2},{id:'iron_wrought',n:1}],
+  {id:'cartridge_brass', tier:'화학', n:'황동 소총탄', out:{id:'cartridge_brass',n:10},
+   time:36, stam:26, station:'anvil',
+   note:'황동 탄피는 얇고 질겨 구리보다 센 장약을 견딘다. 같은 수가 나오지만 '
+       +'한 발 한 발이 더 깊이 박힌다 — 피해 1.25배.',
+   in:[{id:'ingot_brass',n:1},{id:'gunpowder',n:3},{id:'iron_wrought',n:1}],
    need:[{id:'drawplate',n:1},{id:'hammer_stone',n:1}]},
 
   {id:'rifle_bolt', tier:'화학', n:'볼트 소총', out:{id:'rifle_bolt',n:1},
@@ -4998,7 +5004,10 @@ function toolSpec(t,it){
     p.push('피해 '+t.dmg+' · 사거리 '+t.reach+' m · '+(1/t.rate).toFixed(2)+'회/초');
     p.push('초당 피해 '+Math.round(t.dmg/t.rate));
     if(t.stun) p.push('기절 '+t.stun+'초');
-    if(t.gun) p.push('탄창 '+t.mag+'발 · 재장전 '+t.reload+'초 · '+ITEMS[t.ammo].n);
+    if(t.gun) p.push('탄창 '+t.mag+'발 · 재장전 '+t.reload+'초 · 쓰는 탄 '
+      +Object.keys(ITEMS).filter(isAmmo)
+        .map(k=>ITEMS[k].n+(ITEMS[k].ammo.dmg!==1?'(×'+ITEMS[k].ammo.dmg+')':''))
+        .join(' · '));
   }
   if(t.speed&&t.speed!==1) p.push('작업 속도 ×'+t.speed);
   if(it.durMax) p.push('내구 '+it.durMax);
@@ -5433,10 +5442,18 @@ function rayCreature(o,dir,range){
   }
   return {c:best, t:bt};
 }
-const gunAmmo=()=>INV.slots.reduce((a,s)=>a+(s.id==='cartridge'?s.n:0),0);
+/* 탄약은 'ammo' 분류로 찾는다 — 구리든 황동이든 같은 약실에 들어간다.
+   탄창에는 한 종류만 물린다(w.ammoId). 섞어 물리면 어느 발이 센지 알 수 없다. */
+const isAmmo=id=>!!(ITEMS[id]&&ITEMS[id].ammo);
+const gunAmmo=()=>INV.slots.reduce((a,s)=>a+(isAmmo(s.id)?s.n:0),0);
+// 가진 탄 중 가장 센 것부터 — 좋은 탄이 있으면 그것부터 물린다
+const bestAmmo=()=>INV.slots.filter(s=>isAmmo(s.id))
+  .sort((a,b)=>ITEMS[b.id].ammo.dmg-ITEMS[a.id].ammo.dmg)[0];
+const ammoMul=w=>(w&&w.ammoId&&ITEMS[w.ammoId]&&ITEMS[w.ammoId].ammo.dmg)||1;
+
 function startReload(w,W){
-  if(w.mag>=W.mag){ toast('탄창이 이미 찼다'); return false; }
-  if(gunAmmo()<=0){ toast(ITEMS[W.ammo].n+'이 없다'); return false; }
+  if(w.mag>=W.mag && w.ammoId){ toast('탄창이 이미 찼다'); return false; }
+  if(gunAmmo()<=0){ toast('탄이 없다'); return false; }
   RELOAD.t=W.reload; RELOAD.of=w;
   toast('재장전…');
   return true;
@@ -5445,14 +5462,22 @@ function finishReload(){
   const w=RELOAD.of; RELOAD.of=null; RELOAD.t=0;
   if(!w||INV.slots.indexOf(w)<0) return;
   const W=ITEMS[w.id].tool;
+  /* 물려 있던 것과 다른 탄으로 갈아 물면, 남은 것은 도로 소지품으로 뺀다 */
+  const pick=bestAmmo();
+  if(!pick) return;
+  if(w.mag>0 && w.ammoId && w.ammoId!==pick.id){
+    if(!invAdd(w.ammoId,w.mag)) toast('빼낸 탄을 들 자리가 없어 버렸다');
+    w.mag=0;
+  }
+  w.ammoId=pick.id;
   let need=W.mag-w.mag;
   for(let i=INV.slots.length-1;i>=0&&need>0;i--){
     const sl=INV.slots[i];
-    if(sl.id!==W.ammo) continue;
+    if(sl.id!==w.ammoId) continue;
     const take=Math.min(need,sl.n);
     w.mag+=take; need-=take; invRemove(i,take);
   }
-  toast('장전 '+w.mag+' / '+W.mag);
+  toast('장전 '+ITEMS[w.ammoId].n+' '+w.mag+' / '+W.mag);
   sfx('bind'); invDirty=true;
 }
 function updateReload(dt){
@@ -5471,8 +5496,10 @@ function shoot(w,W){
   ATK.cd=W.rate; ATK.swing=0.28; ATK.swingMax=0.28;
   PL.stam=clamp(PL.stam-(W.stam||3),0,100);
   w.mag--; w.dur-=1;
+  if(!w.mag) w.ammoId=null;
   const o=new THREE.Vector3(), d=new THREE.Vector3();
   camera.getWorldPosition(o); camera.getWorldDirection(d);
+  const dmg=W.dmg*ammoMul(w);            // 황동 탄피는 더 센 장약을 견딘다
   const hit=rayCreature(o,d,W.reach);
   showTracer(o.clone().addScaledVector(d,0.6), o.clone().addScaledVector(d,hit.t));
   if(weaponFx&&weaponFx.userData.flash){
@@ -5480,7 +5507,7 @@ function shoot(w,W){
   }
   sfx('thrust');
   if(hit.c){
-    hit.c.hp-=W.dmg;
+    hit.c.hp-=dmg;
     /* 총에 맞은 개체는 인식 반경 밖이라도 쏜 쪽을 알아챈다.
        개체 AI 는 c.alerted 가 서면 거리와 무관하게 사람을 쫓으면 된다. */
     hit.c.alerted=true;
@@ -6278,7 +6305,9 @@ function updateHUD(dt){
       bar.style.width=(e.fuel/T.burn*100)+'%';
       bar.style.background=e.lit?'#e08a3a':'#5d7a71';
     }else if(T.tool&&T.tool.gun){               // 총 — 내구 대신 탄창을 보여 준다
-      document.getElementById('toolN').textContent=T.n+'  '+(e.mag|0)+' / '+T.tool.mag
+      const ak=(e.mag&&e.ammoId)?'  ['+ITEMS[e.ammoId].n
+        +(ammoMul(e)!==1?' ×'+ammoMul(e):'')+']':'';
+      document.getElementById('toolN').textContent=T.n+'  '+(e.mag|0)+' / '+T.tool.mag+ak
         +(RELOAD.t>0?'  (재장전 '+RELOAD.t.toFixed(1)+'초)':'  [X] 재장전')
         +'  · 남은 탄 '+gunAmmo();
       const bar=document.getElementById('toolD');
@@ -6410,12 +6439,15 @@ function placeProps_(seed){ buildProps(); placePod(seed); }
    ========================================================================== */
 const SAVE_VER=1;
 /* 용기 속 슬롯은 소지품과 같은 모양으로 저장한다 */
-const saveSlots=a=>a.map(sl=>({id:sl.id,n:sl.n,dur:sl.dur,fuel:sl.fuel,lit:sl.lit,mag:sl.mag}));
+const saveSlots=a=>a.map(sl=>({id:sl.id,n:sl.n,dur:sl.dur,fuel:sl.fuel,lit:sl.lit,
+                               mag:sl.mag,ammoId:sl.ammoId,sip:sl.sip}));
 const loadSlots=a=>(a||[]).filter(sl=>ITEMS[sl.id]).map(sl=>{
   const o={id:sl.id,n:sl.n};
   if(sl.dur!==undefined) o.dur=sl.dur;
   if(sl.fuel!==undefined){ o.fuel=sl.fuel; o.lit=!!sl.lit; }
   if(sl.mag!==undefined) o.mag=sl.mag;
+  if(sl.ammoId&&ITEMS[sl.ammoId]) o.ammoId=sl.ammoId;   // 탄창에 물린 탄 종류
+  if(sl.sip!==undefined) o.sip=sl.sip;                  // 물통에 남은 모금
   return o;
 });
 
