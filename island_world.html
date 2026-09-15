@@ -2063,6 +2063,27 @@ const ITEMS={
                tool:{weapon:1, dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash',
                      stun:0.2},
                durMax:950},
+  /* 강철 무기 — 담금질한 날이라 철보다 **세고 조금 빠르고 훨씬 오래 간다**.
+     피해는 철의 5분의 6, 쿨타임은 10분의 9, 내구는 갑절이 기준이다.
+     무게는 오히려 조금 가볍다 — 같은 굳기를 더 얇은 날로 낼 수 있기 때문이다.
+     섬에서 벼릴 수 있는 마지막 단계이므로 여기서 더 올라갈 데는 없다. */
+  sword_steel:{n:'강철 검',    kg:1.8,  c:0x74797f,
+               use:'베기 — 철 검보다 세고 빠르다. 날에 혈조를 파 무게를 덜었다',
+               tool:{weapon:1, dmg:38, reach:1.5, rate:0.36, stam:5, swing:'slash'},
+               durMax:1500},
+  spear_steel:{n:'강철 창',    kg:2.3,  c:0x74797f,
+               use:'찌르기 — 사거리 2.6 m. 버들잎꼴 날이 깊이 들어간다',
+               tool:{weapon:1, dmg:50, reach:2.6, rate:0.90, stam:8, swing:'thrust'},
+               durMax:1400},
+  axe_steel_war:{n:'강철 전투도끼', kg:2.9, c:0x74797f,
+               use:'내리찍기 — 한 방이 가장 크다. 수염날이 걸어 당긴다',
+               tool:{weapon:1, dmg:100, reach:2.1, rate:1.44, stam:15, swing:'slash'},
+               durMax:1700},
+  hammer_steel:{n:'강철 해머',  kg:4.0,  c:0x74797f,
+               use:'후려치기 — 맞은 것은 0.28초 동안 못 움직인다',
+               tool:{weapon:1, dmg:70, reach:2.1, rate:1.08, stam:17, swing:'smash',
+                     stun:0.28},
+               durMax:2000},
   /* 사냥물 무기 — 철보다 **약하고 빨리 닳는 대신, 훨씬 가볍고 조금 빠르다**.
      피해는 철의 3/4, 쿨타임은 9/10, 무게는 55~60%, 내구는 45% 쯤이 기준이다.
      짐 무게가 곧 이동 속도인 이 게임에서, 가벼움은 그 자체로 값이다. */
@@ -3211,6 +3232,31 @@ const RECIPES=[
    in:[{id:'iron_wrought',n:6},{id:'charcoal',n:4},{id:'log',n:1},
        {id:'ingot_copper',n:1},{id:'cord',n:2}],
    need:[{id:'hammer_stone',n:1},{id:'drawplate',n:1}]},
+
+  {id:'sword_steel', tier:'강철', n:'강철 검', out:{id:'sword_steel',n:1},
+   time:58, stam:46, station:'anvil',
+   note:'날을 길게 뽑아 가운데 혈조를 파고 물에 담가 굳힌다. 홈이 무게를 덜면서도 '
+       +'휨에는 오히려 강해진다.',
+   in:[{id:'ingot_steel',n:2},{id:'charcoal',n:2},{id:'cord',n:2},{id:'hide',n:1}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'spear_steel', tier:'강철', n:'강철 창', out:{id:'spear_steel',n:1},
+   time:54, stam:44, station:'anvil',
+   note:'버들잎꼴로 날을 벼려 자루에 물린다. 어깨가 넓어 한 번 들어가면 깊다.',
+   in:[{id:'ingot_steel',n:2},{id:'charcoal',n:2},{id:'log',n:1},{id:'cord',n:3}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'axe_steel_war', tier:'강철', n:'강철 전투도끼', out:{id:'axe_steel_war',n:1},
+   time:70, stam:56, station:'anvil',
+   note:'아래턱이 길게 내려온 수염날이다. 걸어 당길 수 있어 방패를 끌어낸다.',
+   in:[{id:'ingot_steel',n:3},{id:'charcoal',n:3},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'hammer_steel', tier:'강철', n:'강철 해머', out:{id:'hammer_steel',n:1},
+   time:74, stam:60, station:'anvil',
+   note:'여덟 모로 깎은 머리를 자루에 쐐기로 박는다. 갑옷 위로도 속을 흔든다.',
+   in:[{id:'ingot_steel',n:4},{id:'charcoal',n:3},{id:'log',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
 
   {id:'axe_steel', tier:'강철', n:'강철 도끼', out:{id:'axe_steel',n:1},
    time:52, stam:42, station:'anvil',
@@ -5324,6 +5370,79 @@ const WEAPON_FX={
       new THREE.MeshBasicMaterial({color:0xffd07a}));
     fl.position.y=L+0.11; fl.visible=false; fl.name='flash'; g.add(fl);
     return {mesh:g, grip:0.36, muzzle:L+0.02};
+  },
+  /* 강철 넷 — 철과 한눈에 갈라 보이게 몸은 짙은 청회색(0x74797f)으로 두고
+     날만 밝게(0xc8ced4) 세운다. 담금질한 쇠의 푸른 기를 노린 것이다. */
+  sword_steel(){                             // 강철 검 — 날 가운데 혈조를 팠다
+    const g=new THREE.Group(), H=0.26, B2=0.96;
+    g.add(haft(H,0.028,0.032,0x3a2f23));
+    const pom=new THREE.Mesh(new THREE.SphereGeometry(0.044,8,6),WMAT(0x6b7077));
+    pom.position.y=0.01; g.add(pom);
+    const gd=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.042,0.058),WMAT(0x6b7077));
+    gd.position.y=H+0.02; g.add(gd);
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(0.082,B2,0.024),WMAT(0xc8ced4));
+    bl.position.y=H+0.05+B2/2; g.add(bl);
+    // 혈조 — 날 한가운데를 얕게 판 홈. 짙은 띠 하나로 표현한다
+    const fu=new THREE.Mesh(new THREE.BoxGeometry(0.026,B2*0.82,0.027),WMAT(0x74797f));
+    fu.position.y=H+0.05+B2/2; g.add(fu);
+    const pt=new THREE.Mesh(new THREE.ConeGeometry(0.058,0.18,4),WMAT(0xc8ced4));
+    pt.position.y=H+0.05+B2+0.08; pt.rotation.y=Math.PI/4;
+    pt.scale.set(1,1,0.34); g.add(pt);
+    return {mesh:g, grip:0.16};
+  },
+  spear_steel(){                             // 강철 창 — 버들잎꼴 날
+    const g=new THREE.Group(), L=2.05;
+    g.add(haft(L,0.022,0.028,0x4a3a29));
+    /* 잎꼴은 윤곽을 그려 뽑는다 — 원뿔로는 어깨가 살아나지 않는다 */
+    const sh=new THREE.Shape();
+    sh.moveTo(0,0);
+    sh.quadraticCurveTo( 0.072,0.17,  0,0.46);
+    sh.quadraticCurveTo(-0.072,0.17,  0,0);
+    sh.closePath();
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,
+      {depth:0.026, bevelEnabled:true, bevelThickness:0.006, bevelSize:0.005,
+       bevelSegments:1, curveSegments:10}),WMAT(0xc8ced4));
+    bl.position.set(0,L-0.01,-0.013); g.add(bl);
+    const sock=new THREE.Mesh(new THREE.CylinderGeometry(0.036,0.044,0.18,6),WMAT(0x6b7077));
+    sock.position.y=L-0.05; g.add(sock);
+    g.add(wbind(L-0.18,0.034));
+    return {mesh:g, grip:0.60};
+  },
+  axe_steel_war(){                           // 강철 전투도끼 — 아래가 길게 뻗은 수염날
+    const g=new THREE.Group(), L=0.94;
+    g.add(haft(L,0.026,0.030,0x4a3a29));
+    const head=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.24,0.11),WMAT(0x6b7077));
+    head.position.y=L-0.04; g.add(head);
+    /* 수염날 — 아래쪽이 턱처럼 길게 내려와 상대를 걸어 당긴다 */
+    const sh=new THREE.Shape();
+    sh.moveTo(0.00,-0.13);
+    sh.lineTo(0.18,-0.30);
+    sh.quadraticCurveTo(0.40,-0.10, 0.33,0.20);
+    sh.lineTo(0.00, 0.12);
+    sh.closePath();
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,
+      {depth:0.030, bevelEnabled:true, bevelThickness:0.006, bevelSize:0.006,
+       bevelSegments:1, curveSegments:8}),WMAT(0xc8ced4));
+    bl.position.set(0.02,L-0.04,-0.021); g.add(bl);
+    // 뒤쪽 쐐기 — 앞뒤 무게를 잡아 준다
+    const bk=new THREE.Mesh(new THREE.BoxGeometry(0.10,0.11,0.07),WMAT(0x6b7077));
+    bk.position.set(-0.07,L-0.04,0); g.add(bk);
+    g.add(wbind(L-0.22,0.036));
+    return {mesh:g, grip:0.30};
+  },
+  hammer_steel(){                            // 강철 해머 — 모를 깎은 여덟모 머리
+    const g=new THREE.Group(), L=1.00;
+    g.add(haft(L,0.030,0.034,0x4a3a29));
+    const head=new THREE.Mesh(new THREE.CylinderGeometry(0.115,0.115,0.38,8),
+      WMAT(0x6b7077));
+    head.rotation.x=Math.PI/2; head.position.y=L-0.02; g.add(head);
+    for(const sz of [-1,1]){                 // 때리는 면 — 격자무늬가 서도록 밝게
+      const f=new THREE.Mesh(new THREE.CylinderGeometry(0.105,0.105,0.024,8),
+        WMAT(0xc8ced4));
+      f.rotation.x=Math.PI/2; f.position.set(0,L-0.02,sz*0.19); g.add(f);
+    }
+    g.add(wbind(L-0.22,0.040));
+    return {mesh:g, grip:0.34};
   },
   hammer_iron(){                             // 철 해머 — 통짜 머리
     const g=new THREE.Group(), L=0.98;

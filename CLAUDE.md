@@ -27,7 +27,7 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` | 메인 게임. 아이템 103종 · 레시피 102개 · 제련 8종 |
+| `island_world.html` | 메인 게임. 아이템 107종 · 레시피 106개 · 제련 8종 |
 | `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `trio_arena.html` | **셋 시험장** — 모방 거미1 · 북극곰1 · 가고일2. mimic_arena 에
@@ -63,7 +63,7 @@ python -m http.server 5173
 | 3519 | 집 짓기 | `BUILD` 3586 · `floorAt` 3631 · `BUILD_MESH` 3835 |
 | 4674 | 사전 | `MINERALS` 4699 — 표를 역으로 훑어 획득 경로를 만든다 |
 | 4917 | 근접 공격 | `CREATURES` 4923 (비어 있음) |
-| 4926 | 손에 든 무기 | **`WEAPON_FX` 4945** — 무기 생김새를 id로 키잉한 조립 함수 10개 |
+| 4926 | 손에 든 무기 | **`WEAPON_FX` 4945** — 무기 생김새를 id로 키잉한 조립 함수 14개 |
 | 5177~ | 전투 진입점 | `equippedWeapon` 5177 · `shoot` 5243 · `castNet` 5276 · `attack` 5301 |
 | 5373 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
 | 5459 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
@@ -90,8 +90,9 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
 
 1. **무기는 `WEAPON_FX`(4945)에 생김새 함수를 따로 써야 한다.** 성능은 데이터인데
    모양은 아니다. 안 쓰면 5117에서 조용히 `return` 하고 손에 아무것도 안 잡힌다.
-   `tool.weapon` 을 단 아이템은 10개인데 `WEAPON_FX` 항목도 10개다 — 하나라도
-   어긋나면 그 무기는 손에 안 잡힌다.
+   `tool.weapon` 을 단 아이템은 14개인데 `WEAPON_FX` 항목도 14개다 — 하나라도
+   어긋나면 그 무기는 손에 안 잡힌다. 무기를 더하면 이 짝부터 맞춰 볼 것:
+   `node tools/probe.mjs island_world.html "Object.entries(ITEMS).filter(([k,v])=>v.tool&&v.tool.weapon).length" "Object.keys(WEAPON_FX).length"`
 2. **id가 직접 박힌 자리가 여남은 곳 있다** — `tinder`(발화) · `codex` ·
    `ring_platinum` · `stone_block`. `grep -n "id==='"` 로 확인할 것.
    탄약은 여기서 빠졌다 — 이제 `ammo` 필드를 단 것이면 무엇이든 총에 들어가고,
