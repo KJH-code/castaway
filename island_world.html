@@ -196,6 +196,27 @@
   #ov button{font-size:12px;letter-spacing:.14em;padding:10px 26px;margin-top:20px;color:var(--acc);border-color:var(--acc)}
   #bar{width:220px;height:3px;background:#0f1c1a;margin-top:16px}
   #bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .12s}
+  /* 숫돌 창 — 위는 숫돌에서 만드는 것, 아래는 수리 */
+  #gws{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:520px;
+    max-height:78vh;display:none;flex-direction:column;background:rgba(6,11,13,.96);
+    border:1px solid #2f4a44;z-index:40}
+  #gws .gh{padding:9px 12px;border-bottom:1px solid #22332f;font-size:11px;
+    letter-spacing:.14em;color:var(--acc)}
+  #gwsTop{flex:1 1 auto;overflow:auto;padding:6px 10px;min-height:120px}
+  #gwsBot{border-top:1px solid #2f4a44;padding:10px 12px;background:rgba(10,18,20,.9)}
+  #gwsBot .rw{display:flex;align-items:center;gap:10px}
+  #gwsSlot{flex:0 0 190px;min-height:46px;border:1px dashed #3a5a52;padding:7px 9px;
+    font-size:11px;color:var(--dim);cursor:pointer}
+  #gwsSlot.on{border-color:var(--acc);background:rgba(90,200,170,.10)}
+  #gwsSlot b{display:block;color:#dff3ea;font-size:11px;letter-spacing:.04em}
+  #gwsSlot i{font-style:normal;color:#8fd6b4}
+  #gwsCost{flex:1 1 auto;font-size:10px;line-height:1.7;color:var(--dim)}
+  #gwsCost .g{color:#8fd6b4} #gwsCost .b{color:#d8724a}
+  #gwsDo{flex:0 0 auto;font-size:11px;letter-spacing:.12em;padding:9px 18px}
+  #gwsPick{margin-top:8px;max-height:150px;overflow:auto;display:none}
+  #gwsPick div{padding:5px 8px;font-size:11px;color:#cfe6dd;cursor:pointer;
+    border-bottom:1px solid #16241f}
+  #gwsPick div:hover{background:rgba(90,200,170,.12)}
   #ovLoad{color:var(--acc);font-size:10px;letter-spacing:.18em;margin-top:14px;min-height:14px}
   /* 예/아니오를 묻는 상자 — 시작 화면 위에도 떠야 하므로 z 를 더 높인다 */
   #ask{position:fixed;inset:0;background:rgba(3,6,8,.82);display:none;
@@ -377,6 +398,21 @@
   <button id="bStart">상륙</button>
   <div id="bar"><i id="barF"></i></div>
   <div id="ovLoad"></div>
+</div>
+
+<div class="pnl" id="gws">
+  <div class="gh">숫돌</div>
+  <div id="gwsTop"></div>
+  <div id="gwsBot">
+    <div class="rw">
+      <div id="gwsSlot" class="ws slot" data-slot="grind"><i>수리할 것을 끌어다 놓거나 눌러서 고른다</i></div>
+      <div id="gwsCost">—</div>
+      <button id="gwsDo">수리</button>
+    </div>
+    <div id="gwsPick"></div>
+    <div class="if" style="color:var(--dim);font-size:9px;margin-top:8px">
+      수리는 처음 만들 때 든 재료의 절반이 든다(내림) · E 또는 Esc 로 닫는다</div>
+  </div>
 </div>
 
 <div id="ask">
@@ -2226,6 +2262,15 @@ function dragPut(where){
   if(!sl || INV.slots.indexOf(sl)<0) return;
   const T=ITEMS[sl.id];
   if(where==='eat'){ eatSlot(sl); return; }
+  if(where==='grind'){                              // 숫돌의 수리 칸
+    if(!canRepairSlot(sl)){
+      toast(!T.durMax ? '내구가 없는 물건이다'
+           : sl.dur>=T.durMax ? '이미 성하다'
+           : '만드는 법을 모르는 물건이라 고칠 수 없다');
+      return;
+    }
+    grindSel=sl; toast(T.n+' 을 올려놓았다'); drawGrind(); return;
+  }
   if(where==='hand'){
     if(!T.tool){ toast('들 수 있는 물건이 아니다'); return; }
     EQUIP=sl; toast(T.n+' 들었다'); sfx('bind'); invDirty=true; return;
@@ -2586,7 +2631,7 @@ const fmtFuel=h=>Math.floor(h)+'시간 '+Math.round((h%1)*60)+'분';
 
 function updateHarvest(dt){
   // 용기(상자·화덕·제련로)와 채집 대상 중 가장 가까운 쪽을 상호작용 대상으로 삼는다
-  if(boxOpen){                                   // 열려 있는 동안은 세상 쪽 조작을 멈춘다
+  if(boxOpen||grindOpen){                        // 열려 있는 동안은 세상 쪽 조작을 멈춘다
     HARV.cont=HARV.fire=HARV.near=HARV.mode=HARV.fit=null;
     HARV.active=false; EK.hold=0; EK.tgt=null; IGNITE.t=0;
     return;
@@ -3735,7 +3780,7 @@ function findContainer(){
       bd=d; best=c;
     }
   };
-  scan(STORES,2.8); scan(FIRES,3.0); scan(FURNACES,3.4);
+  scan(STORES,2.8); scan(FIRES,3.0); scan(FURNACES,3.4); scan(GRINDS,3.2);
   return best;
 }
 /* 넣고 빼기 — 도구는 개별 내구가 있으므로 슬롯을 통째로 옮긴다 */
@@ -4684,7 +4729,8 @@ function placeGrindstoneAt(px,py,pz){
   slab.position.y=0.46; slab.rotation.y=Math.random()*0.5-0.25;
   grp.add(slab);
   grp.position.set(spot.x,spot.y,spot.z); scene.add(grp);
-  GRINDS.push({x:spot.x,y:spot.y,z:spot.z,mesh:grp});
+  /* 용기와 같은 자리에서 E 를 받는다 — 담는 곳은 아니지만 '눈앞의 설비'로는 같다 */
+  GRINDS.push({kind:'grind', cname:'숫돌', x:spot.x,y:spot.y,z:spot.z, mesh:grp});
   COLLIDERS.push({x:spot.x,z:spot.z,r:0.85}); buildColliderGrid();
 }
 
@@ -5141,6 +5187,131 @@ function toggleBox(st){
     document.getElementById('dex').style.display='none'; }
   drawBox(); syncLock();
 }
+/* ── 숫돌 ─────────────────────────────────────────────────────────────────
+   위쪽은 숫돌에서 만드는 것, 아래쪽은 수리다.
+   수리에 드는 재료는 **처음 만들 때 든 것의 절반, 내림**이다. 다만 그렇게
+   깎으면 값이 0 에 가까워지는 것들이 있어(재료가 하나씩만 드는 것),
+   전부 0 으로 내려가면 가장 앞의 재료 하나는 받는다 — 공짜 수리는 없다.
+   도구(need)는 만들 때와 똑같이 있어야 하고 닳지 않는다. */
+let grindOpen=false, grindSel=null, pickOpen=false;
+const repairRecipe=id=>RECIPES.find(r=>r.out&&r.out.id===id);
+function repairCost(id){
+  const R=repairRecipe(id);
+  if(!R) return null;
+  const out=Math.max(1,(R.out&&R.out.n)||1);
+  /* 한 번에 여럿 나오는 레시피는 한 개분으로 나눠 셈한다 —
+     화살처럼 열 개씩 나오는 것을 열 개분으로 받으면 말이 안 된다. */
+  let c=R.in.map(x=>({id:x.id, tag:x.tag, n:Math.floor(x.n/out/2)}));
+  if(!c.some(x=>x.n>0)) c[0].n=1;                  // 전부 0 이면 하나는 받는다
+  return {R, in:c.filter(x=>x.n>0), stam:Math.max(4,Math.round(R.stam*0.4))};
+}
+/* 수리할 수 있는가 — 내구가 있고, 닳았고, 만드는 법이 있는 것 */
+const canRepairSlot=sl=>!!(sl && sl.dur!==undefined && ITEMS[sl.id].durMax
+  && sl.dur<ITEMS[sl.id].durMax && repairRecipe(sl.id));
+
+function toggleGrind(){
+  grindOpen=!grindOpen;
+  if(grindOpen){
+    boxOpen=false; curStore=null; invOpen=craftOpen=dexOpen=false; closeCfg();
+    for(const id of ['box','inv','crf','dex']) document.getElementById(id).style.display='none';
+    if(grindSel && INV.slots.indexOf(grindSel)<0) grindSel=null;
+  }
+  pickOpen=false;
+  document.getElementById('gws').style.display=grindOpen?'flex':'none';
+  drawGrind(); syncLock();
+}
+function drawGrind(){
+  if(!grindOpen) return;
+  /* 위 — 숫돌에서 만드는 것. 제작창과 같은 줄 모양을 쓴다 */
+  const list=RECIPES.filter(r=>r.station==='grind');
+  document.getElementById('gwsTop').innerHTML=
+    '<div class="ch">숫돌에서 만드는 것<span>'+list.filter(canCraft).length
+      +' / '+list.length+'</span></div>'
+    +(list.length?list.map(R=>{
+      const i=RECIPES.indexOf(R), ok=canCraft(R);
+      const mats=R.in.map(r=>{ const h=countMat(r);
+        return '<span class="'+(h>=r.n?'g':'b')+'">'+matName(r)+' '+h+'/'+r.n+'</span>';
+      }).join(' · ');
+      return '<div class="cr'+(ok?'':' no')+'" data-i="'+i+'">'
+        +'<div class="cn">'+R.n+'<span class="ck">'+ITEMS[R.out.id].kg+' kg</span></div>'
+        +'<div class="cm">'+mats+'</div><div class="cd">'+R.note+'</div></div>';
+    }).join('') : '<div style="color:var(--dim);font-size:10px;padding:8px 2px">'
+      +'숫돌에서 만드는 것이 아직 없다</div>');
+  document.getElementById('gwsTop').querySelectorAll('.cr').forEach(el=>{
+    el.onclick=()=>{ startCraft(RECIPES[+el.dataset.i]); toggleGrind(); };
+  });
+
+  /* 아래 — 수리 칸 */
+  const sEl=document.getElementById('gwsSlot'), cEl=document.getElementById('gwsCost');
+  if(grindSel && INV.slots.indexOf(grindSel)<0) grindSel=null;
+  if(!grindSel){
+    sEl.innerHTML='<i>수리할 것을 끌어다 놓거나 눌러서 고른다</i>';
+    cEl.innerHTML='<span style="color:var(--dim)">칸이 비어 있다</span>';
+  }else{
+    const T=ITEMS[grindSel.id];
+    sEl.innerHTML='<b>'+T.n+'</b><i>'+grindSel.dur+' / '+T.durMax+'</i>';
+    const C=repairCost(grindSel.id);
+    if(!T.durMax) cEl.innerHTML='<span class="b">내구가 없는 물건이다</span>';
+    else if(grindSel.dur>=T.durMax) cEl.innerHTML='<span class="g">이미 성하다</span>';
+    else if(!C) cEl.innerHTML='<span class="b">만드는 법을 모르는 물건이라 고칠 수 없다</span>';
+    else{
+      /* 만들 때 쓰던 도구는 고칠 때도 있어야 한다 — 닳지는 않는다.
+         이걸 안 적어 두면 재료가 다 초록인데 단추가 먹지 않는 것처럼 보인다. */
+      const needs=(C.R.need||[]).map(r=>{
+        if(r.id) return '<span class="'+(haveId(r.id)>=r.n?'g':'b')+'">'+ITEMS[r.id].n+'</span>';
+        return tagItems(r.tag).map(k=>'<span class="'+(haveId(k)>0?'g':'b')+'">'
+          +ITEMS[k].n+'</span>').join('<span style="color:var(--dim)"> 또는 </span>');
+      }).join(' · ');
+      cEl.innerHTML='드는 것 — '+C.in.map(r=>{ const h=countMat(r);
+          return '<span class="'+(h>=r.n?'g':'b')+'">'+matName(r)+' '+h+'/'+r.n+'</span>';
+        }).join(' · ')+' · 기력 '+C.stam
+        +(needs?'<br><span style="color:var(--dim)">도구(소모 안 됨) </span>'+needs:'')
+        +'<br><span style="color:var(--dim)">내구 '+grindSel.dur+' → '+T.durMax+' 로 돌아간다</span>';
+    }
+  }
+  /* 고르는 목록 */
+  const pEl=document.getElementById('gwsPick');
+  pEl.style.display=pickOpen?'block':'none';
+  if(pickOpen){
+    const cand=INV.slots.filter(canRepairSlot);
+    pEl.innerHTML=cand.length
+      ? cand.map(sl=>'<div data-i="'+INV.slots.indexOf(sl)+'">'+ITEMS[sl.id].n
+          +' <span style="color:var(--dim)">'+sl.dur+' / '+ITEMS[sl.id].durMax+'</span></div>').join('')
+      : '<div style="color:var(--dim)">고칠 것이 없다 — 닳은 도구를 지녀야 한다</div>';
+    pEl.querySelectorAll('div[data-i]').forEach(el=>{
+      el.onclick=()=>{ grindSel=INV.slots[+el.dataset.i]; pickOpen=false; drawGrind(); };
+    });
+  }
+}
+function doRepair(){
+  const sl=grindSel;
+  if(!sl||INV.slots.indexOf(sl)<0){ toast('칸이 비어 있다'); return; }
+  if(!nearGrind()){ toast('숫돌 곁에서만 고칠 수 있다'); return; }
+  const T=ITEMS[sl.id];
+  if(sl.dur>=T.durMax){ toast('이미 성하다'); return; }
+  const C=repairCost(sl.id);
+  if(!C){ toast('만드는 법을 모르는 물건이라 고칠 수 없다'); return; }
+  if(!C.in.every(r=>countMat(r)>=r.n)){ toast('재료가 모자란다'); return; }
+  if(C.R.need && !C.R.need.every(r=>countMat(r)>=r.n)){
+    toast(C.R.need.map(matName).join(', ')+' 이 있어야 한다'); return; }
+  if(PL.stam<C.stam){ toast('기력이 없다'); return; }
+  for(const r of C.in) consumeMat(r);
+  PL.stam=clamp(PL.stam-C.stam,0,100);
+  sl.dur=T.durMax;
+  toast(T.n+' 을 갈아 세웠다 — 내구 '+T.durMax);
+  sfx('bind'); invDirty=true; drawGrind();
+}
+document.getElementById('gwsDo').onclick=doRepair;
+document.getElementById('gwsSlot').onclick=()=>{ pickOpen=!pickOpen; drawGrind(); };
+document.getElementById('gwsSlot').ondragover=ev=>{
+  if(DRAG){ ev.preventDefault(); document.getElementById('gwsSlot').classList.add('on'); } };
+document.getElementById('gwsSlot').ondragleave=()=>
+  document.getElementById('gwsSlot').classList.remove('on');
+document.getElementById('gwsSlot').ondrop=ev=>{
+  ev.preventDefault(); document.getElementById('gwsSlot').classList.remove('on');
+  dragPut('grind');
+};
+
 let dexOpen=false, dexTab='item';
 function drawDex(){
   if(!dexOpen) return;
@@ -6345,6 +6516,12 @@ function updateHUD(dt){
     const c=HARV.cont, e=equippedTool();
     const isTorch=e&&ITEMS[e.id].tool.torch;
     look.style.display='block'; lb.style.display='none';
+    if(c.kind==='grind'){
+      look.style.display='block'; lb.style.display='none';
+      lt.innerHTML='[E] 숫돌 — 갈아 만들기와 수리<em>'
+        +'수리는 처음 재료의 절반(내림)이 든다</em>';
+      return;
+    }
     const head='[E] '+c.cname+' 열기';
     // 화덕은 E를 계속 누르면 불을 다루는 쪽으로 넘어간다
     if(isHearth(c) && !c.lit && isTorch && e.lit && e.fuel>0.12 && contFuel(c)){
@@ -6822,6 +6999,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyF'){ PL.light=!PL.light; }
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
   if(e.code==='KeyE'&&boxOpen&&!e.repeat){ toggleBox(null); }
+  if((e.code==='Escape'||e.code==='KeyE')&&grindOpen&&!e.repeat){ toggleGrind(); return; }
   if(e.code==='KeyI'){
     invOpen=!invOpen;
     document.getElementById('inv').style.display=invOpen?'block':'none';
@@ -6909,8 +7087,9 @@ addEventListener('keyup',e=>{ keys[e.code]=false; if(e.code==='KeyE') releaseE()
 function releaseE(){
   const c=EK.tgt, held=EK.hold;
   EK.tgt=null; EK.hold=0;
-  if(!c || boxOpen || paused || busy) return;
+  if(!c || boxOpen || grindOpen || paused || busy) return;
   if(c.kind==='fit'){ if(held<E_TAP+0.35) toggleFit(c.w); return; }
+  if(c.kind==='grind'){ if(held<E_TAP+0.35) toggleGrind(); return; }
   if(held<E_TAP) toggleBox(c);
 }
 // 알트탭 등으로 포커스를 잃으면 눌린 키가 그대로 남는다
@@ -6944,7 +7123,7 @@ document.addEventListener('pointerlockchange',()=>{
 /* 창(소지품·제작·사전·설정)이 열려 있으면 마우스를 풀어 줘야 클릭할 수 있다.
    포인터가 잠긴 채로는 커서가 없어 UI를 누를 방법이 없다. */
 let cfgOpen=false;
-const uiOpen=()=>invOpen||craftOpen||dexOpen||cfgOpen||boxOpen||askOpen;
+const uiOpen=()=>invOpen||craftOpen||dexOpen||cfgOpen||boxOpen||grindOpen||askOpen;
 function syncLock(){
   if(!hasMouse||paused||flyMode) return;
   if(uiOpen()){
