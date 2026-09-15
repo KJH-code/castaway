@@ -380,7 +380,7 @@
   <div class="k">
     <div><span>WASD</span>이동 · Shift 달리기</div>
     <div><span>Space</span>점프 · Ctrl 앉기 · <b>Ctrl+Space</b> 지붕에서 내려가기</div>
-    <div><span>F</span>손전등 · V 자유 카메라</div>
+    <div><span>L</span>손전등 · V 자유 카메라</div>
     <div><span>E</span>맨손 채집 (길게)</div>
     <div><span>I / C / B</span>소지품 · 제작 · 사전</div>
     <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
@@ -1740,6 +1740,81 @@ function placePod(seed){
   lamp.position.set(0,2.5,0); podMesh.add(lamp);
   const pl=new THREE.PointLight(0xffb060,1.1,26); pl.position.set(0,2.6,0); podMesh.add(pl);
   podMesh.position.copy(podPos); scene.add(podMesh);
+  makeShip();
+}
+
+/* ── 보급선 ───────────────────────────────────────────────────────────────
+   상륙하면 보급선이 캡슐을 내려놓은 자리에 잠시 서 있다가 떠오른다.
+   여섯 밤을 기다려 주지 않는다 — 좌표만 남기고 간다는 것이 이 게임의 첫 줄이다.
+   상태는 셋: 'wait' 잠시 머무름 → 'rise' 떠오름 → 'away' 멀어짐, 그 뒤 지운다. */
+let shipMesh=null, SHIP={st:'wait', t:0, from:new THREE.Vector3(), dir:new THREE.Vector3()};
+function makeShip(){
+  if(shipMesh){ scene.remove(shipMesh); shipMesh=null; }
+  const g=new THREE.Group();
+  const M=c=>new THREE.MeshLambertMaterial({color:c});
+  // 몸통 — 캡슐보다 훨씬 크다. 앞이 -z 쪽이다
+  const hull=new THREE.Mesh(new THREE.BoxGeometry(5.2,2.6,12.0),M(0x59606a));
+  hull.position.y=3.4; g.add(hull);
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(2.3,3.4,4),M(0x4c525b));
+  nose.rotation.set(Math.PI/2,Math.PI/4,0); nose.position.set(0,3.4,-7.5); g.add(nose);
+  // 날개와 받침다리
+  for(const sx of [-1,1]){
+    const w=new THREE.Mesh(new THREE.BoxGeometry(4.6,0.34,3.2),M(0x4c525b));
+    w.position.set(sx*4.2,3.1,1.6); w.rotation.z=sx*0.16; g.add(w);
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.22,2.2,6),M(0x3b4148));
+    leg.position.set(sx*2.0,1.1,2.6); g.add(leg);
+    const foot=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.22,1.0),M(0x3b4148));
+    foot.position.set(sx*2.0,0.11,2.6); g.add(foot);
+  }
+  // 엔진 — 떠오를 때 밝아진다
+  SHIP.jets=[];
+  for(const sx of [-1,1]){
+    const jm=new THREE.MeshBasicMaterial({color:0x8fd8ff,transparent:true,opacity:0.0});
+    const j=new THREE.Mesh(new THREE.ConeGeometry(0.85,3.0,10),jm);
+    j.rotation.x=Math.PI; j.position.set(sx*2.0,2.2,4.6); g.add(j);
+    SHIP.jets.push(j);
+  }
+  const li=new THREE.PointLight(0x9fd8ff,0,40); li.position.set(0,2.0,4.6);
+  g.add(li); SHIP.light=li;
+  /* 캡슐 옆에 내려앉는다 — 바다 쪽으로 머리를 두게 놓는다 */
+  const away=new THREE.Vector3(podPos.x,0,podPos.z).normalize();
+  if(!isFinite(away.x)||away.lengthSq()<1e-6) away.set(0,0,1);
+  SHIP.dir.copy(away);
+  const px=podPos.x+away.x*9, pz=podPos.z+away.z*9;
+  SHIP.from.set(px,Math.max(0.3,heightAt(px,pz)),pz);
+  g.position.copy(SHIP.from);
+  g.rotation.y=Math.atan2(away.x,away.z)+Math.PI;
+  scene.add(g); shipMesh=g;
+  SHIP.st='wait'; SHIP.t=0;
+}
+/* 떠나는 동안만 움직인다. 다 가면 장면에서 지운다. */
+function updateShip(dt){
+  if(!shipMesh) return;
+  SHIP.t+=dt;
+  if(SHIP.st==='wait'){
+    // 잠시 엔진을 데운다
+    const k=clamp(SHIP.t/2.6,0,1);
+    SHIP.jets.forEach(j=>j.material.opacity=k*0.35);
+    SHIP.light.intensity=k*0.6;
+    shipMesh.position.y=SHIP.from.y+Math.sin(SHIP.t*2.2)*0.04*k;
+    if(SHIP.t>=2.6){ SHIP.st='rise'; SHIP.t=0; sfx('ignite'); }
+    return;
+  }
+  if(SHIP.st==='rise'){
+    const k=clamp(SHIP.t/3.4,0,1);
+    SHIP.jets.forEach(j=>j.material.opacity=0.35+k*0.5);
+    SHIP.light.intensity=0.6+k*2.2;
+    shipMesh.position.y=SHIP.from.y+k*k*26;      // 처음엔 더디게, 갈수록 빠르게
+    shipMesh.rotation.y+=dt*0.16;
+    if(k>=1){ SHIP.st='away'; SHIP.t=0; }
+    return;
+  }
+  // 멀어진다 — 20초면 안개 너머로 사라진다
+  const sp=34+SHIP.t*26;
+  shipMesh.position.x+=SHIP.dir.x*sp*dt;
+  shipMesh.position.z+=SHIP.dir.z*sp*dt;
+  shipMesh.position.y+=(14+SHIP.t*6)*dt;
+  if(SHIP.t>12){ scene.remove(shipMesh); shipMesh=null; }
 }
 
 /* ---------------- 하늘 · 광원 · 시간 ---------------- */
@@ -2001,6 +2076,16 @@ const ITEMS={
                use:'머리 껍질을 통째로 다듬어 쓴다 — 청동 투구와 같은데 훨씬 가볍다',
                wear:{slot:'head', armor:3}},
   // 물 · 재
+  /* 표류할 때 지니고 내린 것 — 보급선이 쥐여 준 비상식량과 물병.
+     섬에서 만들 수 없는 물건이므로 다 쓰면 그만이다(물병만 다시 채운다). */
+  can_food:   {n:'통조림',     kg:0.45, c:0xa8a29a,
+               use:'보급선이 쥐여 준 비상식량 — 따서 그대로 먹는다',
+               food:38},
+  bottle_empty:{n:'빈 물병',   kg:0.30, c:0x7f9bb0,
+               use:'하천이나 온천에서 다시 채운다'},
+  bottle_water:{n:'물병',      kg:1.30, c:0x4f86ae,
+               use:'세 모금 든 물병 — 다 마시면 빈 병이 남는다',
+               sips:3, drink:{n:45, empty:'bottle_empty'}},
   /* 물을 담는 것 — 마시면 빈 그릇이 손에 남는다.
      sips 를 단 것은 여러 번 나눠 마신다(칸마다 남은 모금을 따로 센다). */
   pot_water:  {n:'물 담은 토기', kg:3.6, c:0x4f86ae,
@@ -3166,6 +3251,14 @@ const RECIPES=[
 
   /* 토기를 구운 단계에서 바로 길을 수 있어야 한다 — 목이 마르는데 화학까지
      가야 물을 담을 수 있으면 그릇이 그릇 노릇을 못 한다. */
+  /* 물병은 처음부터 지니고 내린 것이라 만들 수는 없고, 채우기만 된다.
+     그래서 제일 앞 단계에 둔다 — 첫날부터 물가에서 다시 채울 수 있어야 한다. */
+  {id:'bottle_water', tier:'맨손', n:'물병 채우기', out:{id:'bottle_water',n:1},
+   time:4, stam:2, station:'water',
+   note:'보급선이 쥐여 준 물병을 하천이나 분기공 온천에서 다시 채운다. '
+       +'바닷물은 쓸 수 없다.',
+   in:[{id:'bottle_empty',n:1}]},
+
   {id:'pot_water', tier:'나무와 점토', n:'물 긷기', out:{id:'pot_water',n:1},
    time:5, stam:3, station:'water',
    note:'하천이나 분기공 온천에서 토기에 담수를 받는다. 바닷물은 쓸 수 없다.',
@@ -5077,6 +5170,9 @@ function obtainOf(id){
   // 표에서 뽑히지 않는 부수 산출물
   if(id==='berry') out.push('채집 — 풀숲 (열매가 달린 덤불에서 가끔 딸려 나온다)');
   if(id==='ring_platinum') out.push('처음부터 지님 — 표류 전부터 끼고 있었다');
+  if(id==='can_food')    out.push('처음부터 지님 — 보급선이 두 캔 쥐여 주었다. 섬에서는 못 만든다');
+  if(id==='bottle_water'||id==='bottle_empty')
+    out.push('처음부터 지님 — 보급선이 준 물병. 섬에서는 못 만들고 다시 채우기만 한다');
   for(const raw in FIRING) if(FIRING[raw].out===id)
     out.push('화덕 소성 — '+ITEMS[raw].n+' 1 (화덕 안에 땔감과 같이 넣어두면 구워진다)');
   for(const R of SMELT) if(R.out.id===id)
@@ -6695,6 +6791,8 @@ async function generateWorld(){
                                     for(const k in WEAR) WEAR[k]=null; INV.max=INV.base;
                                     invAdd('codex',1);        // 사전은 처음부터 지닌다
                                     invAdd('ring_platinum',1); // 표류 전부터 끼고 있던 반지
+                                    invAdd('can_food',2);     // 보급선이 쥐여 준 비상식량
+                                    invAdd('bottle_water',1); // 물 한 병 — 비면 다시 채운다
                                     HARV.near=null; HARV.t=0; REGROW.length=0;
                                     EQUIP=null; CRAFT.recipe=null; craftDirty=true;
                                     QUICK.fill(null); quickDirty=true;
@@ -6996,7 +7094,7 @@ addEventListener('keydown',e=>{
   }
   keys[e.code]=true;
   if(e.code==='Space') e.preventDefault();
-  if(e.code==='KeyF'){ PL.light=!PL.light; }
+  if(e.code==='KeyL'){ PL.light=!PL.light; }   // F 는 먹기·마시기가 쓴다
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
   if(e.code==='KeyE'&&boxOpen&&!e.repeat){ toggleBox(null); }
   if((e.code==='Escape'||e.code==='KeyE')&&grindOpen&&!e.repeat){ toggleGrind(); return; }
@@ -7278,6 +7376,7 @@ function loop(){
   if(!paused&&!busy) try{
     const dh=dt*timeScale/60;                  // 실시간 1분 = 게임 1시간 (하루 24분)
     gameHours+=dh; hourOfDay=(hourOfDay+dh)%24;
+    updateShip(dt);                            // 보급선이 내려놓고 떠난다
     updateTorch(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh);
     updateWeapon(dt); updatePower(dt);
     updateOcean(now*0.001);
@@ -7293,7 +7392,7 @@ function loop(){
       const h=document.getElementById('hint');
       if(h&&hasMouse&&!flyMode){
         const locked=document.pointerLockElement===cv;
-        const want=locked?'WASD 이동 · E 채집 · F 먹기/마시기 · I 소지품 · C 제작 · B 사전'
+        const want=locked?'WASD 이동 · E 채집 · F 먹기/마시기 · L 손전등 · I 소지품 · C 제작 · B 사전'
                          :'화면을 클릭하면 시점 조작이 시작됩니다';
         if(h.textContent!==want) h.textContent=want;
       }
