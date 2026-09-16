@@ -51,6 +51,11 @@
     border:1px solid var(--line);padding:5px 8px;cursor:pointer;margin:4px 4px 0 0}
   button.on{color:var(--acc);border-color:var(--acc)}
   button:active{background:var(--acc);color:#070a0c}
+  /* 치고 있는 무기 번호 — 조준선 바로 아래 */
+  #wbuf{position:absolute;left:50%;top:56%;transform:translateX(-50%);display:none;
+    font-size:13px;letter-spacing:.12em;color:#dff3ea;background:rgba(6,12,14,.82);
+    border:1px solid #2f4a44;padding:6px 14px;text-shadow:0 2px 6px #000}
+  #wbuf i{color:#8fb8a8;font-style:normal;margin-left:8px}
   #msg{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-size:14px;
     color:#fff;text-shadow:0 2px 6px #000;opacity:0;transition:opacity .25s}
   #dmg{position:absolute;inset:0;background:radial-gradient(circle,transparent 42%,rgba(180,30,20,.7) 100%);
@@ -114,6 +119,7 @@
     <div class="row"><span>FPS</span><b id="sFps">–</b></div>
   </div>
   <div id="msg"></div>
+  <div id="wbuf"></div>
   <div id="hint">화면을 클릭하면 시점 조작이 시작됩니다</div>
 </div>
 
@@ -164,7 +170,9 @@
     <div><span>WASD</span>이동 · Shift 달리기</div>
     <div><span>Space</span>점프</div>
     <div><span>좌클릭</span>휘두르기</div>
-    <div><span>1 ~ 9 · 0</span>무기 바꾸기 — 돌창 · 철(검·창·도끼·해머) · 키틴 검 · 뼈 창 · 키틴 도끼 · 뼈 해머 · 소총</div>
+    <div><span>번호 + Enter</span>무기 바꾸기 — 1 돌창 · 2~5 철(검·창·도끼·해머) ·
+      6 키틴 검 · 7 뼈 창 · 8 키틴 도끼 · 9 뼈 해머 · 10 소총 ·
+      <b>11~14 강철(검·창·도끼·해머)</b> (Backspace 지우기 · Esc 물리기)</div>
     <div><span>X</span>재장전 (소총)</div>
     <div><span>F</span>방어구 갈아입기 — 청동 · 철 · 키틴 · 가죽 · 맨몸</div>
     <div><span>Space</span>채찍은 <b>뛰어서</b> 넘긴다 — 발이 땅에 붙어 있으면 맞는다</div>
@@ -401,16 +409,17 @@ const PL={pos:new THREE.Vector3(0,0,16), vel:new THREE.Vector3(),
 /* 방어구 — A 로 갈아입는다. 방어 합이 클수록 곰의 내려찍기를 덜 맞는다.
    사냥물 갑옷은 방어가 낮은 대신 무게가 3분의 1이다(무게는 본 게임에서만 쓴다). */
 const ARMORS=[
+  {n:'강철 판금 + 강철 투구', body:'섬유 옷', arm:14, helm:5, cloth:1, kg:20.1},
   {n:'청동 비늘 + 청동 투구', body:'섬유 옷', arm:6, helm:3, cloth:1, kg:14.5},
   {n:'철 비늘 + 청동 투구',   body:'섬유 옷', arm:10, helm:3, cloth:1, kg:17.0},
   {n:'키틴 갑옷 + 키틴 투구', body:'섬유 옷', arm:8, helm:3, cloth:1, kg: 7.5},
   {n:'가죽 외투 + 키틴 투구', body:'섬유 옷', arm:4, helm:3, cloth:1, kg: 6.0},
   {n:'맨몸',                 body:'없음',   arm:0, helm:0, cloth:0, kg: 0.0}
 ];
-let AI_=0;                                  // 지금 입은 것
+let AI_=2;                                  // 지금 입은 것 — 철 비늘
 const armSum=()=>ARMORS[AI_].arm+ARMORS[AI_].helm+ARMORS[AI_].cloth;
 const ARMOR=10;                             // 옛 이름 — 아래에서 armSum() 을 쓴다
-/* 무기 — 본 게임의 ITEMS 값을 그대로 옮겨 왔다. 숫자 1~5 로 바꿔 든다.
+/* 무기 — 본 게임의 ITEMS 값을 그대로 옮겨 왔다. 번호를 치고 Enter 로 바꿔 든다.
    검은 빠르게 여러 번, 창은 멀리서, 도끼는 한 번에 크게, 해머는 곰을 멈춰 세운다. */
 const WEAPONS=[
   {id:'spear',      n:'돌창',        dmg:22, reach:2.6, rate:0.90, stam: 9, swing:'thrust', kg:1.7},
@@ -423,7 +432,12 @@ const WEAPONS=[
   {id:'axe_chitin', n:'키틴 도끼',    dmg:60, reach:2.1, rate:1.28, stam:15, swing:'slash',  kg:1.8},
   {id:'hammer_bone',n:'뼈 해머',     dmg:41, reach:2.1, rate:0.96, stam:17, swing:'smash', stun:0.2, kg:2.5},
   {id:'rifle_bolt', n:'볼트 소총',    dmg:150,reach: 50, rate:2.40, stam: 3, swing:'shot',
-   gun:1, mag:5, reload:6.5, kg:4.6}
+   gun:1, mag:5, reload:6.5, kg:4.6},
+  /* 강철 넷 — 본 게임 값 그대로. 철 기준 피해 5/6 · 쿨 10/9 · 무게는 조금 가볍다 */
+  {id:'sword_steel',  n:'강철 검',      dmg:38, reach:1.5, rate:0.36, stam: 5, swing:'slash',  kg:1.8},
+  {id:'spear_steel',  n:'강철 창',      dmg:50, reach:2.6, rate:0.90, stam: 8, swing:'thrust', kg:2.3},
+  {id:'axe_steel_war',n:'강철 전투도끼', dmg:100,reach:2.1, rate:1.44, stam:15, swing:'slash',  kg:2.9},
+  {id:'hammer_steel', n:'강철 해머',    dmg:70, reach:2.1, rate:1.08, stam:17, swing:'smash', stun:0.28, kg:4.0}
 ];
 /* 잡으면 나오는 것 — 본 게임의 MOBS 표와 같은 값이다.
    뼈 창 3 · 뼈 해머 4 이니, 한 마리에 무기 두 자루 분이 나온다. */
@@ -539,7 +553,7 @@ const WP={
   clawRange:1.4, clawDmg:34, clawCd:1.5,      // 팔
   biteRange:1.0, biteDmg:54, biteCd:2.4,      // 물기
   wreck:26, wreckDmg:60, wreckCd:1.8,         // 건축물을 알아보는 거리 · 부수는 힘
-  dieTime:5.0, boomDmg:85, boomR:17.5         // 터질 때까지 · 터지는 힘과 반경(7 의 2.5배)
+  dieTime:5.0, boomDmg:255, boomR:17.5         // 터질 때까지 · 터지는 힘(85 의 3배)과 반경(7 의 2.5배)
 };
 const WNAME={fly:'선회', spot:'노려봄', dive:'내리꽂음', land:'굳음', boom:'터짐',
              chase:'쫓아옴', fbwind:'숨을 모음', claw:'할퀴기', bite:'물어뜯기',
@@ -919,9 +933,7 @@ function poseWyv_(dt){
     /* 머리를 실제로 겨눈 자리로 내려 문다 — 목을 숙이고 주둥이를 내민다 */
     const dur=(W.state==='bite')?0.5:0.6;
     const u=clamp(W.t/dur,0,1);
-    /* 집을 부술 때는 사람을 겨눠 푼 각이 아니라 고정된 각으로 내려찍는다 */
-    const a=(W.state==='bite')?(W.biteAng===undefined?0.6:W.biteAng):0.6;
-    applyBitePose(a, Math.sin(u*Math.PI));
+    applyBitePose(W.biteAng===undefined?0.6:W.biteAng, Math.sin(u*Math.PI));
     return;
   }
   /* 걷기 — 어깨와 엉덩이만 흔든다. 앞뒤가 엇갈리게 위상을 준다 */
@@ -978,9 +990,14 @@ function segSeg(p1,q1,p2,q2){
   }
   return p1.clone().addScaledVector(d1,sc).distanceTo(p2.clone().addScaledVector(d2,tc));
 }
-/* 캡슐 무리에서 사람 통까지, 껍데기 사이의 거리 */
-function chainDist(caps){
-  const P=plCap(); let bd=1e9;
+/* 집도 통 하나로 본다 — 지붕 마루까지 세운 기둥이다 */
+function bldCap(b){
+  return {a:new THREE.Vector3(b.x,b.y+0.3,b.z),
+          b:new THREE.Vector3(b.x,b.y+b.h,b.z), r:b.r*0.8};
+}
+/* 캡슐 무리에서 표적 통까지, 껍데기 사이의 거리 (표적을 안 주면 사람) */
+function chainDist(caps,T){
+  const P=T||plCap(); let bd=1e9;
   for(const c of caps) bd=Math.min(bd, segSeg(c.a,c.b,P.a,P.b)-c.r-P.r);
   return bd;
 }
@@ -1001,7 +1018,7 @@ function applyBitePose(a,sw){
   rotBone(nk,                _AXS, a*sw);               // 목을 숙인다
   rotBone(bone(CH_HEAD[2]),  _AXS, a*0.55*sw);          // 주둥이를 더 내민다
 }
-function solveBite(){
+function solveBite(T){
   if(!bRig) return 0.6;
   bRig.position.set(W.pos.x, wGround()+W.y, W.pos.z);
   bRig.rotation.y=W.yaw; bRig.updateMatrixWorld(true);
@@ -1010,7 +1027,7 @@ function solveBite(){
     restPose(); bodyAxes();
     applyBitePose(a,1);
     bRig.updateMatrixWorld(true);
-    const d=chainDist(chainCaps(CH_HEAD));
+    const d=chainDist(chainCaps(CH_HEAD),T);
     if(d<bd){ bd=d; best=a; }
   }
   restPose(); bRig.updateMatrixWorld(true);
@@ -1264,7 +1281,13 @@ function updateW(dt){
     }else{
       W.speed=0;
       W.aimPt=new THREE.Vector3(b.x, b.y+b.h*0.55, b.z);   // 집을 내려다보고 문다
-      if(!W.hitDone && W.t>=0.26){ W.hitDone=true; hurtBuilding(b,WP.wreckDmg); }
+      /* 사람을 물 때와 같은 동작이다 — 집을 겨눠 목을 숙일 각을 풀고,
+         머리가 실제로 닿았을 때만 부순다 */
+      if(W.biteAng===undefined||W.t<0.02) W.biteAng=solveBite(bldCap(b));
+      if(!W.hitDone && W.t>=0.26){ W.hitDone=true;
+        if(chainDist(chainCaps(CH_HEAD),bldCap(b))<=0.45) hurtBuilding(b,WP.wreckDmg);
+        else msg('이빨이 처마를 스쳤다');
+      }
       if(W.t>=WP.wreckCd){ W.t=0; W.hitDone=false; }
     }
     break; }
@@ -1487,6 +1510,18 @@ function hitFoe(o,dmg,stun,wname){
   startDying();                                 // 바로 죽지 않는다 — 부풀다 터진다
 }
 
+/* 치고 있는 무기 번호 — Enter 를 누르기 전까지 화면에 남는다 */
+let wBuf='';
+function showWBuf(){
+  const e=document.getElementById('wbuf');
+  if(!e) return;
+  if(!wBuf){ e.style.display='none'; return; }
+  const i=parseInt(wBuf,10)-1;
+  e.style.display='block';
+  e.innerHTML='무기 '+wBuf+' <i>'+((i>=0&&i<WEAPONS.length)
+    ? WEAPONS[i].n+' — Enter' : '없는 번호')+'</i>';
+}
+
 let msgT=0;
 function msg(t){ const e=document.getElementById('msg'); e.textContent=t;
   e.style.opacity=1; msgT=1.1; }
@@ -1694,6 +1729,79 @@ const WEAPON_FX={
       new THREE.MeshBasicMaterial({color:0xffd07a}));
     fl.position.y=L+0.11; fl.visible=false; fl.name='flash'; g.add(fl);
     return {mesh:g, grip:0.36, muzzle:L+0.02};
+  },
+  /* 강철 넷 — 철과 한눈에 갈라 보이게 몸은 짙은 청회색(0x74797f)으로 두고
+     날만 밝게(0xc8ced4) 세운다. 담금질한 쇠의 푸른 기를 노린 것이다. */
+  sword_steel(){                             // 강철 검 — 날 가운데 혈조를 팠다
+    const g=new THREE.Group(), H=0.26, B2=0.96;
+    g.add(haft(H,0.028,0.032,0x3a2f23));
+    const pom=new THREE.Mesh(new THREE.SphereGeometry(0.044,8,6),WMAT(0x6b7077));
+    pom.position.y=0.01; g.add(pom);
+    const gd=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.042,0.058),WMAT(0x6b7077));
+    gd.position.y=H+0.02; g.add(gd);
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(0.082,B2,0.024),WMAT(0xc8ced4));
+    bl.position.y=H+0.05+B2/2; g.add(bl);
+    // 혈조 — 날 한가운데를 얕게 판 홈. 짙은 띠 하나로 표현한다
+    const fu=new THREE.Mesh(new THREE.BoxGeometry(0.026,B2*0.82,0.027),WMAT(0x74797f));
+    fu.position.y=H+0.05+B2/2; g.add(fu);
+    const pt=new THREE.Mesh(new THREE.ConeGeometry(0.058,0.18,4),WMAT(0xc8ced4));
+    pt.position.y=H+0.05+B2+0.08; pt.rotation.y=Math.PI/4;
+    pt.scale.set(1,1,0.34); g.add(pt);
+    return {mesh:g, grip:0.16};
+  },
+  spear_steel(){                             // 강철 창 — 버들잎꼴 날
+    const g=new THREE.Group(), L=2.05;
+    g.add(haft(L,0.022,0.028,0x4a3a29));
+    /* 잎꼴은 윤곽을 그려 뽑는다 — 원뿔로는 어깨가 살아나지 않는다 */
+    const sh=new THREE.Shape();
+    sh.moveTo(0,0);
+    sh.quadraticCurveTo( 0.072,0.17,  0,0.46);
+    sh.quadraticCurveTo(-0.072,0.17,  0,0);
+    sh.closePath();
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,
+      {depth:0.026, bevelEnabled:true, bevelThickness:0.006, bevelSize:0.005,
+       bevelSegments:1, curveSegments:10}),WMAT(0xc8ced4));
+    bl.position.set(0,L-0.01,-0.013); g.add(bl);
+    const sock=new THREE.Mesh(new THREE.CylinderGeometry(0.036,0.044,0.18,6),WMAT(0x6b7077));
+    sock.position.y=L-0.05; g.add(sock);
+    g.add(wbind(L-0.18,0.034));
+    return {mesh:g, grip:0.60};
+  },
+  axe_steel_war(){                           // 강철 전투도끼 — 아래가 길게 뻗은 수염날
+    const g=new THREE.Group(), L=0.94;
+    g.add(haft(L,0.026,0.030,0x4a3a29));
+    const head=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.24,0.11),WMAT(0x6b7077));
+    head.position.y=L-0.04; g.add(head);
+    /* 수염날 — 아래쪽이 턱처럼 길게 내려와 상대를 걸어 당긴다 */
+    const sh=new THREE.Shape();
+    sh.moveTo(0.00,-0.13);
+    sh.lineTo(0.18,-0.30);
+    sh.quadraticCurveTo(0.40,-0.10, 0.33,0.20);
+    sh.lineTo(0.00, 0.12);
+    sh.closePath();
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,
+      {depth:0.030, bevelEnabled:true, bevelThickness:0.006, bevelSize:0.006,
+       bevelSegments:1, curveSegments:8}),WMAT(0xc8ced4));
+    bl.position.set(0.02,L-0.04,-0.021); g.add(bl);
+    // 뒤쪽 쐐기 — 앞뒤 무게를 잡아 준다
+    const bk=new THREE.Mesh(new THREE.BoxGeometry(0.10,0.11,0.07),WMAT(0x6b7077));
+    bk.position.set(-0.07,L-0.04,0); g.add(bk);
+    g.add(wbind(L-0.22,0.036));
+    return {mesh:g, grip:0.30};
+  },
+  hammer_steel(){                            // 강철 해머 — 모를 깎은 여덟모 머리
+    const g=new THREE.Group(), L=1.00;
+    g.add(haft(L,0.030,0.034,0x4a3a29));
+    const head=new THREE.Mesh(new THREE.CylinderGeometry(0.115,0.115,0.38,8),
+      WMAT(0x6b7077));
+    head.rotation.x=Math.PI/2; head.position.y=L-0.02; g.add(head);
+    for(const sz of [-1,1]){                 // 때리는 면 — 격자무늬가 서도록 밝게
+      const f=new THREE.Mesh(new THREE.CylinderGeometry(0.105,0.105,0.024,8),
+        WMAT(0xc8ced4));
+      f.rotation.x=Math.PI/2; f.position.set(0,L-0.02,sz*0.19); g.add(f);
+    }
+    g.add(wbind(L-0.22,0.040));
+    return {mesh:g, grip:0.34};
   },
   hammer_iron(){                             // 철 해머 — 통짜 머리
     const g=new THREE.Group(), L=0.98;
@@ -1919,12 +2027,25 @@ addEventListener('keydown',e=>{
   if(e.code==='Space') e.preventDefault();
   if(e.code==='KeyR') reset();
   if(e.code==='KeyH'){ const b=document.getElementById('bHit'); if(b) b.onclick(); }
-  if(e.code>='Digit0'&&e.code<='Digit9'){          // 1~9·0 으로 무기를 바꿔 든다
-    const i=(+e.code.slice(5)+9)%10;              // 0 은 열 번째 자리
-    /* 바꿔 들어도 쿨타임은 그대로 남는다 — 초기화하면 도끼로 한 대 치고 검으로
-       갈아 들어 쿨타임을 건너뛸 수 있다. 탄창도 그대로 둔다(갈아 들어 재장전을
-       건너뛰지 못하게). 다만 하던 재장전은 끊긴다. */
-    if(i<WEAPONS.length && i!==WI){ WI=i; RELOAD.t=0; syncWeapon(); msg(WEAPONS[i].n); }
+  /* 무기 고르기 — 번호를 치고 Enter. 열 자루가 넘어 숫자 한 개로는 모자란다.
+     Backspace 로 한 글자 지우고, Esc 로 치던 것을 물린다. */
+  if(e.code>='Digit0'&&e.code<='Digit9'){
+    if(wBuf.length<2){ wBuf+=e.code.slice(5); showWBuf(); }
+  }
+  if(e.code==='Backspace'){ wBuf=wBuf.slice(0,-1); showWBuf(); }
+  if(e.code==='Enter'||e.code==='NumpadEnter'){
+    const i=parseInt(wBuf,10)-1;
+    if(!wBuf.length){ /* 빈 채로 치면 아무 일도 없다 */ }
+    else if(!(i>=0&&i<WEAPONS.length)) msg('그런 번호는 없다 — 1 ~ '+WEAPONS.length);
+    else if(i===WI) msg('이미 들고 있다 — '+WEAPONS[i].n);
+    else{
+      /* 바꿔 들어도 쿨타임은 그대로 남는다 — 초기화하면 도끼로 한 대 치고 검으로
+         갈아 들어 쿨타임을 건너뛸 수 있다. 탄창도 그대로 둔다(갈아 들어 재장전을
+         건너뛰지 못하게). 다만 하던 재장전은 끊긴다. */
+      WI=i; RELOAD.t=0; syncWeapon();
+      msg((i+1)+'. '+WEAPONS[i].n);
+    }
+    wBuf=''; showWBuf();
   }
   if(e.code==='KeyF'){                              // 방어구 갈아입기 (A 는 이동 키다)
     AI_=(AI_+1)%ARMORS.length; msg('방어구 — '+ARMORS[AI_].n
@@ -1953,7 +2074,7 @@ function reset(){
   W.hp=W.hpMax; W.alive=true; W.pos.set(0,0,-26); W.yaw=0; W.frz=0;
   W.y=WP.cruise; W.alerted=false; W.speed=0; W.walkPh=0; W.wingPh=0;
   W.fbCd=0; W.atkCd=0; W.dieT=0; W.boom=0; W.prey=null; W.flash=0;
-  W.fbAim=null; W.aimPt=null; W.pendHit=null;
+  W.fbAim=null; W.aimPt=null; W.pendHit=null; W.biteAng=undefined;
   wSet('fly'); wWander();
   if(bRig){ bRig.visible=true; bRig.scale.setScalar(bScale); }
   if(bMat&&bMat.userData.sh) bMat.userData.sh.uniforms.uBoom.value=0;
@@ -1976,7 +2097,7 @@ function showOv(title,sub2,btn){
 }
 /* ---- 들어가기 전 장비 고르기 ----------------------------------------------
    무기·방어구·짐을 정하고 들어간다. 무게가 곧 이동 속도라, 여기서 정한 것이
-   그대로 몸놀림이 된다. 들어간 뒤에도 숫자키와 F 로 바꿀 수 있다. */
+   그대로 몸놀림이 된다. 들어간 뒤에도 번호+Enter 와 F 로 바꿀 수 있다. */
 function fillLoadout(){
   const sw=document.getElementById('selW'), sa=document.getElementById('selA');
   sw.innerHTML=WEAPONS.map((w,i)=>
@@ -2016,7 +2137,7 @@ document.getElementById('bStart').onclick=startGame;
 document.addEventListener('pointerlockchange',()=>{
   const locked=document.pointerLockElement===cv;
   document.getElementById('hint').textContent=locked
-    ? 'WASD 이동 · 좌클릭 휘두르기 · 1~5 무기 · Tab 설정 접기 · Esc 로 커서 되찾기'
+    ? 'WASD 이동 · 좌클릭 휘두르기 · 번호+Enter 무기 · Tab 설정 접기 · Esc 로 커서 되찾기'
     : '화면을 클릭하면 시점 조작이 시작됩니다';
   if(!locked && !paused && PL.hp>0 && !allDead()){
     paused=true;
