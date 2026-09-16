@@ -30,6 +30,9 @@ python -m http.server 5173
 | `island_world.html` | 메인 게임. 아이템 110종 · 레시피 107개 · 제련 8종 |
 | `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
+| `wyvern_arena.html` | **잿불 와이번 시험장**(4.1MB). 상공 20 m 선회 → 5초 노려봄 →
+  내리꽂기 → 3초 굳음 → 걸어서 추격 · 화염구(3초 젖힘) · 팔 1.4 m · 물기 1.0 m ·
+  집을 먼저 부숨 · 죽을 때 5초 부풀다 폭발. 모델은 파일에 내장(와이번 5만 · 화염구 1만 삼각형) |
 | `trio_arena.html` | **셋 시험장** — 모방 거미1 · 북극곰1 · 가고일2. mimic_arena 에
   mixed_arena 의 곰·가고일을 옮겨 붙인 것(27MB). 이름 충돌은 BEAR_R·BSNAME·bSet·
   bWanderTarget·bearMesh·bearMat 로 피했다 |

@@ -16,6 +16,7 @@ island_world.html 을 브라우저로 열면 끝입니다.
 
 | 파일 | 내용 |
 |------|------|
+| **wyvern_arena.html** | 잿불 와이번 시험장 |
 | **trio_arena.html** | 셋 시험장 — 모방 거미 1 · 북극곰 1 · 가고일 2 |
 | **island_world.html** | 메인 게임. 아이템 110종 · 레시피 107개 · 제련 8종 |
 | **build_sandbox.html** | 건축장 — 평평한 터에서 재료·무게 제한 없이 집만 지어 본다 |
