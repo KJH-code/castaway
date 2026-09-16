@@ -125,7 +125,7 @@
   <div class="row2"><label>걷는 속도</label><input type="range" id="pWander" min="1" max="6" step="0.1" value="2.7"><span class="val" id="vWander">–</span></div>
   <div class="grp">손</div>
   <div class="row2"><label>노려보는 시간</label><input type="range" id="pGrabW" min="1" max="10" step="0.1" value="5"><span class="val" id="vGrabW">–</span></div>
-  <div class="row2"><label>숨 모으는 시간</label><input type="range" id="pWhipW" min="0.5" max="6" step="0.1" value="3"><span class="val" id="vWhipW">–</span></div>
+  <div class="row2"><label>숨 모으는 시간</label><input type="range" id="pWhipW" min="0.5" max="6" step="0.1" value="2"><span class="val" id="vWhipW">–</span></div>
   <div class="row2"><label>화염구 피해</label><input type="range" id="pWhipD" min="10" max="120" step="1" value="46"><span class="val" id="vWhipD">–</span></div>
   <div class="row2"><label>무는 피해</label><input type="range" id="pHandHp" min="10" max="140" step="1" value="54"><span class="val" id="vHandHp">–</span></div>
   <div class="row2"><label>착지 경직</label><input type="range" id="pRegen" min="0.5" max="8" step="0.1" value="3"><span class="val" id="vRegen">–</span></div>
@@ -518,14 +518,14 @@ const cv=document.getElementById('c');
    죽을 때는 바로 사라지지 않는다. 배부터 빨강→주황→노랑으로 달아오르며
    몸이 부풀고, 5초 뒤 터진다. 곁에 있으면 같이 다친다.
    ========================================================================== */
-const WYV_H=2.2;                              // 어깨 높이
-const WYV_R=1.15;                             // 가슴 굵기 — 닿는 거리를 겉면에서 잰다
+const WYV_H=4.4;                              // 어깨 높이 — 처음 2.2 에서 배로 키웠다
+const WYV_R=2.30;                             // 가슴 굵기 — 닿는 거리를 겉면에서 잰다
 const MOUTH=new THREE.Vector3(0,1.09,2.14);   // 입 — 모델 좌표(화염구가 나오는 자리)
 const W={
   pos:new THREE.Vector3(0,0,-26), yaw:0, y:20,   // y 는 지면 위 높이
-  hp:600, hpMax:600, alive:true, flash:0,
+  hp:700, hpMax:700, alive:true, flash:0,
   state:'fly', t:0, frz:0, alerted:false, speed:0, walkPh:0,
-  target:new THREE.Vector3(), fbCd:0, atkCd:0, wingPh:0,
+  target:new THREE.Vector3(), fbCd:0, atkCd:0, wingPh:0, fbAim:null,
   dieT:0, boom:0, prey:null                      // prey — 지금 노리는 건축물
 };
 const WP={
@@ -534,14 +534,14 @@ const WP={
   spotHold:5.0,                               // 발견하고 멈춰 서는 시간
   diveSpd:19, landStun:3.0,                   // 내리꽂는 속도 · 착지 경직
   walk:2.7, turn:2.6,                         // 걷는 속도
-  fbWind:3.0, fbCd:8.0, fbSpd:24,             // 화염구 — 젖히는 시간 · 쉬는 틈 · 날아가는 속도
+  fbWind:2.0, fbCd:8.0, fbSpd:24,             // 화염구 — 젖히는 시간(처음 3초에서 1초 줄였다)
   fbDmg:46, fbBlast:2.6, fbRange:26,          // 피해 · 터지는 반경 · 쏘는 거리
   clawRange:1.4, clawDmg:34, clawCd:1.5,      // 팔
   biteRange:1.0, biteDmg:54, biteCd:2.4,      // 물기
   wreck:26, wreckDmg:60, wreckCd:1.8,         // 건축물을 알아보는 거리 · 부수는 힘
   dieTime:5.0, boomDmg:85, boomR:7.0          // 터질 때까지 · 터지는 힘과 반경
 };
-const WNAME={fly:'선회', spot:'노려봄', dive:'내리꽂음', land:'굳음',
+const WNAME={fly:'선회', spot:'노려봄', dive:'내리꽂음', land:'굳음', boom:'터짐',
              chase:'쫓아옴', fbwind:'숨을 모음', claw:'할퀴기', bite:'물어뜯기',
              wreck:'집을 부숨', dying:'부풀어 오름', dead:'쓰러짐'};
 
@@ -904,7 +904,9 @@ function mouthWorld(){
 function spawnFire(){
   if(!fbGeo) return;
   const o=mouthWorld();
-  const d=new THREE.Vector3(PL.pos.x-o.x, (PL.pos.y+EYE*0.6)-o.y, PL.pos.z-o.z).normalize();
+  /* 겨눈 자리는 숨을 모으기 시작할 때 굳었다. 지금 사람이 어디 있든 그리로 간다. */
+  const aim=W.fbAim||new THREE.Vector3(PL.pos.x, PL.pos.y+EYE*0.6, PL.pos.z);
+  const d=new THREE.Vector3(aim.x-o.x, aim.y-o.y, aim.z-o.z).normalize();
   const m=new THREE.Mesh(fbGeo, fbMat.clone());
   m.scale.setScalar(0.62);
   m.position.copy(o); scene.add(m);
@@ -1013,7 +1015,8 @@ function faceTo(tx,tz,dt,rate){
   W.yaw+=clamp(d,-(rate||WP.turn)*dt,(rate||WP.turn)*dt);
 }
 function updateW(dt){
-  if(!W.alive){ if(W.state==='dying') updateDying(dt); return; }
+  if(!W.alive){ if(W.state==='dying') updateDying(dt);
+                else if(W.state==='boom') updateBoom(dt); return; }
   W.t+=dt;
   W.fbCd=Math.max(0,W.fbCd-dt);
   W.atkCd=Math.max(0,W.atkCd-dt);
@@ -1052,9 +1055,9 @@ function updateW(dt){
     W.speed=WP.diveSpd;
     if(W.y<=0.01){
       W.y=0; wSet('land'); W.frz=WP.landStun;
-      blast(new THREE.Vector3(W.pos.x,wGround()+0.2,W.pos.z),1.2);
+      blast(new THREE.Vector3(W.pos.x,wGround()+0.2,W.pos.z),2.0);
       shake=0.7;
-      if(dist<3.2){ hurtPlayer(30,'내리꽂기'); }
+      if(dist<WYV_R+2.6){ hurtPlayer(30,'내리꽂기'); }   // 덩치를 따라 넓어진다
     }
     break; }
   case 'land':
@@ -1062,8 +1065,9 @@ function updateW(dt){
     if(W.t>=WP.landStun) wSet('chase');
     break;
   case 'fbwind':
+    /* 젖히는 동안에는 겨눈 데를 바꾸지 않는다 — 숨을 모으기 시작한 순간의
+       방향으로 굳는다. 그래서 옆으로 비키면 빗나간다. */
     W.speed=0;
-    faceTo(PL.pos.x,PL.pos.z,dt,1.8);
     if(W.t>=WP.fbWind){ spawnFire(); W.fbCd=WP.fbCd; wSet('chase'); }
     break;
   case 'claw':
@@ -1114,7 +1118,13 @@ function updateW(dt){
     if(gap<=WP.clawRange && W.atkCd<=0){
       W.atkCd=WP.clawCd; W.clawSide=(Math.random()<0.5?-1:1); wSet('claw'); break;
     }
-    if(W.fbCd<=0 && gap>2.4 && dist<WP.fbRange){ wSet('fbwind'); break; }
+    if(W.fbCd<=0 && gap>2.4 && dist<WP.fbRange){
+      wSet('fbwind');
+      /* 겨눈 자리를 여기서 굳힌다 — 입 높이를 노리고 쏜다 */
+      W.fbAim=new THREE.Vector3(PL.pos.x, PL.pos.y+EYE*0.6, PL.pos.z);
+      W.yaw=Math.atan2(PL.pos.x-W.pos.x, PL.pos.z-W.pos.z);
+      break;
+    }
     W.speed=WP.walk;
     W.pos.x+=Math.sin(W.yaw)*W.speed*dt;
     W.pos.z+=Math.cos(W.yaw)*W.speed*dt;
@@ -1145,15 +1155,26 @@ function explodeWyv(){
   shake=1.0;
   const d=Math.hypot(PL.pos.x-p.x,PL.pos.z-p.z);
   if(d<WP.boomR) hurtPlayer(WP.boomDmg*(1-d/WP.boomR),'터짐');
-  for(const b of liveBlds())
-    if(Math.hypot(b.x-p.x,b.z-p.z)<WP.boomR) hurtBuilding(b,WP.boomDmg);
+  /* 집도 같이 부서진다 — 가까울수록 크게. 겉면까지의 거리로 잰다 */
+  for(const b of liveBlds()){
+    const bd=Math.max(0, Math.hypot(b.x-p.x,b.z-p.z)-b.r);
+    if(bd<WP.boomR) hurtBuilding(b, WP.boomDmg*(1-bd/WP.boomR));
+  }
   if(bRig) bRig.visible=false;
+  wSet('boom');                                 // 2초 뒤에 판이 끝난다
+  msg('터졌다');
+}
+/* 터진 뒤 2초 — 불티가 가라앉기를 기다렸다가 판을 닫는다 */
+function updateBoom(dt){
+  W.t+=dt;
+  if(W.t<2.0) return;
   wSet('dead');
   paused=true; unlock();
   showOv('잿불 와이번을 잡았다',
-    '맞은 횟수 '+PL.hits+'번 · 남은 집 '+liveBlds().length+' 채. '
-    +'터질 때 곁에 있으면 같이 다친다.','다시');
+    '맞은 횟수 '+PL.hits+'번 · 남은 집 '+liveBlds().length+' / '+BLDS.length+' 채. '
+    +'터질 때 곁에 있으면 사람도 집도 같이 다친다.','다시');
 }
+
 
 function hurtPlayer(raw,who){
   const d=mitigate(raw);
@@ -1653,7 +1674,7 @@ function init(){
   const rim=new THREE.DirectionalLight(0x6fa8d8,0.4); rim.position.set(-25,18,-30); scene.add(rim);
   makeGround(); makeRings(); makeSpear(); initTracer();
 
-  const sg=new THREE.CircleGeometry(2.6,24); sg.rotateX(-Math.PI/2);
+  const sg=new THREE.CircleGeometry(4.6,28); sg.rotateX(-Math.PI/2);  // 날개폭 11 m 에 맞춘다
   shadowM=new THREE.Mesh(sg,new THREE.MeshBasicMaterial({color:0x000000,
     transparent:true,opacity:0.35,depthWrite:false}));
   scene.add(shadowM);
@@ -1751,7 +1772,7 @@ function reset(){
   PL.pos.set(0,h(0,16),16); PL.vel.set(0,0,0); PL.yaw=Math.PI;
   W.hp=W.hpMax; W.alive=true; W.pos.set(0,0,-26); W.yaw=0; W.frz=0;
   W.y=WP.cruise; W.alerted=false; W.speed=0; W.walkPh=0; W.wingPh=0;
-  W.fbCd=0; W.atkCd=0; W.dieT=0; W.boom=0; W.prey=null; W.flash=0;
+  W.fbCd=0; W.atkCd=0; W.dieT=0; W.boom=0; W.prey=null; W.flash=0; W.fbAim=null;
   wSet('fly'); wWander();
   if(bRig){ bRig.visible=true; bRig.scale.setScalar(bScale); }
   if(bMat&&bMat.userData.sh) bMat.userData.sh.uniforms.uBoom.value=0;
@@ -1898,6 +1919,7 @@ function hud(dt){
   else if(W.state==='land') ph.textContent='굳었다 — '+Math.max(0,W.frz).toFixed(1)+'초';
   else if(W.state==='wreck') ph.textContent='집을 부수는 중';
   else if(W.state==='dying') ph.textContent='터지기 직전 — 반경 '+WP.boomR+' m';
+  else if(W.state==='boom') ph.textContent='터졌다 — '+Math.max(0,2-W.t).toFixed(1)+'초';
   else ph.textContent='—';
 
   const d=Math.hypot(PL.pos.x-W.pos.x,PL.pos.z-W.pos.z);
@@ -1920,6 +1942,7 @@ function loop(){
     updateW(dt); updateFB(dt); updateBlasts(dt);
     updatePL(dt); updateSpear(dt); updateGun(dt);
   }else if(W.state==='dying') updateDying(dt);
+  else if(W.state==='boom'){ updateBoom(dt); updateBlasts(dt); }
 
   if(bRig){
     poseWyv(dt);                               // 몸 자리도 여기서 잡는다
