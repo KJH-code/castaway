@@ -457,7 +457,7 @@ function makeGround(){
   const p=g.attributes.position;
   for(let i=0;i<p.count;i++) p.setY(i,h(p.getX(i),p.getZ(i)));
   g.computeVertexNormals();
-  ground=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:0x33403f})); scene.add(ground);
+  ground=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:0x6b7d52})); scene.add(ground);  // 낮의 풀빛
   const rm=new THREE.MeshLambertMaterial({color:0x4d4f4a});
   for(let i=0;i<24;i++){
     const a=rnd(0,6.283), r=rnd(14,ARENA*0.85);
@@ -652,8 +652,31 @@ function fitBoneRadii(geo,skin){
   bag.forEach((ds,k)=>{
     if(ds.length<12) return;
     ds.sort((a,b)=>a-b);
-    BR.set(bones[k], clamp(ds[Math.floor(ds.length*0.70)],0.03,0.42));
+    /* 백분위 0.70 은 모방 거미에 맞춘 값이다. 이 녀석은 한 뼈가 넓은 살을
+       거느려서 그대로 쓰면 굵게 잡힌다 — 0.58 로 낮췄다. */
+    BR.set(bones[k], clamp(ds[Math.floor(ds.length*0.58)],0.03,0.42));
   });
+  slimCaps();
+}
+/* 부위마다 굵기 상한을 달리 준다.
+   날개는 얇은 막인데 뼈에서 막 끝까지가 멀어, 그대로 재면 굵은 통이 되어
+   접었을 때 몸 위에 큰 덩어리가 얹힌다. 다리도 몸통만큼 굵을 이유가 없다. */
+function slimCaps(){
+  const cap=(chs,mx)=>{
+    for(const ch of chs) for(const nm of ch){
+      const b=BONE&&BONE[nm]; if(!b) continue;
+      const r=BR.get(b); if(r!==undefined) BR.set(b, Math.min(r,mx));
+    }
+  };
+  cap([CH_SPINE],            0.335);          // 몸통
+  cap([CH_HEAD],             0.215);          // 머리와 주둥이
+  cap([CH_WING_L,CH_WING_R], 0.085);          // 날개 — 막이라 얇게
+  cap([CH_ARM_L,CH_ARM_R],   0.155);          // 앞다리
+  cap([CH_LEG_L,CH_LEG_R],   0.185);          // 뒷다리
+  cap([CH_TAIL],             0.165);          // 꼬리는 끝으로 갈수록 가늘다
+  // 꼬리 끝 넷은 더 가늘게
+  CH_TAIL.slice(4).forEach(nm=>{ const b=BONE&&BONE[nm];
+    if(b&&BR.get(b)!==undefined) BR.set(b, Math.min(BR.get(b),0.10)); });
 }
 const _cw=new THREE.Vector3();
 function capsFrom(bones){
@@ -797,6 +820,10 @@ function wWander(){
    금세 방정맞아진다 — 걷는 모습은 큰 관절 둘이 거의 다 만든다. */
 const WALKSW=0.42, KNEESW=0.20, WINGSW=0.72;
 function poseWyv(dt){
+  poseWyv_(dt);
+  rebuildCaps();
+}
+function poseWyv_(dt){
   if(!bRig) return;
   bodyAxes();
   /* 몸 자리 — 나는 동안에는 지면에서 W.y 만큼 떠 있다 */
@@ -891,6 +918,23 @@ function poseWyv(dt){
   set(CH_ARM_L, W.walkPh+Math.PI);
   set(CH_ARM_R, W.walkPh);
   rotBone(bone(CH_SPINE[0]), _AXU, Math.sin(W.walkPh)*0.07*amt);
+}
+
+/* 맞는 자리 — 뼈를 따라가는 캡슐. 자세를 다 잡은 뒤에 다시 잰다.
+   모방 거미와 같은 방식이다: 굵기는 fitBoneRadii 가 껍데기를 보고 재 두었고,
+   여기서는 이번 프레임의 뼈 자리로 캡슐을 다시 엮기만 한다.
+   몸통·머리·꼬리에 네 다리와 두 날개까지 넣어 보이는 모양과 맞춘다. */
+function rebuildCaps(){
+  if(!BONE||!SKROOT){ W.caps=null; return; }
+  SKROOT.updateMatrixWorld(true);
+  const caps=[];
+  const push=ch=>{
+    const bs=ch.map(bone).filter(Boolean);
+    if(bs.length>1) caps.push(...capsFrom(bs));
+  };
+  for(const ch of BODYCH) push(ch);
+  for(const ch of LIMBCH) push(ch);
+  W.caps=caps;
 }
 
 /* ── 화염구 ───────────────────────────────────────────────────────────────
@@ -1233,28 +1277,29 @@ function updateGun(dt){
     if(tracerT<=0) tracer.visible=false;
   }
 }
+/* 주의 — 여기서 WEP 은 손에 든 무기다. 전역 W 는 와이번이므로 이름을 갈랐다. */
 function shoot(){
-  const W=WEAPONS[WI];
+  const WEP=WEAPONS[WI];
   if(RELOAD.t>0) return;
   if(magLeft<=0){ startReload(); msg('철컥 — 비었다'); return; }
-  PL.atkCd=W.rate; PL.swing=0.28; PL.swingMax=0.28;
-  PL.stam=clamp(PL.stam-W.stam,0,100);
+  PL.atkCd=WEP.rate; PL.swing=0.28; PL.swingMax=0.28;
+  PL.stam=clamp(PL.stam-WEP.stam,0,100);
   magLeft--;
   const o=new THREE.Vector3(), d=new THREE.Vector3();
   camera.getWorldPosition(o); camera.getWorldDirection(d);
   let t=-1, hit=null;
   for(const f of foes()){
-    const tt=rayCaps(o,d,W.reach,f.caps);        // 캡슐을 따라 훑는다
+    const tt=rayCaps(o,d,WEP.reach,f.caps);        // 캡슐을 따라 훑는다
     if(tt>0 && (t<0||tt<t)){ t=tt; hit=f.o; }     // 앞에 선 것부터 맞는다
   }
   showTracer(o.clone().addScaledVector(d,0.6),
-             o.clone().addScaledVector(d,t>0?t:W.reach));
+             o.clone().addScaledVector(d,t>0?t:WEP.reach));
   if(weaponFx&&weaponFx.userData.flash){ weaponFx.userData.flash.visible=true; flashT=0.05; }
   if(hit){
     /* 총에 맞으면 인식 반경 밖이라도 쏜 쪽을 알아챈다 — 한 번 알아채면 잊지 않는다 */
     PL.hits2=(PL.hits2||0)+1;
     msg('명중 '+Math.round(t)+' m');
-    hitFoe(hit, W.dmg, W.stun, W.n);
+    hitFoe(hit, WEP.dmg, WEP.stun, WEP.n);
   }else msg('빗나갔다');
 }
 function attack(){
@@ -1262,21 +1307,21 @@ function attack(){
     if(paused||PL.hp<=0||PL.atkCd>0||PL.stam<WEAPONS[WI].stam||PL.stun>0) return;
     shoot(); return;
   }
-  const W=WEAPONS[WI];
-  if(paused||PL.hp<=0||PL.atkCd>0||PL.stam<W.stam||PL.stun>0) return;
-  PL.atkCd=W.rate;
-  PL.swing=Math.min(0.30,W.rate*0.55);
+  const WEP=WEAPONS[WI];
+  if(paused||PL.hp<=0||PL.atkCd>0||PL.stam<WEP.stam||PL.stun>0) return;
+  PL.atkCd=WEP.rate;
+  PL.swing=Math.min(0.30,WEP.rate*0.55);
   PL.swingMax=PL.swing;
-  PL.stam=clamp(PL.stam-W.stam,0,100);
+  PL.stam=clamp(PL.stam-WEP.stam,0,100);
   // 사거리와 시야 원뿔 안에 든 것 중 가장 가까운 하나만 맞는다
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
   let best=null, bd=1e9;
   for(const f of foes()){
-    const nr=swingHit(f.caps,W);
+    const nr=swingHit(f.caps,WEP);
     if(nr && nr.d<bd){ bd=nr.d; best=f; }
   }
   if(!best){ msg('허공을 갈랐다'); return; }
-  hitFoe(best.o, W.dmg, W.stun, W.n);
+  hitFoe(best.o, WEP.dmg, WEP.stun, WEP.n);
 }
 /* 한 대 넣기 — 곰이든 가고일이든 같은 길을 탄다 */
 const KILL={n:0, scale:0, ember:0};
@@ -1665,13 +1710,15 @@ function init(){
   renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
   renderer.setPixelRatio(Math.min(2,devicePixelRatio||1));
   scene=new THREE.Scene();
-  scene.background=new THREE.Color(0x0a1014);
-  scene.fog=new THREE.FogExp2(0x0a1014,0.0085);
+  /* 이 아레나만 낮이다 — 하늘을 훤히 두고 안개를 옅게 깔았다.
+     상공 20 m 를 도는 놈이라 어두우면 어디 있는지 보이지 않는다. */
+  scene.background=new THREE.Color(0x8fb6cc);
+  scene.fog=new THREE.FogExp2(0x9fc2d4,0.0042);
   camera=new THREE.PerspectiveCamera(70,1,0.1,600);
   camera.rotation.order='YXZ'; scene.add(camera);
-  scene.add(new THREE.AmbientLight(0x5a6a78,0.55));
-  const key=new THREE.DirectionalLight(0xffeedd,0.8); key.position.set(30,50,20); scene.add(key);
-  const rim=new THREE.DirectionalLight(0x6fa8d8,0.4); rim.position.set(-25,18,-30); scene.add(rim);
+  scene.add(new THREE.AmbientLight(0xbcd2e0,0.95));           // 한낮의 하늘빛
+  const key=new THREE.DirectionalLight(0xfff4e2,1.15); key.position.set(30,60,20); scene.add(key);
+  const rim=new THREE.DirectionalLight(0x9fc2d4,0.35); rim.position.set(-25,18,-30); scene.add(rim);
   makeGround(); makeRings(); makeSpear(); initTracer();
 
   const sg=new THREE.CircleGeometry(4.6,28); sg.rotateX(-Math.PI/2);  // 날개폭 11 m 에 맞춘다
@@ -1704,7 +1751,7 @@ function init(){
       bMesh.bind(new THREE.Skeleton(skin.bones,skin.boneInverses), new THREE.Matrix4());
       BONE=skin.byName; SKROOT=skin.root;
       bindLimbs();
-      fitBoneRadii(geometry,skin);   // 껍데기를 보고 뼈 굵기를 잰다
+      fitBoneRadii(geometry,skin);   // 안에서 slimCaps 까지 부른다   // 껍데기를 보고 뼈 굵기를 잰다
     }else{
       bMesh=new THREE.Mesh(geometry,bMat); bRig.add(bMesh);
     }
