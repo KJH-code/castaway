@@ -525,7 +525,7 @@ const W={
   pos:new THREE.Vector3(0,0,-26), yaw:0, y:20,   // y 는 지면 위 높이
   hp:700, hpMax:700, alive:true, flash:0,
   state:'fly', t:0, frz:0, alerted:false, speed:0, walkPh:0,
-  target:new THREE.Vector3(), fbCd:0, atkCd:0, wingPh:0, fbAim:null,
+  target:new THREE.Vector3(), fbCd:0, atkCd:0, wingPh:0, fbAim:null, aimPt:null, pendHit:null, clawAng:0.3,
   dieT:0, boom:0, prey:null                      // prey — 지금 노리는 건축물
 };
 const WP={
@@ -539,7 +539,7 @@ const WP={
   clawRange:1.4, clawDmg:34, clawCd:1.5,      // 팔
   biteRange:1.0, biteDmg:54, biteCd:2.4,      // 물기
   wreck:26, wreckDmg:60, wreckCd:1.8,         // 건축물을 알아보는 거리 · 부수는 힘
-  dieTime:5.0, boomDmg:85, boomR:7.0          // 터질 때까지 · 터지는 힘과 반경
+  dieTime:5.0, boomDmg:85, boomR:17.5         // 터질 때까지 · 터지는 힘과 반경(7 의 2.5배)
 };
 const WNAME={fly:'선회', spot:'노려봄', dive:'내리꽂음', land:'굳음', boom:'터짐',
              chase:'쫓아옴', fbwind:'숨을 모음', claw:'할퀴기', bite:'물어뜯기',
@@ -822,6 +822,23 @@ const WALKSW=0.42, KNEESW=0.20, WINGSW=0.72;
 function poseWyv(dt){
   poseWyv_(dt);
   rebuildCaps();
+  resolveHit();
+}
+/* 때린 것이 닿았는지는 자세를 다 잡은 뒤에 본다 — updateW 에서 바로 재면
+   한 프레임 전 자세로 재게 되어, 가장 뻗은 순간을 놓친다. */
+function resolveHit(){
+  if(!W.pendHit) return;
+  const k=W.pendHit; W.pendHit=null;
+  const P0=plPoint();
+  if(k==='claw'){
+    const ch=W.clawSide<0?CH_ARM_L:CH_ARM_R;
+    W.lastClawD=chainDist(chainCaps(ch));
+    if(chainTouches(ch,P0,0.55)) hurtPlayer(WP.clawDmg,'할퀴기');
+    else msg('발톱이 허공을 갈랐다');
+  }else{
+    if(chainTouches(CH_HEAD,P0,0.45)) hurtPlayer(WP.biteDmg,'물어뜯기');
+    else msg('이빨이 허공을 물었다');
+  }
 }
 function poseWyv_(dt){
   if(!bRig) return;
@@ -844,9 +861,12 @@ function poseWyv_(dt){
       rotBone(bone(ch[0]), _AXF, flap*WINGSW*sgn);
       rotBone(bone(ch[2]), _AXF, flap*WINGSW*0.45*sgn);
     }else{
-      // 접은 날개 — 등 위로 바짝 끌어올린다
-      rotBone(bone(ch[0]), _AXF, -1.05*sgn);
-      rotBone(bone(ch[2]), _AXF, -1.25*sgn);
+      /* 땅에서도 접지 않는다 — 반쯤 펴고 걸음에 맞춰 느리게 일렁인다.
+         덩치를 그대로 보여 주는 쪽이 이 녀석답다. */
+      const sway=Math.sin(W.walkPh*0.9+W.wingPh*0.25)*0.16;
+      rotBone(bone(ch[0]), _AXF, (-0.18+sway)*sgn);
+      rotBone(bone(ch[2]), _AXF, (-0.30+sway*0.7)*sgn);
+      rotBone(bone(ch[1]), _AXU, 0.10*sgn);
     }
   }
   /* 꼬리 — 늘 느리게 흔든다. 죽을 때는 늘어진다 */
@@ -888,21 +908,20 @@ function poseWyv_(dt){
       rotBone(bone(ch[0]), _AXF, (-1.05+e*0.75)*sg);   // 날개를 반쯤 편다
     return;
   }
-  if(W.state==='claw'){                        // 팔을 크게 내리친다
+  if(W.state==='claw'){                        // 팔을 실제로 겨눈 데로 뻗는다
     const u=clamp(W.t/0.55,0,1);
-    const sw=Math.sin(u*Math.PI);
-    const ch=W.clawSide<0?CH_ARM_L:CH_ARM_R;
-    rotBone(bone(ch[0]), _AXS, -1.5*sw);
-    rotBone(bone(ch[1]), _AXS, -0.7*sw);
-    rotBone(bone(CH_SPINE[0]), _AXU, W.clawSide*0.3*sw);
+    const sw=Math.sin(u*Math.PI);               // 0 → 1 → 0, 가운데가 가장 뻗은 때
+    applyClawPose(W.clawSide<0?CH_ARM_L:CH_ARM_R,
+                  (W.clawAng===undefined?0.3:W.clawAng), (W.clawTw||0), sw);
     return;
   }
-  if(W.state==='bite'||W.state==='wreck'){     // 머리를 앞으로 내지른다
-    const u=clamp(W.t/0.5,0,1);
-    const sw=Math.sin(u*Math.PI);
-    rotBone(bone(CH_SPINE[0]), _AXS, 0.45*sw);
-    rotBone(bone(CH_HEAD[0]),  _AXS, 0.85*sw);
-    rotBone(bone(CH_HEAD[2]),  _AXS, 0.55*sw);
+  if(W.state==='bite'||(W.state==='wreck'&&W.speed<=0.2)){
+    /* 머리를 실제로 겨눈 자리로 내려 문다 — 목을 숙이고 주둥이를 내민다 */
+    const dur=(W.state==='bite')?0.5:0.6;
+    const u=clamp(W.t/dur,0,1);
+    /* 집을 부술 때는 사람을 겨눠 푼 각이 아니라 고정된 각으로 내려찍는다 */
+    const a=(W.state==='bite')?(W.biteAng===undefined?0.6:W.biteAng):0.6;
+    applyBitePose(a, Math.sin(u*Math.PI));
     return;
   }
   /* 걷기 — 어깨와 엉덩이만 흔든다. 앞뒤가 엇갈리게 위상을 준다 */
@@ -920,13 +939,122 @@ function poseWyv_(dt){
   rotBone(bone(CH_SPINE[0]), _AXU, Math.sin(W.walkPh)*0.07*amt);
 }
 
+/* 사슬 하나가 어떤 점에 닿았는가 — 머리로 물고 팔로 치는 판정에 쓴다.
+   거리로만 재면 '가까우면 맞는다'가 되어, 머리를 어디로 내밀든 똑같아진다. */
+function chainCaps(ch){
+  const bs=ch.map(bone).filter(Boolean);
+  return bs.length>1?capsFrom(bs):[];
+}
+function chainTouches(ch,P,pad){
+  const caps=chainCaps(ch);
+  if(!caps.length) return false;
+  return chainDist(caps) <= (pad||0);
+}
+/* 사람은 점이 아니라 선다 — 발끝에서 정수리까지의 통으로 잰다.
+   점 하나(눈높이)로 재면 6 m 짜리 짐승의 팔이 가슴께에서 멈춰
+   '머리 위를 스쳤는데 안 맞았다'가 된다. */
+const PL_R=0.32;
+function plCap(){
+  return {a:new THREE.Vector3(PL.pos.x,PL.pos.y+0.25,PL.pos.z),
+          b:new THREE.Vector3(PL.pos.x,PL.pos.y+EYE,PL.pos.z), r:PL_R};
+}
+/* 선분 둘 사이의 가장 가까운 거리 */
+function segSeg(p1,q1,p2,q2){
+  const d1=q1.clone().sub(p1), d2=q2.clone().sub(p2), r=p1.clone().sub(p2);
+  const a=d1.dot(d1), e=d2.dot(d2), f=d2.dot(r);
+  let sc,tc;
+  if(a<1e-9&&e<1e-9) return r.length();
+  if(a<1e-9){ sc=0; tc=clamp(f/e,0,1); }
+  else{
+    const c=d1.dot(r);
+    if(e<1e-9){ tc=0; sc=clamp(-c/a,0,1); }
+    else{
+      const b=d1.dot(d2), den=a*e-b*b;
+      sc=den>1e-9?clamp((b*f-c*e)/den,0,1):0;
+      tc=(b*sc+f)/e;
+      if(tc<0){ tc=0; sc=clamp(-c/a,0,1); }
+      else if(tc>1){ tc=1; sc=clamp((b-c)/a,0,1); }
+    }
+  }
+  return p1.clone().addScaledVector(d1,sc).distanceTo(p2.clone().addScaledVector(d2,tc));
+}
+/* 캡슐 무리에서 사람 통까지, 껍데기 사이의 거리 */
+function chainDist(caps){
+  const P=plCap(); let bd=1e9;
+  for(const c of caps) bd=Math.min(bd, segSeg(c.a,c.b,P.a,P.b)-c.r-P.r);
+  return bd;
+}
+const plPoint=()=>new THREE.Vector3(PL.pos.x, PL.pos.y+EYE*0.55, PL.pos.z);
+/* 사람이 몸 겉면에서 얼마나 떨어져 있나 — WYV_R 한 값으로는 못 잰다.
+   이 녀석은 코에서 꼬리 끝까지 11 m 라, 가운데에서 잰 거리는 뜻이 없다. */
+function shellGap(){
+  if(!W.caps||!W.caps.length) return Math.hypot(PL.pos.x-W.pos.x,PL.pos.z-W.pos.z)-WYV_R;
+  return chainDist(W.caps);
+}
+/* 팔을 어느 각으로 휘둘러야 닿는지 — 뼈를 실제로 돌려 보고 고른다.
+   부호를 손으로 정해 두면 사람이 앞에 섰을 때와 가슴 밑에 들어왔을 때가
+   서로 반대라 한쪽은 늘 허공을 친다. */
+/* 무는 자세 하나 — 발톱과 같은 방식이다. 목을 얼마나 숙일지만 고른다. */
+function applyBitePose(a,sw){
+  const nk=bone(CH_HEAD[0]); if(!nk) return;
+  rotBone(bone(CH_SPINE[0]), _AXS, a*0.45*sw);          // 상체를 앞으로
+  rotBone(nk,                _AXS, a*sw);               // 목을 숙인다
+  rotBone(bone(CH_HEAD[2]),  _AXS, a*0.55*sw);          // 주둥이를 더 내민다
+}
+function solveBite(){
+  if(!bRig) return 0.6;
+  bRig.position.set(W.pos.x, wGround()+W.y, W.pos.z);
+  bRig.rotation.y=W.yaw; bRig.updateMatrixWorld(true);
+  let best=0.6, bd=1e9;
+  for(let a=-0.6;a<=1.61;a+=0.1){
+    restPose(); bodyAxes();
+    applyBitePose(a,1);
+    bRig.updateMatrixWorld(true);
+    const d=chainDist(chainCaps(CH_HEAD));
+    if(d<bd){ bd=d; best=a; }
+  }
+  restPose(); bRig.updateMatrixWorld(true);
+  W.biteD=bd;
+  return best;
+}
+/* 발톱 자세 하나 — 각을 풀 때도 실제로 그릴 때도 이것만 쓴다.
+   풀 때와 그릴 때가 다르면, 닿는 각을 찾아 놓고 딴 데를 친다. */
+function applyClawPose(ch,a,tw,sw){
+  const sh=bone(ch[0]); if(!sh) return;
+  rotBone(sh,          _AXS, a*sw);
+  rotBone(bone(ch[1]), _AXS, a*0.6*sw);
+  rotBone(bone(ch[2]), _AXS, -0.35*sw);                 // 팔꿈치를 편다
+  rotBone(bone(CH_SPINE[0]), _AXU, tw*sw);              // 몸도 그쪽으로 튼다
+  rotBone(bone(CH_SPINE[1]), _AXS, 0.18*sw);
+}
+function solveClaw(ch, P){
+  const sh=bone(ch[0]), e1=bone(ch[1]);
+  if(!sh||!e1||!bRig) return 0.3;
+  /* 뼈 자리는 몸 틀의 행렬에서 나온다 — 이번 프레임 자리로 먼저 맞춰 둔다 */
+  bRig.position.set(W.pos.x, wGround()+W.y, W.pos.z);
+  bRig.rotation.y=W.yaw; bRig.updateMatrixWorld(true);
+  let best=0, bestTw=0, bd=1e9;
+  for(let a=-1.25;a<=1.26;a+=0.125)
+  for(const tw of [-0.34,-0.17,0,0.17,0.34]){
+    restPose(); bodyAxes();
+    applyClawPose(ch,a,tw,1);
+    bRig.updateMatrixWorld(true);
+    const d=chainDist(chainCaps(ch));
+    if(d<bd){ bd=d; best=a; bestTw=tw; }
+  }
+  W.clawTw=bestTw;
+  restPose(); bRig.updateMatrixWorld(true);
+  W.solveD=bd;
+  return best;
+}
+
 /* 맞는 자리 — 뼈를 따라가는 캡슐. 자세를 다 잡은 뒤에 다시 잰다.
    모방 거미와 같은 방식이다: 굵기는 fitBoneRadii 가 껍데기를 보고 재 두었고,
    여기서는 이번 프레임의 뼈 자리로 캡슐을 다시 엮기만 한다.
    몸통·머리·꼬리에 네 다리와 두 날개까지 넣어 보이는 모양과 맞춘다. */
 function rebuildCaps(){
   if(!BONE||!SKROOT){ W.caps=null; return; }
-  SKROOT.updateMatrixWorld(true);
+  if(bRig) bRig.updateMatrixWorld(true); else SKROOT.updateMatrixWorld(true);
   const caps=[];
   const push=ch=>{
     const bs=ch.map(bone).filter(Boolean);
@@ -1116,20 +1244,12 @@ function updateW(dt){
     break;
   case 'claw':
     W.speed=0;
-    if(!W.hitDone && W.t>=0.28){
-      W.hitDone=true;
-      if(dist-WYV_R<=WP.clawRange+0.3) hurtPlayer(WP.clawDmg,'할퀴기');
-      else msg('발톱이 허공을 갈랐다');
-    }
+    if(!W.hitDone && W.t>=0.28){ W.hitDone=true; W.pendHit='claw'; }
     if(W.t>=0.55) wSet('chase');
     break;
   case 'bite':
     W.speed=0;
-    if(!W.hitDone && W.t>=0.26){
-      W.hitDone=true;
-      if(dist-WYV_R<=WP.biteRange+0.3) hurtPlayer(WP.biteDmg,'물어뜯기');
-      else msg('이빨이 허공을 물었다');
-    }
+    if(!W.hitDone && W.t>=0.26){ W.hitDone=true; W.pendHit='bite'; }
     if(W.t>=0.5) wSet('chase');
     break;
   case 'wreck': {                              // 집을 부순다
@@ -1143,6 +1263,7 @@ function updateW(dt){
       W.pos.z+=Math.cos(W.yaw)*W.speed*dt;
     }else{
       W.speed=0;
+      W.aimPt=new THREE.Vector3(b.x, b.y+b.h*0.55, b.z);   // 집을 내려다보고 문다
       if(!W.hitDone && W.t>=0.26){ W.hitDone=true; hurtBuilding(b,WP.wreckDmg); }
       if(W.t>=WP.wreckCd){ W.t=0; W.hitDone=false; }
     }
@@ -1155,12 +1276,24 @@ function updateW(dt){
     if(PL.hp<=0){ W.speed=0; break; }
     /* 몸 한가운데가 아니라 겉면에서 잰다 — 6 m 짜리 짐승이라
        중심까지 1 m 면 사람이 몸 속에 들어가 있는 셈이 된다. */
-    const gap=dist-WYV_R;
+    const gap=shellGap();
     if(gap<=WP.biteRange && W.atkCd<=0){
-      W.atkCd=WP.biteCd; wSet('bite'); break;
+      W.biteAng=solveBite();
+      if(W.biteD<=0.45){
+        W.atkCd=WP.biteCd; W.aimPt=plPoint(); wSet('bite'); break;
+      }
     }
     if(gap<=WP.clawRange && W.atkCd<=0){
-      W.atkCd=WP.clawCd; W.clawSide=(Math.random()<0.5?-1:1); wSet('claw'); break;
+      /* 가까운 쪽 팔로 친다. 뻗을 각은 여기서 미리 풀어 둔다 —
+         몸이 11 m 짜리라 '앞으로 뻗으면 닿는다'가 늘 참이 아니다. */
+      const L=bRig.worldToLocal(plPoint().clone());
+      W.clawSide=(L.x<0?-1:1);
+      W.clawAng=solveClaw(W.clawSide<0?CH_ARM_L:CH_ARM_R, plPoint());
+      /* 닿지도 않을 자리면 휘두르지 않는다 — 허공을 치고 서 있는 대신
+         한 걸음 더 다가온다. */
+      if(W.solveD<=0.5){
+        W.atkCd=WP.clawCd; W.aimPt=plPoint(); wSet('claw'); break;
+      }
     }
     if(W.fbCd<=0 && gap>2.4 && dist<WP.fbRange){
       wSet('fbwind');
@@ -1195,7 +1328,7 @@ function updateDying(dt){
 }
 function explodeWyv(){
   const p=new THREE.Vector3(W.pos.x, wGround()+WYV_H*0.55, W.pos.z);
-  blast(p,2.6); blast(p.clone().setY(p.y+1.2),1.8);
+  blast(p,6.5); blast(p.clone().setY(p.y+2.4),4.5);   // 보이는 고리도 2.5배
   shake=1.0;
   const d=Math.hypot(PL.pos.x-p.x,PL.pos.z-p.z);
   if(d<WP.boomR) hurtPlayer(WP.boomDmg*(1-d/WP.boomR),'터짐');
@@ -1225,9 +1358,9 @@ function hurtPlayer(raw,who){
   PL.hp=clamp(PL.hp-d,0,100);
   const e=document.getElementById('dmg');
   e.style.opacity=Math.min(0.95,d/45); setTimeout(()=>e.style.opacity=0,120);
-  msg('내려찍기 −'+Math.round(d));
+  msg((who||'공격')+' −'+Math.round(d));
   if(PL.hp<=0){ paused=true; unlock();
-    showOv('쓰러졌다','내려찍기를 '+PL.hits+'번 맞았습니다. 흘린 것은 '+PL.miss+'번.','다시');
+    showOv('쓰러졌다','와이번에게 '+PL.hits+'번 맞았습니다. 흘린 것은 '+PL.miss+'번.','다시');
   }
 }
 function flashStun(){
@@ -1819,7 +1952,8 @@ function reset(){
   PL.pos.set(0,h(0,16),16); PL.vel.set(0,0,0); PL.yaw=Math.PI;
   W.hp=W.hpMax; W.alive=true; W.pos.set(0,0,-26); W.yaw=0; W.frz=0;
   W.y=WP.cruise; W.alerted=false; W.speed=0; W.walkPh=0; W.wingPh=0;
-  W.fbCd=0; W.atkCd=0; W.dieT=0; W.boom=0; W.prey=null; W.flash=0; W.fbAim=null;
+  W.fbCd=0; W.atkCd=0; W.dieT=0; W.boom=0; W.prey=null; W.flash=0;
+  W.fbAim=null; W.aimPt=null; W.pendHit=null;
   wSet('fly'); wWander();
   if(bRig){ bRig.visible=true; bRig.scale.setScalar(bScale); }
   if(bMat&&bMat.userData.sh) bMat.userData.sh.uniforms.uBoom.value=0;
