@@ -44,7 +44,9 @@ python -m http.server 5173
   `hidden()` 이 참이라 모든 몹이 사람을 못 알아본다** — 곰·가고일의 거리 계산과
   `seesPlayer()` 가 이걸 먼저 본다. 집을 부수는 것은 와이번뿐이고, 사람이 안 보여도
   집을 보고 내려온다. 벽 한 장이 뚫리면(`breached()`) 그 순간 전부 보인다.
-  벽은 `SOLIDS`/`pushOutOfSolids` 로 사람·곰·가고일을 다 막는다 |
+  벽은 `COLLIDERS`/`pushOutOfSolids` 로 사람·곰·가고일을 다 막고, 짐승은 벽에 달려드는
+  대신 `wayIn()` 으로 뚫린 데를 찾아 집을 두르고 돈다(모서리 → 구멍 정면 → 안쪽 순).
+  몸이 들어가는 놈만 문을 쓴다(문 2.4 m · 곰 2.0 m). **건축물은 본편의 2배**(`BSCALE`) |
 | `trio_arena.html` | **셋 시험장** — 모방 거미1 · 북극곰1 · 가고일2. mimic_arena 에
   mixed_arena 의 곰·가고일을 옮겨 붙인 것(27MB). 이름 충돌은 BEAR_R·BSNAME·bSet·
   bWanderTarget·bearMesh·bearMat 로 피했다 |
