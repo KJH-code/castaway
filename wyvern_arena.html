@@ -1578,6 +1578,40 @@ function msg(t){ const e=document.getElementById('msg'); e.textContent=t;
   e.style.opacity=1; msgT=1.1; }
 
 /* ---------------- 플레이어 ---------------- */
+/* 몸을 밀어낸다 — 뼈 캡슐을 그대로 벽으로 쓴다.
+   맞는 자리와 막는 자리가 같아야 '분명 몸 속인데 안 맞는다'가 안 생긴다.
+   사람 키 띠(발~정수리)에 걸리는 마디만 보고, 수평으로만 민다 —
+   위아래로 밀면 다리 사이에서 튀어 오른다. */
+function pushOutOfWyv(){
+  if(!W.alive||!W.caps||!W.caps.length) return;
+  const lo=PL.pos.y+0.25, hi=PL.pos.y+EYE;
+  for(let it=0; it<2; it++){                   // 두 번 훑어 사이에 낀 것도 뺀다
+    let mx=0, ox=0, oz=0;
+    for(const c of W.caps){
+      const len=c.a.distanceTo(c.b), n=Math.max(1,Math.ceil(len/Math.max(0.2,c.r)));
+      for(let i=0;i<=n;i++){
+        const t=i/n;
+        const qy=c.a.y+(c.b.y-c.a.y)*t;
+        if(qy<lo-c.r||qy>hi+c.r) continue;     // 사람 키 위나 아래를 지나는 마디다
+        const qx=c.a.x+(c.b.x-c.a.x)*t, qz=c.a.z+(c.b.z-c.a.z)*t;
+        let dx=PL.pos.x-qx, dz=PL.pos.z-qz;
+        const d=Math.hypot(dx,dz), R=c.r+PL_R;
+        if(d>=R) continue;
+        const pen=R-d;
+        if(pen>mx){ mx=pen;
+          if(d>1e-4){ ox=dx/d; oz=dz/d; }
+          else{ ox=Math.sin(W.yaw+1.57); oz=Math.cos(W.yaw+1.57); }   // 한가운데면 옆으로
+        }
+      }
+    }
+    if(mx<=0) break;
+    PL.pos.x=clamp(PL.pos.x+ox*mx,-ARENA,ARENA);
+    PL.pos.z=clamp(PL.pos.z+oz*mx,-ARENA,ARENA);
+    /* 밀린 쪽으로 가려던 속도는 죽인다 — 안 그러면 벽에 대고 떤다 */
+    const into=PL.vel.x*ox+PL.vel.z*oz;
+    if(into<0){ PL.vel.x-=into*ox; PL.vel.z-=into*oz; }
+  }
+}
 function updatePL(dt){
   if(PL.stun>0) PL.stun=Math.max(0,PL.stun-dt);
   if(PL.hp<=0){ PL.vel.set(0,0,0); return; }
@@ -1597,6 +1631,7 @@ function updatePL(dt){
   PL.pos.x=clamp(PL.pos.x+PL.vel.x*dt,-ARENA,ARENA);
   PL.pos.z=clamp(PL.pos.z+PL.vel.z*dt,-ARENA,ARENA);
   PL.pos.y+=PL.vel.y*dt;
+  pushOutOfWyv();
   const g=h(PL.pos.x,PL.pos.z);
   if(PL.pos.y<=g){ PL.pos.y=g; PL.vel.y=0; PL.grounded=true; } else PL.grounded=false;
   if(run&&moving) PL.stam-=17*dt; else PL.stam+=12*dt;
