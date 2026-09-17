@@ -539,7 +539,7 @@ const W={
   pos:new THREE.Vector3(0,0,-26), yaw:0, y:20,   // y 는 지면 위 높이
   hp:700, hpMax:700, alive:true, flash:0,
   state:'fly', t:0, frz:0, alerted:false, speed:0, walkPh:0,
-  target:new THREE.Vector3(), fbCd:0, atkCd:0, wingPh:0, fbAim:null, aimPt:null, pendHit:null, clawAng:0.3, lunge:0, solveGate:0.75,
+  target:new THREE.Vector3(), fbCd:0, atkCd:0, wingPh:0, fbAim:null, aimPt:null, pendHit:null, clawAng:0.3, lunge:0, solveGate:0.75, scan:0, lookPh:0,
   dieT:0, boom:0, prey:null                      // prey — 지금 노리는 건축물
 };
 const WP={
@@ -560,6 +560,7 @@ const WP={
   clawPad:0.83, bitePad:0.68,                 // 닿았다고 보는 여유 — 사거리와 같이 1.5배
   clawSolve:0.75, biteSolve:0.68,             // 이보다 멀면 아예 안 휘두른다
   clawLunge:1.2, biteLunge:1.0,               // 치면서 달려드는 거리 — 늘린 사거리를 몸이 메운다
+  scan:2.6,                                   // 배회 중 한 자리에서 둘러보는 시간
   wreck:26,                                   // 집을 알아보는 거리 — 부수는 힘은 사람과 같다
   dieTime:5.0, boomDmg:255, boomR:17.5         // 터질 때까지 · 터지는 힘(85 의 3배)과 반경(7 의 2.5배)
 };
@@ -880,6 +881,15 @@ function poseWyv_(dt){
   const flying=(W.state==='fly'||W.state==='spot'||W.state==='dive');
   const dead=(W.state==='dying'||W.state==='dead');
 
+  /* 나는 동안에는 목을 좌우로 돌려 아래를 훑는다. 둘러보는 참이면 더 크게.
+     선회만 하면 죽은 모형이 미끄러지는 것처럼 보인다. */
+  if(W.state==='fly'){
+    W.lookPh=(W.lookPh||0)+dt*(W.scan>0?0.9:0.5);
+    const amp=(W.scan>0?0.62:0.26);
+    rotBone(bone(CH_HEAD[0]), _AXU, Math.sin(W.lookPh)*amp);
+    rotBone(bone(CH_HEAD[1]), _AXU, Math.sin(W.lookPh*1.3)*amp*0.5);
+    rotBone(bone(CH_HEAD[2]), _AXS, 0.18+Math.sin(W.lookPh*0.7)*0.12);   // 아래를 훑는다
+  }
   /* 날개 — 날 때는 크게 젓고, 땅에서는 접는다 */
   W.wingPh+=dt*(W.state==='fly'?4.4:(W.state==='spot'?2.0:1.2));
   const flap=Math.sin(W.wingPh);
@@ -1255,9 +1265,12 @@ function updateW(dt){
   case 'fly': {
     W.y=lerp(W.y,WP.cruise,1-Math.pow(0.001,dt));
     const td=Math.hypot(W.target.x-W.pos.x,W.target.z-W.pos.z);
-    if(td<6) wWander();
+    if(td<6){ wWander(); W.scan=WP.scan; }     // 한 바퀴 돌았으면 둘러본다
     faceTo(W.target.x,W.target.z,dt,1.4);
-    W.speed=WP.flySpd;
+    /* 둘러보는 동안에는 느리게 선회한다 — 목을 좌우로 돌리는 것이
+       poseWyv 에서 같이 붙는다. */
+    if(W.scan>0){ W.scan-=dt; W.speed=WP.flySpd*0.35; }
+    else W.speed=WP.flySpd;
     W.pos.x+=Math.sin(W.yaw)*W.speed*dt;
     W.pos.z+=Math.cos(W.yaw)*W.speed*dt;
     if((W.alerted||seesPlayer())&&PL.hp>0){ W.alerted=true; wSet('spot'); }
@@ -1315,7 +1328,11 @@ function updateW(dt){
     const T=curTgt();
     /* 노릴 집도 없고 사람이 시야 밖으로 나갔으면 다시 날아오른다 —
        땅에서 하염없이 걸어다니지 않는다. */
-    if(!T.b && dist>WP.see){ W.speed=0; W.prey=null; wSet('fly'); break; }
+    if(!T.b && dist>WP.see){
+      /* 경계도 같이 푼다 — 안 그러면 날아오른 다음 프레임에 곧바로
+         다시 노려보기로 들어가 배회가 한 프레임도 돌지 않는다. */
+      W.speed=0; W.prey=null; W.alerted=false; wSet('fly'); break;
+    }
     faceTo(T.x,T.z,dt,WP.turn);
     if(!T.b && PL.hp<=0){ W.speed=0; break; }
     const tdist=Math.hypot(T.x-W.pos.x,T.z-W.pos.z)||1e-6;
@@ -2105,7 +2122,7 @@ function reset(){
   PL.pos.set(0,h(0,16),16); PL.vel.set(0,0,0); PL.yaw=Math.PI;
   W.hp=W.hpMax; W.alive=true; W.pos.set(0,0,-26); W.yaw=0; W.frz=0;
   W.y=WP.cruise; W.alerted=false; W.speed=0; W.walkPh=0; W.wingPh=0;
-  W.fbCd=0; W.atkCd=0; W.dieT=0; W.boom=0; W.prey=null; W.flash=0;
+  W.fbCd=0; W.atkCd=0; W.dieT=0; W.boom=0; W.prey=null; W.flash=0; W.scan=0; W.alerted=false;
   W.fbAim=null; W.aimPt=null; W.pendHit=null; W.biteAng=undefined; W.lunge=0;
   wSet('fly'); wWander();
   if(bRig){ bRig.visible=true; bRig.scale.setScalar(bScale); }
@@ -2251,7 +2268,8 @@ function hud(dt){
   st.textContent=(W.frz>0&&W.alive)?'굳음':(WNAME[W.state]||W.state);
   st.className='st'+(W.frz>0?' stun':(W.state==='chase'||W.state==='dive')?' chase':'');
   const ph=document.getElementById('phase');
-  if(W.state==='spot') ph.textContent='노려본다 — '+Math.max(0,WP.spotHold-W.t).toFixed(1)+'초 뒤 내리꽂는다';
+  if(W.state==='fly'&&W.scan>0) ph.textContent='둘러본다';
+  else if(W.state==='spot') ph.textContent='노려본다 — '+Math.max(0,WP.spotHold-W.t).toFixed(1)+'초 뒤 내리꽂는다';
   else if(W.state==='fbwind') ph.textContent='숨을 모은다 — '+Math.max(0,WP.fbWind-W.t).toFixed(1)+'초 (옆으로 피해라)';
   else if(W.state==='dive') ph.textContent='내리꽂는 중 — 자리를 비켜라';
   else if(W.state==='land') ph.textContent='굳었다 — '+Math.max(0,W.frz).toFixed(1)+'초';
