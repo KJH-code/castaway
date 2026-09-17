@@ -182,7 +182,8 @@
     <div><span>F</span>방어구 갈아입기 — 청동 · 철 · 키틴 · 가죽 · 맨몸</div>
     <div><span>E</span>문 여닫기 — 닫고 안에 있으면 아무도 못 알아본다</div>
     <div><span>무게</span>짐 + 무기 + 방어구만큼 느려진다 (한계 70 kg)</div>
-    <div><span>H</span>히트박스 보기 — 맞는 자리를 그대로 그린다</div>
+    <div><span>H</span>히트박스 보기 — 짐승의 맞는 자리 · <b>내 몸통(초록)</b> ·
+      <b>벽이 깐 기둥(파랑)</b> 을 그린다. 지나갈 틈이 있는지 이걸로 본다</div>
     <div><span>R</span>되살리기 · Tab 설정 접기</div>
     <div><span>Esc</span>커서 되찾기 (일시정지)</div>
   </div>
@@ -888,6 +889,17 @@ function updateHitboxes(){
   for(const f of foes()){
     const col=(f.o===W)?0xff5a3c:(f.o.kind==='bld'?0x8fb8d8:0xffc23c);
     for(const c of f.caps) hbCap(i++,c,col);
+  }
+  /* 내 몸 — 벽에 걸리는 것이 바로 이 통이다. 반지름 PL_R, 발에서 정수리까지 */
+  hbCap(i++, {a:new THREE.Vector3(PL.pos.x,PL.pos.y+PL_R,PL.pos.z),
+              b:new THREE.Vector3(PL.pos.x,PL.pos.y+EYE,PL.pos.z), r:PL_R}, 0x6fe8a8);
+  /* 벽이 깐 기둥 — 지나갈 수 있는 틈이 어디인지 이걸로 본다.
+     가까운 것만 그린다(집 전체면 140개라 화면이 막힌다) */
+  for(const c of COLLIDERS){
+    if(Math.hypot(c.x-PL.pos.x,c.z-PL.pos.z)>16) continue;
+    const y=h(c.x,c.z);
+    hbCap(i++, {a:new THREE.Vector3(c.x,y+0.1,c.z),
+                b:new THREE.Vector3(c.x,y+WALL_H,c.z), r:c.r}, 0x8fb8d8);
   }
   for(;i<HITG.pool.length;i++) HITG.pool[i].visible=false;
 }
@@ -2913,7 +2925,7 @@ function findFit(){
     const y=f.y+w.L*WALL_H;
     if(PL.pos.y<y-1.2||PL.pos.y>y+WALL_H+0.6) continue;   // 다른 층 문은 안 잡는다
     const dx=P0.x-PL.pos.x, dz=P0.z-PL.pos.z, d=Math.hypot(dx,dz);
-    if(d>2.6||d<0.05||d>=bd) continue;
+    if(d>2.6*BSCALE||d<0.05||d>=bd) continue;   // 격자가 커진 만큼 손도 멀리 간다
     if((dx/d)*fx+(dz/d)*fz<0.35) continue;
     bd=d; best=w;
   }
@@ -3103,7 +3115,8 @@ function pushOutOfSolids(pos,rad){
   return hit;
 }
 function pushOutOfHouse(){
-  if(pushOutOfSolids(PL.pos,0.42)){ PL.vel.x*=0.2; PL.vel.z*=0.2; }
+  /* 판정 반지름은 PL_R 하나로 — 그리는 통과 미는 통이 다르면 눈으로 못 잡는다 */
+  if(pushOutOfSolids(PL.pos,PL_R)){ PL.vel.x*=0.2; PL.vel.z*=0.2; }
 }
 
 /* 달아오르는 살 — 배부터 빨강→주황→노랑으로 번지고, 그 경계는 들쭉날쭉하다.
