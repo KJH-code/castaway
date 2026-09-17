@@ -21,7 +21,7 @@ export const PAGES = [
   {f: 'mixed_arena.html',   ready: '!!bMesh && GS.every(g => g.mesh)',    ms: 300000},
   {f: 'mimic_arena.html',   ready: '!!bMesh',                             ms: 420000},
   {f: 'wyvern_arena.html', ready: '!!bMesh && !!fbGeo && BLDS.length>0', ms: 300000},
-  {f: 'battle_arena.html', ready: '!!bMesh && BS.every(b=>b.mesh) && GS.every(g=>g.mesh)', ms: 360000},
+  {f: 'battle_arena.html', ready: 'WYVS.length>0 && MIMS.length>0 && BS.every(b=>b.mesh) && GS.every(g=>g.mesh)', ms: 480000},
   {f: 'siege_arena.html', ready: '!!bMesh && BS.every(b=>b.mesh) && GS.every(g=>g.mesh) && BLDS.length>0', ms: 360000},
   {f: 'trio_arena.html',    ready: '!!bMesh && !!bearMesh && GS.every(g=>g.mesh)', ms: 480000},
 ];

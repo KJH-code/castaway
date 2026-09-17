@@ -49,7 +49,7 @@ python -m http.server 5173
   `pushOutOfSolids` 로 사람·곰·가고일을 다 막고, 짐승은 벽에 달려드는
   대신 `wayIn()` 으로 뚫린 데를 찾아 집을 두르고 돈다(모서리 → 구멍 정면 → 안쪽 순).
   몸이 들어가는 놈만 문을 쓴다(문 2.4 m · 곰 2.0 m). **건축물은 본편의 2배**(`BSCALE`) |
-| `battle_arena.html` | **편싸움 시험장**(11MB). 평지에 두 편을 마주 세우고 붙인다.
+| `battle_arena.html` | **편싸움 시험장**(32MB). 평지에 두 편을 마주 세우고 붙인다.
   시작 화면에서 **1팀·2팀의 북극곰(0~8)·가고일(0~8)·와이번(0~1) 마릿수**를 고르고
   사람의 편도 고른다(중립이면 구경만 한다). 곰·가고일은 `MAXB`/`MAXG` 만큼 미리
   만들어 두고 `deploy()` 가 쓸 만큼만 깨운다 — 시작할 때마다 모델을 새로 만들면
@@ -57,10 +57,14 @@ python -m http.server 5173
   **와이번은 개체마다 뼈 나무를 복제해 여럿이 선다**(`WYVS` · `useWyv(w)` 가
   W·bRig·bMesh·bMat·BONE·SKROOT·shadowM 을 그 개체 것으로 갈아 끼우고 `eachWyv()` 가
   차례로 돌린다. 지오메트리·역묶음 행렬·뼈 굵기는 나눠 쓴다).
-  **모방 거미는 아직 없다** — 옮기려면 이름이 겹치는 것을 전부 갈라야 한다:
-  두 모델이 `Bone_000` 처럼 같은 뼈 이름을 쓰므로 `BR`(이름 키)을 따로 둬야 하고,
-  `bindLimbs`·`fitBoneRadii`·`capsFrom`·`rotBone`·`BODYCH`·`REST`/`RPOS` 도
-  모방 거미 것을 따로 둬야 한다 |
+  **모방 거미도 같은 방식으로 여럿이 선다**(`MIMS` · `useMimic(m)` — MB·HANDS·SPS·
+  MLIMBS·mRig·mMesh·mMat·MBONE·MSKROOT·mShadow 를 갈아 끼운다).
+  두 모델이 `Bone_000` 처럼 같은 뼈 이름을 써서 모방 거미 쪽은 전부 갈라 두었다 —
+  `MBR`·`mREST`/`mRPOS`·`mBindLimbs`·`mFitRadii`·`mCapsFrom`·`mRotBone`·`mCcd`·
+  `MBODYCH`·`MLIMBS`. **`MLIMBS` 는 개체마다 복제한다** — 하나를 나눠 쓰면 뒤에 선
+  놈이 앞 놈의 뼈를 끌고 다닌다.
+  **몸끼리 겹치지 않는다**(`separateMobs` — 반반씩 밀어내고, 높이가 3.5 m 넘게
+  차이 나면 안 부딪힌다. 곰 1.35 · 가고일 0.8 · 거미 2.2 · 와이번 2.6 m) |
 | `bear_arena.html` · `mixed_arena.html` | 곰 시험장. **캡슐 판정이 없다** — 총은
   `bearSpheres()` 가 뼈마다 늘어놓은 공 18개로 맞히고, 근접은 여전히 평면 거리다 |
 | `trio_arena.html` | **셋 시험장** — 모방 거미1 · 북극곰1 · 가고일2. mimic_arena 에
