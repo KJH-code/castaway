@@ -1298,7 +1298,8 @@ let MB=newMimicState();
 const MP={
   see:70, fov:150*Math.PI/180,               // 시야 — 반각이 아니라 전체 각이다
   walk:1.5, chase:4.2,                       // 본체는 사람보다 느리다. 손이 길 뿐이다
-  reach:10, grabDmg:0,                        // 잡기는 그 자체로는 아프지 않다
+  reach:10, grabDmg:0,                        // 사람은 잡기만으로는 안 아프다
+  gripDmg:11,                                 // 짐승은 0.5초마다 조여 깎는다
   whipDmg:38, whipWind:0.75, whipSwing:0.34,   // 부채꼴로 훑는 시간
   grabWind:2.0, grabShoot:0.35, grabHold:6.0,
   handHp:85, handRegen:4, handCost:60,
@@ -1314,6 +1315,7 @@ function makeHand(side){
   return {side, hp:MP.handHp, hpMax:MP.handHp, alive:true, frz:0,
           state:'idle', t:0, kind:'grab', reachT:0, held:false,
           regen:0, flash:0, tip:new THREE.Vector3(), armT:null, pts:null,
+          heldMob:null, gripT:0,
           limb:null};
 }
 let MLIMBS=[];                                 // 지금 보는 놈의 앞다리·뒷다리
@@ -1712,8 +1714,8 @@ function updateHand(hd,dt){
     if(dist>MP.reach*1.15) return;
     if(mClock-mLastAct<1.0) return;              // 다른 손이 방금 움직였다 — 1초는 기다린다
     mLastAct=mClock;
-    /* 짐승은 못 붙잡는다 — 덩치가 다르다. 사람에게만 잡기를 쓴다 */
-    hd.kind=(HT.isPL&&Math.random()<0.7)?'grab':'whip';
+    /* 짐승도 붙잡는다 — 사람은 삼키려 들고, 짐승은 들어 올려 조인다 */
+    hd.kind=(Math.random()<0.7)?'grab':'whip';
     handSet(hd, hd.kind==='grab'?'wind':'whipwind');
     return;
   }
@@ -1725,13 +1727,30 @@ function updateHand(hd,dt){
   }else if(hd.state==='reach'){
     hd.reachT=Math.min(1,hd.t/MP.grabShoot);
     if(hd.t>=MP.grabShoot){
-      if(dist<=MP.reach && HT.isPL && PL.hp>0){ hd.held=true; handSet(hd,'hold');
-        msg('손에 붙잡혔다 — 이 손을 부숴야 풀린다'); }
+      if(dist<=MP.reach && (HT.isPL ? PL.hp>0 : !!HT.o)){
+        hd.held=true; hd.heldMob=HT.isPL?null:HT.o; handSet(hd,'hold');
+        msg(HT.isPL?'손에 붙잡혔다 — 이 손을 부숴야 풀린다'
+                   :'모방 거미가 '+(HT.o.wing!==undefined?'가고일':'짐승')+'을 붙잡았다'); }
       else handSet(hd,'back');
     }
   }else if(hd.state==='hold'){
     hd.held=true;
-    if(hd.t>=MP.grabHold){ hd.held=false; handSet(hd,'back'); }
+    /* 짐승을 잡았으면 손끝에 붙들어 두고 조인다 — 사람처럼 삼키지는 않는다.
+       잡힌 쪽은 제자리에서 버둥거리고, 손을 부숴야 풀려난다. */
+    const hm=hd.heldMob;
+    if(hm){
+      if(!mobAlive(hm)){ hd.held=false; hd.heldMob=null; handSet(hd,'back'); }
+      else{
+        const L2=hd.limb;
+        const tip=(L2&&L2.tip)?L2.tip.getWorldPosition(new THREE.Vector3()):O;
+        hm.pos.x+=(tip.x-hm.pos.x)*clamp(6*dt,0,1);
+        hm.pos.z+=(tip.z-hm.pos.z)*clamp(6*dt,0,1);
+        hm.speed=0; hm.frz=Math.max(hm.frz||0,0.12);   // 버둥거리느라 못 친다
+        hd.gripT=(hd.gripT||0)+dt;
+        if(hd.gripT>=0.5){ hd.gripT=0; hurtMob(hm,MP.gripDmg,'조임'); }
+      }
+    }
+    if(hd.t>=MP.grabHold){ hd.held=false; hd.heldMob=null; handSet(hd,'back'); }
   }else if(hd.state==='whipwind'){
     /* 채찍 사전 모션 — 앞다리를 옆으로 쭉 뻗어 잠깐 멈춘다. 이걸 보고 뛰어야 한다. */
     const u=clamp(hd.t/MP.whipWind,0,1);
@@ -1773,7 +1792,7 @@ function updateHand(hd,dt){
 }
 /* 손이 잘렸다 */
 function cutHand(hd){
-  hd.alive=false; hd.held=false; hd.hp=0; hd.regen=MP.handRegen;
+  hd.alive=false; hd.held=false; hd.heldMob=null; hd.hp=0; hd.regen=MP.handRegen;
   MB.cuts++;
   let m='앞다리를 잘랐다';
   if(MB.cuts%MP.cutsForStun===0){
@@ -3806,7 +3825,7 @@ function deploy(){
     MB.eatT=-1; MB.flash=0;
     MB.yaw=(t===2)?Math.PI:0;
     MB.pos.set((i-(MAXM-1)/2)*16, 0, t===2?24:-24);
-    for(const hd of HANDS){ hd.alive=true; hd.hp=hd.hpMax; hd.state='idle'; hd.t=0;
+    for(const hd of HANDS){ hd.alive=true; hd.hp=hd.hpMax; hd.state='idle'; hd.t=0; hd.heldMob=null;
       hd.held=false; hd.frz=0; hd.regen=0; hd.armT=null; hd.drive=null; hd.flash=0; }
     for(const sp of SPS){ if(sp.mesh) scene.remove(sp.mesh); if(sp.shadow) scene.remove(sp.shadow); }
     SPS.length=0;
