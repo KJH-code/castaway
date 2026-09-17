@@ -142,6 +142,12 @@
   <div class="row2"><label>무는 피해</label><input type="range" id="pHandHp" min="10" max="140" step="1" value="54"><span class="val" id="vHandHp">–</span></div>
   <div class="row2"><label>착지 경직</label><input type="range" id="pRegen" min="0.5" max="8" step="0.1" value="3"><span class="val" id="vRegen">–</span></div>
   <div class="row2"><label>할퀴는 피해</label><input type="range" id="pCuts" min="10" max="120" step="1" value="34"><span class="val" id="vCuts">–</span></div>
+  <div class="grp">편 가르기 — 다른 편끼리 싸운다</div>
+  <div class="row2"><label>북극곰 1</label><select id="tB0"></select><span class="val" id="vB0">–</span></div>
+  <div class="row2"><label>북극곰 2</label><select id="tB1"></select><span class="val" id="vB1">–</span></div>
+  <div class="row2"><label>북극곰 3</label><select id="tB2"></select><span class="val" id="vB2">–</span></div>
+  <div class="row2"><label>가고일</label><select id="tG0"></select><span class="val" id="vG0">–</span></div>
+  <div class="row2"><label>잿불 와이번</label><select id="tW"></select><span class="val" id="vW">–</span></div>
   <div class="grp">보기</div>
   <div>
     <button class="on" id="bRange">반경 표시</button>
@@ -180,6 +186,8 @@
       <b>11~14 강철(검·창·도끼·해머)</b> (Backspace 지우기 · Esc 물리기)</div>
     <div><span>X</span>재장전 (소총)</div>
     <div><span>F</span>방어구 갈아입기 — 청동 · 철 · 키틴 · 가죽 · 맨몸</div>
+    <div><span>Tab</span>설정에서 <b>편 가르기</b> — 짐승마다 편을 주면 다른 편끼리 싸운다.
+      그림자 빛깔이 편 빛깔이다(사람 편 초록 · 1팀 빨강 · 2팀 파랑 · 3팀 노랑 · 중립 회색)</div>
     <div><span>E</span>문 여닫기 — 닫고 안에 있으면 아무도 못 알아본다</div>
     <div><span>무게</span>짐 + 무기 + 방어구만큼 느려진다 (한계 70 kg)</div>
     <div><span>H</span>히트박스 보기 — 짐승의 맞는 자리 · <b>내 몸통(초록)</b> ·
@@ -1128,15 +1136,25 @@ const plPoint=()=>new THREE.Vector3(PL.pos.x, PL.pos.y+EYE*0.55, PL.pos.z);
    집이 26 m 안에 있으면 사람보다 그쪽이 먼저다. 거동(달려들기·선딜·
    닿는 판정)은 하나뿐이고, 표적만 갈아 끼운다. */
 function curTgt(){
-  const b=W.prey&&W.prey.hp>0?W.prey:null;
-  /* cap 은 함수다 — 칠 때 찍어 둔 자리로 굳으면 선딜을 보고 피해도
-     그 자리에서 맞는다. 겨눈 각만 굳고, 닿았는지는 늘 지금 자리로 본다. */
+  /* 집은 사람 편이 아닐 때만 노린다 — 제 편 집을 부술 이유가 없다 */
+  const b=(W.team!==PL_TEAM && W.team!==NEUTRAL && W.prey && W.prey.hp>0) ? W.prey : null;
   if(b) return {b, x:b.x, z:b.z,
                 cap:()=>bldCap(b), pt:new THREE.Vector3(b.x,b.y+b.h*0.55,b.z),
                 hurt:d=>hurtBuilding(b,d), n:'집'};
-  return {b:null, x:PL.pos.x, z:PL.pos.z,
+  /* 집이 없으면 다른 편 중 가장 가까운 것 — 사람일 수도 짐승일 수도 있다 */
+  const T=foeTarget(W);
+  if(!T) return {b:null, x:W.pos.x, z:W.pos.z, idle:true,
+                 cap:()=>({a:W.pos.clone(), b:W.pos.clone(), r:0.1}),
+                 pt:W.pos.clone(), hurt:()=>{}, n:'없음'};
+  if(T.isPL) return {b:null, x:PL.pos.x, z:PL.pos.z,
           cap:()=>plCap(), pt:plPoint(),
           hurt:(d,w)=>hurtPlayer(d,w), n:'사람'};
+  /* 짐승 표적 — 통 하나로 잡는다 */
+  return {b:null, x:T.x, z:T.z,
+          cap:()=>({a:new THREE.Vector3(T.x,T.y+0.4,T.z),
+                    b:new THREE.Vector3(T.x,T.y+2.2,T.z), r:0.9}),
+          pt:new THREE.Vector3(T.x,T.y+1.4,T.z),
+          hurt:(d,w)=>T.hurt(d,w), n:'짐승'};
 }
 /* 사람이 몸 겉면에서 얼마나 떨어져 있나 — WYV_R 한 값으로는 못 잰다.
    이 녀석은 코에서 꼬리 끝까지 11 m 라, 가운데에서 잰 거리는 뜻이 없다. */
@@ -1283,15 +1301,17 @@ function updateG(g,dt){
   if(g.frz>0){
     g.frz=Math.max(0,g.frz-dt); g.speed=0; g.wing=0;
     if(g.frz<=0 && g.state==='stun'){
-      const dd=Math.hypot(PL.pos.x-g.pos.x,PL.pos.z-g.pos.z);
+      const t0=foeTarget(g);
+      const dd=t0?Math.hypot(t0.x-g.pos.x,t0.z-g.pos.z):1e9;
       gSet(g, dd<PG.see?'chase':'wander');
     }
     return;
   }
-  const toP=new THREE.Vector3(PL.pos.x-g.pos.x,0,PL.pos.z-g.pos.z);
-  /* 문을 닫고 집 안에 있으면 사람이 없는 셈이다 — 냄새도 소리도 못 맡는다.
-     와이번이 벽을 뚫어 구멍이 나면 그때부터 보인다. */
-  const dist=hidden()?1e9:toP.length();
+  /* 노릴 것 — 다른 편 중 가장 가까운 하나. 사람이 문을 닫고 집에 있으면
+     후보에서 빠진다(냄새도 소리도 못 맡는다). */
+  const T=foeTarget(g);
+  const toP=T?new THREE.Vector3(T.x-g.pos.x,0,T.z-g.pos.z):new THREE.Vector3();
+  const dist=T?toP.length():1e9;
   g.t+=dt;
   let move=new THREE.Vector3(), spd=0;
   if(g.state==='wander'){
@@ -1304,7 +1324,7 @@ function updateG(g,dt){
   }else if(g.state==='chase'){
     if(dist>PG.see*1.35&&!g.alerted){ gSet(g,'wander'); gWander(g); }
     else{
-      const way=wayIn(g.pos, 0.6, PL.pos.x, PL.pos.z);
+      const way=wayIn(g.pos, 0.6, T.x, T.z);
       if(way&&way.stop){ spd=0; }
       else if(way){
         move=new THREE.Vector3(way.x-g.pos.x,0,way.z-g.pos.z).normalize();
@@ -1320,7 +1340,7 @@ function updateG(g,dt){
     const step=Math.min(spd*dt,g.dashLeft);
     move=g.dir.clone(); spd=step/Math.max(dt,1e-6);
     g.dashLeft-=step;
-    if(!g.hitDone && dist<2.3){ g.hitDone=true; hurtPlayer(PG.dmg,'가고일 팔'); }
+    if(!g.hitDone && dist<2.3 && T){ g.hitDone=true; T.hurt(PG.dmg,'가고일 팔'); }
     if(g.dashLeft<=0.001){ gSet(g,'stun'); g.frz+=PG.stun; }
   }else if(g.state==='stun'){
     gSet(g, dist<PG.see?'chase':'wander');
@@ -1500,9 +1520,11 @@ function bearCaps(b){
 }
 
 function updateB(B,dt){
-  const dx=PL.pos.x-B.pos.x, dz=PL.pos.z-B.pos.z;
-  /* 집 안에 숨었으면 사람이 없는 셈이다 */
-  const dist=hidden()?1e9:Math.hypot(dx,dz);
+  /* 노릴 것 — 다른 편 중 가장 가까운 하나 */
+  const T=foeTarget(B);
+  B.tgt=T;
+  const dx=T?T.x-B.pos.x:0, dz=T?T.z-B.pos.z:0;
+  const dist=T?Math.hypot(dx,dz):1e9;
   if(!B.alive){ B.t+=dt; B.speed=0; return; }
   /* 굳어 있는 동안은 아무것도 하지 않는다 — 모션도 상태도 서 있다.
      내려찍고 난 경직과 해머 기절이 같은 시계(B.frz)를 쓰고, 서로 더해진다.
@@ -1522,7 +1544,7 @@ function updateB(B,dt){
   }else if(B.state==='chase'){
     if(dist>P.see*1.35&&!B.alerted){ bSet(B,'wander'); bWanderTarget(B); }
     else{
-      const way=wayIn(B.pos, 1.0, PL.pos.x, PL.pos.z);
+      const way=wayIn(B.pos, 1.0, T.x, T.z);
       if(way&&way.stop){ B.speed=0; B.dir.set(dx/(dist||1),0,dz/(dist||1)); }
       else if(way){
         const wx=way.x-B.pos.x, wz=way.z-B.pos.z, wd=Math.hypot(wx,wz)||1;
@@ -1582,8 +1604,8 @@ function updateB(B,dt){
      P.turn 은 휘두르는 중의 선회 상한(라디안/초)이다. 낮추면 다시 옆으로 흘릴
      여지가 생기므로 슬라이더로 남겨 두었다. */
   {
-    const want=(B.state==='attack')
-      ? Math.atan2(PL.pos.x-B.pos.x, PL.pos.z-B.pos.z)   // 공격 중엔 무조건 사람 쪽
+    const want=(B.state==='attack'&&T)
+      ? Math.atan2(T.x-B.pos.x, T.z-B.pos.z)             // 공격 중엔 무조건 표적 쪽
       : Math.atan2(B.dir.x,B.dir.z);
     let d=want-B.yaw;
     while(d>Math.PI) d-=Math.PI*2;
@@ -1600,13 +1622,16 @@ function slamLand(B){
   const hx=B.pos.x+fx*P.reach*0.55, hz=B.pos.z+fz*P.reach*0.55;
   shock.position.set(hx,h(hx,hz)+0.06,hz); shockT=0;
   shake=0.55;
-  const dx=PL.pos.x-B.pos.x, dz=PL.pos.z-B.pos.z, d=Math.hypot(dx,dz)||1;
+  const T=B.tgt; if(!T) return;
+  const dx=T.x-B.pos.x, dz=T.z-B.pos.z, d=Math.hypot(dx,dz)||1;
   const front=(dx/d)*fx+(dz/d)*fz;
   if(d<=P.reach*1.05 && front>0.5){           // 앞쪽 120° 부채꼴 안에서만 맞는다
-    hurtPlayer(P.dmg);
-    PL.hits++;
-    if(P.pstun>0){ PL.stun=P.pstun; flashStun(); }
-  }else{
+    T.hurt(P.dmg,'내려찍기');
+    if(T.isPL){
+      PL.hits++;
+      if(P.pstun>0){ PL.stun=P.pstun; flashStun(); }
+    }
+  }else if(T.isPL){
     PL.miss++;
     msg('흘렸다');
   }
@@ -1767,17 +1792,20 @@ function updateW(dt){
     else W.speed=WP.flySpd;
     W.pos.x+=Math.sin(W.yaw)*W.speed*dt;
     W.pos.z+=Math.cos(W.yaw)*W.speed*dt;
-    if((W.alerted||seesPlayer())&&PL.hp>0){ W.alerted=true; W.aim=null; wSet('spot'); }
+    const eT=foeTarget(W);
+    if(W.team!==PL_TEAM&&W.team!==NEUTRAL&&(W.alerted||seesPlayer())&&PL.hp>0){ W.alerted=true; W.aim=null; wSet('spot'); }
+    else if(eT&&!eT.isPL&&Math.hypot(eT.x-W.pos.x,eT.z-W.pos.z)<WP.see){ W.aim=null; wSet('spot'); }
     else{
       /* 사람이 안 보여도 집은 보인다 — 집을 부수는 것은 이 녀석뿐이다 */
-      const b=nearestBld(WP.see);
+      const b=(W.team===PL_TEAM||W.team===NEUTRAL)?null:nearestBld(WP.see);
       if(b){ W.aim=b; wSet('spot'); }
     }
     break; }
   case 'spot': {                               // 5초 — 제자리에 멈춰 노려본다
     /* 노리는 것이 사람일 수도 집일 수도 있다 */
     const A=(W.aim&&W.aim.hp>0)?W.aim:null;
-    const ax=A?A.x:PL.pos.x, az=A?A.z:PL.pos.z;
+    const sT=A?null:curTgt();
+    const ax=A?A.x:(sT?sT.x:PL.pos.x), az=A?A.z:(sT?sT.z:PL.pos.z);
     W.speed=0;
     faceTo(ax,az,dt,2.2);
     W.y=lerp(W.y,WP.cruise+2,1-Math.pow(0.05,dt));
@@ -1787,7 +1815,7 @@ function updateW(dt){
       if(A){
         const dx=W.pos.x-ax, dz=W.pos.z-az, dd=Math.hypot(dx,dz)||1, off=HOUSE.n*CELL_B*0.5+3;
         W.diveTo=new THREE.Vector3(ax+dx/dd*off,0,az+dz/dd*off);
-      }else W.diveTo=new THREE.Vector3(PL.pos.x,0,PL.pos.z);
+      }else W.diveTo=new THREE.Vector3(ax,0,az);
     }
     break; }
   case 'dive': {                               // 머리부터 떨어진다
@@ -1833,11 +1861,11 @@ function updateW(dt){
   default: {                                   // chase — 사람이든 집이든 한 길로 친다
     /* 집이 26 m 안에 있으면 사람보다 그쪽이 먼저다. 고른 뒤로는 아래가
        사람인지 집인지 묻지 않는다 — 표적 하나를 놓고 같은 패턴을 돈다. */
-    W.prey=nearestBld();
+    W.prey=(W.team===PL_TEAM||W.team===NEUTRAL)?null:nearestBld();
     const T=curTgt();
     /* 노릴 집도 없고 사람이 시야 밖으로 나갔으면 다시 날아오른다 —
        땅에서 하염없이 걸어다니지 않는다. */
-    if(!T.b && (hidden()||dist>WP.see)){
+    if(!T.b && (T.idle || Math.hypot(T.x-W.pos.x,T.z-W.pos.z)>WP.see)){
       /* 경계도 같이 푼다 — 안 그러면 날아오른 다음 프레임에 곧바로
          다시 노려보기로 들어가 배회가 한 프레임도 돌지 않는다. */
       W.speed=0; W.prey=null; W.alerted=false; wSet('fly'); break;
@@ -3074,6 +3102,58 @@ function insideHouse(){
 const doorShut=()=>{ const w=HOUSE.door; return !!(w&&w.hp>0&&w.leaf&&!w.leaf.open); };
 /* 몹이 사람을 못 알아보는 조건 — 문 닫고 집 안, 구멍 없음 */
 const hidden=()=>doorShut() && !breached() && insideHouse();
+/* ============================================================================
+   편 가르기 — 짐승끼리 싸우게 한다
+   ----------------------------------------------------------------------------
+   짐승마다 team 을 준다. 0 은 사람 편, 1~3 은 짐승 편, 4 는 중립(아무와도
+   안 싸운다). 다른 편이면 서로 문다. 표적은 매 프레임 가장 가까운 다른
+   편 하나이고, 사람도 그 후보에 낀다 — 문을 닫고 집 안에 있으면 빠진다.
+   ========================================================================== */
+const TEAM_N=['사람 편','1팀','2팀','3팀','중립'];
+const TEAM_C=[0x6fe8a8, 0xd8724a, 0x6fa8d8, 0xd8c04a, 0x9aa0a6];
+const PL_TEAM=0, NEUTRAL=4;
+const allMobs=()=>[...BS, ...GS, W];
+const mobAlive=m=>m.alive && (m!==W || W.state!=='dying' && W.state!=='boom' && W.state!=='dead');
+const mobPos=m=>(m===W)?{x:W.pos.x, z:W.pos.z, y:wGround()+W.y}:{x:m.pos.x, z:m.pos.z, y:m.pos.y};
+/* 짐승 하나가 노릴 것 — 없으면 null */
+function foeTarget(o){
+  if(o.team===NEUTRAL) return null;
+  let best=null, bd=1e9;
+  /* 사람 — 사람 편이 아니고, 숨지 않았을 때만 */
+  if(o.team!==PL_TEAM && !hidden()){
+    const p=mobPos(o);
+    bd=Math.hypot(PL.pos.x-p.x, PL.pos.z-p.z);
+    best={x:PL.pos.x, z:PL.pos.z, y:PL.pos.y, isPL:true, o:null,
+          hurt:(d,w)=>hurtPlayer(d,w)};
+  }
+  const p=mobPos(o);
+  for(const m of allMobs()){
+    if(m===o||!mobAlive(m)||m.team===o.team||m.team===NEUTRAL) continue;
+    const q=mobPos(m), d=Math.hypot(q.x-p.x, q.z-p.z);
+    if(d>=bd) continue;
+    bd=d; best={x:q.x, z:q.z, y:q.y, isPL:false, o:m, hurt:(dm,w)=>hurtMob(m,dm,w)};
+  }
+  return best;
+}
+/* 짐승이 맞았다 — 사람이 때리든 딴 짐승이 물든 여기로 온다 */
+function hurtMob(m,dmg,who){
+  if(!m||!mobAlive(m)) return;
+  if(m===W){ hitFoe(W,dmg,0,who); return; }
+  m.hp-=dmg; m.flash=1; m.alerted=true;
+  const nm=(m.wing!==undefined)?'가고일':'북극곰';
+  if(m.hp>0){ msg(nm+' −'+Math.round(dmg)+' ('+nm+' '+Math.round(m.hp)+')'); return; }
+  m.hp=0; m.alive=false; m.deadAt=tAcc; m.speed=0;
+  msg(nm+'이 쓰러졌다');
+}
+/* 편 빛깔 — 그림자로 보여 준다 */
+function paintTeams(){
+  for(const m of allMobs()){
+    const c=TEAM_C[m.team]||0x9aa0a6;
+    if(m.shadow&&m.shadow.material) m.shadow.material.color.setHex(c);
+  }
+  if(shadowM&&shadowM.material) shadowM.material.color.setHex(TEAM_C[W.team]||0x9aa0a6);
+}
+
 /* ── 어디로 들어갈까 ────────────────────────────────────────────────────────
    벽 너머의 사람에게 곧장 달려들면 벽에 붙어 밀리기만 한다. 짐승은 뚫린
    데를 찾아 그리로 돈다 — 문짝이 열려 있고 몸이 들어가면 문으로, 아니면
@@ -3277,6 +3357,8 @@ function init(){
   /* 집 밖에 세운다 — 곰 셋 · 가고일 하나. 집은 한가운데다 */
   makeBear(-22,-14); makeBear(24,-6); makeBear(-6,26);
   GS.push(makeGargoyle(20,20));
+  /* 처음은 모두 1팀 — 다 같이 사람을 노린다. 설정에서 편을 바꾼다 */
+  for(const m of allMobs()) m.team=1;
   /* ---- 북극곰 셋 ---- */
   try{
     bearGeo=parseGLB_BEAR(b64ToBuf(GLB_BEAR));
@@ -3489,6 +3571,20 @@ tog('bRange',v=>{ showRange=v; });
 tog('bSlow',v=>{ slow=v; });
 tog('bLimb',v=>{ doLimb=v; });
 tog('bHit',v=>{ showHit=v; });
+/* 편 고르기 — 그림자 빛깔이 편 빛깔이다 */
+function teamSel(id,vid,get){
+  const el=document.getElementById(id), out=document.getElementById(vid);
+  if(!el) return;
+  el.innerHTML=TEAM_N.map((n,i)=>'<option value="'+i+'">'+n+'</option>').join('');
+  const u=()=>{ const m=get(); if(!m) return;
+    m.team=+el.value; out.textContent=TEAM_N[m.team]; paintTeams(); };
+  el.addEventListener('change',u);
+  const m=get(); if(m){ el.value=String(m.team); out.textContent=TEAM_N[m.team]; }
+}
+teamSel('tB0','vB0',()=>BS[0]); teamSel('tB1','vB1',()=>BS[1]);
+teamSel('tB2','vB2',()=>BS[2]); teamSel('tG0','vG0',()=>GS[0]);
+teamSel('tW','vW',()=>W);
+paintTeams();
 tog('bRig',v=>{ showRig=v;                    // 바탕색 그림을 껐다 켜서 몸꼴만 본다
   if(bMat){ bMat.map=v?null:bTex; bMat.color.setHex(v?0x8a6f7a:0xffffff); bMat.needsUpdate=true; } });
 document.getElementById('bReset').onclick=reset;
