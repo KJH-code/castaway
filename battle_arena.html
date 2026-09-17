@@ -1299,7 +1299,6 @@ const MP={
   see:70, fov:150*Math.PI/180,               // 시야 — 반각이 아니라 전체 각이다
   walk:1.5, chase:4.2,                       // 본체는 사람보다 느리다. 손이 길 뿐이다
   reach:10, grabDmg:0,                        // 사람은 잡기만으로는 안 아프다
-  gripDmg:11,                                 // 짐승은 0.5초마다 조여 깎는다
   whipDmg:38, whipWind:0.75, whipSwing:0.34,   // 부채꼴로 훑는 시간
   grabWind:2.0, grabShoot:0.35, grabHold:6.0,
   handHp:85, handRegen:4, handCost:60,
@@ -1327,7 +1326,7 @@ function useMimic(m){
 const eachMimic=fn=>{ for(const m of MIMS){ useMimic(m); fn(m); } };
 let mLastAct=-99;                              // 마지막으로 손이 움직이기 시작한 시각
 let mClock=0;                                  // 아레나가 돌아간 시간
-const heldCount=()=>HANDS.filter(h=>h.alive&&h.held).length;
+const heldCount=()=>HANDS.filter(h=>h.alive&&h.held&&!h.heldMob).length;   // 사람을 잡은 손
 
 /* 새끼 거미 */
 const SPD={hp:100, speed:0.56, bite:14, biteCd:1.2, near:1.3,
@@ -1656,17 +1655,9 @@ function updateM(dt){
   }
   MB.pos.y=mGround();
 
-  // 두 손에 잡히면 삼켜지기 시작한다
-  if(heldCount()>=2){
-    if(MB.eatT<0){ MB.eatT=MP.eat; msg('두 손에 붙잡혔다 — 공격할 수 없다'); }
-    MB.eatT-=dt;
-    if(MB.eatT<=0){
-      PL.hp=0;
-      showOv('삼켜졌다','두 손에 잡히면 아무것도 할 수 없다. '
-        +'한 손이 붙잡았을 때 그 손부터 부숴야 한다.','다시');
-      paused=true; unlock();
-    }
-  }else MB.eatT=-1;
+  /* 두 손에 잡히면 삼켜지던 판정은 걷어냈다 — 붙잡혀도 휘두를 수 있다.
+     손은 붙들어 둘 뿐이고, 풀려나려면 그 손을 부수거나 6초를 버틴다. */
+  MB.eatT=-1;
 
   for(const hd of HANDS) updateHand(hd,dt);
   for(const sp of SPS) updateSpiderling(sp,dt);
@@ -1735,8 +1726,8 @@ function updateHand(hd,dt){
     }
   }else if(hd.state==='hold'){
     hd.held=true;
-    /* 짐승을 잡았으면 손끝에 붙들어 두고 조인다 — 사람처럼 삼키지는 않는다.
-       잡힌 쪽은 제자리에서 버둥거리고, 손을 부숴야 풀려난다. */
+    /* 잡힌 것은 사람이든 짐승이든 손끝에 붙들린다 — 아프지는 않고,
+       그 손을 부수거나 6초를 버텨야 풀려난다. */
     const hm=hd.heldMob;
     if(hm){
       if(!mobAlive(hm)){ hd.held=false; hd.heldMob=null; handSet(hd,'back'); }
@@ -1746,8 +1737,6 @@ function updateHand(hd,dt){
         hm.pos.x+=(tip.x-hm.pos.x)*clamp(6*dt,0,1);
         hm.pos.z+=(tip.z-hm.pos.z)*clamp(6*dt,0,1);
         hm.speed=0; hm.frz=Math.max(hm.frz||0,0.12);   // 버둥거리느라 못 친다
-        hd.gripT=(hd.gripT||0)+dt;
-        if(hd.gripT>=0.5){ hd.gripT=0; hurtMob(hm,MP.gripDmg,'조임'); }
       }
     }
     if(hd.t>=MP.grabHold){ hd.held=false; hd.heldMob=null; handSet(hd,'back'); }
@@ -4532,12 +4521,7 @@ function loop(){
   if(!paused){
     tAcc+=dt;
     eachWyv(()=>updateW(dt));
-    eachMimic(()=>{
-      updateM(dt);
-      for(const hd of HANDS) updateHand(hd,dt);
-      separateSpiders(dt);
-      for(const sp of SPS) updateSpiderling(sp,dt);
-    });
+    eachMimic(()=>updateM(dt));   // updateM 안에서 손·새끼까지 같이 돈다
     updateFB(dt); updateBlasts(dt);
     for(const b of BS) updateB(b,dt);
     for(const g of GS) updateG(g,dt);
