@@ -516,7 +516,7 @@ let doWing=true;
 /* 살아 있는 적을 모두 모은다 — 곰은 몸통이 커서 판정 반지름이 다르다 */
 function foes(){
   const a=[];
-  if(B.alive) a.push({o:B, r:BODY_R, cy:BEAR_H*0.55, n:'북극곰'});
+  if(B.alive) a.push({o:B, r:BODY_R, cy:BEAR_H*0.55, n:'북극곰', spheres:bearSpheres});
   for(const g of GS) if(g.alive) a.push({o:g, r:1.0, cy:1.1, n:g.n});
   return a;
 }
@@ -765,6 +765,28 @@ function updateB(dt){
   }
 }
 
+/* 곰 맞는 자리 — 관절을 따라 공을 늘어놓는다. 공 하나로 잡으면 3.43 m 짜리
+   몸에서 머리(2.65 m)와 치켜든 앞발(2.29 m)이 판정에서 빠진다. 이 파일에는
+   캡슐 판정이 없으므로, 뼈마다 pivot·중간·tip 세 점에 공을 둔다. */
+const BCAP_R=[0.75, 0.40, 0.28, 0.28, 0.32, 0.32];
+const _bsv=new THREE.Vector3();
+function bearSpheres(){
+  const out=[], y=bGround(), cy=Math.cos(B.yaw), sy=Math.sin(B.yaw);
+  const put=(src,i)=>{
+    _bsv.set(src[0],src[1],src[2]).applyMatrix4(JM[i]).multiplyScalar(SCL);
+    const x=_bsv.x*cy+_bsv.z*sy, z=-_bsv.x*sy+_bsv.z*cy;
+    return {x:B.pos.x+x, y:y+_bsv.y, z:B.pos.z+z};
+  };
+  for(let i=0;i<NJ;i++){
+    const J=JOINT[i], r=BCAP_R[i]*SCL;
+    const A=put(J.p,i), Bp=put(J.t,i);
+    for(let k=0;k<=2;k++){
+      const u=k/2;
+      out.push({x:A.x+(Bp.x-A.x)*u, y:A.y+(Bp.y-A.y)*u, z:A.z+(Bp.z-A.z)*u, r});
+    }
+  }
+  return out;
+}
 /* 앞발이 땅에 닿는 순간 */
 function slamLand(){
   const fx=Math.sin(B.yaw), fz=Math.cos(B.yaw);
@@ -851,6 +873,14 @@ function shoot(){
   camera.getWorldPosition(o); camera.getWorldDirection(d);
   let t=-1, hit=null;
   for(const f of foes()){
+    /* 곰은 뼈마다 공을 늘어놓아 머리와 앞발도 맞는다 */
+    if(f.spheres){
+      for(const s of f.spheres()){
+        const tt=rayTarget(o,d,W.reach,s.x,s.y,s.z,s.r);
+        if(tt>0 && (t<0||tt<t)){ t=tt; hit=f.o; }
+      }
+      continue;
+    }
     const tt=rayTarget(o,d,W.reach,f.o.pos.x,f.o.pos.y+f.cy,f.o.pos.z, f.r*0.9);
     if(tt>0 && (t<0||tt<t)){ t=tt; hit=f.o; }     // 앞에 선 것부터 맞는다
   }

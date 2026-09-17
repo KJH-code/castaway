@@ -47,9 +47,12 @@ python -m http.server 5173
   벽은 `COLLIDERS`/`pushOutOfSolids` 로 사람·곰·가고일을 다 막고, 짐승은 벽에 달려드는
   대신 `wayIn()` 으로 뚫린 데를 찾아 집을 두르고 돈다(모서리 → 구멍 정면 → 안쪽 순).
   몸이 들어가는 놈만 문을 쓴다(문 2.4 m · 곰 2.0 m). **건축물은 본편의 2배**(`BSCALE`) |
+| `bear_arena.html` · `mixed_arena.html` | 곰 시험장. **캡슐 판정이 없다** — 총은
+  `bearSpheres()` 가 뼈마다 늘어놓은 공 18개로 맞히고, 근접은 여전히 평면 거리다 |
 | `trio_arena.html` | **셋 시험장** — 모방 거미1 · 북극곰1 · 가고일2. mimic_arena 에
   mixed_arena 의 곰·가고일을 옮겨 붙인 것(27MB). 이름 충돌은 BEAR_R·BSNAME·bSet·
-  bWanderTarget·bearMesh·bearMat 로 피했다 |
+  bWanderTarget·bearMesh·bearMat 로 피했다. 곰은 `bearCaps()` — 관절 여섯의
+  pivot→tip 캡슐이다(곰 키 3.43 m · 머리 2.65 m · 치켜든 앞발 2.29 m) |
 | `CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
 | `CASTAWAY_전사_초반부.md`, `CASTAWAY_전사_2차.md` | 개발 대화 원문 |
 | `bear_high.glb`, `stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |
