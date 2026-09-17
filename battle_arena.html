@@ -1292,7 +1292,7 @@ function newMimicState(){ return {
   pos:new THREE.Vector3(0,0,-22), yaw:0, hp:800, hpMax:800, frz:0, team:1,
   state:'wander', t:0, alerted:false, alive:true, flash:0,
   target:new THREE.Vector3(), speed:0, walkPh:0,
-  spawnCd:0, cuts:0, eatT:-1, caps:null
+  spawnCd:0, cuts:0, eatT:-1, eatWho:null, caps:null
 }; }
 let MB=newMimicState();
 const MP={
@@ -1660,9 +1660,36 @@ function updateM(dt){
   }
   MB.pos.y=mGround();
 
-  /* 두 손에 잡히면 삼켜지던 판정은 걷어냈다 — 붙잡혀도 휘두를 수 있다.
-     손은 붙들어 둘 뿐이고, 풀려나려면 그 손을 부수거나 6초를 버틴다. */
-  MB.eatT=-1;
+  /* 두 손이 같은 것을 잡으면 삼킨다 — 3초 안에 한 손을 부숴야 한다.
+     붙잡혔다고 공격을 막지는 않는다(예전 안내가 '공격할 수 없다'고
+     했지만 실제로 막은 적은 없다). 짐승도 같은 규칙으로 삼켜진다. */
+  {
+    const hs=HANDS.filter(h=>h.alive&&h.held);
+    const onPL=hs.filter(h=>!h.heldMob).length;
+    const onMob=(hs.length>=2 && hs[0].heldMob && hs[0].heldMob===hs[1].heldMob)
+                ? hs[0].heldMob : null;
+    const victim=(onPL>=2)?'pl':(onMob?onMob:null);
+    if(victim!==MB.eatWho){ MB.eatWho=victim; MB.eatT=victim?MP.eat:-1;
+      if(victim) msg(victim==='pl'
+        ? '두 손에 붙잡혔다 — '+MP.eat.toFixed(0)+'초 안에 한 손을 부숴라'
+        : '모방 거미가 두 손으로 옭아맸다'); }
+    if(victim){
+      MB.eatT-=dt;
+      if(MB.eatT<=0){
+        if(victim==='pl'){
+          PL.hp=0;
+          showOv('삼켜졌다','두 손에 잡히면 3초 안에 한 손을 부숴야 한다. '
+            +'붙잡혀 있어도 휘두를 수는 있다.','다시');
+          paused=true; unlock();
+        }else{
+          hurtMob(victim, victim.hpMax*2, '삼킴');   // 삼켜졌다 — 바로 끝난다
+          msg('모방 거미가 삼켰다');
+        }
+        MB.eatWho=null; MB.eatT=-1;
+        for(const h of HANDS){ h.held=false; h.heldMob=null; handSet(h,'back'); }
+      }
+    }
+  }
 
   for(const hd of HANDS) updateHand(hd,dt);
   for(const sp of SPS) updateSpiderling(sp,dt);
@@ -3818,7 +3845,7 @@ function deploy(){
     const t = (i<LINE.m1) ? 1 : ((i>=MAXM-LINE.m2) ? 2 : NEUTRAL);
     MB.team=t; MB.alive=(t!==NEUTRAL); MB.hp=MB.hpMax; MB.frz=0; MB.alerted=false;
     MB.state='wander'; MB.t=0; MB.speed=0; MB.walkPh=0; MB.spawnCd=0; MB.cuts=0;
-    MB.eatT=-1; MB.flash=0; inst.clock=0; inst.lastAct=-99; mClock=0; mLastAct=-99;
+    MB.eatT=-1; MB.eatWho=null; MB.flash=0; inst.clock=0; inst.lastAct=-99; mClock=0; mLastAct=-99;
     MB.yaw=(t===2)?Math.PI:0;
     MB.pos.set((i-(MAXM-1)/2)*16, 0, t===2?24:-24);
     for(const hd of HANDS){ hd.alive=true; hd.hp=hd.hpMax; hd.state='idle'; hd.t=0; hd.heldMob=null;
@@ -4327,13 +4354,8 @@ function reset(){
   wSet('fly'); wWander();
   if(bRig){ bRig.visible=true; bRig.scale.setScalar(bScale); }
   if(bMat&&bMat.userData.sh) bMat.userData.sh.uniforms.uBoom.value=0;
-  /* 곰과 가고일도 제자리로 */
-  const bp=[[-22,-14],[24,-6],[-6,26]];
-  BS.forEach((b,i)=>{ b.hp=b.hpMax; b.alive=true; b.frz=0; b.alerted=false; b.speed=0;
-    b.state='wander'; b.t=0; b.hitDone=false; b.flash=0; b.walkPh=0;
-    b.pos.set(bp[i][0],0,bp[i][1]); b.pos.y=bGround(b); bWanderTarget(b); });
-  GS.forEach(g=>{ g.hp=g.hpMax; g.alive=true; g.frz=0; g.alerted=false; g.speed=0;
-    g.state='wander'; g.t=0; g.hitDone=false; g.pos.set(20,0,20); gWander(g); });
+  /* 곰·가고일·와이번·거미는 deploy() 가 고른 편성대로 다시 세운다 —
+     여기서 손으로 자리를 잡으면 마릿수가 바뀔 때마다 어긋난다 */
   for(const f of FBS){ scene.remove(f.mesh); } FBS.length=0;
   for(const b of BLASTS){ scene.remove(b.m); scene.remove(b.li); } BLASTS.length=0;
   /* 집도 새로 짓는다 — 본편의 걷어내기를 써서 메시·판·격자 항목을 다 지운다.
