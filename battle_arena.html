@@ -1498,8 +1498,15 @@ function poseMimic(dt){
   const bob=MB.alive?Math.sin(MB.walkPh*2)*0.035*clamp(MB.speed/(MP.chase||1),0,1):0;
   mRig.position.set(MB.pos.x,MB.pos.y+bob,MB.pos.z);
   mRig.rotation.y=MB.yaw;
-  for(const [bn,q] of mREST) bn.quaternion.copy(q);   // 쉼 자세로 되돌린다
-  for(const [bn,v] of mRPOS) bn.position.copy(v);
+  /* 쉼 자세로 되돌린다 — mREST·mRPOS 는 온 개체의 뼈를 다 담고 있으므로
+     반드시 지금 보는 개체의 뼈 나무만 훑어야 한다. 표를 통째로 돌리면
+     뒤에 선 놈을 포즈할 때 앞 놈이 방금 잡은 자세까지 쉼 자세로 밀려
+     첫 마리는 영영 굳은 채로 그려진다. */
+  MSKROOT.traverse(o=>{
+    if(!o.isBone) return;
+    const q=mREST.get(o); if(q) o.quaternion.copy(q);
+    const v=mRPOS.get(o); if(v) o.position.copy(v);
+  });
   mRig.updateMatrixWorld(true);
   const gait=clamp(MB.speed/(MP.chase||1),0,1);
   const gaitAmp=0.35+0.65*gait;                  // 느리면 작게, 빠르면 크게
@@ -1764,13 +1771,10 @@ function updateHand(hd,dt){
     if(hm){
       if(!mobAlive(hm)){ hd.held=false; hd.heldMob=null; handSet(hd,'back'); }
       else{
-        const L2=hd.limb;
-        const tip=(L2&&L2.tip)?L2.tip.getWorldPosition(new THREE.Vector3()):O;
-        /* 사람이 잡혔을 때와 같다 — 굳히지 않는다. 끌려다닐 뿐이고
-           제 공격은 그대로 한다. 굳히면 잡힌 쪽이 통째로 멎어 버려
-           '아무 모션도 없는 놈'이 된다. */
-        hm.pos.x+=(tip.x-hm.pos.x)*clamp(3*dt,0,1);
-        hm.pos.z+=(tip.z-hm.pos.z)*clamp(3*dt,0,1);
+        /* 사람이 잡혔을 때와 똑같이 — 끌어당기지도, 굳히지도 않는다.
+           앞다리가 10 m 까지 늘어나므로 잡힌 놈은 제자리에서 버둥거리고
+           팔이 그쪽으로 뻗은 채 따라 움직인다. 끌어다 붙이면 팔이 도로
+           접혀 둘 다 선 채로 멎은 것처럼 보인다. */
       }
     }
     if(hd.t>=MP.grabHold){ hd.held=false; hd.heldMob=null; handSet(hd,'back'); }
