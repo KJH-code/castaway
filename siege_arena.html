@@ -859,6 +859,27 @@ function buildHitboxes(){
   HITG=new THREE.Group(); HITG.visible=false; HITG.renderOrder=999; scene.add(HITG);
   HITG.pool=[]; HITG.mats={};
 }
+/* 판 하나를 그린다 — 벽이 막는 모양 그대로다 */
+function hbBox(i,c,color){
+  while(HITG.pool.length<=i){
+    const g=new THREE.Group();
+    g.tube=new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,10,1,true),hbMat(0xffffff));
+    g.e0=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),g.tube.material);
+    g.e1=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),g.tube.material);
+    g.box=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),g.tube.material);
+    g.add(g.tube,g.e0,g.e1,g.box); HITG.add(g); HITG.pool.push(g);
+  }
+  const g=HITG.pool[i];
+  g.visible=true; g.quaternion.identity();
+  if(!HITG.mats[color]) HITG.mats[color]=hbMat(color);
+  g.box.material=HITG.mats[color];
+  g.tube.visible=g.e0.visible=g.e1.visible=false;
+  if(!g.box) return;
+  g.box.visible=true;
+  g.position.set(c.x,(c.y0+c.y1)/2,c.z);
+  g.box.scale.set(c.w,Math.max(0.02,c.y1-c.y0),c.d);
+  g.box.position.set(0,0,0);
+}
 /* 캡슐 하나를 그린다 — 통 하나에 양 끝 공 둘. 판정하는 모양 그대로다. */
 function hbCap(i,c,color){
   while(HITG.pool.length<=i){
@@ -866,10 +887,14 @@ function hbCap(i,c,color){
     g.tube=new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,10,1,true),hbMat(0xffffff));
     g.e0=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),g.tube.material);
     g.e1=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),g.tube.material);
-    g.add(g.tube,g.e0,g.e1); HITG.add(g); HITG.pool.push(g);
+    g.box=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),g.tube.material);
+    g.box.visible=false;
+    g.add(g.tube,g.e0,g.e1,g.box); HITG.add(g); HITG.pool.push(g);
   }
   const g=HITG.pool[i];
   g.visible=true;
+  if(g.box) g.box.visible=false;                   // 같은 그릇을 판과 나눠 쓴다
+  g.tube.visible=g.e0.visible=g.e1.visible=true;
   if(!HITG.mats[color]) HITG.mats[color]=hbMat(color);
   g.tube.material=g.e0.material=g.e1.material=HITG.mats[color];
   const len=c.a.distanceTo(c.b);
@@ -893,13 +918,11 @@ function updateHitboxes(){
   /* 내 몸 — 벽에 걸리는 것이 바로 이 통이다. 반지름 PL_R, 발에서 정수리까지 */
   hbCap(i++, {a:new THREE.Vector3(PL.pos.x,PL.pos.y+PL_R,PL.pos.z),
               b:new THREE.Vector3(PL.pos.x,PL.pos.y+EYE,PL.pos.z), r:PL_R}, 0x6fe8a8);
-  /* 벽이 깐 기둥 — 지나갈 수 있는 틈이 어디인지 이걸로 본다.
-     가까운 것만 그린다(집 전체면 140개라 화면이 막힌다) */
+  /* 벽 판 — 막는 모양 그대로 그린다. 문틀은 구멍이 난 채로 보인다.
+     가까운 것만 그린다(집 전체면 판이 백 장 넘어 화면이 막힌다) */
   for(const c of COLLIDERS){
-    if(Math.hypot(c.x-PL.pos.x,c.z-PL.pos.z)>16) continue;
-    const y=h(c.x,c.z);
-    hbCap(i++, {a:new THREE.Vector3(c.x,y+0.1,c.z),
-                b:new THREE.Vector3(c.x,y+WALL_H,c.z), r:c.r}, 0x8fb8d8);
+    if(Math.hypot(c.x-PL.pos.x,c.z-PL.pos.z)>20) continue;
+    hbBox(i++, c, c.leaf?0x6fd8e8:0x8fb8d8);
   }
   for(;i<HITG.pool.length;i++) HITG.pool[i].visible=false;
 }
@@ -1319,7 +1342,7 @@ function updateG(g,dt){
     g.yaw+=d*clamp((g.state==='prep'?7:1.5)*dt,0,1);
   }
   g.speed=spd;
-  pushOutOfSolids(g.pos, 0.6);
+  pushOutOfSolids(g.pos, 0.6, g.pos.y, g.pos.y+1.4);
   const hoverBob=(g.state==='stun')?0:Math.sin(performance.now()*0.004+g.wingPh)*0.05;
   g.pos.y=h(g.pos.x,g.pos.z)+PG.hover+hoverBob;
   const rate=(g.state==='dash')?26:(spd>0.2?12+spd*1.1:3.5);
@@ -1546,7 +1569,7 @@ function updateB(B,dt){
     }
   }
   /* 집 벽에 막힌다 — 구멍이 나야 들어온다 */
-  pushOutOfSolids(B.pos, 1.0);
+  pushOutOfSolids(B.pos, 1.0, B.pos.y+0.3, B.pos.y+2.2);
   /* 곰끼리도 서로 밀어낸다 — 셋이 한 점에 겹쳐 서면 한 마리로 보인다 */
   for(const o of BS){
     if(o===B||!o.alive) continue;
@@ -2515,8 +2538,13 @@ function updateSpear(dt){
    문짝이 95° 로 열리는 것, 문을 닫으면 충돌체가 도로 깔리는 것까지 같다.
    바깥에서 끌어 쓰는 것은 h()(지형 높이) · msg()(알림) 둘뿐이다.
    ========================================================================== */
-const COLLIDERS=[];                                 // {x,z,r} — 벽이 까는 기둥
+/* 벽은 판이다 — 본편은 원기둥을 줄 세워 벽을 흉내 냈지만(격자 색인 때문),
+   여기서는 판 하나로 둔다. 문틀은 문 크기만큼 구멍이 난 판 셋(좌·우·상인방)
+   이고, 닫힌 문짝이 그 구멍을 메우는 판 하나다. 부서지면 판이 사라진다.
+   판: {x,z,w,d,y0,y1} — w·d 는 가로·두께, y0~y1 은 높이 띠 */
+const COLLIDERS=[];
 const buildColliderGrid=()=>{};                     // 본편의 격자 색인은 없어도 된다
+const WALL_T=0.35;                                  // 벽 두께
 const sfxNone=()=>{};
 /* 이 판의 건축물은 본편의 두 배다 — 와이번이 11 m 짜리라 3 m 격자 집은
    장난감처럼 보인다. 한 곳에서 곱해 아래가 전부 따라가게 했다. */
@@ -2844,16 +2872,39 @@ function rebuildWallCols(w){
 }
 function addWallCols(w){
   const P0=wallPose(w.gx,w.gz,w.s);
-  const [ox,oz]=SIDE[w.s], tx=-oz, tz=ox;
+  const [ox,oz]=SIDE[w.s];
+  const f=FOUNDS.get(fkey(w.gx,w.gz));
   w.cols=[];
-  if(w.L!==0) return;                                // 이층 벽은 지면 충돌과 무관하다
-  for(let i=-3;i<=3;i++){
-    // 문틀은 가운데 세 자리를 비운다 — 남는 원 사이가 1.32 m 라 몸(반지름 0.42)이 지난다
-    // 다만 문짝이 달려 닫혀 있으면 도로 막는다.
-    const shut=w.leaf && w.leaf.kind==='leaf' && !w.leaf.open;
-    if(w.v==='door' && !shut && Math.abs(i)<2) continue;
-    const c={x:P0.x+tx*i*0.5*BSCALE, z:P0.z+tz*i*0.5*BSCALE, r:0.34*BSCALE};
-    COLLIDERS.push(c); w.cols.push(c);
+  if(!f) return;
+  const y0=f.y+w.L*WALL_H, y1=y0+WALL_H;
+  const along=!ox;                                  // true 면 판이 x 를 따라 눕는다
+  /* 판 하나 — 벽을 따라가는 폭 wd, 벽을 가로지르는 두께 WALL_T */
+  const slab=(cx,cz,wd,a,b)=>{
+    const c=along ? {x:cx, z:cz, w:wd, d:WALL_T, y0:a, y1:b}
+                  : {x:cx, z:cz, w:WALL_T, d:wd, y0:a, y1:b};
+    COLLIDERS.push(c); w.cols.push(c); return c;
+  };
+  const tx=along?1:0, tz=along?0:1;                 // 벽을 따라가는 방향
+  if(w.v==='wall'){
+    slab(P0.x,P0.z,CELL_B,y0,y1);
+    return;
+  }
+  /* 문틀·창틀 — 뚫린 만큼을 빼고 둘레만 남긴다 */
+  const HW = (w.v==='door') ? DOOR_W : WIN_W;
+  const HH = (w.v==='door') ? DOOR_H : WIN_H;
+  const SILL = (w.v==='door') ? 0 : WIN_SILL;
+  const side=(CELL_B-HW)/2, off=(CELL_B+HW)/4;      // 양옆 판의 폭과 중심까지 거리
+  if(side>0.01){
+    slab(P0.x-tx*off, P0.z-tz*off, side, y0, y1);
+    slab(P0.x+tx*off, P0.z+tz*off, side, y0, y1);
+  }
+  if(SILL>0.01) slab(P0.x,P0.z,HW,y0,y0+SILL);      // 창턱
+  if(y0+SILL+HH < y1-0.01) slab(P0.x,P0.z,HW,y0+SILL+HH,y1);   // 상인방
+  /* 닫힌 문짝·창짝이 그 구멍을 메운다 */
+  const shut=w.leaf && !w.leaf.open;
+  if(shut){
+    const c=slab(P0.x,P0.z,HW,y0+SILL,y0+SILL+HH);
+    c.leaf=true;
   }
   buildColliderGrid();
 }
@@ -3104,13 +3155,18 @@ function dropPart(b){
 /* 벽을 뚫고 지나가지 못한다 — 벽이 깐 기둥에서 밀어낸다.
    사람도 곰도 가고일도 같은 함수를 쓴다. 부서진 벽의 기둥은 이미 빠져 있으므로,
    와이번이 뚫어 놓은 자리로는 짐승이 그대로 들어온다. */
-function pushOutOfSolids(pos,rad){
+function pushOutOfSolids(pos,rad,lo,hi){
   let hit=false;
+  const a=(lo===undefined)?pos.y+0.2:lo, b=(hi===undefined)?pos.y+EYE:hi;
   for(const c of COLLIDERS){
-    const dx=pos.x-c.x, dz=pos.z-c.z, R=c.r+rad;
-    const d=Math.hypot(dx,dz);
-    if(d>=R||d<1e-6) continue;
-    pos.x=c.x+dx/d*R; pos.z=c.z+dz/d*R; hit=true;
+    if(b<c.y0||a>c.y1) continue;                   // 판 위나 아래를 지난다
+    const hw=c.w/2+rad, hd=c.d/2+rad;
+    const dx=pos.x-c.x, dz=pos.z-c.z;
+    if(Math.abs(dx)>=hw||Math.abs(dz)>=hd) continue;
+    /* 덜 파고든 쪽으로 빼낸다 — 판이라 옆으로 미끄러진다 */
+    if(hw-Math.abs(dx) < hd-Math.abs(dz)) pos.x=c.x+Math.sign(dx||1)*hw;
+    else                                  pos.z=c.z+Math.sign(dz||1)*hd;
+    hit=true;
   }
   return hit;
 }
