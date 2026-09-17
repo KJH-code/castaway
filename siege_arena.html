@@ -1445,6 +1445,24 @@ function bWanderTarget(B){
 function bSet(B,s){ B.state=s; B.t=0; B.hitDone=false; }
 const chaseSpeed=()=>RUN*P.mul;
 const bearsLive=()=>BS.filter(b=>b.alive);
+/* 맞는 자리 — 관절마다 pivot→tip 을 캡슐 하나로 본다. 이번 프레임의 자세
+   행렬(b.jm)을 그대로 태우므로, 치켜든 앞발도 그 자리에서 맞는다.
+   굵기는 모델 좌표 기준이고 SCL 로 같이 커진다. */
+const BCAP_R=[0.75, 0.40, 0.28, 0.28, 0.32, 0.32];   // 몸통 머리 앞발 앞발 뒷발 뒷발
+const _bc1=new THREE.Vector3(), _bc2=new THREE.Vector3();
+function bearCaps(b){
+  const out=[], y=bGround(b), cy=Math.cos(b.yaw), sy=Math.sin(b.yaw);
+  const put=(v,src,i)=>{
+    v.set(src[0],src[1],src[2]).applyMatrix4(b.jm[i]).multiplyScalar(SCL);
+    const x=v.x*cy+v.z*sy, z=-v.x*sy+v.z*cy;        // 몸 돌린 만큼
+    return new THREE.Vector3(b.pos.x+x, y+v.y, b.pos.z+z);
+  };
+  for(let i=0;i<NJ;i++){
+    const J=JOINT[i];
+    out.push({a:put(_bc1,J.p,i), b:put(_bc2,J.t,i), r:BCAP_R[i]*SCL});
+  }
+  return out;
+}
 
 function updateB(B,dt){
   const dx=PL.pos.x-B.pos.x, dz=PL.pos.z-B.pos.z;
@@ -2002,12 +2020,11 @@ function foes(){
     const q=new THREE.Vector3(W.pos.x, wGround()+W.y+WYV_H*0.5, W.pos.z);
     a.push({o:W, caps:[{a:q,b:q,r:1.3}], n:'잿불 와이번'});
   }
-  /* 곰과 가고일은 통 하나로 친다 — 이 둘은 뼈 캡슐을 쓰지 않는다 */
+  /* 곰은 뼈를 따라가는 캡슐로 친다 — 통 하나로 잡으면 3.43 m 짜리 몸에
+     2.3 m 짜리 통이 얹혀 머리와 치켜든 앞발이 판정에서 빠진다 */
   for(const b of BS){
     if(!b.alive) continue;
-    const y=bGround(b);
-    a.push({o:b, n:'북극곰', caps:[{a:new THREE.Vector3(b.pos.x,y+0.7,b.pos.z),
-                                   b:new THREE.Vector3(b.pos.x,y+2.3,b.pos.z), r:0.95}]});
+    a.push({o:b, n:'북극곰', caps:bearCaps(b)});
   }
   for(const g of GS){
     if(!g.alive) continue;
