@@ -1319,7 +1319,12 @@ function makeHand(side){
 }
 let MLIMBS=[];                                 // 지금 보는 놈의 앞다리·뒷다리
 const MIMS=[];                                 // 세워 둔 모방 거미들
+let CURM=null;
 function useMimic(m){
+  /* 시계도 개체마다 따로다 — 나눠 쓰면 한 마리가 손을 쓸 때 다른 마리의
+     손이 1초씩 묶이고(mLastAct), 시계가 마리 수만큼 빨리 간다(mClock) */
+  if(CURM){ CURM.clock=mClock; CURM.lastAct=mLastAct; }
+  CURM=m; mClock=m.clock; mLastAct=m.lastAct;
   MB=m.MB; HANDS=m.hands; SPS=m.sps; MLIMBS=m.limbs;
   mRig=m.rig; mMesh=m.mesh; mMat=m.mat; MBONE=m.bone; MSKROOT=m.skroot; mShadow=m.shadow;
 }
@@ -1734,9 +1739,11 @@ function updateHand(hd,dt){
       else{
         const L2=hd.limb;
         const tip=(L2&&L2.tip)?L2.tip.getWorldPosition(new THREE.Vector3()):O;
-        hm.pos.x+=(tip.x-hm.pos.x)*clamp(6*dt,0,1);
-        hm.pos.z+=(tip.z-hm.pos.z)*clamp(6*dt,0,1);
-        hm.speed=0; hm.frz=Math.max(hm.frz||0,0.12);   // 버둥거리느라 못 친다
+        /* 사람이 잡혔을 때와 같다 — 굳히지 않는다. 끌려다닐 뿐이고
+           제 공격은 그대로 한다. 굳히면 잡힌 쪽이 통째로 멎어 버려
+           '아무 모션도 없는 놈'이 된다. */
+        hm.pos.x+=(tip.x-hm.pos.x)*clamp(3*dt,0,1);
+        hm.pos.z+=(tip.z-hm.pos.z)*clamp(3*dt,0,1);
       }
     }
     if(hd.t>=MP.grabHold){ hd.held=false; hd.heldMob=null; handSet(hd,'back'); }
@@ -3811,7 +3818,7 @@ function deploy(){
     const t = (i<LINE.m1) ? 1 : ((i>=MAXM-LINE.m2) ? 2 : NEUTRAL);
     MB.team=t; MB.alive=(t!==NEUTRAL); MB.hp=MB.hpMax; MB.frz=0; MB.alerted=false;
     MB.state='wander'; MB.t=0; MB.speed=0; MB.walkPh=0; MB.spawnCd=0; MB.cuts=0;
-    MB.eatT=-1; MB.flash=0;
+    MB.eatT=-1; MB.flash=0; inst.clock=0; inst.lastAct=-99; mClock=0; mLastAct=-99;
     MB.yaw=(t===2)?Math.PI:0;
     MB.pos.set((i-(MAXM-1)/2)*16, 0, t===2?24:-24);
     for(const hd of HANDS){ hd.alive=true; hd.hp=hd.hpMax; hd.state='idle'; hd.t=0; hd.heldMob=null;
@@ -4182,7 +4189,7 @@ function init(){
       /* 앞다리 표는 개체마다 복제한다 — 하나를 나눠 쓰면 뒤에 선 놈이
          앞 놈의 뼈를 끌고 다닌다 */
       const inst={MB:newMimicState(), hands:[makeHand(-1),makeHand(+1)], sps:[],
-                  limbs:MLIMBS_TPL.map(o=>Object.assign({},o)),
+                  limbs:MLIMBS_TPL.map(o=>Object.assign({},o)), clock:0, lastAct:-99,
                   rig, mesh, mat, shadow, bone:sk?sk.byName:null, skroot:sk?sk.root:null};
       MIMS.push(inst); useMimic(inst);
       if(sk){ mBindLimbs(); if(i===0) mFitRadii(geometry,sk); }   // 굵기 값은 개체끼리 같다
