@@ -2272,6 +2272,14 @@ function refreshWear(){
   INV.max=INV.base+wornSum('carry');
 }
 const armorTotal =()=>wornSum('armor');
+/* 갑옷이 깎는 피해 — 예전에는 방어/24 를 곧장 빼고 0.72 에서 잘랐다.
+   방어 17.3 이면 이미 상한이라, 그 위로는 몇 점을 더 입어도 똑같았다
+   (강철 한 벌 20 과 복합 한 벌 18 이 실제 피해에서 구별되지 않았다).
+   이제 1/(1+방어/k) 로 준다 — 상한이 없고 100% 에 닿지도 않으며,
+   한 점을 더 입을 때마다 덜 늘어나되 늘긴 언제나 는다.
+   k 는 "피해가 절반이 되는 방어" 다 — 10 이면 방어 10 에서 반이 깎인다. */
+const ARMOR_K=10;
+const armorMul=()=>ARMOR_K/(ARMOR_K+Math.max(0,armorTotal()));
 const warmthTotal=()=>wornSum('warm');
 
 const countId=id=>INV.slots.reduce((a,s)=>a+(s.id===id?s.n:0),0);
@@ -6183,7 +6191,7 @@ const fly={r:520,th:0.8,ph:0.95,tx:0,ty:0,tz:0};
 let hurtFlash=0, lastHurtMsg=0;
 function hurtPL(dmg,why,armored){
   if(PL.dead||dmg<=0) return;
-  if(armored) dmg*=1-clamp(armorTotal()/24,0,0.72);
+  if(armored) dmg*=armorMul();
   PL.hp-=dmg;
   hurtFlash=Math.min(1,hurtFlash+Math.min(0.9,dmg/30));
   if(why && dmg>=1 && performance.now()-lastHurtMsg>900){
@@ -6605,7 +6613,7 @@ function drawCompass(){
 }
 let fpsT=0,fpsN=0,fps=0;
 // 받는 피해는 갑옷만큼 줄어든다 (실험체가 붙으면 그대로 적용된다)
-const mitigate=(dmg)=>Math.max(1,dmg*(1-clamp(armorTotal()/24,0,0.72)));
+const mitigate=(dmg)=>Math.max(1,dmg*armorMul());
 function updateHUD(dt){
   fpsT+=dt; fpsN++;
   if(fpsT>0.5){ fps=Math.round(fpsN/fpsT); fpsT=0; fpsN=0; }
