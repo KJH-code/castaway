@@ -2083,12 +2083,19 @@ const ITEMS={
   scale_ember:{n:'잿불 비늘 갑옷', kg:5.2, c:0x8a3a22,
                use:'잿불 비늘을 겹쳐 꿰었다 — 철 비늘과 같은데 절반 무게다',
                wear:{slot:'armor', armor:10, warm:3}},
-  /* 사냥물 방어구의 끝 — 두 벌을 겹쳐 꿴다. 키틴은 단단한데 깨지고,
-     잿불 비늘은 불을 견디는데 무르다. 키틴 판을 겉에 대고 비늘을 안에 깔면
-     서로의 약점을 덮는다. 강철 판금(14)에 한 점 못 미치고 무게는 3분의 1이다. */
+  /* 사냥물 방어구의 끝 — 다 꿴 키틴 갑옷에 잿불 비늘을 덧입힌다.
+     키틴은 단단한데 깨지고, 잿불 비늘은 불을 견디는데 무르다.
+     깨질 자리 밑에 비늘을 받치면 서로의 약점을 덮는다.
+     강철 판금(14)에 한 점 못 미치고 무게는 3분의 1이다. */
   scale_ember_chitin:{n:'잿불 비늘 키틴 복합 갑옷', kg:5.6, c:0x6a4433,
-               use:'키틴 판을 겉에, 잿불 비늘을 안에 겹쳐 꿰었다 — 강철 다음이다',
+               use:'키틴 갑옷 안쪽에 잿불 비늘을 덧댔다 — 강철 다음이다',
                wear:{slot:'armor', armor:13, warm:3}},
+  helm_ember: {n:'잿불 비늘 투구', kg:1.4,  c:0x8a3a22,
+               use:'잿불 비늘을 머리에 맞춰 겹쳐 꿰었다 — 청동·키틴 위다',
+               wear:{slot:'head', armor:4}},
+  helm_ember_chitin:{n:'잿불 비늘 키틴 복합 투구', kg:1.6, c:0x6a4433,
+               use:'키틴 투구 안쪽에 잿불 비늘을 덧댔다 — 강철 투구보다 낫다',
+               wear:{slot:'head', armor:6}},
   // 물 · 재
   /* 표류할 때 지니고 내린 것 — 보급선이 쥐여 준 비상식량과 물병.
      섬에서 만들 수 없는 물건이므로 다 쓰면 그만이다(물병만 다시 채운다). */
@@ -3261,9 +3268,23 @@ const RECIPES=[
   {id:'scale_ember_chitin', tier:'뼈와 키틴', n:'잿불 비늘 키틴 복합 갑옷',
    out:{id:'scale_ember_chitin',n:1},
    time:72, stam:52,
-   note:'다 꿴 두 벌을 뜯어 한 벌로 다시 꿴다. 키틴 판을 겉에 대 창끝을 받고, '
-       +'잿불 비늘을 안에 깔아 깨진 자리로 들어온 불을 막는다.',
-   in:[{id:'scale_ember',n:1},{id:'scale_chitin',n:1},{id:'cord',n:4}],
+   note:'다 꿴 키틴 갑옷 안쪽에 잿불 비늘을 한 겹 덧대 꿴다. 겉의 키틴이 '
+       +'창끝을 받고, 깨진 자리로 들어온 불을 밑의 비늘이 막는다.',
+   in:[{id:'scale_chitin',n:1},{id:'ember_scale',n:6},{id:'cord',n:4}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'helm_ember', tier:'뼈와 키틴', n:'잿불 비늘 투구', out:{id:'helm_ember',n:1},
+   time:30, stam:24,
+   note:'비늘을 머리 둘레에 맞춰 겹쳐 꿴다. 청동·키틴 투구보다 한 점 낫다.',
+   in:[{id:'ember_scale',n:3},{id:'hide',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+
+  {id:'helm_ember_chitin', tier:'뼈와 키틴', n:'잿불 비늘 키틴 복합 투구',
+   out:{id:'helm_ember_chitin',n:1},
+   time:38, stam:30,
+   note:'갑옷과 같은 셈이다 — 다 다듬은 키틴 투구 안쪽에 비늘을 덧댄다. '
+       +'강철 투구(5)를 넘는 데다 절반 무게도 안 된다.',
+   in:[{id:'helm_chitin',n:1},{id:'ember_scale',n:3},{id:'cord',n:2}],
    need:[{tag:'sharp',n:1}]},
 
   {id:'helm_chitin', tier:'뼈와 키틴', n:'키틴 투구', out:{id:'helm_chitin',n:1},
@@ -6090,7 +6111,9 @@ const MOBS=[
      쫓기는 길에 지어 놓은 집부터 부순다. 죽을 때 터지므로 잡고도 물러나야 한다.
      거동은 wyvern_arena.html 에 있다. */
   {id:'emberwyvern',n:'잿불 와이번',  power:   4, first: 3, peak:18, rise:3, fall: 6,
-   drop:[{id:'gunpowder',n:1},{id:'ember_scale',n:6}]},
+   /* 비늘 12 — 한 마리분으로 복합 갑옷(6)과 복합 투구(3)를 다 꿰고 3 이 남는다.
+      잿불 비늘 갑옷(6)·투구(3) 한 벌로 가도 셈이 맞는다. */
+   drop:[{id:'gunpowder',n:1},{id:'ember_scale',n:12}]},
   /* 모방 거미 — 먹은 것의 모습을 흉내 낸다. 멀티플레이가 붙으면 시신이나 산 사람을
      삼켜 그 사람으로 변신한다(계획). 지금은 혼자 하는 게임이라 변신할 대상이 없다. */
   {id:'mimicspider', n:'모방 거미',   power:  10, first: 6, peak:21, rise:3, fall: 6,

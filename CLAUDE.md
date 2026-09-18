@@ -27,7 +27,7 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` | 메인 게임. 아이템 113종 · 레시피 109개 · 제련 8종 |
+| `island_world.html` | 메인 게임. 아이템 115종 · 레시피 111개 · 제련 8종 |
 | `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `wyvern_arena.html` | **잿불 와이번 시험장**(4.1MB). 상공 20 m 선회 → 5초 노려봄 →
