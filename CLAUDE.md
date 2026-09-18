@@ -171,6 +171,7 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
 | 표 | 정본 | 복사본 |
 |---|---|---|
 | `ITEMS` · `RECIPES` · 지형 생성 | `island_world.html` | `build_sandbox.html` (`ITEMS` 204줄 복제, 이미 20줄 어긋남) |
+| 갑옷 성능 · 피해 감소 | `island_world.html` 의 `ITEMS[].wear` 와 `armorMul()` | `trio`·`siege`·`mixed` 아레나의 `ARMORS`/`armorMul()` (셋은 맞춰 두었다. `wyvern`·`battle`·`bear` 는 아직 갑옷이 없다) |
 | 무기 성능(피해·사거리·쿨) | `island_world.html` 의 `ITEMS[].tool` | 아레나 5개가 각자 인라인으로 들고 있다 |
 | 몹 거동 | 각 아레나 | 본편에는 아직 없다 |
 

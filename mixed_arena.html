@@ -364,16 +364,20 @@ const WALK=4.3, RUN=7.4, JUMP=7.6, GRAV=-22, EYE=1.66;
 const PL={pos:new THREE.Vector3(0,0,16), vel:new THREE.Vector3(),
           yaw:Math.PI, pitch:-0.05, hp:100, stam:100, grounded:false,
           bob:0, camY:0, atkCd:0, swing:0, swingMax:0.30, hits:0, miss:0, stun:0};
-/* 방어구 — A 로 갈아입는다. 방어 합이 클수록 곰의 내려찍기를 덜 맞는다.
-   사냥물 갑옷은 방어가 낮은 대신 무게가 3분의 1이다(무게는 본 게임에서만 쓴다). */
+/* 방어구 — 갈아입는다. 방어 합이 클수록 덜 맞는다.
+   본 게임의 ITEMS 값을 그대로 옮겨 왔다 — 옷 칸(가죽 속옷 2 · 섬유 옷 1)과
+   갑옷 칸·투구 칸이 따로이고 셋이 더해진다. 사냥물 갑옷은 방어가 조금 낮은
+   대신 무게가 3분의 1이다(무게는 본 게임에서만 쓴다). */
 const ARMORS=[
-  {n:'청동 비늘 + 청동 투구', body:'섬유 옷', arm:6, helm:3, cloth:1, kg:14.5},
-  {n:'철 비늘 + 청동 투구',   body:'섬유 옷', arm:10, helm:3, cloth:1, kg:17.0},
-  {n:'키틴 갑옷 + 키틴 투구', body:'섬유 옷', arm:8, helm:3, cloth:1, kg: 7.5},
-  {n:'가죽 외투 + 키틴 투구', body:'섬유 옷', arm:4, helm:3, cloth:1, kg: 6.0},
-  {n:'맨몸',                 body:'없음',   arm:0, helm:0, cloth:0, kg: 0.0}
+  {n:'복합 갑옷 + 복합 투구', body:'가죽 속옷', arm:13, helm:5, cloth:2, kg: 9.6},
+  {n:'잿불 비늘 + 잿불 투구', body:'가죽 속옷', arm:10, helm:4, cloth:2, kg: 9.0},
+  {n:'철 비늘 + 청동 투구',   body:'섬유 옷',   arm:10, helm:3, cloth:1, kg:17.0},
+  {n:'키틴 갑옷 + 키틴 투구', body:'가죽 속옷', arm: 8, helm:3, cloth:2, kg: 8.1},
+  {n:'청동 비늘 + 청동 투구', body:'섬유 옷',   arm: 6, helm:3, cloth:1, kg:14.5},
+  {n:'가죽 속옷 + 키틴 투구', body:'가죽 속옷', arm: 0, helm:3, cloth:2, kg: 3.6},
+  {n:'맨몸',                 body:'없음',     arm: 0, helm:0, cloth:0, kg: 0.0}
 ];
-let AI_=0;                                  // 지금 입은 것
+let AI_=2;                                  // 지금 입은 것 — 철 비늘 + 청동 투구
 const armSum=()=>ARMORS[AI_].arm+ARMORS[AI_].helm+ARMORS[AI_].cloth;
 const ARMOR=10;                             // 옛 이름 — 아래에서 armSum() 을 쓴다
 /* 무기 — 본 게임의 ITEMS 값을 그대로 옮겨 왔다. 숫자 1~5 로 바꿔 든다.
@@ -414,7 +418,13 @@ let tracer=null, tracerT=0, flashT=0;
 let WI=0;                                   // 지금 든 무기
 const SPEAR=WEAPONS[0];                     // 옛 이름 — 아래에서 cone 만 따로 쓴다
 const CONE=0.77;
-const mitigate=d=>Math.max(1,d*(1-clamp(armSum()/24,0,0.72)));
+/* 갑옷이 깎는 피해 — 본 게임의 armorMul() 과 같은 식이다.
+   예전의 1-방어/24(0.72 에서 자름)는 방어 17.3 부터 전부 같은 값이라
+   강철 한 벌과 복합 한 벌이 구별되지 않았다.
+   ARMOR_K 는 "피해가 절반이 되는 방어" 다. */
+const ARMOR_K=10;
+const armorMul=()=>ARMOR_K/(ARMOR_K+Math.max(0,armSum()));
+const mitigate=d=>Math.max(1,d*armorMul());
 
 function patchWing(mat){
   mat.onBeforeCompile=sh=>{
@@ -1478,7 +1488,7 @@ function hud(dt){
       +(g.frz>0?' (굳음)':''):'쓰러짐';
     f.style.width=(g.hp/g.hpMax*100)+'%';
   });
-  document.getElementById('armR').textContent=Math.round(clamp(armSum()/24,0,0.72)*100)+' %';
+  document.getElementById('armR').textContent=Math.round((1-armorMul())*100)+' %';
   document.getElementById('armT').textContent=armSum();
   const A=ARMORS[AI_];
   document.getElementById('armN').textContent=A.n;
