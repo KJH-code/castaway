@@ -2773,7 +2773,14 @@ function checkBattle(){
     '남은 것 '+(a>0?a:b)+'마리. 사람은 '+(PL_TEAM===NEUTRAL?'구경만 했다':(PL_TEAM===1?'1팀':'2팀')+' 이었다')+'.','다시');
 }
 
+/* 맞은 놈으로 문맥을 갈아 끼우는 함수들은 보던 개체를 도로 돌려놓는다.
+   갈아 끼운 채로 돌아가면, 모방 거미가 남의 앞다리를 문 순간 제 updateM
+   나머지가 맞은 놈 몸으로 돌아간다. */
 function hitFoe(o,dmg,stun,wname){
+  const back=CURM;
+  try{ return hitFoe_(o,dmg,stun,wname); } finally{ if(back) useMimic(back); }
+}
+function hitFoe_(o,dmg,stun,wname){
   /* 모방 거미의 앞다리와 새끼 */
   if(o.kind==='spd'||o.side!==undefined&&o.hpMax===MP.handHp){
     const inst=MIMS.find(x=>x.hands.includes(o)||x.sps.includes(o));
@@ -3885,6 +3892,29 @@ const mimOf=m=>MIMS.find(x=>x.MB===m);
 const mobAlive=m=>m.alive && (!isWyv(m) || (m.state!=='dying'&&m.state!=='boom'&&m.state!=='dead'));
 const mobPos=m=>isWyv(m)?{x:m.pos.x, z:m.pos.z, y:h(m.pos.x,m.pos.z)+m.y}
                        :{x:m.pos.x, z:m.pos.z, y:m.pos.y};
+/* 표적이 되는 것은 몸통만이 아니다 — 모방 거미의 앞다리와 새끼도 낀다.
+   앞다리는 몸통보다 늘 앞에 뻗어 있으므로 "가장 가까운 것"을 고르면
+   자연히 앞다리가 먼저 걸린다. 그게 노린 바다 — 뻗은 팔부터 잘린다.
+   맞는 자리와 죽는 절차는 사람이 칠 때와 같은 hitFoe 로 보낸다.
+   allMobs 에는 넣지 않는다 — 저건 이겼나 졌나와 몸끼리 밀어내기를 세는
+   명단이라, 앞다리를 넣으면 본체가 죽어도 팔이 남아 판이 안 닫힌다. */
+function foeParts(){
+  const out=[];
+  for(const inst of MIMS){
+    const B=inst.MB;
+    if(!B.alive||B.team===NEUTRAL) continue;
+    for(const hd of inst.hands){
+      if(!hd.alive||!hd.pts||!hd.pts.length) continue;
+      const t=hd.pts[hd.pts.length-1];
+      out.push({o:hd, team:B.team, x:t.x, y:t.y, z:t.z});
+    }
+    for(const sp of inst.sps){
+      if(!sp.alive) continue;
+      out.push({o:sp, team:B.team, x:sp.pos.x, y:sp.pos.y, z:sp.pos.z});
+    }
+  }
+  return out;
+}
 /* 짐승 하나가 노릴 것 — 없으면 null */
 function foeTarget(o){
   if(o.team===NEUTRAL) return null;
@@ -3903,10 +3933,21 @@ function foeTarget(o){
     if(d>=bd) continue;
     bd=d; best={x:q.x, z:q.z, y:q.y, isPL:false, o:m, hurt:(dm,w)=>hurtMob(m,dm,w)};
   }
+  for(const q of foeParts()){
+    if(q.o===o||q.team===o.team) continue;
+    const d=Math.hypot(q.x-p.x, q.z-p.z);
+    if(d>=bd) continue;
+    bd=d; best={x:q.x, z:q.z, y:q.y, isPL:false, o:q.o, part:true,
+                hurt:(dm,w)=>hitFoe(q.o,dm,0,w)};
+  }
   return best;
 }
 /* 짐승이 맞았다 — 사람이 때리든 딴 짐승이 물든 여기로 온다 */
 function hurtMob(m,dmg,who){
+  const back=CURM;
+  try{ return hurtMob_(m,dmg,who); } finally{ if(back) useMimic(back); }
+}
+function hurtMob_(m,dmg,who){
   if(!m||!mobAlive(m)) return;
   if(isWyv(m)){ hitFoe(m,dmg,0,who); return; }
   if(isMim(m)){
