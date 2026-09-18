@@ -3847,6 +3847,11 @@ function deploy(){
     V.pos.set((i-(MAXW-1)/2)*14, 0, t===2?30:-30);
     V.state='fly'; V.t=0;
     w.rig.visible=(t!==NEUTRAL); w.shadow.visible=(t!==NEUTRAL);
+    /* 지난 판에 터진 놈은 부푼 몸(scale 1.38)과 달아오른 살(uBoom 1)을
+       그대로 이고 온다 — 다음 판에서 노랗게 붉은 채로 선다.
+       reset() 은 지금 보고 있는 놈 하나만 되돌리므로 여기서 다 되돌린다. */
+    w.rig.scale.setScalar(bScale);
+    if(w.mat&&w.mat.userData.sh) w.mat.userData.sh.uniforms.uBoom.value=0;
     useWyv(w); wWander();
   });
   useWyv(WYVS[0]);
