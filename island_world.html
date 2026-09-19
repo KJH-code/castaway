@@ -5533,9 +5533,28 @@ const GEO={
            note:'구리 광화대가 산화되며 생긴 이차 광물. 초록빛이 광맥의 표시다.'},
   granite:{tier:'경도 3', where:'노출 암반 · 급경사면',
            note:'석영·장석·운모가 뭉친 조립질 암석. 때려도 날이 서지 않고 부스러진다. '
-                +'불로 달궈 균열을 낸 뒤에야 떼어낼 수 있다.'}
+                +'불로 달궈 균열을 낸 뒤에야 떼어낼 수 있다.'},
+  /* 아래 다섯은 오래 빠져 있었다. sand 는 MINERALS 에는 들어 있으면서 여기에만
+     없어서, 광물 탭을 펴는 순간 g.tier 에서 터져 탭 전체가 안 그려졌다. */
+  sand:   {tier:'맨손', where:'해빈 · 사구',
+           note:'파도와 바람이 알갱이를 골라 쌓아 둔 규사. 손으로 퍼면 손가락 사이로 '
+                +'흐르므로 빈 토기에 담아 나른다. 녹이면 유리가 된다.'},
+  sulfur: {tier:'맨손', where:'분기공 둘레에만',
+           note:'땅속 가스가 식으며 결정으로 앉은 노란 딱지. 숨이 맵다. '
+                +'초석·숯과 섞으면 화약이 되고, 태워 받으면 황산이 된다.'},
+  zinc:   {tier:'경도 2', where:'분기공 언저리 암반 · 애추 — 구리를 따라 붙는다',
+           note:'열수가 식으며 앉은 황화물. 끓는점이 녹는점보다 낮아 환원되는 족족 '
+                +'증기로 날아간다 — 그래서 수율이 나쁘다. 구리와 섞으면 황동이다.'},
+  galena: {tier:'경도 2', where:'섬아연석과 같은 열수 광맥',
+           note:'납의 황화물. 정육면체로 똑 떨어지게 쪼개진다. 낮은 열에도 녹아 '
+                +'다루기 쉽다 — 축전지의 극판이 여기서 나온다.'},
+  cinnabar:{tier:'간이 곡괭이', where:'분기공 둘레에만 — 유황과 같은 자리',
+           note:'열수가 식으며 앉은 붉은 딱지. 구우면 수은이 김으로 날아오른다. '
+                +'그 김은 마시면 안 된다. 뇌관의 뇌홍이 여기서 시작한다.'}
 };
-const MINERALS=['flint','pebble','clay','sand','iron','tin','coal','copper','granite'];
+/* 사전 광물 탭에 싣는 차례 — 캐는 단계가 얕은 것부터 */
+const MINERALS=['flint','pebble','clay','sand','sulfur','iron','tin','coal','copper',
+                'granite','zinc','galena','cinnabar'];
 
 /* 광물 삽화 — 게임 안 암석과 같은 원리(임의 축 혹 3개)로 윤곽을 만들고,
    중심에서 정점으로 면을 쪼개 광원 방향에 따라 밝기를 달리한다.
@@ -5608,6 +5627,11 @@ function obtainOf(id){
       +(R.need?' (안에 같이: '+R.need.map(r=>ITEMS[r.id].n).join(', ')+')':'')
       +' → '+R.out.n+'개');
   if(id==='stone_block') out.unshift('사전 준비 — 화덕이나 횃불로 달궈 균열을 낸 뒤');
+  /* 짐승이 떨구는 것 — MOBS 의 drop 표를 그대로 읽는다. 이걸 안 보면
+     키틴·뼈·가죽·잿불 비늘 같은 사냥물이 전부 '처음부터 지님' 으로 나온다. */
+  for(const M of MOBS) if(M.drop) for(const d of M.drop)
+    if(d.id===id) out.push('사냥 — '+M.n+' (잡으면 '+d.n+'개)');
+  if(id==='fish') out.push('그물질 — 무릎 위까지 잠기는 물에 서서 던진다');
   return out;
 }
 function toolSpec(t,it){

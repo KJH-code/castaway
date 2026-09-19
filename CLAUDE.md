@@ -113,7 +113,10 @@ python -m http.server 5173
 | 2623 | 12) 제작 | **`RECIPES` 2630** · `startCraft` 3128 · `drawCraft` 3188 |
 | 3239 | 12-b) 불 | `FIRING` 3249 · `SMELT` 3275 |
 | 3519 | 집 짓기 | `BUILD` 3586 · `floorAt` 3631 · `BUILD_MESH` 3835 |
-| 4674 | 사전 | `MINERALS` 4699 — 표를 역으로 훑어 획득 경로를 만든다 |
+| 4674 | 사전 | `GEO`/`MINERALS` · `obtainOf` — 표를 역으로 훑어 획득 경로를 만든다.
+  **`MINERALS` 에 넣은 것은 `GEO` 에도 있어야 한다** — 하나만 있으면 광물 탭이 통째로
+  안 그려진다(`sand` 가 그랬다). `obtainOf` 는 `RECIPES`·`HARVEST`·`CHOP`·`MINE`·
+  `FIRING`·`SMELT`·`MOBS[].drop` 을 다 훑는다 |
 | 4917 | 근접 공격 | `CREATURES` 4923 (비어 있음) |
 | 4926 | 손에 든 무기 | **`WEAPON_FX` 4945** — 무기 생김새를 id로 키잉한 조립 함수 14개 |
 | 5177~ | 전투 진입점 | `equippedWeapon` 5177 · `shoot` 5243 · `castNet` 5276 · `attack` 5301 |
