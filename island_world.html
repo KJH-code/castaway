@@ -1691,24 +1691,96 @@ function buildProps(){
     propGroup.add(shm);
   }
 
-  // 열매가 달린 덤불은 멀리서도 구분되게 붉은 점을 얹는다
-  const berries=PROPS.filter(p=>p.k==='grass'&&p.berryMax>0);
-  if(berries.length){
-    const bm=new THREE.InstancedMesh(
-      new THREE.IcosahedronGeometry(0.07,0),
-      new THREE.MeshLambertMaterial({color:0x9e3552}),
-      berries.length);
-    berries.forEach((p,i)=>{
-      E.set(0,p.r,0); Q.setFromEuler(E);
-      V.set(p.x,p.y+0.62*p.s,p.z); S.set(1,1,1);
-      M.compose(V,Q,S); bm.setMatrixAt(i,M);
-    });
-    bm.instanceMatrix.needsUpdate=true; bm.frustumCulled=false;
-    propGroup.add(bm);
-  }
+  buildBerries();
 
   buildColliderGrid();
   buildPropGrid();
+}
+
+/* ── 열매 ────────────────────────────────────────────────────────────────
+   예전에는 덤불 꼭대기에 붉은 점 하나를 얹었다. 멀리서 구분은 됐지만
+   가까이 가면 공 하나가 떠 있는 꼴이고, 따 먹어도 그대로 남아 있었다.
+
+   이제 덤불마다 열매를 여러 알 달되 한자리에 뭉치지 않는다. 실제 덤불은
+   가지 끝마다 몇 알씩 송이로 달리고, 익은 것과 덜 익은 것이 섞여 있으며,
+   무게 때문에 잎 사이로 처져 나온다. 셋을 다 흉내 낸다:
+     · 송이 — 알을 잎 사이 여러 곳에 나눠 달고, 한 곳마다 2~3알을 붙인다
+     · 익는 차이 — 짙은 붉은빛부터 덜 익은 주홍·연둣빛까지 섞는다
+     · 처짐 — 바깥으로 갈수록 낮게 달리고, 알은 세로로 조금 납작하다
+   따면 그만큼 사라진다(refreshBerry). 알 하나가 p.berry 하나다. */
+let berryMesh=null;
+/* 임시 그릇 — buildProps 안의 V/Q/E/S/M 은 그 함수의 지역 변수라 여기서 못 쓴다 */
+const _bV=new THREE.Vector3(), _bQ=new THREE.Quaternion(), _bE=new THREE.Euler(),
+      _bS=new THREE.Vector3(), _bM=new THREE.Matrix4();
+const BERRY_RIPE=[0x7e1e2e,0x8e2438,0xa02c40,0xb0364a];   // 익은 것 — 짙은 붉은빛
+const BERRY_RAW =[0xc0764e,0xa8894a,0x8a9a52];            // 덜 익은 것 — 주홍·연둣빛
+function buildBerries(){
+  berryMesh=null;
+  const bushes=PROPS.filter(p=>p.k==='grass'&&p.berryMax>0);
+  let total=0;
+  for(const p of bushes){
+    /* 딸 수 있는 알(berryMax) 뒤에 덜 익은 알 둘을 덤으로 붙인다. 이것은
+       따지지 않고 늘 남는다 — 덤불이 휑해 보이지 않고, "아직 안 익었다" 는
+       말이 눈에 보인다. 따는 쪽은 앞의 berryMax 개만 센다. */
+    p._bi=total; p._bn=p.berryMax+2; total+=p._bn;
+  }
+  if(!total) return;
+  /* 알 하나는 반지름 1 의 공으로 만들고 인스턴스 배율로 크기를 준다.
+     가로보다 세로를 조금 눌러야 매달린 열매처럼 보인다. */
+  const geo=new THREE.SphereGeometry(1,6,5);
+  const bm=new THREE.InstancedMesh(geo,
+    new THREE.MeshLambertMaterial({color:0xffffff}), total);
+  const C=new THREE.Color();
+  for(const p of bushes){
+    const rnd=mulberry32((p._hash||0)^0x2f6b1a3d);
+    p._bs=[];
+    let cl=null, cn=0;                       // 지금 붙이고 있는 송이와 남은 알 수
+    for(let k=0;k<p._bn;k++){
+      if(cn<=0){                             // 새 송이 — 잎 사이 한 곳을 고른다
+        const a=rnd()*6.283, t=rnd(), rr=(0.09+t*0.19)*p.s;
+        /* 바깥으로 갈수록 낮게 — 무게에 처져 잎 밖으로 나온다.
+           잎날이 0.44~0.78 이므로 그 가운데 위쪽에 걸리게 잡는다. */
+        cl={x:Math.cos(a)*rr, z:Math.sin(a)*rr,
+            y:(0.62-0.28*t+rnd()*0.12)*p.s};
+        cn=2+((rnd()*2)|0);
+      }
+      cn--;
+      const raw=(k>=p.berryMax) || rnd()<0.18;   // 뒤의 둘은 늘 덜 익은 것
+      const pal=raw?BERRY_RAW:BERRY_RIPE;
+      const sc=(raw?0.038:0.046+rnd()*0.026)*(0.85+p.s*0.3);
+      C.setHex(pal[(rnd()*pal.length)|0]);
+      bm.setColorAt(p._bi+k,C);
+      _bV.set(p.x+cl.x+(rnd()-0.5)*0.06*p.s,
+              p.y+cl.y+(rnd()-0.5)*0.055*p.s,
+              p.z+cl.z+(rnd()-0.5)*0.06*p.s);
+      _bE.set(rnd()*6.283,rnd()*6.283,0); _bQ.setFromEuler(_bE);
+      _bS.set(sc,sc*(0.80+rnd()*0.14),sc);     // 세로로 조금 납작하게
+      _bM.compose(_bV,_bQ,_bS); bm.setMatrixAt(p._bi+k,_bM);
+      p._bs[k]=[_bV.x,_bV.y,_bV.z,_bS.x,_bS.y,_bS.z,_bQ.x,_bQ.y,_bQ.z,_bQ.w];
+    }
+  }
+  bm.instanceMatrix.needsUpdate=true;
+  if(bm.instanceColor) bm.instanceColor.needsUpdate=true;
+  bm.frustumCulled=false;
+  berryMesh=bm; propGroup.add(bm);
+  refreshAllBerries();
+}
+/* 딴 만큼 사라진다 — 남은 알만 세워 두고 나머지는 배율 0 으로 접는다 */
+function refreshBerry(p){
+  if(!berryMesh||p._bi===undefined||!p._bs) return;
+  for(let k=0;k<(p._bn||p.berryMax);k++){
+    const d=p._bs[k]; if(!d) continue;
+    const on=(k>=p.berryMax) || k<(p.berry|0);   // 덜 익은 알은 따지지 않으니 늘 남는다
+    _bV.set(d[0],d[1],d[2]);
+    _bQ.set(d[6],d[7],d[8],d[9]);
+    _bS.set(on?d[3]:0, on?d[4]:0, on?d[5]:0);
+    _bM.compose(_bV,_bQ,_bS); berryMesh.setMatrixAt(p._bi+k,_bM);
+  }
+  berryMesh.instanceMatrix.needsUpdate=true;
+}
+function refreshAllBerries(){
+  if(!berryMesh) return;
+  for(const p of PROPS) if(p.k==='grass'&&p.berryMax>0) refreshBerry(p);
 }
 
 /* 충돌체 공간 해시 — 매 프레임 2000개를 전부 도는 대신 8 m 셀만 본다 */
@@ -2908,7 +2980,7 @@ function updateHarvest(dt){
 
   // 열매가 달린 덤불이면 가끔 함께 딸려 나온다
   if(field==='br' && t.berry>0 && Math.random()<0.55){
-    if(invAdd('berry',1)){ t.berry--; msg+=' · 베리 +1'; }
+    if(invAdd('berry',1)){ t.berry--; msg+=' · 베리 +1'; refreshBerry(t); }
   }
   t[field]--;
 
@@ -7488,6 +7560,7 @@ async function restore(d){
     shrinkFoliage(p);                          // 화면에도 반영
     if(HARVEST[p.k] && HARVEST[p.k].regrow!==undefined && p.br<=0) REGROW.push(p);
   }
+  refreshAllBerries();                         // 따 놓은 만큼 덤불에서 빼 둔다
   for(const f of d.fires||[]){
     PL.pos.set(f.x,f.y,f.z); PL.yaw=Math.PI;   // 설치 지점을 앞에 두기 위한 임시 위치
     placeCampfireAt(f.x,f.y,f.z);
