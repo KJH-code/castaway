@@ -380,7 +380,7 @@
   <div class="k">
     <div><span>WASD</span>이동 · Shift 달리기</div>
     <div><span>Space</span>점프 · Ctrl 앉기 · <b>Ctrl+Space</b> 지붕에서 내려가기</div>
-    <div><span>L</span>손전등 · V 자유 카메라</div>
+    <div><span>L</span>전등 켜기 · V 자유 카메라</div>
     <div><span>E</span>맨손 채집 (길게)</div>
     <div><span>I / C / B</span>소지품 · 제작 · 사전</div>
     <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
@@ -548,7 +548,12 @@ const RESOURCES=[
   {k:'coal',   n:'석탄 노두',     c:0x1b1b1e, use:'고온 연료 · 코크스',      d:0.09, max:140,  min:20},
   // 섬아연석: 열수 광맥에 구리와 함께 든다 — 분기공 가까운 암반일수록 짙다
   {k:'zinc',   n:'섬아연석(아연)', c:0x5d4a52, use:'제련 → 아연 · 구리와 합금 → 황동',
-   d:0.04, max:110,  min:16}
+   d:0.04, max:110,  min:16},
+  /* 방연석: 섬아연석과 같은 열수 광맥에 든다. 표의 맨 끝에 두는 것이 중요하다 —
+     배치가 이 차례대로 난수를 뽑으므로, 중간에 끼우면 뒤의 자원이 전부 다른
+     자리에 서고 같은 시드가 다른 섬을 연다. */
+  {k:'galena', n:'방연석(납)',     c:0x585d66, use:'제련 → 납 · 축전지의 극판',
+   d:0.035, max:90,  min:14}
 ];
 
 /* ---------------- 파라미터 ---------------- */
@@ -998,7 +1003,9 @@ function placeResources(seed){
     // 석탄/이탄: 두꺼운 유기 퇴적이 압밀된 절벽 노두
     coal:i=> ((b[i]===B.ROCK&&h[i]<HI*0.7&&s[i]>RS*1.1)?1:0) + (b[i]===B.MARSH?0.3:0),
     // 섬아연석: 열수 광맥 광물 — 분기공 언저리 암반에 구리를 따라 붙는다
-    zinc:i=> ((b[i]===B.ROCK||b[i]===B.SCREE)?1:0)*(0.45+clamp(F.fuma[i]*1.6,0,1))
+    zinc:i=> ((b[i]===B.ROCK||b[i]===B.SCREE)?1:0)*(0.45+clamp(F.fuma[i]*1.6,0,1)),
+    // 방연석: 같은 열수 광맥이되 섬아연석보다 분기공에 덜 붙는다
+    galena:i=> ((b[i]===B.ROCK||b[i]===B.SCREE)?1:0)*(0.35+clamp(F.fuma[i]*1.2,0,1))
   };
 
   // 정규화 보조값 — 보정 배치 점수 계산용
@@ -1026,7 +1033,8 @@ function placeResources(seed){
     tin:     i=> dR(i)*0.8 + (1-nE(i))*0.3,
     iron:    i=> nT(i)*0.5 + m[i]*0.4 + (1-nS(i))*0.3,
     coal:    i=> nS(i)*0.6 + (1-nE(i))*0.3 + nT(i)*0.2,
-    zinc:    i=> nS(i)*0.5 + nE(i)*0.4 + F.fuma[i]*0.6
+    zinc:    i=> nS(i)*0.5 + nE(i)*0.4 + F.fuma[i]*0.6,
+    galena:  i=> nS(i)*0.45 + nE(i)*0.45 + F.fuma[i]*0.5
   };
 
   // 육지가 좁으면 점유 반경을 줄인다 — 먼저 배치된 자원이 자리를 다 먹는 것을 방지
@@ -1036,7 +1044,7 @@ function placeResources(seed){
   const DSCALE=(CELL*CELL)/16;
   const occ=new Uint8Array(N*N);          // 노드 과밀 방지 격자
   // 암석류는 크기 편차를 훨씬 크게 준다 — 자갈부터 큰 바위까지 섞여야 자연스럽다
-  const ROCKY={granite:1,pebble:1,flint:1,copper:1,iron:1,coal:1,zinc:1};
+  const ROCKY={granite:1,pebble:1,flint:1,copper:1,iron:1,coal:1,zinc:1,galena:1};
   const push=(k,x,z)=>{
     const i=IDX(x,z);
     let sc=0.75+rnd()*0.6;                 // 공통 편차 0.75~1.35
@@ -1393,13 +1401,14 @@ function buildProps(){
     tin:    [new THREE.IcosahedronGeometry(0.8,0)],
     iron:   [new THREE.IcosahedronGeometry(0.95,0)],
     coal:   [new THREE.IcosahedronGeometry(0.95,0)],
-    zinc:   [new THREE.IcosahedronGeometry(0.85,0)]
+    zinc:   [new THREE.IcosahedronGeometry(0.85,0)],
+    galena: [new THREE.BoxGeometry(0.95,0.85,0.95)]   // 방연석은 정육면체로 쪼개진다
   };
   /* 광석·바위는 개체마다 그 자리에서 형상을 만든다.
      20면체를 한 단계 세분한 80면 껍질을 기준으로, 임의 축을 향한 매끄러운 혹 세 개를
      겹쳐 반지름을 흔든다. 같은 돌이 두 번 나오지 않는다.
      인스턴싱 대신 종류별로 정점을 한 버퍼에 이어 붙여 드로우콜은 1개로 유지한다. */
-  const ROCK_R={granite:1.8,copper:1.05,iron:0.95,coal:0.95,zinc:0.85,tin:0.8,
+  const ROCK_R={granite:1.8,copper:1.05,iron:0.95,coal:0.95,zinc:0.85,galena:0.85,tin:0.8,
                 sulfur:0.55,flint:0.18,pebble:0.13};
   // 기준 껍질의 '중복 없는 꼭짓점' 목록을 한 번만 뽑아 둔다 (80면 → 꼭짓점 42개)
   const shell=new THREE.IcosahedronGeometry(1,1);
@@ -1488,7 +1497,8 @@ function buildProps(){
   }
 
   const RAD={oak:0.6,fir:0.5,granite:1.5,copper:0.9,iron:0.8,coal:0.8};
-  const SHADOW_R={oak:2.6,fir:2.0,granite:1.9,copper:1.2,iron:1.1,coal:1.1,zinc:1.0,clay:1.6};
+  const SHADOW_R={oak:2.6,fir:2.0,granite:1.9,copper:1.2,iron:1.1,coal:1.1,zinc:1.0,
+                  galena:1.0,clay:1.6};
   const shadowList=[];
   const trunkMat=new THREE.MeshLambertMaterial({color:0x392f26});
   const limbMat =new THREE.MeshLambertMaterial({color:0x453729});
@@ -2001,6 +2011,7 @@ const ITEMS={
   coal_lump:  {n:'석탄',       kg:1.2,  c:0x26262a, use:'고온 연료 · 코크스'},
   malachite:  {n:'공작석',     kg:2.2,  c:0x3fa98a, use:'제련 → 구리'},
   sphalerite: {n:'섬아연석',   kg:2.0,  c:0x5d4a52, use:'제련 → 아연. 구리와 합쳐 황동'},
+  galena:     {n:'방연석',     kg:2.3,  c:0x585d66, use:'제련 → 납. 축전지의 극판이 된다'},
 
   // 불
   tinder:     {n:'부싯깃',     kg:0.05, c:0xb8a86a, use:'불씨를 옮겨 붙이는 마른 풀뭉치'},
@@ -2035,6 +2046,8 @@ const ITEMS={
   /* 합금 셋 — 무엇에 무엇을 섞느냐로 성질이 갈린다.
      청동(구리+주석)은 단단하고, 황동(구리+아연)은 잘 늘어나 얇게 뽑히고,
      강철(철+탄소)은 담금질이 먹어 날이 오래 선다. */
+  ingot_lead: {n:'납 주괴',     kg:2.2,  c:0x6e737a,
+               use:'무르고 무겁다 — 두들겨 펴면 축전지 극판이 된다'},
   ingot_zinc: {n:'아연 주괴',   kg:1.4,  c:0x9aa3ab,
                use:'구리와 합쳐 황동 — 낮은 온도에서 끓어 날아가니 도가니를 덮는다'},
   ingot_brass:{n:'황동 주괴',   kg:1.9,  c:0xc4a747,
@@ -2151,6 +2164,19 @@ const ITEMS={
                use:'오스트발트법 촉매 — 암모니아 원료가 생기면 쓰인다'},
   magnet:     {n:'자석',       kg:1.1,  c:0x5a5f66, use:'발전기 · 아크 확산'},
   electrode:  {n:'탄소 전극',  kg:1.4,  c:0x2a2724, use:'아크로에서 타 없어진다'},
+  /* ── 전기를 담고 쓰는 것 ─────────────────────────────────────────────────
+     발전기는 하천에 박혀 있다. 축전지는 그 전기를 떼어 들고 나가는 통이고,
+     전등은 그 전기를 빛으로 바꾼다. 불씨가 필요 없고 바람에도 안 꺼진다. */
+  acid_sulfuric:{n:'황산',     kg:2.4,  c:0xc8b23a,
+               use:'백금 위에서 유황을 태워 받았다 — 축전지의 전해액'},
+  bulb:       {n:'전구',       kg:0.25, c:0xe4dcc0,
+               use:'유리 안에 탄소 실을 걸었다 — 공기를 뺐으니 타지 않고 달아오른다'},
+  battery:    {n:'납축전지',   kg:8.2,  c:0x4a4f56,
+               use:'납 극판과 황산 — 발전기에서 채워 들고 다닌다. E로 전등에 옮긴다',
+               durMax:100},
+  lamp_electric:{n:'전등',     kg:0.9,  c:0xd8d2b8,
+               use:'L 로 켜고 끈다 — 전기가 닳으면 축전지에서 옮겨 담는다',
+               tool:{lamp:1}, durMax:40},
   hammer_stone:{n:'돌망치',    kg:2.4,  c:0x807d76, tags:['hammer'],
                use:'단조용 — 달군 쇠를 두들겨 쇠똥을 짜낸다'},
   iron_wrought:{n:'연철',      kg:1.8,  c:0x8a8078,
@@ -2296,12 +2322,14 @@ function invAdd(id,n){
   n=n||1;
   const T=ITEMS[id];
   if(invWeight()+T.kg*n > INV.max+1e-6) return false;
-  if(T.tool||T.sips){               // 도구와 물통은 칸마다 남은 양이 달라 겹치지 않는다
+  /* 칸마다 남은 양이 다른 것은 겹치지 않는다 — 도구(내구) · 물통(모금) ·
+     축전지(전기). 내구를 지닌 것이면 도구가 아니어도 따로 선다. */
+  if(T.tool||T.sips||T.durMax){
     for(let k=0;k<n;k++){
       const sl={id,n:1};
       if(T.sips) sl.sip=T.sips;                                 // 남은 모금
       else if(T.burn!==undefined){ sl.fuel=T.burn; sl.lit=false; }   // 횃불
-      else sl.dur=T.durMax;
+      else sl.dur=(id==='battery')?0:T.durMax;   // 축전지는 비어서 나온다
       if(T.tool&&T.tool.gun) sl.mag=0;                          // 총은 빈 탄창으로 나온다
       INV.slots.push(sl);
     }
@@ -2478,6 +2506,7 @@ const MINE={
   coal:   {item:'coal_lump',  label:'석탄 떼기',   dur:4.0, stam:8, tier:2, uses:[3,5]},
   copper: {item:'malachite',  label:'공작석 캐기', dur:5.0, stam:9, tier:2, uses:[2,4]},
   zinc:   {item:'sphalerite', label:'섬아연석 캐기', dur:5.5, stam:10, tier:2, uses:[2,3]},
+  galena: {item:'galena', label:'방연석 캐기', dur:5.8, stam:11, tier:2, uses:[2,3]},
   // 화강암은 불에 달궈 균열이 생긴 뒤에야(tier 3 → 2) 떼어낼 수 있다
   granite:{item:'stone_block',label:'화강암 떼기', dur:6.0, stam:11, tier:3, uses:[3,6],
            fireset:0.35}   // 게임시간 21분 — 횃불이면 35분
@@ -3404,6 +3433,38 @@ const RECIPES=[
    note:'잿물에 질산을 부어 졸이면 바닥에 흰 결정이 앉는다.',
    in:[{id:'lye',n:1},{id:'nitric',n:1}]},
 
+  /* 황산 — 유황을 태워 나온 연기를 백금 위로 지나게 하면 삼산화황이 되고,
+     물에 받으면 황산이다. 백금 그물망은 질산 뽑으려 만든 것인데 여기서도 쓴다
+     (닳지 않는다 — 촉매는 반응을 거들 뿐 제 몸은 안 준다). */
+  {id:'acid_sulfuric', tier:'화학', n:'황산 받기', out:{id:'acid_sulfuric',n:1},
+   time:50, stam:26, station:'fire',
+   note:'유황을 태운 연기를 백금 그물망 위로 지나게 하고 물에 받는다. '
+       +'눈이 맵고 쇠를 삭인다 — 토기에만 담긴다.',
+   in:[{id:'sulfur',n:3},{id:'pot_water',n:1}],
+   need:[{id:'gauze_platinum',n:1}]},
+
+  {id:'bulb', tier:'화학', n:'전구 만들기', out:{id:'bulb',n:2},
+   time:34, stam:22,
+   note:'유리를 불어 구를 만들고 안에 탄소 실을 건다. 공기를 빼 두어야 '
+       +'실이 타 없어지지 않고 달아오르기만 한다.',
+   in:[{id:'glass',n:1},{id:'wire_copper',n:1},{id:'electrode',n:1}]},
+
+  {id:'battery', tier:'화학', n:'납축전지 짜기', out:{id:'battery',n:1},
+   time:70, stam:44,
+   note:'납판과 과산화납판을 번갈아 세우고 황산에 담근다. 무겁다 — 8 kg 이 '
+       +'넘는다. 발전기 곁에서 E 로 채운다.',
+   in:[{id:'ingot_lead',n:4},{id:'acid_sulfuric',n:2},{id:'wire_copper',n:2},
+       {id:'pot',n:1}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'lamp_electric', tier:'화학', n:'전등 만들기', out:{id:'lamp_electric',n:1},
+   time:40, stam:26,
+   note:'황동 통에 전구를 물리고 유리로 앞을 막는다. 불씨가 필요 없고 '
+       +'바람에도 안 꺼진다 — 횃불이 못 하던 두 가지다.',
+   in:[{id:'bulb',n:1},{id:'ingot_brass',n:1},{id:'wire_copper',n:2},
+       {id:'glass',n:1}],
+   need:[{id:'hammer_stone',n:1}]},
+
   {id:'gunpowder', tier:'화학', n:'화약 빻기', out:{id:'gunpowder',n:2},
    time:30, stam:22,
    note:'초석·유황·숯을 따로 곱게 빻은 뒤 함께 섞는다. 불티가 튀면 안 된다.',
@@ -3706,6 +3767,14 @@ const SMELT=[
 
   /* 아연은 끓는점(907 ℃)이 녹는점보다 낮다 — 환원되는 족족 증기로 날아가므로
      도가니를 엎어 덮고 식은 벽에 응결시켜 긁어낸다. 그래서 수율이 나쁘다. */
+  /* 납은 다루기 쉬운 금속이다 — 327 ℃ 면 녹아 흘러 화덕 불로도 닿는다.
+     방연석은 황화물이라 먼저 구워 황을 날린 뒤 숯과 환원한다. */
+  {id:'smelt_lead', n:'납 제련', hours:0.9, out:{id:'ingot_lead',n:1},
+   note:'방연석을 구워 황을 날리고 숯과 함께 환원한다. 납은 낮은 열에 녹아 '
+       +'바닥으로 흘러 고인다 — 다른 금속보다 수월하다.',
+   in:[{id:'galena',n:2},{id:'charcoal',n:3}],
+   need:[{id:'blowpipe',n:1}]},
+
   {id:'smelt_zinc', n:'아연 제련', hours:1.0, out:{id:'ingot_zinc',n:1},
    note:'섬아연석을 구워 산화물로 바꾼 뒤 숯과 함께 밀폐해 환원한다. '
        +'아연은 녹기 전에 끓으므로 증기를 받아 굳힌다 — 세 덩이에 주괴 하나뿐이다.',
@@ -3889,7 +3958,8 @@ function contAdd(c,id,n){                          // 산출물은 상한을 넘
   if(indiv(T)){
     for(let k=0;k<n;k++)
       stackInto(c.slots,id,1, T.sips?{sip:T.sips}
-                            : (T.burn!==undefined)?{fuel:T.burn,lit:false}:{dur:T.durMax});
+                            : (T.burn!==undefined)?{fuel:T.burn,lit:false}
+                            : {dur:(id==='battery')?0:T.durMax});
   }else stackInto(c.slots,id,n);
   boxDirty=true;
 }
@@ -3934,10 +4004,11 @@ function findContainer(){
     }
   };
   scan(STORES,2.8); scan(FIRES,3.0); scan(FURNACES,3.4); scan(GRINDS,3.2);
+  scan(DYNAMOS,3.0);
   return best;
 }
 /* 넣고 빼기 — 도구는 개별 내구가 있으므로 슬롯을 통째로 옮긴다 */
-const indiv=T=>!!(T.tool||T.sips);       // 칸마다 상태가 달라 겹칠 수 없는 것
+const indiv=T=>!!(T.tool||T.sips||T.durMax);   // 칸마다 상태가 달라 겹칠 수 없는 것
 function stackInto(arr,id,n,extra){
   const T=ITEMS[id];
   if(indiv(T)||extra){ arr.push(Object.assign({id,n:1},extra||{})); return 1; }
@@ -4775,7 +4846,9 @@ function placeDynamoAt(px,py,pz){
   mg.position.set(0.34,0.36,0); g.add(mg);
   g.rotation.y=Math.random()*6.283;
   g.position.set(px,py,pz); scene.add(g);
-  DYNAMOS.push({x:px,y:py,z:pz,mesh:g});
+  /* kind:'power' — 숫돌(kind:'grind')과 같다. findContainer 가 같이 훑도록
+     달아 두었을 뿐 slots 는 없다. 용기인 줄 알고 contWeight 를 부르면 터진다. */
+  DYNAMOS.push({x:px,y:py,z:pz,mesh:g,kind:'power',cname:'발전기'});
   COLLIDERS.push({x:px,z:pz,r:0.55}); buildColliderGrid();
 }
 function placeDynamo(){
@@ -4966,6 +5039,77 @@ function litTorch(){
   const e=equippedTool();
   return (e && ITEMS[e.id].tool.torch && e.lit && e.fuel>0) ? e : null;
 }
+/* ── 전등 ────────────────────────────────────────────────────────────────
+   횃불과 같은 자리에 서지만 규칙이 다르다. 불씨가 필요 없고, 바람에 안 꺼지고,
+   비에 안 죽고, 무엇을 달구지도 못한다. 대신 전기가 닳으면 그냥 꺼진다.
+   전기는 발전기에서만 나온다 — 축전지는 그 전기를 들고 나가는 통이다. */
+function heldLamp(){
+  const e=equippedTool();
+  return (e && ITEMS[e.id].tool.lamp) ? e : null;
+}
+function litLamp(){
+  const e=heldLamp();
+  return (e && e.lit && e.dur>0) ? e : null;
+}
+/* 전등을 켜고 끈다. 비었으면 지닌 축전지에서 옮겨 담는다 — 그래서 축전지를
+   들고 다니는 값이 생긴다(발전기는 하천에 박혀 있어 따라오지 못한다). */
+function toggleLamp(){
+  const e=heldLamp();
+  if(!e){ toast('전등을 손에 들어야 한다'); return; }
+  if(e.lit){ e.lit=false; toast('전등을 껐다'); invDirty=true; return; }
+  if(e.dur<=0 && !drawFromBattery(e)){
+    toast('전기가 없다 — 축전지나 발전기가 있어야 한다'); return;
+  }
+  e.lit=true; toast('전등을 켰다'); sfx('bind'); invDirty=true;
+}
+/* 지닌 축전지에서 전등으로 옮겨 담는다. 가장 많이 남은 것부터 쓴다. */
+function drawFromBattery(e){
+  const T=ITEMS[e.id], want=T.durMax-e.dur;
+  if(want<=0) return false;
+  const bs=INV.slots.filter(x=>x.id==='battery'&&x.dur>0)
+                    .sort((a,b)=>b.dur-a.dur);
+  if(!bs.length) return false;
+  let got=0;
+  for(const b of bs){
+    const take=Math.min(b.dur, want-got);
+    b.dur-=take; got+=take;
+    if(got>=want) break;
+  }
+  e.dur+=got; invDirty=true;
+  toast('축전지에서 전기를 옮겨 담았다 ('+Math.round(e.dur)+' / '+T.durMax+')');
+  return got>0;
+}
+/* 발전기 곁에서 E — 지닌 축전지와 전등을 한꺼번에 채운다 */
+function chargeAtDynamo(){
+  if(!powered()){ toast('물레방아가 돌지 않는다'); return; }
+  let n=0;
+  for(const sl of INV.slots){
+    const T=ITEMS[sl.id];
+    if(!T||!T.durMax) continue;
+    if(sl.id!=='battery' && !(T.tool&&T.tool.lamp)) continue;
+    if(sl.dur>=T.durMax) continue;
+    sl.dur=T.durMax; n++;
+  }
+  if(!n){ toast('채울 것이 없다 — 축전지나 전등을 지녀야 한다'); return; }
+  toast(n+'개를 가득 채웠다'); sfx('bind'); invDirty=true;
+}
+let lampT=0;
+function updateLamp(dt,dh){
+  const on=litLamp();
+  const e=heldLamp();
+  if(on){
+    on.dur=Math.max(0,on.dur-dh*LAMP_DRAIN);
+    if(on.dur<=0){
+      on.lit=false;
+      toast('전등이 꺼졌다 — 전기가 다했다');
+    }
+    invDirty=true;
+  }else if(e&&e.lit&&e.dur<=0) e.lit=false;
+  lampT+=dt;
+  const show=!!litLamp();
+  flash.intensity=show?1.9:0;
+}
+const LAMP_DRAIN=4.0;          // 게임시간 한 시간에 닳는 전기. 40 이면 10시간.
 let torchLight=null, torchFlame=null, torchT=0;
 function initTorchFx(){
   torchLight=new THREE.PointLight(0xff9040,0,26);
@@ -6180,7 +6324,7 @@ const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, JUMP=7.6,
       STEPUP=0.55;                                      // 이 높이 이하 턱은 그냥 올라선다
 const PL={pos:new THREE.Vector3(),vel:new THREE.Vector3(),yaw:0,pitch:0,
   grounded:false,crouch:false,run:false,swim:false,wade:0,
-  hp:100,stam:100,oxy:100,food:100,water:100,ill:0,light:false,bob:0,dist:0,eye:EYE};
+  hp:100,stam:100,oxy:100,food:100,water:100,ill:0,bob:0,dist:0,eye:EYE};
 const keys={};
 /* 뚫고 내려가기 — 이 시간 동안에는 DROP.y 아래의 지은 바닥만 밟는다.
    Ctrl+Space 로 지붕을 뚫고 내려올 때 쓴다. */
@@ -6684,6 +6828,12 @@ function updateHUD(dt){
         +'수리는 처음 재료의 절반(내림)이 든다</em>';
       return;
     }
+    if(c.kind==='power'){
+      look.style.display='block'; lb.style.display='none';
+      lt.innerHTML='[E] 발전기 — 축전지와 전등 채우기<em>'
+        +(powered()?'물레방아가 돌고 있다':'물레방아가 서 있다 — 채울 수 없다')+'</em>';
+      return;
+    }
     const head='[E] '+c.cname+' 열기';
     // 화덕은 E를 계속 누르면 불을 다루는 쪽으로 넘어간다
     if(isHearth(c) && !c.lit && isTorch && e.lit && e.fuel>0.12 && contFuel(c)){
@@ -6930,7 +7080,7 @@ function snapshot(){
     t:{hour:hourOfDay, gh:gameHours, ts:timeScale},
     pl:{x:PL.pos.x,y:PL.pos.y,z:PL.pos.z,yaw:PL.yaw,pitch:PL.pitch,
         hp:PL.hp,stam:PL.stam,oxy:PL.oxy,food:PL.food,water:PL.water,
-        ill:PL.ill,light:PL.light},
+        ill:PL.ill},
     inv:saveSlots(INV.slots),
     sel:INV.sel, eq:EQUIP?INV.slots.indexOf(EQUIP):-1,
     wear:{body:WEAR.body?INV.slots.indexOf(WEAR.body):-1,
@@ -7045,7 +7195,7 @@ async function restore(d){
   hourOfDay=d.t.hour; gameHours=d.t.gh; timeScale=d.t.ts||1;
   PL.pos.set(d.pl.x,d.pl.y,d.pl.z); PL.vel.set(0,0,0);
   PL.yaw=d.pl.yaw; PL.pitch=d.pl.pitch;
-  PL.stam=d.pl.stam; PL.oxy=d.pl.oxy; PL.light=!!d.pl.light;
+  PL.stam=d.pl.stam; PL.oxy=d.pl.oxy;
   // 옛 저장 파일에는 배고픔이 없다 — 그때는 배부른 채로 시작한다
   PL.food=(d.pl.food===undefined)?100:d.pl.food; PL.ill=d.pl.ill||0;
   PL.water=(d.pl.water===undefined)?100:d.pl.water;   // 갈증이 없던 판에서 온 세이브
@@ -7160,7 +7310,7 @@ addEventListener('keydown',e=>{
   }
   keys[e.code]=true;
   if(e.code==='Space') e.preventDefault();
-  if(e.code==='KeyL'){ PL.light=!PL.light; }   // F 는 먹기·마시기가 쓴다
+  if(e.code==='KeyL'){ toggleLamp(); }         // F 는 먹기·마시기가 쓴다
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
   if(e.code==='KeyE'&&boxOpen&&!e.repeat){ toggleBox(null); }
   if((e.code==='Escape'||e.code==='KeyE')&&grindOpen&&!e.repeat){ toggleGrind(); return; }
@@ -7254,6 +7404,7 @@ function releaseE(){
   if(!c || boxOpen || grindOpen || paused || busy) return;
   if(c.kind==='fit'){ if(held<E_TAP+0.35) toggleFit(c.w); return; }
   if(c.kind==='grind'){ if(held<E_TAP+0.35) toggleGrind(); return; }
+  if(c.kind==='power'){ if(held<E_TAP+0.35) chargeAtDynamo(); return; }
   if(held<E_TAP) toggleBox(c);
 }
 // 알트탭 등으로 포커스를 잃으면 눌린 키가 그대로 남는다
@@ -7354,7 +7505,7 @@ if(touchOnly){
     .addEventListener('touchstart',e=>{fn();e.stopPropagation();e.preventDefault();},{passive:false});
   bind('tJump',()=>{keys.Space=true;setTimeout(()=>keys.Space=false,120);});
   bind('tRun',()=>{keys.ShiftLeft=!keys.ShiftLeft;});
-  bind('tLight',()=>{PL.light=!PL.light;});
+  bind('tLight',()=>{ toggleLamp(); });
   bind('tAtk',attack);
   const pk=document.getElementById('tPick');
   pk.addEventListener('touchstart',e=>{keys.KeyE=true;e.stopPropagation();e.preventDefault();},{passive:false});
@@ -7443,7 +7594,7 @@ function loop(){
     const dh=dt*timeScale/60;                  // 실시간 1분 = 게임 1시간 (하루 24분)
     gameHours+=dh; hourOfDay=(hourOfDay+dh)%24;
     updateShip(dt);                            // 보급선이 내려놓고 떠난다
-    updateTorch(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh);
+    updateTorch(dt,dh); updateLamp(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh);
     updateWeapon(dt); updatePower(dt);
     updateOcean(now*0.001);
     updateSky();
@@ -7458,7 +7609,7 @@ function loop(){
       const h=document.getElementById('hint');
       if(h&&hasMouse&&!flyMode){
         const locked=document.pointerLockElement===cv;
-        const want=locked?'WASD 이동 · E 채집 · F 먹기/마시기 · L 손전등 · I 소지품 · C 제작 · B 사전'
+        const want=locked?'WASD 이동 · E 채집 · F 먹기/마시기 · L 전등 · I 소지품 · C 제작 · B 사전'
                          :'화면을 클릭하면 시점 조작이 시작됩니다';
         if(h.textContent!==want) h.textContent=want;
       }
@@ -7468,7 +7619,6 @@ function loop(){
       updateRegrow();
       updatePlayer(dt);
     }
-    flash.intensity=PL.light?1.6:0;
     updateHUD(dt);
     drawCompass();
     mapT+=dt; if(mapT>0.12){ mapT=0; drawMap(); }
