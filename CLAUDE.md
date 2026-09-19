@@ -27,7 +27,7 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` | 메인 게임. 아이템 121종 · 레시피 115개 · 제련 9종 |
+| `island_world.html` | 메인 게임. 아이템 136종 · 레시피 129개 · 제련 10종 |
 | `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `wyvern_arena.html` | **잿불 와이번 시험장**(4.1MB). 상공 20 m 선회 → 5초 노려봄 →
@@ -142,13 +142,16 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
 
 1. **무기는 `WEAPON_FX`(4945)에 생김새 함수를 따로 써야 한다.** 성능은 데이터인데
    모양은 아니다. 안 쓰면 5117에서 조용히 `return` 하고 손에 아무것도 안 잡힌다.
-   `tool.weapon` 을 단 아이템은 14개인데 `WEAPON_FX` 항목도 14개다 — 하나라도
+   `tool.weapon` 을 단 아이템은 17개인데 `WEAPON_FX` 항목도 17개다 — 하나라도
    어긋나면 그 무기는 손에 안 잡힌다. 무기를 더하면 이 짝부터 맞춰 볼 것:
    `node tools/probe.mjs island_world.html "Object.entries(ITEMS).filter(([k,v])=>v.tool&&v.tool.weapon).length" "Object.keys(WEAPON_FX).length"`
 2. **id가 직접 박힌 자리가 여남은 곳 있다** — `tinder`(발화) · `codex` ·
    `ring_platinum` · `stone_block`. `grep -n "id==='"` 로 확인할 것.
-   탄약은 여기서 빠졌다 — 이제 `ammo` 필드를 단 것이면 무엇이든 총에 들어가고,
-   `ammo.dmg` 가 총의 피해에 곱해진다. 새 탄은 `ITEMS` 한 줄이면 된다.
+   탄약은 여기서 빠졌다 — `ammo` 필드를 단 것이 총에 들어가고 `ammo.dmg` 가
+   피해에 곱해진다. **구경(`ammo.bore` ↔ `tool.bore`)이 맞아야 약실에 들어간다**
+   (없으면 `'rifle'` 로 친다 — 산탄총만 `'shot'`). 새 탄은 `ITEMS` 한 줄이면 된다.
+   총도 데이터다 — `tool.pellets`/`spread` 가 산탄(알마다 따로 선을 쏜다),
+   `tool.auto` 가 연사(왼쪽 단추를 누르고 있으면 쿨마다 한 발)다.
 3. **`attack()`(5301)은 그물을 특례로 가로챈다.** `equippedWeapon()` 이 무기 아닌
    걸 걸러내기 때문이다. "무기 칸에 들어가는데 무기가 아닌 것"을 또 만들면 특례가
    또 생긴다 — 필드 분기로 합치는 쪽을 먼저 볼 것.
@@ -227,6 +230,9 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - **칸마다 상태가 다른 것은 `indiv(T)` 가 가른다** — `T.tool||T.sips||T.durMax`.
   내구(`durMax`)를 단 물건은 도구가 아니어도 따로 선다. 안 그러면 겹쳐 쌓이면서
   남은 양이 사라진다(축전지가 그랬다).
+- **전기 설비 넷(`WHEELS`·`DYNAMOS`·`ARCS`·`LATHES`)은 `snapshot().power` 에 담긴다.**
+  여태 저장하지 않아 불러오면 통째로 사라졌다 — 화학 단계가 전부 이 위에 서 있다.
+  물레방아 → 발전기 → 아크로·선반 차례로 다시 세워야 한다(뒤엣것이 앞엣것을 찾는다).
 - **갑옷이 깎는 피해는 `armorMul()` 하나로 모인다** — `1/(1+방어/ARMOR_K)`(`ARMOR_K`=10,
   "피해가 절반이 되는 방어"). 상한이 없고 100% 에 닿지도 않는다. 예전의
   `1-방어/24`(0.72 에서 자름)는 방어 17.3 부터 전부 같은 값이라 강철 한 벌(20)과

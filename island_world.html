@@ -553,7 +553,11 @@ const RESOURCES=[
      배치가 이 차례대로 난수를 뽑으므로, 중간에 끼우면 뒤의 자원이 전부 다른
      자리에 서고 같은 시드가 다른 섬을 연다. */
   {k:'galena', n:'방연석(납)',     c:0x585d66, use:'제련 → 납 · 축전지의 극판',
-   d:0.035, max:90,  min:14}
+   d:0.035, max:90,  min:14},
+  /* 진사: 수은의 광석. 분기공이 뿜은 열수가 식으면서 앉는 붉은 딱지라
+     유황과 같은 자리에 난다. 여기도 표의 맨 끝이다 — 난수 차례를 밀지 않는다. */
+  {k:'cinnabar', n:'진사(수은)',   c:0xa03a32, use:'구우면 수은 — 뇌관의 뇌홍',
+   d:0.30, max:70,  min:12}
 ];
 
 /* ---------------- 파라미터 ---------------- */
@@ -1005,7 +1009,9 @@ function placeResources(seed){
     // 섬아연석: 열수 광맥 광물 — 분기공 언저리 암반에 구리를 따라 붙는다
     zinc:i=> ((b[i]===B.ROCK||b[i]===B.SCREE)?1:0)*(0.45+clamp(F.fuma[i]*1.6,0,1)),
     // 방연석: 같은 열수 광맥이되 섬아연석보다 분기공에 덜 붙는다
-    galena:i=> ((b[i]===B.ROCK||b[i]===B.SCREE)?1:0)*(0.35+clamp(F.fuma[i]*1.2,0,1))
+    galena:i=> ((b[i]===B.ROCK||b[i]===B.SCREE)?1:0)*(0.35+clamp(F.fuma[i]*1.2,0,1)),
+    // 진사: 유황과 같이 분기공 둘레에만 — 열수가 식으며 앉은 붉은 딱지다
+    cinnabar:i=> F.fuma[i]>0.25 ? clamp(F.fuma[i]*1.5,0,1) : 0
   };
 
   // 정규화 보조값 — 보정 배치 점수 계산용
@@ -1034,7 +1040,8 @@ function placeResources(seed){
     iron:    i=> nT(i)*0.5 + m[i]*0.4 + (1-nS(i))*0.3,
     coal:    i=> nS(i)*0.6 + (1-nE(i))*0.3 + nT(i)*0.2,
     zinc:    i=> nS(i)*0.5 + nE(i)*0.4 + F.fuma[i]*0.6,
-    galena:  i=> nS(i)*0.45 + nE(i)*0.45 + F.fuma[i]*0.5
+    galena:  i=> nS(i)*0.45 + nE(i)*0.45 + F.fuma[i]*0.5,
+    cinnabar:i=> F.fuma[i]
   };
 
   // 육지가 좁으면 점유 반경을 줄인다 — 먼저 배치된 자원이 자리를 다 먹는 것을 방지
@@ -1044,7 +1051,8 @@ function placeResources(seed){
   const DSCALE=(CELL*CELL)/16;
   const occ=new Uint8Array(N*N);          // 노드 과밀 방지 격자
   // 암석류는 크기 편차를 훨씬 크게 준다 — 자갈부터 큰 바위까지 섞여야 자연스럽다
-  const ROCKY={granite:1,pebble:1,flint:1,copper:1,iron:1,coal:1,zinc:1,galena:1};
+  const ROCKY={granite:1,pebble:1,flint:1,copper:1,iron:1,coal:1,zinc:1,galena:1,
+               cinnabar:1};
   const push=(k,x,z)=>{
     const i=IDX(x,z);
     let sc=0.75+rnd()*0.6;                 // 공통 편차 0.75~1.35
@@ -1402,13 +1410,15 @@ function buildProps(){
     iron:   [new THREE.IcosahedronGeometry(0.95,0)],
     coal:   [new THREE.IcosahedronGeometry(0.95,0)],
     zinc:   [new THREE.IcosahedronGeometry(0.85,0)],
-    galena: [new THREE.BoxGeometry(0.95,0.85,0.95)]   // 방연석은 정육면체로 쪼개진다
+    galena: [new THREE.BoxGeometry(0.95,0.85,0.95)],  // 방연석은 정육면체로 쪼개진다
+    cinnabar:[new THREE.DodecahedronGeometry(0.75,0)]
   };
   /* 광석·바위는 개체마다 그 자리에서 형상을 만든다.
      20면체를 한 단계 세분한 80면 껍질을 기준으로, 임의 축을 향한 매끄러운 혹 세 개를
      겹쳐 반지름을 흔든다. 같은 돌이 두 번 나오지 않는다.
      인스턴싱 대신 종류별로 정점을 한 버퍼에 이어 붙여 드로우콜은 1개로 유지한다. */
-  const ROCK_R={granite:1.8,copper:1.05,iron:0.95,coal:0.95,zinc:0.85,galena:0.85,tin:0.8,
+  const ROCK_R={granite:1.8,copper:1.05,iron:0.95,coal:0.95,zinc:0.85,galena:0.85,
+               cinnabar:0.8,tin:0.8,
                 sulfur:0.55,flint:0.18,pebble:0.13};
   // 기준 껍질의 '중복 없는 꼭짓점' 목록을 한 번만 뽑아 둔다 (80면 → 꼭짓점 42개)
   const shell=new THREE.IcosahedronGeometry(1,1);
@@ -1498,7 +1508,7 @@ function buildProps(){
 
   const RAD={oak:0.6,fir:0.5,granite:1.5,copper:0.9,iron:0.8,coal:0.8};
   const SHADOW_R={oak:2.6,fir:2.0,granite:1.9,copper:1.2,iron:1.1,coal:1.1,zinc:1.0,
-                  galena:1.0,clay:1.6};
+                  galena:1.0,cinnabar:0.95,clay:1.6};
   const shadowList=[];
   const trunkMat=new THREE.MeshLambertMaterial({color:0x392f26});
   const limbMat =new THREE.MeshLambertMaterial({color:0x453729});
@@ -2012,6 +2022,7 @@ const ITEMS={
   malachite:  {n:'공작석',     kg:2.2,  c:0x3fa98a, use:'제련 → 구리'},
   sphalerite: {n:'섬아연석',   kg:2.0,  c:0x5d4a52, use:'제련 → 아연. 구리와 합쳐 황동'},
   galena:     {n:'방연석',     kg:2.3,  c:0x585d66, use:'제련 → 납. 축전지의 극판이 된다'},
+  cinnabar:   {n:'진사',       kg:1.8,  c:0xa03a32, use:'구우면 수은이 날아 나온다 — 분기공 둘레에만'},
 
   // 불
   tinder:     {n:'부싯깃',     kg:0.05, c:0xb8a86a, use:'불씨를 옮겨 붙이는 마른 풀뭉치'},
@@ -2048,6 +2059,8 @@ const ITEMS={
      강철(철+탄소)은 담금질이 먹어 날이 오래 선다. */
   ingot_lead: {n:'납 주괴',     kg:2.2,  c:0x6e737a,
                use:'무르고 무겁다 — 두들겨 펴면 축전지 극판이 된다'},
+  mercury:    {n:'수은',       kg:3.4,  c:0xb9bec4,
+               use:'흐르는 금속 — 뇌홍의 원료. 토기에 담는다'},
   ingot_zinc: {n:'아연 주괴',   kg:1.4,  c:0x9aa3ab,
                use:'구리와 합쳐 황동 — 낮은 온도에서 끓어 날아가니 도가니를 덮는다'},
   ingot_brass:{n:'황동 주괴',   kg:1.9,  c:0xc4a747,
@@ -2142,19 +2155,50 @@ const ITEMS={
   /* 탄약 — ammo.dmg 가 총의 피해에 곱해진다. 총은 id 가 아니라 'ammo' 분류로
      받아들이므로, 새 탄을 만들려면 여기 한 줄이면 된다. */
   cartridge:  {n:'소총탄',     kg:0.05, c:0xc08a3e, tags:['ammo'],
-               use:'구리 탄피에 화약과 철 탄두 — 볼트 소총에 든다',
-               ammo:{dmg:1.0}},
+               use:'구리 탄피에 화약과 철 탄두 — 소총 구경',
+               ammo:{dmg:1.0, bore:'rifle'}},
   cartridge_brass:{n:'황동 소총탄', kg:0.05, c:0xc4a747, tags:['ammo'],
                use:'황동 탄피는 얇고 질겨 더 센 장약을 견딘다 — 피해 1.25배',
-               ammo:{dmg:1.25}},
+               ammo:{dmg:1.25, bore:'rifle'}},
+  /* 무연 탄 — 장약이 세고 찌꺼기가 없다. 자동으로 도는 총은 이것만 먹는다
+     (흑색화약 탄을 물리면 몇 발 만에 기관부가 눌어붙는다는 셈이다). */
+  cartridge_smokeless:{n:'무연 소총탄', kg:0.05, c:0xd8c88a, tags:['ammo'],
+               use:'무연화약을 재고 뇌관을 물렸다 — 피해 1.6배 · 자동 화기용',
+               ammo:{dmg:1.6, bore:'rifle', clean:1}},
+  shell_buck: {n:'산탄',       kg:0.08, c:0xa8402e, tags:['ammo'],
+               use:'종이 탄피에 납 알을 아홉 개 재웠다 — 산탄총 구경',
+               ammo:{dmg:1.0, bore:'shot'}},
   /* 볼트 소총 — 화승총과 현대 소총 사이. 뒤로 열리는 약실에 탄피째 물리고,
      노리쇠를 손으로 젖혀 한 발씩 밀어 넣는다. 자동은 없다.
      사거리 50 m 는 활비비로 불을 켜던 섬에서는 다른 세계의 값이다. */
   rifle_bolt: {n:'볼트 소총',  kg:4.6,  c:0x7a6a52,
                use:'사거리 50 m · 5발 탄창 — 노리쇠를 젖혀 한 발씩',
-               tool:{weapon:1, gun:1, dmg:150, reach:50, rate:2.40, stam:3,
-                     swing:'shot', mag:5, reload:6.5},   // 탄은 'ammo' 분류로 받는다
+               tool:{weapon:1, gun:1, bore:'rifle', dmg:150, reach:50, rate:2.40,
+                     stam:3, swing:'shot', mag:5, reload:6.5},
                durMax:400},
+  /* 산탄총 — 뇌관만 있으면 선다. 강선도 무연화약도 필요 없다(산탄은 돌면
+     오히려 흩어진다). 그래서 현대식 화기 중 제일 먼저 만들 수 있다.
+     한 방에 아홉 알이 퍼지므로 가까이서는 무섭고 멀면 아무것도 아니다. */
+  shotgun:    {n:'산탄총',     kg:3.8,  c:0x6b5442,
+               use:'사거리 22 m · 아홉 알이 퍼진다 — 가까이서만 쓸 것',
+               tool:{weapon:1, gun:1, bore:'shot', dmg:26, reach:22, rate:1.15,
+                     stam:4, swing:'shot', mag:5, reload:5.0,
+                     pellets:9, spread:0.085},
+               durMax:360},
+  /* 반자동 소총 — 가스를 뽑아 노리쇠를 제 힘으로 밀어 젖힌다.
+     볼트 소총과 같은 탄을 쓰지만 노리쇠를 젖히는 시간이 사라진다. */
+  rifle_semi: {n:'반자동 소총', kg:4.9,  c:0x6e747a,
+               use:'사거리 55 m · 10발 — 방아쇠를 당기는 만큼 나간다',
+               tool:{weapon:1, gun:1, bore:'rifle', dmg:150, reach:55, rate:0.42,
+                     stam:3, swing:'shot', mag:10, reload:4.2},
+               durMax:420},
+  /* 기관단총 — 총알이 나가는 반동으로 노리쇠가 열린다(단순 블로백).
+     한 발은 약한데 누르고 있으면 계속 나간다. 탄을 퍼붓는 쪽이다. */
+  smg:        {n:'기관단총',   kg:3.2,  c:0x565b61,
+               use:'사거리 30 m · 25발 연사 — 왼쪽 단추를 누르고 있으면 계속',
+               tool:{weapon:1, gun:1, bore:'rifle', dmg:62, reach:30, rate:0.10,
+                     stam:1, swing:'shot', mag:25, reload:3.6, auto:1},
+               durMax:300},
   // 금속 가공 · 전기
   ring_platinum:{n:'백금 반지', kg:0.05, c:0xd8dce0,
                use:'표류 전부터 끼고 있던 것 — 백금은 촉매가 된다'},
@@ -2177,6 +2221,28 @@ const ITEMS={
   lamp_electric:{n:'전등',     kg:0.9,  c:0xd8d2b8,
                use:'L 로 켜고 끈다 — 전기가 닳으면 축전지에서 옮겨 담는다',
                tool:{lamp:1}, durMax:40},
+  /* ── 현대식 화기로 가는 길 ───────────────────────────────────────────────
+     볼트 소총이 한 발씩인 것은 세 가지가 없어서다.
+     뇌관이 없어 방아쇠 한 번에 확실히 터지지 않고, 흑색화약은 찌꺼기가
+     기관부에 눌어붙어 노리쇠를 멈추며, 강선을 깎을 연장이 없다.
+     이 셋을 차례로 채운다. */
+  pipe_copper:{n:'구리관',     kg:1.1,  c:0xb87333,
+               use:'증류기의 사관 — 끓인 김을 식혀 받는다'},
+  alcohol:    {n:'알코올',     kg:2.0,  c:0xd8e2e8,
+               use:'베리술을 증류해 받았다 — 뇌홍의 재료이자 불붙는 물'},
+  fulminate:  {n:'뇌홍',       kg:0.4,  c:0x8a8f96,
+               use:'때리면 터진다 — 젖은 채로만 다룬다. 마르면 건드리지 말 것'},
+  primer:     {n:'뇌관',       kg:0.02, c:0xc4a747,
+               use:'뇌홍을 재운 황동 컵 — 공이가 때리면 불꽃이 인다'},
+  guncotton:  {n:'면화약',     kg:0.6,  c:0xe8e4d4,
+               use:'섬유를 질산·황산에 담가 받았다 — 무연화약의 밑감'},
+  powder_smokeless:{n:'무연화약', kg:0.8, c:0xc8b88a,
+               use:'연기도 찌꺼기도 없다 — 노리쇠가 제 힘으로 움직인다',
+               },
+  spring_steel:{n:'용수철강',  kg:0.5,  c:0x8a9098,
+               use:'기름에 담갔다 되뜨임한 강철 — 탄창과 복좌 용수철이 된다'},
+  barrel_rifled:{n:'강선 총열', kg:2.4, c:0x6e747a,
+               use:'선반으로 안을 넓히고 나선 홈을 깎았다 — 탄이 돌며 날아간다'},
   hammer_stone:{n:'돌망치',    kg:2.4,  c:0x807d76, tags:['hammer'],
                use:'단조용 — 달군 쇠를 두들겨 쇠똥을 짜낸다'},
   iron_wrought:{n:'연철',      kg:1.8,  c:0x8a8078,
@@ -2507,6 +2573,7 @@ const MINE={
   copper: {item:'malachite',  label:'공작석 캐기', dur:5.0, stam:9, tier:2, uses:[2,4]},
   zinc:   {item:'sphalerite', label:'섬아연석 캐기', dur:5.5, stam:10, tier:2, uses:[2,3]},
   galena: {item:'galena', label:'방연석 캐기', dur:5.8, stam:11, tier:2, uses:[2,3]},
+  cinnabar:{item:'cinnabar', label:'진사 긁기', dur:4.2, stam:9, tier:1, uses:[2,4]},
   // 화강암은 불에 달궈 균열이 생긴 뒤에야(tier 3 → 2) 떼어낼 수 있다
   granite:{item:'stone_block',label:'화강암 떼기', dur:6.0, stam:11, tier:3, uses:[3,6],
            fireset:0.35}   // 게임시간 21분 — 횃불이면 35분
@@ -3465,6 +3532,116 @@ const RECIPES=[
        {id:'glass',n:1}],
    need:[{id:'hammer_stone',n:1}]},
 
+  /* ── 현대식 화기로 가는 길 ────────────────────────────────────────────
+     뇌관 → 무연화약 → 강선. 이 셋이 채워지는 차례대로 총이 하나씩 선다. */
+  {id:'pipe_copper', tier:'화학', n:'구리관 뽑기', out:{id:'pipe_copper',n:1},
+   time:30, stam:22, station:'anvil',
+   note:'구리를 인발판에 거푸 통과시켜 관으로 뽑고 나선으로 감는다. '
+       +'끓인 김이 이 안을 돌며 식는다.',
+   in:[{id:'ingot_copper',n:2},{id:'charcoal',n:1}],
+   need:[{id:'drawplate',n:1},{id:'hammer_stone',n:1}]},
+
+  {id:'alcohol', tier:'화학', n:'술 내리기', out:{id:'alcohol',n:2},
+   time:60, stam:24, station:'fire',
+   note:'베리를 으깨 두면 절로 괸다. 그것을 은근히 끓여 구리관으로 받으면 '
+       +'먼저 나오는 맑은 것이 알코올이다.',
+   in:[{id:'berry',n:24},{id:'pot_water',n:1}],
+   need:[{id:'pipe_copper',n:1}]},
+
+  /* 뇌홍 — 수은을 질산에 녹이고 알코올을 부으면 흰 결정이 앉는다.
+     때리면 터지므로 젖은 채로만 다룬다. 이것이 없으면 방아쇠 한 번에
+     확실히 터지지 않아 자동으로 도는 총을 만들 수 없다. */
+  {id:'fulminate', tier:'화학', n:'뇌홍 앉히기', out:{id:'fulminate',n:2},
+   time:55, stam:30,
+   note:'수은을 질산에 녹이고 알코올을 붓는다. 흰 결정이 바닥에 앉는다. '
+       +'마른 것은 손대지 않는다 — 긁기만 해도 터진다.',
+   in:[{id:'mercury',n:1},{id:'nitric',n:2},{id:'alcohol',n:1}]},
+
+  {id:'primer', tier:'화학', n:'뇌관 만들기', out:{id:'primer',n:20},
+   time:38, stam:26, station:'anvil',
+   note:'황동을 얇게 떠 작은 컵을 찍고 젖은 뇌홍을 재워 말린다. '
+       +'공이가 때리면 불꽃이 약실 안으로 뻗는다.',
+   in:[{id:'ingot_brass',n:1},{id:'fulminate',n:1}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  /* 면화약 — 섬유를 질산과 황산에 담갔다 헹군다. 연기도 찌꺼기도 없다.
+     흑색화약은 찌꺼기가 기관부에 눌어붙어 몇 발 만에 노리쇠를 멈춘다. */
+  {id:'guncotton', tier:'화학', n:'면화약 담그기', out:{id:'guncotton',n:3},
+   time:48, stam:28,
+   note:'섬유를 질산과 황산 섞은 것에 담갔다 물에 거푸 헹군다. '
+       +'덜 헹구면 제풀에 삭아 불이 붙는다.',
+   in:[{id:'fiber',n:8},{id:'nitric',n:1},{id:'acid_sulfuric',n:1}]},
+
+  {id:'powder_smokeless', tier:'화학', n:'무연화약 굳히기',
+   out:{id:'powder_smokeless',n:2},
+   time:44, stam:26,
+   note:'면화약을 알코올에 풀어 반죽하고 가락으로 눌러 말린다. '
+       +'알갱이가 고를수록 타는 결이 고르다.',
+   in:[{id:'guncotton',n:3},{id:'alcohol',n:1}]},
+
+  {id:'lathe', tier:'화학', n:'선반 세우기', out:null, place:'lathe',
+   time:70, stam:52,
+   note:'발전기에서 띠를 걸어 굴대를 돌린다. 두들겨서는 못 하던 일 — '
+       +'총열 안을 넓히고 나선 홈을 깎는 것 — 이 여기서 된다. 발전기 12 m 안.',
+   in:[{id:'log',n:4},{id:'iron_wrought',n:4},{id:'wire_copper',n:3},
+       {id:'stone_block',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'spring_steel', tier:'강철', n:'용수철강 뽑기', out:{id:'spring_steel',n:2},
+   time:42, stam:34, station:'anvil',
+   note:'강철을 가늘게 뽑아 기름에 담갔다 다시 낮은 불에 되뜨임한다. '
+       +'덜 뜨임하면 부러지고 더 뜨임하면 늘어진 채 안 돌아온다.',
+   in:[{id:'ingot_steel',n:1},{id:'charcoal',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'barrel_rifled', tier:'강철', n:'강선 총열 깎기', out:{id:'barrel_rifled',n:1},
+   time:90, stam:56, station:'lathe',
+   note:'강철 막대를 물려 돌리며 안을 넓히고, 브로치를 밀어 나선 홈을 낸다. '
+       +'탄이 돌며 날아가 곧게 간다 — 사거리와 맞는 자리가 여기서 갈린다.',
+   in:[{id:'ingot_steel',n:2},{id:'charcoal',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  /* 탄약 셋 */
+  {id:'shell_buck', tier:'화학', n:'산탄 만들기', out:{id:'shell_buck',n:12},
+   time:32, stam:22,
+   note:'두꺼운 종이를 말아 탄피를 삼고 밑에 뇌관을 박는다. 장약 위에 납 알 '
+       +'아홉을 재우고 마구리를 접는다.',
+   in:[{id:'ingot_lead',n:1},{id:'gunpowder',n:2},{id:'primer',n:12},
+       {id:'fiber',n:2}]},
+
+  {id:'cartridge_smokeless', tier:'화학', n:'무연 소총탄', out:{id:'cartridge_smokeless',n:12},
+   time:40, stam:28, station:'anvil',
+   note:'황동 탄피에 뇌관을 박고 무연화약을 재고 납심 강철 탄두를 물린다. '
+       +'연기가 안 나 쏜 자리가 드러나지 않고, 찌꺼기가 없어 노리쇠가 안 멎는다.',
+   in:[{id:'ingot_brass',n:1},{id:'powder_smokeless',n:2},{id:'primer',n:12},
+       {id:'ingot_steel',n:1}],
+   need:[{id:'drawplate',n:1},{id:'hammer_stone',n:1}]},
+
+  /* 총 셋 — 산탄총은 뇌관만으로 서고, 나머지 둘은 선반이 있어야 한다 */
+  {id:'shotgun', tier:'화학', n:'산탄총', out:{id:'shotgun',n:1},
+   time:95, stam:70, station:'anvil',
+   note:'매끈한 총열이면 된다 — 산탄은 돌면 오히려 흩어지므로 강선이 없는 편이 '
+       +'낫다. 뇌관만 있으면 서는, 현대식 화기 중 제일 먼저 만들 수 있는 것이다.',
+   in:[{id:'iron_wrought',n:5},{id:'log',n:1},{id:'spring_steel',n:1},
+       {id:'charcoal',n:3},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'rifle_semi', tier:'강철', n:'반자동 소총', out:{id:'rifle_semi',n:1},
+   time:150, stam:95, station:'lathe',
+   note:'총열 밑에 구멍을 내 가스를 뽑고, 그 힘으로 노리쇠를 밀어 젖힌다. '
+       +'노리쇠를 손으로 당기던 시간이 통째로 사라진다.',
+   in:[{id:'barrel_rifled',n:1},{id:'ingot_steel',n:4},{id:'spring_steel',n:2},
+       {id:'log',n:1},{id:'charcoal',n:4}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'smg', tier:'강철', n:'기관단총', out:{id:'smg',n:1},
+   time:130, stam:82, station:'lathe',
+   note:'가스도 잠금도 없다 — 무거운 노리쇠가 반동으로 열렸다 용수철로 닫히기만 '
+       +'한다. 만들기는 제일 쉽고 멀리는 못 간다. 누르고 있으면 계속 나간다.',
+   in:[{id:'barrel_rifled',n:1},{id:'ingot_steel',n:2},{id:'spring_steel',n:3},
+       {id:'iron_wrought',n:2},{id:'charcoal',n:3}],
+   need:[{id:'hammer_stone',n:1}]},
+
   {id:'gunpowder', tier:'화학', n:'화약 빻기', out:{id:'gunpowder',n:2},
    time:30, stam:22,
    note:'초석·유황·숯을 따로 곱게 빻은 뒤 함께 섞는다. 불티가 튀면 안 된다.',
@@ -3576,7 +3753,8 @@ const STATION={grind  :{n:'숫돌',      ok:()=>nearGrind()},
                furnace:{n:'제련로',    ok:()=>nearFurnace()},
                anvil  :{n:'모루',      ok:()=>nearAnvil()},
                water  :{n:'담수',      ok:()=>nearFreshWater()},
-               arc    :{n:'아크로',    ok:()=>nearArc()}};
+               arc    :{n:'아크로',    ok:()=>nearArc()},
+               lathe  :{n:'선반',      ok:()=>nearLathe()}};
 const stationOK=R=>!R.station || STATION[R.station].ok();
 const canCraft=R=>R.in.every(r=>countMat(r)>=r.n)
                  && (!R.need || R.need.every(r=>countMat(r)>=r.n))
@@ -3628,6 +3806,7 @@ function updateCraft(dt){
   if(R.place==='anvil'){ placeAnvil(); craftDirty=true; invDirty=true; return; }
   if(R.place==='wheel'){ placeWheel(); craftDirty=true; invDirty=true; return; }
   if(R.place==='dynamo'){ placeDynamo(); craftDirty=true; invDirty=true; return; }
+  if(R.place==='lathe'){ placeLathe(); craftDirty=true; invDirty=true; return; }
   if(R.place==='arc'){ placeArc(); craftDirty=true; invDirty=true; return; }
   if(R.place==='basket'||R.place==='chest'){
     placeStore(R.place); craftDirty=true; invDirty=true; return; }
@@ -3774,6 +3953,14 @@ const SMELT=[
        +'바닥으로 흘러 고인다 — 다른 금속보다 수월하다.',
    in:[{id:'galena',n:2},{id:'charcoal',n:3}],
    need:[{id:'blowpipe',n:1}]},
+
+  /* 수은은 제련이라기보다 증류다 — 진사를 구우면 수은이 김으로 날아오르고
+     황은 연기로 빠진다. 찬 덮개에 맺힌 것을 긁어 받는다. 김을 마시면 병난다. */
+  {id:'smelt_mercury', n:'수은 받기', hours:1.1, out:{id:'mercury',n:1},
+   note:'진사를 구우면 수은이 김으로 날아오른다. 도가니를 엎어 덮고 식은 벽에 '
+       +'맺힌 방울을 긁어 토기에 받는다 — 김은 마시면 안 된다.',
+   in:[{id:'cinnabar',n:3},{id:'charcoal',n:2},{id:'pot',n:1}],
+   need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]},
 
   {id:'smelt_zinc', n:'아연 제련', hours:1.0, out:{id:'ingot_zinc',n:1},
    note:'섬아연석을 구워 산화물로 바꾼 뒤 숯과 함께 밀폐해 환원한다. '
@@ -4860,6 +5047,43 @@ function placeDynamo(){
 }
 const powered=()=>DYNAMOS.some(d=>WHEELS.some(w=>Math.hypot(w.x-d.x,w.z-d.z)<7));
 
+/* 선반 — 아크로와 같은 조건이다(발전기 12 m 안, 물레방아가 돌아야 한다).
+   두들겨서는 총열 안에 나선 홈을 못 깎는다. 돌리면서 깎아야 한다. */
+const LATHES=[];
+function placeLatheAt(px,py,pz){
+  const g=new THREE.Group();
+  const wm=new THREE.MeshLambertMaterial({color:0x6b5a3c});
+  const sm=new THREE.MeshLambertMaterial({color:0x6e747a});
+  const bed=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.18,0.55),wm);
+  bed.position.y=0.78; g.add(bed);
+  for(const x of [-0.85,0.85]){
+    const leg=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.7,0.45),wm);
+    leg.position.set(x,0.35,0); g.add(leg);
+  }
+  const head=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.40,0.5),sm);
+  head.position.set(-0.78,1.07,0); g.add(head);
+  const tail=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.30,0.4),sm);
+  tail.position.set(0.82,1.02,0); g.add(tail);
+  const bar=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,1.5,8),sm);
+  bar.rotation.z=Math.PI/2; bar.position.set(0,1.02,0); g.add(bar);
+  const belt=new THREE.Mesh(new THREE.TorusGeometry(0.2,0.025,5,12),
+    new THREE.MeshLambertMaterial({color:0x3a2f23}));
+  belt.position.set(-0.78,1.07,0.28); g.add(belt);
+  g.rotation.y=Math.random()*6.283;
+  g.position.set(px,py,pz); scene.add(g);
+  LATHES.push({x:px,y:py,z:pz,mesh:g});
+  COLLIDERS.push({x:px,z:pz,r:0.9}); buildColliderGrid();
+}
+function placeLathe(){
+  const sp=campfireSpot();
+  if(!sp.ok){ toast(sp.why); return false; }
+  if(!DYNAMOS.some(d=>Math.hypot(d.x-sp.x,d.z-sp.z)<12)){
+    toast('발전기에서 전선이 닿아야 한다'); return false; }
+  placeLatheAt(sp.x,sp.y,sp.z); toast('선반을 세웠다'); return true;
+}
+const nearLathe=()=>powered()&&LATHES.some(a=>Math.hypot(a.x-PL.pos.x,a.z-PL.pos.z)<3.4
+  &&DYNAMOS.some(d=>Math.hypot(d.x-a.x,d.z-a.z)<12));
+
 /* 아크로 — 전기가 들어와야 돈다. 발전기 12 m 안. */
 function placeArcAt(px,py,pz){
   const g=new THREE.Group();
@@ -5842,6 +6066,88 @@ const WEAPON_FX={
     fl.position.y=L+0.11; fl.visible=false; fl.name='flash'; g.add(fl);
     return {mesh:g, grip:0.36, muzzle:L+0.02};
   },
+  /* 현대식 화기 셋 — 볼트 소총의 뼈대를 나눠 쓰되 한눈에 갈라 보이게 했다.
+     산탄총은 나무가 많고 총열이 굵고 짧다. 반자동은 총열 밑에 가스관이 붙고,
+     기관단총은 나무가 없고 탄창이 길게 아래로 빠진다. */
+  shotgun(){                                 // 산탄총 — 굵고 짧은 매끈한 총열
+    const g=new THREE.Group(), L=0.94;
+    const wood=WMAT(0x6b5442), steel=WMAT(0x5e646a), dark=WMAT(0x3a3d40);
+    const stock=new THREE.Mesh(new THREE.BoxGeometry(0.080,0.44,0.125),wood);
+    stock.position.y=0.19; g.add(stock);
+    const butt=new THREE.Mesh(new THREE.BoxGeometry(0.092,0.14,0.180),wood);
+    butt.position.set(0,0.02,0.018); g.add(butt);
+    const fore=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.34,0.105),wood);
+    fore.position.y=0.62; g.add(fore);       // 앞총열 덮개 — 펌프처럼 굵다
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(0.030,0.032,L-0.30,10),steel);
+    barrel.position.y=0.40+(L-0.30)/2; g.add(barrel);
+    const tube=new THREE.Mesh(new THREE.CylinderGeometry(0.019,0.019,L-0.40,8),dark);
+    tube.position.set(0,0.42+(L-0.40)/2,0.050); g.add(tube);   // 탄창관
+    const recv=new THREE.Mesh(new THREE.BoxGeometry(0.068,0.19,0.085),steel);
+    recv.position.y=0.47; g.add(recv);
+    const guard=new THREE.Mesh(new THREE.TorusGeometry(0.032,0.007,6,10,Math.PI),dark);
+    guard.rotation.y=Math.PI/2; guard.position.set(0,0.33,-0.014); g.add(guard);
+    const bead=new THREE.Mesh(new THREE.SphereGeometry(0.011,6,5),WMAT(0xd8c07a));
+    bead.position.y=L-0.02; g.add(bead);     // 가늠쇠는 구슬 하나뿐이다
+    const fl=new THREE.Mesh(new THREE.ConeGeometry(0.115,0.24,6),
+      new THREE.MeshBasicMaterial({color:0xffc060}));
+    fl.position.y=L+0.10; fl.visible=false; fl.name='flash'; g.add(fl);
+    return {mesh:g, grip:0.34, muzzle:L+0.02};
+  },
+  rifle_semi(){                              // 반자동 — 총열 밑에 가스관
+    const g=new THREE.Group(), L=1.28;
+    const wood=WMAT(0x5f4c3a), steel=WMAT(0x74797f), dark=WMAT(0x33363a);
+    const stock=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.46,0.115),wood);
+    stock.position.y=0.20; g.add(stock);
+    const butt=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.13,0.165),wood);
+    butt.position.set(0,0.02,0.015); g.add(butt);
+    const fore=new THREE.Mesh(new THREE.BoxGeometry(0.060,0.46,0.082),wood);
+    fore.position.y=0.70; g.add(fore);
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.020,L-0.26,10),steel);
+    barrel.position.y=0.40+(L-0.26)/2; g.add(barrel);
+    const gas=new THREE.Mesh(new THREE.CylinderGeometry(0.013,0.013,L-0.52,8),dark);
+    gas.position.set(0,0.52+(L-0.52)/2,0.040); g.add(gas);      // 가스관
+    const gblock=new THREE.Mesh(new THREE.BoxGeometry(0.036,0.070,0.070),steel);
+    gblock.position.set(0,L-0.22,0.022); g.add(gblock);         // 가스 블록
+    const recv=new THREE.Mesh(new THREE.BoxGeometry(0.066,0.24,0.082),steel);
+    recv.position.y=0.50; g.add(recv);
+    const mag=new THREE.Mesh(new THREE.BoxGeometry(0.052,0.19,0.062),dark);
+    mag.position.set(0,0.34,-0.008); mag.rotation.x=-0.12; g.add(mag);
+    const guard=new THREE.Mesh(new THREE.TorusGeometry(0.032,0.007,6,10,Math.PI),dark);
+    guard.rotation.y=Math.PI/2; guard.position.set(0,0.33,-0.014); g.add(guard);
+    const sight=new THREE.Mesh(new THREE.BoxGeometry(0.010,0.034,0.010),dark);
+    sight.position.y=L-0.05; g.add(sight);
+    const rear=new THREE.Mesh(new THREE.TorusGeometry(0.016,0.005,5,10),dark);
+    rear.position.set(0,0.62,0.005); g.add(rear);               // 가늠자 고리
+    const fl=new THREE.Mesh(new THREE.ConeGeometry(0.072,0.26,5),
+      new THREE.MeshBasicMaterial({color:0xffe0a0}));
+    fl.position.y=L+0.11; fl.visible=false; fl.name='flash'; g.add(fl);
+    return {mesh:g, grip:0.36, muzzle:L+0.02};
+  },
+  smg(){                                     // 기관단총 — 나무가 없고 탄창이 길다
+    const g=new THREE.Group(), L=0.72;
+    const steel=WMAT(0x565b61), dark=WMAT(0x2e3134);
+    const tubeBody=new THREE.Mesh(new THREE.CylinderGeometry(0.042,0.042,0.52,10),steel);
+    tubeBody.position.y=0.44; g.add(tubeBody);                  // 둥근 몸통(블로백)
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.016,0.30,8),dark);
+    barrel.position.y=0.70+0.15; g.add(barrel);
+    const shroud=new THREE.Mesh(new THREE.CylinderGeometry(0.027,0.027,0.22,8),
+      new THREE.MeshLambertMaterial({color:0x3f4348, wireframe:true}));
+    shroud.position.y=0.80; g.add(shroud);                      // 총열 덮개(구멍 뚫린 통)
+    const grip=new THREE.Mesh(new THREE.BoxGeometry(0.046,0.17,0.058),dark);
+    grip.position.set(0,0.10,-0.020); grip.rotation.x=0.18; g.add(grip);
+    const mag=new THREE.Mesh(new THREE.BoxGeometry(0.038,0.30,0.055),dark);
+    mag.position.set(0,0.19,0.055); g.add(mag);                 // 길게 빠진 탄창
+    const stock=new THREE.Mesh(new THREE.CylinderGeometry(0.011,0.011,0.30,6),dark);
+    stock.position.set(0,0.28,0.10); stock.rotation.x=1.35; g.add(stock);  // 철사 개머리
+    const guard=new THREE.Mesh(new THREE.TorusGeometry(0.030,0.006,6,10,Math.PI),dark);
+    guard.rotation.y=Math.PI/2; guard.position.set(0,0.21,-0.030); g.add(guard);
+    const sight=new THREE.Mesh(new THREE.BoxGeometry(0.008,0.026,0.008),dark);
+    sight.position.y=0.93; g.add(sight);
+    const fl=new THREE.Mesh(new THREE.ConeGeometry(0.060,0.20,5),
+      new THREE.MeshBasicMaterial({color:0xffd28a}));
+    fl.position.y=L+0.24; fl.visible=false; fl.name='flash'; g.add(fl);
+    return {mesh:g, grip:0.22, muzzle:L+0.26};
+  },
   /* 강철 넷 — 철과 한눈에 갈라 보이게 몸은 짙은 청회색(0x74797f)으로 두고
      날만 밝게(0xc8ced4) 세운다. 담금질한 쇠의 푸른 기를 노린 것이다. */
   sword_steel(){                             // 강철 검 — 날 가운데 혈조를 팠다
@@ -6034,16 +6340,21 @@ function rayCreature(o,dir,range){
 }
 /* 탄약은 'ammo' 분류로 찾는다 — 구리든 황동이든 같은 약실에 들어간다.
    탄창에는 한 종류만 물린다(w.ammoId). 섞어 물리면 어느 발이 센지 알 수 없다. */
+/* 구경(bore)이 맞아야 약실에 들어간다. 소총탄과 산탄은 서로 물리지 않는다.
+   옛 탄과 옛 총에는 bore 가 없으므로 'rifle' 로 친다. */
 const isAmmo=id=>!!(ITEMS[id]&&ITEMS[id].ammo);
-const gunAmmo=()=>INV.slots.reduce((a,s)=>a+(isAmmo(s.id)?s.n:0),0);
-// 가진 탄 중 가장 센 것부터 — 좋은 탄이 있으면 그것부터 물린다
-const bestAmmo=()=>INV.slots.filter(s=>isAmmo(s.id))
+const boreOf=id=>(ITEMS[id]&&ITEMS[id].ammo&&ITEMS[id].ammo.bore)||'rifle';
+const gunBore=w=>{ const T=w&&ITEMS[w.id]; return (T&&T.tool&&T.tool.bore)||'rifle'; };
+const fitsGun=(id,w)=>isAmmo(id)&&boreOf(id)===gunBore(w);
+const gunAmmo=w=>INV.slots.reduce((a,s)=>a+(fitsGun(s.id,w)?s.n:0),0);
+// 맞는 구경 중 가장 센 것부터 — 좋은 탄이 있으면 그것부터 물린다
+const bestAmmo=w=>INV.slots.filter(s=>fitsGun(s.id,w))
   .sort((a,b)=>ITEMS[b.id].ammo.dmg-ITEMS[a.id].ammo.dmg)[0];
 const ammoMul=w=>(w&&w.ammoId&&ITEMS[w.ammoId]&&ITEMS[w.ammoId].ammo.dmg)||1;
 
 function startReload(w,W){
   if(w.mag>=W.mag && w.ammoId){ toast('탄창이 이미 찼다'); return false; }
-  if(gunAmmo()<=0){ toast('탄이 없다'); return false; }
+  if(gunAmmo(w)<=0){ toast('맞는 탄이 없다'); return false; }
   RELOAD.t=W.reload; RELOAD.of=w;
   toast('재장전…');
   return true;
@@ -6053,7 +6364,7 @@ function finishReload(){
   if(!w||INV.slots.indexOf(w)<0) return;
   const W=ITEMS[w.id].tool;
   /* 물려 있던 것과 다른 탄으로 갈아 물면, 남은 것은 도로 소지품으로 뺀다 */
-  const pick=bestAmmo();
+  const pick=bestAmmo(w);
   if(!pick) return;
   if(w.mag>0 && w.ammoId && w.ammoId!==pick.id){
     if(!invAdd(w.ammoId,w.mag)) toast('빼낸 탄을 들 자리가 없어 버렸다');
@@ -6090,19 +6401,34 @@ function shoot(w,W){
   const o=new THREE.Vector3(), d=new THREE.Vector3();
   camera.getWorldPosition(o); camera.getWorldDirection(d);
   const dmg=W.dmg*ammoMul(w);            // 황동 탄피는 더 센 장약을 견딘다
-  const hit=rayCreature(o,d,W.reach);
-  showTracer(o.clone().addScaledVector(d,0.6), o.clone().addScaledVector(d,hit.t));
   if(weaponFx&&weaponFx.userData.flash){
     weaponFx.userData.flash.visible=true; ATK.flash=0.05;
   }
   sfx('thrust');
-  if(hit.c){
-    hit.c.hp-=dmg;
-    /* 총에 맞은 개체는 인식 반경 밖이라도 쏜 쪽을 알아챈다.
-       개체 AI 는 c.alerted 가 서면 거리와 무관하게 사람을 쫓으면 된다. */
-    hit.c.alerted=true;
-    toast(hit.c.hp<=0?'쓰러뜨렸다':'명중 '+Math.round(hit.t)+' m');
-  }else toast('빗나갔다');
+  /* 산탄은 한 방에 여러 알이 나간다. 알마다 따로 선을 쏘고 각자 피해를 준다 —
+     가까이서는 전부 맞고 멀어질수록 퍼져 몇 알만 닿는다. 퍼지는 각은 고정이니
+     닿는 넓이는 거리의 제곱으로 는다. 그게 산탄총이 멀리 못 가는 까닭이다. */
+  const n=W.pellets||1, sp=W.spread||0;
+  const up=new THREE.Vector3(0,1,0), rt=new THREE.Vector3().crossVectors(d,up).normalize();
+  const uu=new THREE.Vector3().crossVectors(rt,d).normalize();
+  let best=null, bt=0, tot=0;
+  for(let k=0;k<n;k++){
+    const dir=d.clone();
+    if(sp>0){                                 // 고르게 퍼뜨린다(원판 위 균등)
+      const a=Math.random()*Math.PI*2, r=Math.sqrt(Math.random())*sp;
+      dir.addScaledVector(rt,Math.cos(a)*r).addScaledVector(uu,Math.sin(a)*r).normalize();
+    }
+    const hit=rayCreature(o,dir,W.reach);
+    if(k===0||n<=3)
+      showTracer(o.clone().addScaledVector(dir,0.6), o.clone().addScaledVector(dir,hit.t));
+    if(hit.c){
+      hit.c.hp-=dmg; hit.c.alerted=true; tot++;
+      if(!best||hit.t<bt){ best=hit.c; bt=hit.t; }
+    }
+  }
+  if(best) toast((best.hp<=0?'쓰러뜨렸다':'명중 '+Math.round(bt)+' m')
+                 +(n>1?' ('+tot+' / '+n+'알)':''));
+  else toast('빗나갔다');
   if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
   invDirty=true;
 }
@@ -6178,6 +6504,13 @@ function attack(){
 /* 휘두르는 결 — 창은 찌르고, 검·도끼는 베고, 해머는 내리친다 */
 function updateWeapon(dt){
   if(ATK.cd>0) ATK.cd=Math.max(0,ATK.cd-dt);
+  /* 연사 — 누르고 있는 동안 쿨이 끝날 때마다 한 발씩. 방아쇠를 딸깍이는
+     것이 아니라 노리쇠가 제 힘으로 도는 총이다(tool.auto). */
+  if(mouseDown && !BUILD.on && ATK.cd<=0 && !paused && !uiOpen()
+     && document.pointerLockElement===cv){
+    const w=equippedWeapon();
+    if(w && ITEMS[w.id].tool.auto) attack();
+  }
   if(NET.cd>0) NET.cd=Math.max(0,NET.cd-dt);
   updateReload(dt);
   if(ATK.flash>0){
@@ -6917,7 +7250,7 @@ function updateHUD(dt){
         +(ammoMul(e)!==1?' ×'+ammoMul(e):'')+']':'';
       document.getElementById('toolN').textContent=T.n+'  '+(e.mag|0)+' / '+T.tool.mag+ak
         +(RELOAD.t>0?'  (재장전 '+RELOAD.t.toFixed(1)+'초)':'  [X] 재장전')
-        +'  · 남은 탄 '+gunAmmo();
+        +'  · 남은 탄 '+gunAmmo(e);
       const bar=document.getElementById('toolD');
       bar.style.width=((e.mag|0)/T.tool.mag*100)+'%';
       bar.style.background=RELOAD.t>0?'#8fb8d8':(e.mag?'#d8724a':'#5d5a52');
@@ -7021,6 +7354,7 @@ async function generateWorld(){
                                     WHEELS.forEach(g=>scene.remove(g.mesh)); WHEELS.length=0;
                                     DYNAMOS.forEach(g=>scene.remove(g.mesh)); DYNAMOS.length=0;
                                     ARCS.forEach(g=>scene.remove(g.mesh)); ARCS.length=0;
+                                    LATHES.forEach(g=>scene.remove(g.mesh)); LATHES.length=0;
                                     boxOpen=false; curStore=null;
                                     CREATURES.length=0; ATK.cd=0; ATK.swing=0;
 
@@ -7101,7 +7435,14 @@ function snapshot(){
     furnaces:FURNACES.map(g=>({x:g.x,y:g.y,z:g.z,lit:g.lit,fuel:g.fuel,
       jobs:Object.assign({},g.jobs), slots:saveSlots(g.slots)})),
     anvils:ANVILS.map(g=>({x:g.x,y:g.y,z:g.z})),
-    stores:STORES.map(g=>({k:g.kind,x:g.x,y:g.y,z:g.z,slots:saveSlots(g.slots)}))
+    stores:STORES.map(g=>({k:g.kind,x:g.x,y:g.y,z:g.z,slots:saveSlots(g.slots)}),
+    /* 전기 설비 — 여태 저장하지 않아 불러오면 통째로 사라졌다. 화학 단계가
+       전부 이 넷 위에 서 있으므로(황산·질산·강선·충전) 같이 담는다. */
+    ),
+    power:{wheels:WHEELS.map(g=>[g.x,g.y,g.z]),
+           dynamos:DYNAMOS.map(g=>[g.x,g.y,g.z]),
+           arcs:ARCS.map(g=>[g.x,g.y,g.z]),
+           lathes:LATHES.map(g=>[g.x,g.y,g.z])}
   };
 }
 
@@ -7159,6 +7500,12 @@ async function restore(d){
   for(const g of d.grinds||[]) placeGrindstoneAt(g.x,g.y,g.z);
   for(const g of d.anvils||[]) placeAnvilAt(g.x,g.y,g.z);
   for(const g of d.stores||[]) placeStoreAt(g.k,g.x,g.y,g.z,loadSlots(g.slots));
+  /* 물레방아를 먼저 세워야 발전기가 돌고, 발전기가 있어야 아크로·선반이 산다 */
+  const PW=d.power||{};
+  for(const [x,y,z] of PW.wheels||[])  placeWheelAt(x,y,z);
+  for(const [x,y,z] of PW.dynamos||[]) placeDynamoAt(x,y,z);
+  for(const [x,y,z] of PW.arcs||[])    placeArcAt(x,y,z);
+  for(const [x,y,z] of PW.lathes||[])  placeLatheAt(x,y,z);
   for(const g of d.furnaces||[]){
     const fu=placeFurnaceAt(g.x,g.y,g.z);
     fu.slots=loadSlots(g.slots);
@@ -7423,13 +7770,16 @@ addEventListener('mousemove',e=>{
   PL.pitch=clamp(PL.pitch-e.movementY*0.0022,-1.5,1.5);
 });
 let dragF=false;
+let mouseDown=false;
 cv.addEventListener('mousedown',e=>{
   if(flyMode){ dragF=true; return; }
   if(e.button===0 && document.pointerLockElement===cv){
+    mouseDown=true;
     if(BUILD.on) doBuild(); else attack();
   }
 });
-addEventListener('mouseup',()=>dragF=false);
+addEventListener('mouseup',()=>{ dragF=false; mouseDown=false; });
+addEventListener('blur',()=>{ mouseDown=false; });
 cv.addEventListener('wheel',e=>{ if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
 document.addEventListener('pointerlockchange',()=>{
   if(document.pointerLockElement!==cv && !paused && !flyMode && !busy && !touchOnly
