@@ -1450,16 +1450,38 @@ function buildProps(){
      이제 잎을 실제로 만든다. 한 장은 가운데 잎맥을 따라 접힌 판이고
      (접혀 있어야 한쪽 면이 밝고 다른 쪽이 어두워 평평한 종이로 안 보인다),
      그것을 가지 끝에 부챗살로 여러 장 모아 한 덩이로 굳힌다.
-     참나무는 넓은 잎 일곱 장, 전나무는 가는 바늘잎 열여섯 개를
+     참나무는 끝이 둥근 넓은 잎 넉 장, 전나무는 가는 바늘잎 스물일곱 개를
      가지에 붙어 뒤로 눕도록 단다.                                        */
-  function leafBlade(w,len,fold){
-    const m=len*0.42, f=fold*w, c=len*0.55;
-    const v=[
-      0,0,0,      -w,m,-f,        0,c*0.76,f*0.5,
-      0,0,0,       0,c*0.76,f*0.5, w,m,-f,
-     -w,m,-f,      0,len,0,        0,c*0.76,f*0.5,
-      0,c*0.76,f*0.5, 0,len,0,     w,m,-f
-    ];
+  /* 참나무 잎 — 끝이 둥글다. 예전에는 꼭짓점 하나로 모여 가시처럼 뾰족했다.
+     이제 끝을 두 점으로 갈라 무디게 만들고, 가장 넓은 자리를 잎 가운데로
+     올려 타원에 가깝게 잡는다. 가운데 잎맥을 따라 접는 것은 그대로다 —
+     접혀야 한쪽 면이 밝고 다른 쪽이 어두워 평평한 종이로 안 보인다.
+     삼각형 여덟 장. */
+  function leafRound(w,len,fold){
+    const f=fold*w;
+    const y1=len*0.34, y2=len*0.72, y3=len;
+    const L1=[-w,y1,-f],        R1=[w,y1,-f];
+    const L2=[-w*0.80,y2,-f*0.6], R2=[w*0.80,y2,-f*0.6];
+    const L3=[-w*0.34,y3,-f*0.2], R3=[w*0.34,y3,-f*0.2];   // 끝을 갈라 뭉툭하게
+    const B=[0,0,0];
+    const M1=[0,y1,f*0.55], M2=[0,y2,f*0.42], M3=[0,y3*1.03,f*0.15];  // 잎맥
+    const v=[];
+    const push=(...ps)=>{ for(const q of ps) v.push(q[0],q[1],q[2]); };
+    push(B,L1,M1);  push(L1,L2,M1);  push(L2,M2,M1);  push(L2,L3,M2);
+    push(L3,M3,M2);
+    push(B,M1,R1);  push(R1,M1,R2);  push(M1,M2,R2);  push(R2,M2,R3);
+    push(R3,M2,M3);
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+    g.computeVertexNormals();
+    return g;
+  }
+  /* 전나무 바늘잎 — 2.6 cm 굵기에서는 접힘도 뭉툭한 끝도 안 보인다.
+     밑동이 넓고 끝이 한 점으로 모이는 **삼각형 한 장**이면 그대로 바늘이다.
+     장수를 세 배로 늘리는 값을 여기서 치른다 — 한 장이 예전의 1/4 이라
+     스물일곱 장이 예전 아홉 장보다도 싸다(27면 대 36면). */
+  function needle(w,len){
+    const v=[ -w,0,0,  w,0,0,  0,len,0 ];
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
     g.computeVertexNormals();
@@ -1469,23 +1491,26 @@ function buildProps(){
     const parts=[];
     if(kind==='oak'){
       /* 넓은 잎 — 가지 끝에서 사방으로 벌어지고, 바깥 잎일수록 더 눕는다.
-         잎자루가 한 점에 모이지 않게 축을 따라 조금씩 올려 붙인다. */
-      const N=5;
+         잎자루가 한 점에 모이지 않게 축을 따라 조금씩 올려 붙인다.
+         한 장이 두 배로 비싸졌으니 장수를 여섯에서 넷으로 줄이고 키웠다. */
+      const N=4;
       for(let i=0;i<N;i++){
         const a=i*2.399, t=i/(N-1);
-        parts.push({g:leafBlade(0.40,1.02,0.34),
-                    y:-0.10+t*0.34, ry:a, rz:0.55+t*0.62, s:0.92+ (i%3)*0.10});
+        parts.push({g:leafRound(0.46,1.06,0.34),
+                    y:-0.10+t*0.34, ry:a, rz:0.55+t*0.62, s:0.94+ (i%3)*0.10});
       }
-      parts.push({g:leafBlade(0.34,0.90,0.34), y:0.30, ry:1.1, rz:0.12, s:1.0});
+  
     }else{
       /* 바늘잎 — 가지를 따라 뒤로 눕는 솔이다. 두 줄로 갈라 붙여
-         가까이서 보면 잎이 마주나는 결이 보인다. */
-      const N=9;
+         가까이서 보면 잎이 마주나는 결이 보인다.
+         아홉에서 스물일곱으로 늘리고 굵기는 0.075 → 0.026 으로 줄였다. */
+      const N=27;
       for(let i=0;i<N;i++){
         const t=i/(N-1), side=(i%2)?1:-1;
-        parts.push({g:leafBlade(0.075,0.86,0.5),
-                    y:-0.55+t*1.05, ry:i*1.21+(side>0?0:Math.PI),
-                    rz:1.16+side*0.14+t*0.10, s:0.85+0.3*(1-Math.abs(t-0.5)*2)});
+        parts.push({g:needle(0.026,0.88),
+                    y:-0.58+t*1.12, ry:i*1.21+(side>0?0:Math.PI),
+                    rz:1.16+side*0.16+t*0.10+((i%3)-1)*0.09,
+                    s:0.82+0.34*(1-Math.abs(t-0.5)*2)});
       }
     }
     return mergeParts(parts);
@@ -1503,9 +1528,9 @@ function buildProps(){
      잎은 더 이상 가지마다 달지 않는다. 곁가지가 없는 **끝가지**에만 달린다. */
   const TREE={
     oak:{n:Math.round(42*LD), y0:2.70, y1:4.55, L0:2.45, L1:1.45, t0:1.24, t1:0.22,
-         rad:0.046, leaf:1.05, hy:2.50, hL:2.50, hT:1.32},
+         rad:0.046, leaf:1.26, hy:2.50, hL:2.50, hT:1.32},
     fir:{n:Math.round(59*LD), y0:2.20, y1:6.45, L0:2.20, L1:0.50, t0:1.36, t1:0.68,
-         rad:0.036, leaf:0.66, hy:1.60, hL:2.40, hT:1.44}
+         rad:0.036, leaf:0.80, hy:1.60, hL:2.40, hT:1.44}
   };
   TREE_N.oak=TREE.oak.n; TREE_N.fir=TREE.fir.n;      // 검사용 창구
   TREE_T.oak=TREE.oak;   TREE_T.fir=TREE.fir;
