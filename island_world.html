@@ -1425,14 +1425,24 @@ const COLLIDERS=[];                    // {x,z,r} 나무·바위 충돌체
    껐다 켤 수 있으므로 가지·잎을 TILE(128 m) 칸마다 따로 담아 두고
    칸 단위로 끈다. 칸의 어느 구석이라도 150 m 안에 들면 켠다 —
    칸 반지름(대각선 절반 + 나무 가지가 칸 밖으로 나가는 여유 12 m)을 빼고 잰다. */
-const VIEW_DIST=150, TILE=128;
+const VIEW_DIST=150, NEAR_DIST=55, TILE=64;
 const TREE_TILES=[];
 const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
+/* 칸마다 셋 중 하나를 고른다.
+     NEAR_DIST(55 m) 안   — 가지와 잎을 다 그린다
+     그 밖 ~ VIEW_DIST     — **수관 임포스터** 하나로 갈음한다(나무당 4면)
+     VIEW_DIST(150 m) 밖  — 아무것도 안 그린다
+   55 m 밖의 나무 한 그루는 가지 4,068면 + 잎 8,136면이었다. 판때기 4면이면
+   3천 배다. 보이는 나무의 87% 가 이 띠에 든다(넓이로 (150²-55²)/150²).
+   칸을 128 → 64 m 로 줄였다 — 칸이 크면 55 m 경계가 뭉툭해져 가까운 칸
+   안의 먼 나무까지 통째로 자세히 그리게 된다. */
 function updateTileVis(){
   const px=PL.pos.x, pz=PL.pos.z;
   for(const t of TREE_TILES){
-    const on=Math.hypot(t.cx-px,t.cz-pz)-t.r <= VIEW_DIST;
-    t.lm.visible=on; t.fm.visible=on;
+    const d=Math.hypot(t.cx-px,t.cz-pz)-t.r;
+    const near=d<=NEAR_DIST, mid=!near && d<=VIEW_DIST;
+    t.lm.visible=near; t.fm.visible=near;
+    if(t.bb) t.bb.visible=mid;
   }
 }
 function buildProps(){
@@ -1591,6 +1601,52 @@ function buildProps(){
   }
   const leafUnitOak=leafSpray('oak'), leafUnitFir=leafSpray('fir');
   const leafTexOak=makeLeafTex();
+  /* ---- 멀리서 쓸 수관 임포스터 -------------------------------------------
+     55 m 밖에서는 가지도 잎도 그리지 않고 이 판때기 하나로 갈음한다.
+     수관 덩이를 여럿 겹쳐 그려 윤곽을 만든다 — 참나무는 둥글게 퍼지고
+     전나무는 층층이 좁아지는 원뿔이다. 줄기는 안 그린다(진짜 줄기가
+     늘 그려지므로 겹치면 깜빡인다).                                      */
+  function makeTreeTex(kind){
+    const S=256, c=document.createElement('canvas'); c.width=c.height=S;
+    const g=c.getContext('2d');
+    const rnd=mulberry32(hashStr('tree|'+kind));
+    const blob=(x,y,r,col)=>{
+      g.beginPath();
+      /* 매끈한 원이 아니라 가장자리가 들쭉날쭉해야 잎덩이로 읽힌다 */
+      for(let i=0;i<=14;i++){
+        const a=i/14*6.283, rr=r*(0.72+rnd()*0.5);
+        const px=x+Math.cos(a)*rr, py=y+Math.sin(a)*rr*0.86;
+        i?g.lineTo(px,py):g.moveTo(px,py);
+      }
+      g.closePath(); g.fillStyle=col; g.fill();
+    };
+    if(kind==='oak'){
+      const COL=['#31491f','#3d5a2c','#456133','#4e6b37','#2b4019'];
+      // 아래쪽이 넓고 위가 둥근 덩어리. 안쪽 짙은 것부터 겹쳐 올린다
+      for(let i=0;i<46;i++){
+        const t=rnd(), a=rnd()*6.283;
+        const rx=S*0.40*Math.sqrt(rnd()), yy=S*(0.18+0.72*Math.pow(t,0.7));
+        const x=S*0.5+Math.cos(a)*rx*(1-Math.abs(yy/S-0.5)*0.7);
+        blob(x, yy, S*(0.07+rnd()*0.07), COL[(rnd()*COL.length)|0]);
+      }
+    }else{
+      const COL=['#22392c','#2f4a3a','#375443','#1c3025'];
+      // 층층이 — 아래 단이 넓고 위로 갈수록 좁아진다
+      for(let tier=0;tier<7;tier++){
+        const t=tier/6, yy=S*(0.93-t*0.80), wid=S*0.42*(1-t*0.82)+S*0.03;
+        for(let i=0;i<9;i++){
+          const x=S*0.5+(rnd()*2-1)*wid;
+          blob(x, yy+(rnd()-0.5)*S*0.05, S*(0.05+rnd()*0.05),
+               COL[(rnd()*COL.length)|0]);
+        }
+      }
+    }
+    const tx=new THREE.CanvasTexture(c);
+    tx.wrapS=tx.wrapT=THREE.ClampToEdgeWrapping;
+    return tx;
+  }
+  const treeTexOak=makeTreeTex('oak'), treeTexFir=makeTreeTex('fir');
+  const bbUnit=leafCard(0.5,1);     // 십자 판때기 — 크기는 인스턴스가 준다
   leafGeoTris.oak=leafUnitOak.attributes.position.count/3;
   leafGeoTris.fir=leafUnitFir.attributes.position.count/3;
   // n: 구조 가지 수 · y0~y1: 붙는 높이 · L0~L1: 밑/위 길이 · t0~t1: 밑/위 기울기
@@ -1803,14 +1859,29 @@ function buildProps(){
         ? new THREE.MeshLambertMaterial({map:leafTexOak, alphaTest:0.5,
                                          side:THREE.DoubleSide})
         : new THREE.MeshLambertMaterial({color:0x2f4a3a, side:THREE.DoubleSide});
+      /* 멀리서 쓸 수관 임포스터 — 십자 판때기에 수관 그림을 붙인다.
+         줄기는 넣지 않는다. 진짜 줄기(원기둥)는 늘 그려지므로 그림에도
+         줄기가 있으면 둘이 겹쳐 깜빡인다. */
+      const bbMat=new THREE.MeshLambertMaterial({
+        map:R.k==='oak'?treeTexOak:treeTexFir, alphaTest:0.4,
+        side:THREE.DoubleSide});
+      const CAN=R.k==='oak'?{y0:2.2,y1:7.6,w:5.4}:{y0:1.4,y1:8.4,w:4.4};
       for(const b of bins.values()){
         const lm=new THREE.InstancedMesh(limbUnit,limbMat,b.total);
         const fm=new THREE.InstancedMesh(R.k==='oak'?leafUnitOak:leafUnitFir,
                                          leafMat,b.total*LPB);
-        lm.frustumCulled=false; fm.frustumCulled=false;
-        for(const p of b.ps){ p._lb=lm; p._lf=fm; }
-        propGroup.add(lm); propGroup.add(fm);
-        TREE_TILES.push({lm, fm,
+        const bb=new THREE.InstancedMesh(bbUnit,bbMat,b.ps.length);
+        lm.frustumCulled=false; fm.frustumCulled=false; bb.frustumCulled=false;
+        b.ps.forEach((p,i)=>{
+          p._lb=lm; p._lf=fm; p._bb=bb; p._bbi=i;
+          _lbV.set(p.x, p.y+CAN.y0*p.s, p.z);
+          _lbQ.set(0,0,0,1);
+          _lbS.set(CAN.w*p.s, (CAN.y1-CAN.y0)*p.s, CAN.w*p.s);
+          M.compose(_lbV,_lbQ,_lbS); bb.setMatrixAt(i,M);
+        });
+        bb.instanceMatrix.needsUpdate=true;
+        propGroup.add(lm); propGroup.add(fm); propGroup.add(bb);
+        TREE_TILES.push({lm, fm, bb,
           cx:(b.gx+0.5)*TILE, cz:(b.gz+0.5)*TILE, r:TILE*0.71+12});
       }
     }
@@ -3291,6 +3362,12 @@ function shrinkFoliage(p){
   if(p._lb){
     if(p.felled){
       for(let j=0;j<p.limbN;j++) hideLimb(p,j);      // 벌목 → 가지 전부 제거
+      if(p._bb){                                     // 멀리서 쓰는 수관도 같이
+        _E.set(0,0,0); _Q.setFromEuler(_E);
+        _V.set(p.x,p.y,p.z); _S.set(0,0,0);
+        _M.compose(_V,_Q,_S);
+        p._bb.setMatrixAt(p._bbi,_M); p._bb.instanceMatrix.needsUpdate=true;
+      }
       const ss=p.s*0.22;
       _E.set(0,p.r,0); _Q.setFromEuler(_E);
       _V.set(p.x,p.y+p._toff*0.22,p.z); _S.set(p.s,ss,p.s);
