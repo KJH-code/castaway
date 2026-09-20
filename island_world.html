@@ -1197,9 +1197,9 @@ const _lbV=new THREE.Vector3(), _lbS=new THREE.Vector3(), _lbD=new THREE.Vector3
       _lbE=new THREE.Euler(), _lbB=new THREE.Vector3();
 const leafGeoTris={}, TREE_N={}, TREE_T={};   // 검사용 창구
 const LIMB_MIN=0.06;                 // 곁가지가 가질 수 있는 가장 짧은 길이 (m)
-/* 곁가지 하나가 차지하는 가지 길이(m). 나무마다 다르다(TREE[].space) —
-   한 덩이에 다는 잎 장수를 반으로 줄인 만큼 가지를 늘려, 나무 한 그루에
-   달리는 잎의 총수를 줄이기 전과 맞춘 값이다. 아래 값은 못 찾았을 때의 기본. */
+/* 곁가지 하나가 차지하는 가지 길이(m). 나무마다 다르다(TREE[].space).
+   작을수록 촘촘하다 — 0.56/0.505 에서 0.40/0.355 로 내려 가지 수를 두 배로
+   올렸다(참나무 345 → 678 · 전나무 329 → 652). 아래 값은 못 찾았을 때의 기본. */
 const LIMB_SPACE=0.8;
 /* 가지 하나에 달리는 잎 인스턴스 수. 참나무는 한 장씩 다섯을 가지 위에
    흩어 달고, 전나무는 바늘 한 다발을 끝에 하나 단다. */
@@ -1600,9 +1600,9 @@ function buildProps(){
      잎은 더 이상 가지마다 달지 않는다. 곁가지가 없는 **끝가지**에만 달린다. */
   const TREE={
     oak:{n:Math.round(42*LD), y0:2.70, y1:4.55, L0:2.45, L1:1.45, t0:1.24, t1:0.22,
-         rad:0.046, leaf:0.28, hy:2.50, hL:2.50, hT:1.32, space:0.56},
+         rad:0.046, leaf:0.28, hy:2.50, hL:2.50, hT:1.32, space:0.40},
     fir:{n:Math.round(59*LD), y0:2.20, y1:6.45, L0:2.20, L1:0.50, t0:1.36, t1:0.68,
-         rad:0.036, leaf:0.40, hy:1.60, hL:2.40, hT:1.44, space:0.505}
+         rad:0.036, leaf:0.40, hy:1.60, hL:2.40, hT:1.44, space:0.355}
   };
   TREE_N.oak=TREE.oak.n; TREE_N.fir=TREE.fir.n;      // 검사용 창구
   TREE_T.oak=TREE.oak;   TREE_T.fir=TREE.fir;
