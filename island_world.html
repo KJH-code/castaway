@@ -1467,26 +1467,38 @@ function buildProps(){
      그것을 가지 끝에 부챗살로 여러 장 모아 한 덩이로 굳힌다.
      참나무는 끝이 둥근 넓은 잎 넉 장, 전나무는 가는 바늘잎 스물일곱 개를
      가지에 붙어 뒤로 눕도록 단다.                                        */
-  /* 참나무 잎 — 끝이 둥글고, 가운데 잎맥이 솟아 있다.
-     한때 크게 접어 두었더니 우글거려 보였고, 아주 평평하게 폈더니 종이가
-     됐다. 지금은 그 사이다 — 잎맥 선만 0.14w 만큼 솟고 양쪽 가장자리가
-     0.05w 내려앉아, 얕은 V 로 살짝 접힌다. 그 능선이 빛을 받아 한 줄로
-     밝게 서는 것이 잎맥으로 읽힌다(가로맥은 마디 사이 모서리가 대신한다).
-     삼각형 열 장. */
+  /* 참나무 잎 — 잎맥을 진짜로 낸다.
+     잎을 길이 6칸 · 폭 4칸 격자로 뜨고, 그 위에 잎맥 능선을 새긴다.
+       · 가운데 잎맥(주맥) — 가운데 줄이 밑동에서 f 만큼 솟았다가 끝으로 가며 낮아진다
+       · 곁맥 — 한 줄 걸러 한 줄씩 가로로 솟아, 주맥에서 가장자리로 뻗는 갈비뼈가 된다
+       · 그 사이 줄은 반대로 꺼져 골이 된다 — 능선과 골이 번갈아 서야
+         빛이 줄무늬로 갈려 잎맥으로 읽힌다. 평평하면 아무리 색을 갈라도 안 보인다
+     접힘은 전보다 덜하다(0.14w → 0.09w). 삼각형 48장. */
   function leafRound(w,len){
-    const f=w*0.14, e=-w*0.05;                            // 잎맥 마루 · 가장자리 골
-    const y1=len*0.34, y2=len*0.72, y3=len;
-    const L1=[-w,y1,e],         R1=[w,y1,e];
-    const L2=[-w*0.80,y2,e*0.7],R2=[w*0.80,y2,e*0.7];
-    const L3=[-w*0.34,y3,e*0.3],R3=[w*0.34,y3,e*0.3];     // 끝을 갈라 뭉툭하게
-    const B=[0,0,0];
-    const M1=[0,y1,f], M2=[0,y2,f*0.72], M3=[0,y3*1.03,f*0.3];   // 솟은 잎맥
+    const f=w*0.09, e=w*0.05;          // 주맥이 솟는 높이 · 골이 꺼지는 깊이
+    const T=[0, 0.16, 0.33, 0.50, 0.67, 0.84, 1.0];      // 길이 방향 7줄
+    const P=[0, 0.62, 0.92, 1.00, 0.95, 0.72, 0.34];     // 그 자리의 폭(끝은 뭉툭하게)
+    const COL=[-1,-0.5,0,0.5,1];                          // 폭 방향 5줄
+    const V=[];
+    for(let i=0;i<T.length;i++){
+      const vein=(i%2)===1;                               // 한 줄 걸러 곁맥
+      const row=[];
+      for(let c=0;c<COL.length;c++){
+        const k=Math.abs(COL[c]);
+        let z;
+        if(k===0)      z=f*(1-T[i]*0.65);                 // 주맥 — 밑동이 가장 높다
+        else if(k===1) z=vein?-e*0.4:-e;                  // 가장자리
+        else           z=vein? f*0.55:-e*0.5;             // 주맥과 가장자리 사이
+        row.push([COL[c]*w*P[i], T[i]*len, z]);
+      }
+      V.push(row);
+    }
     const v=[];
     const push=(...ps)=>{ for(const q of ps) v.push(q[0],q[1],q[2]); };
-    push(B,L1,M1);  push(L1,L2,M1);  push(L2,M2,M1);  push(L2,L3,M2);
-    push(L3,M3,M2);
-    push(B,M1,R1);  push(R1,M1,R2);  push(M1,M2,R2);  push(R2,M2,R3);
-    push(R3,M2,M3);
+    for(let i=0;i+1<V.length;i++) for(let c=0;c+1<COL.length;c++){
+      const A=V[i][c], B=V[i][c+1], C=V[i+1][c+1], D=V[i+1][c];
+      push(A,B,C); push(A,C,D);
+    }
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
     g.computeVertexNormals();
@@ -1508,13 +1520,12 @@ function buildProps(){
     if(kind==='oak'){
       /* 넓은 잎 — 가지 끝에서 사방으로 벌어지고, 바깥 잎일수록 더 눕는다.
          잎자루가 한 점에 모이지 않게 축을 따라 조금씩 올려 붙인다.
-         잎 크기를 반으로 줄이고 모든 가지에 달게 되면서 한 덩이에 넉 장은
-         과했다 — 세 장으로 줄였다(삼각형 40 → 30장). */
-      const N=3;
+         셋에서 아홉 장으로 늘렸다 — 한 덩이가 잎 한 줌으로 보여야 한다. */
+      const N=9;
       for(let i=0;i<N;i++){
         const a=i*2.399, t=i/(N-1);
         parts.push({g:leafRound(0.46,1.06),
-                    y:-0.10+t*0.34, ry:a, rz:0.55+t*0.62, s:0.94+ (i%3)*0.10});
+                    y:-0.14+t*0.46, ry:a, rz:0.42+t*0.76, s:0.86+((i*7)%5)*0.07});
       }
   
     }else{
@@ -1545,7 +1556,7 @@ function buildProps(){
      잎은 더 이상 가지마다 달지 않는다. 곁가지가 없는 **끝가지**에만 달린다. */
   const TREE={
     oak:{n:Math.round(42*LD), y0:2.70, y1:4.55, L0:2.45, L1:1.45, t0:1.24, t1:0.22,
-         rad:0.046, leaf:0.42, hy:2.50, hL:2.50, hT:1.32},
+         rad:0.046, leaf:0.28, hy:2.50, hL:2.50, hT:1.32},
     fir:{n:Math.round(59*LD), y0:2.20, y1:6.45, L0:2.20, L1:0.50, t0:1.36, t1:0.68,
          rad:0.036, leaf:0.40, hy:1.60, hL:2.40, hT:1.44}
   };
