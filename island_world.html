@@ -1412,7 +1412,23 @@ function buildWater(){
 
 /* 자원 프롭 — 종류별 InstancedMesh 하나씩이라 드로우콜이 10여 개로 끝난다 */
 const COLLIDERS=[];                    // {x,z,r} 나무·바위 충돌체
+/* ── 눈에 보이는 거리 ─────────────────────────────────────────────────────
+   VIEW_DIST(150 m) 밖의 나무는 그리지 않는다. 인스턴스 메시는 통째로만
+   껐다 켤 수 있으므로 가지·잎을 TILE(128 m) 칸마다 따로 담아 두고
+   칸 단위로 끈다. 칸의 어느 구석이라도 150 m 안에 들면 켠다 —
+   칸 반지름(대각선 절반 + 나무 가지가 칸 밖으로 나가는 여유 12 m)을 빼고 잰다. */
+const VIEW_DIST=150, TILE=128;
+const TREE_TILES=[];
+const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
+function updateTileVis(){
+  const px=PL.pos.x, pz=PL.pos.z;
+  for(const t of TREE_TILES){
+    const on=Math.hypot(t.cx-px,t.cz-pz)-t.r <= VIEW_DIST;
+    t.lm.visible=on; t.fm.visible=on;
+  }
+}
 function buildProps(){
+  TREE_TILES.length=0;
   if(propGroup){
     scene.remove(propGroup);
     propGroup.children.forEach(m=>{ m.geometry.dispose(); m.material.dispose(); });
@@ -1731,25 +1747,38 @@ function buildProps(){
       }
     });
 
-    // 가지·잎뭉치 인스턴스 풀을 나무 종류별로 한 번에 잡는다
-    // 앞쪽 brMax 개가 꺾을 수 있는 아래 가지, 나머지는 형태를 이루는 구조 가지
-    let limbMesh=null, leafMesh=null, limbTotal=0;
+    /* 가지·잎뭉치 — 나무 종류마다 하나로 몰아 담던 것을 TILE(128 m) 칸마다
+       따로 담는다. 인스턴스 메시는 통째로만 껐다 켤 수 있으므로, 섬 전체를
+       한 덩이로 들고 있으면 발밑에 선 나무 하나 때문에 온 섬의 잎을 다 그린다.
+       칸으로 쪼개 두면 멀리 있는 칸을 통째로 끌 수 있다(updateTileVis).
+       앞쪽 brMax 개가 꺾을 수 있는 아래 가지, 나머지는 형태를 이루는 구조 가지. */
     if(tree){
       const TR=TREE[R.k];
       /* 곁가지는 씨앗에서 자라므로 수를 미리 알 수 없다. 같은 씨앗으로
-         재귀를 한 번 헛돌려 세고, 두 번째에 행렬을 쓴다 — 나무 하나치를
-         통째로 들고 있는 것보다 이쪽이 훨씬 싸다(계산은 덧셈뿐이다). */
+         재귀를 한 번 헛돌려 세고, 두 번째에 행렬을 쓴다. */
+      const bins=new Map();
       for(const p of list){
         let n=0; growLimbs(p,TR,()=>{ n++; });
-        p.limbN=p.brMax+n; limbTotal+=p.limbN;
+        p.limbN=p.brMax+n;
+        const k=tileKey(p.x,p.z);
+        let b=bins.get(k);
+        if(!b){ b={total:0, ps:[], gx:Math.floor(p.x/TILE), gz:Math.floor(p.z/TILE)};
+                bins.set(k,b); }
+        p._lbBase=b.total; b.total+=p.limbN; b.ps.push(p);
       }
-      limbMesh=new THREE.InstancedMesh(limbUnit,limbMat,limbTotal);
-      leafMesh=new THREE.InstancedMesh(R.k==='oak'?leafUnitOak:leafUnitFir,
-        new THREE.MeshLambertMaterial({color:R.k==='oak'?0x466032:0x2f4a3a,
-                                       side:THREE.DoubleSide}),
-        limbTotal);
+      const leafMat=new THREE.MeshLambertMaterial({
+        color:R.k==='oak'?0x466032:0x2f4a3a, side:THREE.DoubleSide});
+      for(const b of bins.values()){
+        const lm=new THREE.InstancedMesh(limbUnit,limbMat,b.total);
+        const fm=new THREE.InstancedMesh(R.k==='oak'?leafUnitOak:leafUnitFir,
+                                         leafMat,b.total);
+        lm.frustumCulled=false; fm.frustumCulled=false;
+        for(const p of b.ps){ p._lb=lm; p._lf=fm; }
+        propGroup.add(lm); propGroup.add(fm);
+        TREE_TILES.push({lm, fm,
+          cx:(b.gx+0.5)*TILE, cz:(b.gz+0.5)*TILE, r:TILE*0.71+12});
+      }
     }
-    let li=0;
 
     // 2차: 행렬 배치
     list.forEach((p,ix)=>{
@@ -1773,7 +1802,7 @@ function buildProps(){
 
       if(tree){
         const TR=TREE[R.k];
-        p._lb=limbMesh; p._lf=leafMesh; p._lbBase=li;
+        const limbMesh=p._lb, leafMesh=p._lf, li=p._lbBase;
         // Euler(0, az, tilt) 로 세운 가지의 끝 방향은
         //   (-sin(tilt)·cos(az), cos(tilt), sin(tilt)·sin(az))
         const put=(j,az,ay,len,tilt,leafS)=>{
@@ -1810,7 +1839,6 @@ function buildProps(){
           M.compose(_lbB,quat,_lbS); leafMesh.setMatrixAt(li+k,M);
           k++;
         });
-        li+=p.limbN;
       }
 
       if(HARVEST[R.k]||MINE[R.k]){
@@ -1840,10 +1868,8 @@ function buildProps(){
     }else{
       ms.forEach(m=>{ m.instanceMatrix.needsUpdate=true; m.frustumCulled=false; propGroup.add(m); });
     }
-    if(limbMesh){
-      limbMesh.instanceMatrix.needsUpdate=true; limbMesh.frustumCulled=false;
-      leafMesh.instanceMatrix.needsUpdate=true; leafMesh.frustumCulled=false;
-      propGroup.add(limbMesh); propGroup.add(leafMesh);
+    if(tree) for(const t of TREE_TILES){
+      t.lm.instanceMatrix.needsUpdate=true; t.fm.instanceMatrix.needsUpdate=true;
     }
   }
 
@@ -7562,7 +7588,9 @@ function initThree(){
   renderer.setPixelRatio(1);
   scene=new THREE.Scene();
   scene.background=new THREE.Color(0x7d8f9b);
-  scene.fog=new THREE.FogExp2(0x7d8f9b,0.006);
+  /* 안개 — 나무가 150 m 에서 사라지므로 그 앞에서 잠기도록 짙게 잡는다.
+     0.009 면 150 m 에서 87% 가 안개색이라 꺼지는 순간이 눈에 안 띈다. */
+  scene.fog=new THREE.FogExp2(0x7d8f9b,0.009);
   camera=new THREE.PerspectiveCamera(70,1,0.1,2200);
   camera.rotation.order='YXZ';
   initSky();
@@ -8244,6 +8272,7 @@ function loop(){
       updateRegrow();
       updatePlayer(dt);
     }
+    updateTileVis();            // 150 m 밖의 나무 칸을 끈다
     updateHUD(dt);
     drawCompass();
     mapT+=dt; if(mapT>0.12){ mapT=0; drawMap(); }
