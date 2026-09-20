@@ -1192,7 +1192,7 @@ const _lbV=new THREE.Vector3(), _lbS=new THREE.Vector3(), _lbD=new THREE.Vector3
       _lbQ=new THREE.Quaternion(), _lbQ2=new THREE.Quaternion(),
       _lbE=new THREE.Euler(), _lbB=new THREE.Vector3();
 const leafGeoTris={}, TREE_N={}, TREE_T={};   // 검사용 창구
-const LIMB_MIN=0.34;                 // 이보다 짧아지면 더 안 뻗는다 (m)
+const LIMB_MIN=0.06;                 // 곁가지가 가질 수 있는 가장 짧은 길이 (m)
 const LIMB_DEPTH=2;                  // 원가지 → 곁가지 → 곁가지의 곁가지
 function growLimbs(p,TR,emit){
   const rnd=mulberry32((p._hash||0)^0x7a5d1c9b);
@@ -1221,8 +1221,9 @@ function growLimbs(p,TR,emit){
       // 붙는 자리 — 밑동 쪽에 붙으면 곁가지가 부모만큼 길어져 Y 자가 된다.
       // 가운데보다 조금 위(0.42~0.80)에서 갈라지게 둔다.
       const u=0.42+rnd()*0.38;
-      const kl=len*(1-u)+(rnd()-0.5)*0.2;        // ±0.1 m
-      if(kl<LIMB_MIN) continue;
+      /* 짧아졌다고 버리지 않는다 — 잔가지가 없으면 우듬지 끝이 휑하다.
+         길이가 0 이나 음수로 내려가는 것만 막는다. */
+      const kl=Math.max(LIMB_MIN, len*(1-u)+(rnd()-0.5)*0.2);   // ±0.1 m
       _lbE.set(0,rnd()*6.283,(0.55+rnd()*0.42)*(rnd()<0.5?1:-1));
       _lbQ2.setFromEuler(_lbE);
       const kq=q.clone().multiply(_lbQ2);
@@ -1230,8 +1231,10 @@ function growLimbs(p,TR,emit){
       const kb=base.clone().addScaledVector(_lbD,len*u);
       kids.push([kb,kq,kl]);
     }
-    // 곁가지를 못 친 가지가 끝가지다 — 여기에만 잎이 달린다
-    const leafS=kids.length?0:TR.leaf*S*(0.8+rnd()*0.5);
+    /* 잎은 모든 가지에 단다. 예전에는 끝가지에만 달아 속가지가 맨 나무처럼
+       드러났다. 대신 곁가지를 친 가지는 덩이를 작게 준다 — 실제로도 속에
+       든 가지일수록 잎이 성기다. */
+    const leafS=TR.leaf*S*(kids.length?0.62:1.0)*(0.8+rnd()*0.5);
     emit(base,q,len,rad,leafS);
     for(const [kb,kq,kl] of kids) grow(kb,kq,kl,rad*0.72,depth+1);
   }
@@ -1448,22 +1451,24 @@ function buildProps(){
      예전에는 정20면체 공 하나였다. 멀리서는 수관으로 읽히는데 가까이 가면
      초록 자갈이 가지 끝에 박힌 꼴이었다.
 
-     이제 잎을 실제로 만든다. 한 장은 납작한 판이고, 그것을 가지 끝에
-     부챗살로 여러 장 모아 한 덩이로 굳힌다. 장마다 눕는 각이 달라
-     빛을 받는 정도가 갈리므로 접지 않아도 덩어리로 안 보인다.
+     이제 잎을 실제로 만든다. 한 장은 가운데 잎맥이 솟은 얕은 V 판이고,
+     그것을 가지 끝에 부챗살로 여러 장 모아 한 덩이로 굳힌다.
      참나무는 끝이 둥근 넓은 잎 넉 장, 전나무는 가는 바늘잎 스물일곱 개를
      가지에 붙어 뒤로 눕도록 단다.                                        */
-  /* 참나무 잎 — 끝이 둥근 납작한 판. 접지 않는다(예전에는 잎맥을 따라
-     접어 두었는데, 잎이 우글거려 보이고 옆에서 보면 두께가 도드라졌다).
-     끝을 두 점으로 갈라 무디게 만들고, 가장 넓은 자리를 잎 가운데로 올려
-     타원에 가깝게 잡는다. 삼각형 열 장. */
+  /* 참나무 잎 — 끝이 둥글고, 가운데 잎맥이 솟아 있다.
+     한때 크게 접어 두었더니 우글거려 보였고, 아주 평평하게 폈더니 종이가
+     됐다. 지금은 그 사이다 — 잎맥 선만 0.14w 만큼 솟고 양쪽 가장자리가
+     0.05w 내려앉아, 얕은 V 로 살짝 접힌다. 그 능선이 빛을 받아 한 줄로
+     밝게 서는 것이 잎맥으로 읽힌다(가로맥은 마디 사이 모서리가 대신한다).
+     삼각형 열 장. */
   function leafRound(w,len){
+    const f=w*0.14, e=-w*0.05;                            // 잎맥 마루 · 가장자리 골
     const y1=len*0.34, y2=len*0.72, y3=len;
-    const L1=[-w,y1,0],         R1=[w,y1,0];
-    const L2=[-w*0.80,y2,0],    R2=[w*0.80,y2,0];
-    const L3=[-w*0.34,y3,0],    R3=[w*0.34,y3,0];        // 끝을 갈라 뭉툭하게
+    const L1=[-w,y1,e],         R1=[w,y1,e];
+    const L2=[-w*0.80,y2,e*0.7],R2=[w*0.80,y2,e*0.7];
+    const L3=[-w*0.34,y3,e*0.3],R3=[w*0.34,y3,e*0.3];     // 끝을 갈라 뭉툭하게
     const B=[0,0,0];
-    const M1=[0,y1,0], M2=[0,y2,0], M3=[0,y3*1.03,0];    // 잎맥 — 이제 같은 평면이다
+    const M1=[0,y1,f], M2=[0,y2,f*0.72], M3=[0,y3*1.03,f*0.3];   // 솟은 잎맥
     const v=[];
     const push=(...ps)=>{ for(const q of ps) v.push(q[0],q[1],q[2]); };
     push(B,L1,M1);  push(L1,L2,M1);  push(L2,M2,M1);  push(L2,L3,M2);
@@ -1491,8 +1496,9 @@ function buildProps(){
     if(kind==='oak'){
       /* 넓은 잎 — 가지 끝에서 사방으로 벌어지고, 바깥 잎일수록 더 눕는다.
          잎자루가 한 점에 모이지 않게 축을 따라 조금씩 올려 붙인다.
-         한 장이 두 배로 비싸졌으니 장수를 여섯에서 넷으로 줄이고 키웠다. */
-      const N=4;
+         잎 크기를 반으로 줄이고 모든 가지에 달게 되면서 한 덩이에 넉 장은
+         과했다 — 세 장으로 줄였다(삼각형 40 → 30장). */
+      const N=3;
       for(let i=0;i<N;i++){
         const a=i*2.399, t=i/(N-1);
         parts.push({g:leafRound(0.46,1.06),
@@ -1527,7 +1533,7 @@ function buildProps(){
      잎은 더 이상 가지마다 달지 않는다. 곁가지가 없는 **끝가지**에만 달린다. */
   const TREE={
     oak:{n:Math.round(42*LD), y0:2.70, y1:4.55, L0:2.45, L1:1.45, t0:1.24, t1:0.22,
-         rad:0.046, leaf:1.26, hy:2.50, hL:2.50, hT:1.32},
+         rad:0.046, leaf:0.63, hy:2.50, hL:2.50, hT:1.32},
     fir:{n:Math.round(59*LD), y0:2.20, y1:6.45, L0:2.20, L1:0.50, t0:1.36, t1:0.68,
          rad:0.036, leaf:0.40, hy:1.60, hL:2.40, hT:1.44}
   };
