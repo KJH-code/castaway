@@ -1490,40 +1490,72 @@ function buildProps(){
      그것을 가지 끝에 부챗살로 여러 장 모아 한 덩이로 굳힌다.
      참나무는 끝이 둥근 넓은 잎 넉 장, 전나무는 가는 바늘잎 스물일곱 개를
      가지에 붙어 뒤로 눕도록 단다.                                        */
-  /* 참나무 잎 — 잎맥을 진짜로 낸다.
-     잎을 길이 6칸 · 폭 4칸 격자로 뜨고, 그 위에 잎맥 능선을 새긴다.
-       · 가운데 잎맥(주맥) — 가운데 줄이 밑동에서 f 만큼 솟았다가 끝으로 가며 낮아진다
-       · 곁맥 — 한 줄 걸러 한 줄씩 가로로 솟아, 주맥에서 가장자리로 뻗는 갈비뼈가 된다
-       · 그 사이 줄은 반대로 꺼져 골이 된다 — 능선과 골이 번갈아 서야
-         빛이 줄무늬로 갈려 잎맥으로 읽힌다. 평평하면 아무리 색을 갈라도 안 보인다
-     접힘은 전보다 덜하다(0.14w → 0.09w). 삼각형 48장. */
+  /* 참나무 잎 — 잎맥을 **선으로 그린다**.
+     한동안 잎맥을 능선(접힘)으로 새겼는데, 빛이 어느 쪽에서 오느냐에 따라
+     보였다 안 보였다 했다. 실제 잎에서 잎맥이 눈에 띄는 까닭은 튀어나와서가
+     아니라 **색이 다르기 때문**이다 — 잎몸보다 연하고 노랗다.
+     그래서 잎몸 위에 아주 얇은 띠를 얹고 그 띠에만 다른 색을 준다
+     (정점 색. 재질은 흰색을 곱하는 역할만 한다).
+       · 주맥 — 밑동에서 끝까지, 위로 갈수록 가늘어진다
+       · 곁맥 — 다섯 높이에서 좌우로, 앞쪽으로 비스듬히 뻗는다
+     잎몸은 가운데가 조금 솟은 얕은 V 다. 잎맥 띠는 그 굴곡을 따라 얹는다.
+     삼각형 — 잎몸 24 · 잎맥 32 = 56장. */
   function leafRound(w,len){
-    const f=w*0.09, e=w*0.05;          // 주맥이 솟는 높이 · 골이 꺼지는 깊이
-    const T=[0, 0.16, 0.33, 0.50, 0.67, 0.84, 1.0];      // 길이 방향 7줄
-    const P=[0, 0.62, 0.92, 1.00, 0.95, 0.72, 0.34];     // 그 자리의 폭(끝은 뭉툭하게)
-    const COL=[-1,-0.5,0,0.5,1];                          // 폭 방향 5줄
-    const V=[];
-    for(let i=0;i<T.length;i++){
-      const vein=(i%2)===1;                               // 한 줄 걸러 곁맥
-      const row=[];
-      for(let c=0;c<COL.length;c++){
-        const k=Math.abs(COL[c]);
-        let z;
-        if(k===0)      z=f*(1-T[i]*0.65);                 // 주맥 — 밑동이 가장 높다
-        else if(k===1) z=vein?-e*0.4:-e;                  // 가장자리
-        else           z=vein? f*0.55:-e*0.5;             // 주맥과 가장자리 사이
-        row.push([COL[c]*w*P[i], T[i]*len, z]);
+    const f=w*0.07, e=w*0.04, LIFT=w*0.014;
+    const T=[0, 0.16, 0.33, 0.50, 0.67, 0.84, 1.0];   // 길이 방향 7줄
+    const P=[0, 0.62, 0.92, 1.00, 0.95, 0.72, 0.34];  // 그 자리의 폭
+    const GREEN=[0.27,0.38,0.20], VEIN=[0.66,0.76,0.33];
+    const pos=[], col=[];
+    const tri=(A,B,C,c)=>{ for(const q of [A,B,C]){
+      pos.push(q[0],q[1],q[2]); col.push(c[0],c[1],c[2]); } };
+    // 그 높이의 반폭 — T 사이를 곧게 잇는다
+    const halfW=y=>{
+      const t=Math.min(1,Math.max(0,y/len));
+      for(let i=0;i+1<T.length;i++) if(t<=T[i+1]){
+        const u=(t-T[i])/(T[i+1]-T[i]||1);
+        return w*(P[i]+(P[i+1]-P[i])*u);
       }
-      V.push(row);
+      return w*P[P.length-1];
+    };
+    // 잎몸의 높이 — 가운데가 f 만큼 솟고 가장자리가 e 만큼 내려앉은 얕은 V
+    const bladeZ=(x,y)=>{
+      const pw=halfW(y), k=pw>1e-6?Math.min(1,Math.abs(x)/pw):0;
+      return f*(1-Math.min(1,y/len)*0.6)*(1-k) - e*k;
+    };
+    // ── 잎몸 (가운데 줄 · 양쪽 가장자리)
+    const V=T.map((t,i)=>[-1,0,1].map(c=>{
+      const y=t*len, x=c*w*P[i];
+      return [x,y,bladeZ(x,y)];
+    }));
+    for(let i=0;i+1<V.length;i++) for(let c=0;c<2;c++){
+      const A=V[i][c],B=V[i][c+1],C=V[i+1][c+1],D=V[i+1][c];
+      tri(A,B,C,GREEN); tri(A,C,D,GREEN);
     }
-    const v=[];
-    const push=(...ps)=>{ for(const q of ps) v.push(q[0],q[1],q[2]); };
-    for(let i=0;i+1<V.length;i++) for(let c=0;c+1<COL.length;c++){
-      const A=V[i][c], B=V[i][c+1], C=V[i+1][c+1], D=V[i+1][c];
-      push(A,B,C); push(A,C,D);
+    // ── 잎맥 띠 — (x0,y0)→(x1,y1) 을 잇는 폭 2hw 의 판을 잎몸 위에 얹는다
+    const strip=(x0,y0,x1,y1,hw0,hw1)=>{
+      const dx=x1-x0, dy=y1-y0, L=Math.hypot(dx,dy)||1;
+      const nx=-dy/L, ny=dx/L;
+      const pt=(x,y,h,sgn)=>{
+        const px=x+nx*h*sgn, py=y+ny*h*sgn;
+        return [px,py,bladeZ(px,py)+LIFT];
+      };
+      const A=pt(x0,y0,hw0,-1), B=pt(x0,y0,hw0,1);
+      const C=pt(x1,y1,hw1,1),  D=pt(x1,y1,hw1,-1);
+      tri(A,B,C,VEIN); tri(A,C,D,VEIN);
+    };
+    // 주맥 — 여섯 마디로 나눠 굴곡을 따라간다. 위로 갈수록 가늘다
+    for(let i=0;i+1<T.length;i++)
+      strip(0,T[i]*len, 0,T[i+1]*len, w*0.055*(1-T[i]*0.55), w*0.055*(1-T[i+1]*0.55));
+    // 곁맥 — 다섯 높이에서 좌우로, 앞쪽으로 비스듬히
+    for(let i=1;i<=5;i++){
+      const y0=T[i]*len, y1=Math.min(len*0.99, y0+len*0.11);
+      const xe=w*P[i]*0.93;
+      strip(0,y0, -xe,y1, w*0.030, w*0.012);
+      strip(0,y0,  xe,y1, w*0.030, w*0.012);
     }
     const g=new THREE.BufferGeometry();
-    g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+    g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
     g.computeVertexNormals();
     return g;
   }
@@ -1539,27 +1571,19 @@ function buildProps(){
     return g;
   }
   function leafSpray(kind){
-    const parts=[];
-    if(kind==='oak'){
-      /* 참나무 잎은 이제 **한 장이 인스턴스 하나**다. 다섯 장을 한 덩이로
-         굳혀 가지 끝에 통째로 붙이면 다섯이 늘 같은 자리·같은 각으로 서서
-         가지마다 똑같은 술이 달린 꼴이 된다. 한 장씩 따로 세우면 가지 위
-         어디에 달릴지·어느 쪽으로 눕을지를 가지마다 새로 뽑을 수 있다
-         — 그 자리는 배치 쪽(putLeaf)이 정한다. */
-      parts.push({g:leafRound(0.46,1.06)});
-  
-    }else{
-      /* 바늘잎 — 가지를 따라 뒤로 눕는 솔이다. 두 줄로 갈라 붙여
-         가까이서 보면 잎이 마주나는 결이 보인다.
-         스물일곱에서 열네 개로 줄이고 그만큼 가지를 늘렸다. */
-      const N=14;
-      for(let i=0;i<N;i++){
-        const t=i/(N-1), side=(i%2)?1:-1;
-        parts.push({g:needle(0.026,0.88),
-                    y:-0.58+t*1.12, ry:i*1.21+(side>0?0:Math.PI),
-                    rz:1.16+side*0.16+t*0.10+((i%3)-1)*0.09,
-                    s:0.82+0.34*(1-Math.abs(t-0.5)*2)});
-      }
+    /* 참나무는 한 장이 곧 한 인스턴스다. mergeParts 는 자리·법선만 옮기고
+       정점 색을 버리므로 거치지 않고 그대로 쓴다. */
+    if(kind==='oak') return leafRound(0.46,1.06);
+    /* 바늘잎 — 가지를 따라 뒤로 눕는 솔이다. 두 줄로 갈라 붙여
+       가까이서 보면 잎이 마주나는 결이 보인다. 열네 개를 한 다발로 굳혀
+       가지 끝에 하나 단다. */
+    const parts=[], N=14;
+    for(let i=0;i<N;i++){
+      const t=i/(N-1), side=(i%2)?1:-1;
+      parts.push({g:needle(0.026,0.88),
+                  y:-0.58+t*1.12, ry:i*1.21+(side>0?0:Math.PI),
+                  rz:1.16+side*0.16+t*0.10+((i%3)-1)*0.09,
+                  s:0.82+0.34*(1-Math.abs(t-0.5)*2)});
     }
     return mergeParts(parts);
   }
@@ -1770,8 +1794,12 @@ function buildProps(){
                 bins.set(k,b); }
         p._lbBase=b.total; b.total+=p.limbN; b.ps.push(p);
       }
-      const leafMat=new THREE.MeshLambertMaterial({
-        color:R.k==='oak'?0x466032:0x2f4a3a, side:THREE.DoubleSide});
+      /* 참나무 잎은 잎몸과 잎맥의 색이 다르다 — 정점 색으로 갈라 두었으므로
+         재질 색은 흰색으로 두어 그대로 곱해 나오게 한다. */
+      const leafMat=R.k==='oak'
+        ? new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true,
+                                         side:THREE.DoubleSide})
+        : new THREE.MeshLambertMaterial({color:0x2f4a3a, side:THREE.DoubleSide});
       for(const b of bins.values()){
         const lm=new THREE.InstancedMesh(limbUnit,limbMat,b.total);
         const fm=new THREE.InstancedMesh(R.k==='oak'?leafUnitOak:leafUnitFir,
