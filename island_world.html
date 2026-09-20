@@ -1197,7 +1197,10 @@ const _lbV=new THREE.Vector3(), _lbS=new THREE.Vector3(), _lbD=new THREE.Vector3
       _lbE=new THREE.Euler(), _lbB=new THREE.Vector3();
 const leafGeoTris={}, TREE_N={}, TREE_T={};   // 검사용 창구
 const LIMB_MIN=0.06;                 // 곁가지가 가질 수 있는 가장 짧은 길이 (m)
-const LIMB_SPACE=0.8;                // 곁가지 하나가 차지하는 가지 길이 (m)
+/* 곁가지 하나가 차지하는 가지 길이(m). 나무마다 다르다(TREE[].space) —
+   한 덩이에 다는 잎 장수를 반으로 줄인 만큼 가지를 늘려, 나무 한 그루에
+   달리는 잎의 총수를 줄이기 전과 맞춘 값이다. 아래 값은 못 찾았을 때의 기본. */
+const LIMB_SPACE=0.8;
 const LIMB_DEPTH=4;                  // 안전장치 — 길이가 먼저 재귀를 멎게 한다
 function growLimbs(p,TR,emit){
   const rnd=mulberry32((p._hash||0)^0x7a5d1c9b);
@@ -1224,7 +1227,7 @@ function growLimbs(p,TR,emit){
        곁가지는 부모의 0.2~0.58 로 짧아지므로 대를 거듭할수록 기댓값이
        빠르게 0 으로 간다 — 재귀가 길이로 저절로 멎는다. LIMB_DEPTH 는
        이제 규칙이 아니라 안전장치다. */
-    const want=len/LIMB_SPACE;
+    const want=len/(TR.space||LIMB_SPACE);
     let nc=Math.floor(want);
     if(rnd()<want-nc) nc++;
     if(depth>=LIMB_DEPTH) nc=0;
@@ -1536,8 +1539,9 @@ function buildProps(){
     if(kind==='oak'){
       /* 넓은 잎 — 가지 끝에서 사방으로 벌어지고, 바깥 잎일수록 더 눕는다.
          잎자루가 한 점에 모이지 않게 축을 따라 조금씩 올려 붙인다.
-         셋에서 아홉 장으로 늘렸다 — 한 덩이가 잎 한 줌으로 보여야 한다. */
-      const N=9;
+         아홉에서 다섯 장으로 줄이고, 그만큼 가지를 늘려 덩이 수로 메웠다 —
+         한 덩이에 잔뜩 몰아 다는 것보다 여러 덩이로 흩어지는 쪽이 성글어 보인다. */
+      const N=5;
       for(let i=0;i<N;i++){
         const a=i*2.399, t=i/(N-1);
         parts.push({g:leafRound(0.46,1.06),
@@ -1547,8 +1551,8 @@ function buildProps(){
     }else{
       /* 바늘잎 — 가지를 따라 뒤로 눕는 솔이다. 두 줄로 갈라 붙여
          가까이서 보면 잎이 마주나는 결이 보인다.
-         아홉에서 스물일곱으로 늘리고 굵기는 0.075 → 0.026 으로 줄였다. */
-      const N=27;
+         스물일곱에서 열네 개로 줄이고 그만큼 가지를 늘렸다. */
+      const N=14;
       for(let i=0;i<N;i++){
         const t=i/(N-1), side=(i%2)?1:-1;
         parts.push({g:needle(0.026,0.88),
@@ -1572,9 +1576,9 @@ function buildProps(){
      잎은 더 이상 가지마다 달지 않는다. 곁가지가 없는 **끝가지**에만 달린다. */
   const TREE={
     oak:{n:Math.round(42*LD), y0:2.70, y1:4.55, L0:2.45, L1:1.45, t0:1.24, t1:0.22,
-         rad:0.046, leaf:0.28, hy:2.50, hL:2.50, hT:1.32},
+         rad:0.046, leaf:0.28, hy:2.50, hL:2.50, hT:1.32, space:0.56},
     fir:{n:Math.round(59*LD), y0:2.20, y1:6.45, L0:2.20, L1:0.50, t0:1.36, t1:0.68,
-         rad:0.036, leaf:0.40, hy:1.60, hL:2.40, hT:1.44}
+         rad:0.036, leaf:0.40, hy:1.60, hL:2.40, hT:1.44, space:0.505}
   };
   TREE_N.oak=TREE.oak.n; TREE_N.fir=TREE.fir.n;      // 검사용 창구
   TREE_T.oak=TREE.oak;   TREE_T.fir=TREE.fir;
