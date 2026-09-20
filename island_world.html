@@ -1178,6 +1178,7 @@ const cv=document.getElementById('c');
    있으므로, 참나무 수관처럼 여러 덩어리로 된 실루엣은 미리 합쳐 둬야 한다. */
 /* ── 가지 치기 ───────────────────────────────────────────────────────────
    줄기에서 나온 원가지가 제 몸에서 곁가지를 치고, 곁가지가 또 곁가지를 친다.
+   **몇 개를 치는가는 그 가지의 길이에 비례한다** — LIMB_SPACE 마다 하나씩.
 
    곁가지 길이 = 부모 가지의 길이 − 부모 밑동에서 곁가지가 붙은 데까지의 거리,
    거기에 ±0.1 m. 실제 나무에서 갈라진 두 가지의 끝이 대충 같은 높이에
@@ -1193,7 +1194,8 @@ const _lbV=new THREE.Vector3(), _lbS=new THREE.Vector3(), _lbD=new THREE.Vector3
       _lbE=new THREE.Euler(), _lbB=new THREE.Vector3();
 const leafGeoTris={}, TREE_N={}, TREE_T={};   // 검사용 창구
 const LIMB_MIN=0.06;                 // 곁가지가 가질 수 있는 가장 짧은 길이 (m)
-const LIMB_DEPTH=2;                  // 원가지 → 곁가지 → 곁가지의 곁가지
+const LIMB_SPACE=1.1;                // 곁가지 하나가 차지하는 가지 길이 (m)
+const LIMB_DEPTH=4;                  // 안전장치 — 길이가 먼저 재귀를 멎게 한다
 function growLimbs(p,TR,emit){
   const rnd=mulberry32((p._hash||0)^0x7a5d1c9b);
   const S=p.s;
@@ -1210,12 +1212,19 @@ function growLimbs(p,TR,emit){
     grow(base,q,len,TR.rad*S,0);
   }
   function grow(base,q,len,rad,depth){
-    /* 곁가지 수 — 원가지는 1~2개, 곁가지는 0~1개, 그 아래는 없다.
-       평균 1+1.65+1.16 ≈ 3.8 개. 곁가지를 늘리면 끝가지(잎이 달리는 자리)도
-       같이 늘어 수관이 빽빽해진다 — 삼각형 값을 여기서 치른다. */
-    let nc=0;
-    if(depth===0) nc=rnd()<0.65?2:1;
-    else if(depth<LIMB_DEPTH) nc=rnd()<0.70?1:0;
+    /* 곁가지 수 — 가지 길이에 비례한다. 깊이별로 정해 둔 확률을 쓰지 않는다.
+       곁가지 하나가 가지 LIMB_SPACE(m)를 차지한다고 보고 len/LIMB_SPACE 개를
+       낸다. 정수부는 그대로 내고 소수부는 그 확률로 한 개 더 낸다 —
+       1.6 이면 둘이 60%, 하나가 40% 다.
+
+       이러면 긴 가지가 많이, 짧은 가지가 적게 갈라진다(실제 나무가 그렇다).
+       곁가지는 부모의 0.2~0.58 로 짧아지므로 대를 거듭할수록 기댓값이
+       빠르게 0 으로 간다 — 재귀가 길이로 저절로 멎는다. LIMB_DEPTH 는
+       이제 규칙이 아니라 안전장치다. */
+    const want=len/LIMB_SPACE;
+    let nc=Math.floor(want);
+    if(rnd()<want-nc) nc++;
+    if(depth>=LIMB_DEPTH) nc=0;
     const kids=[];
     for(let c=0;c<nc;c++){
       // 붙는 자리 — 밑동 쪽에 붙으면 곁가지가 부모만큼 길어져 Y 자가 된다.
