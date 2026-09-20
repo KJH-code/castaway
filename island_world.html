@@ -344,7 +344,7 @@
   <div class="r"><label>침식</label><input type="range" id="pEro" min="0" max="1" step="0.02" value="0.6"><span class="v" id="vEro"></span></div>
   <div class="r"><label>해수면</label><input type="range" id="pSea" min="-14" max="14" step="0.5" value="0"><span class="v" id="vSea"></span></div>
   <div class="r"><label>강수량</label><input type="range" id="pRain" min="0.3" max="1.6" step="0.02" value="1"><span class="v" id="vRain"></span></div>
-  <div class="r"><label>해상도</label><input type="range" id="pRes" min="0.25" max="1" step="0.05" value="0.5"><span class="v" id="vRes"></span></div>
+  <div class="r"><label>해상도</label><input type="range" id="pRes" min="0.25" max="2" step="0.05" value="1"><span class="v" id="vRes"></span></div>
   <div class="r"><label>시야</label><input type="range" id="pFar" min="0.4" max="2.5" step="0.05" value="1"><span class="v" id="vFar"></span></div>
   <div class="r"><label>가지 밀도</label><input type="range" id="pLimb" min="0.25" max="1.6" step="0.05" value="0.8"><span class="v" id="vLimb"></span></div>
   <div class="g">
@@ -1170,7 +1170,10 @@ function sampleAt(wx,wz){
 const CH=32, NC=N/CH;                 // 32 × 24 = 768 → 청크 576개 (한 변 80 m)
 let renderer,scene,camera,sun,hemi,amb,flash,ocean,riverMesh,propGroup,podMesh;
 const chunks=[];
-let renderScale=0.5, farScale=1.0, showProps=true;
+/* renderScale — 그리는 캔버스를 창 크기의 몇 배로 잡는가. 가로·세로에 각각
+   곱하므로 픽셀 수는 이 값의 제곱으로 간다(0.5 → 창의 1/4 픽셀).
+   0.5 에서 1.0 으로 올렸다 = 픽셀 수 네 배. */
+let renderScale=1.0, farScale=1.0, showProps=true;
 
 const cv=document.getElementById('c');
 
