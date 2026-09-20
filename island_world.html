@@ -1445,6 +1445,35 @@ function updateTileVis(){
     if(t.bb) t.bb.visible=mid;
   }
 }
+/* 광물별 생김새 배합.
+   amp  혹의 세기 · bump 혹의 잔주름 수(주파수 상한) · nb 혹 개수
+   cuts 잘라 낼 평면 수 · deep 평면이 파고드는 깊이(0.72 면 반지름의 0.72 까지 깎는다)
+   cube 정육면체로 당기는 정도(방연석의 정벽 쪼개짐)
+   smooth 법선을 둥글리는 정도(0 이면 면마다 각진다)
+   flat 위아래로 누르는 정도(1 이면 안 누른다) · st 축별 신축 폭 */
+const HABIT={
+  // 화강암 — 모난 덩어리. 큰 면 몇 장으로 쪼개지고 표면은 거칠다
+  granite :{amp:0.20,bump:5.0,nb:4,cuts:7,deep:0.74,cube:0.00,smooth:0.15,flat:0.88,st:0.30},
+  // 부싯돌 — 조개 껍질처럼 움푹한 날카로운 조각. 면이 적고 깊게 깎인다
+  flint   :{amp:0.14,bump:3.0,nb:3,cuts:5,deep:0.60,cube:0.00,smooth:0.00,flat:0.80,st:0.40},
+  pebble  :{amp:0.22,bump:3.6,nb:3,cuts:2,deep:0.86,cube:0.00,smooth:0.85,flat:0.74,st:0.34},
+  // 방연석 — 정육면체로 쪼개진다. 계단처럼 어긋난 면
+  galena  :{amp:0.08,bump:2.4,nb:2,cuts:4,deep:0.82,cube:0.82,smooth:0.00,flat:0.94,st:0.22},
+  // 황 — 포도송이처럼 둥근 혹이 엉긴 껍질. 잔혹이 많고 안 잘린다
+  sulfur  :{amp:0.34,bump:9.0,nb:6,cuts:0,deep:1.00,cube:0.00,smooth:0.90,flat:0.72,st:0.28},
+  // 진사 — 바위에 얇게 앉은 딱지. 납작하게 눌리고 가장자리가 깨져 있다
+  cinnabar:{amp:0.24,bump:6.5,nb:4,cuts:5,deep:0.70,cube:0.00,smooth:0.35,flat:0.46,st:0.34},
+  // 석탄 — 결을 따라 판으로 깨진다. 넓은 면 여럿에 살짝 납작
+  coal    :{amp:0.12,bump:4.0,nb:3,cuts:8,deep:0.70,cube:0.30,smooth:0.00,flat:0.70,st:0.32},
+  // 자철석 · 공작석 · 주석석 · 섬아연석 — 모암에 박힌 광맥 덩이.
+  // 둥근 바탕에 깨진 면이 몇 장 섞인다
+  iron    :{amp:0.24,bump:5.5,nb:4,cuts:4,deep:0.80,cube:0.00,smooth:0.45,flat:0.86,st:0.34},
+  copper  :{amp:0.28,bump:7.0,nb:5,cuts:3,deep:0.84,cube:0.00,smooth:0.70,flat:0.84,st:0.36},
+  tin     :{amp:0.22,bump:5.0,nb:4,cuts:5,deep:0.78,cube:0.00,smooth:0.25,flat:0.86,st:0.34},
+  zinc    :{amp:0.20,bump:4.5,nb:4,cuts:6,deep:0.76,cube:0.20,smooth:0.10,flat:0.84,st:0.32}
+};
+const HABIT0={amp:0.24,bump:5.0,nb:3,cuts:0,deep:1,cube:0,smooth:0.68,flat:1,st:0.36};
+
 function buildProps(){
   TREE_TILES.length=0;
   if(propGroup){
@@ -1686,8 +1715,12 @@ function buildProps(){
     cinnabar:[new THREE.DodecahedronGeometry(0.75,0)]
   };
   /* 광석·바위는 개체마다 그 자리에서 형상을 만든다.
-     20면체를 한 단계 세분한 80면 껍질을 기준으로, 임의 축을 향한 매끄러운 혹 세 개를
-     겹쳐 반지름을 흔든다. 같은 돌이 두 번 나오지 않는다.
+     20면체를 한 단계 세분한 80면 껍질을 기준으로,
+       ① 매끄러운 혹으로 반지름을 흔들고(둥근 결)
+       ② 무작위 평면 여러 장으로 잘라 내고(쪼개진 면 — 볼록 다면체가 된다)
+       ③ 광물에 따라 정육면체 쪽으로 당긴다(정벽 쪼개짐)
+     세 가지를 광물마다 다르게 섞는다. `HABIT` 이 그 배합표다.
+     같은 돌이 두 번 나오지 않는다.
      인스턴싱 대신 종류별로 정점을 한 버퍼에 이어 붙여 드로우콜은 1개로 유지한다. */
   const ROCK_R={granite:1.8,copper:1.05,iron:0.95,coal:0.95,zinc:0.85,galena:0.85,
                cinnabar:0.8,tin:0.8,
@@ -1706,7 +1739,7 @@ function buildProps(){
   const SHELL_V=sp.count, UNIQ=uniqDir.length;
 
   function buildRockBatch(list,R){
-    const r0=ROCK_R[R.k], amp=0.24;
+    const r0=ROCK_R[R.k], H=HABIT[R.k]||HABIT0, amp=H.amp;
     const total=list.length*SHELL_V;
     const pos=new Float32Array(total*3), nor=new Float32Array(total*3);
     const fac=new Float32Array(UNIQ);
@@ -1714,25 +1747,43 @@ function buildProps(){
     for(const p of list){
       const hh=p._hash;
       const rnd=mulberry32(hh^0x517cc1b7);
-      // 매끄러운 혹 3개 — 축·주기·위상·세기를 개체마다 새로 뽑는다
+      // ① 매끄러운 혹 — 축·주기·위상·세기를 개체마다 새로 뽑는다
       const lobe=[];
-      for(let l=0;l<3;l++){
+      for(let l=0;l<H.nb;l++){
         let ax=rnd()*2-1, ay=rnd()*2-1, az=rnd()*2-1;
         const L=Math.hypot(ax,ay,az)||1; ax/=L; ay/=L; az/=L;
-        lobe.push([ax,ay,az, 1.6+rnd()*3.4, rnd()*6.283, (rnd()*2-1)]);
+        lobe.push([ax,ay,az, 1.6+rnd()*(H.bump-1.6<0?0:H.bump-1.6), rnd()*6.283, (rnd()*2-1)]);
       }
       let wsum=0; for(const l of lobe) wsum+=Math.abs(l[5]);
       wsum=wsum||1;
+      // ② 쪼개진 면 — 중심에서 deep 쯤 떨어진 평면으로 잘라 낸다(볼록 다면체)
+      const cut=[];
+      for(let c=0;c<H.cuts;c++){
+        let ax=rnd()*2-1, ay=rnd()*2-1, az=rnd()*2-1;
+        const L=Math.hypot(ax,ay,az)||1;
+        cut.push([ax/L,ay/L,az/L, H.deep*(0.86+rnd()*0.34)]);
+      }
       for(let u=0;u<UNIQ;u++){
         const d=uniqDir[u];
         let f=0;
         for(const l of lobe)
           f+=l[5]*Math.sin(l[3]*(d[0]*l[0]+d[1]*l[1]+d[2]*l[2])+l[4]);
-        fac[u]=1+(f/wsum)*amp;
+        let r=1+(f/wsum)*amp;
+        // ③ 정벽 쪼개짐 — 정육면체 쪽으로 당긴다
+        if(H.cube>0){
+          const rc=1/Math.max(Math.abs(d[0]),Math.abs(d[1]),Math.abs(d[2]));
+          r=r*(1-H.cube)+r*rc*H.cube;
+        }
+        for(const c of cut){
+          const dot=d[0]*c[0]+d[1]*c[1]+d[2]*c[2];
+          if(dot>1e-3){ const lim=c[3]/dot; if(lim<r) r=lim; }
+        }
+        fac[u]=r;
       }
       // 개체별 회전 · 축별 신축
       const ex=rnd()*6.283, ey=rnd()*6.283, ez=rnd()*6.283;
-      const sx=0.82+rnd()*0.36, sy=0.82+rnd()*0.36, sz=0.82+rnd()*0.36;
+      const st=H.st, s1=1-st/2;
+      const sx=s1+rnd()*st, sy=(s1+rnd()*st)*H.flat, sz=s1+rnd()*st;
       const cx=Math.cos(ex),sxr=Math.sin(ex), cy=Math.cos(ey),syr=Math.sin(ey),
             cz=Math.cos(ez),szr=Math.sin(ez);
       const rot=(x,y,z,out)=>{                       // Rz → Ry → Rx
@@ -1763,7 +1814,8 @@ function buildProps(){
           const j=t+e;
           const lx=loc[j*3],ly=loc[j*3+1],lz=loc[j*3+2];
           const ll=Math.hypot(lx,ly,lz)||1;
-          let mx=nx+(lx/ll-nx)*0.68, my=ny+(ly/ll-ny)*0.68, mz=nz+(lz/ll-nz)*0.68;
+          const sm=H.smooth;
+          let mx=nx+(lx/ll-nx)*sm, my=ny+(ly/ll-ny)*sm, mz=nz+(lz/ll-nz)*sm;
           const ml=Math.hypot(mx,my,mz)||1;
           nor[(o/3+j)*3]=mx/ml; nor[(o/3+j)*3+1]=my/ml; nor[(o/3+j)*3+2]=mz/ml;
           pos[o+j*3]=p.x+lx; pos[o+j*3+1]=oy+ly; pos[o+j*3+2]=p.z+lz;
@@ -5964,48 +6016,158 @@ const GEO={
 const MINERALS=['flint','pebble','clay','sand','sulfur','iron','tin','coal','copper',
                 'granite','zinc','galena','cinnabar'];
 
-/* 광물 삽화 — 게임 안 암석과 같은 원리(임의 축 혹 3개)로 윤곽을 만들고,
-   중심에서 정점으로 면을 쪼개 광원 방향에 따라 밝기를 달리한다.
+/* 광물 삽화 — 게임 안 암석과 같은 배합표(`HABIT`)를 2차원으로 옮긴다.
+   ① 혹으로 윤곽을 흔들고 ② 무작위 직선으로 잘라 내고(모난 면) ③ 정사각형 쪽으로
+   당긴다(정벽 쪼개짐). 안쪽은 내부 꼭짓점 하나에서 부채꼴로 쪼개 면마다 밝기를
+   달리하고, 광택 있는 것에는 흰 띠를, 결이 있는 것에는 쪼개진 선을 얹는다.
    외부 이미지 없이 광물마다 고정된 그림이 나온다. */
 const ICONS={};
+/* 광택 — met: 금속처럼 번들거림 · 0 이면 무광. tex: 표면 무늬 종류 */
+const LUSTRE={
+  galena  :{met:1.00,tex:'step'},   // 납빛 정벽 — 계단처럼 어긋난 면
+  iron    :{met:0.55,tex:'grain'},
+  copper  :{met:0.50,tex:'vein'},   // 공작석 결 무늬
+  tin     :{met:0.45,tex:'grain'},
+  zinc    :{met:0.70,tex:'step'},
+  coal    :{met:0.30,tex:'crack'},  // 결을 따라 갈라진 금
+  flint   :{met:0.22,tex:'conch'},  // 조개 무늬 파임
+  granite :{met:0.06,tex:'speck'},  // 알갱이
+  pebble  :{met:0.10,tex:'speck'},
+  sulfur  :{met:0.18,tex:'botry'},  // 포도송이 혹
+  cinnabar:{met:0.25,tex:'botry'},
+  clay    :{met:0.00,tex:'smooth'},
+  sand    :{met:0.00,tex:'speck'}
+};
 function mineralIcon(k,hex){
   if(ICONS[k]) return ICONS[k];
-  const S=92, c=document.createElement('canvas'); c.width=c.height=S;
+  const S=128, c=document.createElement('canvas'); c.width=c.height=S;
   const g=c.getContext('2d');
   const rnd=mulberry32(hashStr('icon|'+k));
+  const H=(typeof HABIT!=='undefined'&&HABIT[k])||{amp:0.22,bump:4,nb:3,cuts:0,deep:1,
+                                                   cube:0,smooth:0.7,flat:0.88,st:0.3};
+  const L=LUSTRE[k]||{met:0.2,tex:'smooth'};
   const cx=S/2, cy=S/2+S*0.03, R=S*0.36;
+  const base=new THREE.Color(hex), col=new THREE.Color();
+  const put=(cc,m)=>{ col.copy(cc).multiplyScalar(m);
+    return 'rgb('+Math.round(clamp(col.r,0,1)*255)+','+Math.round(clamp(col.g,0,1)*255)
+      +','+Math.round(clamp(col.b,0,1)*255)+')'; };
+
+  // ① 혹  ② 자를 직선  ③ 정사각형 당기기 — 3D 쪽과 같은 순서
   const lobe=[];
-  for(let i=0;i<3;i++) lobe.push([2+Math.floor(rnd()*4), rnd()*6.283, rnd()*2-1]);
-  const NP=14, pts=[];
+  for(let i=0;i<H.nb;i++) lobe.push([2+Math.floor(rnd()*Math.max(2,H.bump/2)),
+                                     rnd()*6.283, rnd()*2-1]);
+  let wsum=0; for(const l of lobe) wsum+=Math.abs(l[2]); wsum=wsum||1;
+  const cut=[];
+  for(let i=0;i<H.cuts;i++){ const th=rnd()*6.283;
+    cut.push([Math.cos(th),Math.sin(th),H.deep*(0.86+rnd()*0.30)]); }
+  const NP=H.cuts?72:28, pts=[];
   for(let i=0;i<NP;i++){
-    const th=i/NP*6.283;
+    const th=i/NP*6.283, dx=Math.cos(th), dy=Math.sin(th);
     let f=0; for(const l of lobe) f+=l[2]*Math.sin(l[0]*th+l[1]);
-    const r=R*(1+(f/3)*0.26);
-    pts.push([cx+Math.cos(th)*r, cy+Math.sin(th)*r*0.88]);
+    let r=1+(f/wsum)*H.amp;
+    if(H.cube>0) r=r*(1-H.cube)+r*H.cube/Math.max(Math.abs(dx),Math.abs(dy));
+    for(const q of cut){ const d=dx*q[0]+dy*q[1];
+      if(d>1e-3){ const lim=q[2]/d; if(lim<r) r=lim; } }
+    pts.push([cx+dx*r*R, cy+dy*r*R*H.flat]);
   }
-  const base=new THREE.Color(hex);
   // 바닥 그림자
-  g.fillStyle='rgba(0,0,0,0.28)';
-  g.beginPath(); g.ellipse(cx,cy+R*0.86,R*0.85,R*0.20,0,0,6.283); g.fill();
-  // 내부 정점을 좌상단으로 치우쳐 두면 그쪽 면이 넓고 밝아진다
-  const ix=cx-R*0.26, iy=cy-R*0.30;
-  const col=new THREE.Color();
+  g.fillStyle='rgba(0,0,0,0.26)';
+  g.beginPath(); g.ellipse(cx,cy+R*0.92,R*0.86,R*0.19,0,0,6.283); g.fill();
+
+  // 면 나누기 — 빛이 오는 좌상단으로 치우친 안쪽 꼭짓점에서 부채꼴로
+  const ix=cx-R*0.24, iy=cy-R*0.30;
+  const path=()=>{ g.beginPath(); g.moveTo(pts[0][0],pts[0][1]);
+    for(let i=1;i<NP;i++) g.lineTo(pts[i][0],pts[i][1]); g.closePath(); };
   for(let i=0;i<NP;i++){
     const a=pts[i], b=pts[(i+1)%NP];
     const mx=(a[0]+b[0])/2-ix, my=(a[1]+b[1])/2-iy;
-    const ml=Math.hypot(mx,my)||1;
-    const lit=clamp(0.52+(-(mx/ml)*0.42-(my/ml)*0.62),0.30,1.28);
-    col.copy(base).multiplyScalar(lit);
-    g.fillStyle='rgb('+Math.round(col.r*255)+','+Math.round(col.g*255)+','
-      +Math.round(col.b*255)+')';
+    const ml=Math.hypot(mx,my)||1, nx=mx/ml, ny=my/ml;
+    // 램버트 + 금속일수록 좁고 센 반사
+    const d=clamp(-nx*0.45-ny*0.72+0.52,0,1.6);
+    let lit=0.42+d*0.62;
+    lit+=L.met*0.85*Math.pow(clamp(-nx*0.5-ny*0.78,0,1),6);
+    lit*=0.94+rnd()*0.12;                       // 면마다 살짝 다르게
+    g.fillStyle=put(base,clamp(lit,0.26,1.55));
     g.beginPath(); g.moveTo(ix,iy); g.lineTo(a[0],a[1]); g.lineTo(b[0],b[1]);
     g.closePath(); g.fill();
+    if(H.cuts&&!(i%2)){                          // 쪼개진 면의 모서리를 살짝 긋는다
+      g.strokeStyle='rgba(0,0,0,0.13)'; g.lineWidth=1;
+      g.beginPath(); g.moveTo(ix,iy); g.lineTo(a[0],a[1]); g.stroke();
+    }
   }
+
+  // 표면 무늬 — 윤곽 안으로만
+  g.save(); path(); g.clip();
+  const tex=L.tex;
+  if(tex==='speck'){                             // 알갱이(화강암·모래)
+    for(let i=0;i<190;i++){
+      const th=rnd()*6.283, rr=Math.sqrt(rnd())*R;
+      const x=cx+Math.cos(th)*rr, y=cy+Math.sin(th)*rr*H.flat;
+      g.fillStyle=rnd()<0.45?'rgba(255,255,255,0.30)':'rgba(0,0,0,0.26)';
+      g.beginPath(); g.arc(x,y,0.7+rnd()*1.5,0,6.283); g.fill();
+    }
+  }else if(tex==='botry'){                       // 포도송이 혹(황·진사)
+    for(let i=0;i<26;i++){
+      const th=rnd()*6.283, rr=Math.sqrt(rnd())*R*0.92;
+      const x=cx+Math.cos(th)*rr, y=cy+Math.sin(th)*rr*H.flat, br=R*(0.10+rnd()*0.16);
+      const gr=g.createRadialGradient(x-br*0.35,y-br*0.4,br*0.1,x,y,br);
+      gr.addColorStop(0,'rgba(255,255,255,0.30)');
+      gr.addColorStop(0.55,'rgba(255,255,255,0.05)');
+      gr.addColorStop(1,'rgba(0,0,0,0.26)');
+      g.fillStyle=gr; g.beginPath(); g.arc(x,y,br,0,6.283); g.fill();
+    }
+  }else if(tex==='crack'){                       // 결을 따라 갈라진 금(석탄)
+    for(let i=0;i<7;i++){
+      const y=cy-R*0.7+rnd()*R*1.4;
+      g.strokeStyle='rgba(0,0,0,0.42)'; g.lineWidth=0.8+rnd();
+      g.beginPath(); g.moveTo(cx-R,y);
+      for(let x=-R;x<R;x+=R*0.25) g.lineTo(cx+x,y+(rnd()*2-1)*R*0.05);
+      g.stroke();
+    }
+  }else if(tex==='conch'){                       // 조개 무늬 파임(부싯돌)
+    for(let i=0;i<5;i++){
+      const x=cx+(rnd()*2-1)*R*0.5, y=cy+(rnd()*2-1)*R*0.45, rr=R*(0.18+rnd()*0.26);
+      for(let j=1;j<=3;j++){
+        g.strokeStyle='rgba(255,255,255,'+(0.16-j*0.03)+')'; g.lineWidth=1;
+        g.beginPath(); g.arc(x,y,rr*j/3,0.6,3.4); g.stroke();
+      }
+    }
+  }else if(tex==='step'){                        // 계단처럼 어긋난 정벽(방연석·섬아연석)
+    for(let i=0;i<5;i++){
+      const x=cx-R*0.8+rnd()*R*1.2, y=cy-R*0.7+rnd()*R*1.3, w=R*(0.25+rnd()*0.4);
+      g.strokeStyle='rgba(255,255,255,0.22)'; g.lineWidth=1.2;
+      g.beginPath(); g.moveTo(x,y); g.lineTo(x+w,y-w*0.42); g.stroke();
+      g.strokeStyle='rgba(0,0,0,0.30)';
+      g.beginPath(); g.moveTo(x,y+1.4); g.lineTo(x+w,y-w*0.42+1.4); g.stroke();
+    }
+  }else if(tex==='vein'){                        // 결 무늬(공작석)
+    for(let i=0;i<9;i++){
+      const y=cy-R*0.8+i*R*0.2;
+      g.strokeStyle=i%2?'rgba(255,255,255,0.20)':'rgba(0,0,0,0.20)';
+      g.lineWidth=R*0.07;
+      g.beginPath(); g.moveTo(cx-R,y);
+      g.bezierCurveTo(cx-R*0.3,y-R*0.16,cx+R*0.3,y+R*0.16,cx+R,y); g.stroke();
+    }
+  }else if(tex==='grain'){                       // 잔 알갱이(철·주석)
+    for(let i=0;i<120;i++){
+      const th=rnd()*6.283, rr=Math.sqrt(rnd())*R;
+      g.fillStyle=rnd()<0.5?'rgba(255,255,255,0.16)':'rgba(0,0,0,0.20)';
+      g.beginPath(); g.arc(cx+Math.cos(th)*rr,cy+Math.sin(th)*rr*H.flat,
+                           0.6+rnd()*1.1,0,6.283); g.fill();
+    }
+  }
+  // 금속 광택 띠 — 좌상단에 길게
+  if(L.met>0.3){
+    const gr=g.createLinearGradient(cx-R,cy-R,cx+R*0.2,cy+R*0.3);
+    gr.addColorStop(0,'rgba(255,255,255,'+(0.10+L.met*0.30)+')');
+    gr.addColorStop(0.45,'rgba(255,255,255,0.04)');
+    gr.addColorStop(1,'rgba(0,0,0,0.16)');
+    g.fillStyle=gr; g.fillRect(0,0,S,S);
+  }
+  g.restore();
+
   // 외곽선
-  g.strokeStyle='rgba(0,0,0,0.45)'; g.lineWidth=1.2;
-  g.beginPath(); g.moveTo(pts[0][0],pts[0][1]);
-  for(let i=1;i<NP;i++) g.lineTo(pts[i][0],pts[i][1]);
-  g.closePath(); g.stroke();
+  g.strokeStyle='rgba(0,0,0,0.5)'; g.lineWidth=1.4; path(); g.stroke();
   return ICONS[k]=c.toDataURL();
 }
 

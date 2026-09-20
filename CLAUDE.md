@@ -230,6 +230,15 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   방연석을 넣을 때 재 봤다 — 맨 끝에 붙이면 다른 자원의 개수·첫 참나무 자리가 그대로다.
   광물 하나는 여덟 곳을 건드린다: `RESOURCES` · 지질 규칙 `suit` · 보정 점수 · `ROCKY` ·
   `GEOM` · `ROCK_R` · `SHADOW_R` · `MINE`.
+- **광물의 생김새는 `HABIT` 표 한 줄이다**(`buildProps` 바로 위). `buildRockBatch` 가
+  20면체 껍질에 ① 매끄러운 혹(`amp`·`bump`·`nb`) ② 무작위 평면으로 잘라 내기
+  (`cuts`·`deep` — 볼록 다면체가 되어 모난 면이 생긴다) ③ 정육면체 쪽으로 당기기
+  (`cube` — 방연석의 정벽 쪼개짐) 셋을 섞고, `smooth`(0 이면 면마다 각진다)·`flat`·`st`
+  로 마무리한다. 표에 없는 종류는 `HABIT0`(예전 그대로 둥근 덩이)으로 간다.
+  **사전 삽화(`mineralIcon`)도 같은 표를 2차원으로 읽는다** — 그래서 `HABIT` 은
+  `buildProps` 안이 아니라 바깥 최상위에 있어야 한다(안에 두면 삽화 쪽에서 안 보이고
+  조용히 `HABIT0` 으로 떨어진다). 광택·표면 무늬는 삽화 전용 표 `LUSTRE`
+  (`met` 금속 광택 · `tex` = speck·botry·crack·conch·step·vein·grain·smooth)다.
 - **칸마다 상태가 다른 것은 `indiv(T)` 가 가른다** — `T.tool||T.sips||T.durMax`.
   내구(`durMax`)를 단 물건은 도구가 아니어도 따로 선다. 안 그러면 겹쳐 쌓이면서
   남은 양이 사라진다(축전지가 그랬다).
