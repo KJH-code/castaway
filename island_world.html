@@ -2195,7 +2195,7 @@ function placePod(seed){
   const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.22,6,6),
     new THREE.MeshBasicMaterial({color:0xffb060}));
   lamp.position.set(0,2.5,0); podMesh.add(lamp);
-  LIGHT.addPoint(podMesh,{color:0xffb060,intensity:1.1,dist:26,shadow:true,pos:[0,2.6,0]});
+  LIGHT.addPoint(podMesh,{color:0xffb060,intensity:2.0,dist:26,shadow:true,pos:[0,2.6,0]});
   podMesh.position.copy(podPos); scene.add(podMesh);
   makeShip();
 }
@@ -2252,7 +2252,7 @@ function updateShip(dt){
     // 잠시 엔진을 데운다
     const k=clamp(SHIP.t/2.6,0,1);
     SHIP.jets.forEach(j=>j.material.opacity=k*0.35);
-    SHIP.light.intensity=k*0.6;
+    SHIP.light.intensity=k*1.1;
     shipMesh.position.y=SHIP.from.y+Math.sin(SHIP.t*2.2)*0.04*k;
     if(SHIP.t>=2.6){ SHIP.st='rise'; SHIP.t=0; sfx('ignite'); }
     return;
@@ -2260,7 +2260,7 @@ function updateShip(dt){
   if(SHIP.st==='rise'){
     const k=clamp(SHIP.t/3.4,0,1);
     SHIP.jets.forEach(j=>j.material.opacity=0.35+k*0.5);
-    SHIP.light.intensity=0.6+k*2.2;
+    SHIP.light.intensity=1.1+k*4.0;
     shipMesh.position.y=SHIP.from.y+k*k*26;      // 처음엔 더디게, 갈수록 빠르게
     shipMesh.rotation.y+=dt*0.16;
     if(k>=1){ SHIP.st='away'; SHIP.t=0; }
@@ -2321,8 +2321,15 @@ const LIGHT={
   /* 광원 등록 — 만드는 자리는 제각각이어도 규칙은 여기 하나다.
      shadow:true 를 준 것만 예산 경쟁에 들어간다. 카메라에 붙은 횃불처럼
      제 그림자가 보이지 않는 광원은 주지 않는다. */
-  addPoint(parent,{color=0xffffff,intensity=1,dist=20,shadow=false,pos=null}={}){
+  /* 거리 감쇠 — 세기 × (1 − 거리/사거리)^decay.
+     예전 기본값 1 은 사거리까지 일직선으로 줄어서, 불 바로 옆과 세 걸음 떨어진
+     곳의 밝기가 별로 다르지 않았다. 2 로 두면 제곱으로 떨어져 불가에 앉은 느낌이
+     난다(역제곱과 같은 모양이고, 사거리에서 정확히 0 이 되는 점만 다르다).
+     대신 같은 자리가 어두워지므로 **세기를 1.8배쯤 올려 잡는다** — 아래 광원들의
+     숫자에 이미 반영돼 있다. 새 광원도 그 몫을 얹어 잡을 것. */
+  addPoint(parent,{color=0xffffff,intensity=1,dist=20,shadow=false,pos=null,decay=2}={}){
     const l=new THREE.PointLight(color,intensity,dist);
+    l.decay=decay;
     if(pos) l.position.set(pos[0],pos[1],pos[2]);
     l.userData.wantShadow=!!shadow;
     if(shadow){ l.shadow.bias=-0.004; l.shadow.normalBias=0.06;
@@ -2331,6 +2338,7 @@ const LIGHT={
     return l;
   },
   addSpot(parent,l,shadow=false){
+    l.decay=2;
     l.userData.wantShadow=!!shadow;
     if(shadow){ l.shadow.bias=-0.0012; l.shadow.normalBias=0.04; this.locals.push(l); }
     parent.add(l);
@@ -4675,7 +4683,7 @@ function placeFurnaceAt(px,py,pz){
   pipe.position.set(0.95,0.86,0.70); grp.add(pipe);
 
   // 아치 안쪽의 잔열 — 제련이 돌아가는 동안에만 밝다
-  const li=LIGHT.addPoint(grp,{color:0xff7a26,intensity:0.55,dist:6,shadow:true,pos:[0,0.34,0.75]});
+  const li=LIGHT.addPoint(grp,{color:0xff7a26,intensity:1.0,dist:6,shadow:true,pos:[0,0.34,0.75]});
   glow.visible=false; li.visible=false;
 
   grp.rotation.y=Math.random()*Math.PI*2;
@@ -5947,7 +5955,7 @@ function updateLamp(dt,dh){
   }else if(e&&e.lit&&e.dur<=0) e.lit=false;
   lampT+=dt;
   const show=!!litLamp();
-  flash.intensity=show?1.9:0;
+  flash.intensity=show?3.4:0;   // decay 2 로 바뀐 몫(×1.8)
 }
 const LAMP_DRAIN=4.0;          // 게임시간 한 시간에 닳는 전기. 40 이면 10시간.
 let torchLight=null, torchFlame=null, torchT=0;
@@ -5985,7 +5993,7 @@ function updateTorch(dt,dh){
   torchLight.visible=show; torchFlame.visible=show;
   if(show){
     const fl=0.8+Math.sin(torchT*15.3)*0.13+Math.sin(torchT*8.7)*0.09;
-    torchLight.intensity=2.0*fl;
+    torchLight.intensity=3.6*fl;
     torchFlame.scale.set(1,fl,1);
     torchFlame.rotation.z=Math.sin(torchT*6.1)*0.09;
   }
@@ -6016,7 +6024,7 @@ function updatePower(dt){
   for(const a of ARCS){
     const live=on&&DYNAMOS.some(d=>Math.hypot(d.x-a.x,d.z-a.z)<12);
     const f=live?(0.55+Math.abs(Math.sin(arcT*17))*0.45+Math.sin(arcT*53)*0.25):0;
-    a.light.intensity=clamp(f*2.6,0,3);
+    a.light.intensity=clamp(f*4.7,0,5.4);
     a.glow.scale.setScalar(live?clamp(f,0.2,1.6):0.001);
   }
 }
@@ -6066,7 +6074,7 @@ function updateFurnaces(dt,dh){
     g.glow.visible=g.lit; g.light.visible=g.lit;
     if(g.lit){
       const fl=0.7+Math.sin(gameHours*260)*0.2+Math.sin(gameHours*97)*0.1;
-      g.light.intensity=clamp(0.9*fl*clamp(g.fuel/0.3,0.4,1),0.2,1.6);
+      g.light.intensity=clamp(1.6*fl*clamp(g.fuel/0.3,0.4,1),0.36,2.9);
     }
   }
 }
@@ -6099,7 +6107,7 @@ function updateFires(dt,dh){
     // 불꽃 흔들림 — 연료가 적으면 사그라든다
     const low=clamp(f.fuel/0.2,0.35,1);
     const flick=0.78+Math.sin(f.t*13.7)*0.12+Math.sin(f.t*7.1)*0.10;
-    f.light.intensity=2.3*flick*low;
+    f.light.intensity=4.1*flick*low;
     f.flame.scale.set(1,flick*low,1);
     f.flame.rotation.y+=dt*2.2;
   }
