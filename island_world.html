@@ -347,6 +347,7 @@
   <div class="r"><label>해상도</label><input type="range" id="pRes" min="0.25" max="2" step="0.05" value="1"><span class="v" id="vRes"></span></div>
   <div class="r"><label>시야</label><input type="range" id="pFar" min="0.4" max="2.5" step="0.05" value="1"><span class="v" id="vFar"></span></div>
   <div class="r"><label>가지 밀도</label><input type="range" id="pLimb" min="0.25" max="1.6" step="0.05" value="0.8"><span class="v" id="vLimb"></span></div>
+  <div class="r"><label>그림자</label><input type="range" id="pShadow" min="0" max="3" step="1" value="2"><span class="v" id="vShadow"></span></div>
   <div class="g">
     <button class="p" id="bGen">새 섬</button>
     <button id="bSeed">시드 무작위</button>
@@ -1296,18 +1297,8 @@ function terrainNormal(wx,wz,out){
   const dz=(F.elev[IDX(x,z+1)]-F.elev[IDX(x,z-1)])/(2*CELL);
   return out.set(-dx,1,-dz).normalize();
 }
-// 가장자리가 흐려지는 원형 그림자 텍스처 — 딱딱한 원반 테두리를 없앤다
-function makeShadowTex(){
-  const c=document.createElement('canvas'); c.width=c.height=64;
-  const g=c.getContext('2d');
-  const rg=g.createRadialGradient(32,32,0,32,32,32);
-  rg.addColorStop(0,   'rgba(0,0,0,0.55)');
-  rg.addColorStop(0.5, 'rgba(0,0,0,0.34)');
-  rg.addColorStop(0.85,'rgba(0,0,0,0.08)');
-  rg.addColorStop(1,   'rgba(0,0,0,0)');
-  g.fillStyle=rg; g.fillRect(0,0,64,64);
-  return new THREE.CanvasTexture(c);
-}
+/* 예전에는 여기 `makeShadowTex` 가 있었다 — 나무 밑에 깔던 반투명 원반이다.
+   이제 그림자는 `LIGHT` 가 그림자 지도로 실제로 드리우므로 걷어냈다. */
 
 function biomeColorAt(i,out){
   out.setHex(BIOME_INFO[F.biome[i]].c);
@@ -1378,6 +1369,7 @@ function buildWater(){
     oceanBase=Float32Array.from(g.attributes.position.array);
     ocean=new THREE.Mesh(g,new THREE.MeshLambertMaterial({
       color:0x12303f,transparent:true,opacity:0.9}));
+    ocean.userData.lightRole='recv';     // 수면은 받기만 — 드리울 것이 없다
     scene.add(ocean);
   }
   // 하천 수면 — 하도 셀 위에 얇은 판을 덮어 물길이 눈에 보이게 한다
@@ -1414,6 +1406,7 @@ function buildWater(){
     g.computeBoundingSphere();
     riverMesh=new THREE.Mesh(g,new THREE.MeshLambertMaterial({
       color:0x1d3f4e,transparent:true,opacity:0.8}));
+    riverMesh.userData.lightRole='recv';
     scene.add(riverMesh);
   }else riverMesh=null;
 }
@@ -1831,9 +1824,6 @@ function buildProps(){
   }
 
   const RAD={oak:0.6,fir:0.5,granite:1.5,copper:0.9,iron:0.8,coal:0.8};
-  const SHADOW_R={oak:2.6,fir:2.0,granite:1.9,copper:1.2,iron:1.1,coal:1.1,zinc:1.0,
-                  galena:1.0,cinnabar:0.95,clay:1.6};
-  const shadowList=[];
   const trunkMat=new THREE.MeshLambertMaterial({color:0x392f26});
   const limbMat =new THREE.MeshLambertMaterial({color:0x453729});
 
@@ -1931,12 +1921,19 @@ function buildProps(){
         map:R.k==='oak'?treeTexOak:treeTexFir, alphaTest:0.4,
         side:THREE.DoubleSide});
       const CAN=R.k==='oak'?{y0:2.2,y1:7.6,w:5.4}:{y0:1.4,y1:8.4,w:4.4};
+      /* 알파 카드는 깊이 재질을 따로 줘야 한다 — 안 주면 그림자 지도에
+         판때기 네모가 통째로 찍혀 잎 사이로 빛이 새지 않는다. */
+      const depthOf=(m)=>m.map?new THREE.MeshDepthMaterial({
+        depthPacking:THREE.RGBADepthPacking, map:m.map, alphaTest:m.alphaTest}):null;
+      const leafDepth=depthOf(leafMat), bbDepth=depthOf(bbMat);
       for(const b of bins.values()){
         const lm=new THREE.InstancedMesh(limbUnit,limbMat,b.total);
         const fm=new THREE.InstancedMesh(R.k==='oak'?leafUnitOak:leafUnitFir,
                                          leafMat,b.total*LPB);
         const bb=new THREE.InstancedMesh(bbUnit,bbMat,b.ps.length);
         lm.frustumCulled=false; fm.frustumCulled=false; bb.frustumCulled=false;
+        if(leafDepth) fm.customDepthMaterial=leafDepth;
+        if(bbDepth)   bb.customDepthMaterial=bbDepth;
         b.ps.forEach((p,i)=>{
           p._lb=lm; p._lf=fm; p._bb=bb; p._bbi=i;
           _lbV.set(p.x, p.y+CAN.y0*p.s, p.z);
@@ -2040,10 +2037,11 @@ function buildProps(){
         const col={x:p.x,z:p.z,r:RAD[R.k]*p.s};
         COLLIDERS.push(col); p._col=col;
       }
-      if(SHADOW_R[R.k]) shadowList.push({x:p.x,y:gy,z:p.z,r:SHADOW_R[R.k]*p.s});
     });
 
     // 암석류는 인스턴싱 대신, 개체마다 새로 만든 형상을 한 버퍼에 이어 붙인다
+    // 풀·갈대는 받기만 — 4만 포기를 그림자 지도에 또 그릴 수는 없다
+    if(R.k==='grass'||R.k==='reed') ms.forEach(m=>{ m.userData.lightRole='recv'; });
     if(ROCK_R[R.k]){
       ms.forEach(m=>{ m.geometry.dispose(); m.material.dispose(); });
       const batch=buildRockBatch(list,R);
@@ -2056,28 +2054,6 @@ function buildProps(){
     if(tree) for(const t of TREE_TILES){
       t.lm.instanceMatrix.needsUpdate=true; t.fm.instanceMatrix.needsUpdate=true;
     }
-  }
-
-  // 접지 그림자 — 지면 법선에 맞춰 눕히고, 가장자리를 흐려 지형에 녹인다
-  if(shadowList.length){
-    const sg=new THREE.CircleGeometry(1,14); sg.rotateX(-Math.PI/2);
-    const sm=new THREE.MeshBasicMaterial({
-      map:makeShadowTex(), transparent:true, depthWrite:false,
-      polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-4});
-    const shm=new THREE.InstancedMesh(sg,sm,shadowList.length);
-    shm.renderOrder=-1;
-    const NRM=new THREE.Vector3();
-    shadowList.forEach((sd,i)=>{
-      terrainNormal(sd.x,sd.z,NRM);
-      Q.setFromUnitVectors(_UP,NRM);              // 원반을 비탈면과 나란히
-      V.set(sd.x+NRM.x*0.05, sd.y+NRM.y*0.05, sd.z+NRM.z*0.05);
-      // 경사가 급할수록 원반이 지면을 파고들기 쉬우니 조금 줄인다
-      const r=sd.r*(1-clamp(slopeAt(sd.x,sd.z),0,1.4)*0.22);
-      S.set(r,1,r);
-      M.compose(V,Q,S); shm.setMatrixAt(i,M);
-    });
-    shm.instanceMatrix.needsUpdate=true; shm.frustumCulled=false;
-    propGroup.add(shm);
   }
 
   buildBerries();
@@ -2219,7 +2195,7 @@ function placePod(seed){
   const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.22,6,6),
     new THREE.MeshBasicMaterial({color:0xffb060}));
   lamp.position.set(0,2.5,0); podMesh.add(lamp);
-  const pl=new THREE.PointLight(0xffb060,1.1,26); pl.position.set(0,2.6,0); podMesh.add(pl);
+  LIGHT.addPoint(podMesh,{color:0xffb060,intensity:1.1,dist:26,shadow:true,pos:[0,2.6,0]});
   podMesh.position.copy(podPos); scene.add(podMesh);
   makeShip();
 }
@@ -2255,8 +2231,8 @@ function makeShip(){
     j.rotation.x=Math.PI; j.position.set(sx*2.0,2.2,4.6); g.add(j);
     SHIP.jets.push(j);
   }
-  const li=new THREE.PointLight(0x9fd8ff,0,40); li.position.set(0,2.0,4.6);
-  g.add(li); SHIP.light=li;
+  const li=LIGHT.addPoint(g,{color:0x9fd8ff,intensity:0,dist:40,pos:[0,2.0,4.6]});
+  SHIP.light=li;
   /* 캡슐 옆에 내려앉는다 — 바다 쪽으로 머리를 두게 놓는다 */
   const away=new THREE.Vector3(podPos.x,0,podPos.z).normalize();
   if(!isFinite(away.x)||away.lengthSq()<1e-6) away.set(0,0,1);
@@ -2297,6 +2273,178 @@ function updateShip(dt){
   shipMesh.position.y+=(14+SHIP.t*6)*dt;
   if(SHIP.t>12){ scene.remove(shipMesh); shipMesh=null; }
 }
+
+/* ============================================================================
+   빛 — 광원 · 물체 · 그림자를 한 곳에서 다룬다
+   ----------------------------------------------------------------------------
+   예전에는 해가 물체를 비추기만 하고 그림자는 따로 있었다 — 나무 밑에 반투명
+   원반을 깔아 둔 가짜였다. 그래서 집도 벽도 사람도 그림자가 없었고, 횃불이나
+   화덕 불빛은 그림자를 아예 만들지 못했다.
+
+   이제 그림자는 광원의 성질이다. 어느 광원이든 `LIGHT.addPoint`/`addSpot` 으로
+   등록하면 같은 규칙을 받고, 그림자를 드리울지는 **예산**이 정한다.
+
+   세 부분이다.
+
+   ① 배역(`role`) — 물체가 빛에 어떻게 참여하는지. 씬을 훑어 한 번에 정한다.
+        'full'  드리우고 받는다(기본)   — 지형 · 나무 · 바위 · 건물
+        'recv'  받기만 한다             — 풀 · 갈대 · 수면 (드리워 봐야 안 보이고 비싸다)
+        'none'  빛 계산에서 뺀다        — 하늘 · 해 · 불꽃 · 예광탄 (MeshBasicMaterial 은 자동)
+      `userData.lightRole` 로 적어 두면 그대로 따르고, **아래 것들이 물려받는다** —
+      무리 하나에 적으면 그 밑이 다 따른다. 없으면 재질로 정한다.
+      새로 만든 물체는 `LIGHT.refresh()` 한 번이면 편입된다.
+
+   ② 해 그림자 — 섬이 1920 m 라 전체를 한 장에 담을 수 없다. 사람 주위
+      `R` m 만 덮는 평행투영 상자를 **사람을 따라 옮긴다**. 그냥 옮기면 상자가
+      반 텍셀씩 밀릴 때마다 그림자 가장자리가 들끓으므로(shadow swimming)
+      **중심을 텍셀 격자에 맞춰 끊어서** 옮긴다.
+
+   ③ 그림자 예산 — 점광원 그림자는 한 광원이 정육면체 여섯 면이라 비싸다.
+      등록된 광원 중 **지금 화면에서 가장 값이 나가는 것 K개**에만 그림자를 준다
+      (`score` = 세기 × 사거리 ÷ 거리). 밀려난 광원은 그림자 지도를 반납한다 —
+      안 그러면 지나친 모닥불 수만큼 GPU 메모리가 쌓인다.
+
+   품질은 설정의 '그림자' 한 줄이 정한다 — 끄기 · 낮음 · 보통 · 높음.
+   ========================================================================== */
+const LIGHT={
+  /* size 해 그림자 지도 한 변 · R 덮는 반경(m) · pts 점광원 그림자 개수 ·
+     psize 점광원 지도 한 변 · soft 부드러운 가장자리 */
+  QUAL:[{n:'끄기',size:0,   R:0,  pts:0,psize:0,  soft:false},
+        {n:'낮음',size:1024,R:38, pts:0,psize:0,  soft:false},
+        {n:'보통',size:2048,R:55, pts:1,psize:512,soft:true},
+        {n:'높음',size:4096,R:78, pts:2,psize:768,soft:true}],
+  q:2,
+  locals:[],            // 등록된 점·집중 광원
+  _sunOn:false,
+  _c:new THREE.Vector3(), _f:new THREE.Vector3(), _w:new THREE.Vector3(),
+
+  /* 광원 등록 — 만드는 자리는 제각각이어도 규칙은 여기 하나다.
+     shadow:true 를 준 것만 예산 경쟁에 들어간다. 카메라에 붙은 횃불처럼
+     제 그림자가 보이지 않는 광원은 주지 않는다. */
+  addPoint(parent,{color=0xffffff,intensity=1,dist=20,shadow=false,pos=null}={}){
+    const l=new THREE.PointLight(color,intensity,dist);
+    if(pos) l.position.set(pos[0],pos[1],pos[2]);
+    l.userData.wantShadow=!!shadow;
+    if(shadow){ l.shadow.bias=-0.004; l.shadow.normalBias=0.06;
+                l.shadow.camera.near=0.25; this.locals.push(l); }
+    parent.add(l);
+    return l;
+  },
+  addSpot(parent,l,shadow=false){
+    l.userData.wantShadow=!!shadow;
+    if(shadow){ l.shadow.bias=-0.0012; l.shadow.normalBias=0.04; this.locals.push(l); }
+    parent.add(l);
+    return l;
+  },
+  drop(l){ const i=this.locals.indexOf(l); if(i>=0) this.locals.splice(i,1); this.free(l); },
+  free(l){                                  // 그림자 지도 반납
+    l.castShadow=false;
+    if(l.shadow&&l.shadow.map){ l.shadow.map.dispose(); l.shadow.map=null; }
+  },
+
+  /* ① 배역 — 재질을 보고 정한다. 한 번 훑으면 새로 생긴 것까지 편입된다. */
+  roleOf(o){
+    // 배역은 물려받는다 — 무리(Group) 하나에 적어 두면 그 아래가 다 따른다
+    for(let p=o;p;p=p.parent)
+      if(p.userData&&p.userData.lightRole) return p.userData.lightRole;
+    const m=o.material;
+    if(!m) return 'none';
+    const one=Array.isArray(m)?m[0]:m;
+    if(!one||one.isMeshBasicMaterial||one.isPointsMaterial||one.isLineBasicMaterial)
+      return 'none';                        // 스스로 빛나는 것 — 빛을 받지도 드리우지도 않는다
+    return 'full';
+  },
+  refresh(){
+    const on=this.QUAL[this.q].size>0;
+    scene.traverse(o=>{
+      if(!o.isMesh&&!o.isInstancedMesh) return;
+      const r=on?this.roleOf(o):'none';
+      o.castShadow   = (r==='full');
+      o.receiveShadow= (r==='full'||r==='recv');
+    });
+  },
+
+  setQuality(q){
+    this.q=clamp(q|0,0,this.QUAL.length-1);
+    const Q=this.QUAL[this.q];
+    renderer.shadowMap.enabled=Q.size>0;
+    renderer.shadowMap.type=Q.soft?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;
+    if(sun){
+      this.free(sun);
+      if(Q.size>0){
+        sun.shadow.mapSize.set(Q.size,Q.size);
+        const c=sun.shadow.camera;
+        c.left=-Q.R; c.right=Q.R; c.top=Q.R; c.bottom=-Q.R;
+        c.near=1; c.far=Q.R*4+200;
+        c.updateProjectionMatrix();
+        sun.shadow.bias=-0.0006;
+        sun.shadow.normalBias=Math.max(0.35,Q.R/120);  // 넓게 덮을수록 텍셀이 굵다
+        sun.castShadow=true;
+      }
+    }
+    for(const l of this.locals) this.free(l);
+    this.refresh();
+    renderer.shadowMap.needsUpdate=true;
+  },
+
+  /* ②③ 매 프레임 — 해 상자를 사람에게 옮기고, 점광원 그림자를 나눠 준다 */
+  _t:9,
+  update(dt){
+    const Q=this.QUAL[this.q];
+    /* 새로 세운 집·설비도 자동으로 편입된다 — 만드는 자리마다 배역을 적어 주는
+       대신 가끔 씬을 훑는다. 물체 몇백 개 도는 일이라 값이 없다시피 하다. */
+    this._t+=dt||0;
+    if(this._t>0.7){ this._t=0; this.refresh(); }
+    if(!Q.size){ return; }
+
+    // ── 해: 낮은 각도에서는 그림자가 끝없이 길어져 얼룩만 남으므로 접는다
+    const lowSun=sun.intensity<0.12;
+    if(sun.castShadow===lowSun){ sun.castShadow=!lowSun; if(lowSun) this.free(sun); }
+    if(!lowSun){
+      // 시선 앞쪽을 더 덮는다 — 뒤통수의 그림자는 화면에 없다
+      camera.getWorldDirection(this._f); this._f.y=0;
+      if(this._f.lengthSq()<1e-6) this._f.set(0,0,-1); else this._f.normalize();
+      const cx=PL.pos.x+this._f.x*Q.R*0.45, cz=PL.pos.z+this._f.z*Q.R*0.45;
+      // 텍셀 격자에 맞춰 끊어서 옮긴다 — 그림자 가장자리가 들끓는 것을 막는다
+      const tex=(Q.R*2)/Q.size, snap=v=>Math.round(v/tex)*tex;
+      const sxz=snap(cx), szz=snap(cz), sy=heightAt(cx,cz);
+      // 광원 방향은 updateSky 가 정한 해 위치를 그대로 쓴다(정규화해 거리만 고정)
+      this._w.copy(sun.position).normalize().multiplyScalar(Q.R*2+120);
+      sun.position.set(sxz+this._w.x, sy+this._w.y, szz+this._w.z);
+      sun.target.position.set(sxz,sy,szz);
+      sun.target.updateMatrixWorld();
+    }
+
+    // ── 점·집중 광원: 값이 나가는 순서로 K개
+    const K=Q.pts;
+    if(!this.locals.length) return;
+    const cam=camera.position;
+    let best=null, best2=null, s1=-1, s2=-1;
+    for(const l of this.locals){
+      let sc=-1;
+      if(l.userData.wantShadow&&l.visible&&l.intensity>0.05){
+        l.getWorldPosition(this._c);
+        const d=this._c.distanceTo(cam);
+        // 사거리 밖으로 벗어난 불은 화면에 그림자를 만들지 않는다
+        if(d < (l.distance||30)+34) sc=l.intensity*(l.distance||30)/(4+d);
+      }
+      if(sc>s1){ s2=s1; best2=best; s1=sc; best=l; }
+      else if(sc>s2){ s2=sc; best2=l; }
+    }
+    const win1=K>=1?best:null, win2=K>=2?best2:null;
+    for(const l of this.locals){
+      const want=(l===win1&&s1>0)||(l===win2&&s2>0);
+      if(want){
+        if(!l.castShadow){
+          l.shadow.mapSize.set(Q.psize,Q.psize);
+          l.shadow.camera.far=(l.distance||30)+2;
+          if(l.shadow.camera.updateProjectionMatrix) l.shadow.camera.updateProjectionMatrix();
+          l.castShadow=true;
+        }
+      }else if(l.castShadow) this.free(l);
+    }
+  }
+};
 
 /* ---------------- 하늘 · 광원 · 시간 ---------------- */
 /* s = 천정색, z = 지평선색, u = 광원색, a = 환경광, d = 안개, i = 태양광 */
@@ -4527,8 +4675,7 @@ function placeFurnaceAt(px,py,pz){
   pipe.position.set(0.95,0.86,0.70); grp.add(pipe);
 
   // 아치 안쪽의 잔열 — 제련이 돌아가는 동안에만 밝다
-  const li=new THREE.PointLight(0xff7a26,0.55,6);
-  li.position.set(0,0.34,0.75); grp.add(li);
+  const li=LIGHT.addPoint(grp,{color:0xff7a26,intensity:0.55,dist:6,shadow:true,pos:[0,0.34,0.75]});
   glow.visible=false; li.visible=false;
 
   grp.rotation.y=Math.random()*Math.PI*2;
@@ -5570,7 +5717,7 @@ function placeArcAt(px,py,pz){
   const gap=new THREE.Mesh(new THREE.SphereGeometry(0.10,8,6),
     new THREE.MeshBasicMaterial({color:0x9fd8ff}));
   gap.position.y=0.78; g.add(gap);
-  const li=new THREE.PointLight(0x7fc4ff,0,14); li.position.y=0.8; g.add(li);
+  const li=LIGHT.addPoint(g,{color:0x7fc4ff,intensity:0,dist:14,shadow:true,pos:[0,0.8,0]});
   g.rotation.y=Math.random()*6.283;
   g.position.set(px,py,pz); scene.add(g);
   ARCS.push({x:px,y:py,z:pz,mesh:g,glow:gap,light:li});
@@ -5716,8 +5863,8 @@ function placeCampfireAt(x,y,z){
     c.position.y=0.42-i*0.06; flame.add(c);
   }
   flame.visible=false; g.add(flame);
-  const light=new THREE.PointLight(0xff8038,0,22); light.position.y=0.6;
-  light.visible=false; g.add(light);
+  const light=LIGHT.addPoint(g,{color:0xff8038,intensity:0,dist:22,shadow:true,pos:[0,0.6,0]});
+  light.visible=false;
 
   g.position.set(x,y,z); scene.add(g);
   const fire={kind:'fire', cname:'화덕', cap:40, slotCap:10, slots:[],
@@ -5805,9 +5952,10 @@ function updateLamp(dt,dh){
 const LAMP_DRAIN=4.0;          // 게임시간 한 시간에 닳는 전기. 40 이면 10시간.
 let torchLight=null, torchFlame=null, torchT=0;
 function initTorchFx(){
-  torchLight=new THREE.PointLight(0xff9040,0,26);
-  torchLight.position.set(0.42,-0.28,-0.5); torchLight.visible=false;
-  camera.add(torchLight);
+  /* 횃불은 카메라에 붙어 있다 — 광원과 눈이 같은 자리라 제 그림자가 화면에
+     나타나지 않는다. 여섯 면을 그려 봐야 버리는 셈이라 예산에 안 넣는다. */
+  torchLight=LIGHT.addPoint(camera,{color:0xff9040,intensity:0,dist:26,pos:[0.42,-0.28,-0.5]});
+  torchLight.visible=false;
   torchFlame=new THREE.Group();
   const c1=new THREE.Mesh(new THREE.ConeGeometry(0.055,0.17,5),
     new THREE.MeshBasicMaterial({color:0xff7a28}));
@@ -7889,6 +8037,8 @@ function updateHUD(dt){
 function initThree(){
   renderer=new THREE.WebGLRenderer({canvas:cv,antialias:false,powerPreference:'high-performance'});
   renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   scene=new THREE.Scene();
   scene.background=new THREE.Color(0x7d8f9b);
   /* 안개 — 나무가 150 m 에서 사라지므로 그 앞에서 잠기도록 짙게 잡는다.
@@ -7900,10 +8050,17 @@ function initThree(){
   amb=new THREE.AmbientLight(0x8fa4b4,0.5); scene.add(amb);
   hemi=new THREE.HemisphereLight(0x9db4c6,0x2c3128,0.35); scene.add(hemi);
   sun=new THREE.DirectionalLight(0xc9c6b4,0.9); scene.add(sun);
+  scene.add(sun.target);                 // 해 상자가 사람을 따라가려면 표적도 씬에 있어야 한다
   initTorchFx(); initWeaponFx(); initTracer();
   flash=new THREE.SpotLight(0xfff0d6,0,55,0.55,0.5,1.4);
   flash.position.set(0.2,-0.1,0); flash.target.position.set(0,0,-1);
-  camera.add(flash); camera.add(flash.target); scene.add(camera);
+  /* 카메라에 붙은 것(손에 든 무기·횃불)은 받기만 한다 — 눈앞 30 cm 짜리가
+     그림자 지도에 찍히면 발밑에 정체 모를 얼룩이 생긴다. 배역은 물려받으므로
+     여기 한 줄이면 카메라 밑이 다 따른다. */
+  camera.userData.lightRole='recv';
+  LIGHT.addSpot(camera,flash,true);      // 손전등은 그림자를 만든다
+  camera.add(flash.target); scene.add(camera);
+  LIGHT.setQuality(LIGHT.q);
   resize(); addEventListener('resize',resize);
 }
 function resize(){
@@ -8496,6 +8653,11 @@ document.getElementById('pFar').addEventListener('input',e=>{
   document.getElementById('vFar').textContent=farScale.toFixed(2);
 });
 document.getElementById('vFar').textContent=farScale.toFixed(2);
+document.getElementById('pShadow').addEventListener('input',e=>{
+  LIGHT.setQuality(parseInt(e.target.value,10));
+  document.getElementById('vShadow').textContent=LIGHT.QUAL[LIGHT.q].n;
+});
+document.getElementById('vShadow').textContent=LIGHT.QUAL[LIGHT.q].n;
 document.getElementById('pLimb').addEventListener('input',e=>{
   P.limb=parseFloat(e.target.value);
   document.getElementById('vLimb').textContent=P.limb.toFixed(2);
@@ -8554,6 +8716,7 @@ function loop(){
     updateWeapon(dt); updatePower(dt);
     updateOcean(now*0.001);
     updateSky();
+    LIGHT.update(dt);           // 해 그림자 상자를 사람에게 옮기고 불빛에 그림자를 나눈다
     if(flyMode){
       const sp=Math.sin(fly.ph),cp=Math.cos(fly.ph);
       fly.tx=PL.pos.x; fly.tz=PL.pos.z; fly.ty=PL.pos.y;
