@@ -239,6 +239,12 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   `buildProps` 안이 아니라 바깥 최상위에 있어야 한다(안에 두면 삽화 쪽에서 안 보이고
   조용히 `HABIT0` 으로 떨어진다). 광택·표면 무늬는 삽화 전용 표 `LUSTRE`
   (`met` 금속 광택 · `tex` = speck·botry·crack·conch·step·vein·grain·smooth)다.
+- **프롭이 땅에 앉는 높이는 `propOff(종류, 크기)` 하나다**(`buildProps` 안). 세 군데에
+  같은 식이 복사돼 있던 것을 합쳤다 — 행렬 배치 · 채집 표시(`_foff`) · 나무(`_toff`).
+  **점토 노출지·모래 언덕처럼 땅에 눕는 넓적한 것(`FLAT_PROP`)은 두 가지를 더 지킨다** —
+  임의로 기울이지 말고 `terrainNormal` 에 맞춰 눕히고, 원반 두께의 절반보다 깊게
+  파묻는다(점토 −0.16 · 모래 −0.18). 예전 값(+0.4 · +0.22)은 지름 3 m 원반의 밑면을
+  아예 공중에 띄워 놓고 있었다.
 - **칸마다 상태가 다른 것은 `indiv(T)` 가 가른다** — `T.tool||T.sips||T.durMax`.
   내구(`durMax`)를 단 물건은 도구가 아니어도 따로 선다. 안 그러면 겹쳐 쌓이면서
   남은 양이 사라진다(축전지가 그랬다).

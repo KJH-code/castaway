@@ -1842,6 +1842,19 @@ function buildProps(){
 
   const M=new THREE.Matrix4(),Q=new THREE.Quaternion(),V=new THREE.Vector3(),
         S=new THREE.Vector3(),E=new THREE.Euler();
+  /* 땅에 눕는 넓적한 것(점토 노출지·모래 언덕)은 지름이 3 m 가까운 원반이라
+     비탈에서 가장자리가 공중에 뜬다. 두 가지로 막는다 —
+     ① 임의로 기울이지 말고 지면 법선에 맞춰 눕힌다
+     ② 원반 두께의 절반보다 깊게 파묻어 지형이 굽어도 밑이 안 드러난다.
+     예전 값(점토 +0.4 · 모래 +0.22)은 원반 밑면을 아예 지면 위로 띄워 놓고 있었다
+     — 점토는 두께가 0.5 라 밑면이 늘 0.15 m 떠 있었다. */
+  const FLAT_PROP={clay:1, sand:1};
+  const propOff=(k,sc)=>(k==='fir'?3.5:k==='oak'?2.6:
+      k==='clay'?-0.16:k==='sand'?-0.18:
+      (k==='grass'||k==='reed')?0:
+      k==='flint'?0.15:k==='pebble'?0.11:0.5)*sc;
+  const _pN=new THREE.Vector3(), _pUP=new THREE.Vector3(0,1,0),
+        _pQt=new THREE.Quaternion();
 
   for(const R of RESOURCES){
     const list=byKind[R.k]; if(!list||!list.length) continue;
@@ -1945,15 +1958,13 @@ function buildProps(){
       const lx=((lh%100)/100-0.5)*(tree?0.10:0.5);
       const lz=(((lh>>>9)%100)/100-0.5)*(tree?0.10:0.5);
       geos.forEach((g,gi)=>{
-        let off;
-        if(tree) off = (R.k==='fir'?3.5:2.6)*p.s;
-        else if(R.k==='clay') off=0.4*p.s;
-        else if(R.k==='sand') off=0.22*p.s;
-        else if(R.k==='reed'||R.k==='grass') off=0;
-        else if(R.k==='flint') off=0.15*p.s;
-        else if(R.k==='pebble') off=0.11*p.s;
-        else off=0.5*p.s;
-        E.set(lx,p.r,lz); Q.setFromEuler(E);
+        const off=propOff(R.k,p.s);
+        if(FLAT_PROP[R.k]){                       // 비탈에 맞춰 눕힌다
+          terrainNormal(p.x,p.z,_pN);
+          E.set(0,p.r,0); Q.setFromEuler(E);
+          _pQt.setFromUnitVectors(_pUP,_pN);
+          Q.premultiply(_pQt);
+        }else{ E.set(lx,p.r,lz); Q.setFromEuler(E); }
         V.set(p.x,gy+off,p.z); S.set(p.s,p.s,p.s);
         M.compose(V,Q,S); ms[gi].setMatrixAt(ix,M);
       });
@@ -2019,12 +2030,10 @@ function buildProps(){
 
       if(HARVEST[R.k]||MINE[R.k]){
         p._fi=ix;
-        if(tree){ p._fm=null; p._tm=ms[0]; p._toff=(R.k==='fir'?3.5:2.6)*p.s; }
+        if(tree){ p._fm=null; p._tm=ms[0]; p._toff=propOff(R.k,p.s); }
         else{
           p._fm=ms[0];
-          p._foff=(R.k==='flint'?0.15:R.k==='pebble'?0.11:
-                   (R.k==='grass'||R.k==='reed')?0:
-                   R.k==='clay'?0.4:R.k==='sand'?0.22:0.5)*p.s;
+          p._foff=propOff(R.k,p.s);
         }
       }
       if(RAD[R.k]){
