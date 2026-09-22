@@ -2370,9 +2370,9 @@ const LIGHT={
   /* size 해 그림자 지도 한 변 · R 덮는 반경(m) · pts 점광원 그림자 개수 ·
      psize 점광원 지도 한 변 · soft 부드러운 가장자리 */
   QUAL:[{n:'끄기',size:0,   R:0,  pts:0,psize:0,  soft:false},
-        {n:'낮음',size:1024,R:38, pts:0,psize:0,  soft:false},
-        {n:'보통',size:2048,R:55, pts:1,psize:512,soft:true},
-        {n:'높음',size:4096,R:78, pts:2,psize:768,soft:true}],
+        {n:'낮음',size:1024,R:36, pts:0,psize:0,  soft:false},
+        {n:'보통',size:2048,R:46, pts:1,psize:512,soft:true},
+        {n:'높음',size:4096,R:64, pts:2,psize:768,soft:true}],
   q:2,
   locals:[],            // 등록된 점·집중 광원
   _sunOn:false,
@@ -2392,7 +2392,7 @@ const LIGHT={
     l.decay=decay;
     if(pos) l.position.set(pos[0],pos[1],pos[2]);
     l.userData.wantShadow=!!shadow;
-    if(shadow){ l.shadow.bias=-0.004; l.shadow.normalBias=0.06;
+    if(shadow){ l.shadow.bias=0; l.shadow.normalBias=0.03;   // 해와 같은 이유로 0 (뒷면을 그린다)
                 l.shadow.camera.near=0.25; this.locals.push(l); }
     parent.add(l);
     return l;
@@ -2400,7 +2400,7 @@ const LIGHT={
   addSpot(parent,l,shadow=false){
     l.decay=2;
     l.userData.wantShadow=!!shadow;
-    if(shadow){ l.shadow.bias=-0.0012; l.shadow.normalBias=0.04; this.locals.push(l); }
+    if(shadow){ l.shadow.bias=0; l.shadow.normalBias=0.03; this.locals.push(l); }
     parent.add(l);
     return l;
   },
@@ -2444,14 +2444,25 @@ const LIGHT={
         sun.shadow.mapSize.set(Q.size,Q.size);
         const c=sun.shadow.camera;
         c.left=-Q.R; c.right=Q.R; c.top=Q.R; c.bottom=-Q.R;
-        c.near=1; c.far=Q.R*4+200;
+        /* 깊이 범위는 덮는 상자에 바짝 붙인다 — 평행투영은 깊이가 선형이라
+           near~far 가 넓을수록 한 눈금이 굵어지고, 그만큼 여드름이 잘 생긴다.
+           광원을 SUN_D 만큼 띄워 두므로 그 앞뒤로 SUN_PAD 만 남긴다. */
+        const D=Q.R*2+80;
+        c.near=Math.max(0.5,D-Q.R-120); c.far=D+Q.R+120;
         c.updateProjectionMatrix();
-        sun.shadow.bias=-0.0005;
+        /* bias 는 0 이다. **Three 는 그림자 지도에 뒷면을 그린다**(FrontSide 재질의
+           깊이 재질은 BackSide 로 뒤집힌다). 앞면을 그릴 때 쓰던 음수 bias 를 그대로
+           두면 비교 깊이가 빛 쪽으로 0.2 m 나 당겨져, 빛이 비스듬히 스치는 자리에서
+           제 뒷면보다 뒤로 밀려 **제 몸에 줄무늬 그림자가 앉는다**(사진의 그 얼룩).
+           뒷면을 그리는 이상 상수 bias 는 필요 없다. */
+        sun.shadow.bias=0;
         /* normalBias 는 그림자를 찾을 자리를 법선 쪽으로 밀어 여드름을 막는다.
            **텍셀 굵기로 재야 한다** — 예전의 0.35~0.65 m 는 텍셀(보통 0.054 m)의
            열 배라, 작은 돌은 표본이 아예 제 몸 밖으로 나가 그림자가 몸에서 떨어져
            보였다(자갈은 지름이 0.26 m 라 통째로 벗어났다). 두 텍셀이면 충분하다. */
-        sun.shadow.normalBias=2*(2*Q.R/Q.size);
+        /* normalBias 는 표본을 법선 쪽으로 밀어 남은 여드름을 지운다. 밀수록
+           물체와 그림자가 떨어지므로(밑동에 그림자가 안 생긴다) 한 텍셀만 민다. */
+        sun.shadow.normalBias=2*Q.R/Q.size;
         sun.castShadow=true;
       }
     }
@@ -2482,7 +2493,7 @@ const LIGHT={
       const tex=(Q.R*2)/Q.size, snap=v=>Math.round(v/tex)*tex;
       const sxz=snap(cx), szz=snap(cz), sy=heightAt(cx,cz);
       // 광원 방향은 updateSky 가 정한 해 위치를 그대로 쓴다(정규화해 거리만 고정)
-      this._w.copy(sun.position).normalize().multiplyScalar(Q.R*2+120);
+      this._w.copy(sun.position).normalize().multiplyScalar(Q.R*2+80);
       sun.position.set(sxz+this._w.x, sy+this._w.y, szz+this._w.z);
       sun.target.position.set(sxz,sy,szz);
       sun.target.updateMatrixWorld();
