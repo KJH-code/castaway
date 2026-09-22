@@ -2703,7 +2703,7 @@ function cloudTex(draw,seed){
        굽는다. 올을 넉넉히 둬야 실뭉치가 아니라 깃털로 보인다. */
     const ny=10+Math.floor(rnd()*8);
     for(let i=0;i<ny;i++){
-      const y0=H*(0.08+rnd()*0.84), len=W*(0.35+rnd()*0.62), x0=W*(rnd()*0.5-0.05);
+      const y0=H*(0.14+rnd()*0.72), len=W*(0.30+rnd()*0.46), x0=W*(0.06+rnd()*0.36);
       const bow=(rnd()*2-1)*H*0.18, hook=(rnd()*2-1)*H*0.16;
       const th=0.5+rnd()*1.2;                       // 가닥 굵기
       const nk=9+Math.floor(rnd()*9);               // 한 가닥을 이루는 올
@@ -2766,11 +2766,20 @@ function cloudTex(draw,seed){
       gr.addColorStop(1,'rgba(255,255,255,0)');
       g.fillStyle=gr; g.beginPath(); g.arc(x,y,r,0,6.283); g.fill();
     }
-    // 가장자리는 흐리게 지워 네모가 안 보이게
+  }
+  /* **테두리는 어느 갈래든 지운다.** 그림을 캔버스 끝까지 그려 두면 판때기가
+     끝나는 자리가 하늘에 직선으로 그인다 — 새털 가닥이 중간에서 뚝 끊기거나
+     솜뭉치 한쪽이 칼로 자른 듯 평평해지던 것이 이것이다. 네 변을 안쪽으로
+     흐려서 없앤다. 솟은 구름의 평평한 밑면은 이 앞에서 이미 만들어 두었다. */
+  {
+    const band=0.16;
     g.globalCompositeOperation='destination-out';
-    for(const [x0,y0,x1,y1] of [[0,0,W*0.22,0],[W,0,W*0.78,0],[0,0,0,H*0.22],[0,H,0,H*0.78]]){
+    for(const [x0,y0,x1,y1] of [[0,0,W*band,0],[W,0,W*(1-band),0],
+                                [0,0,0,H*band],[0,H,0,H*(1-band)]]){
       const gr=g.createLinearGradient(x0,y0,x1,y1);
-      gr.addColorStop(0,'rgba(0,0,0,1)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+      gr.addColorStop(0,'rgba(0,0,0,1)');
+      gr.addColorStop(0.45,'rgba(0,0,0,0.35)');
+      gr.addColorStop(1,'rgba(0,0,0,0)');
       g.fillStyle=gr; g.fillRect(0,0,W,H);
     }
     g.globalCompositeOperation='source-over';
