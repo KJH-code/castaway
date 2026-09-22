@@ -99,6 +99,12 @@
   #box .bh{display:flex;justify-content:space-between;font-size:11px;
     color:#e6f5ee;padding-bottom:8px;border-bottom:1px solid var(--line)}
   #box .cols{display:flex;gap:12px;margin-top:8px}
+  /* 닫는 법은 머리글에 — 바닥글의 긴 안내 끝에 붙여 두니 아무도 못 봤다 */
+  .kclose{margin-left:10px;font-size:9px;letter-spacing:.04em;color:var(--dim);
+    white-space:nowrap}
+  .kclose b{display:inline-block;min-width:13px;text-align:center;padding:1px 4px;
+    margin:0 1px;border:1px solid var(--line);border-radius:3px;color:#e6f5ee;
+    font-weight:600}
   #box .col{flex:1;min-width:0}
   #box .ct{font-size:9px;letter-spacing:.12em;color:var(--dim);margin-bottom:4px;
     display:flex;justify-content:space-between}
@@ -320,7 +326,8 @@
 </div>
 
 <div class="pnl" id="box">
-  <div class="bh"><span id="boxN">보관함</span><span id="boxK"></span></div>
+  <div class="bh"><span id="boxN">보관함</span>
+    <span><span id="boxK"></span><span class="kclose"><b>E</b><b>Esc</b> 닫기</span></span></div>
   <div class="cols">
     <div class="col"><div class="ct"><span>소지품</span><b id="boxW1"></b></div><div id="boxL1"></div></div>
     <div class="col"><div class="ct"><span id="boxT2">보관함</span><b id="boxW2"></b></div><div id="boxL2"></div></div>
@@ -402,7 +409,7 @@
 </div>
 
 <div class="pnl" id="gws">
-  <div class="gh">숫돌</div>
+  <div class="gh">숫돌<span class="kclose"><b>E</b><b>Esc</b> 닫기</span></div>
   <div id="gwsTop"></div>
   <div id="gwsBot">
     <div class="rw">
