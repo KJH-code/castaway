@@ -2608,6 +2608,207 @@ function drawMoonPhase(){
   g.globalCompositeOperation='source-over';
   moonTex.needsUpdate=true;
 }
+
+/* ── 구름 ────────────────────────────────────────────────────────────────
+   실제 구름 아홉 갈래를 그대로 옮긴다. 높이·모양·두께가 갈래마다 다르고,
+   **같은 갈래 안에서도 개체마다 다르게 생겼다** — 갈래마다 밑그림을 여러 장
+   그려 두고(`VARIANTS`), 개체는 그중 하나를 골라 제 크기·기울기로 선다.
+
+   두 가지 꼴로 세운다.
+     'puff'  솟은 구름 — 카메라를 보고 서는 판때기(적운·적란운·층적운·고적운·권적운)
+     'sheet' 깔린 구름 — 하늘에 눕는 판때기(권운·권층운·고층운·층운)
+
+   그림은 전부 캔버스다(외부 파일 없음). 안개는 받지 않는다(`fog:false`) —
+   구름은 안개보다 위에 있다. 바람을 타고 흐르고, 멀어지면 반대편으로 돌아온다.
+   색은 `updateSky` 가 정한 광원색을 따라가므로 노을에는 붉고 밤에는 검푸르다. */
+const CLOUD_R=1250;                       // 구름이 도는 원의 반지름
+const CLOUD_KINDS={
+  // 상층운 — 얼음 알갱이. 얇고 희다
+  cirrus      :{n:'권운',   form:'sheet', y:[900,1020], w:[500,900], h:[200,420],
+                cnt:[5,13], op:[0.28,0.48], spd:1.9, draw:'streak'},
+  cirrostratus:{n:'권층운', form:'sheet', y:[860,960],  w:[1100,1600], h:[900,1500],
+                cnt:[0,3],  op:[0.16,0.28], spd:1.5, draw:'veil'},
+  cirrocumulus:{n:'권적운', form:'sheet', y:[820,930],  w:[420,760], h:[380,700],
+                cnt:[0,8],  op:[0.24,0.42], spd:1.7, draw:'ripple'},
+  // 중층운
+  altocumulus :{n:'고적운', form:'puff',  y:[430,560],  w:[300,520], h:[90,150],
+                cnt:[0,14], op:[0.45,0.7], spd:1.2, draw:'roll'},
+  altostratus :{n:'고층운', form:'sheet', y:[420,500],  w:[1200,1700], h:[1000,1600],
+                cnt:[0,2],  op:[0.30,0.5], spd:1.0, draw:'veil'},
+  // 하층운
+  stratocumulus:{n:'층적운',form:'puff',  y:[240,330],  w:[420,700], h:[150,240],
+                cnt:[0,12], op:[0.6,0.85], spd:0.9, draw:'lumpy'},
+  stratus     :{n:'층운',   form:'sheet', y:[170,230],  w:[1100,1600], h:[900,1500],
+                cnt:[0,2],  op:[0.35,0.6], spd:0.7, draw:'veil'},
+  cumulus     :{n:'적운',   form:'puff',  y:[300,420],  w:[240,430], h:[180,330],
+                cnt:[0,16], op:[0.75,0.95],spd:1.0, draw:'cauli'},
+  cumulonimbus:{n:'적란운', form:'puff',  y:[300,380],  w:[520,760], h:[620,900],
+                cnt:[0,3],  op:[0.8,0.95], spd:0.8, draw:'anvil'}
+};
+const CLOUD_VARIANTS=3;                    // 갈래마다 밑그림 몇 장
+let cloudGroup=null, CLOUDS=[], cloudMat=[], cloudTex_=[], cloudTint=new THREE.Color();
+
+/* 밑그림 — 한 장씩 캔버스에 그린다. 알파만 쓰므로 흰빛과 그늘만 칠한다. */
+function cloudTex(draw,seed){
+  const W=256, H=256, c=document.createElement('canvas');
+  c.width=W; c.height=H;
+  const g=c.getContext('2d'), rnd=mulberry32(hashStr('cloud|'+draw+'|'+seed));
+  // 솜뭉치 하나 — 위는 볕을 받아 희고 아래는 그늘져 푸르스름하다
+  const puff=(x,y,r,top)=>{
+    const gr=g.createRadialGradient(x-r*0.25,y-r*0.35,r*0.08,x,y,r);
+    gr.addColorStop(0,   'rgba(255,255,255,'+(0.85*top)+')');
+    gr.addColorStop(0.45,'rgba(246,248,252,'+(0.55*top)+')');
+    gr.addColorStop(0.8, 'rgba(206,214,228,'+(0.18*top)+')');
+    gr.addColorStop(1,   'rgba(196,205,220,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(x,y,r,0,6.283); g.fill();
+  };
+  if(draw==='cauli'||draw==='lumpy'||draw==='roll'||draw==='anvil'){
+    // 솟은 구름 — 평평한 밑면 위로 뭉치를 쌓는다
+    const base=draw==='anvil'?H*0.92:(draw==='roll'?H*0.72:H*0.86);
+    const nb=draw==='cauli'?16:draw==='lumpy'?22:draw==='roll'?10:26;
+    for(let i=0;i<nb;i++){
+      const t=i/nb;
+      let x,y,r;
+      if(draw==='anvil'){
+        // 적란운 — 위로 솟다가 꼭대기에서 모루처럼 옆으로 퍼진다
+        const up=Math.pow(rnd(),0.7);
+        const spread=0.10+up*up*0.44;
+        x=W*0.5+(rnd()*2-1)*W*spread;
+        y=base-up*base*0.92;
+        r=W*(0.10+0.10*(1-up))*(0.7+rnd()*0.6);
+      }else if(draw==='roll'){
+        x=W*(0.08+t*0.84)+(rnd()*2-1)*W*0.04;
+        y=base-H*(0.10+rnd()*0.10);
+        r=W*(0.09+rnd()*0.05);
+      }else{
+        const up=Math.pow(rnd(),draw==='cauli'?0.8:1.4);
+        x=W*0.5+(rnd()*2-1)*W*(0.40-up*0.16);
+        y=base-up*base*(draw==='cauli'?0.78:0.52);
+        r=W*(draw==='cauli'?0.10+rnd()*0.10:0.07+rnd()*0.07)*(1-up*0.25);
+      }
+      puff(x,y,r,0.55+ (1-y/H)*0.65);
+    }
+    // 밑면을 잘라 평평하게 — 구름은 응결고도에서 바닥이 맞춰진다
+    if(draw!=='roll'){
+      g.globalCompositeOperation='destination-out';
+      const gr=g.createLinearGradient(0,base,0,Math.min(H,base+H*0.10));
+      gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(0,0,0,1)');
+      g.fillStyle=gr; g.fillRect(0,base,W,H-base);
+      g.globalCompositeOperation='source-over';
+    }
+  }else if(draw==='streak'){
+    // 권운 — 바람에 빗질된 새털. 가늘고 한쪽 끝이 갈고리처럼 굽는다
+    const ny=4+Math.floor(rnd()*4);
+    for(let i=0;i<ny;i++){
+      const y0=H*(0.2+rnd()*0.6), len=W*(0.5+rnd()*0.45), x0=W*rnd()*0.4;
+      const bow=(rnd()*2-1)*H*0.16, hook=(rnd()*2-1)*H*0.12;
+      for(let k=0;k<7;k++){
+        g.strokeStyle='rgba(255,255,255,'+(0.05+rnd()*0.05)+')';
+        g.lineWidth=1+rnd()*5;
+        g.beginPath();
+        const o=(rnd()*2-1)*H*0.035;
+        g.moveTo(x0,y0+o);
+        g.bezierCurveTo(x0+len*0.35,y0+bow+o, x0+len*0.7,y0+bow*0.4+o,
+                        x0+len,y0+hook+o);
+        g.stroke();
+      }
+    }
+  }else if(draw==='ripple'){
+    // 권적운·비늘구름 — 잔 알갱이가 줄지어 선다
+    const rows=7+Math.floor(rnd()*5);
+    for(let r0=0;r0<rows;r0++){
+      const y=H*(0.12+r0/rows*0.76)+(rnd()*2-1)*6;
+      const nx=10+Math.floor(rnd()*8);
+      for(let i=0;i<nx;i++){
+        const x=W*(0.08+i/nx*0.84)+(rnd()*2-1)*5;
+        const r=W*(0.012+rnd()*0.022);
+        puff(x,y,r,0.9);
+      }
+    }
+  }else{                                   // 'veil' — 층운·고층운·권층운
+    // 넓게 깔린 막. 큰 얼룩을 겹쳐 두께가 고르지 않게 만든다
+    for(let i=0;i<26;i++){
+      const x=W*rnd(), y=H*rnd(), r=W*(0.14+rnd()*0.3);
+      const gr=g.createRadialGradient(x,y,0,x,y,r);
+      gr.addColorStop(0,'rgba(255,255,255,'+(0.10+rnd()*0.10)+')');
+      gr.addColorStop(1,'rgba(255,255,255,0)');
+      g.fillStyle=gr; g.beginPath(); g.arc(x,y,r,0,6.283); g.fill();
+    }
+    // 가장자리는 흐리게 지워 네모가 안 보이게
+    g.globalCompositeOperation='destination-out';
+    for(const [x0,y0,x1,y1] of [[0,0,W*0.22,0],[W,0,W*0.78,0],[0,0,0,H*0.22],[0,H,0,H*0.78]]){
+      const gr=g.createLinearGradient(x0,y0,x1,y1);
+      gr.addColorStop(0,'rgba(0,0,0,1)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle=gr; g.fillRect(0,0,W,H);
+    }
+    g.globalCompositeOperation='source-over';
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.minFilter=THREE.LinearFilter; t.generateMipmaps=false;
+  return t;
+}
+
+function buildClouds(seed){
+  if(cloudGroup){ scene.remove(cloudGroup); }
+  for(const m of cloudMat) m.dispose();
+  for(const t of cloudTex_) t.dispose();
+  cloudMat.length=0; cloudTex_.length=0; CLOUDS.length=0;
+  cloudGroup=new THREE.Group(); cloudGroup.userData.lightRole='none';
+  cloudGroup.renderOrder=-8; scene.add(cloudGroup);
+  const rnd=mulberry32((seed>>>0)^0x0c10d5a7);
+  const quad=new THREE.PlaneGeometry(1,1);
+  const lerpR=(a)=>a[0]+rnd()*(a[1]-a[0]);
+  for(const key in CLOUD_KINDS){
+    const K=CLOUD_KINDS[key];
+    // 갈래마다 밑그림 여러 장 — 같은 갈래라도 개체마다 다르게 보인다
+    const mats=[];
+    for(let v=0;v<CLOUD_VARIANTS;v++){
+      const tx=cloudTex(K.draw,key+v+seed); cloudTex_.push(tx);
+      mats.push(new THREE.MeshBasicMaterial({
+        map:tx, transparent:true, depthWrite:false,
+        fog:false, side:THREE.DoubleSide, opacity:1}));
+    }
+    const n=Math.round(lerpR(K.cnt));
+    for(let i=0;i<n;i++){
+      /* 재질은 개체마다 복제한다 — 나눠 쓰면 짙기가 마지막 구름 것으로 통일된다
+         (그림은 복제해도 그대로 나눠 쓴다). */
+      const mm=mats[(rnd()*CLOUD_VARIANTS)|0].clone(); cloudMat.push(mm);
+      const m=new THREE.Mesh(quad,mm);
+      const w=lerpR(K.w), h=lerpR(K.h);
+      m.scale.set(w*(rnd()<0.5?-1:1),h,1);        // 좌우 뒤집기로 한 번 더 다르게
+      const th=rnd()*6.283, rr=Math.sqrt(rnd())*CLOUD_R;
+      const c={m, x:Math.cos(th)*rr, z:Math.sin(th)*rr, y:lerpR(K.y),
+               form:K.form, spd:K.spd*(0.7+rnd()*0.6), op:lerpR(K.op),
+               tilt:(rnd()*2-1)*0.25};
+      m.position.set(c.x,c.y,c.z);
+      if(K.form==='sheet'){ m.rotation.set(-Math.PI/2, 0, rnd()*6.283); }
+      m.renderOrder=-8; m.userData.lightRole='none';
+      cloudGroup.add(m); CLOUDS.push(c);
+    }
+  }
+}
+
+/* 흐르기 · 색 — 매 프레임. 개체 100여 개라 값이 없다시피 하다. */
+function updateClouds(dt){
+  if(!cloudGroup) return;
+  const px=camera.position.x, pz=camera.position.z;
+  const wx=windDir.x, wz=windDir.z;
+  for(const c of CLOUDS){
+    c.x+=wx*c.spd*dt*3.2; c.z+=wz*c.spd*dt*3.2;
+    // 카메라에서 너무 멀어지면 반대편으로 돌려보낸다
+    let dx=c.x-px, dz=c.z-pz;
+    const d=Math.hypot(dx,dz);
+    if(d>CLOUD_R*1.25){ c.x=px-dx*1.22; c.z=pz-dz*1.22; dx=c.x-px; dz=c.z-pz; }
+    c.m.position.set(c.x,c.y,c.z);
+    if(c.form==='puff'){                        // 솟은 구름은 카메라를 본다
+      c.m.rotation.set(0, Math.atan2(px-c.x, pz-c.z), c.tilt*0.2);
+    }
+    c.m.material.opacity=c.op*cloudFade;
+    c.m.material.color.copy(cloudTint);
+  }
+}
+let cloudFade=1;
+
 function initSky(){
   const g=new THREE.SphereGeometry(1500,18,12);
   const n=g.attributes.position.count;
@@ -2727,6 +2928,15 @@ function updateSky(){
     moonDisc.visible=my>-0.06 && MOON.illum>0.01;
     const step=Math.floor(MOON.phase*64);
     if(step!==moonStep){ moonStep=step; drawMoonPhase(); }
+  }
+  {
+    /* 구름 색 — 볕을 받는 쪽이므로 광원색을 따라간다. 해가 낮으면 붉고
+       밤에는 지평선색 쪽으로 어두워진다. 흰 판때기를 그대로 두면 밤에도
+       하얗게 떠서 하늘에 구멍이 뚫린 것처럼 보인다. */
+    const day=clamp(sy*2.2+0.25,0,1);
+    cloudTint.copy(cHz).lerp(cSun,0.35).multiplyScalar(0.55+day*0.75);
+    if(sy>0.15) cloudTint.lerp(cTmp.setRGB(1,1,1),clamp((sy-0.15)*1.6,0,0.7));
+    cloudFade=0.35+day*0.65;
   }
   if(stars){
     stars.position.copy(camera.position);
@@ -8316,7 +8526,7 @@ async function generateWorld(){
   }
   busy=false;                           // 실패해도 잠기지 않게 반드시 해제
 }
-function placeProps_(seed){ buildProps(); placePod(seed); }
+function placeProps_(seed){ buildProps(); placePod(seed); buildClouds(seed); }
 
 /* ============================================================================
    저장 / 불러오기
@@ -8905,6 +9115,7 @@ function loop(){
     updateWeapon(dt); updatePower(dt);
     updateOcean(now*0.001);
     updateSky();
+    updateClouds(dt);
     LIGHT.update(dt);           // 해 그림자 상자를 사람에게 옮기고 불빛에 그림자를 나눈다
     if(flyMode){
       const sp=Math.sin(fly.ph),cp=Math.cos(fly.ph);
