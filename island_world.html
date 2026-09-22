@@ -1442,30 +1442,31 @@ function updateTileVis(){
    amp  혹의 세기 · bump 혹의 잔주름 수(주파수 상한) · nb 혹 개수
    cuts 잘라 낼 평면 수 · deep 평면이 파고드는 깊이(0.72 면 반지름의 0.72 까지 깎는다)
    cube 정육면체로 당기는 정도(방연석의 정벽 쪼개짐)
-   smooth 법선을 둥글리는 정도(0 이면 면마다 각진다)
+   smooth 굽은 자리를 둥글리는 정도(0 이면 면마다 각진다). **깎인 면은 이 값과 무관하게
+          늘 각진다** — 자르기 평면 위에 나란히 놓인 삼각형은 따로 가려낸다
    flat 위아래로 누르는 정도(1 이면 안 누른다) · st 축별 신축 폭 */
 const HABIT={
   // 화강암 — 모난 덩어리. 큰 면 몇 장으로 쪼개지고 표면은 거칠다
-  granite :{amp:0.20,bump:5.0,nb:4,cuts:7,deep:0.74,cube:0.00,smooth:0.15,flat:0.88,st:0.30},
+  granite :{amp:0.20,bump:5.0,nb:4,cuts:7,deep:0.74,cube:0.00,smooth:0.85,flat:0.88,st:0.30},
   // 부싯돌 — 조개 껍질처럼 움푹한 날카로운 조각. 면이 적고 깊게 깎인다
-  flint   :{amp:0.14,bump:3.0,nb:3,cuts:5,deep:0.60,cube:0.00,smooth:0.00,flat:0.80,st:0.40},
-  pebble  :{amp:0.22,bump:3.6,nb:3,cuts:2,deep:0.86,cube:0.00,smooth:0.85,flat:0.74,st:0.34},
+  flint   :{amp:0.14,bump:3.0,nb:3,cuts:5,deep:0.60,cube:0.00,smooth:0.88,flat:0.80,st:0.40},
+  pebble  :{amp:0.22,bump:3.6,nb:3,cuts:2,deep:0.86,cube:0.00,smooth:0.95,flat:0.74,st:0.34},
   // 방연석 — 정육면체로 쪼개진다. 계단처럼 어긋난 면
-  galena  :{amp:0.08,bump:2.4,nb:2,cuts:4,deep:0.82,cube:0.82,smooth:0.00,flat:0.94,st:0.22},
+  galena  :{amp:0.08,bump:2.4,nb:2,cuts:4,deep:0.82,cube:0.82,smooth:0.70,flat:0.94,st:0.22},
   // 황 — 포도송이처럼 둥근 혹이 엉긴 껍질. 잔혹이 많고 안 잘린다
-  sulfur  :{amp:0.34,bump:9.0,nb:6,cuts:0,deep:1.00,cube:0.00,smooth:0.90,flat:0.72,st:0.28},
+  sulfur  :{amp:0.34,bump:9.0,nb:6,cuts:0,deep:1.00,cube:0.00,smooth:1.00,flat:0.72,st:0.28},
   // 진사 — 바위에 얇게 앉은 딱지. 납작하게 눌리고 가장자리가 깨져 있다
-  cinnabar:{amp:0.24,bump:6.5,nb:4,cuts:5,deep:0.70,cube:0.00,smooth:0.35,flat:0.46,st:0.34},
+  cinnabar:{amp:0.24,bump:6.5,nb:4,cuts:5,deep:0.70,cube:0.00,smooth:0.85,flat:0.46,st:0.34},
   // 석탄 — 결을 따라 판으로 깨진다. 넓은 면 여럿에 살짝 납작
-  coal    :{amp:0.12,bump:4.0,nb:3,cuts:8,deep:0.70,cube:0.30,smooth:0.00,flat:0.70,st:0.32},
+  coal    :{amp:0.12,bump:4.0,nb:3,cuts:8,deep:0.70,cube:0.30,smooth:0.75,flat:0.70,st:0.32},
   // 자철석 · 공작석 · 주석석 · 섬아연석 — 모암에 박힌 광맥 덩이.
   // 둥근 바탕에 깨진 면이 몇 장 섞인다
-  iron    :{amp:0.24,bump:5.5,nb:4,cuts:4,deep:0.80,cube:0.00,smooth:0.45,flat:0.86,st:0.34},
-  copper  :{amp:0.28,bump:7.0,nb:5,cuts:3,deep:0.84,cube:0.00,smooth:0.70,flat:0.84,st:0.36},
-  tin     :{amp:0.22,bump:5.0,nb:4,cuts:5,deep:0.78,cube:0.00,smooth:0.25,flat:0.86,st:0.34},
-  zinc    :{amp:0.20,bump:4.5,nb:4,cuts:6,deep:0.76,cube:0.20,smooth:0.10,flat:0.84,st:0.32}
+  iron    :{amp:0.24,bump:5.5,nb:4,cuts:4,deep:0.80,cube:0.00,smooth:0.90,flat:0.86,st:0.34},
+  copper  :{amp:0.28,bump:7.0,nb:5,cuts:3,deep:0.84,cube:0.00,smooth:0.95,flat:0.84,st:0.36},
+  tin     :{amp:0.22,bump:5.0,nb:4,cuts:5,deep:0.78,cube:0.00,smooth:0.88,flat:0.86,st:0.34},
+  zinc    :{amp:0.20,bump:4.5,nb:4,cuts:6,deep:0.76,cube:0.20,smooth:0.85,flat:0.84,st:0.32}
 };
-const HABIT0={amp:0.24,bump:5.0,nb:3,cuts:0,deep:1,cube:0,smooth:0.68,flat:1,st:0.36};
+const HABIT0={amp:0.24,bump:5.0,nb:3,cuts:0,deep:1,cube:0,smooth:0.90,flat:1,st:0.36};
 
 function buildProps(){
   TREE_TILES.length=0;
@@ -1719,23 +1720,43 @@ function buildProps(){
                cinnabar:0.8,tin:0.8,
                 sulfur:0.55,flint:0.18,pebble:0.13};
   // 기준 껍질의 '중복 없는 꼭짓점' 목록을 한 번만 뽑아 둔다 (80면 → 꼭짓점 42개)
-  const shell=new THREE.IcosahedronGeometry(1,1);
-  const sp=shell.attributes.position;
-  const uniqDir=[], vertU=new Int32Array(sp.count), dirKey=new Map();
-  for(let i=0;i<sp.count;i++){
-    const x=sp.getX(i), y=sp.getY(i), z=sp.getZ(i);
-    const k=x.toFixed(4)+','+y.toFixed(4)+','+z.toFixed(4);
-    let u=dirKey.get(k);
-    if(u===undefined){ u=uniqDir.length; dirKey.set(k,u); uniqDir.push([x,y,z]); }
-    vertU[i]=u;
+  function makeShell(detail){
+    const g=new THREE.IcosahedronGeometry(1,detail);
+    const sp=g.attributes.position;
+    const uniqDir=[], vertU=new Int32Array(sp.count), dirKey=new Map();
+    const px=new Float32Array(sp.count*3);
+    for(let i=0;i<sp.count;i++){
+      const x=sp.getX(i), y=sp.getY(i), z=sp.getZ(i);
+      px[i*3]=x; px[i*3+1]=y; px[i*3+2]=z;
+      const k=x.toFixed(4)+','+y.toFixed(4)+','+z.toFixed(4);
+      let u=dirKey.get(k);
+      if(u===undefined){ u=uniqDir.length; dirKey.set(k,u); uniqDir.push([x,y,z]); }
+      vertU[i]=u;
+    }
+    g.dispose();
+    return {px, uniqDir, vertU, V:sp.count, U:uniqDir.length};
   }
-  const SHELL_V=sp.count, UNIQ=uniqDir.length;
+  /* 껍질 단계 — 큰 돌일수록 곱게 쪼갠다.
+     1단계는 80면이라 화강암(반지름 1.8 m)에서는 삼각형이 그대로 눈에 띈다.
+     2단계(320면)면 가까이서도 면이 안 보인다. 자갈·부싯돌은 손톱만 하니 1단계로
+     둔다 — 자갈만 3,000개라 곱게 쪼개면 정점만 늘고 보이는 건 그대로다. */
+  const SHELLS={1:makeShell(1), 2:makeShell(2)};
+  const shellFor=k=>(k==='pebble'||k==='flint')?SHELLS[1]:SHELLS[2];
 
   function buildRockBatch(list,R){
     const r0=ROCK_R[R.k], H=HABIT[R.k]||HABIT0, amp=H.amp;
+    const SH=shellFor(R.k), SHELL_V=SH.V, UNIQ=SH.U,
+          uniqDir=SH.uniqDir, vertU=SH.vertU, spx=SH.px;
     const total=list.length*SHELL_V;
     const pos=new Float32Array(total*3), nor=new Float32Array(total*3);
     const fac=new Float32Array(UNIQ);
+    /* own[u] — 그 자리의 반지름을 누가 정했나.
+         −1  혹(굽은 자리)        0..  몇 번째 자르기 평면       100+  정육면체 몇 번째 면
+       삼각형 셋이 같은 평면 위에 있으면 그 면은 '깎인 면'이니 각지게 두고,
+       그렇지 않으면 이웃 면들의 법선을 모아 매끈하게 잇는다. 이 한 가지로
+       "굽은 데는 매끈, 깨진 데는 날카롭게" 가 동시에 나온다. */
+    const own=new Int16Array(UNIQ);
+    const acc=new Float32Array(UNIQ*3);
     let o=0;
     for(const p of list){
       const hh=p._hash;
@@ -1762,16 +1783,21 @@ function buildProps(){
         for(const l of lobe)
           f+=l[5]*Math.sin(l[3]*(d[0]*l[0]+d[1]*l[1]+d[2]*l[2])+l[4]);
         let r=1+(f/wsum)*amp;
+        let ow=-1;
         // ③ 정벽 쪼개짐 — 정육면체 쪽으로 당긴다
         if(H.cube>0){
-          const rc=1/Math.max(Math.abs(d[0]),Math.abs(d[1]),Math.abs(d[2]));
-          r=r*(1-H.cube)+r*rc*H.cube;
+          const ax=Math.abs(d[0]), ay=Math.abs(d[1]), az=Math.abs(d[2]);
+          const m=Math.max(ax,ay,az);
+          r=r*(1-H.cube)+r*(1/m)*H.cube;
+          // 많이 당겼으면 그 면은 정벽이다 — 모서리를 살려 둔다
+          if(H.cube>=0.5) ow=100+(m===ax?(d[0]>0?0:1):m===ay?(d[1]>0?2:3):(d[2]>0?4:5));
         }
-        for(const c of cut){
+        for(let ci=0;ci<cut.length;ci++){
+          const c=cut[ci];
           const dot=d[0]*c[0]+d[1]*c[1]+d[2]*c[2];
-          if(dot>1e-3){ const lim=c[3]/dot; if(lim<r) r=lim; }
+          if(dot>1e-3){ const lim=c[3]/dot; if(lim<r){ r=lim; ow=ci; } }
         }
-        fac[u]=r;
+        fac[u]=r; own[u]=ow;
       }
       // 개체별 회전 · 축별 신축
       const ex=rnd()*6.283, ey=rnd()*6.283, ez=rnd()*6.283;
@@ -1792,25 +1818,50 @@ function buildProps(){
       const tmp=[0,0,0], loc=new Float32Array(SHELL_V*3);
       for(let i=0;i<SHELL_V;i++){
         const f=fac[vertU[i]];
-        rot(sp.getX(i)*r0*f*sx, sp.getY(i)*r0*f*sy, sp.getZ(i)*r0*f*sz, tmp);
+        rot(spx[i*3]*r0*f*sx, spx[i*3+1]*r0*f*sy, spx[i*3+2]*r0*f*sz, tmp);
         loc[i*3]=tmp[0]*S0; loc[i*3+1]=tmp[1]*S0; loc[i*3+2]=tmp[2]*S0;
       }
-      // 면 법선과 구면 법선을 섞어 '약간 매끈한' 질감을 만든다
-      for(let t=0;t<SHELL_V;t+=3){
+      /* 법선 — 두 번 훑는다.
+         1) 삼각형마다 면 법선을 구하고, '깎인 면'이 아닌 것만 꼭짓점에 모은다.
+            (깎인 면을 같이 모으면 날카로워야 할 모서리가 뭉개진다)
+         2) 깎인 면은 제 면 법선을 그대로 쓰고, 나머지는 모아 둔 것을 정규화해
+            쓴다 — 이웃 삼각형끼리 법선이 이어지므로 굽은 자리에서 면이 안 보인다. */
+      acc.fill(0);
+      const fn=new Float32Array(SHELL_V);           // 삼각형마다 면 법선(3개씩)
+      const isFlat=new Uint8Array(SHELL_V/3);
+      for(let t=0,ti=0;t<SHELL_V;t+=3,ti++){
         const ax=loc[t*3],ay=loc[t*3+1],az=loc[t*3+2];
         const bx=loc[t*3+3],by=loc[t*3+4],bz=loc[t*3+5];
         const cx2=loc[t*3+6],cy2=loc[t*3+7],cz2=loc[t*3+8];
         const ux=bx-ax,uy=by-ay,uz=bz-az, vx=cx2-ax,vy=cy2-ay,vz=cz2-az;
         let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
         const nl=Math.hypot(nx,ny,nz)||1; nx/=nl; ny/=nl; nz/=nl;
+        fn[ti*3]=nx; fn[ti*3+1]=ny; fn[ti*3+2]=nz;
+        const o0=own[vertU[t]], o1=own[vertU[t+1]], o2=own[vertU[t+2]];
+        const flat=(o0>=0&&o0===o1&&o1===o2);
+        isFlat[ti]=flat?1:0;
+        if(!flat) for(let e=0;e<3;e++){
+          const u=vertU[t+e]*3;
+          acc[u]+=nx; acc[u+1]+=ny; acc[u+2]+=nz;    // 면 넓이는 안 잰다 — 껍질이 고르다
+        }
+      }
+      const sm=H.smooth;
+      for(let t=0,ti=0;t<SHELL_V;t+=3,ti++){
+        const nx=fn[ti*3], ny=fn[ti*3+1], nz=fn[ti*3+2];
         for(let e=0;e<3;e++){
-          const j=t+e;
-          const lx=loc[j*3],ly=loc[j*3+1],lz=loc[j*3+2];
-          const ll=Math.hypot(lx,ly,lz)||1;
-          const sm=H.smooth;
-          let mx=nx+(lx/ll-nx)*sm, my=ny+(ly/ll-ny)*sm, mz=nz+(lz/ll-nz)*sm;
+          const j=t+e, u=vertU[j]*3;
+          let mx=nx,my=ny,mz=nz;
+          if(!isFlat[ti]){
+            const al=Math.hypot(acc[u],acc[u+1],acc[u+2]);
+            if(al>1e-6){                              // 면 법선 ↔ 이은 법선 사이를 smooth 로
+              mx=nx+(acc[u]/al-nx)*sm;
+              my=ny+(acc[u+1]/al-ny)*sm;
+              mz=nz+(acc[u+2]/al-nz)*sm;
+            }
+          }
           const ml=Math.hypot(mx,my,mz)||1;
           nor[(o/3+j)*3]=mx/ml; nor[(o/3+j)*3+1]=my/ml; nor[(o/3+j)*3+2]=mz/ml;
+          const lx=loc[j*3],ly=loc[j*3+1],lz=loc[j*3+2];
           pos[o+j*3]=p.x+lx; pos[o+j*3+1]=oy+ly; pos[o+j*3+2]=p.z+lz;
         }
       }
