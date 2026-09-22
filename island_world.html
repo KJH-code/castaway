@@ -2622,28 +2622,40 @@ function drawMoonPhase(){
    구름은 안개보다 위에 있다. 바람을 타고 흐르고, 멀어지면 반대편으로 돌아온다.
    색은 `updateSky` 가 정한 광원색을 따라가므로 노을에는 붉고 밤에는 검푸르다. */
 const CLOUD_R=1250;                       // 구름이 도는 원의 반지름
+/* 흐르는 속도 `v`(m/s)는 **눈에 보이는 속도**를 실제와 맞춘 값이다.
+   `real:[실제고도 m, 실제속도 m/s]` 를 같이 적어 두었다.
+
+   그냥 실제 속도를 쓰면 안 된다 — 이 하늘은 실제보다 낮게 압축돼 있다(권운이
+   10 km 가 아니라 1.1 km 에 있다). 사람 눈에 들어오는 것은 m/s 가 아니라
+   **각속도**(속도÷고도)이므로, 고도를 1/9 로 줄였으면 속도도 1/9 로 줄여야
+   같은 빠르기로 보인다.  v = 실제속도 × (여기 고도 / 실제 고도)
+
+   그래서 권운 30 m/s 가 여기서는 3.3 m/s 다. 세 층이 2.4~3.4 로 비슷해지는데
+   이것이 맞다 — 실제로도 높은 구름은 빨라도 느려 보이고 낮은 구름은 느려도
+   빨라 보인다. 각속도로 보면 권운 0.003 · 적운 0.007 · 층운 0.015 rad/s 로
+   실제 비율 그대로다. */
 const CLOUD_KINDS={
   // 상층운 — 얼음 알갱이. 얇고 희다
   cirrus      :{n:'권운',   form:'sheet', y:[1050,1180], w:[1100,1900], h:[500,950],
-                cnt:[5,13], op:[0.28,0.48], spd:1.9, draw:'streak'},
+                cnt:[2,6],  op:[0.28,0.48], v:3.3, real:[10000,30], draw:'streak'},
   cirrostratus:{n:'권층운', form:'sheet', y:[1000,1120], w:[2000,2900], h:[1700,2600],
-                cnt:[0,3],  op:[0.16,0.28], spd:1.5, draw:'veil'},
+                cnt:[0,2],  op:[0.16,0.28], v:3.0, real:[9500,28], draw:'veil'},
   cirrocumulus:{n:'권적운', form:'sheet', y:[960,1080],  w:[950,1700], h:[850,1500],
-                cnt:[0,8],  op:[0.24,0.42], spd:1.7, draw:'ripple'},
+                cnt:[0,4],  op:[0.24,0.42], v:3.2, real:[9000,27], draw:'ripple'},
   // 중층운
   altocumulus :{n:'고적운', form:'puff',  y:[500,650],  w:[640,1100], h:[190,330],
-                cnt:[0,14], op:[0.45,0.7], spd:1.2, draw:'roll'},
+                cnt:[0,6],  op:[0.45,0.7], v:2.6, real:[4000,16], draw:'roll'},
   altostratus :{n:'고층운', form:'sheet', y:[480,580],  w:[2100,3000], h:[1800,2700],
-                cnt:[0,2],  op:[0.30,0.5], spd:1.0, draw:'veil'},
+                cnt:[0,1],  op:[0.30,0.5], v:2.4, real:[4000,14], draw:'veil'},
   // 하층운
   stratocumulus:{n:'층적운',form:'puff',  y:[280,380],  w:[880,1450], h:[310,500],
-                cnt:[0,12], op:[0.6,0.85], spd:0.9, draw:'lumpy'},
+                cnt:[0,5],  op:[0.6,0.85], v:2.6, real:[1500,9], draw:'lumpy'},
   stratus     :{n:'층운',   form:'sheet', y:[200,270],  w:[1900,2800], h:[1600,2600],
-                cnt:[0,2],  op:[0.35,0.6], spd:0.7, draw:'veil'},
+                cnt:[0,1],  op:[0.35,0.6], v:3.4, real:[450,6], draw:'veil'},
   cumulus     :{n:'적운',   form:'puff',  y:[340,480],  w:[520,900], h:[390,690],
-                cnt:[0,16], op:[0.75,0.95],spd:1.0, draw:'cauli'},
+                cnt:[0,7],  op:[0.75,0.95],v:2.8, real:[1200,8], draw:'cauli'},
   cumulonimbus:{n:'적란운', form:'puff',  y:[330,430],  w:[1100,1600], h:[1300,1900],
-                cnt:[0,3],  op:[0.8,0.95], spd:0.8, draw:'anvil'}
+                cnt:[0,2],  op:[0.8,0.95], v:2.4, real:[1600,10], draw:'anvil'}
 };
 /* 갈래마다 밑그림 몇 장. 적게 두면 한 하늘에 같은 실루엣이 여럿 떠서 눈에 띈다.
    12장이면 그림 108장(256², 28MB쯤)이고 세상을 만들 때 캔버스 작업이 그만큼 는다. */
@@ -2822,7 +2834,7 @@ function buildClouds(seed){
       const th=rnd()*6.283,
             rr=Math.sqrt(rnd())*CLOUD_R*(K.draw==='veil'?0.30:1);
       const c={m, x:Math.cos(th)*rr, z:Math.sin(th)*rr, y:lerpR(K.y),
-               form:K.form, spd:K.spd*(0.7+rnd()*0.6), op:lerpR(K.op),
+               form:K.form, v:K.v*(0.75+rnd()*0.5), op:lerpR(K.op),
                tilt:(rnd()*2-1)*0.25};
       m.position.set(c.x,c.y,c.z);
       if(K.form==='sheet'){ m.rotation.set(-Math.PI/2, 0, rnd()*6.283); }
@@ -2837,8 +2849,11 @@ function updateClouds(dt){
   if(!cloudGroup) return;
   const px=camera.position.x, pz=camera.position.z;
   const wx=windDir.x, wz=windDir.z;
+  /* 시간을 빨리 돌리면(T) 구름도 같이 빨라진다 — 해는 달리는데 구름만 멈춰
+     있으면 어색하다. 다만 300배에서는 순간이동처럼 보이므로 20배에서 끊는다. */
+  const ts=Math.min(timeScale,20);
   for(const c of CLOUDS){
-    c.x+=wx*c.spd*dt*3.2; c.z+=wz*c.spd*dt*3.2;
+    c.x+=wx*c.v*ts*dt; c.z+=wz*c.v*ts*dt;
     // 카메라에서 너무 멀어지면 반대편으로 돌려보낸다
     let dx=c.x-px, dz=c.z-pz;
     const d=Math.hypot(dx,dz);
