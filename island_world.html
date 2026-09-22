@@ -1176,7 +1176,7 @@ function sampleAt(wx,wz){
      저해상도 렌더 타깃을 확대해 리썰 컴퍼니풍 픽셀 질감을 낸다.
    ========================================================================== */
 const CH=32, NC=N/CH;                 // 32 × 24 = 768 → 청크 576개 (한 변 80 m)
-let renderer,scene,camera,sun,hemi,amb,flash,ocean,riverMesh,propGroup,podMesh;
+let renderer,scene,camera,sun,hemi,amb,flash,ocean,riverMesh,propGroup;
 const chunks=[];
 /* renderScale — 그리는 캔버스를 창 크기의 몇 배로 잡는가. 가로·세로에 각각
    곱하므로 픽셀 수는 이 값의 제곱으로 간다(0.5 → 창의 1/4 픽셀).
@@ -2245,16 +2245,11 @@ function placePod(seed){
   }
   const x=(i%N-N/2)*CELL, z=(((i/N)|0)-N/2)*CELL;
   podPos.set(x,Math.max(0.3,heightAt(x,z)),z);
-  if(podMesh) scene.remove(podMesh);
-  podMesh=new THREE.Group();
-  const body=new THREE.Mesh(new THREE.BoxGeometry(3.2,2.2,4.4),
-    new THREE.MeshLambertMaterial({color:0x6a5f4a}));
-  body.position.y=1.1; podMesh.add(body);
-  const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.22,6,6),
-    new THREE.MeshBasicMaterial({color:0xffb060}));
-  lamp.position.set(0,2.5,0); podMesh.add(lamp);
-  LIGHT.addPoint(podMesh,{color:0xffb060,intensity:2.0,dist:26,shadow:true,pos:[0,2.6,0]});
-  podMesh.position.copy(podPos); scene.add(podMesh);
+  /* 여기 서 있던 '구명 캡슐'은 치웠다 — 상자 하나에 전구를 붙인 옛 모형인데,
+     제대로 만든 보급선이 같은 자리에 내려앉는다. 등불이 사거리 26 m 짜리
+     그림자 광원이라, **시작 지점에서 밤낮없이 두 번째 그림자를 드리우고 있었다**
+     (허허벌판 아침에 그림자가 둘 보이던 것이 이것이다).
+     `podPos` 는 남긴다 — 시작 자리 · 지도 표시 · '캡슐에서 몇 m' 안내가 쓴다. */
   makeShip();
 }
 
