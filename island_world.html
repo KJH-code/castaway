@@ -2624,31 +2624,30 @@ function drawMoonPhase(){
 const CLOUD_R=1250;                       // 구름이 도는 원의 반지름
 const CLOUD_KINDS={
   // 상층운 — 얼음 알갱이. 얇고 희다
-  cirrus      :{n:'권운',   form:'sheet', y:[900,1020], w:[500,900], h:[200,420],
+  cirrus      :{n:'권운',   form:'sheet', y:[1050,1180], w:[1100,1900], h:[500,950],
                 cnt:[5,13], op:[0.28,0.48], spd:1.9, draw:'streak'},
-  cirrostratus:{n:'권층운', form:'sheet', y:[860,960],  w:[1100,1600], h:[900,1500],
+  cirrostratus:{n:'권층운', form:'sheet', y:[1000,1120], w:[2000,2900], h:[1700,2600],
                 cnt:[0,3],  op:[0.16,0.28], spd:1.5, draw:'veil'},
-  cirrocumulus:{n:'권적운', form:'sheet', y:[820,930],  w:[420,760], h:[380,700],
+  cirrocumulus:{n:'권적운', form:'sheet', y:[960,1080],  w:[950,1700], h:[850,1500],
                 cnt:[0,8],  op:[0.24,0.42], spd:1.7, draw:'ripple'},
   // 중층운
-  altocumulus :{n:'고적운', form:'puff',  y:[430,560],  w:[300,520], h:[90,150],
+  altocumulus :{n:'고적운', form:'puff',  y:[500,650],  w:[640,1100], h:[190,330],
                 cnt:[0,14], op:[0.45,0.7], spd:1.2, draw:'roll'},
-  altostratus :{n:'고층운', form:'sheet', y:[420,500],  w:[1200,1700], h:[1000,1600],
+  altostratus :{n:'고층운', form:'sheet', y:[480,580],  w:[2100,3000], h:[1800,2700],
                 cnt:[0,2],  op:[0.30,0.5], spd:1.0, draw:'veil'},
   // 하층운
-  stratocumulus:{n:'층적운',form:'puff',  y:[240,330],  w:[420,700], h:[150,240],
+  stratocumulus:{n:'층적운',form:'puff',  y:[280,380],  w:[880,1450], h:[310,500],
                 cnt:[0,12], op:[0.6,0.85], spd:0.9, draw:'lumpy'},
-  stratus     :{n:'층운',   form:'sheet', y:[170,230],  w:[1100,1600], h:[900,1500],
+  stratus     :{n:'층운',   form:'sheet', y:[200,270],  w:[1900,2800], h:[1600,2600],
                 cnt:[0,2],  op:[0.35,0.6], spd:0.7, draw:'veil'},
-  cumulus     :{n:'적운',   form:'puff',  y:[300,420],  w:[240,430], h:[180,330],
+  cumulus     :{n:'적운',   form:'puff',  y:[340,480],  w:[520,900], h:[390,690],
                 cnt:[0,16], op:[0.75,0.95],spd:1.0, draw:'cauli'},
-  cumulonimbus:{n:'적란운', form:'puff',  y:[300,380],  w:[520,760], h:[620,900],
+  cumulonimbus:{n:'적란운', form:'puff',  y:[330,430],  w:[1100,1600], h:[1300,1900],
                 cnt:[0,3],  op:[0.8,0.95], spd:0.8, draw:'anvil'}
 };
-/* 갈래마다 밑그림 몇 장. 3장이면 한 하늘에 적운이 열 몇 개 뜰 때 같은 실루엣이
-   눈에 띈다 — 6장이면 겹쳐 보이지 않는다. 그림 54장(256², 14MB쯤)이고
-   세상을 만들 때 캔버스 작업이 그만큼 는다. */
-const CLOUD_VARIANTS=6;
+/* 갈래마다 밑그림 몇 장. 적게 두면 한 하늘에 같은 실루엣이 여럿 떠서 눈에 띈다.
+   12장이면 그림 108장(256², 28MB쯤)이고 세상을 만들 때 캔버스 작업이 그만큼 는다. */
+const CLOUD_VARIANTS=12;
 let cloudGroup=null, CLOUDS=[], cloudMat=[], cloudTex_=[], cloudTint=new THREE.Color();
 
 /* 밑그림 — 한 장씩 캔버스에 그린다. 알파만 쓰므로 흰빛과 그늘만 칠한다. */
@@ -2700,32 +2699,62 @@ function cloudTex(draw,seed){
       g.globalCompositeOperation='source-over';
     }
   }else if(draw==='streak'){
-    // 권운 — 바람에 빗질된 새털. 가늘고 한쪽 끝이 갈고리처럼 굽는다
-    const ny=4+Math.floor(rnd()*4);
+    /* 권운 — 바람에 빗질된 새털. 한 가닥이 여러 올로 갈라지고 끝이 갈고리처럼
+       굽는다. 올을 넉넉히 둬야 실뭉치가 아니라 깃털로 보인다. */
+    const ny=10+Math.floor(rnd()*8);
     for(let i=0;i<ny;i++){
-      const y0=H*(0.2+rnd()*0.6), len=W*(0.5+rnd()*0.45), x0=W*rnd()*0.4;
-      const bow=(rnd()*2-1)*H*0.16, hook=(rnd()*2-1)*H*0.12;
-      for(let k=0;k<7;k++){
-        g.strokeStyle='rgba(255,255,255,'+(0.05+rnd()*0.05)+')';
-        g.lineWidth=1+rnd()*5;
+      const y0=H*(0.08+rnd()*0.84), len=W*(0.35+rnd()*0.62), x0=W*(rnd()*0.5-0.05);
+      const bow=(rnd()*2-1)*H*0.18, hook=(rnd()*2-1)*H*0.16;
+      const th=0.5+rnd()*1.2;                       // 가닥 굵기
+      const nk=9+Math.floor(rnd()*9);               // 한 가닥을 이루는 올
+      for(let k=0;k<nk;k++){
+        g.strokeStyle='rgba(255,255,255,'+(0.035+rnd()*0.05)+')';
+        g.lineWidth=(0.6+rnd()*4)*th;
         g.beginPath();
-        const o=(rnd()*2-1)*H*0.035;
-        g.moveTo(x0,y0+o);
+        const o=(rnd()*2-1)*H*0.045, sh=rnd()*0.3;  // 올마다 시작이 조금씩 어긋난다
+        g.moveTo(x0+len*sh,y0+o);
         g.bezierCurveTo(x0+len*0.35,y0+bow+o, x0+len*0.7,y0+bow*0.4+o,
-                        x0+len,y0+hook+o);
+                        x0+len*(0.9+rnd()*0.2),y0+hook+o);
         g.stroke();
       }
     }
   }else if(draw==='ripple'){
-    // 권적운·비늘구름 — 잔 알갱이가 줄지어 선다
-    const rows=7+Math.floor(rnd()*5);
-    for(let r0=0;r0<rows;r0++){
-      const y=H*(0.12+r0/rows*0.76)+(rnd()*2-1)*6;
-      const nx=10+Math.floor(rnd()*8);
-      for(let i=0;i<nx;i++){
-        const x=W*(0.08+i/nx*0.84)+(rnd()*2-1)*5;
-        const r=W*(0.012+rnd()*0.022);
-        puff(x,y,r,0.9);
+    /* 권적운·비늘구름. 예전에는 격자에 도장을 찍은 꼴이라 한눈에 인공물이었다.
+       실제로는 **무리 몇 덩이**가 있고, 그 안에서 물결을 따라 알갱이가 뭉친다 —
+         ① 무리 중심을 몇 개 잡고(타원형으로 퍼진다)
+         ② 무리 안에서 물결선을 따라가되 간격·크기를 흔들고
+         ③ 이웃끼리 붙어 띠가 되기도, 듬성해져 끊기기도 한다
+         ④ 무리 가장자리로 갈수록 알갱이가 작아지고 성겨진다
+       줄이 남아 있되 자로 잰 줄은 아니게 된다. */
+    const clumps=2+Math.floor(rnd()*3);
+    for(let c0=0;c0<clumps;c0++){
+      const cxp=W*(0.18+rnd()*0.64), cyp=H*(0.18+rnd()*0.64);
+      const rx=W*(0.22+rnd()*0.26), ry=H*(0.14+rnd()*0.22);
+      const rot=(rnd()*2-1)*0.5;                    // 무리마다 물결 방향이 다르다
+      const wav=0.6+rnd()*1.8, amp=ry*(0.08+rnd()*0.16);
+      const gapY=ry*(0.15+rnd()*0.10);              // 줄 간격
+      const nR=Math.ceil(ry*2/gapY);
+      const cs=Math.cos(rot), sn=Math.sin(rot);
+      for(let r0=0;r0<nR;r0++){
+        const ly=-ry+r0*gapY+(rnd()*2-1)*gapY*0.35;
+        if(rnd()<0.12) continue;                    // 줄이 통째로 빠지기도 한다
+        let lx=-rx*(0.9+rnd()*0.2);
+        while(lx<rx){
+          const t=Math.hypot(lx/rx,ly/ry);          // 무리 중심에서 얼마나 먼가
+          if(t>1){ lx+=W*0.02; continue; }
+          const edge=1-t*t;                         // 가장자리로 갈수록 작고 성기다
+          const r=W*(0.008+rnd()*0.020)*(0.45+edge*0.9);
+          if(rnd()<0.20+t*0.35){ lx+=r*(2.2+rnd()*3.4); continue; }  // 듬성한 자리
+          const yy=ly+Math.sin(lx/rx*3.1*wav)*amp;
+          puff(cxp+lx*cs-yy*sn, cyp+lx*sn+yy*cs, r, 0.55+edge*0.5);
+          // 이따금 옆에 바짝 붙여 띠로 만든다
+          if(rnd()<0.34){
+            const r2=r*(0.6+rnd()*0.6), dx2=r*(0.9+rnd()*0.5);
+            puff(cxp+(lx+dx2)*cs-yy*sn, cyp+(lx+dx2)*sn+yy*cs, r2, 0.5+edge*0.5);
+            lx+=dx2;
+          }
+          lx+=r*(1.5+rnd()*2.6);
+        }
       }
     }
   }else{                                   // 'veil' — 층운·고층운·권층운
@@ -2779,7 +2808,10 @@ function buildClouds(seed){
       const m=new THREE.Mesh(quad,mm);
       const w=lerpR(K.w), h=lerpR(K.h);
       m.scale.set(w*(rnd()<0.5?-1:1),h,1);        // 좌우 뒤집기로 한 번 더 다르게
-      const th=rnd()*6.283, rr=Math.sqrt(rnd())*CLOUD_R;
+      /* 하늘을 덮는 큰 막은 사람 머리 위 가까이 둔다 — 멀리 두면 지름이 커서
+         카메라 far 밖으로 모서리가 나간다. */
+      const th=rnd()*6.283,
+            rr=Math.sqrt(rnd())*CLOUD_R*(K.draw==='veil'?0.30:1);
       const c={m, x:Math.cos(th)*rr, z:Math.sin(th)*rr, y:lerpR(K.y),
                form:K.form, spd:K.spd*(0.7+rnd()*0.6), op:lerpR(K.op),
                tilt:(rnd()*2-1)*0.25};
@@ -8439,7 +8471,9 @@ function initThree(){
   /* 안개 — 나무가 150 m 에서 사라지므로 그 앞에서 잠기도록 짙게 잡는다.
      0.009 면 150 m 에서 87% 가 안개색이라 꺼지는 순간이 눈에 안 띈다. */
   scene.fog=new THREE.FogExp2(0x7d8f9b,0.009);
-  camera=new THREE.PerspectiveCamera(70,1,0.1,2200);
+  /* far 를 2200 → 3000 으로. 구름을 키우면서 큰 막이 2200 에서 잘려 하늘에
+     직선 금이 그이던 것을 막는다. 하늘 돔(1500)·별(1400)보다 커야 하는 건 그대로다. */
+  camera=new THREE.PerspectiveCamera(70,1,0.1,3000);
   camera.rotation.order='YXZ';
   initSky();
   amb=new THREE.AmbientLight(0x8fa4b4,0.5); scene.add(amb);
