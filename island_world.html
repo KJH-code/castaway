@@ -2537,7 +2537,77 @@ const SKY=[
   {h:21,s:0x010206,z:0x04070f,u:0x162034,a:0.038,d:0.0235,i:0.06},
   {h:24,s:0x000103,z:0x02040a,u:0x141c2e,a:0.030,d:0.0250,i:0.05}
 ];
-let skyDome=null, skyCol=null, sunDisc=null, stars=null;
+let skyDome=null, skyCol=null, sunDisc=null, stars=null, moonDisc=null;
+
+/* ── 달 ──────────────────────────────────────────────────────────────────
+   예전에는 해 판때기를 반대편으로 옮기고 색만 바꿔 달인 척했다. 그래서 위상도
+   무늬도 없고, 해와 달이 같이 떠 있을 수 없었다(낮에 뜬 달은 실제로 흔하다).
+
+   이제 따로 선다.
+   ① **얼굴** — 캔버스에 바다(어두운 얼룩)와 크레이터를 그린다. 외부 파일 없음.
+   ② **위상** — 삭망월 29.5일. 태양과의 **이각이 곧 위상각**이므로, 달의 자리를
+      해의 자리에서 위상만큼 돌린 곳에 둔다. 그러면 삭이면 해 옆에, 망이면 해
+      반대편에 서고 — 뜨고 지는 시각이 날마다 저절로 밀린다.
+   ③ **모양** — 밝은 쪽만 남긴다(`destination-in`). 밝은 쪽 반원 + 반지름이
+      cos(위상각)인 반타원이 경계다. 상현엔 오른쪽, 하현엔 뒤집어 왼쪽이 밝다.
+   ④ **달빛** — 밤에는 해가 지평선 아래에 있어 **땅 밑에서 비추고 있었다.**
+      이제 밤에는 광원을 달 쪽으로 돌리고, 세기를 밝은 면적에 비례시킨다
+      (삭이면 어둡고 망이면 밝다). 그림자는 여전히 접힌다(세기 0.12 미만). */
+const MOON={phase:0, illum:0, dir:new THREE.Vector3(0,-1,0)};
+const MOON_S=192;
+let moonFace=null, moonCan=null, moonTex=null, moonStep=-1;
+function makeMoonFace(){
+  const c=document.createElement('canvas'); c.width=c.height=MOON_S;
+  const g=c.getContext('2d'), R=MOON_S/2-2, cx=MOON_S/2, cy=MOON_S/2;
+  const rnd=mulberry32(hashStr('moon'));
+  g.save(); g.beginPath(); g.arc(cx,cy,R,0,6.283); g.clip();
+  g.fillStyle='#d8d9d2'; g.fillRect(0,0,MOON_S,MOON_S);
+  // 바다 — 큰 회색 얼룩 몇 장
+  for(let i=0;i<9;i++){
+    const th=rnd()*6.283, rr=Math.sqrt(rnd())*R*0.78;
+    const x=cx+Math.cos(th)*rr, y=cy+Math.sin(th)*rr, br=R*(0.14+rnd()*0.26);
+    const gr=g.createRadialGradient(x,y,br*0.2,x,y,br);
+    gr.addColorStop(0,'rgba(120,124,132,0.55)');
+    gr.addColorStop(1,'rgba(120,124,132,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(x,y,br,0,6.283); g.fill();
+  }
+  // 크레이터 — 햇빛이 왼쪽 위에서 든다고 보고 테두리에 명암을 준다
+  for(let i=0;i<70;i++){
+    const th=rnd()*6.283, rr=Math.sqrt(rnd())*R*0.95;
+    const x=cx+Math.cos(th)*rr, y=cy+Math.sin(th)*rr, br=R*(0.012+rnd()*0.06);
+    g.fillStyle='rgba(150,152,156,0.5)';
+    g.beginPath(); g.arc(x,y,br,0,6.283); g.fill();
+    g.strokeStyle='rgba(255,255,255,0.35)'; g.lineWidth=Math.max(0.6,br*0.22);
+    g.beginPath(); g.arc(x-br*0.1,y-br*0.1,br*0.92,2.4,5.2); g.stroke();
+    g.strokeStyle='rgba(70,72,78,0.4)';
+    g.beginPath(); g.arc(x+br*0.1,y+br*0.1,br*0.92,5.4,2.2); g.stroke();
+  }
+  // 가장자리는 조금 어둡게 — 구처럼 보이게
+  const lim=g.createRadialGradient(cx,cy,R*0.6,cx,cy,R);
+  lim.addColorStop(0,'rgba(0,0,0,0)'); lim.addColorStop(1,'rgba(0,0,0,0.38)');
+  g.fillStyle=lim; g.fillRect(0,0,MOON_S,MOON_S);
+  g.restore();
+  return c;
+}
+/* 위상 — 밝은 쪽만 남긴다. 어두운 쪽은 아예 투명해서 밤하늘에 묻힌다. */
+function drawMoonPhase(){
+  const g=moonCan.getContext('2d'), R=MOON_S/2-2, cx=MOON_S/2, cy=MOON_S/2;
+  g.setTransform(1,0,0,1,0,0);
+  g.clearRect(0,0,MOON_S,MOON_S);
+  g.drawImage(moonFace,0,0);
+  const th=MOON.phase*6.283;          // 0 삭 · π 망
+  const k=Math.cos(th);               // +1 삭 · −1 망
+  g.globalCompositeOperation='destination-in';
+  g.save();
+  if(MOON.phase>0.5){ g.translate(MOON_S,0); g.scale(-1,1); }   // 하현은 좌우 뒤집기
+  g.beginPath();
+  g.arc(cx,cy,R,-Math.PI/2,Math.PI/2,false);                    // 밝은 쪽 테두리
+  g.ellipse(cx,cy,Math.abs(k)*R,R,0,Math.PI/2,-Math.PI/2,k>0);  // 명암 경계
+  g.closePath(); g.fill();
+  g.restore();
+  g.globalCompositeOperation='source-over';
+  moonTex.needsUpdate=true;
+}
 function initSky(){
   const g=new THREE.SphereGeometry(1500,18,12);
   const n=g.attributes.position.count;
@@ -2550,6 +2620,14 @@ function initSky(){
   sunDisc=new THREE.Mesh(new THREE.CircleGeometry(52,16),
     new THREE.MeshBasicMaterial({color:0xffe9b0,fog:false,transparent:true,depthWrite:false}));
   sunDisc.renderOrder=-9; scene.add(sunDisc);
+
+  moonFace=makeMoonFace();
+  moonCan=document.createElement('canvas'); moonCan.width=moonCan.height=MOON_S;
+  moonTex=new THREE.CanvasTexture(moonCan);
+  moonDisc=new THREE.Mesh(new THREE.PlaneGeometry(64,64),
+    new THREE.MeshBasicMaterial({map:moonTex,fog:false,transparent:true,
+                                 depthWrite:false,opacity:1}));
+  moonDisc.renderOrder=-9; moonDisc.userData.lightRole='none'; scene.add(moonDisc);
 
   // 별 — 아주 작은 흰 점. 대부분 희미하고 몇 개만 또렷하다.
   const NSTAR=210;
@@ -2593,7 +2671,20 @@ function updateSky(){
 
   const ang=(hourOfDay-6)/12*Math.PI;                    // 06시 일출, 18시 일몰
   const sx=Math.cos(ang), sy=Math.sin(ang);
-  sun.position.set(sx*400, sy*380+60, 150);
+  // 삭망월 29.5일 — 밝은 면적은 (1−cos 위상각)/2 다
+  MOON.phase=((gameHours/(24*29.5))%1+1)%1;
+  MOON.illum=(1-Math.cos(MOON.phase*6.283))/2;
+  const mAng=ang-MOON.phase*6.283, mmy=Math.sin(mAng);
+  if(sy<-0.05 && mmy>-0.02){
+    /* 밤에는 달이 광원이다. 예전에는 해가 지평선 아래로 내려간 채로 계속 비춰
+       **땅 밑에서 올라오는 빛**이었다 — 물체 아랫면이 밝았다. */
+    sun.position.set(Math.cos(mAng)*400, mmy*380+60, 150);
+    sun.intensity*=0.35+0.85*MOON.illum;
+  }else{
+    sun.position.set(sx*400, sy*380+60, 150);
+    // 해도 달도 진 깜깜한 밤 — 남은 희미한 빛이라도 위에서 와야 한다
+    if(sy<-0.05) sun.position.y=90;
+  }
   hemi.intensity=0.18+amb.intensity*0.5;
 
   if(skyDome){
@@ -2613,17 +2704,29 @@ function updateSky(){
     skyDome.geometry.attributes.color.needsUpdate=true;
   }
   if(sunDisc){
-    // 낮에는 해, 밤에는 달 — 정반대 방향에 뜬다
-    const night=sy<-0.05;
-    const dx=night?-sx:sx, dy=night?-sy:sy;
-    sunDisc.position.set(camera.position.x+dx*1200,
-                         camera.position.y+dy*1200+40,
+    sunDisc.position.set(camera.position.x+sx*1200,
+                         camera.position.y+sy*1200+40,
                          camera.position.z+0.37*1200);
     sunDisc.lookAt(camera.position);
-    sunDisc.scale.setScalar(night?0.34:1);
-    sunDisc.material.color.setHex(night?0xb8c4d6:0xffe9b0);
-    sunDisc.material.opacity=night?0.55:clamp(0.35+dy*1.6,0,0.95);
-    sunDisc.visible=Math.abs(dy)>-0.2;
+    sunDisc.material.opacity=clamp(0.35+sy*1.6,0,0.95);
+    sunDisc.visible=sy>-0.10;                    // 지평선 아래로 내려가면 끈다
+  }
+  if(moonDisc){
+    /* 달은 해에서 위상만큼 돌아간 자리에 선다 — 이각 = 위상각.
+       삭이면 해 옆이라 안 보이고, 망이면 해 반대편이라 밤새 떠 있다. */
+    const ma=ang-MOON.phase*6.283;
+    const mx=Math.cos(ma), my=Math.sin(ma);
+    MOON.dir.set(mx,my,0.37).normalize();
+    moonDisc.position.set(camera.position.x+mx*1200,
+                          camera.position.y+my*1200+40,
+                          camera.position.z+0.37*1200);
+    moonDisc.lookAt(camera.position);
+    // 낮에도 보이되 옅게 — 하늘이 밝을수록 묻힌다
+    const up=clamp(my*6+0.25,0,1);
+    moonDisc.material.opacity=up*(sy>0?0.34:0.95)*clamp(MOON.illum*3,0.12,1);
+    moonDisc.visible=my>-0.06 && MOON.illum>0.01;
+    const step=Math.floor(MOON.phase*64);
+    if(step!==moonStep){ moonStep=step; drawMoonPhase(); }
   }
   if(stars){
     stars.position.copy(camera.position);
