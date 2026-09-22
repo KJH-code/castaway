@@ -2645,7 +2645,10 @@ const CLOUD_KINDS={
   cumulonimbus:{n:'적란운', form:'puff',  y:[300,380],  w:[520,760], h:[620,900],
                 cnt:[0,3],  op:[0.8,0.95], spd:0.8, draw:'anvil'}
 };
-const CLOUD_VARIANTS=3;                    // 갈래마다 밑그림 몇 장
+/* 갈래마다 밑그림 몇 장. 3장이면 한 하늘에 적운이 열 몇 개 뜰 때 같은 실루엣이
+   눈에 띈다 — 6장이면 겹쳐 보이지 않는다. 그림 54장(256², 14MB쯤)이고
+   세상을 만들 때 캔버스 작업이 그만큼 는다. */
+const CLOUD_VARIANTS=6;
 let cloudGroup=null, CLOUDS=[], cloudMat=[], cloudTex_=[], cloudTint=new THREE.Color();
 
 /* 밑그림 — 한 장씩 캔버스에 그린다. 알파만 쓰므로 흰빛과 그늘만 칠한다. */
