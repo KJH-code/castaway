@@ -124,7 +124,7 @@ const cv=document.getElementById('cv');
 const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x87a0b8);
+scene.background=null;           // 하늘은 skyScene 이 먼저 칠한다
 scene.fog=new THREE.FogExp2(0x87a0b8,0.005);
 const camera=new THREE.PerspectiveCamera(62,1,0.5,3000);
 camera.position.set(0,30,0);
@@ -162,6 +162,25 @@ const SKY=[
   {h:24,s:0x000103,z:0x02040a,u:0x141c2e,a:0.030,d:0.0250,i:0.05}
 ];
 let skyDome=null, skyCol=null, sunDisc=null, stars=null, moonDisc=null;
+/* 하늘 장면 — 해·달·별·하늘 돔·구름. 땅과 따로 그린다(구름 머리말 참고).
+   `skyCam` 은 매 프레임 `camera` 의 자리·방향·화각을 그대로 베낀다. */
+const skyScene=new THREE.Scene();
+skyScene.background=new THREE.Color(0x7d8f9b);
+const skyCam=new THREE.PerspectiveCamera(60,1,20,250000);
+let skyUnder=false;            // 물속이면 하늘 대신 물빛으로 칠한다
+function renderFrame(){
+  skyCam.position.copy(camera.position);
+  skyCam.quaternion.copy(camera.quaternion);
+  if(skyCam.fov!==camera.fov||skyCam.aspect!==camera.aspect){
+    skyCam.fov=camera.fov; skyCam.aspect=camera.aspect; skyCam.updateProjectionMatrix();
+  }
+  renderer.autoClear=false;
+  renderer.setClearColor(skyUnder?0x0b2430:skyScene.background,1);
+  renderer.clear();
+  if(!skyUnder){ renderer.render(skyScene,skyCam); renderer.clearDepth(); }
+  renderer.render(scene,camera);
+  renderer.autoClear=true; skyUnder=false;
+}
 
 /* ── 달 ──────────────────────────────────────────────────────────────────
    예전에는 해 판때기를 반대편으로 옮기고 색만 바꿔 달인 척했다. 그래서 위상도
@@ -234,68 +253,60 @@ function drawMoonPhase(){
 }
 
 /* ── 구름 ────────────────────────────────────────────────────────────────
-   실제 구름 아홉 갈래를 그대로 옮긴다. 높이·모양·두께가 갈래마다 다르고,
-   **같은 갈래 안에서도 개체마다 다르게 생겼다** — 갈래마다 밑그림을 여러 장
-   그려 두고(`VARIANTS`), 개체는 그중 하나를 골라 제 크기·기울기로 선다.
+   실제 구름 아홉 갈래를 **실제 고도·크기·두께 그대로** 세운다(단위 m).
+   꼴은 셋 — `puff` 솟은 덩이(적운·적란운·층적운) · `layer` 한 고도 띠에 흩은
+   알갱이 층(권층운·고층운·층운·권적운·고적운) · `strand` 실(권운).
 
-   두 가지 꼴로 세운다.
-     'puff'  솟은 구름 — 카메라를 보고 서는 판때기(적운·적란운·층적운·고적운·권적운)
-     'sheet' 깔린 구름 — 하늘에 눕는 판때기(권운·권층운·고층운·층운)
+   **하늘은 따로 그린다**(`skyScene`/`skyCam` · `renderFrame`). 권운이 9 km,
+   적란운 꼭대기가 12 km 라 땅을 그리는 카메라(far 3000)로는 닿지 않는다.
+   하늘 카메라는 250 km 까지 보고, 하늘을 먼저 그린 뒤 깊이만 지우고 땅을
+   덧그린다. 구름은 땅보다 늘 멀리 있으므로 순서가 곧 가림이다.
 
-   그림은 전부 캔버스다(외부 파일 없음). 안개는 받지 않는다(`fog:false`) —
-   구름은 안개보다 위에 있다. 바람을 타고 흐르고, 멀어지면 반대편으로 돌아온다.
-   색은 `updateSky` 가 정한 광원색을 따라가므로 노을에는 붉고 밤에는 검푸르다. */
-const CLOUD_R=1250;                       // 구름이 도는 원의 반지름
-/* 흐르는 속도 `v`(m/s)는 **눈에 보이는 속도**를 실제와 맞춘 값이다.
-   `real:[실제고도 m, 실제속도 m/s]` 를 같이 적어 두었다.
+   **갈래마다 그리는 반경 `R` 이 다르다** — 높은 구름일수록 멀리까지 보인다.
+   반경은 대략 '그 구름이 지평선 위 8~10° 로 보이는 거리'다. 반경 끝 40% 에서
+   **지평선 색으로 스러진다**(대기 원근) — 먼 구름이 흰 채로 딱 끊기면 하늘
+   가장자리에 테가 선다.
+   **흐르는 속도 `v` 는 실제 m/s 다**(예전에는 고도를 압축한 만큼 줄여 두었다).
+   다만 이 게임의 시간이 실제보다 60배 빠르므로 `CLOUD_SPD`(3) 를 곱한다 —
+   해가 24분에 하늘을 도는 옆에서 구름만 실제 빠르기면 붙박이처럼 보인다.
 
-   그냥 실제 속도를 쓰면 안 된다 — 이 하늘은 실제보다 낮게 압축돼 있다(권운이
-   10 km 가 아니라 1.1 km 에 있다). 사람 눈에 들어오는 것은 m/s 가 아니라
-   **각속도**(속도÷고도)이므로, 고도를 1/9 로 줄였으면 속도도 1/9 로 줄여야
-   같은 빠르기로 보인다.  v = 실제속도 × (여기 고도 / 실제 고도)
-
-   그래서 권운 30 m/s 가 여기서는 3.3 m/s 다. 세 층이 2.4~3.4 로 비슷해지는데
-   이것이 맞다 — 실제로도 높은 구름은 빨라도 느려 보이고 낮은 구름은 느려도
-   빨라 보인다. 각속도로 보면 권운 0.003 · 적운 0.007 · 층운 0.015 rad/s 로
-   실제 비율 그대로다.
-
-   다만 **이 게임의 시간이 실제보다 60배 빠르다.** 해가 24분에 하늘을 한 바퀴
-   도는 옆에서 구름만 실제 빠르기로 흐르면 붙박이처럼 보인다. 그래서 `CLOUD_SPD`
-   로 전체를 한꺼번에 올린다 — 갈래 사이의 비율(각속도)은 건드리지 않으므로
-   높은 구름이 느려 보이는 성질은 그대로다. 게임 시간 기준으로는 아직 실제의
-   1/20 이다. */
+   `y` 는 솟은 덩이면 **밑동**, 층이면 층 가운데 고도다. `w`·`h` 는 덩이면
+   알갱이를 뿌리는 범위(보이는 폭은 이보다 작다 — 적운 0.60 · 층적운 0.59 ·
+   적란운 0.89 배, 화면을 훑어 잰 값), 층·실이면 무리의 가로·세로다.
+   `th` 는 층 두께. 그림은 전부 캔버스다(외부 파일 없음). 안개는 받지 않는다. */
 const CLOUD_SPD=3;
 const CLOUD_KINDS={
-  // 상층운 — 얼음 알갱이. 얇고 희다
-  cirrus      :{n:'권운',   form:'strand',y:[1050,1180], w:[520,880], h:[240,460],
-                max:11, at:[0.00,0.52], op:[0.40,0.65], v:3.3, real:[10000,30], draw:'streak',
-                nb:[16,32]},
-  cirrostratus:{n:'권층운', form:'layer', y:[1000,1120], w:[2000,2900], h:[1700,2600],
-                max:2, at:[0.32,0.90], op:[0.07,0.13], v:3.0, real:[9500,28], draw:'veil',
-                nb:[160,220], th:40, sh:[0.94,1.0]},
-  cirrocumulus:{n:'권적운', form:'layer', y:[960,1080],  w:[560,980], h:[500,880],
-                max:7, at:[0.12,0.58], op:[0.35,0.55], v:3.2, real:[9000,27], draw:'ripple',
-                nb:[160,260], th:25},
-  // 중층운
-  altocumulus :{n:'고적운', form:'puff',  y:[780,950],  w:[740,1270], h:[290,500],
-                max:6, at:[0.22,0.78], op:[0.45,0.7], v:3.5, real:[4000,16], draw:'roll',
-                nb:[45,70]},
-  altostratus :{n:'고층운', form:'layer', y:[760,880],  w:[2100,3000], h:[1800,2700],
-                max:2, at:[0.52,1.15], op:[0.13,0.22], v:2.9, real:[4000,14], draw:'veil',
-                nb:[160,220], th:60, sh:[0.80,0.90]},
-  // 하층운
-  stratocumulus:{n:'층적운',form:'puff',  y:[500,660],  w:[1100,1800], h:[310,500],
-                max:5, at:[0.36,0.95], op:[0.6,0.85], v:3.5, real:[1500,9], draw:'lumpy',
-                nb:[60,90]},
-  stratus     :{n:'층운',   form:'layer', y:[360,470],  w:[1900,2800], h:[1600,2600],
-                max:2, at:[0.62,1.15], op:[0.16,0.27], v:5.5, real:[450,6], draw:'veil',
-                nb:[160,220], th:50, sh:[0.68,0.78]},
-  cumulus     :{n:'적운',   form:'puff',  y:[620,860],  w:[790,1360], h:[390,690],
-                max:7, at:[0.06,0.66], op:[0.75,0.95],v:4.9, real:[1200,8], draw:'cauli',
-                nb:[70,110]},
-  cumulonimbus:{n:'적란운', form:'puff',  y:[560,700],  w:[1750,2550], h:[900,1250],
-                max:2, at:[0.74,1.15], op:[0.8,0.95], v:3.9, real:[1600,10], draw:'anvil',
-                nb:[170,250]}
+  // 상층운 6~12 km — 얼음 알갱이. 얇고 희다
+  cirrus      :{n:'권운',   form:'strand',y:[7000,11000], w:[6000,14000], h:[3000,7000],
+                th:600, R:45000, max:40, at:[0.00,0.52], op:[0.22,0.40], v:30,
+                draw:'streak', nb:[16,32]},
+  cirrostratus:{n:'권층운', form:'layer', y:[7000,10000], w:[30000,50000], h:[26000,44000],
+                th:1200, R:45000, max:4, at:[0.32,0.90], op:[0.07,0.13], v:28,
+                draw:'veil', nb:[160,220], sh:[0.94,1.0]},
+  cirrocumulus:{n:'권적운', form:'layer', y:[6500,10000], w:[3000,7000], h:[2500,6000],
+                th:300, R:30000, max:24, at:[0.12,0.58], op:[0.35,0.55], v:27,
+                draw:'ripple', nb:[160,260], cell:250},
+  // 중층운 2~6 km
+  altocumulus :{n:'고적운', form:'layer', y:[2500,5000], w:[8000,20000], h:[6000,16000],
+                th:450, R:20000, max:6, at:[0.22,0.78], op:[0.45,0.7], v:16,
+                draw:'ripple', nb:[160,260], cell:600},
+  altostratus :{n:'고층운', form:'layer', y:[2500,5000], w:[25000,40000], h:[22000,36000],
+                th:2000, R:21000, max:3, at:[0.52,1.15], op:[0.13,0.22], v:14,
+                draw:'veil', nb:[160,220], sh:[0.80,0.90]},
+  // 하층운 0~2 km
+  stratocumulus:{n:'층적운',form:'puff',  y:[600,1500], w:[1700,5100], h:[220,760],
+                R:10000, max:36, at:[0.36,0.95], op:[0.6,0.85], v:9,
+                draw:'lumpy', nb:[60,90]},
+  stratus     :{n:'층운',   form:'layer', y:[150,500], w:[10000,16000], h:[9000,15000],
+                th:300, R:6000, max:3, at:[0.62,1.15], op:[0.16,0.27], v:6,
+                draw:'veil', nb:[160,220], sh:[0.68,0.78]},
+  cumulus     :{n:'적운',   form:'puff',  y:[900,1600], w:[1000,2700], h:[430,1280],
+                R:11000, max:110, at:[0.06,0.66], op:[0.75,0.95], v:8,
+                draw:'cauli', nb:[70,110]},
+  // 수직운 — 밑동은 하층, 꼭대기는 상층까지
+  cumulonimbus:{n:'적란운', form:'puff',  y:[600,1500], w:[6700,13500], h:[4900,7100],
+                R:40000, max:3, at:[0.74,1.15], op:[0.8,0.95], v:10,
+                draw:'anvil', nb:[170,250]}
 };
 
 /* ── 날씨 ────────────────────────────────────────────────────────────────
@@ -545,8 +556,14 @@ function shapePuff(c){
     c.rad[i]=b.r*(0.72+0.48*rnd());
     // 위는 볕을 받아 희고 아래는 그늘진다 — 덩이 안에서의 높이로 잰다
     const t=clamp((y-y0)/ysp,0,1);
-    c.m.setColorAt(i,_pfC.setScalar(0.60+0.40*Math.pow(t,0.8)));
+    c.m.setColorAt(i,_pfC.setScalar(0.72+0.28*Math.pow(t,0.8)));
   }
+  /* `y` 가 **밑동**이 되도록 덩이를 들어 올린다 — 가운데를 `y` 에 두었더니
+     키 2 km 짜리 적란운의 밑동이 땅(0~200 m)에 닿았다. 알갱이 그림은 판의
+     절반쯤만 보이므로 '가장 낮은 알갱이의 보이는 아랫끝'을 0 에 맞춘다. */
+  let yb=1e9;
+  for(let i=0;i<n;i++) yb=Math.min(yb,c.off[i*3+1]-c.rad[i]*0.25);
+  for(let i=0;i<n;i++) c.off[i*3+1]-=yb;
   for(let i=n;i<c.cap;i++) c.rad[i]=0;        // 남는 알갱이는 크기 0 으로 접는다
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
   c.yaw=99;                                    // 다음 프레임에 행렬을 다시 짠다
@@ -621,7 +638,11 @@ function shapeLayer(c){
     const a0=rnd()*6.283, ca=Math.cos(a0), sa=Math.sin(a0);
     /* 줄 안의 알 간격(step)을 줄 사이(gap)의 절반 아래로 잡아야 **줄이 선다** —
        둘이 비슷하면 줄 없이 고르게 흩은 좁쌀이 된다. */
-    const gap=w*(0.07+rnd()*0.025), step=gap*(0.38+rnd()*0.1);
+    /* `cell` 이 있으면 잔구름 크기를 무리 폭과 떼어 놓는다 — 실제 크기로
+       맞추면 무리는 수 km 인데 잔구름은 수백 m 라 비율로는 못 잡는다.
+       보이는 잔구름 ≈ 알 간격 × 1.1 이다(알 판의 절반쯤이 보인다). */
+    const step=K.cell?K.cell/1.1*(0.9+rnd()*0.2):w*(0.07+rnd()*0.025)*0.43,
+          gap=step/(0.38+rnd()*0.1);
     const ph=rnd()*6.283, amp=gap*(0.6+rnd()*0.8), wl=w*(0.3+rnd()*0.3);
     for(let v=-h*0.5; v<=h*0.5 && k<n; v+=gap*(0.85+rnd()*0.3)){
       for(let u=-w*0.5; u<=w*0.5 && k<n; u+=step*(0.8+rnd()*0.4)){
@@ -716,7 +737,7 @@ function shapeStrand(c){
     const L=w*(0.25+rnd()*0.30), Wd=L*(0.10+rnd()*0.08);
     qy.setFromAxisAngle(_pfAx, a0+(rnd()-0.5)*0.7);
     _pfQ.copy(qy).multiply(flat);
-    _pfV.set(u*w*0.45,(rnd()-0.5)*30,v*h*0.45);
+    _pfV.set(u*w*0.45,(rnd()-0.5)*(K.th||30),v*h*0.45);
     _pfS.set(L*(rnd()<0.5?-1:1),Wd,1);
     c.m.setMatrixAt(i,_pfM.compose(_pfV,_pfQ,_pfS));
     c.m.setColorAt(i,_pfC.setScalar(0.9+rnd()*0.1));
@@ -745,8 +766,8 @@ function rerollCloud(c){
   c.y=lerpR(K.y); c.op=lerpR(K.op); c.v=K.v*(0.75+rnd()*0.5);
   c.tilt=(rnd()*2-1)*0.25;
   // 바람이 불어오는 쪽 가장자리에 세운다 — 하늘 한복판에 불쑥 나타나지 않게
-  const rr=CLOUD_R*(K.draw==='veil'?0.30:1)*(0.75+rnd()*0.25);
-  const sp=(rnd()*2-1)*CLOUD_R*0.8;
+  const rr=K.R*(0.75+rnd()*0.25);
+  const sp=(rnd()*2-1)*K.R*0.8;
   c.x=-windDir.x*rr-windDir.z*sp; c.z=-windDir.z*rr+windDir.x*sp;
   if(camera){ c.x+=camera.position.x; c.z+=camera.position.z; }
   if(K.form==='sheet') c.m.rotation.set(-Math.PI/2,0,rnd()*6.283);
@@ -897,7 +918,7 @@ function buildClouds(seed){
   for(const t of cloudTex_) t.dispose();
   cloudMat.length=0; cloudTex_.length=0; CLOUDS.length=0;
   cloudGroup=new THREE.Group(); cloudGroup.userData.lightRole='none';
-  cloudGroup.renderOrder=-8; scene.add(cloudGroup);
+  cloudGroup.renderOrder=-8; skyScene.add(cloudGroup);
   const rnd=mulberry32((seed>>>0)^0x0c10d5a7);
   cloudRnd=rnd;                                  // 되살릴 때도 같은 난수를 쓴다
   weaSalt=(seed>>>0)^0x5ea50017;
@@ -950,9 +971,7 @@ function buildClouds(seed){
       /* 눕는 구름은 판때기 한 장이 그대로 하늘 전체가 될 수 있다 — 지름만 한
          거리 밖에 세워 한 장이 하늘의 한 조각만 차지하게 한다. 하늘을 통째로
          덮으라고 만든 막(`veil`)만 예외다. */
-      let rr=Math.sqrt(rnd())*CLOUD_R*(K.draw==='veil'?0.30:1);
-      if(K.form!=='puff'&&K.draw!=='veil')
-        rr=Math.min(CLOUD_R,Math.max(rr,Math.abs(w)*0.62));
+      const rr=Math.sqrt(rnd())*K.R;
       const c={m, key, K, mats, i, w, h,
                x:Math.cos(th)*rr, z:Math.sin(th)*rr, y:lerpR(K.y),
                form:K.form, v:K.v*(0.75+rnd()*0.5), op:lerpR(K.op),
@@ -1013,7 +1032,7 @@ function updateClouds(dt){
        이제 지나간 자리에서 다른 구름이 되어 바람 위쪽에서 다시 온다 —
        옅은 데서 시작하므로 멀리서 스며들듯 나타난다. */
     let dx=c.x-px, dz=c.z-pz;
-    if(Math.hypot(dx,dz)>CLOUD_R*1.25){
+    if(Math.hypot(dx,dz)>c.K.R*1.25){
       rerollCloud(c); c.vis=Math.min(c.vis,0.04);
       dx=c.x-px; dz=c.z-pz;
     }
@@ -1025,8 +1044,11 @@ function updateClouds(dt){
     if(c.vis<=0){ c.dead=1; c.m.visible=false; continue; }
     c.m.visible=true;
     const ease=c.vis*c.vis*(3-2*c.vis);
-    c.m.material.opacity=c.op*OPMUL*cloudFade*ease;  // 시험장: 짙기 배율
-    c.m.material.color.copy(cloudTint);
+    /* 대기 원근 — 반경 끝 40% 에서 스러지고, 멀수록 지평선 색을 띤다 */
+    const dd=Math.hypot(dx,dz), far=clamp((c.K.R*1.15-dd)/(c.K.R*0.4),0,1),
+          hz=clamp(dd/c.K.R,0,1);
+    c.m.material.opacity=c.op*OPMUL*cloudFade*ease*far;  // 시험장: 짙기 배율
+    c.m.material.color.copy(cloudTint).lerp(cHz,hz*hz*0.55);
   }
 }
 let cloudFade=1;
@@ -1085,11 +1107,11 @@ function initSky(){
   g.setAttribute('color',new THREE.BufferAttribute(skyCol,3));
   skyDome=new THREE.Mesh(g,new THREE.MeshBasicMaterial({
     vertexColors:true, side:THREE.BackSide, fog:false, depthWrite:false}));
-  skyDome.renderOrder=-10; scene.add(skyDome);
+  skyDome.renderOrder=-10; skyScene.add(skyDome);
 
   sunDisc=new THREE.Mesh(new THREE.CircleGeometry(52,16),
     new THREE.MeshBasicMaterial({color:0xffe9b0,fog:false,transparent:true,depthWrite:false}));
-  sunDisc.renderOrder=-9; scene.add(sunDisc);
+  sunDisc.renderOrder=-9; skyScene.add(sunDisc);
 
   initRain();
   moonFace=makeMoonFace();
@@ -1098,7 +1120,7 @@ function initSky(){
   moonDisc=new THREE.Mesh(new THREE.PlaneGeometry(64,64),
     new THREE.MeshBasicMaterial({map:moonTex,fog:false,transparent:true,
                                  depthWrite:false,opacity:1}));
-  moonDisc.renderOrder=-9; moonDisc.userData.lightRole='none'; scene.add(moonDisc);
+  moonDisc.renderOrder=-9; moonDisc.userData.lightRole='none'; skyScene.add(moonDisc);
 
   // 별 — 아주 작은 흰 점. 대부분 희미하고 몇 개만 또렷하다.
   const NSTAR=210;
@@ -1119,7 +1141,7 @@ function initSky(){
   stars=new THREE.Points(sg,new THREE.PointsMaterial({
     size:1.6,sizeAttenuation:false,vertexColors:true,transparent:true,opacity:0,
     fog:false,depthWrite:false}));
-  stars.renderOrder=-9.5; scene.add(stars);
+  stars.renderOrder=-9.5; skyScene.add(stars);
 }
 let hourOfDay=8.5, timeScale=1, gameHours=0;
 /* 주소 뒤 ?t=20 · ?h=5 로 배속과 시작 시각을 준다 — 하늘을 살필 때 쓴다 */
@@ -1148,7 +1170,7 @@ function updateSky(){
     cSky.lerp(cTmp,m); cHz.lerp(cTmp,m*1.0); cSun.lerp(cTmp,m*0.7);
   }
   // 안개는 지평선 색을 따라가야 먼 지형이 하늘에 자연스럽게 녹는다
-  scene.background.copy(cHz);
+  skyScene.background.copy(cHz);
   scene.fog.color.copy(cHz);
   /* 날씨가 안개와 볕을 함께 민다 — 흐리면 뿌옇고 어둡다 */
   scene.fog.density=lerp(A.d,Bk.d,t)*WEA.fog/farScale;
@@ -1259,7 +1281,8 @@ addEventListener('mousemove',e=>{
   yaw-=e.movementX*0.0022; pit=clamp(pit-e.movementY*0.0022,-1.5,1.5);
 });
 
-/* 갈래 하나를 눈앞 600 m 에 세운다 — 생김새를 뜯어보려면 가까이 있어야 한다 */
+/* 갈래 하나를 눈앞에 세운다 — 제 폭의 1.3배(적어도 800 m) 밖. 구름이 실제
+   크기라 가까이 세우면 화면을 다 덮는다. */
 let frontKey='cumulus';
 function spawnFront(){
   const c=CLOUDS.find(x=>x.key===frontKey);
@@ -1267,9 +1290,10 @@ function spawnFront(){
   MANUAL[frontKey]=Math.max(1,MANUAL[frontKey]||1);
   rerollCloud(c); c.dead=0; c.vis=1;
   const d=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
-  c.x=camera.position.x+d.x*600; c.z=camera.position.z+d.z*600;
+  const D=Math.max(800,c.w*1.3); d.y=0; d.normalize();
+  c.x=camera.position.x+d.x*D; c.z=camera.position.z+d.z*D;
   c.m.position.set(c.x,c.y,c.z); c.yaw=99;
-  syncUI(); toast(CLOUD_KINDS[frontKey].n+' 을 눈앞 600 m 에 세웠다');
+  syncUI(); toast(CLOUD_KINDS[frontKey].n+' 을 눈앞 '+(D/1000).toFixed(1)+' km 에 세웠다');
 }
 
 /* ---------------- 조작판 ---------------- */
@@ -1382,7 +1406,7 @@ function loop(){
 
   updateSky();
   if(!PAUSE){ updateClouds(dt); updateRain(dt); }
-  renderer.render(scene,camera);
+  renderFrame();
 
   if((uiT+=dt)>0.25){
     uiT=0; syncUI();

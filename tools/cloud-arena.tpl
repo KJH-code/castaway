@@ -124,7 +124,7 @@ const cv=document.getElementById('cv');
 const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x87a0b8);
+scene.background=null;           // 하늘은 skyScene 이 먼저 칠한다
 scene.fog=new THREE.FogExp2(0x87a0b8,0.005);
 const camera=new THREE.PerspectiveCamera(62,1,0.5,3000);
 camera.position.set(0,30,0);
@@ -175,7 +175,8 @@ addEventListener('mousemove',e=>{
   yaw-=e.movementX*0.0022; pit=clamp(pit-e.movementY*0.0022,-1.5,1.5);
 });
 
-/* 갈래 하나를 눈앞 600 m 에 세운다 — 생김새를 뜯어보려면 가까이 있어야 한다 */
+/* 갈래 하나를 눈앞에 세운다 — 제 폭의 1.3배(적어도 800 m) 밖. 구름이 실제
+   크기라 가까이 세우면 화면을 다 덮는다. */
 let frontKey='cumulus';
 function spawnFront(){
   const c=CLOUDS.find(x=>x.key===frontKey);
@@ -183,9 +184,10 @@ function spawnFront(){
   MANUAL[frontKey]=Math.max(1,MANUAL[frontKey]||1);
   rerollCloud(c); c.dead=0; c.vis=1;
   const d=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
-  c.x=camera.position.x+d.x*600; c.z=camera.position.z+d.z*600;
+  const D=Math.max(800,c.w*1.3); d.y=0; d.normalize();
+  c.x=camera.position.x+d.x*D; c.z=camera.position.z+d.z*D;
   c.m.position.set(c.x,c.y,c.z); c.yaw=99;
-  syncUI(); toast(CLOUD_KINDS[frontKey].n+' 을 눈앞 600 m 에 세웠다');
+  syncUI(); toast(CLOUD_KINDS[frontKey].n+' 을 눈앞 '+(D/1000).toFixed(1)+' km 에 세웠다');
 }
 
 /* ---------------- 조작판 ---------------- */
@@ -298,7 +300,7 @@ function loop(){
 
   updateSky();
   if(!PAUSE){ updateClouds(dt); updateRain(dt); }
-  renderer.render(scene,camera);
+  renderFrame();
 
   if((uiT+=dt)>0.25){
     uiT=0; syncUI();

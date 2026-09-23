@@ -25,8 +25,8 @@ rep('    want[k]=Math.round(K.max*Math.pow(b,0.6));',
   + '           :Math.round(K.max*Math.pow(b,0.6));');
 rep('    c.vis=clamp(c.vis+(on?1:-1)*dt/25,0,1);',
     '    c.vis=clamp(c.vis+(on?1:-1)*dt/FADE,0,1);   // 시험장: 여닫는 시간 조절');
-rep('    c.m.material.opacity=c.op*cloudFade*ease;',
-    '    c.m.material.opacity=c.op*OPMUL*cloudFade*ease;  // 시험장: 짙기 배율');
+rep('    c.m.material.opacity=c.op*cloudFade*ease*far;',
+    '    c.m.material.opacity=c.op*OPMUL*cloudFade*ease*far;  // 시험장: 짙기 배율');
 
 const tpl = readFileSync('tools/cloud-arena.tpl', 'utf8');
 if (!tpl.includes('/*@SKY@*/')) throw new Error('틀에 /*@SKY@*/ 자리가 없다');
