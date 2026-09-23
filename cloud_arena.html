@@ -47,7 +47,8 @@
       <button id="bAuto" class="on">날씨에 맡김</button>
     </div>
     <div class="row"><button id="bRoll">모양 다시 굴리기 (R)</button>
-      <button id="bFront">앞에 세우기 (F)</button></div>
+      <button id="bFront">앞에 세우기 (F)</button>
+      <button id="bPause">멈춤 (P)</button></div>
   </div>
   <div class="sec">
     <div class="sl"><label>시각</label><input id="sH" type="range" min="0" max="24"
@@ -106,6 +107,10 @@ let windDir={x:1,z:0,name:'서풍'};
 let farScale=1.0, ocean=null;
 /* 시험장 손잡이 */
 let COVER=0.35, MIST=null, OPMUL=1, FADE=4;
+/* 멈춤 — 시간·구름을 세우고 그리기만 한다. 뜯어볼 때와 사진 찍을 때 쓴다.
+   멈추지 않으면 1562 m(`CLOUD_R`×1.25) 밖에 갖다 놓은 구름을 루프가 곧바로
+   되굴려 치워 버린다. */
+let PAUSE=false;
 const MANUAL={};
 let toastT=0;
 function toast(s){
@@ -269,23 +274,23 @@ const CLOUD_KINDS={
   cirrocumulus:{n:'권적운', form:'sheet', y:[960,1080],  w:[560,980], h:[500,880],
                 max:7, at:[0.12,0.58], op:[0.24,0.42], v:3.2, real:[9000,27], draw:'ripple'},
   // 중층운
-  altocumulus :{n:'고적운', form:'puff',  y:[780,950],  w:[740,1270], h:[190,330],
+  altocumulus :{n:'고적운', form:'puff',  y:[780,950],  w:[740,1270], h:[290,500],
                 max:6, at:[0.22,0.78], op:[0.45,0.7], v:3.5, real:[4000,16], draw:'roll',
-                nb:[26,40]},
+                nb:[45,70]},
   altostratus :{n:'고층운', form:'sheet', y:[760,880],  w:[2100,3000], h:[1800,2700],
                 max:2, at:[0.52,1.15], op:[0.30,0.5], v:2.9, real:[4000,14], draw:'veil'},
   // 하층운
   stratocumulus:{n:'층적운',form:'puff',  y:[500,660],  w:[1100,1800], h:[310,500],
                 max:5, at:[0.36,0.95], op:[0.6,0.85], v:3.5, real:[1500,9], draw:'lumpy',
-                nb:[30,46]},
+                nb:[60,90]},
   stratus     :{n:'층운',   form:'sheet', y:[360,470],  w:[1900,2800], h:[1600,2600],
                 max:2, at:[0.62,1.15], op:[0.35,0.6], v:5.5, real:[450,6], draw:'veil'},
   cumulus     :{n:'적운',   form:'puff',  y:[620,860],  w:[790,1360], h:[390,690],
                 max:7, at:[0.06,0.66], op:[0.75,0.95],v:4.9, real:[1200,8], draw:'cauli',
-                nb:[40,64]},
-  cumulonimbus:{n:'적란운', form:'puff',  y:[560,700],  w:[1750,2550], h:[1300,1900],
+                nb:[70,110]},
+  cumulonimbus:{n:'적란운', form:'puff',  y:[560,700],  w:[1750,2550], h:[900,1250],
                 max:2, at:[0.74,1.15], op:[0.8,0.95], v:3.9, real:[1600,10], draw:'anvil',
-                nb:[55,85]}
+                nb:[170,250]}
 };
 
 /* ── 날씨 ────────────────────────────────────────────────────────────────
@@ -407,9 +412,9 @@ function puffTex(seed){
     /* 알갱이 하나는 **거의 안 보일 만큼 옅다** — 예닐곱 알이 겹쳐야 비로소
        구름 한 덩이가 된다. 한 알이 진하면 겹치는 자리가 새하얗게 타고
        안 겹치는 알은 하늘에 뜬 물방울처럼 따로 논다. */
-    gr.addColorStop(0,   'rgba(255,255,255,'+(0.26*a)+')');
-    gr.addColorStop(0.5, 'rgba(255,255,255,'+(0.15*a)+')');
-    gr.addColorStop(0.82,'rgba(255,255,255,'+(0.04*a)+')');
+    gr.addColorStop(0,   'rgba(255,255,255,'+(0.42*a)+')');
+    gr.addColorStop(0.5, 'rgba(255,255,255,'+(0.25*a)+')');
+    gr.addColorStop(0.82,'rgba(255,255,255,'+(0.07*a)+')');
     gr.addColorStop(1,   'rgba(255,255,255,0)');
     g.fillStyle=gr; g.beginPath(); g.arc(x,y,r,0,6.283); g.fill();
   };
@@ -446,48 +451,95 @@ function shapePuff(c){
   const rnd=cloudRnd, K=c.K, w=c.w, h=c.h, d=K.draw;
   const n=Math.min(c.cap, Math.round(K.nb[0]+rnd()*(K.nb[1]-K.nb[0])));
   c.nb=n;
-  // ① 혹을 먼저 잡는다
-  /* 혹의 **방위각은 갈라 세운다**(`(l+흔들기)/nl` 바퀴). 각도까지 무작위로
-     뽑으면 혹 두셋이 한자리에 겹쳐 서는 일이 잦아, 덩이가 지정 폭의 1/3 로
-     쪼그라든 공 하나가 된다(폭 892 m 짜리가 286 m 로 섰다). 거리도 0 에서
-     뽑지 않고 최소값을 준다 — 가운데 모이면 갈라 세운 보람이 없다. */
-  const nl=2+((rnd()*3)|0), L=[];
-  for(let l=0;l<nl;l++){
-    const a=(l+0.15+rnd()*0.7)/nl*6.283;
-    let lt=0,lx,ly,lz,lr,R;
-    if(d==='cauli'){
-      lt=Math.pow(rnd(),0.9)*0.8;
-      R=(w*0.5)*(0.30+0.28*rnd())*(1-0.40*lt);
-      lx=Math.cos(a)*R; lz=Math.sin(a)*R;
-      ly=lt*h*0.75; lr=w*(0.21+0.12*rnd())*(1-0.25*lt);
-    }else if(d==='anvil'){
-      lt=Math.pow(rnd(),0.75);
-      R=(w*0.5)*Math.min(1,0.18+lt*lt*0.95)*(0.45+0.45*rnd());
-      lx=Math.cos(a)*R; lz=Math.sin(a)*R;
-      ly=lt*h*0.80; lr=w*(0.17+0.10*rnd());
-    }else if(d==='lumpy'){
-      R=(w*0.5)*(0.32+0.30*rnd());
-      lx=Math.cos(a)*R; lz=Math.sin(a)*R*0.8;
-      ly=rnd()*h*0.5; lr=w*(0.19+0.10*rnd());
-    }else{                                      // roll — 한 줄로 늘어선다
-      lx=((l+0.15+rnd()*0.7)/nl*2-1)*w*0.40; lz=(rnd()*2-1)*w*0.10;
-      ly=rnd()*h*0.5; lr=w*(0.15+0.09*rnd());
+  /* ① 혹은 **사슬**이다 — 다음 혹을 앞 혹에 이어 붙이므로 구조상 반드시
+     한 덩이가 된다. 갈래는 '어느 쪽으로 이어 붙이느냐'가 정한다.
+     처음에는 혹을 제각기 뿌리고 나중에 당겨 붙였는데, 방위각만 갈라 세운
+     탓에 폭 2 km 짜리 적란운에서 혹 둘이 900 m 넘게 떨어져 **딴 구름 둘로
+     보였다.** 그렇다고 당겨 붙이면 이번엔 솟은 기둥이 뭉개진다 — 붙이는 일은
+     당기기가 아니라 잇기로 해야 한다. */
+  const L=[], push=(x,y,z,r)=>L.push({x,y,z,r});
+  if(d==='anvil'){
+    // 적란운 — 기둥이 솟다가 꼭대기에서 모루처럼 옆으로 퍼진다
+    /* 몸통은 **밑이 굵고 위로 갈수록 가늘다.** 처음에 굵기를 폭의 0.15 로
+       잡았더니 폭 1.9 km 짜리가 지름 700 m 짜리 연기 기둥이 됐다 — 적란운은
+       가는 기둥이 아니라 두꺼운 탑이다. 마디 간격보다 가늘어지지도 않게 한다
+       (키만 크고 폭이 좁은 개체에서 마디가 벌어져 토막 났다). */
+    const nt=4+((rnd()*3)|0), dy=h*0.78/nt;
+    let x=0,z=0, tx=0, tz=0;
+    for(let k=0;k<=nt;k++){
+      const t=k/nt, r=Math.max(w*(0.34-0.12*t), dy*0.95);
+      tx=x+(rnd()*2-1)*w*0.05; tz=z+(rnd()*2-1)*w*0.05;
+      push(tx, k*dy, tz, r);
+      x+=(rnd()*2-1)*w*0.04; z+=(rnd()*2-1)*w*0.04;   // 탑이 조금씩 기운다
     }
-    L.push({x:lx,y:ly,z:lz,r:lr});
+    /* 모루 — 꼭대기에서 옆으로 퍼진다. 거리는 **반지름에서 뽑는다**:
+       보기 좋은 값으로 정해 두면 폭이 큰 개체에서 몸통과 끊어진다. */
+    const aa=rnd()*6.283, rtop=w*0.22, ra=w*0.36, st=0.58*(rtop+ra);
+    push(tx+Math.cos(aa)*st,      h*0.80, tz+Math.sin(aa)*st,      ra);
+    push(tx-Math.cos(aa)*st*0.70, h*0.86, tz-Math.sin(aa)*st*0.70, ra*0.90);
+  }else if(d==='cauli'){
+    // 적운 — 넓고 평평한 밑면에서 작은 혹이 위로 솟는다
+    const nl=3+((rnd()*3)|0);
+    let r=w*0.24, x=0, y=0, z=0;
+    push(x,y,z,r);
+    for(let k=1;k<nl;k++){
+      const a=(k+0.15+rnd()*0.7)/nl*6.283, nr=r*(0.78+rnd()*0.16),
+            st=0.60*(r+nr);
+      x+=Math.cos(a)*st*0.80; z+=Math.sin(a)*st*0.80; y+=st*0.52;
+      push(x,y,z,nr); r=nr;
+    }
+  }else if(d==='lumpy'){
+    // 층적운 — 옆으로만 퍼진 혹 판
+    const nl=3+((rnd()*3)|0);
+    let r=w*0.19, x=0, z=0;
+    push(x,0,z,r);
+    for(let k=1;k<nl;k++){
+      const a=(k+0.15+rnd()*0.7)/nl*6.283, nr=r*(0.85+rnd()*0.3),
+            st=0.62*(r+nr);
+      x+=Math.cos(a)*st; z+=Math.sin(a)*st*0.8;
+      push(x,(rnd()-0.4)*h*0.3,z,nr); r=nr;
+    }
+  }else{
+    // 고적운 — 한 줄로 길게 늘어선 두루마리
+    /* 혹이 잘면 두루마리가 아니라 싸라기로 보인다 — 실제 고적운도 잔 구름이
+       늘어선 것이지만, 잔 구름 하나하나가 동그랗게 따로 놀면 색종이 조각이다.
+       혹을 굵게 잡고 바짝 붙여 **이어진 두루마리**로 만든다. */
+    const nl=3+((rnd()*3)|0);
+    let r=w*0.21, x=0;
+    push(x,0,0,r);
+    for(let k=1;k<nl;k++){
+      const nr=r*(0.85+rnd()*0.3), st=0.56*(r+nr);
+      x+=st; push(x,(rnd()-0.5)*h*0.3,(rnd()-0.5)*w*0.10,nr); r=nr;
+    }
   }
+  // 사슬이 어디서 시작했든 덩이가 제자리에 서도록 가운데를 맞춘다
+  let mx=0,my=0,mz=0, y0=1e9, y1=-1e9;
+  for(const b of L){ mx+=b.x; my+=b.y; mz+=b.z; }
+  mx/=L.length; my/=L.length; mz/=L.length;
+  for(const b of L){ b.x-=mx; b.y-=my; b.z-=mz;
+    y0=Math.min(y0,b.y); y1=Math.max(y1,b.y); }
+  const nl=L.length, ysp=Math.max(1,y1-y0);
+  c._nl=nl;   // 시험용 — 혹이 몇 개였나
   // ② 알갱이를 혹 둘레에 몰아 붙인다
   for(let i=0;i<n;i++){
     const b=L[i%nl];
     const a=rnd()*6.283, cz=rnd()*2-1, sz=Math.sqrt(1-cz*cz);
-    const dd=b.r*0.75*Math.pow(rnd(),0.55);
-    const fz=(d==='roll')?0.55:0.85;
+    /* 혹 안에서 너무 퍼뜨리면 **혹 안에서부터 알갱이가 서로 안 닿는다** —
+       이음매가 아니라 혹 속이 성겨서 조각이 났다. */
+    const dd=b.r*0.62*Math.pow(rnd(),0.55);
+    /* 혹 둘레에 놓는 알갱이를 **어느 쪽으로 납작하게 누르느냐**도 갈래마다 다르다.
+       세로를 한결같이 0.55배로 눌렀더니 **세로로 쌓은 적란운 기둥이 마디마다
+       끊어졌다** — 기둥은 세로로 이어 붙이는데 알갱이는 세로로 안 퍼지니
+       이음매가 닿지 않는다. 솟는 갈래는 안 누르고 깔리는 갈래만 누른다. */
+    const fz=(d==='roll')?0.55:0.85,
+          fy=(d==='anvil')?1.0:(d==='cauli'?0.78:0.5);
     const x=b.x+Math.cos(a)*sz*dd,
           z=b.z+Math.sin(a)*sz*dd*fz,
-          y=b.y+cz*dd*0.55;
-    c.off[i*3]=x; c.off[i*3+1]=y-h*0.35; c.off[i*3+2]=z;
-    c.rad[i]=b.r*(0.60+0.50*rnd());
-    // 위는 볕을 받아 희고 아래는 그늘진다
-    const t=clamp(y/h,0,1);
+          y=b.y+cz*dd*fy;
+    c.off[i*3]=x; c.off[i*3+1]=y; c.off[i*3+2]=z;
+    c.rad[i]=b.r*(0.72+0.48*rnd());
+    // 위는 볕을 받아 희고 아래는 그늘진다 — 덩이 안에서의 높이로 잰다
+    const t=clamp((y-y0)/ysp,0,1);
     c.m.setColorAt(i,_pfC.setScalar(0.60+0.40*Math.pow(t,0.8)));
   }
   for(let i=n;i<c.cap;i++) c.rad[i]=0;        // 남는 알갱이는 크기 0 으로 접는다
@@ -1012,7 +1064,6 @@ function updateSky(){
   }
 }
 
-
 /* ---------------- 조종 ---------------- */
 const keys={};
 addEventListener('keydown',e=>{
@@ -1020,6 +1071,9 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyR'){ for(const c of CLOUDS) if(c.vis>0) rerollCloud(c);
     toast('모양 다시 굴림'); }
   if(e.code==='KeyF') spawnFront();
+  if(e.code==='KeyP'){ PAUSE=!PAUSE;
+    document.getElementById('bPause').classList.toggle('on',PAUSE);
+    toast(PAUSE?'멈춤':'다시 흐름'); }
   if(e.code==='KeyT'){
     timeScale=timeScale===1?20:(timeScale===20?60:(timeScale===60?300:1));
     document.getElementById('sT').value=[1,20,60,300].indexOf(timeScale);
@@ -1080,6 +1134,8 @@ document.getElementById('bNone').onclick=()=>{
 document.getElementById('bRoll').onclick=()=>{
   for(const c of CLOUDS) if(c.vis>0) rerollCloud(c); toast('모양 다시 굴림'); };
 document.getElementById('bFront').onclick=spawnFront;
+document.getElementById('bPause').onclick=()=>{ PAUSE=!PAUSE;
+  document.getElementById('bPause').classList.toggle('on',PAUSE); };
 
 const $=id=>document.getElementById(id);
 function syncT(){
@@ -1134,6 +1190,7 @@ function loop(){
   let dt=Math.min(0.1,(now-last)/1000); last=now;
   fps+=((1/Math.max(dt,0.001))-fps)*0.08;
 
+  if(PAUSE) dt=0;
   // 시간 — 실제 1초가 게임 1분(본편과 같다)
   hourOfDay+=dt/60*timeScale; gameHours+=dt/60*timeScale;
   if(hourOfDay>=24) hourOfDay-=24;
@@ -1153,8 +1210,7 @@ function loop(){
   camera.quaternion.setFromEuler(new THREE.Euler(pit,yaw,0,'YXZ'));
 
   updateSky();
-  updateClouds(dt);
-  updateRain(dt);
+  if(!PAUSE){ updateClouds(dt); updateRain(dt); }
   renderer.render(scene,camera);
 
   if((uiT+=dt)>0.25){
