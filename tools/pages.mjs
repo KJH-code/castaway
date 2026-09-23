@@ -16,6 +16,7 @@ import {resolve} from 'node:path';
 export const PAGES = [
   {f: 'island_world.html',  ready: 'busy === false',                      ms: 300000},
   {f: 'build_sandbox.html', ready: 'busy === false',                      ms: 300000},
+  {f: 'cloud_arena.html',   ready: 'CLOUDS.length > 0 && !!skyDome',      ms: 120000},
   {f: 'bear_arena.html',    ready: '!!bMesh',                             ms: 180000},
   {f: 'gargoyle_arena.html',ready: '!!gMesh',                             ms: 240000},
   {f: 'mixed_arena.html',   ready: '!!bMesh && GS.every(g => g.mesh)',    ms: 300000},
