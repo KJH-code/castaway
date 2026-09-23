@@ -2650,21 +2650,21 @@ const CLOUD_KINDS={
   cirrocumulus:{n:'권적운', form:'sheet', y:[960,1080],  w:[560,980], h:[500,880],
                 max:7, at:[0.12,0.58], op:[0.24,0.42], v:3.2, real:[9000,27], draw:'ripple'},
   // 중층운
-  altocumulus :{n:'고적운', form:'puff',  y:[500,650],  w:[640,1100], h:[190,330],
+  altocumulus :{n:'고적운', form:'puff',  y:[500,650],  w:[740,1270], h:[190,330],
                 max:6, at:[0.22,0.78], op:[0.45,0.7], v:2.6, real:[4000,16], draw:'roll',
                 nb:[26,40]},
   altostratus :{n:'고층운', form:'sheet', y:[480,580],  w:[2100,3000], h:[1800,2700],
                 max:2, at:[0.52,1.15], op:[0.30,0.5], v:2.4, real:[4000,14], draw:'veil'},
   // 하층운
-  stratocumulus:{n:'층적운',form:'puff',  y:[280,380],  w:[880,1450], h:[310,500],
+  stratocumulus:{n:'층적운',form:'puff',  y:[280,380],  w:[1100,1800], h:[310,500],
                 max:5, at:[0.36,0.95], op:[0.6,0.85], v:2.6, real:[1500,9], draw:'lumpy',
                 nb:[30,46]},
   stratus     :{n:'층운',   form:'sheet', y:[200,270],  w:[1900,2800], h:[1600,2600],
                 max:2, at:[0.62,1.15], op:[0.35,0.6], v:3.4, real:[450,6], draw:'veil'},
-  cumulus     :{n:'적운',   form:'puff',  y:[340,480],  w:[520,900], h:[390,690],
+  cumulus     :{n:'적운',   form:'puff',  y:[340,480],  w:[790,1360], h:[390,690],
                 max:7, at:[0.06,0.66], op:[0.75,0.95],v:2.8, real:[1200,8], draw:'cauli',
                 nb:[40,64]},
-  cumulonimbus:{n:'적란운', form:'puff',  y:[330,430],  w:[1100,1600], h:[1300,1900],
+  cumulonimbus:{n:'적란운', form:'puff',  y:[330,430],  w:[1750,2550], h:[1300,1900],
                 max:2, at:[0.74,1.15], op:[0.8,0.95], v:2.4, real:[1600,10], draw:'anvil',
                 nb:[55,85]}
 };
@@ -2783,9 +2783,12 @@ function puffTex(seed){
   const g=cv.getContext('2d'), rnd=mulberry32(hashStr('puff|'+seed));
   const blob=(x,y,r,a)=>{
     const gr=g.createRadialGradient(x-r*0.22,y-r*0.3,r*0.05,x,y,r);
-    gr.addColorStop(0,   'rgba(255,255,255,'+(0.62*a)+')');
-    gr.addColorStop(0.5, 'rgba(255,255,255,'+(0.34*a)+')');
-    gr.addColorStop(0.82,'rgba(255,255,255,'+(0.09*a)+')');
+    /* 알갱이 하나는 **거의 안 보일 만큼 옅다** — 예닐곱 알이 겹쳐야 비로소
+       구름 한 덩이가 된다. 한 알이 진하면 겹치는 자리가 새하얗게 타고
+       안 겹치는 알은 하늘에 뜬 물방울처럼 따로 논다. */
+    gr.addColorStop(0,   'rgba(255,255,255,'+(0.26*a)+')');
+    gr.addColorStop(0.5, 'rgba(255,255,255,'+(0.15*a)+')');
+    gr.addColorStop(0.82,'rgba(255,255,255,'+(0.04*a)+')');
     gr.addColorStop(1,   'rgba(255,255,255,0)');
     g.fillStyle=gr; g.beginPath(); g.arc(x,y,r,0,6.283); g.fill();
   };
@@ -2809,36 +2812,62 @@ function puffTex(seed){
 /* 덩이 모양 — 갈래마다 알갱이를 어디에 놓을지가 곧 구름의 생김새다.
    `cauli` 적운(평평한 밑면 위로 솟은 돔) · `anvil` 적란운(솟다가 꼭대기에서
    모루처럼 퍼진다) · `lumpy` 층적운(넓게 깔린 혹 판) · `roll` 고적운(한 줄로
-   길게 늘어선 두루마리). 위쪽 알갱이는 볕을 받아 희고 아래는 그늘진다. */
+   길게 늘어선 두루마리). 위쪽 알갱이는 볕을 받아 희고 아래는 그늘진다.
+
+   **알갱이를 덩이 안에 고루 뿌리면 구름이 아니라 싸라기가 된다.** 폭 669 m
+   짜리 덩이에 지름 78 m 짜리를 46 알 흩었더니 한 알도 서로 닿지 않고
+   하늘에 물방울이 흩뿌려진 꼴이 됐다. 그래서 두 단계로 놓는다 —
+   ① **혹 2~4 개**를 먼저 잡고(이것이 구름의 큰 덩어리다)
+   ② 알갱이를 그 혹 둘레 `0.6 r` 안에 몰아 붙인다.
+   알갱이 지름도 혹 크기의 **절반 남짓**(덩이 폭의 1/4~1/3)이라 예닐곱 알이
+   늘 겹친다. 겹쳐야 덩이가 되고, 겹치는 수가 들쭉날쭉해야 윤곽이 뭉실해진다. */
 function shapePuff(c){
   const rnd=cloudRnd, K=c.K, w=c.w, h=c.h, d=K.draw;
   const n=Math.min(c.cap, Math.round(K.nb[0]+rnd()*(K.nb[1]-K.nb[0])));
   c.nb=n;
-  for(let i=0;i<n;i++){
-    let t, R, rr;
+  // ① 혹을 먼저 잡는다
+  /* 혹의 **방위각은 갈라 세운다**(`(l+흔들기)/nl` 바퀴). 각도까지 무작위로
+     뽑으면 혹 두셋이 한자리에 겹쳐 서는 일이 잦아, 덩이가 지정 폭의 1/3 로
+     쪼그라든 공 하나가 된다(폭 892 m 짜리가 286 m 로 섰다). 거리도 0 에서
+     뽑지 않고 최소값을 준다 — 가운데 모이면 갈라 세운 보람이 없다. */
+  const nl=2+((rnd()*3)|0), L=[];
+  for(let l=0;l<nl;l++){
+    const a=(l+0.15+rnd()*0.7)/nl*6.283;
+    let lt=0,lx,ly,lz,lr,R;
     if(d==='cauli'){
-      t=Math.pow(rnd(),0.85);
-      R=(w*0.5)*(1-0.5*t*t)*Math.sqrt(rnd());
-      rr=w*(0.085+0.065*(1-t))*(0.75+rnd()*0.55);
+      lt=Math.pow(rnd(),0.9)*0.8;
+      R=(w*0.5)*(0.30+0.28*rnd())*(1-0.40*lt);
+      lx=Math.cos(a)*R; lz=Math.sin(a)*R;
+      ly=lt*h*0.75; lr=w*(0.21+0.12*rnd())*(1-0.25*lt);
     }else if(d==='anvil'){
-      t=Math.pow(rnd(),0.7);
-      R=(w*0.5)*Math.min(1,0.20+t*t*1.05)*Math.sqrt(rnd());
-      rr=w*(0.075+0.055*(1-t))*(0.75+rnd()*0.55);
+      lt=Math.pow(rnd(),0.75);
+      R=(w*0.5)*Math.min(1,0.18+lt*lt*0.95)*(0.45+0.45*rnd());
+      lx=Math.cos(a)*R; lz=Math.sin(a)*R;
+      ly=lt*h*0.80; lr=w*(0.17+0.10*rnd());
     }else if(d==='lumpy'){
-      t=rnd();
-      R=(w*0.5)*Math.sqrt(rnd());
-      rr=w*0.085*(0.7+rnd()*0.7);
-    }else{                                    // roll
-      t=rnd();
-      R=(w*0.5)*Math.sqrt(rnd());
-      rr=w*0.075*(0.7+rnd()*0.7);
+      R=(w*0.5)*(0.32+0.30*rnd());
+      lx=Math.cos(a)*R; lz=Math.sin(a)*R*0.8;
+      ly=rnd()*h*0.5; lr=w*(0.19+0.10*rnd());
+    }else{                                      // roll — 한 줄로 늘어선다
+      lx=((l+0.15+rnd()*0.7)/nl*2-1)*w*0.40; lz=(rnd()*2-1)*w*0.10;
+      ly=rnd()*h*0.5; lr=w*(0.15+0.09*rnd());
     }
-    const ang=rnd()*6.283, fz=(d==='roll')?0.32:(d==='lumpy'?0.8:1);
-    c.off[i*3]  =Math.cos(ang)*R;
-    c.off[i*3+1]=t*h*0.9+(rnd()-0.5)*h*0.12-h*0.35;
-    c.off[i*3+2]=Math.sin(ang)*R*fz;
-    c.rad[i]=rr;
-    c.m.setColorAt(i,_pfC.setScalar(0.62+0.38*Math.pow(t,0.7)));
+    L.push({x:lx,y:ly,z:lz,r:lr});
+  }
+  // ② 알갱이를 혹 둘레에 몰아 붙인다
+  for(let i=0;i<n;i++){
+    const b=L[i%nl];
+    const a=rnd()*6.283, cz=rnd()*2-1, sz=Math.sqrt(1-cz*cz);
+    const dd=b.r*0.75*Math.pow(rnd(),0.55);
+    const fz=(d==='roll')?0.55:0.85;
+    const x=b.x+Math.cos(a)*sz*dd,
+          z=b.z+Math.sin(a)*sz*dd*fz,
+          y=b.y+cz*dd*0.55;
+    c.off[i*3]=x; c.off[i*3+1]=y-h*0.35; c.off[i*3+2]=z;
+    c.rad[i]=b.r*(0.60+0.50*rnd());
+    // 위는 볕을 받아 희고 아래는 그늘진다
+    const t=clamp(y/h,0,1);
+    c.m.setColorAt(i,_pfC.setScalar(0.60+0.40*Math.pow(t,0.8)));
   }
   for(let i=n;i<c.cap;i++) c.rad[i]=0;        // 남는 알갱이는 크기 0 으로 접는다
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
