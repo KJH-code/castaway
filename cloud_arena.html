@@ -692,14 +692,15 @@ function shapePuff(c){
 const _sd=new THREE.Vector3();
 function litPuff(c){
   if(!c.sh) return;
-  _sd.copy(sun.position).normalize();
+  _sd.copy(SKYL.dir);                            // 참 해 방향(밤엔 달)
   const W=Math.max(1,c.w*0.5);
   for(let i=0;i<c.nb;i++){
     const dx=(c.off[i*3]-c.cx)/W, dy=(c.off[i*3+1]-c.cy)/W, dz=(c.off[i*3+2]-c.cz)/W;
     const L=Math.hypot(dx,dy,dz)||1;
     const k=(dx*_sd.x+dy*_sd.y+dz*_sd.z)/L;           // −1 그늘진 쪽 · +1 볕 쪽
-    const f=clamp(0.88+0.18*k*Math.min(1,L*1.4),0.80,1.06);
-    c.m.setColorAt(i,_pfC.setScalar(Math.min(1,c.sh[i]*f)));
+    // r: 직사광을 받는 몫(해 쪽일수록) · g: 하늘빛을 받는 몫(높이 그늘)
+    const w=clamp(0.55+0.55*k*Math.min(1,L*1.4),0.08,1);
+    c.m.setColorAt(i,_pfC.setRGB(c.sh[i]*w,c.sh[i],0));
   }
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
 }
@@ -778,8 +779,11 @@ function softTex(){
    `customProgramCacheKey` 로 빌보드 여부를 갈라 둔다(소스가 같아 섞이지 않게). */
 function cloudShader(mat,bill){
   mat.userData.uR={value:20000}; mat.userData.uHz={value:new THREE.Color()};
+  mat.userData.uDirect={value:new THREE.Color(1,1,1)};
+  mat.userData.uSkyC={value:new THREE.Color(0.3,0.3,0.3)};
   mat.onBeforeCompile=sh=>{
     sh.uniforms.uR=mat.userData.uR; sh.uniforms.uHz=mat.userData.uHz;
+    sh.uniforms.uDirect=mat.userData.uDirect; sh.uniforms.uSkyC=mat.userData.uSkyC;
     const proj=bill
       ? `vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
          mvPosition.xy += transformed.xy * length( instanceMatrix[0].xyz );
@@ -787,8 +791,15 @@ function cloudShader(mat,bill){
       : '#include <project_vertex>';
     sh.vertexShader='varying float vCD;\n'+sh.vertexShader.replace('#include <project_vertex>',
       proj+'\nvCD = length( mvPosition.xyz );');
-    sh.fragmentShader='uniform float uR;\nuniform vec3 uHz;\nvarying float vCD;\n'+
-      sh.fragmentShader.replace('#include <fog_fragment>',
+    /* ③ 알갱이 색 = 직사광 × r + 하늘빛 × g (instanceColor 의 두 칸).
+       r 은 그 알갱이가 해를 얼마나 받나(해 쪽으로 나온 만큼), g 는 하늘빛을 받는
+       몫이다. 노을에는 직사광이 주황·빨강이고 하늘빛이 파랗다 — 둘이 겹쳐 분홍·
+       보랏빛이 나고, 해 쪽과 반대쪽이 갈라진다. 색을 한 가지로 곱하던 때는
+       덩이 전체가 같은 주황으로 물들었다. */
+    sh.fragmentShader='uniform float uR;\nuniform vec3 uHz;\nuniform vec3 uDirect;\nuniform vec3 uSkyC;\nvarying float vCD;\n'+
+      sh.fragmentShader.replace('#include <color_fragment>',
+        'diffuseColor.rgb *= ( uDirect * vColor.r + uSkyC * vColor.g );')
+      .replace('#include <fog_fragment>',
        `float hzF = clamp( vCD / uR, 0.0, 1.0 );
         gl_FragColor.rgb = mix( gl_FragColor.rgb, uHz, pow( hzF, 1.3 ) * 0.78 );
         gl_FragColor.a *= clamp( ( uR * 1.15 - vCD ) / ( uR * 0.4 ), 0.0, 1.0 )
@@ -835,8 +846,8 @@ function shapeLayer(c){
         c.off[k*3]=x+(rnd()-0.5)*step*0.3; c.off[k*3+1]=(rnd()-0.5)*th;
         c.off[k*3+2]=z+(rnd()-0.5)*step*0.3;
         c.rad[k]=step*(1.9+rnd()*0.7)*(0.55+0.45*(1-e));
-        const sh=K.sh||[0.88,1];
-        c.m.setColorAt(k,_pfC.setScalar(sh[0]+rnd()*(sh[1]-sh[0]))); k++;
+        const sh=K.sh||[0.88,1], sv=sh[0]+rnd()*(sh[1]-sh[0]);
+        c.m.setColorAt(k,_pfC.setRGB(sv*0.9,sv*0.9,0)); k++;
       }
     }
   }else{
@@ -852,8 +863,8 @@ function shapeLayer(c){
       /* 알을 크게(폭의 22~32%) 잡아 여남은 알이 늘 겹치게 한다 — 알이 잘면
          알 하나하나가 보여 막이 아니라 얼룩이 된다 */
       c.rad[k]=w*(0.22+rnd()*0.10)*(0.45+0.55*Math.sqrt(1-e*e));
-      const sh=K.sh||[0.85,1];
-      c.m.setColorAt(k,_pfC.setScalar(sh[0]+rnd()*(sh[1]-sh[0]))); k++;
+      const sh=K.sh||[0.85,1], sv=sh[0]+rnd()*(sh[1]-sh[0]);
+      c.m.setColorAt(k,_pfC.setRGB(sv*0.7,sv,0)); k++;    // 막은 밑면이라 하늘빛이 크다
     }
   }
   c.nb=k;
@@ -922,7 +933,8 @@ function shapeStrand(c){
     _pfV.set(u*w*0.45,(rnd()-0.5)*(K.th||30),v*h*0.45);
     _pfS.set(L*(rnd()<0.5?-1:1),Wd,1);
     c.m.setMatrixAt(i,_pfM.compose(_pfV,_pfQ,_pfS));
-    c.m.setColorAt(i,_pfC.setScalar(0.9+rnd()*0.1));
+    const sv=0.9+rnd()*0.1;
+    c.m.setColorAt(i,_pfC.setRGB(sv,sv*0.6,0));           // 얼음 실은 볕을 그대로 받는다
   }
   c.nb=n;
   cloudBounds(c);
@@ -1234,9 +1246,11 @@ function updateClouds(dt){
     const ease=c.vis*c.vis*(3-2*c.vis);
     /* 대기 원근(멀수록 옅고 지평선 색) · 반경 끝 스러짐은 셰이더가 화소마다 한다 */
     c.m.material.opacity=c.op*OPMUL*cloudFade*ease;
-    c.m.material.color.copy(cloudTint);
+    c.m.material.color.setRGB(1,1,1);
     const U=c.m.material.userData;
-    if(U.uR){ U.uR.value=c.K.R; U.uHz.value.copy(cHz); }
+    if(U.uR){ U.uR.value=c.K.R; U.uHz.value.copy(cHz);
+      const hk=c.form==='puff'?c.y+c.h*0.6:c.y;
+      cloudLight(hk,U.uDirect.value); U.uSkyC.value.copy(SKYL.amb); }
   }
   updateCloudShadow(dt);
 }
@@ -1430,6 +1444,49 @@ float cloudSh(){
   m.needsUpdate=true;
 }
 
+/* ── 구름이 받는 빛 — 제 높이에서 본 해 ────────────────────────────────
+   높이 h 에 선 구름은 지평선이 acos(Rₑ/(Rₑ+h)) 만큼 내려가 있다(Rₑ 6371 km —
+   1.5 km 1.2° · 9 km 3.0° · 12 km 3.5°). 그래서 **땅에서 해가 져도 높은 구름엔
+   볕이 남는다** — 실제 노을은 아래 구름부터 잿빛으로 식고, 높은 권운이 가장 오래
+   분홍으로 남는다. 그 해 높이로 공기를 지나온 햇빛(`sunTransmit`)을 계산한다.
+   해가 그 구름의 지평선 밑으로 0.9° 넘게 가면 지구 그림자 속이라 직사광이 없다.
+   밝기는 투과한 양의 제곱근으로 눅인다 — 눈이 노을빛에 익으므로 그대로 쓰면
+   노을 구름이 실제보다 너무 어둡다. 밤에는 달빛을 같은 식으로 받는다. */
+const SKYL={dir:new THREE.Vector3(0,1,0), sunEl:0.5, moonEl:-1, illum:0,
+            turb:2.6, tz:1, amb:new THREE.Color(0.4,0.45,0.5)};
+const _cl=[0,0,0];
+/* 높이 h 의 구름까지 햇빛이 지나오며 남는 몫. 하늘 셰이더와 같은 계수를 쓰되
+   ① **구름 위쪽 공기만 지난다** — 레일리는 8.4 km, 먼지·물방울은 1.25 km 마다
+   1/e 로 옅어지므로 그만큼 곱한다(9 km 권운은 레일리 0.34 · 미 0 만 지난다).
+   ② 하늘을 파랗게 보이려고 키운 레일리 배율(`SKYP.ray` 1.4)은 쓰지 않는다 —
+   그대로 쓰면 해가 2° 에서 벌써 녹슨 빨강이었다. */
+function cloudTransmit(e,h,out){
+  const zen=Math.PI/2-Math.max(e,0);
+  const inv=1/(Math.cos(zen)+0.15*Math.pow(Math.max(1e-3,93.885-zen*180/Math.PI),-1.253));
+  const tm=0.434*(0.2*SKYL.turb)*1e-17, fr=Math.exp(-h/8400), fm=Math.exp(-h/1250);
+  for(let i=0;i<3;i++)
+    out[i]=Math.exp(-(_TR[i]*8400*fr+tm*_MC[i]*SKYP.mie*1250*fm)*inv);
+  return out;
+}
+function cloudLight(h,out){
+  const dip=Math.acos(6371/(6371+Math.max(0,h)/1000));
+  out.setRGB(0,0,0);
+  const add=(el,k)=>{
+    const e=el+dip;
+    const vis=clamp((e+0.016)/0.022,0,1);             // 지구 그림자(−0.9°~+0.35°)
+    if(vis<=0) return;
+    cloudTransmit(e,h,_cl);
+    const mag=clamp(_cl[0]/SKYL.tz,0,1);
+    const m=Math.max(_cl[0],_cl[1],_cl[2],1e-5);
+    // 눈이 노을빛에 익는다 — 투과한 양만큼 어두워지지 않고 제곱근으로 조금만
+    const g=(0.60+0.40*Math.sqrt(mag))*k*vis/m;
+    out.r+=_cl[0]*g; out.g+=_cl[1]*g; out.b+=_cl[2]*g;
+  };
+  add(SKYL.sunEl,0.72);
+  add(SKYL.moonEl,0.10*SKYL.illum);
+  return out;
+}
+
 /* ── 대기 산란 하늘 ──────────────────────────────────────────────────────
    하늘색을 시각별 색표로 보간하던 것을 **레일리·미 산란식**(프리섬 모형 — three.js
    예제 Sky 와 같은 식)으로 화소마다 계산한다. 공기 분자는 파란빛을 많이 흩어
@@ -1475,11 +1532,12 @@ function skyScatter(dir,sun,turb,k,out){
 /* 톤 매핑(ACES 어림) — 셰이더와 같은 식 */
 function skyTone(v){ v*=SKYP.exp; return clamp((v*(2.51*v+0.03))/(v*(2.43*v+0.59)+0.14),0,1); }
 /* 해가 공기를 지나며 남는 빛(투과) — 햇빛(광원)의 색 */
-function sunTransmit(sy,turb,out){
+function sunTransmit(sy,turb,out,raw){
   const zen=Math.acos(clamp(sy,0,1));
   const inv=1/(Math.cos(zen)+0.15*Math.pow(Math.max(1e-3,93.885-zen*180/Math.PI),-1.253));
   const tm=0.434*(0.2*turb)*1e-17;
   for(let i=0;i<3;i++) out[i]=Math.exp(-(_TR[i]*SKYP.ray*8400*inv+tm*_MC[i]*SKYP.mie*1250*inv));
+  if(raw) return out;
   const m=Math.max(out[0],out[1],out[2],1e-4);
   for(let i=0;i<3;i++) out[i]/=m;
   return out;
@@ -1572,6 +1630,7 @@ try{
 }catch(e){}   // gameHours: 랩되지 않는 누적 시간
 const cA=new THREE.Color(), cB=new THREE.Color(), cSky=new THREE.Color(),
       cHz=new THREE.Color(), cSun=new THREE.Color(), cTmp=new THREE.Color();
+const _white3=new THREE.Color(1,1,1);
 const _sd3=new THREE.Vector3(), _md3=new THREE.Vector3(), _dv3=new THREE.Vector3(),
       _c3=[0,0,0], _c4=[0,0,0];
 function updateSky(){
@@ -1611,6 +1670,29 @@ function updateSky(){
   if(sy>-0.05){ sunTransmit(Math.max(sy,0.02),turb,_c3); cSun.setRGB(_c3[0],_c3[1],_c3[2]); }
   else cSun.setRGB(0.62,0.70,0.86);
 
+  /* 구름이 받는 빛(cloudLight)과 그늘을 채우는 하늘빛의 재료 */
+  SKYL.sunEl=Math.asin(clamp(_sd3.y,-1,1)); SKYL.moonEl=Math.asin(clamp(_md3.y,-1,1));
+  SKYL.illum=MOON.illum; SKYL.turb=turb;
+  cloudTransmit(Math.PI/2,0,_c4); SKYL.tz=_c4[0];
+  SKYL.dir.copy(sy>-0.05?_sd3:_md3);
+  /* 구름 그늘진 쪽이 받는 하늘빛 — 천정색을 반쯤 무채색으로 눅여(구름 속에서 여러
+     번 흩어지며 색이 섞인다) 쓴다. 밤엔 아주 어둡다 */
+  {
+    const L=(cSky.r*0.3+cSky.g*0.59+cSky.b*0.11);
+    /* 어스름에는 눈이 익는다 — 하늘이 어두워진 만큼(3배까지) 밝혀 쓴다 */
+    const ad=clamp(0.62/Math.max(cSky.r,cSky.g,cSky.b,1e-3),1,3);
+    SKYL.amb.setRGB(cSky.r*0.55+L*0.45,cSky.g*0.55+L*0.45,cSky.b*0.55+L*0.45)
+            .multiplyScalar(0.62*ad);
+  }
+  /* 그늘을 채우는 빛의 색 — **그림자 색은 산란이다.** 그늘진 땅은 햇빛 대신 하늘빛만
+     받으니 한낮엔 푸르스름하고 노을녘엔 보랏빛이다. 고정 색이던 하늘빛(hemi)과
+     환경광(amb)을 천정색(+지평선색 조금)에 맨다. 세기는 여전히 SKY 표가 쥔다. */
+  {
+    cTmp.copy(cSky).lerp(cHz,0.3);
+    const m=Math.max(cTmp.r,cTmp.g,cTmp.b,1e-4); cTmp.multiplyScalar(1/m);
+    hemi.color.copy(cTmp).lerp(_white3,0.35);
+    amb.color.copy(cTmp).lerp(_white3,0.65);
+  }
   /* 흐린 날 · 안개 — 하늘도 잿빛으로 지운다. 땅만 뿌옇고 하늘이 말짱하면 유리 돔
      안에 선 꼴이 된다. 구름은 `fog:false` 라 저절로 안 지워지므로 여기서 같이 민다. */
   cTmp.setHex(0xb6bfc2).multiplyScalar(0.35+clamp(Math.sin((hourOfDay-6)/12*Math.PI),0,1)*0.65);
