@@ -2644,7 +2644,7 @@ const CLOUD_SPD=3;
 const CLOUD_KINDS={
   // 상층운 — 얼음 알갱이. 얇고 희다
   cirrus      :{n:'권운',   form:'sheet', y:[1050,1180], w:[1100,1900], h:[500,950],
-                max:6, at:[0.04,0.52], op:[0.28,0.48], v:3.3, real:[10000,30], draw:'streak'},
+                max:6, at:[0.00,0.52], op:[0.28,0.48], v:3.3, real:[10000,30], draw:'streak'},
   cirrostratus:{n:'권층운', form:'sheet', y:[1000,1120], w:[2000,2900], h:[1700,2600],
                 max:2, at:[0.32,0.90], op:[0.16,0.28], v:3.0, real:[9500,28], draw:'veil'},
   cirrocumulus:{n:'권적운', form:'sheet', y:[960,1080],  w:[950,1700], h:[850,1500],
@@ -3105,7 +3105,13 @@ function initSky(){
     fog:false,depthWrite:false}));
   stars.renderOrder=-9.5; scene.add(stars);
 }
-let hourOfDay=8.5, timeScale=1, gameHours=0;   // gameHours: 랩되지 않는 누적 시간
+let hourOfDay=8.5, timeScale=1, gameHours=0;
+/* 주소 뒤 ?t=20 · ?h=5 로 배속과 시작 시각을 준다 — 하늘을 살필 때 쓴다 */
+try{
+  const q=new URLSearchParams(location.search);
+  if(q.has('t')) timeScale=Math.max(1,Math.min(300,parseFloat(q.get('t'))||1));
+  if(q.has('h')) hourOfDay=Math.max(0,Math.min(24,parseFloat(q.get('h'))||0));
+}catch(e){}   // gameHours: 랩되지 않는 누적 시간
 const cA=new THREE.Color(), cB=new THREE.Color(), cSky=new THREE.Color(),
       cHz=new THREE.Color(), cSun=new THREE.Color(), cTmp=new THREE.Color();
 function updateSky(){
@@ -9142,7 +9148,13 @@ addEventListener('keydown',e=>{
     else if(!craftOpen && i<QUICK.length) quickSwap(i);
   }
   if(e.code==='KeyV'){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
-  if(e.code==='KeyT'){ timeScale = timeScale===1?60:(timeScale===60?300:1); }
+  /* T — 시간 배속. 20배를 넣어 두었다: 하늘과 날씨를 살펴볼 때 1배는 너무 느리고
+     60배는 하루가 24초라 너무 빠르다. 20배면 게임 하루가 72초다.
+     주소 뒤에 ?t=20 을 붙이면 그 배속으로 시작한다. */
+  if(e.code==='KeyT'){
+    timeScale = timeScale===1?20:(timeScale===20?60:(timeScale===60?300:1));
+    toast('시간 '+timeScale+'배 — 하루가 '+(24*60/timeScale).toFixed(0)+'초');
+  }
   if(e.code==='KeyR'&&BUILD.on){ buildRotate(1); return; }   // 짓기 중엔 방향 돌리기
   if(e.code==='KeyR'){ generateWorld(); }
   if(e.code==='KeyZ'){                         // 짓기 모드
