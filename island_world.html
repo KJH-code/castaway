@@ -2643,12 +2643,12 @@ const CLOUD_R=1250;                       // 구름이 도는 원의 반지름
 const CLOUD_SPD=3;
 const CLOUD_KINDS={
   // 상층운 — 얼음 알갱이. 얇고 희다
-  cirrus      :{n:'권운',   form:'sheet', y:[1050,1180], w:[1100,1900], h:[500,950],
-                max:6, at:[0.00,0.52], op:[0.28,0.48], v:3.3, real:[10000,30], draw:'streak'},
+  cirrus      :{n:'권운',   form:'sheet', y:[1050,1180], w:[520,880], h:[240,460],
+                max:11, at:[0.00,0.52], op:[0.28,0.48], v:3.3, real:[10000,30], draw:'streak'},
   cirrostratus:{n:'권층운', form:'sheet', y:[1000,1120], w:[2000,2900], h:[1700,2600],
                 max:2, at:[0.32,0.90], op:[0.16,0.28], v:3.0, real:[9500,28], draw:'veil'},
-  cirrocumulus:{n:'권적운', form:'sheet', y:[960,1080],  w:[950,1700], h:[850,1500],
-                max:4, at:[0.12,0.58], op:[0.24,0.42], v:3.2, real:[9000,27], draw:'ripple'},
+  cirrocumulus:{n:'권적운', form:'sheet', y:[960,1080],  w:[560,980], h:[500,880],
+                max:7, at:[0.12,0.58], op:[0.24,0.42], v:3.2, real:[9000,27], draw:'ripple'},
   // 중층운
   altocumulus :{n:'고적운', form:'puff',  y:[500,650],  w:[640,1100], h:[190,330],
                 max:6, at:[0.22,0.78], op:[0.45,0.7], v:2.6, real:[4000,16], draw:'roll'},
@@ -2763,7 +2763,11 @@ function rerollCloud(c){
   c.tilt=(rnd()*2-1)*0.25;
   // 바람이 불어오는 쪽 가장자리에 세운다 — 하늘 한복판에 불쑥 나타나지 않게
   const rr=CLOUD_R*(K.draw==='veil'?0.30:1)*(0.75+rnd()*0.25);
-  const sp=(rnd()*2-1)*CLOUD_R*0.8;
+  /* 서는 구름(`puff`)은 카메라를 보고 도는 판때기라, 머리 바로 위를 지나가면
+     지나가는 동안 제자리에서 한 바퀴 돌아 버린다(요각이 180° 를 훑는다).
+     옆으로 비켜 흐르게 해서 지나가는 내내 요각이 천천히만 움직이게 한다. */
+  const side=(rnd()<0.5?-1:1);
+  const sp=(K.form==='puff'?side*(0.35+rnd()*0.45):(rnd()*2-1)*0.8)*CLOUD_R;
   c.x=-windDir.x*rr-windDir.z*sp; c.z=-windDir.z*rr+windDir.x*sp;
   if(camera){ c.x+=camera.position.x; c.z+=camera.position.z; }
   if(K.form==='sheet') c.m.rotation.set(-Math.PI/2,0,rnd()*6.283);
@@ -2941,8 +2945,14 @@ function buildClouds(seed){
       m.scale.set(w*(rnd()<0.5?-1:1),h,1);        // 좌우 뒤집기로 한 번 더 다르게
       /* 하늘을 덮는 큰 막은 사람 머리 위 가까이 둔다 — 멀리 두면 지름이 커서
          카메라 far 밖으로 모서리가 나간다. */
-      const th=rnd()*6.283,
-            rr=Math.sqrt(rnd())*CLOUD_R*(K.draw==='veil'?0.30:1);
+      const th=rnd()*6.283;
+      /* 눕는 구름은 판때기 한 장이 그대로 하늘 전체가 될 수 있다 — 지름만 한
+         거리 밖에 세워 한 장이 하늘의 한 조각만 차지하게 한다. 하늘을 통째로
+         덮으라고 만든 막(`veil`)만 예외다. */
+      let rr=Math.sqrt(rnd())*CLOUD_R*(K.draw==='veil'?0.30:1);
+      if(K.form==='sheet'&&K.draw!=='veil')
+        rr=Math.min(CLOUD_R,Math.max(rr,Math.abs(w)*0.62));
+      if(K.form==='puff') rr=Math.max(rr,CLOUD_R*0.40);
       const c={m, key, K, mats, i,
                x:Math.cos(th)*rr, z:Math.sin(th)*rr, y:lerpR(K.y),
                form:K.form, v:K.v*(0.75+rnd()*0.5), op:lerpR(K.op),
