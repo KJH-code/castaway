@@ -283,9 +283,9 @@ const CLOUD_KINDS={
   cirrostratus:{n:'권층운', form:'layer', y:[7000,10000], w:[30000,50000], h:[26000,44000],
                 th:1200, R:45000, max:4, at:[0.32,0.90], op:[0.07,0.13], v:28,
                 draw:'veil', nb:[160,220], sh:[0.94,1.0]},
-  cirrocumulus:{n:'권적운', form:'layer', y:[6500,10000], w:[3000,7000], h:[2500,6000],
+  cirrocumulus:{n:'권적운', form:'layer', y:[6500,10000], w:[2000,5000], h:[1600,4200],
                 th:300, R:30000, max:24, at:[0.12,0.58], op:[0.35,0.55], v:27,
-                draw:'ripple', nb:[160,260], cell:250},
+                draw:'ripple', nb:[220,480], cell:130},
   // 중층운 2~6 km
   altocumulus :{n:'고적운', form:'layer', y:[2500,5000], w:[8000,20000], h:[6000,16000],
                 th:450, R:20000, max:6, at:[0.22,0.78], op:[0.45,0.7], v:16,
@@ -295,13 +295,13 @@ const CLOUD_KINDS={
                 draw:'veil', nb:[160,220], sh:[0.80,0.90]},
   // 하층운 0~2 km
   stratocumulus:{n:'층적운',form:'puff',  y:[600,1500], w:[1700,5100], h:[220,760],
-                R:10000, max:36, at:[0.36,0.95], op:[0.6,0.85], v:9,
+                R:18000, max:100, at:[0.36,0.95], op:[0.6,0.85], v:9,
                 draw:'lumpy', nb:[60,90]},
   stratus     :{n:'층운',   form:'layer', y:[150,500], w:[10000,16000], h:[9000,15000],
-                th:300, R:6000, max:3, at:[0.62,1.15], op:[0.16,0.27], v:6,
+                th:300, R:12000, max:5, at:[0.62,1.15], op:[0.16,0.27], v:6,
                 draw:'veil', nb:[160,220], sh:[0.68,0.78]},
   cumulus     :{n:'적운',   form:'puff',  y:[900,1600], w:[1000,2700], h:[430,1280],
-                R:11000, max:110, at:[0.06,0.66], op:[0.75,0.95], v:8,
+                R:20000, max:300, at:[0.06,0.66], op:[0.75,0.95], v:8,
                 draw:'cauli', nb:[70,110]},
   // 수직운 — 밑동은 하층, 꼭대기는 상층까지
   cumulonimbus:{n:'적란운', form:'puff',  y:[600,1500], w:[6700,13500], h:[4900,7100],
@@ -554,9 +554,6 @@ function shapePuff(c){
           y=b.y+cz*dd*fy;
     c.off[i*3]=x; c.off[i*3+1]=y; c.off[i*3+2]=z;
     c.rad[i]=b.r*(0.72+0.48*rnd());
-    // 위는 볕을 받아 희고 아래는 그늘진다 — 덩이 안에서의 높이로 잰다
-    const t=clamp((y-y0)/ysp,0,1);
-    c.m.setColorAt(i,_pfC.setScalar(0.72+0.28*Math.pow(t,0.8)));
   }
   /* `y` 가 **밑동**이 되도록 덩이를 들어 올린다 — 가운데를 `y` 에 두었더니
      키 2 km 짜리 적란운의 밑동이 땅(0~200 m)에 닿았다. 알갱이 그림은 판의
@@ -564,9 +561,67 @@ function shapePuff(c){
   let yb=1e9;
   for(let i=0;i<n;i++) yb=Math.min(yb,c.off[i*3+1]-c.rad[i]*0.25);
   for(let i=0;i<n;i++) c.off[i*3+1]-=yb;
+  /* **밑동은 평평하다** — 적운·층적운·적란운은 공기가 식어 이슬점에 닿는 높이
+     (응결 고도)에서 생겨나므로 밑이 칼로 자른 듯 고르다. 혹을 그대로 두면 밑도
+     위처럼 울퉁불퉁한 솜덩이가 된다. 밑쪽 알갱이의 아랫끝을 전부 0 에 앉힌다. */
+  const flat=h*0.14;
+  for(let i=0;i<n;i++){
+    const bot=c.off[i*3+1]-c.rad[i]*0.25;
+    if(bot<flat) c.off[i*3+1]=c.rad[i]*0.25+bot*0.15;
+  }
+  let sx=0,sy=0,sz=0;
+  for(let i=0;i<n;i++){ sx+=c.off[i*3]; sy+=c.off[i*3+1]; sz+=c.off[i*3+2]; }
+  c.cx=sx/n; c.cy=sy/n; c.cz=sz/n;
+  if(!c.sh||c.sh.length<c.cap) c.sh=new Float32Array(c.cap);
+  for(let i=0;i<n;i++){
+    const t=clamp(c.off[i*3+1]/Math.max(1,ysp*1.3+h*0.3),0,1);
+    c.sh[i]=0.72+0.28*Math.pow(t,0.8);
+  }
+  litPuff(c);
   for(let i=n;i<c.cap;i++) c.rad[i]=0;        // 남는 알갱이는 크기 0 으로 접는다
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
   c.yaw=99;                                    // 다음 프레임에 행렬을 다시 짠다
+  cloudBounds(c);
+}
+
+/* 볕 받는 쪽이 밝다 — 알갱이마다 덩이 가운데에서 해 쪽으로 얼마나 나와 있나로
+   밝기를 준다. 높이 그늘(`c.sh`)에 곱한다. 해가 천천히 도므로 2초마다 다시 칠한다
+   (`updateClouds`). 밤에는 `sun` 이 달 쪽으로 가 있으므로 달빛 쪽이 밝다. */
+const _sd=new THREE.Vector3();
+function litPuff(c){
+  if(!c.sh) return;
+  _sd.copy(sun.position).normalize();
+  const W=Math.max(1,c.w*0.5);
+  for(let i=0;i<c.nb;i++){
+    const dx=(c.off[i*3]-c.cx)/W, dy=(c.off[i*3+1]-c.cy)/W, dz=(c.off[i*3+2]-c.cz)/W;
+    const L=Math.hypot(dx,dy,dz)||1;
+    const k=(dx*_sd.x+dy*_sd.y+dz*_sd.z)/L;           // −1 그늘진 쪽 · +1 볕 쪽
+    const f=clamp(0.88+0.18*k*Math.min(1,L*1.4),0.80,1.06);
+    c.m.setColorAt(i,_pfC.setScalar(Math.min(1,c.sh[i]*f)));
+  }
+  if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
+}
+/* 덩이마다 경계구를 달아 **화면 밖 덩이는 안 그린다.** 알갱이를 여러 판에 흩은
+   `InstancedMesh` 는 판 하나(1 m 네모)의 경계구로 거르므로 그대로는 못 쓴다 —
+   덩이마다 판 모양을 복제해(정점 넷이라 값이 없다) 제 경계구를 준다.
+   구름을 실제 크기로 세우니 적운만 반경 20 km 에 수백 덩이라, 거르지 않으면
+   등 뒤의 구름까지 다 그린다. */
+function cloudBounds(c){
+  let x0=1e9,y0=1e9,z0=1e9,x1=-1e9,y1=-1e9,z1=-1e9,pad=0;
+  for(let i=0;i<c.nb;i++){
+    const r=(c.rad[i]||0)*0.5; pad=Math.max(pad,r);
+    x0=Math.min(x0,c.off[i*3]);   x1=Math.max(x1,c.off[i*3]);
+    y0=Math.min(y0,c.off[i*3+1]); y1=Math.max(y1,c.off[i*3+1]);
+    z0=Math.min(z0,c.off[i*3+2]); z1=Math.max(z1,c.off[i*3+2]);
+  }
+  if(c.form==='strand'||!(x1>x0)){          // 실은 자리만 적어 둔다 — 폭으로 잡는다
+    x0=-c.w*0.5; x1=c.w*0.5; z0=-c.h*0.5; z1=c.h*0.5;
+    y0=-(c.K.th||50); y1=(c.K.th||50); pad=c.w*0.3;
+  }
+  const g=c.m.geometry;
+  if(!g.boundingSphere) g.boundingSphere=new THREE.Sphere();
+  g.boundingSphere.center.set((x0+x1)/2,(y0+y1)/2,(z0+z1)/2);
+  g.boundingSphere.radius=Math.hypot(x1-x0,y1-y0,z1-z0)/2+pad;
 }
 
 /* 알갱이를 카메라 쪽으로 세운다. 한 덩이 안에서는 요각이 거의 같으므로
@@ -594,7 +649,7 @@ function layPuff(c,px,pz){
    알갱이는 **카메라를 온전히 마주 보는 판**(구면 빌보드)이다 — 솟은 구름처럼
    요각만 돌리면 바로 밑에서 올려다볼 때 판이 모로 서서 사라진다. 깔린 구름은
    거의 늘 머리 위에 있으므로 그럴 수 없다. 돌리는 일은 정점 셰이더가 한다
-   (`billboardMat`) — 행렬에는 자리와 크기만 담아 한 번 쓰고 끝이다. */
+   (`cloudShader`) — 행렬에는 자리와 크기만 담아 한 번 쓰고 끝이다. */
 /* 막의 알은 **혹 무늬가 없어야 한다.** 솟은 구름용 알(`puffTex`)은 작은 혹을
    겹쳐 윤곽을 흐트러뜨려 두었는데, 그걸로 막을 깔았더니 권층운·층운이 매끈한
    막이 아니라 뭉게구름 덩이로 보였다. 막은 둥근 흐림 하나로 깐다. */
@@ -609,13 +664,26 @@ function softTex(){
   g.fillStyle=gr; g.fillRect(0,0,W,W);
   return new THREE.CanvasTexture(cv);
 }
-function billboardMat(mat){
+/* 구름 재질 손질 — ① 층이면 알갱이를 카메라에 온전히 마주 세운다(빌보드)
+   ② **대기 원근을 섞기로 낸다**: 화소색 = 구름색×(1−a) + 지평선색×a.
+   재질 색(`color`)은 곱하기라, 지평선 색 쪽으로 끌어도 알갱이 그늘이 다시 곱해져
+   먼 적운이 짙은 잿빛 그대로 줄지어 섰다(먹구름 떼처럼 보였다). 실제로 먼 것이
+   옅어지는 건 사이 공기가 빛을 **더하기** 때문이다.
+   재질마다 제 `uHaze`·`uHz` 를 갖는다 — 셰이더 프로그램은 나눠 쓰되 값은 따로다.
+   `customProgramCacheKey` 로 빌보드 여부를 갈라 둔다(소스가 같아 섞이지 않게). */
+function cloudShader(mat,bill){
+  mat.userData.uHaze={value:0}; mat.userData.uHz={value:new THREE.Color()};
   mat.onBeforeCompile=sh=>{
-    sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>',
+    sh.uniforms.uHaze=mat.userData.uHaze; sh.uniforms.uHz=mat.userData.uHz;
+    if(bill) sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>',
       `vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
        mvPosition.xy += transformed.xy * length( instanceMatrix[0].xyz );
        gl_Position = projectionMatrix * mvPosition;`);
+    sh.fragmentShader='uniform float uHaze;\nuniform vec3 uHz;\n'+
+      sh.fragmentShader.replace('#include <fog_fragment>',
+        'gl_FragColor.rgb = mix( gl_FragColor.rgb, uHz, uHaze );\n#include <fog_fragment>');
   };
+  mat.customProgramCacheKey=()=>bill?'cloud-bill':'cloud';
   return mat;
 }
 /* 값잡음 한 장 — 층 안에 짙고 옅은 데를 만든다(고른 층은 인공물로 보인다) */
@@ -676,6 +744,7 @@ function shapeLayer(c){
     }
   }
   c.nb=k;
+  cloudBounds(c);
   for(let i=0;i<c.cap;i++){
     const r=i<k?c.rad[i]:0;
     _pfV.set(c.off[i*3],c.off[i*3+1],c.off[i*3+2]); _pfS.set(r,r,r);
@@ -743,6 +812,7 @@ function shapeStrand(c){
     c.m.setColorAt(i,_pfC.setScalar(0.9+rnd()*0.1));
   }
   c.nb=n;
+  cloudBounds(c);
   c.m.instanceMatrix.needsUpdate=true;
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
 }
@@ -957,14 +1027,16 @@ function buildClouds(seed){
             transparent:true, depthWrite:false, fog:false, vertexColors:true,
             side:THREE.DoubleSide, opacity:0})
         : mats[(rnd()*CLOUD_VARIANTS)|0].clone();
-      if(K.form==='layer') billboardMat(mm);
+      if(inst) cloudShader(mm,K.form==='layer');
       cloudMat.push(mm);
       mm.opacity=0;
       const w=lerpR(K.w), h=lerpR(K.h);
-      const m=inst ? new THREE.InstancedMesh(pquad,mm,K.nb[1])
-                   : new THREE.Mesh(quad,mm);
-      if(inst) m.frustumCulled=false;             // 알갱이가 덩이 둘레에 흩어진다
-      else m.scale.set(w*(rnd()<0.5?-1:1),h,1);   // 좌우 뒤집기로 한 번 더 다르게
+      const m=inst ? new THREE.InstancedMesh(pquad.clone(),mm,K.nb[1])
+                   : new THREE.Mesh(quad,mm);     // 덩이마다 제 경계구(cloudBounds)
+      if(!inst) m.scale.set(w*(rnd()<0.5?-1:1),h,1);   // 좌우 뒤집기로 한 번 더 다르게
+      /* r128 의 InstancedMesh 는 **만들 때 거르기를 스스로 끈다**(인스턴스의
+         경계를 모르므로). 경계구를 직접 주므로(`cloudBounds`) 다시 켠다. */
+      else m.frustumCulled=true;
       /* 하늘을 덮는 큰 막은 사람 머리 위 가까이 둔다 — 멀리 두면 지름이 커서
          카메라 far 밖으로 모서리가 나간다. */
       const th=rnd()*6.283;
@@ -1038,7 +1110,10 @@ function updateClouds(dt){
     }
     c.m.position.set(c.x,c.y,c.z);
     // 솟은 구름은 알갱이가 저마다 카메라를 본다(뭉치 자체는 안 돈다)
-    if(c.form==='puff') layPuff(c,px,pz);
+    if(c.form==='puff'){
+      layPuff(c,px,pz);
+      if((c.litT=(c.litT||0)+dt*ts)>2){ c.litT=Math.random()*0.3; litPuff(c); }
+    }
     // 날씨가 부르면 서서히 짙어지고, 물러나면 옅어진다(한 번 여닫는 데 25초쯤)
     c.vis=clamp(c.vis+(on?1:-1)*dt/FADE,0,1);   // 시험장: 여닫는 시간 조절
     if(c.vis<=0){ c.dead=1; c.m.visible=false; continue; }
@@ -1047,8 +1122,13 @@ function updateClouds(dt){
     /* 대기 원근 — 반경 끝 40% 에서 스러지고, 멀수록 지평선 색을 띤다 */
     const dd=Math.hypot(dx,dz), far=clamp((c.K.R*1.15-dd)/(c.K.R*0.4),0,1),
           hz=clamp(dd/c.K.R,0,1);
-    c.m.material.opacity=c.op*OPMUL*cloudFade*ease*far;  // 시험장: 짙기 배율
-    c.m.material.color.copy(cloudTint).lerp(cHz,hz*hz*0.55);
+    /* 멀수록 옅고 지평선 색을 띤다 — 멀리 선 적운이 가까운 것과 같은 짙기·명암이면
+       지평선에 짙은 잿빛 덩이가 줄지어 서 먹구름 떼처럼 보인다 */
+    c.m.material.opacity=c.op*OPMUL*cloudFade*ease*far*(1-hz*hz*0.35);
+    c.m.material.color.copy(cloudTint);
+    const U=c.m.material.userData;
+    if(U.uHaze){ U.uHaze.value=Math.pow(hz,1.3)*0.78; U.uHz.value.copy(cHz); }
+    else c.m.material.color.lerp(cHz,Math.pow(hz,1.4)*0.75);
   }
 }
 let cloudFade=1;
@@ -1243,7 +1323,9 @@ function updateSky(){
        밤에는 지평선색 쪽으로 어두워진다. 흰 판때기를 그대로 두면 밤에도
        하얗게 떠서 하늘에 구멍이 뚫린 것처럼 보인다. */
     const day=clamp(sy*2.2+0.25,0,1);
-    cloudTint.copy(cHz).lerp(cSun,0.35).multiplyScalar(0.55+day*0.75);
+    /* 노을 구름은 밝다 — 해가 지평선에 걸리면 구름 밑면이 볕을 정면으로 받아
+       주황·분홍으로 빛난다. 광원색 쪽으로 더 끌고, 어둡게 누르는 몫을 줄였다 */
+    cloudTint.copy(cHz).lerp(cSun,0.55).multiplyScalar(0.72+day*0.58);
     if(sy>0.15) cloudTint.lerp(cTmp.setRGB(1,1,1),clamp((sy-0.15)*1.6,0,0.7));
     cloudFade=(0.35+day*0.65)*(1-WEA.mist*0.9);
   }
