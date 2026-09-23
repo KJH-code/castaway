@@ -267,24 +267,29 @@ const CLOUD_R=1250;                       // 구름이 도는 원의 반지름
 const CLOUD_SPD=3;
 const CLOUD_KINDS={
   // 상층운 — 얼음 알갱이. 얇고 희다
-  cirrus      :{n:'권운',   form:'sheet', y:[1050,1180], w:[520,880], h:[240,460],
-                max:11, at:[0.00,0.52], op:[0.28,0.48], v:3.3, real:[10000,30], draw:'streak'},
-  cirrostratus:{n:'권층운', form:'sheet', y:[1000,1120], w:[2000,2900], h:[1700,2600],
-                max:2, at:[0.32,0.90], op:[0.16,0.28], v:3.0, real:[9500,28], draw:'veil'},
-  cirrocumulus:{n:'권적운', form:'sheet', y:[960,1080],  w:[560,980], h:[500,880],
-                max:7, at:[0.12,0.58], op:[0.24,0.42], v:3.2, real:[9000,27], draw:'ripple'},
+  cirrus      :{n:'권운',   form:'strand',y:[1050,1180], w:[520,880], h:[240,460],
+                max:11, at:[0.00,0.52], op:[0.40,0.65], v:3.3, real:[10000,30], draw:'streak',
+                nb:[16,32]},
+  cirrostratus:{n:'권층운', form:'layer', y:[1000,1120], w:[2000,2900], h:[1700,2600],
+                max:2, at:[0.32,0.90], op:[0.07,0.13], v:3.0, real:[9500,28], draw:'veil',
+                nb:[160,220], th:40, sh:[0.94,1.0]},
+  cirrocumulus:{n:'권적운', form:'layer', y:[960,1080],  w:[560,980], h:[500,880],
+                max:7, at:[0.12,0.58], op:[0.35,0.55], v:3.2, real:[9000,27], draw:'ripple',
+                nb:[160,260], th:25},
   // 중층운
   altocumulus :{n:'고적운', form:'puff',  y:[780,950],  w:[740,1270], h:[290,500],
                 max:6, at:[0.22,0.78], op:[0.45,0.7], v:3.5, real:[4000,16], draw:'roll',
                 nb:[45,70]},
-  altostratus :{n:'고층운', form:'sheet', y:[760,880],  w:[2100,3000], h:[1800,2700],
-                max:2, at:[0.52,1.15], op:[0.30,0.5], v:2.9, real:[4000,14], draw:'veil'},
+  altostratus :{n:'고층운', form:'layer', y:[760,880],  w:[2100,3000], h:[1800,2700],
+                max:2, at:[0.52,1.15], op:[0.13,0.22], v:2.9, real:[4000,14], draw:'veil',
+                nb:[160,220], th:60, sh:[0.80,0.90]},
   // 하층운
   stratocumulus:{n:'층적운',form:'puff',  y:[500,660],  w:[1100,1800], h:[310,500],
                 max:5, at:[0.36,0.95], op:[0.6,0.85], v:3.5, real:[1500,9], draw:'lumpy',
                 nb:[60,90]},
-  stratus     :{n:'층운',   form:'sheet', y:[360,470],  w:[1900,2800], h:[1600,2600],
-                max:2, at:[0.62,1.15], op:[0.35,0.6], v:5.5, real:[450,6], draw:'veil'},
+  stratus     :{n:'층운',   form:'layer', y:[360,470],  w:[1900,2800], h:[1600,2600],
+                max:2, at:[0.62,1.15], op:[0.16,0.27], v:5.5, real:[450,6], draw:'veil',
+                nb:[160,220], th:50, sh:[0.68,0.78]},
   cumulus     :{n:'적운',   form:'puff',  y:[620,860],  w:[790,1360], h:[390,690],
                 max:7, at:[0.06,0.66], op:[0.75,0.95],v:4.9, real:[1200,8], draw:'cauli',
                 nb:[70,110]},
@@ -563,6 +568,164 @@ function layPuff(c,px,pz){
   c.m.instanceMatrix.needsUpdate=true;
 }
 
+/* ── 깔린 구름은 한 고도 띠에 흩은 알갱이 층이다 ─────────────────────────
+   권층운·고층운·층운(`veil`)과 권적운(`ripple`)은 예전에 하늘에 눕힌 판때기
+   한 장이었다. 판때기는 **가장자리가 있다** — 지평선 쪽으로 스치듯 보면 원근
+   때문에 테두리 흐림(그림의 16%)이 몇 화소로 눌려 하늘에 자로 그은 직선이
+   생겼고, 흐림 자체도 '가장 가까운 변까지 거리'라 윤곽이 둥근 네모였다.
+   이제는 솟은 구름처럼 알갱이를 흩되 **두께 `th`(수십 m) 안에만** 놓는다.
+   알갱이는 **카메라를 온전히 마주 보는 판**(구면 빌보드)이다 — 솟은 구름처럼
+   요각만 돌리면 바로 밑에서 올려다볼 때 판이 모로 서서 사라진다. 깔린 구름은
+   거의 늘 머리 위에 있으므로 그럴 수 없다. 돌리는 일은 정점 셰이더가 한다
+   (`billboardMat`) — 행렬에는 자리와 크기만 담아 한 번 쓰고 끝이다. */
+/* 막의 알은 **혹 무늬가 없어야 한다.** 솟은 구름용 알(`puffTex`)은 작은 혹을
+   겹쳐 윤곽을 흐트러뜨려 두었는데, 그걸로 막을 깔았더니 권층운·층운이 매끈한
+   막이 아니라 뭉게구름 덩이로 보였다. 막은 둥근 흐림 하나로 깐다. */
+let softTex_=null;
+function softTex(){
+  const W=128, cv=document.createElement('canvas'); cv.width=cv.height=W;
+  const g=cv.getContext('2d'), gr=g.createRadialGradient(W/2,W/2,0,W/2,W/2,W/2);
+  gr.addColorStop(0,'rgba(255,255,255,0.34)');
+  gr.addColorStop(0.45,'rgba(255,255,255,0.20)');
+  gr.addColorStop(0.8,'rgba(255,255,255,0.05)');
+  gr.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=gr; g.fillRect(0,0,W,W);
+  return new THREE.CanvasTexture(cv);
+}
+function billboardMat(mat){
+  mat.onBeforeCompile=sh=>{
+    sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>',
+      `vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
+       mvPosition.xy += transformed.xy * length( instanceMatrix[0].xyz );
+       gl_Position = projectionMatrix * mvPosition;`);
+  };
+  return mat;
+}
+/* 값잡음 한 장 — 층 안에 짙고 옅은 데를 만든다(고른 층은 인공물로 보인다) */
+function layerNoise(x,z,seed){
+  const h=(i,j)=>{ let t=Math.imul(i*374761393+j*668265263+seed,1274126177);
+    t^=t>>>13; t=Math.imul(t,1103515245); return ((t>>>0)&0xffff)/65535; };
+  const xi=Math.floor(x), zi=Math.floor(z), fx=x-xi, fz=z-zi;
+  const sx=fx*fx*(3-2*fx), sz=fz*fz*(3-2*fz);
+  const a=h(xi,zi), b=h(xi+1,zi), c=h(xi,zi+1), d=h(xi+1,zi+1);
+  return a+(b-a)*sx+(c-a)*sz+(a-b-c+d)*sx*sz;
+}
+function shapeLayer(c){
+  const rnd=cloudRnd, K=c.K, w=c.w, h=c.h, n=Math.min(c.cap,
+        Math.round(K.nb[0]+rnd()*(K.nb[1]-K.nb[0])));
+  const seed=(rnd()*1e9)|0, th=K.th||40;
+  let k=0, guard=0;
+  if(K.draw==='ripple'){
+    /* 권적운 — 잔 구름이 물결진 줄을 지어 늘어선다(비늘구름). 줄은 곧지 않고
+       출렁이며, 줄 사이 간격과 알 크기도 흔들린다. 무리 가장자리로 갈수록 성기다. */
+    const a0=rnd()*6.283, ca=Math.cos(a0), sa=Math.sin(a0);
+    /* 줄 안의 알 간격(step)을 줄 사이(gap)의 절반 아래로 잡아야 **줄이 선다** —
+       둘이 비슷하면 줄 없이 고르게 흩은 좁쌀이 된다. */
+    const gap=w*(0.07+rnd()*0.025), step=gap*(0.38+rnd()*0.1);
+    const ph=rnd()*6.283, amp=gap*(0.6+rnd()*0.8), wl=w*(0.3+rnd()*0.3);
+    for(let v=-h*0.5; v<=h*0.5 && k<n; v+=gap*(0.85+rnd()*0.3)){
+      for(let u=-w*0.5; u<=w*0.5 && k<n; u+=step*(0.8+rnd()*0.4)){
+        const vv=v+Math.sin(u/wl*6.283+ph)*amp*0.5;
+        const e=Math.hypot(u/(w*0.5), vv/(h*0.5));      // 무리 가장자리까지
+        if(e>1) continue;
+        const dens=layerNoise(u/(w*0.22),vv/(w*0.22),seed)*(1-e*e);
+        if(rnd()>dens*2.6) continue;                      // 가장자리·옅은 데는 빠진다
+        const x=u*ca-vv*sa, z=u*sa+vv*ca;
+        c.off[k*3]=x+(rnd()-0.5)*step*0.3; c.off[k*3+1]=(rnd()-0.5)*th;
+        c.off[k*3+2]=z+(rnd()-0.5)*step*0.3;
+        c.rad[k]=step*(1.9+rnd()*0.7)*(0.55+0.45*(1-e));
+        c.m.setColorAt(k,_pfC.setScalar(0.88+rnd()*0.12)); k++;
+      }
+    }
+  }else{
+    /* 막 — 넓은 타원 안에 고르지 않게 깐다. 가장자리로 갈수록 알이 작아져
+       층이 스러지듯 끝난다(판때기처럼 칼로 자른 가장자리가 없다). */
+    while(k<n && guard++<n*30){
+      const u=(rnd()*2-1), v=(rnd()*2-1), e=Math.hypot(u,v);
+      if(e>1) continue;
+      const x=u*w*0.5, z=v*h*0.5;
+      const dens=0.35+0.65*layerNoise(x/(w*0.3),z/(w*0.3),seed);
+      if(rnd()>dens) continue;
+      c.off[k*3]=x; c.off[k*3+1]=(rnd()-0.5)*th; c.off[k*3+2]=z;
+      /* 알을 크게(폭의 22~32%) 잡아 여남은 알이 늘 겹치게 한다 — 알이 잘면
+         알 하나하나가 보여 막이 아니라 얼룩이 된다 */
+      c.rad[k]=w*(0.22+rnd()*0.10)*(0.45+0.55*Math.sqrt(1-e*e));
+      const sh=K.sh||[0.85,1];
+      c.m.setColorAt(k,_pfC.setScalar(sh[0]+rnd()*(sh[1]-sh[0]))); k++;
+    }
+  }
+  c.nb=k;
+  for(let i=0;i<c.cap;i++){
+    const r=i<k?c.rad[i]:0;
+    _pfV.set(c.off[i*3],c.off[i*3+1],c.off[i*3+2]); _pfS.set(r,r,r);
+    c.m.setMatrixAt(i,_pfM.compose(_pfV,_pfQ.identity(),_pfS));
+  }
+  c.m.instanceMatrix.needsUpdate=true;
+  if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
+}
+
+/* ── 권운은 실이다 ───────────────────────────────────────────────────────
+   새털구름은 알갱이가 아니라 **가닥**이다 — 얼음 알갱이가 떨어지며 바람에
+   끌려 가는 꼬리다. 가닥 하나는 하늘에 눕힌 가늘고 긴 판(`strandTex` — 한쪽
+   끝이 짙고 갈고리처럼 휘며 반대쪽은 풀려 스러진다)이고, 한 무리가 16~32 가닥을
+   거의 같은 쪽(±20°)으로 늘어놓는다. 가닥은 폭이 좁아서 모로 서도 선 하나로
+   보일 뿐이라 판때기 직선 문제가 없다. */
+const STRAND_VARIANTS=4;
+let strandTex_=[];
+function strandTex(seed){
+  const W=256, H=48, cv=document.createElement('canvas');
+  cv.width=W; cv.height=H;
+  const g=cv.getContext('2d'), rnd=mulberry32(hashStr('strand|'+seed));
+  g.lineCap='round';
+  const nf=8+((rnd()*6)|0);
+  for(let f=0;f<nf;f++){
+    const y0=H*(0.35+rnd()*0.3), hook=H*(0.12+rnd()*0.25)*(rnd()<0.5?-1:1);
+    const x0=W*(0.02+rnd()*0.25), x1=W*(0.80+rnd()*0.16);
+    g.beginPath(); g.moveTo(x0,y0+(rnd()-0.5)*H*0.2);
+    g.bezierCurveTo(W*0.4,y0+(rnd()-0.5)*H*0.25, W*0.7,y0+(rnd()-0.5)*H*0.15,
+                    x1,y0+hook);
+    const gr=g.createLinearGradient(x0,0,x1,0);    // 꼬리는 풀리고 머리는 짙다
+    gr.addColorStop(0,'rgba(255,255,255,0)');
+    gr.addColorStop(0.55,'rgba(255,255,255,'+(0.18+rnd()*0.12)+')');
+    gr.addColorStop(0.88,'rgba(255,255,255,'+(0.30+rnd()*0.2)+')');
+    gr.addColorStop(1,'rgba(255,255,255,0)');
+    g.strokeStyle=gr; g.lineWidth=0.8+rnd()*1.6;
+    g.shadowColor='rgba(255,255,255,0.7)'; g.shadowBlur=6+rnd()*6;
+    g.stroke();
+  }
+  // 네 변을 타원으로 지운다 — 네모 흐림은 윤곽이 네모로 남는다
+  const im=g.getImageData(0,0,W,H), D=im.data;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const e=Math.hypot((x-W/2)/(W/2),(y-H/2)/(H/2));
+    const f=clamp((1-e)/0.25,0,1); D[(y*W+x)*4+3]*=f*f*(3-2*f);
+  }
+  g.putImageData(im,0,0);
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping;
+  return t;
+}
+function shapeStrand(c){
+  const rnd=cloudRnd, K=c.K, w=c.w, h=c.h;
+  const n=Math.min(c.cap, Math.round(K.nb[0]+rnd()*(K.nb[1]-K.nb[0])));
+  const a0=rnd()*6.283, flat=new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(1,0,0),-Math.PI/2), qy=new THREE.Quaternion();
+  for(let i=0;i<c.cap;i++){
+    if(i>=n){ _pfS.set(0,0,0); c.m.setMatrixAt(i,_pfM.compose(_pfV.set(0,0,0),_pfQ.identity(),_pfS)); continue; }
+    const u=(rnd()*2-1), v=(rnd()*2-1);
+    if(Math.hypot(u,v)>1){ i--; continue; }
+    const L=w*(0.25+rnd()*0.30), Wd=L*(0.10+rnd()*0.08);
+    qy.setFromAxisAngle(_pfAx, a0+(rnd()-0.5)*0.7);
+    _pfQ.copy(qy).multiply(flat);
+    _pfV.set(u*w*0.45,(rnd()-0.5)*30,v*h*0.45);
+    _pfS.set(L*(rnd()<0.5?-1:1),Wd,1);
+    c.m.setMatrixAt(i,_pfM.compose(_pfV,_pfQ,_pfS));
+    c.m.setColorAt(i,_pfC.setScalar(0.9+rnd()*0.1));
+  }
+  c.nb=n;
+  c.m.instanceMatrix.needsUpdate=true;
+  if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
+}
+
 /* 사라진 구름을 다시 굴린다 — 그림도 크기도 자리도 새로 뽑으므로,
    날씨가 개었다 흐려지면 **아까 그 구름이 아니라 다른 구름**이 뜬다. */
 function rerollCloud(c){
@@ -572,6 +735,8 @@ function rerollCloud(c){
   if(c.form==='puff'){
     // 솟은 구름은 그림이 아니라 알갱이 배치가 곧 생김새다 — 덩이를 다시 빚는다
     c.w=w; c.h=h; shapePuff(c);
+  }else if(c.form==='layer'){ c.w=w; c.h=h; shapeLayer(c);
+  }else if(c.form==='strand'){ c.w=w; c.h=h; shapeStrand(c);
   }else{
     const mp=c.mats[(rnd()*CLOUD_VARIANTS)|0].map;
     c.m.material.map=mp; c.m.material.needsUpdate=true;
@@ -738,6 +903,8 @@ function buildClouds(seed){
   weaSalt=(seed>>>0)^0x5ea50017;
   const quad=new THREE.PlaneGeometry(1,1);
   puffTex_=[]; for(let v=0;v<PUFF_VARIANTS;v++) puffTex_.push(puffTex(v+'|'+seed));
+  strandTex_=[]; for(let v=0;v<STRAND_VARIANTS;v++) strandTex_.push(strandTex(v+'|'+seed));
+  softTex_=softTex();
   /* 알갱이용 판때기는 **흰 정점색을 달아 둔다.** r128 은 알갱이마다 주는 색
      (`instanceColor`)을 `USE_COLOR` 가 켜져 있을 때만 화소에 곱한다 —
      `vertexColors:true` 로 켜야 하는데, 그러면 `color` 어트리뷰트가 필요하고
@@ -751,7 +918,7 @@ function buildClouds(seed){
     /* 갈래마다 밑그림 여러 장 — 같은 갈래라도 개체마다 다르게 보인다.
        솟은 구름은 알갱이 한 알짜리 그림을 나눠 쓰므로 여기서 뽑지 않는다. */
     const mats=[];
-    if(K.form!=='puff') for(let v=0;v<CLOUD_VARIANTS;v++){
+    if(K.form==='sheet') for(let v=0;v<CLOUD_VARIANTS;v++){
       const tx=cloudTex(K.draw,key+v+seed); cloudTex_.push(tx);
       mats.push(new THREE.MeshBasicMaterial({
         map:tx, transparent:true, depthWrite:false,
@@ -761,18 +928,21 @@ function buildClouds(seed){
     for(let i=0;i<K.max;i++){
       /* 재질은 개체마다 복제한다 — 나눠 쓰면 짙기가 마지막 구름 것으로 통일된다
          (그림은 복제해도 그대로 나눠 쓴다). */
-      const puff=(K.form==='puff');
-      const mm=puff
-        ? new THREE.MeshBasicMaterial({map:puffTex_[(rnd()*PUFF_VARIANTS)|0],
+      const puff=(K.form==='puff'), inst=(K.form!=='sheet');
+      const mm=inst
+        ? new THREE.MeshBasicMaterial({
+            map:K.form==='strand'?strandTex_[(rnd()*STRAND_VARIANTS)|0]
+               :K.draw==='veil'?softTex_:puffTex_[(rnd()*PUFF_VARIANTS)|0],
             transparent:true, depthWrite:false, fog:false, vertexColors:true,
             side:THREE.DoubleSide, opacity:0})
         : mats[(rnd()*CLOUD_VARIANTS)|0].clone();
+      if(K.form==='layer') billboardMat(mm);
       cloudMat.push(mm);
       mm.opacity=0;
       const w=lerpR(K.w), h=lerpR(K.h);
-      const m=puff ? new THREE.InstancedMesh(pquad,mm,K.nb[1])
+      const m=inst ? new THREE.InstancedMesh(pquad,mm,K.nb[1])
                    : new THREE.Mesh(quad,mm);
-      if(puff) m.frustumCulled=false;             // 알갱이 자리가 매 프레임 바뀐다
+      if(inst) m.frustumCulled=false;             // 알갱이가 덩이 둘레에 흩어진다
       else m.scale.set(w*(rnd()<0.5?-1:1),h,1);   // 좌우 뒤집기로 한 번 더 다르게
       /* 하늘을 덮는 큰 막은 사람 머리 위 가까이 둔다 — 멀리 두면 지름이 커서
          카메라 far 밖으로 모서리가 나간다. */
@@ -781,16 +951,17 @@ function buildClouds(seed){
          거리 밖에 세워 한 장이 하늘의 한 조각만 차지하게 한다. 하늘을 통째로
          덮으라고 만든 막(`veil`)만 예외다. */
       let rr=Math.sqrt(rnd())*CLOUD_R*(K.draw==='veil'?0.30:1);
-      if(K.form==='sheet'&&K.draw!=='veil')
+      if(K.form!=='puff'&&K.draw!=='veil')
         rr=Math.min(CLOUD_R,Math.max(rr,Math.abs(w)*0.62));
       const c={m, key, K, mats, i, w, h,
                x:Math.cos(th)*rr, z:Math.sin(th)*rr, y:lerpR(K.y),
                form:K.form, v:K.v*(0.75+rnd()*0.5), op:lerpR(K.op),
                tilt:(rnd()*2-1)*0.25, vis:0, want:0, yaw:99};
-      if(puff){
+      if(inst){
         c.cap=K.nb[1];
         c.off=new Float32Array(c.cap*3); c.rad=new Float32Array(c.cap);
-        shapePuff(c);
+        if(puff) shapePuff(c);
+        else if(K.form==='layer') shapeLayer(c); else shapeStrand(c);
       }
       m.position.set(c.x,c.y,c.z);
       if(K.form==='sheet'){ m.rotation.set(-Math.PI/2, 0, rnd()*6.283); }
@@ -1108,7 +1279,7 @@ for(const k in CLOUD_KINDS){
   const K=CLOUD_KINDS[k];
   const d=document.createElement('div'); d.className='row';
   d.innerHTML='<span class="nm">'+K.n+' <span style="color:#6f8199">'
-    +(K.form==='puff'?'알갱이':'판때기')+'</span></span>'
+    +({puff:'덩이',layer:'층',strand:'실'}[K.form]||'판때기')+'</span></span>'
     +'<span class="ct"></span>';
   const mk=(t,f)=>{ const b=document.createElement('button'); b.textContent=t;
     b.onclick=f; d.appendChild(b); return b; };

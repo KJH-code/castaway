@@ -195,7 +195,7 @@ for(const k in CLOUD_KINDS){
   const K=CLOUD_KINDS[k];
   const d=document.createElement('div'); d.className='row';
   d.innerHTML='<span class="nm">'+K.n+' <span style="color:#6f8199">'
-    +(K.form==='puff'?'알갱이':'판때기')+'</span></span>'
+    +({puff:'덩이',layer:'층',strand:'실'}[K.form]||'판때기')+'</span></span>'
     +'<span class="ct"></span>';
   const mk=(t,f)=>{ const b=document.createElement('button'); b.textContent=t;
     b.onclick=f; d.appendChild(b); return b; };
