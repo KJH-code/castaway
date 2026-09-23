@@ -153,6 +153,28 @@ scene.add(amb,hemi,sun);
 }
 /*@SKY@*/
 
+/* 풀밭 한 뙈기 — 바람(envPatch 의 'grass')을 눈으로 보려고 깐다. 본편의 풀처럼
+   밑동이 원점이고 +Y 로 선 잎날이다. 가운데 60 m 네모에 6천 포기. */
+{
+  const g=new THREE.PlaneGeometry(0.07,0.75,1,4); g.translate(0,0.375,0);
+  const pos=g.attributes.position;
+  for(let i=0;i<pos.count;i++){ const y=pos.getY(i); pos.setX(i,pos.getX(i)*(1-y/0.8)); }
+  const m=new THREE.MeshLambertMaterial({color:0x6f8f3e, side:THREE.DoubleSide});
+  m.userData.wind='grass';
+  const im=new THREE.InstancedMesh(g,m,6000), M=new THREE.Matrix4(),
+        q=new THREE.Quaternion(), v=new THREE.Vector3(), sc=new THREE.Vector3();
+  const r=mulberry32(7);
+  for(let i=0;i<6000;i++){
+    q.setFromAxisAngle(new THREE.Vector3(0,1,0),r()*6.283);
+    const k=0.7+r()*0.7; sc.set(k,k,k);
+    v.set((r()-0.5)*60,0,(r()-0.5)*60-20);
+    im.setMatrixAt(i,M.compose(v,q,sc));
+  }
+  scene.add(im);
+}
+/* 땅 쪽 재질에 구름 그림자를 붙인다(본편은 LIGHT.refresh 가 한다) */
+scene.traverse(o=>{ if(o.material) envPatch(o.material); });
+
 /* ---------------- 조종 ---------------- */
 const keys={};
 addEventListener('keydown',e=>{
