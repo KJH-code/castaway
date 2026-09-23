@@ -55,8 +55,10 @@
       step="0.1" value="9"><span class="v" id="vH">9.0시</span></div>
     <div class="sl"><label>배속</label><input id="sT" type="range" min="0" max="4"
       step="1" value="0"><span class="v" id="vT">1배</span></div>
-    <div class="sl"><label>구름양</label><input id="sC" type="range" min="0" max="115"
-      step="1" value="35"><span class="v" id="vC">자동</span></div>
+    <div class="sl"><label>날씨 단계</label><input id="sC" type="range" min="-1" max="100"
+      step="1" value="-1"><span class="v" id="vC">자동</span></div>
+    <div class="sl"><label>저기압 세기</label><input id="sS" type="range" min="-1" max="100"
+      step="1" value="-1"><span class="v" id="vS">자동</span></div>
     <div class="sl"><label>안개</label><input id="sM" type="range" min="-1" max="100"
       step="1" value="-1"><span class="v" id="vM">자동</span></div>
     <div class="sl"><label>짙기 배율</label><input id="sO" type="range" min="10" max="250"
@@ -82,7 +84,7 @@
    놓고, 갈래마다 손으로 소환하고 없앨 수 있게 손잡이만 달았다.
 
    본편 코드에 낸 구멍은 다섯 뿐이다(전부 `// 시험장:` 으로 표시해 두었다):
-     COVER  구름양을 손으로 잡는다        MANUAL 갈래마다 못수를 손으로 지정
+     PHASE  날씨 단계(저기압 위상 0~1)   STR    저기압 세기   MANUAL 갈래마다 개수
      MIST   안개를 손으로 잡는다          FADE   여닫는 시간(본편 25초)
      OPMUL  짙기 배율
    나머지는 본편과 한 글자도 다르지 않다 — 여기서 맞춘 값은 본편에 그대로 옮기면
@@ -106,7 +108,7 @@ function mulberry32(a){
 let windDir={x:1,z:0,name:'서풍'};
 let farScale=1.0, ocean=null;
 /* 시험장 손잡이 */
-let COVER=0.35, MIST=null, OPMUL=1, FADE=4;
+let PHASE=null, STR=null, MIST=null, OPMUL=1, FADE=4;
 /* 멈춤 — 시간·구름을 세우고 그리기만 한다. 뜯어볼 때와 사진 찍을 때 쓴다.
    멈추지 않으면 1562 m(`CLOUD_R`×1.25) 밖에 갖다 놓은 구름을 루프가 곧바로
    되굴려 치워 버린다. */
@@ -235,8 +237,14 @@ $('sH').oninput=e=>{ hourOfDay=parseFloat(e.target.value);
   $('vH').textContent=hourOfDay.toFixed(1)+'시'; };
 $('sT').oninput=e=>{ timeScale=[1,5,20,60,300][parseInt(e.target.value)];
   $('vT').textContent=timeScale+'배'; };
-$('sC').oninput=e=>{ COVER=parseInt(e.target.value)/100;
-  $('vC').textContent=COVER.toFixed(2); };
+/* 날씨 단계 — 0 고기압 · 0.35 권운 · 0.5 권층운·고층운 · 0.65 난층운 비 ·
+   0.75 층운 · 0.9 적란운 소나기 · 0.95 갬(적운) */
+const PH_NM=p=>p<0.28?'고기압':p<0.40?'권운 옴':p<0.52?'권층운':p<0.60?'고층운':
+  p<0.74?'난층운 비':p<0.84?'층운·층적운':p<0.94?'한랭전선':'갬';
+$('sC').oninput=e=>{ const v=parseInt(e.target.value);
+  PHASE=v<0?null:v/100; $('vC').textContent=v<0?'자동':PH_NM(PHASE); };
+$('sS').oninput=e=>{ const v=parseInt(e.target.value);
+  STR=v<0?null:v/100; $('vS').textContent=v<0?'자동':STR.toFixed(2); };
 $('sM').oninput=e=>{ const v=parseInt(e.target.value);
   MIST=v<0?null:v/100; $('vM').textContent=v<0?'자동':(v/100).toFixed(2); };
 $('sO').oninput=e=>{ OPMUL=parseInt(e.target.value)/100;
@@ -260,7 +268,6 @@ initSky();
 buildClouds(hashStr('cloud_arena'));
 initRain();
 hourOfDay=parseFloat($('sH').value);
-$('vC').textContent=COVER.toFixed(2);
 $('vF').textContent=FADE+'초';
 syncT(); syncUI();
 
@@ -279,6 +286,7 @@ function loop(){
   let dt=Math.min(0.1,(now-last)/1000); last=now;
   fps+=((1/Math.max(dt,0.001))-fps)*0.08;
 
+  const rdt=dt;                  // 계기판은 멈춤 중에도 돈다
   if(PAUSE) dt=0;
   // 시간 — 실제 1초가 게임 1분(본편과 같다)
   hourOfDay+=dt/60*timeScale; gameHours+=dt/60*timeScale;
@@ -302,13 +310,15 @@ function loop(){
   if(!PAUSE){ updateClouds(dt); updateRain(dt); }
   renderFrame();
 
-  if((uiT+=dt)>0.25){
+  if((uiT+=rdt)>0.25){
     uiT=0; syncUI();
     let on=0, blob=0;
     for(const c of CLOUDS) if(c.m.visible){ on++; if(c.form==='puff') blob+=c.nb; }
     hud.innerHTML='<b>'+fps.toFixed(0)+'</b> fps<br>'
       +'떠 있는 덩이 <b>'+on+'</b><br>알갱이 <b>'+blob+'</b><br>'
       +'구름양 <b>'+WEA.cover.toFixed(2)+'</b> · '+(WEA.name||'—')+'<br>'
+      +'날씨 단계 <b>'+WEA.phase.toFixed(2)+'</b> '+PH_NM(WEA.phase)
+      +' · 세기 <b>'+WEA.str.toFixed(2)+'</b><br>'
       +'안개 <b>'+WEA.mist.toFixed(2)+'</b> · 비 <b>'+WEA.rain.toFixed(2)+'</b><br>'
       +'높이 <b>'+camera.position.y.toFixed(0)+'</b> m';
   }

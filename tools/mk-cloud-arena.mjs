@@ -15,14 +15,15 @@ const rep = (a, b) => {
   if (!blk.includes(a)) throw new Error('못 찾은 자리: ' + a.slice(0, 50));
   blk = blk.replace(a, b);
 };
-rep('  WEA.cover=c;',
-    '  if(COVER!=null) c=COVER;            // 시험장: 구름양 손으로 잡기\n  WEA.cover=c;');
+rep('  let phi=u-cyc, S=cycS(cyc);',
+    '  let phi=u-cyc, S=cycS(cyc);\n'
+  + '  if(PHASE!=null) phi=PHASE; if(STR!=null) S=STR;   // 시험장: 날씨 단계·세기 손으로 잡기');
 rep('  WEA.mistT=clamp((mn-0.55)/0.32,0,1)*hw*clr*low;',
     '  WEA.mistT=clamp((mn-0.55)/0.32,0,1)*hw*clr*low;\n'
   + '  if(MIST!=null) WEA.mistT=MIST;      // 시험장: 안개 손으로 잡기');
-rep('    want[k]=Math.round(K.max*Math.pow(b,0.6));',
-    '    want[k]=(MANUAL[k]!=null)?MANUAL[k]      // 시험장: 갈래마다 손으로 못수 지정\n'
-  + '           :Math.round(K.max*Math.pow(b,0.6));');
+rep('  for(const k in CLOUD_KINDS) want[k]=WEA.cnt[k]||0;',
+    '  for(const k in CLOUD_KINDS)            // 시험장: 갈래마다 손으로 개수 지정\n'
+  + '    want[k]=(MANUAL[k]!=null)?MANUAL[k]:(WEA.cnt[k]||0);');
 rep('    c.vis=clamp(c.vis+(on?1:-1)*dt/25,0,1);',
     '    c.vis=clamp(c.vis+(on?1:-1)*dt/FADE,0,1);   // 시험장: 여닫는 시간 조절');
 // 짙기 배율 — 식의 뒷부분은 본편이 바뀌어도 따라가도록 앞머리만 잡는다
