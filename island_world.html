@@ -1519,14 +1519,17 @@ function waterMat(river){
       if(i==4) return vec3(-1.10,5.3,0.028); if(i==5) return vec3(0.80,3.1,0.017);
       if(i==6) return vec3(2.30,1.7,0.009); return vec3(-2.60,0.9,0.005); }
     `;
-    sh.vertexShader='uniform float uTime;\nuniform float uRiver;\nvarying vec3 vWW;\n'+WAVES+
+    sh.vertexShader='uniform float uTime;\nuniform float uRiver;\nvarying vec3 vWW;\nvarying vec3 vVD;\n'+WAVES+
       sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
       vec3 wp0=(modelMatrix*vec4(transformed,1.0)).xyz;
       if(uRiver<0.5){
         for(int i=0;i<3;i++){ vec3 w=wv(i); vec2 d=vec2(cos(w.x),sin(w.x)); float k=6.2832/w.y;
           transformed.y+=w.z*sin(k*dot(d,wp0.xz)-sqrt(G*k)*uTime); }
       }
-      vWW=(modelMatrix*vec4(transformed,1.0)).xyz;`);
+      vWW=(modelMatrix*vec4(transformed,1.0)).xyz;
+      // 눈→물 방향(세계) — 카메라 공간 위치를 뷰 행렬의 회전으로 되돌린다(cameraPosition 은 믿지 않는다)
+      vec3 mvp=(modelViewMatrix*vec4(transformed,1.0)).xyz;
+      vVD=vec3(dot(viewMatrix[0].xyz,mvp),dot(viewMatrix[1].xyz,mvp),dot(viewMatrix[2].xyz,mvp));`);
     sh.fragmentShader=`uniform float uTime;
 uniform float uRiver;
 uniform vec3 uSunDir;
@@ -1537,13 +1540,14 @@ uniform vec3 uSkyH;
 uniform sampler2D uElev;
 uniform vec2 uGrid;
 varying vec3 vWW;
+varying vec3 vVD;
 `+WAVES+`
 float elev1(vec2 g){ vec4 t=texture2D(uElev,(g+0.5)/uGrid.x); return (t.r*255.0*256.0+t.g*255.0)/65535.0*300.0-100.0; }
 // 16비트를 나눠 담았으니 텍스처 보간은 못 쓴다 — 네 점을 직접 섞는다
 float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
   return mix(mix(elev1(i),elev1(i+vec2(1,0)),f.x),mix(elev1(i+vec2(0,1)),elev1(i+vec2(1,1)),f.x),f.y); }
 `+sh.fragmentShader.replace('vec3 outgoingLight = reflectedLight.indirectDiffuse;',`
-      float dist=length(cameraPosition-vWW);
+      float dist=length(vVD);
       // 법선 — 여덟 겹 파도의 기울기를 더한다(잔 파도는 멀수록 흐리게)
       vec2 grad=vec2(0.0);
       float ampK=uRiver>0.5?0.25:1.0;
@@ -1551,7 +1555,7 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
         float fade=i<3?1.0:clamp(1.0-dist/(w.y*60.0),0.0,1.0);
         grad+=d*(w.z*k*cos(k*dot(d,vWW.xz)-sqrt(G*k)*uTime))*fade*ampK; }
       vec3 Nw=normalize(vec3(-grad.x,1.0,-grad.y));
-      vec3 V=normalize(cameraPosition-vWW);
+      vec3 V=-normalize(vVD);
       if(V.y<0.0){ Nw=vec3(0.0,1.0,0.0); }
       vec3 Rr=reflect(-V,Nw); Rr.y=abs(Rr.y);
       /* ① 프레넬 — 쉴릭 어림 대신 **편광 없는 빛의 프레넬 식 그대로**(공기 1 → 물 1.333).
