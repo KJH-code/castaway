@@ -277,6 +277,10 @@ function drawMoonPhase(){
    적란운 0.89 배, 화면을 훑어 잰 값), 층·실이면 무리의 가로·세로다.
    `th` 는 층 두께. 그림은 전부 캔버스다(외부 파일 없음). 안개는 받지 않는다. */
 const CLOUD_SPD=3;
+/* 알갱이 곱 — 실(권운)을 뺀 모든 구름의 알갱이를 **개수 `GRAIN_N` 배 · 크기 `GRAIN_S` 배**로
+   곱게 쪼갠다. 표의 `nb` 는 예전 굵은 알 기준 수이고 여기서 곱한다. */
+const GRAIN_N=8, GRAIN_S=0.5;
+const grainN=K=>K.form==='strand'?1:GRAIN_N;
 const CLOUD_KINDS={
   // 상층운 6~12 km — 얼음 알갱이. 얇고 희다
   cirrus      :{n:'권운',   form:'strand',y:[7000,11000], w:[8000,20000], h:[4000,10000],
@@ -312,7 +316,7 @@ const CLOUD_KINDS={
                 R:20000, max:400, op:[0.75,0.95], v:8, draw:'cauli', nb:[80,120], kap:1.0},
   // 수직운 — 밑동은 하층, 꼭대기는 상층까지
   cumulonimbus:{n:'적란운', form:'puff',  y:[600,1500], w:[10000,16000], h:[4900,7100],
-                R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[520,660], kap:0.6}
+                R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[520,660], kap:0.35}
 };
 /* 덩이·무리 하나가 하늘에서 실제로 덮는 넓이(m²) — 날씨가 정한 점유율을
    개수로 바꿀 때 쓴다. 덩이는 화면을 훑어 잰 '보이는 폭' 비율로, 층은 무리
@@ -567,8 +571,9 @@ function puffTex(seed){
    늘 겹친다. 겹쳐야 덩이가 되고, 겹치는 수가 들쭉날쭉해야 윤곽이 뭉실해진다. */
 function shapePuff(c){
   const rnd=cloudRnd, K=c.K, w=c.w, h=c.h, d=K.draw;
-  const n=Math.min(c.cap, Math.round(K.nb[0]+rnd()*(K.nb[1]-K.nb[0])));
+  const n=Math.min(c.cap, Math.round((K.nb[0]+rnd()*(K.nb[1]-K.nb[0]))*GRAIN_N));
   c.nb=n;
+
   /* ① 혹은 **사슬**이다 — 다음 혹을 앞 혹에 이어 붙이므로 구조상 반드시
      한 덩이가 된다. 갈래는 '어느 쪽으로 이어 붙이느냐'가 정한다.
      처음에는 혹을 제각기 뿌리고 나중에 당겨 붙였는데, 방위각만 갈라 세운
@@ -711,7 +716,7 @@ function shapePuff(c){
           z=b.z+Math.sin(a)*sz*dd*fz,
           y=b.y+cz*dd*fy*b.fl;
     c.off[i*3]=x; c.off[i*3+1]=y; c.off[i*3+2]=z;
-    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?1.7:1);   // 얇은 모루는 알을 크게
+    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?1.7:1)*GRAIN_S;   // 얇은 모루는 알을 크게
     // 모루 알갱이는 윗면을 한 높이에 자른다 — 대류권 꼭대기에 부딪혀 평평하다
     if(b.an) c.off[i*3+1]=Math.min(c.off[i*3+1], yTop-my-c.rad[i]*0.22);
     c.al[i]=b.an?0.8:1;
@@ -785,11 +790,14 @@ const _sd=new THREE.Vector3();
 function litPuff(c){
   if(!c.sh) return;
   _sd.copy(SKYL.dir);                            // 참 해 방향(밤엔 달)
-  const n=c.nb, nB=c.nBody||n, o=c.off, kap=c.K.kap||2, sx=_sd.x, sy=_sd.y, sz=_sd.z;
+  const n=c.nb, nB=c.nBody||n, o=c.off, sx=_sd.x, sy=_sd.y, sz=_sd.z;
+  /* 알갱이가 곱해진 만큼(개수 8·크기 ½ → 한 빛줄기가 스치는 알 몫이 2배) kap 을 나누고,
+     n² 이 되지 않게 가리는 쪽은 많아야 700 알만 골라 센다(건너뛴 만큼 곱한다) */
+  const st=Math.max(1,Math.ceil(nB/700)), kap=(c.K.kap||2)*GRAIN_S*GRAIN_S*GRAIN_N/4*st;
   for(let i=0;i<n;i++){
     const xi=o[i*3], yi=o[i*3+1], zi=o[i*3+2];
     let ts=0, tu=0;
-    for(let j=0;j<nB;j++){
+    for(let j=(i%st);j<nB;j+=st){
       if(j===i) continue;
       const dx=o[j*3]-xi, dy=o[j*3+1]-yi, dz=o[j*3+2]-zi;
       const rv=c.rad[j]*0.4, rv2=rv*rv, d2=dx*dx+dy*dy+dz*dz;
@@ -940,7 +948,7 @@ function layerTone(tau,out){
 }
 function shapeLayer(c){
   const rnd=cloudRnd, K=c.K, w=c.w, h=c.h, n=Math.min(c.cap,
-        Math.round(K.nb[0]+rnd()*(K.nb[1]-K.nb[0])));
+        Math.round((K.nb[0]+rnd()*(K.nb[1]-K.nb[0]))*GRAIN_N));
   const seed=(rnd()*1e9)|0, th=K.th||40;
   let k=0, guard=0;
   if(K.draw==='ripple'){
@@ -952,7 +960,7 @@ function shapeLayer(c){
     /* `cell` 이 있으면 잔구름 크기를 무리 폭과 떼어 놓는다 — 실제 크기로
        맞추면 무리는 수 km 인데 잔구름은 수백 m 라 비율로는 못 잡는다.
        보이는 잔구름 ≈ 알 간격 × 1.1 이다(알 판의 절반쯤이 보인다). */
-    const step=K.cell?K.cell/1.1*(0.9+rnd()*0.2):w*(0.07+rnd()*0.025)*0.43,
+    const step=(K.cell?K.cell/1.1*(0.9+rnd()*0.2):w*(0.07+rnd()*0.025)*0.43)*GRAIN_S,
           gap=step/((K.gapf||0.43)*(0.88+rnd()*0.24));
     const ph=rnd()*6.283, amp=gap*(0.6+rnd()*0.8), wl=w*(0.3+rnd()*0.3);
     for(let v=-h*0.5; v<=h*0.5 && k<n; v+=gap*(0.85+rnd()*0.3)){
@@ -963,11 +971,14 @@ function shapeLayer(c){
         const dens=layerNoise(u/(w*0.22),vv/(w*0.22),seed)*(1-e*e);
         if(rnd()>dens*2.6) continue;                      // 가장자리·옅은 데는 빠진다
         const x=u*ca-vv*sa, z=u*sa+vv*ca;
-        c.off[k*3]=x+(rnd()-0.5)*step*0.3; c.off[k*3+1]=(rnd()-0.5)*th;
-        c.off[k*3+2]=z+(rnd()-0.5)*step*0.3;
-        c.rad[k]=step*(1.9+rnd()*0.7)*(0.55+0.45*(1-e));
-        layerTone(K.tau*(0.6+0.8*rnd())*(0.4+0.6*(1-e)),_pfC);
-        c.m.setColorAt(k,_pfC); k++;
+        // 간격을 절반으로 줄여 넓이로 4배, 격자점마다 둘씩 놓아 8배가 된다
+        for(let q=0;q<2&&k<n;q++){
+          c.off[k*3]=x+(rnd()-0.5)*step*0.6; c.off[k*3+1]=(rnd()-0.5)*th;
+          c.off[k*3+2]=z+(rnd()-0.5)*step*0.6;
+          c.rad[k]=step*(1.9+rnd()*0.7)*(0.55+0.45*(1-e));
+          layerTone(K.tau*(0.6+0.8*rnd())*(0.4+0.6*(1-e)),_pfC);
+          c.m.setColorAt(k,_pfC); k++;
+        }
       }
     }
   }else{
@@ -982,7 +993,7 @@ function shapeLayer(c){
       c.off[k*3]=x; c.off[k*3+1]=(rnd()-0.5)*th; c.off[k*3+2]=z;
       /* 알을 크게(폭의 22~32%) 잡아 여남은 알이 늘 겹치게 한다 — 알이 잘면
          알 하나하나가 보여 막이 아니라 얼룩이 된다 */
-      c.rad[k]=w*(0.22+rnd()*0.10)*(0.45+0.55*Math.sqrt(1-e*e));
+      c.rad[k]=w*(0.22+rnd()*0.10)*(0.45+0.55*Math.sqrt(1-e*e))*GRAIN_S;
       layerTone(K.tau*(0.6+0.8*dens)*(0.4+0.6*Math.sqrt(1-e*e)),_pfC);
       c.m.setColorAt(k,_pfC); k++;
     }
@@ -1293,7 +1304,7 @@ function buildClouds(seed){
       cloudMat.push(mm);
       mm.opacity=0;
       const w=lerpR(K.w), h=lerpR(K.h);
-      const m=inst ? new THREE.InstancedMesh(pquad.clone(),mm,K.nb[1]+(K.nd?K.nd[1]:0))
+      const m=inst ? new THREE.InstancedMesh(pquad.clone(),mm,K.nb[1]*grainN(K)+(K.nd?K.nd[1]:0))
                    : new THREE.Mesh(quad,mm);     // 덩이마다 제 경계구(cloudBounds)
       if(!inst) m.scale.set(w*(rnd()<0.5?-1:1),h,1);   // 좌우 뒤집기로 한 번 더 다르게
       /* r128 의 InstancedMesh 는 **만들 때 거르기를 스스로 끈다**(인스턴스의
@@ -1311,7 +1322,7 @@ function buildClouds(seed){
                form:K.form, v:K.v*(0.75+rnd()*0.5), op:lerpR(K.op),
                tilt:(rnd()*2-1)*0.25, vis:0, want:0, yaw:99};
       if(inst){
-        c.cap=K.nb[1]+(K.nd?K.nd[1]:0);
+        c.cap=K.nb[1]*grainN(K)+(K.nd?K.nd[1]:0);
         c.off=new Float32Array(c.cap*3); c.rad=new Float32Array(c.cap);
         if(puff) shapePuff(c);
         else if(K.form==='layer') shapeLayer(c); else shapeStrand(c);
