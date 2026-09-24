@@ -592,9 +592,9 @@ function shapePuff(c){
        ④ 한가운데 과돌출 봉우리. */
     const Ht=h*1.7, ya=Ht*0.80;
     const ux=windDir.x, uz=windDir.z, vx=-uz, vz=ux;
-    const r0=w*0.45;
+    const r0=w*0.40;
     push(0,0,0,r0,0.8);
-    for(let k=0;k<4;k++){ const a=(k+rnd()*0.5)/4*6.283, rr=w*0.30;
+    for(let k=0;k<4;k++){ const a=(k+rnd()*0.5)/4*6.283, rr=w*0.26;
       const dd=0.55*(r0+rr); push(Math.cos(a)*dd,0,Math.sin(a)*dd,rr,0.8); }
     let x=0, z=0, y=0, r=w*0.20, lv=0;
     while(y<ya-r*0.2){
