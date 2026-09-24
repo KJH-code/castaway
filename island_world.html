@@ -518,20 +518,24 @@ const B = {
   DEEP:0, SHELF:1, BEACH:2, DUNE:3, MARSH:4, MEADOW:5,
   BROADLEAF:6, CONIFER:7, SCRUB:8, ROCK:9, SCREE:10, RIVER:11, FUMAROLE:12
 };
+/* 바이옴 색 = 실제 지표면의 가시광 반사율(알베도)을 sRGB 로 옮긴 것 — 마른 모래 0.35~0.45(밝은
+   베이지), 풀밭 0.18~0.25(연두), 활엽수림 바닥 0.12~0.15, 침엽수림 0.08~0.10(가장 어둡다),
+   노출 암반 0.20~0.30(회갈), 젖은 이탄지 0.08. 예전 값은 한 톤 어둡고 회색에 가까워 섬 전체가
+   칙칙한 올리브였다. 물 밑 바이옴(심해·연안)은 물 셰이더가 덮으므로 바닥 모래·펄 색이다. */
 const BIOME_INFO=[
-  {n:'심해',       c:0x081820},
-  {n:'연안',       c:0x11313c},
-  {n:'모래 해변',  c:0x76705a},
-  {n:'해안 사구',  c:0x6a6a4e},
-  {n:'습지/이탄지',c:0x3b4433},
-  {n:'초원',       c:0x4d5a3a},
-  {n:'활엽수림',   c:0x35482e},
-  {n:'침엽수림',   c:0x293a31},
-  {n:'건조 관목지',c:0x5a5541},
-  {n:'노출 암반',  c:0x4b4b47},
-  {n:'애추 사면',  c:0x5e5d56},
-  {n:'하천',       c:0x22434e},
-  {n:'분기공 지대', c:0x8a7a3e}
+  {n:'심해',       c:0x3e4a44},
+  {n:'연안',       c:0x8c8466},
+  {n:'모래 해변',  c:0xcdbb8c},
+  {n:'해안 사구',  c:0xbfae82},
+  {n:'습지/이탄지',c:0x4c5634},
+  {n:'초원',       c:0x7a9142},
+  {n:'활엽수림',   c:0x4f6a2e},
+  {n:'침엽수림',   c:0x3b5230},
+  {n:'건조 관목지',c:0x9a8c5c},
+  {n:'노출 암반',  c:0x7b756a},
+  {n:'애추 사면',  c:0x8d877b},
+  {n:'하천',       c:0x5c5a44},
+  {n:'분기공 지대', c:0xb8a24e}
 ];
 
 /* ---------------- 자원(지질 규칙) ---------------- */
@@ -1550,25 +1554,47 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       vec3 V=normalize(cameraPosition-vWW);
       if(V.y<0.0){ Nw=vec3(0.0,1.0,0.0); }
       vec3 Rr=reflect(-V,Nw); Rr.y=abs(Rr.y);
-      float fres=0.02+0.98*pow(1.0-max(dot(Nw,V),0.0),5.0);
-      fres*=0.75;   // 거친 물결 — 물결 사면이 제각각이라 스치는 각에서도 반사가 다 차지 않는다
+      /* ① 프레넬 — 쉴릭 어림 대신 **편광 없는 빛의 프레넬 식 그대로**(공기 1 → 물 1.333).
+         수직으로 내려다보면 2% 만 비치고, 스치는 각일수록 하늘이 거울처럼 비친다. */
+      float ci=clamp(dot(Nw,V),1e-4,1.0);
+      float st2=(1.0-ci*ci)/1.7769, ct=sqrt(max(0.0,1.0-st2));
+      float rs=(ci-1.333*ct)/(ci+1.333*ct), rp=(ct-1.333*ci)/(ct+1.333*ci);
+      float F=0.5*(rs*rs+rp*rp);
       vec3 sky=mix(uSkyH,uSkyZ,sqrt(clamp(Rr.y/0.7,0.0,1.0)));
+      /* ② 해 반짝임 — 물결 사면 하나하나가 해를 반사하는 몫. 세기도 그 자리의 프레넬을 따른다
+         (해가 낮을수록 물결이 금빛으로 번뜩이는 까닭) */
       float sd=max(dot(Rr,uSunDir),0.0);
-      vec3 spec=uSunCol*(pow(sd,700.0)*14.0+pow(sd,90.0)*0.35)*step(0.0,uSunDir.y);
-      // 수심 — 물은 빨강부터 먹는다. 바닥까지 갔다 오는 길 2d
+      vec3 spec=uSunCol*F*(pow(sd,700.0)*700.0+pow(sd,90.0)*17.0)*step(0.0,uSunDir.y);
+      /* ③ 물속 — **스넬 굴절**: 보는 빛줄기·햇빛이 물에 들어가며 꺾인다(비스듬할수록 물속
+         경로가 길다 — 1/μ). 물의 고유 광학량(1/m, 680·550·440 nm):
+           흡수 a — 순수 바닷물(0.45·0.057·0.015) + 용존유기물(CDOM, 파랑을 먹는다)
+           산란 b — 물 분자(0.0022·(550/λ)^4.32) + 떠다니는 입자(λ⁻¹)
+           뒤로 흩는 몫 b_b — 분자 0.5 · 입자 0.019
+         깊은 물의 반사(고든): R∞ = 0.0949u + 0.0794u², u = b_b/(a+b_b) — 파랑이 남아 바다가 남색이다.
+         얕으면 바닥이 비친다: R = R∞(1−e^−Kd) + (바닥 반사/π)·e^−Kd, K = (a+b_b)(1/μ해 + 1/μ눈).
+         물 밖으로 나올 때(리 등): R↑ = 0.52·R/(1−1.7·R). 들어오는 빛(해+하늘)에 π·R↑ 를 곱한다. */
+      vec3 tv=refract(-V,Nw,0.7502); float muV=max(-tv.y,0.08);
+      vec3 ts=refract(-uSunDir,vec3(0.0,1.0,0.0),0.7502); float muS=max(-ts.y,0.08);
       float bed=elevAt(vWW.xz);
       float d=max(0.0,vWW.y-bed);
-      vec3 absorb=uRiver>0.5?vec3(0.55,0.25,0.30):vec3(0.45,0.07,0.04);
-      vec3 T=exp(-absorb*d*2.0);
-      vec3 light=uAmb+uSunCol*max(uSunDir.y,0.0)*0.8;
-      vec3 bedCol=(uRiver>0.5?vec3(0.30,0.27,0.20):vec3(0.62,0.56,0.42))*light;
-      vec3 deep=(uRiver>0.5?vec3(0.06,0.09,0.06):vec3(0.02,0.10,0.19))*light;  // 물속에서 흩어져 나오는 빛
-      vec3 body=bedCol*T+deep*(1.0-T.b);
-      vec3 col=mix(body,sky,fres)+spec;
+      vec3 aW=vec3(0.45,0.0565,0.0145), bW=0.0022*vec3(0.401,1.0,2.622);
+      vec3 aX, bP, bot;
+      if(uRiver>0.5){ aX=vec3(0.06,0.35,1.20); bP=vec3(0.81,1.0,1.25)*0.9; bot=vec3(0.22,0.19,0.14); }  // 흙탕·유기물 많은 개울
+      else          { aX=vec3(0.001,0.004,0.02); bP=vec3(0.81,1.0,1.25)*0.05; bot=vec3(0.46,0.41,0.30); } // 맑은 연안 · 모래 바닥
+      vec3 aT=aW+aX, bb=0.5*bW+0.019*bP;
+      vec3 u=bb/(aT+bb);
+      vec3 Rinf=0.0949*u+0.0794*u*u;
+      vec3 Kt=(aT+bb)*(1.0/muS+1.0/muV);
+      vec3 Tb=exp(-Kt*d);
+      vec3 rr=Rinf*(1.0-Tb)+(bot/3.14159)*Tb;
+      vec3 Rup=0.52*rr/(1.0-1.7*rr);
+      vec3 light=uAmb+uSunCol*max(uSunDir.y,0.0)*(1.0-F);
+      vec3 body=3.14159*Rup*light;
+      vec3 col=body*(1.0-F)+sky*F+spec;
       // 거품 — 물가 0.5 m 안, 밀려왔다 빠진다
       float surf=0.5+0.5*sin(uTime*0.9-d*9.0+sin(vWW.x*0.07)*2.0+sin(vWW.z*0.05)*2.0);
       float foam=smoothstep(0.55,0.05,d)*smoothstep(0.35,0.9,surf)*(uRiver>0.5?0.3:1.0);
-      col=mix(col,light*0.95,foam*0.8);
+      col=mix(col,(uAmb+uSunCol*max(uSunDir.y,0.0))*0.9,foam*0.8);   // 거품은 흰 알베도 0.9
       diffuseColor.a=smoothstep(0.0,0.18,d);
       vec3 outgoingLight=col;`);
   };
@@ -1645,7 +1671,9 @@ const COLLIDERS=[];                    // {x,z,r} 나무·바위 충돌체
    껐다 켤 수 있으므로 가지·잎을 TILE(128 m) 칸마다 따로 담아 두고
    칸 단위로 끈다. 칸의 어느 구석이라도 150 m 안에 들면 켠다 —
    칸 반지름(대각선 절반 + 나무 가지가 칸 밖으로 나가는 여유 12 m)을 빼고 잰다. */
-const VIEW_DIST=150, NEAR_DIST=55, TILE=64;
+/* 땅 안개가 물리값(가시거리 수십 km)이 되어 150 m 에서 나무가 사라지는 경계가 드러났다 —
+   임포스터(나무당 판 4장)를 450 m 까지 그린다 */
+const VIEW_DIST=450, NEAR_DIST=55, TILE=64;
 const TREE_TILES=[];
 const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
 /* 칸마다 셋 중 하나를 고른다.
@@ -4626,12 +4654,18 @@ function updateSky(){
   cSky.lerp(cTmp,grey); cHz.lerp(cTmp,grey); cSun.lerp(cTmp,grey*0.7);
   // 안개는 지평선 색을 따라가야 먼 지형이 하늘에 자연스럽게 녹는다
   skyScene.background.copy(cHz);
-  scene.fog.color.copy(cHz);
+  /* 먼 땅에 더해지는 하늘빛 — 카메라가 보는 쪽 지평선(2°) 하늘색 */
+  camera.getWorldDirection(_dv3); _dv3.y=0;
+  if(_dv3.lengthSq()<1e-6) _dv3.set(1,0,0);
+  _dv3.normalize(); _dv3.y=0.035; _dv3.normalize();
+  { const F3=tone3(_dv3,[0,0,0]); scene.fog.color.setRGB(F3[0]+0.008,F3[1]+0.016,F3[2]+0.043).lerp(cTmp,grey); }
   /* 날씨가 안개와 볕을 함께 민다 — 흐리면 뿌옇다.
      **해의 세기는 구름양으로 깎지 않는다** — 구름이 해를 가리는 것은 구름 그림자가
      자리마다 한다(`cloudSh`). 다만 구름 그림자가 꺼지는 밤·노을녘에는 예전처럼
      구름양으로 깎는다(달빛이 흐린 날에도 밝으면 안 된다). */
-  scene.fog.density=lerp(A.d,Bk.d,t)*WEA.fog/farScale;
+  /* 땅 높이의 소광계수(550 nm, 1/m) — 레일리 1.36e-5 + 에어로졸(탁도에 비례, 맑은 바다 공기
+     가시거리 약 40 km) + 비(3 km 가시) + 안개(짙을 때 가시 200 m). 가시거리 V = 3.9/β(코시미더). */
+  scene.fog.density=(1.36e-5+0.1/ATM.HM*turb/2.6*1.1+WEA.rain*3.9/3000+WEA.mist*3.9/200)/farScale;
   amb.intensity=lerp(A.a,Bk.a,t)*(1-WEA.rain*0.25)*(1-(1-CSH.sunVis)*0.25);
   sun.color.copy(cSun);
   const sunK=lerp(WEA.light,WEA.lightSun,CSH.on.value);
@@ -10173,6 +10207,18 @@ function updateHUD(dt){
 /* ============================================================================
    12) 초기화 · 생성 · 루프
    ========================================================================== */
+/* ── 땅의 대기 원근 ─────────────────────────────────────────────────────
+   먼 것이 흐려지는 까닭은 둘이다 — 그 물체에서 오는 빛이 공기를 지나며 **먹히고**
+   (T = exp(−β·d), 베르-람베르트), 그만큼 **그 방향 하늘빛이 더해진다**(공기 자체가 빛난다).
+   화소 = 물체 × T + 하늘빛 × (1−T). 예전 FogExp2 는 exp(−(β·d)²) 에 색이 한 가지였다.
+   β 는 파장마다 다르다 — 레일리(파랑이 셈) + 에어로졸(옹스트룀 1.3) 을 합친 비 (0.93, 1, 1.12).
+   그래서 먼 산이 푸르스름하게 물러난다. 하늘빛은 **보는 방향의 지평선 하늘색**이다(`skyScatter`
+   를 카메라 앞쪽으로 돌린 것) — 해 쪽을 보면 노을빛, 반대쪽은 푸른빛으로 먼 땅이 녹는다.
+   Three 의 fog_fragment 를 바꾸므로 **안개를 받는 모든 재질에 똑같이 듣는다**(물 포함). */
+THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
+  vec3 fogT = exp( - fogDensity * fogDepth * vec3( 0.93, 1.0, 1.12 ) );
+  gl_FragColor.rgb = gl_FragColor.rgb * fogT + fogColor * ( 1.0 - fogT );
+#endif`;
 function initThree(){
   renderer=new THREE.WebGLRenderer({canvas:cv,antialias:false,powerPreference:'high-performance'});
   renderer.setPixelRatio(1);
