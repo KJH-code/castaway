@@ -283,36 +283,36 @@ const CLOUD_KINDS={
                 th:600, R:45000, max:80, op:[0.22,0.40], v:30, draw:'streak', nb:[16,32]},
   cirrostratus:{n:'권층운', form:'layer', y:[7000,10000], w:[30000,50000], h:[26000,44000],
                 th:1200, R:45000, max:14, op:[0.07,0.13], v:28,
-                draw:'veil', nb:[160,220], sh:[0.94,1.0]},
+                draw:'veil', nb:[160,220], tau:0.8},
   cirrocumulus:{n:'권적운', form:'layer', y:[6500,10000], w:[2000,5000], h:[1600,4200],
                 th:300, R:30000, max:40, op:[0.35,0.55], v:27,
-                draw:'ripple', nb:[220,480], cell:130, fill:0.35},
+                draw:'ripple', nb:[220,480], cell:130, fill:0.35, tau:1.5},
   // 중층운 2~6 km
   altocumulus :{n:'고적운', form:'layer', y:[2500,5000], w:[8000,20000], h:[6000,16000],
                 th:450, R:20000, max:10, op:[0.45,0.7], v:16,
-                draw:'ripple', nb:[160,260], cell:600, fill:0.5},
+                draw:'ripple', nb:[160,260], cell:600, fill:0.5, tau:6},
   altostratus :{n:'고층운', form:'layer', y:[2500,5000], w:[25000,40000], h:[22000,36000],
                 th:2000, R:21000, max:7, op:[0.13,0.22], v:14,
-                draw:'veil', nb:[160,220], sh:[0.80,0.90]},
+                draw:'veil', nb:[160,220], tau:25},
   /* 난층운 — 비를 내리는 두꺼운 잿빛 층. 밑동은 낮고(0.5~2 km) 위로 수 km 두껍다.
      밑에서 보면 무늬 없이 어둡고 고르다. 온난전선 한가운데에서 하늘을 다 덮는다. */
   nimbostratus:{n:'난층운', form:'layer', y:[1200,2200], w:[30000,50000], h:[26000,44000],
                 th:1500, R:25000, max:7, op:[0.40,0.60], v:12,
-                draw:'veil', nb:[180,240], sh:[0.42,0.55]},
+                draw:'veil', nb:[180,240], tau:90},
   // 하층운 0~2 km
   /* 층적운은 덩이가 아니라 **깔린 층**이다(층운형) — 굵은 혹이 줄지어 거의 이어진
      판을 이룬다. 바다 위에서 가장 흔한 구름이다. `gapf` 로 줄 사이를 좁혀 판이 되게 한다 */
   stratocumulus:{n:'층적운',form:'layer', y:[600,1500], w:[15000,30000], h:[13000,26000],
                 th:400, R:18000, max:8, op:[0.55,0.8], v:9,
-                draw:'ripple', nb:[220,400], cell:1200, fill:0.75, gapf:0.8, sh:[0.72,0.90]},
+                draw:'ripple', nb:[220,400], cell:1200, fill:0.75, gapf:0.8, tau:14},
   stratus     :{n:'층운',   form:'layer', y:[150,500], w:[10000,16000], h:[9000,15000],
                 th:300, R:12000, max:6, op:[0.16,0.27], v:6,
-                draw:'veil', nb:[160,220], sh:[0.68,0.78]},
+                draw:'veil', nb:[160,220], tau:12},
   cumulus     :{n:'적운',   form:'puff',  y:[900,1600], w:[1000,2700], h:[430,1280],
-                R:20000, max:400, op:[0.75,0.95], v:8, draw:'cauli', nb:[70,110]},
+                R:20000, max:400, op:[0.75,0.95], v:8, draw:'cauli', nb:[70,110], kap:1.0},
   // 수직운 — 밑동은 하층, 꼭대기는 상층까지
   cumulonimbus:{n:'적란운', form:'puff',  y:[600,1500], w:[6700,13500], h:[4900,7100],
-                R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[170,250]}
+                R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[170,250], kap:1.8}
 };
 /* 덩이·무리 하나가 하늘에서 실제로 덮는 넓이(m²) — 날씨가 정한 점유율을
    개수로 바꿀 때 쓴다. 덩이는 화면을 훑어 잰 '보이는 폭' 비율로, 층은 무리
@@ -686,21 +686,37 @@ function shapePuff(c){
   cloudBounds(c);
 }
 
-/* 볕 받는 쪽이 밝다 — 알갱이마다 덩이 가운데에서 해 쪽으로 얼마나 나와 있나로
-   밝기를 준다. 높이 그늘(`c.sh`)에 곱한다. 해가 천천히 도므로 2초마다 다시 칠한다
-   (`updateClouds`). 밤에는 `sun` 이 달 쪽으로 가 있으므로 달빛 쪽이 밝다. */
+/* 알갱이 밝기 — **광학 두께로 센다.** 알갱이마다 해 쪽으로 빛줄기를 쏴 다른
+   알갱이를 몇 개, 얼마나 깊이 뚫는지(τs), 위로 몇 개가 덮고 있는지(τu)를 더한다
+   (알갱이 한 알 가운데를 지나면 `kap` — 적운 1.0 · 적란운 1.8, 가장자리로 갈수록 0).
+   2 로 잡았더니 한낮 적운이 옆면까지 칙칙한 회색이었다 — 실제는 평평한 밑동만 회색이다.
+   그래서 해 쪽 겉은 새하얗고, 덩이 속·해 반대편·밑동은 두께만큼 회색이 된다 —
+   적운은 밑동만 연한 회색, 적란운은 속이 짙은 청회색. 예전의 높이 그늘(0.72~1)과
+   '해 쪽으로 나온 만큼'이라는 어림을 둘 다 이것이 대신한다.
+   알갱이 수의 제곱이라(적운 110 알이면 1만 2천 번) 2초마다만 다시 센다.
+   밤에는 `SKYL.dir` 이 달 쪽이라 달빛 쪽이 밝다. */
 const _sd=new THREE.Vector3();
 function litPuff(c){
   if(!c.sh) return;
   _sd.copy(SKYL.dir);                            // 참 해 방향(밤엔 달)
-  const W=Math.max(1,c.w*0.5);
-  for(let i=0;i<c.nb;i++){
-    const dx=(c.off[i*3]-c.cx)/W, dy=(c.off[i*3+1]-c.cy)/W, dz=(c.off[i*3+2]-c.cz)/W;
-    const L=Math.hypot(dx,dy,dz)||1;
-    const k=(dx*_sd.x+dy*_sd.y+dz*_sd.z)/L;           // −1 그늘진 쪽 · +1 볕 쪽
-    // r: 직사광을 받는 몫(해 쪽일수록) · g: 하늘빛을 받는 몫(높이 그늘)
-    const w=clamp(0.55+0.55*k*Math.min(1,L*1.4),0.08,1);
-    c.m.setColorAt(i,_pfC.setRGB(c.sh[i]*w,c.sh[i],0));
+  const n=c.nb, o=c.off, kap=c.K.kap||2, sx=_sd.x, sy=_sd.y, sz=_sd.z;
+  for(let i=0;i<n;i++){
+    const xi=o[i*3], yi=o[i*3+1], zi=o[i*3+2];
+    let ts=0, tu=0;
+    for(let j=0;j<n;j++){
+      if(j===i) continue;
+      const dx=o[j*3]-xi, dy=o[j*3+1]-yi, dz=o[j*3+2]-zi;
+      const rv=c.rad[j]*0.4, rv2=rv*rv, d2=dx*dx+dy*dy+dz*dz;
+      const t=dx*sx+dy*sy+dz*sz;                      // 해 쪽 빛줄기가 j 를 지나나
+      if(t>0){ const p2=d2-t*t; if(p2<rv2) ts+=kap*(1-p2/rv2); }
+      if(dy>0){ const p2=dx*dx+dz*dz; if(p2<rv2) tu+=kap*(1-p2/rv2); }   // 위에 덮였나
+    }
+    /* 해를 받는 몫 — 곧장 오는 빛 exp(−τ) 와, 덩이 속에서 여러 번 튕겨 온 빛
+       1/(1+0.75τ(1−g)) 을 섞는다(두꺼운 구름에선 뒤엣것이 거의 전부다) */
+    const r=0.35*Math.exp(-ts)+0.65/(1+0.75*ts*0.15);
+    // 하늘빛을 받는 몫 — 위에 덮인 두께만큼 줄고, 땅에서 튕겨 오른 빛이 받친다
+    const g=0.85/(1+0.75*tu*0.15)+0.15;
+    c.m.setColorAt(i,_pfC.setRGB(r,g,0));
   }
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
 }
@@ -818,6 +834,15 @@ function layerNoise(x,z,seed){
   const a=h(xi,zi), b=h(xi+1,zi), c=h(xi,zi+1), d=h(xi+1,zi+1);
   return a+(b-a)*sx+(c-a)*sz+(a-b-c+d)*sx*sz;
 }
+/* 층의 밑면 밝기 — 광학 두께 τ 인 층을 밑에서 보면 빛이 몇 번이고 튕기다 위로
+   되돌아 나간 만큼 어둡다. 물방울은 빛을 대부분 앞으로 흩뿌리므로(g ≈ 0.85)
+   밑으로 빠져나오는 몫이 1/(1+0.75·τ·(1−g)) 이다. 해를 받는 몫(r)이 그것이고,
+   하늘빛(g)도 층을 지나오므로 같이 줄되 땅에서 튕겨 오른 빛(0.22)이 밑면을 받친다.
+   권층운 τ 0.8 → 0.92 · 층운 12 → 0.43 · 고층운 25 → 0.26 · 난층운 90 → 0.09. */
+function layerTone(tau,out){
+  const T=1/(1+0.75*tau*0.15);
+  return out.setRGB(T,T*0.6+0.22,0);
+}
 function shapeLayer(c){
   const rnd=cloudRnd, K=c.K, w=c.w, h=c.h, n=Math.min(c.cap,
         Math.round(K.nb[0]+rnd()*(K.nb[1]-K.nb[0])));
@@ -846,8 +871,8 @@ function shapeLayer(c){
         c.off[k*3]=x+(rnd()-0.5)*step*0.3; c.off[k*3+1]=(rnd()-0.5)*th;
         c.off[k*3+2]=z+(rnd()-0.5)*step*0.3;
         c.rad[k]=step*(1.9+rnd()*0.7)*(0.55+0.45*(1-e));
-        const sh=K.sh||[0.88,1], sv=sh[0]+rnd()*(sh[1]-sh[0]);
-        c.m.setColorAt(k,_pfC.setRGB(sv*0.9,sv*0.9,0)); k++;
+        layerTone(K.tau*(0.6+0.8*rnd())*(0.4+0.6*(1-e)),_pfC);
+        c.m.setColorAt(k,_pfC); k++;
       }
     }
   }else{
@@ -863,8 +888,8 @@ function shapeLayer(c){
       /* 알을 크게(폭의 22~32%) 잡아 여남은 알이 늘 겹치게 한다 — 알이 잘면
          알 하나하나가 보여 막이 아니라 얼룩이 된다 */
       c.rad[k]=w*(0.22+rnd()*0.10)*(0.45+0.55*Math.sqrt(1-e*e));
-      const sh=K.sh||[0.85,1], sv=sh[0]+rnd()*(sh[1]-sh[0]);
-      c.m.setColorAt(k,_pfC.setRGB(sv*0.7,sv,0)); k++;    // 막은 밑면이라 하늘빛이 크다
+      layerTone(K.tau*(0.6+0.8*dens)*(0.4+0.6*Math.sqrt(1-e*e)),_pfC);
+      c.m.setColorAt(k,_pfC); k++;
     }
   }
   c.nb=k;
