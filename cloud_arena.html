@@ -739,7 +739,7 @@ function shapePuff(c){
       }
       if(!ok) continue;
       c.off[nt*3]=px; c.off[nt*3+1]=py; c.off[nt*3+2]=pz;
-      c.rad[nt]=b.r*(0.45+0.2*rnd()); c.al[nt]=0.5; nt++;
+      c.rad[nt]=b.r*(0.45+0.2*rnd())*(d==='anvil'?1.7:1.3); c.al[nt]=0.3; nt++;
     }
   }
   c.nBody=n; c.nb=nt;
@@ -802,7 +802,8 @@ function litPuff(c){
     const r=0.35*Math.exp(-ts)+0.65/(1+0.75*ts*0.15);
     // 하늘빛을 받는 몫 — 위에 덮인 두께만큼 줄고, 땅에서 튕겨 오른 빛이 받친다
     const g=0.85/(1+0.75*tu*0.15)+0.15;
-    c.m.setColorAt(i,_pfC.setRGB(r,g,c.al?c.al[i]:0));   // b 칸 = 알갱이 짙기
+    const dm=i>=nB?0.88:1;                              // 겉 알갱이는 몸통보다 튀지 않게
+    c.m.setColorAt(i,_pfC.setRGB(r*dm,g*dm,c.al?c.al[i]:0));   // b 칸 = 알갱이 짙기
   }
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
 }
