@@ -1324,12 +1324,61 @@ function biomeColorAt(i,out){
 }
 const TMP_WET=new THREE.Color();
 
+/* ── 땅 표면 ──────────────────────────────────────────────────────────────
+   정점 색(바이옴)만으로는 2.5 m 격자보다 잘게 아무것도 없어, 가까이서 보면 색 판때기였다.
+   셰이더가 화소마다 세 가지를 더한다(`terrainMat`):
+   ① **얼룩** — 값잡음 세 겹(40 m · 6 m · 0.8 m). 큰 얼룩은 명도·색조를 조금, 잔 얼룩은
+      흙·풀의 결을 낸다. 잔 겹은 멀수록 흐린다(멀리서 들끓지 않게).
+   ② **바위** — 비탈이 가팔라지면(법선 y 0.82 → 0.62) 흙·풀 대신 바위가 드러난다. 바위에는
+      높이를 따라 층리(가로 띠)를 새긴다 — 퇴적·용암층이 층층이 쌓인 결.
+   ③ **잔 요철 명암** — 램버트는 빛을 정점마다 세므로 화소 법선을 흔들어도 소용없다.
+      대신 잔 얼룩의 **기울기와 해 방향의 내적**으로 밝기를 곱해, 햇빛 쪽 면이 밝고 반대가
+      어두운 요철을 흉내 낸다(해가 낮을수록 짙다 — 저녁 땅이 거칠어 보이는 것). */
+const TERR_U={uSunDir:{value:new THREE.Vector3(0,1,0)}};
+function terrainMat(){
+  const m=new THREE.MeshLambertMaterial({vertexColors:true});
+  m.onBeforeCompile=sh=>{
+    Object.assign(sh.uniforms,TERR_U);
+    sh.vertexShader='varying vec3 vTW;\nvarying vec3 vTN;\n'+sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\nvTW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvTN=normal;');
+    sh.fragmentShader=`uniform vec3 uSunDir;
+varying vec3 vTW;
+varying vec3 vTN;
+float th(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float vn(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
+  return mix(mix(th(i),th(i+vec2(1,0)),u.x),mix(th(i+vec2(0,1)),th(i+vec2(1,1)),u.x),u.y); }
+`+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+      {
+        float dist=length(cameraPosition-vTW);
+        float nearK=clamp(1.0-dist/120.0,0.0,1.0);
+        vec2 p=vTW.xz;
+        float big=vn(p/40.0), mid=vn(p/6.0+7.3), fine=vn(p/0.8+3.1)*0.6+vn(p/0.3+9.7)*0.4;
+        vec3 c=diffuseColor.rgb;
+        c*=0.88+0.24*big;
+        c*=mix(1.0,0.86+0.28*mid,0.9);
+        c*=mix(1.0,0.82+0.36*fine,nearK);
+        // 바위 — 가파를수록 드러난다. 높이를 따라 층리
+        float steep=1.0-smoothstep(0.62,0.82,normalize(vTN).y);
+        float strata=0.5+0.5*sin(vTW.y*2.3+vn(p/9.0)*5.0)*0.6+vn(vec2(vTW.y*1.7,p.x/12.0))*0.4;
+        vec3 rock=vec3(0.36,0.34,0.31)*(0.78+0.3*strata)*(0.9+0.2*mid);
+        c=mix(c,rock,steep*0.85);
+        // 잔 요철 명암 — 잔 얼룩의 기울기 · 해 방향
+        vec2 e=vec2(0.25,0.0);
+        vec2 gr=vec2(vn((p+e.xy)/0.8+3.1)-vn((p-e.xy)/0.8+3.1), vn((p+e.yx)/0.8+3.1)-vn((p-e.yx)/0.8+3.1));
+        float lowSun=1.0-clamp(uSunDir.y,0.0,1.0);
+        c*=1.0-dot(gr,normalize(uSunDir.xz+1e-4))*(0.9+1.6*lowSun)*nearK*(0.5+steep);
+        diffuseColor.rgb=c;
+      }`);
+  };
+  m.customProgramCacheKey=()=>'terrain';
+  return m;
+}
 function buildChunks(){
   for(const m of chunks){ scene.remove(m); m.geometry.dispose(); }
   chunks.length=0;
   const col=new THREE.Color();
   // 면 단위 각짐을 없앤다 — 법선과 색을 정점마다 따로 주고 부드럽게 보간한다
-  const mat=new THREE.MeshLambertMaterial({vertexColors:true});
+  const mat=terrainMat();
   for(let cz=0;cz<NC;cz++) for(let cx=0;cx<NC;cx++){
     const x0=cx*CH, z0=cz*CH;
     const x1=Math.min(N-1,x0+CH), z1=Math.min(N-1,z0+CH);
@@ -1368,17 +1417,126 @@ function buildChunks(){
   }
 }
 
+/* ── 물 ─────────────────────────────────────────────────────────────────
+   예전 물은 단색 반투명 판에, CPU 가 매 프레임 정점을 흔들고 법선을 다시 셌다.
+   이제 **셰이더가 물을 계산한다**(`waterMat`):
+   ① **파도** — 방향·파장이 다른 사인파 여덟 겹. 빠르기는 심해파 분산 ω=√(g·k) 로
+      파장에서 나온다(긴 파도가 빠르다). 굵은 셋은 정점을 들어 올리고, 잔 다섯은
+      화소마다 법선만 흔든다(멀수록 흐려 반짝임이 들끓지 않게).
+   ② **반사** — 프레넬(슐릭, 물 F0 0.02): 내려다보면 물속이 보이고, 비스듬히 볼수록
+      하늘이 비친다. 비치는 하늘은 반사 방향의 높이로 지평선색↔천정색을 섞는다.
+   ③ **해 반짝임** — 반사 방향이 해와 맞는 화소(물결 하나하나가 작은 거울).
+   ④ **물속** — 수심 d(지형 높이 텍스처 `waterElevTex` 로 잰다)만큼 빛이 빠진다.
+      물은 빨강을 가장 빨리 먹는다(흡수 0.45·0.07·0.04 /m) — 얕은 데는 모래가 비친
+      청록, 깊은 데는 남색이다. 오가는 길이라 2d 로 센다.
+   ⑤ **거품** — 물가 얕은 띠(0.5 m 안)에 밀려왔다 빠지는 흰 거품.
+   ⑥ 물가에서는 알파를 0 으로 내려 땅과 이음매 없이 섞는다.
+   빛은 스스로 계산한다(MeshBasic + 손수 조명) — 셰이더 물에는 램버트 조명이 안 맞는다.
+   그래서 물 위에는 물체·구름 그림자가 지지 않는다. */
+let waterElevTex=null;
+const WATER_U={uTime:{value:0}, uSunDir:{value:new THREE.Vector3(0,1,0)},
+  uSunCol:{value:new THREE.Color(1,1,1)}, uAmb:{value:new THREE.Color(0.3,0.35,0.4)},
+  uSkyZ:{value:new THREE.Color(0.3,0.5,0.9)}, uSkyH:{value:new THREE.Color(0.7,0.8,0.9)},
+  uElev:{value:null}, uGrid:{value:new THREE.Vector2(768,2.5)}};
+function waterMat(river){
+  const m=new THREE.MeshBasicMaterial({transparent:true,depthWrite:true});
+  m.userData.lightRole='none';
+  m.onBeforeCompile=sh=>{
+    Object.assign(sh.uniforms,WATER_U);
+    sh.uniforms.uRiver={value:river?1:0};
+    const WAVES=`
+    const float G=9.81;
+    // (방향 각, 파장 m, 진폭 m) — 굵은 셋은 정점, 잔 다섯은 법선만
+    vec3 wv(int i){
+      if(i==0) return vec3(0.35,62.0,0.30); if(i==1) return vec3(-0.55,37.0,0.20);
+      if(i==2) return vec3(1.20,21.0,0.10); if(i==3) return vec3(0.05,8.7,0.045);
+      if(i==4) return vec3(-1.10,5.3,0.028); if(i==5) return vec3(0.80,3.1,0.017);
+      if(i==6) return vec3(2.30,1.7,0.009); return vec3(-2.60,0.9,0.005); }
+    `;
+    sh.vertexShader='uniform float uTime;\nuniform float uRiver;\nvarying vec3 vWW;\n'+WAVES+
+      sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+      vec3 wp0=(modelMatrix*vec4(transformed,1.0)).xyz;
+      if(uRiver<0.5){
+        for(int i=0;i<3;i++){ vec3 w=wv(i); vec2 d=vec2(cos(w.x),sin(w.x)); float k=6.2832/w.y;
+          transformed.y+=w.z*sin(k*dot(d,wp0.xz)-sqrt(G*k)*uTime); }
+      }
+      vWW=(modelMatrix*vec4(transformed,1.0)).xyz;`);
+    sh.fragmentShader=`uniform float uTime;
+uniform float uRiver;
+uniform vec3 uSunDir;
+uniform vec3 uSunCol;
+uniform vec3 uAmb;
+uniform vec3 uSkyZ;
+uniform vec3 uSkyH;
+uniform sampler2D uElev;
+uniform vec2 uGrid;
+varying vec3 vWW;
+`+WAVES+`
+float elev1(vec2 g){ vec4 t=texture2D(uElev,(g+0.5)/uGrid.x); return (t.r*255.0*256.0+t.g*255.0)/65535.0*300.0-100.0; }
+// 16비트를 나눠 담았으니 텍스처 보간은 못 쓴다 — 네 점을 직접 섞는다
+float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
+  return mix(mix(elev1(i),elev1(i+vec2(1,0)),f.x),mix(elev1(i+vec2(0,1)),elev1(i+vec2(1,1)),f.x),f.y); }
+`+sh.fragmentShader.replace('vec3 outgoingLight = reflectedLight.indirectDiffuse;',`
+      float dist=length(cameraPosition-vWW);
+      // 법선 — 여덟 겹 파도의 기울기를 더한다(잔 파도는 멀수록 흐리게)
+      vec2 grad=vec2(0.0);
+      float ampK=uRiver>0.5?0.25:1.0;
+      for(int i=0;i<8;i++){ vec3 w=wv(i); vec2 d=vec2(cos(w.x),sin(w.x)); float k=6.2832/w.y;
+        float fade=i<3?1.0:clamp(1.0-dist/(w.y*60.0),0.0,1.0);
+        grad+=d*(w.z*k*cos(k*dot(d,vWW.xz)-sqrt(G*k)*uTime))*fade*ampK; }
+      vec3 Nw=normalize(vec3(-grad.x,1.0,-grad.y));
+      vec3 V=normalize(cameraPosition-vWW);
+      if(V.y<0.0){ Nw=vec3(0.0,1.0,0.0); }
+      vec3 Rr=reflect(-V,Nw); Rr.y=abs(Rr.y);
+      float fres=0.02+0.98*pow(1.0-max(dot(Nw,V),0.0),5.0);
+      vec3 sky=mix(uSkyH,uSkyZ,sqrt(clamp(Rr.y/0.7,0.0,1.0)));
+      float sd=max(dot(Rr,uSunDir),0.0);
+      vec3 spec=uSunCol*(pow(sd,700.0)*14.0+pow(sd,90.0)*0.35)*step(0.0,uSunDir.y);
+      // 수심 — 물은 빨강부터 먹는다. 바닥까지 갔다 오는 길 2d
+      float bed=elevAt(vWW.xz);
+      float d=max(0.0,vWW.y-bed);
+      vec3 absorb=uRiver>0.5?vec3(0.55,0.25,0.30):vec3(0.45,0.07,0.04);
+      vec3 T=exp(-absorb*d*2.0);
+      vec3 light=uAmb+uSunCol*max(uSunDir.y,0.0)*0.8;
+      vec3 bedCol=(uRiver>0.5?vec3(0.30,0.27,0.20):vec3(0.62,0.56,0.42))*light;
+      vec3 deep=(uRiver>0.5?vec3(0.06,0.09,0.06):vec3(0.02,0.085,0.13))*light;  // 물속에서 흩어져 나오는 빛
+      vec3 body=bedCol*T+deep*(1.0-T.b);
+      vec3 col=mix(body,sky,fres)+spec;
+      // 거품 — 물가 0.5 m 안, 밀려왔다 빠진다
+      float surf=0.5+0.5*sin(uTime*0.9-d*9.0+sin(vWW.x*0.07)*2.0+sin(vWW.z*0.05)*2.0);
+      float foam=smoothstep(0.55,0.05,d)*smoothstep(0.35,0.9,surf)*(uRiver>0.5?0.3:1.0);
+      col=mix(col,light*0.95,foam*0.8);
+      diffuseColor.a=smoothstep(0.0,0.18,d);
+      vec3 outgoingLight=col;`);
+  };
+  m.customProgramCacheKey=()=>'water';
+  return m;
+}
+function buildWaterElev(){
+  if(waterElevTex) waterElevTex.dispose();
+  /* 실수 텍스처는 그래픽 장치에 따라 못 읽는다(헤드리스에선 0 이 나와 물이 온통 거품이었다).
+     높이를 −100~200 m 로 16비트에 담아 8비트 두 칸(R 위·G 아래)에 나눠 넣는다 — 3 mm 눈금 */
+  const px=new Uint8Array(N*N*4);
+  for(let i=0;i<N*N;i++){
+    const v=Math.round(clamp((F.elev[i]+100)/300,0,1)*65535);
+    px[i*4]=v>>8; px[i*4+1]=v&255; px[i*4+3]=255;
+  }
+  waterElevTex=new THREE.DataTexture(px,N,N,THREE.RGBAFormat,THREE.UnsignedByteType);
+  waterElevTex.magFilter=waterElevTex.minFilter=THREE.NearestFilter;
+  waterElevTex.needsUpdate=true;
+  WATER_U.uElev.value=waterElevTex; WATER_U.uGrid.value.set(N,CELL);
+}
 let oceanBase=null;
 function buildWater(){
   if(!ocean){
-    // 성긴 격자 + flatShading — 낮은 해상도에서 각진 파도가 오히려 또렷하다
-    const g=new THREE.PlaneGeometry(WORLD*1.7,WORLD*1.7,110,110); g.rotateX(-Math.PI/2);
+    // 굵은 파도(파장 21~62 m)만 정점을 움직이므로 격자는 15 m 면 된다
+    const g=new THREE.PlaneGeometry(WORLD*1.7,WORLD*1.7,220,220); g.rotateX(-Math.PI/2);
     oceanBase=Float32Array.from(g.attributes.position.array);
-    ocean=new THREE.Mesh(g,new THREE.MeshLambertMaterial({
-      color:0x12303f,transparent:true,opacity:0.9}));
-    ocean.userData.lightRole='recv';     // 수면은 받기만 — 드리울 것이 없다
+    ocean=new THREE.Mesh(g,waterMat(false));
+    ocean.userData.lightRole='none';
     scene.add(ocean);
   }
+  buildWaterElev();
   // 하천 수면 — 하도 셀 위에 얇은 판을 덮어 물길이 눈에 보이게 한다
   if(riverMesh){ scene.remove(riverMesh); riverMesh.geometry.dispose(); }
   // 정점 수위 = 그 격자점을 공유하는 하도 셀들의 평균.
@@ -1411,9 +1569,8 @@ function buildWater(){
     for(let i=1;i<nrm.length;i+=3) nrm[i]=1;
     g.setAttribute('normal',new THREE.BufferAttribute(nrm,3));
     g.computeBoundingSphere();
-    riverMesh=new THREE.Mesh(g,new THREE.MeshLambertMaterial({
-      color:0x1d3f4e,transparent:true,opacity:0.8}));
-    riverMesh.userData.lightRole='recv';
+    riverMesh=new THREE.Mesh(g,waterMat(true));
+    riverMesh.userData.lightRole='none';
     scene.add(riverMesh);
   }else riverMesh=null;
 }
@@ -4467,10 +4624,14 @@ function updateSky(){
     stars.position.copy(camera.position);
     stars.material.opacity=clamp(-sy*1.9-0.10,0,1)*(1-WEA.mist);
   }
-  if(ocean){
-    ocean.material.color.copy(cHz).multiplyScalar(0.42).offsetHSL(0,0.14,-0.03);
-    ocean.position.set(camera.position.x,0,camera.position.z);
-  }
+  if(ocean) ocean.position.set(camera.position.x,0,camera.position.z);
+  /* 물이 받는 빛 — 해(색×세기)와 하늘빛, 비칠 하늘(천정·지평선) */
+  WATER_U.uSunDir.value.copy(_sd3);
+  WATER_U.uSunCol.value.copy(sun.color).multiplyScalar(sy>-0.05?sun.intensity:0);
+  WATER_U.uAmb.value.copy(hemi.color).multiplyScalar(hemi.intensity*0.6)
+    .add(cTmp.copy(amb.color).multiplyScalar(amb.intensity*0.6));
+  WATER_U.uSkyZ.value.copy(cSky); WATER_U.uSkyH.value.copy(cHz);
+  TERR_U.uSunDir.value.copy(_sd3);
 }
 
 /* ============================================================================
@@ -7908,19 +8069,8 @@ function updateTorch(dt,dh){
   }
 }
 
-// 바다 표면을 사인파 두 겹으로 흔든다
-function updateOcean(t){
-  if(!ocean||!oceanBase) return;
-  const a=ocean.geometry.attributes.position, arr=a.array;
-  for(let i=0;i<arr.length;i+=3){
-    const x=oceanBase[i], z=oceanBase[i+2];
-    arr[i+1]=Math.sin(x*0.021+t*0.9)*0.45
-            +Math.sin(z*0.031-t*0.7)*0.32
-            +Math.sin((x+z)*0.058+t*1.6)*0.11;
-  }
-  a.needsUpdate=true;
-  ocean.geometry.computeVertexNormals();
-}
+// 바다 파도는 이제 셰이더가 흔든다(`waterMat`) — 여기선 시각만 넘긴다
+function updateOcean(t){ WATER_U.uTime.value=t; }
 
 /* 물레방아는 유량에 비례해 돌고, 전기가 들어온 아크로는 푸르게 번쩍인다 */
 let arcT=0;
