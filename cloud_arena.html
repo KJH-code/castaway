@@ -313,7 +313,7 @@ const CLOUD_KINDS={
                 th:300, R:12000, max:6, op:[0.16,0.27], v:6,
                 draw:'veil', nb:[160,220], tau:12},
   cumulus     :{n:'적운',   form:'puff',  y:[900,1600], w:[1000,2700], h:[430,1280],
-                R:20000, max:400, op:[0.75,0.95], v:8, draw:'cauli', nb:[80,120], kap:1.0},
+                R:20000, max:400, op:[0.75,0.95], v:8, draw:'cauli', nb:[80,120], kap:0.4},
   // 수직운 — 밑동은 하층, 꼭대기는 상층까지
   cumulonimbus:{n:'적란운', form:'puff',  y:[600,1500], w:[10000,16000], h:[4900,7100],
                 R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[700,860], kap:0.35}
@@ -645,23 +645,34 @@ function shapePuff(c){
        이제 밑동 가운데 혹 + 그 둘레 혹 3~5 개로 넓은 밑동을 깔고(얇게 · fl 0.7),
        그 위에 봉우리를 쌓는다. 키가 클수록(`h`/`w`) 봉우리가 많고, 봉우리마다
        절반쯤은 곁봉우리가 붙어 콜리플라워처럼 울퉁불퉁하다. */
-    const r0=w*0.25;
-    push(0,0,0,r0,0.7);
-    const nr0=3+((rnd()*3)|0);
-    for(let k=0;k<nr0;k++){
-      const a=(k+rnd()*0.6)/nr0*6.283, rr=w*(0.16+0.05*rnd());
-      const dd=0.55*(r0+rr)*(0.85+0.15*rnd());
-      push(Math.cos(a)*dd,(rnd()-0.5)*h*0.05,Math.sin(a)*dd,rr,0.7);
+    /* 사진대로 — **넓고 평평한 잿빛 밑동 위에 둥근 봉긋한 몸이 얹히고, 윗면은 콜리플라워
+       혹이 울퉁불퉁하며 한쪽이 더 높이 솟는다**(폭이 키의 1.5~2배). 예전엔 봉우리를 위로
+       하나씩 쌓아 공이 몇 개 포개진 꼴이었다. 이제 반구 윤곽 R(y)=Rb·√(1−(y/H)²) 을
+       층마다 고리로 두르고, 봉우리 쪽(`lean`)으로 윤곽을 밀어 한쪽을 높인다. */
+    const H=Math.min(h,w*0.42), Rb=w*0.46;
+    const la=rnd()*6.283, lx=Math.cos(la), lz=Math.sin(la);
+    // 밑동 — 얇고 넓은 판
+    push(0,0,0,w*0.24,0.5);
+    for(let k=0;k<7;k++){ const a=(k+rnd()*0.5)/7*6.283;
+      push(Math.cos(a)*Rb*0.62,0,Math.sin(a)*Rb*0.62,w*(0.15+0.03*rnd()),0.5); }
+    // 몸 — 층마다 고리
+    const nL=2;
+    for(let L=1;L<=nL;L++){
+      const t=L/(nL+0.9), y=H*t, R=Rb*Math.sqrt(1-t*t), lr=w*(0.24-0.03*L);
+      const sh=Rb*0.18*t;                                 // 봉우리 쪽으로 밀린다
+      const cx=lx*sh, cz=lz*sh;
+      push(cx,y,cz,lr*1.2,1);
+      const m=Math.max(3,Math.round(6-L));
+      for(let k=0;k<m;k++){ const a=(k+rnd()*0.6)/m*6.283;
+        const f=1+0.35*Math.max(0,Math.cos(a-la));         // 봉우리 쪽 혹이 크다
+        push(cx+Math.cos(a)*R*0.6,y+(rnd()-0.3)*lr*0.4*f,cz+Math.sin(a)*R*0.55,lr*f*(0.85+0.3*rnd()),1); }
     }
-    let x=(rnd()-0.5)*w*0.08, z=(rnd()-0.5)*w*0.08, y=0, r=r0*0.9;
-    const nu=Math.max(1,Math.round(clamp(h/(w*0.35),0.6,3.2)*(0.7+0.6*rnd())));
-    for(let k=0;k<nu;k++){
-      const nr=r*(0.72+0.14*rnd());
-      y+=0.55*(r+nr); x+=(rnd()-0.5)*nr*0.5; z+=(rnd()-0.5)*nr*0.5;
-      push(x,y,z,nr,1);
-      if(rnd()<0.55){ const a=rnd()*6.283;
-        push(x+Math.cos(a)*nr*0.75,y-nr*0.25,z+Math.sin(a)*nr*0.75,nr*0.72,1); }
-      r=nr;
+    // 꼭대기 콜리플라워 — 봉우리 쪽이 가장 높다
+    const nt=2+((rnd()*3)|0);
+    for(let k=0;k<nt;k++){
+      const a=la+(rnd()-0.5)*2.4, d=Rb*(0.1+0.25*rnd()), rr=w*(0.13+0.04*rnd());
+      const up=Math.max(0,Math.cos(a-la))*d;
+      push(Math.cos(a)*d,H*0.72+up*0.4+rr*0.2,Math.sin(a)*d,rr,1);
     }
   }else if(d==='lumpy'){
     // 층적운 — 옆으로만 퍼진 혹 판
@@ -718,12 +729,12 @@ function shapePuff(c){
        끊어졌다** — 기둥은 세로로 이어 붙이는데 알갱이는 세로로 안 퍼지니
        이음매가 닿지 않는다. 솟는 갈래는 안 누르고 깔리는 갈래만 누른다. */
     const fz=(d==='roll')?0.55:0.85,
-          fy=(d==='anvil')?1.0:(d==='cauli'?0.78:0.5);
+          fy=(d==='anvil'||d==='cauli')?1.0:0.5;
     const x=b.x+Math.cos(a)*sz*dd,
           z=b.z+Math.sin(a)*sz*dd*fz,
           y=b.y+cz*dd*fy*b.fl;
     c.off[i*3]=x; c.off[i*3+1]=y; c.off[i*3+2]=z;
-    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?(b.an?1.1:1.7):1)*GRAIN_S;   // 얇은 모루는 알을 크게
+    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?(b.an?1.1:1.7):d==='cauli'?1.6:1)*GRAIN_S;   // 얇은 모루는 알을 크게
     // 모루 알갱이는 윗면을 한 높이에 자른다 — 대류권 꼭대기에 부딪혀 평평하다
     if(b.an) c.off[i*3+1]=Math.min(c.off[i*3+1], yTop-my-c.rad[i]*0.22);
     c.al[i]=b.an?0.8:1;
