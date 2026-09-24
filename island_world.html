@@ -1375,6 +1375,65 @@ float vn(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
   m.customProgramCacheKey=()=>'terrain';
   return m;
 }
+/* ── 암석 재질 ──────────────────────────────────────────────────────────
+   광물 색 한 가지로 칠하던 암석에 화소마다 네 겹을 얹는다(`rockMat`, 광물마다 셰이더 하나):
+   ① 얼룩 — 값잡음 두 겹(1.2 m · 0.25 m)으로 명도·색조를 흔든다
+   ② 결 — `LUSTRE[k].tex` 를 따른다: speck(화강암·자갈 — 검고 흰 알갱이), vein(구리 — 공작석
+      녹색 줄), crack(석탄 — 가는 검은 금), step(방연석·섬아연석 — 층층 어긋난 띠),
+      grain(철·주석 — 잔 알갱이 반짝임), botry(황·진사 — 둥근 혹 그늘), conch(부싯돌 — 조개 무늬 물결)
+   ③ 윗면 이끼·지의류 — 위를 향한 면(법선 y>0.55)에 얼룩덜룩 회녹색. 황·진사는 안 낀다
+   ④ 밑동 그늘 — 땅에 닿은 아래쪽은 빛이 덜 든다(앰비언트 오클루전 흉내)
+   금속 광택(`met`)은 해 방향 반사 하이라이트로 얹는다 — 램버트는 반사가 없어서다. */
+function rockMat(k,col){
+  const m=new THREE.MeshLambertMaterial({color:col});
+  const L=LUSTRE[k]||{met:0.05,tex:'speck'};
+  const TEX={speck:0,vein:1,crack:2,step:3,grain:4,botry:5,conch:6,smooth:7}[L.tex]||0;
+  const moss=(k==='sulfur'||k==='cinnabar')?0:1;
+  m.onBeforeCompile=sh=>{
+    Object.assign(sh.uniforms,TERR_U);
+    sh.vertexShader='varying vec3 vRW;\nvarying vec3 vRN;\n'+sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\nvRW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvRN=normal;');
+    sh.fragmentShader=`uniform vec3 uSunDir;
+varying vec3 vRW;
+varying vec3 vRN;
+float rh(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
+float rn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(rh(i),rh(i+vec3(1,0,0)),f.x),mix(rh(i+vec3(0,1,0)),rh(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(rh(i+vec3(0,0,1)),rh(i+vec3(1,0,1)),f.x),mix(rh(i+vec3(0,1,1)),rh(i+vec3(1,1,1)),f.x),f.y),f.z); }
+`+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+      {
+        vec3 p=vRW; vec3 n=normalize(vRN);
+        float dist=length(cameraPosition-vRW), nearK=clamp(1.0-dist/60.0,0.0,1.0);
+        vec3 c=diffuseColor.rgb;
+        float a=rn(p/1.2), b=rn(p/0.25+3.7);
+        c*=0.80+0.40*a;
+        c*=mix(1.0,0.82+0.36*b,nearK);
+        c*=mix(vec3(1.05,1.0,0.93),vec3(0.93,0.98,1.06),rn(p/3.0+9.1));
+        int T=${TEX};
+        float f=rn(p/0.05+1.3);
+        if(T==0){ float g=rh(floor(p/0.035)); c=mix(c,vec3(0.07),step(0.86,g)*0.75*nearK); c=mix(c,vec3(0.86,0.84,0.80),step(g,0.10)*0.55*nearK); }
+        else if(T==1){ float v=abs(sin(p.y*7.0+rn(p/0.8)*6.0)); c=mix(c,vec3(0.10,0.45,0.30),smoothstep(0.85,0.97,v)*0.7); }
+        else if(T==2){ float v=abs(sin(dot(p,vec3(0.3,5.0,0.4))+rn(p/0.5)*4.0)); c*=1.0-smoothstep(0.93,0.99,v)*0.7; }
+        else if(T==3){ c*=0.82+0.3*step(0.5,fract(p.y*3.0+rn(p/0.9)*1.5)); }
+        else if(T==4){ c*=1.0+step(0.93,rh(floor(p/0.03)))*0.9*nearK; }
+        else if(T==5){ c*=0.7+0.5*smoothstep(0.2,0.7,rn(p/0.12)); }
+        else if(T==6){ c*=0.85+0.25*sin(length(p.xz-floor(p.xz/0.4)*0.4)*40.0)*nearK; }
+        // 이끼·지의류 — 위를 향한 면
+        float up=smoothstep(0.55,0.85,n.y)*${moss}.0;
+        float lichen=smoothstep(0.45,0.75,rn(p/0.7+2.2))*up;
+        c=mix(c,vec3(0.34,0.40,0.26)*(0.8+0.4*b),lichen*0.65);
+        // 밑동 그늘 — 아래를 향할수록
+        c*=0.62+0.38*smoothstep(-0.6,0.4,n.y);
+        // 금속 광택 — 해 쪽 반사
+        vec3 V=normalize(cameraPosition-vRW);
+        float sp=pow(max(dot(reflect(-uSunDir,n),V),0.0),24.0)*${L.met.toFixed(2)}*max(uSunDir.y,0.0);
+        c+=vec3(sp*0.7);
+        diffuseColor.rgb=c;
+      }`);
+  };
+  m.customProgramCacheKey=()=>'rock-'+k;
+  return m;
+}
 function buildChunks(){
   for(const m of chunks){ scene.remove(m); m.geometry.dispose(); }
   chunks.length=0;
@@ -1907,8 +1966,10 @@ function buildProps(){
      1단계는 80면이라 화강암(반지름 1.8 m)에서는 삼각형이 그대로 눈에 띈다.
      2단계(320면)면 가까이서도 면이 안 보인다. 자갈·부싯돌은 손톱만 하니 1단계로
      둔다 — 자갈만 3,000개라 곱게 쪼개면 정점만 늘고 보이는 건 그대로다. */
-  const SHELLS={1:makeShell(1), 2:makeShell(2)};
-  const shellFor=k=>(k==='pebble'||k==='flint')?SHELLS[1]:SHELLS[2];
+  /* 20면체 세분 단계 n 은 면 20·(n+1)² — 1단계 80 · 2단계 180 · 3단계 320.
+     큰 암석 3단계(320면) · 자갈·부싯돌 2단계(180면) — 예전(180·80)의 약 2배 */
+  const SHELLS={2:makeShell(2), 3:makeShell(3)};
+  const shellFor=k=>(k==='pebble'||k==='flint')?SHELLS[2]:SHELLS[3];
 
   function buildRockBatch(list,R){
     const r0=ROCK_R[R.k], H=HABIT[R.k]||HABIT0, amp=H.amp;
@@ -2038,10 +2099,14 @@ function buildProps(){
     g.setAttribute('position',new THREE.BufferAttribute(pos,3));
     g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
     g.computeBoundingSphere();
-    return new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:R.c}));
+    return new THREE.Mesh(g,rockMat(R.k,R.c));
   }
 
-  const RAD={oak:0.6,fir:0.5,granite:1.5,copper:0.9,iron:0.8,coal:0.8};
+  /* 몸이 막히는 반지름(×크기). **암석은 전부 막는다** — 예전 표에 화강암·구리·철·석탄만
+     있어 아연·방연석·진사·주석·황 광석은 그냥 걸어서 뚫고 지나갔다. 값은 보이는 반지름
+     `ROCK_R` 의 0.85(울퉁불퉁한 겉보다 조금 안쪽). 자갈·부싯돌은 발목 아래라 넘어간다. */
+  const RAD={oak:0.6,fir:0.5};
+  for(const k in ROCK_R) if(ROCK_R[k]>=0.4) RAD[k]=ROCK_R[k]*0.85;
   const trunkMat=new THREE.MeshLambertMaterial({color:0x392f26});
   const limbMat =new THREE.MeshLambertMaterial({color:0x453729});
   limbMat.userData.wind='limb';                // 바람에 가지 끝이 흔들린다(envPatch)
