@@ -2697,7 +2697,7 @@ const CLOUD_KINDS={
                 R:20000, max:400, op:[0.75,0.95], v:8, draw:'cauli', nb:[80,120], kap:1.0},
   // 수직운 — 밑동은 하층, 꼭대기는 상층까지
   cumulonimbus:{n:'적란운', form:'puff',  y:[600,1500], w:[10000,16000], h:[4900,7100],
-                R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[520,660], kap:0.35}
+                R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[700,860], kap:0.35}
 };
 /* 덩이·무리 하나가 하늘에서 실제로 덮는 넓이(m²) — 날씨가 정한 점유율을
    개수로 바꿀 때 쓴다. 덩이는 화면을 훑어 잰 '보이는 폭' 비율로, 층은 무리
@@ -2971,13 +2971,13 @@ function shapePuff(c){
        ④ 한가운데 과돌출 봉우리. */
     const Ht=h*1.7, ya=Ht*0.80;
     const ux=windDir.x, uz=windDir.z, vx=-uz, vz=ux;
-    const r0=w*0.30;
+    const r0=w*0.45;
     push(0,0,0,r0,0.8);
-    for(let k=0;k<4;k++){ const a=(k+rnd()*0.5)/4*6.283, rr=w*0.19;
+    for(let k=0;k<4;k++){ const a=(k+rnd()*0.5)/4*6.283, rr=w*0.30;
       const dd=0.55*(r0+rr); push(Math.cos(a)*dd,0,Math.sin(a)*dd,rr,0.8); }
     let x=0, z=0, y=0, r=w*0.20, lv=0;
-    while(y<ya-r*0.6){
-      const nr=w*(0.30+0.04*y/ya);
+    while(y<ya-r*0.2){
+      const nr=w*(0.42+0.05*y/ya);
       y+=0.5*(r+nr); x+=(rnd()-0.5)*w*0.02; z+=(rnd()-0.5)*w*0.02;
       const yy=Math.min(y,ya); push(x,yy,z,nr,1);
       for(let q=0;q<3;q++){                            // 둘레 혹 — 몸통을 벽으로
@@ -2990,14 +2990,14 @@ function shapePuff(c){
        덩이가 한쪽으로 쏠려 보였고, 떨어진 탑이 따로 노는 알갱이 떼로 보였다. */
     const nf=4+((rnd()*2)|0);
     for(let k=0;k<nf;k++){
-      const a=(k+0.2+rnd()*0.6)/nf*6.283, rr=w*(0.13+0.03*rnd());
+      const a=(k+0.2+rnd()*0.6)/nf*6.283, rr=w*(0.20+0.04*rnd());
       const dd=0.45*(r0+rr), top=ya*(0.25+0.3*rnd());
       const bx=Math.cos(a)*dd, bz=Math.sin(a)*dd;
       for(let yy=0; yy<top; yy+=rr*0.8) push(bx,yy,bz,rr,1,0,1.6);
     }
     /* 모루 — 탑 꼭대기를 가운데로 **사방으로 퍼지되 바람 아래로 조금 더** 뻗는다
        (위에서 보면 둥근 부채꼴). 바람 아래로만 뻗게 했더니 옆에서 ㄱ자로 치우쳤다. */
-    const ra=w*0.19, st=0.58*2*ra*0.8;
+    const ra=w*0.24, st=0.58*2*ra*0.8;
     yTop=ya+ra*0.55;
     for(let s2=-3;s2<=5;s2++){
       const sd=s2*st, ext=Math.abs(s2)/5;
@@ -3008,12 +3008,12 @@ function shapePuff(c){
         /* 사진(옆모습)대로 — **끝으로 갈수록 얇게** 저며지고, 밑면은 탑 쪽으로 **볼록하게**
            부풀어 탑에 녹아든다. 윗면은 평평하게 두고 두께는 밑으로만 준다. */
         push(x+ux*sd+vx*lw, ya-ext*ra*0.1+(rnd()-0.5)*ra*0.1, z+uz*sd+vz*lw,
-             ra*(1.15-0.35*ext), lead?0.5:0.55, 1);
+             ra*(1-0.3*ext), lead?0.35:0.3, 1);
         const bel=1-ext;                                    // 탑에 가까울수록 1
-        if(Math.abs(lat)<1&&bel>0.05)
-          push(x+ux*sd+vx*lw, ya-ra*(0.55+0.45*bel), z+uz*sd+vz*lw, ra*(0.65+0.4*bel), 0.6, 1);
+        if(!lead&&Math.abs(lat)<1&&bel>0.15)
+          push(x+ux*sd+vx*lw, ya-ra*(0.3+0.35*bel), z+uz*sd+vz*lw, ra*(0.35+0.45*bel), 0.5, 1);
         if(bel>0.75&&Math.abs(lat)<1)                       // 탑 둘레는 한 겹 더 — 볼록한 배
-          push(x+ux*sd+vx*lw*0.8, ya-ra*(1.1+0.5*bel), z+uz*sd+vz*lw*0.8, ra*(0.5+0.3*bel), 0.7, 1);
+          push(x+ux*sd+vx*lw*0.8, ya-ra*(0.7+0.5*bel), z+uz*sd+vz*lw*0.8, ra*(0.4+0.3*bel), 0.7, 1);
       }
     }
     push(x,yTop,z,w*0.09,0.8);                         // 과돌출 봉우리
@@ -3102,7 +3102,7 @@ function shapePuff(c){
           z=b.z+Math.sin(a)*sz*dd*fz,
           y=b.y+cz*dd*fy*b.fl;
     c.off[i*3]=x; c.off[i*3+1]=y; c.off[i*3+2]=z;
-    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?(b.an?1.35:1.7):1)*GRAIN_S;   // 얇은 모루는 알을 크게
+    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?(b.an?1.1:1.7):1)*GRAIN_S;   // 얇은 모루는 알을 크게
     // 모루 알갱이는 윗면을 한 높이에 자른다 — 대류권 꼭대기에 부딪혀 평평하다
     if(b.an) c.off[i*3+1]=Math.min(c.off[i*3+1], yTop-my-c.rad[i]*0.22);
     c.al[i]=b.an?0.8:1;
