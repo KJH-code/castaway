@@ -309,10 +309,10 @@ const CLOUD_KINDS={
                 th:300, R:12000, max:6, op:[0.16,0.27], v:6,
                 draw:'veil', nb:[160,220], tau:12},
   cumulus     :{n:'적운',   form:'puff',  y:[900,1600], w:[1000,2700], h:[430,1280],
-                R:20000, max:400, op:[0.75,0.95], v:8, draw:'cauli', nb:[80,120], kap:1.0},
+                R:20000, max:400, op:[0.75,0.95], v:8, draw:'cauli', nb:[80,120], nd:[30,50], kap:1.0},
   // 수직운 — 밑동은 하층, 꼭대기는 상층까지
   cumulonimbus:{n:'적란운', form:'puff',  y:[600,1500], w:[10000,16000], h:[4900,7100],
-                R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[300,420], kap:1.8}
+                R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[300,420], nd:[260,360], kap:1.8}
 };
 /* 덩이·무리 하나가 하늘에서 실제로 덮는 넓이(m²) — 날씨가 정한 점유율을
    개수로 바꿀 때 쓴다. 덩이는 화면을 훑어 잰 '보이는 폭' 비율로, 층은 무리
@@ -575,43 +575,52 @@ function shapePuff(c){
      탓에 폭 2 km 짜리 적란운에서 혹 둘이 900 m 넘게 떨어져 **딴 구름 둘로
      보였다.** 그렇다고 당겨 붙이면 이번엔 솟은 기둥이 뭉개진다 — 붙이는 일은
      당기기가 아니라 잇기로 해야 한다. */
-  const L=[], push=(x,y,z,r,fl)=>L.push({x,y,z,r,fl:fl||1});
+  const L=[], push=(x,y,z,r,fl,an,wt)=>L.push({x,y,z,r,fl:fl||1,an:an||0,wt:wt||1});
+  let yTop=1e9;                                        // 모루 윗면(평평하게 자른다)
   if(d==='anvil'){
-    /* 적란운 — **넓은 밑동 · 굵은 탑 · 꼭대기의 모루.** 공기가 대류권 꼭대기(10~12 km)에
-       부딪혀 더 못 오르고 옆으로 퍼지며, 높은 바람에 밀려 **바람 아래쪽으로 길게**
-       뻗는다. 모루는 밑동보다 넓고 얇다(1~2 km). 한가운데는 조금 더 솟는다(과돌출).
-       예전엔 모루 혹 둘을 올렸는데 알갱이를 혹마다 똑같이 나눠 줘서 지름 6 km 짜리
-       모루에 20 알 남짓만 가 거의 투명했다 — 가느다란 연기 기둥으로 보였다. */
-    const Ht=h*1.7;                                    // 꼭대기 높이(보이는 키)
-    const r0=w*0.30;
-    push(0,0,0,r0,0.8);                                // 밑동 가운데
-    for(let k=0;k<3;k++){ const a=(k+rnd()*0.5)/3*6.283, rr=w*0.20;
+    /* 적란운 — 실제 사진(옆모습)에 맞췄다: **육중한 몸통 · 계단식 딸린 탑 · 두껍고
+       평평한 모루.** 예전엔 가는 탑 위에 얇은 선반을 얹은 T자라 지팡이처럼 보였다.
+       ① 몸통은 층마다 가운데 혹 + 둘레 혹 셋으로 쌓아 모루 폭의 7할쯤 되는 벽이 된다
+       ② 바람 위쪽에 키가 계단처럼 낮아지는 딸린 탑(탑운의 줄) 셋
+       ③ 모루는 대류권 꼭대기에 부딪혀 **윗면이 평평한 두꺼운 판**(키의 15~20%)이
+          되어 바람 아래로 몸통 폭의 1.5~2배를 드리운다. 앞끝은 둥글게 말린다.
+       ④ 한가운데 과돌출 봉우리. */
+    const Ht=h*1.7, ya=Ht*0.80;
+    const ux=windDir.x, uz=windDir.z, vx=-uz, vz=ux;
+    const r0=w*0.24;
+    push(0,0,0,r0,0.8);
+    for(let k=0;k<4;k++){ const a=(k+rnd()*0.5)/4*6.283, rr=w*0.19;
       const dd=0.55*(r0+rr); push(Math.cos(a)*dd,0,Math.sin(a)*dd,rr,0.8); }
-    /* 탑 — 굵게(폭의 절반 남짓) 쌓고 옆구리에 혹을 붙인다. 가늘게 쌓으면 공을
-       줄줄이 꿴 애벌레처럼, 폭의 0.22 로는 버섯구름처럼 보였다. 위로 갈수록 조금 굵어지고 조금씩 기운다 */
-    let x=0, z=0, y=0, r=w*0.28;
-    const ya=Ht*0.80;
-    while(y<ya-r*0.8){
-      const nr=w*(0.28+0.03*y/ya);
-      y+=0.55*(r+nr); x+=(rnd()-0.5)*w*0.03; z+=(rnd()-0.5)*w*0.03;
+    let x=0, z=0, y=0, r=w*0.20, lv=0;
+    while(y<ya-r*0.6){
+      const nr=w*(0.20+0.03*y/ya);
+      y+=0.5*(r+nr); x+=(rnd()-0.5)*w*0.02; z+=(rnd()-0.5)*w*0.02;
       const yy=Math.min(y,ya); push(x,yy,z,nr,1);
-      if(rnd()<0.6){ const a=rnd()*6.283;
-        push(x+Math.cos(a)*nr*0.8,yy-nr*0.2,z+Math.sin(a)*nr*0.8,nr*0.6,1); }
-      r=nr;
+      for(let q=0;q<3;q++){                            // 둘레 혹 — 몸통을 벽으로
+        const a=(q+lv*0.37+rnd()*0.4)/3*6.283, rr=nr*0.8, dd=0.55*(nr+rr);
+        push(x+Math.cos(a)*dd,yy+(rnd()-0.5)*nr*0.3,z+Math.sin(a)*dd,rr,1);
+      }
+      r=nr; lv++;
     }
-    /* 모루 — 바람 아래쪽(u)으로 길게, 옆(v)으로 넓게, 얇게(fl 0.4). 혹은 크고 적게 —
-       잘게 많이 두면 혹마다 알갱이가 몇 알씩밖에 안 가 좁쌀처럼 흩어졌다 */
-    const ux=windDir.x, uz=windDir.z, vx=-uz, vz=ux, ra=w*0.20, st=0.58*2*ra;
-    for(let s2=-1;s2<=3;s2++){
-      const sd=s2*st*0.8, spread=0.8+0.2*Math.max(0,s2);   // 멀어질수록 넓다
-      for(const lat of [-1,0,1]){
-        if(lat&&rnd()<0.15) continue;
+    for(let k=1;k<=3;k++){                             // 딸린 탑 — 바람 위쪽으로 계단
+      const dd=w*(0.22+0.13*k), top=ya*(0.60-0.14*k), rr=w*(0.17-0.02*k);
+      const bx=-ux*dd+vx*(rnd()-0.5)*w*0.1, bz=-uz*dd+vz*(rnd()-0.5)*w*0.1;
+      for(let yy=0; yy<top; yy+=rr*0.9) push(bx,yy,bz,rr,1,0,2.2);
+    }
+    const ra=w*0.19, st=0.58*2*ra*0.8;
+    yTop=ya+ra*0.55;
+    for(let s2=-1;s2<=6;s2++){                         // 모루 — 바람 아래로 길게
+      const sd=s2*st, spread=0.8+0.12*Math.max(0,s2);
+      const lead=(s2===6);
+      for(const lat of [-1.5,-0.5,0.5,1.5]){
+        if(Math.abs(lat)>1&&rnd()<0.2) continue;
         const lw=lat*st*0.75*spread;
-        push(x+ux*sd+vx*lw, ya+(rnd()-0.5)*ra*0.3, z+uz*sd+vz*lw,
-             ra*(1-0.06*Math.max(0,s2)),0.4);
+        push(x+ux*sd+vx*lw, ya+(rnd()-0.5)*ra*0.2, z+uz*sd+vz*lw,
+             ra*(lead?1.1:1), lead?0.55:0.45, 1);
       }
     }
-    push(x,ya+ra*0.8,z,w*0.12,0.8);                    // 과돌출 봉우리
+    push(x,yTop,z,w*0.09,0.8);                         // 과돌출 봉우리
+    push(x+ux*w*0.08,yTop-ra*0.1,z+uz*w*0.08,w*0.07,0.8);
   }else if(d==='cauli'){
     /* 적운 — **넓고 평평한 밑동 위로 둥근 봉우리가 솟는다.** 예전엔 혹을 비스듬히
        위로 하나씩 이어 쌓아서 혹 서너 개가 비뚤게 포개진 눈사람 꼴이었다.
@@ -671,7 +680,8 @@ function shapePuff(c){
   /* ② 알갱이를 혹 둘레에 몰아 붙인다 — **혹 크기에 비례해 나눠 준다**(넓이 r² ×
      납작함). 혹마다 똑같이 나누면 큰 혹(적란운 모루)이 성겨 거의 투명해진다. */
   const own=new Int16Array(n);
-  { let sw=0; const wt=L.map(b=>{ const v=b.r*b.r*(0.4+0.6*b.fl); sw+=v; return v; });
+  if(!c.al||c.al.length<c.cap) c.al=new Float32Array(c.cap);
+  { let sw=0; const wt=L.map(b=>{ const v=b.r*b.r*(0.4+0.6*b.fl)*(b.an?1.8:1)*b.wt; sw+=v; return v; });
     let acc=0, li=0, cum=wt[0]/sw;
     for(let i=0;i<n;i++){
       const q=(i+0.5)/n;
@@ -696,18 +706,48 @@ function shapePuff(c){
           y=b.y+cz*dd*fy*b.fl;
     c.off[i*3]=x; c.off[i*3+1]=y; c.off[i*3+2]=z;
     c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1);   // 얇은 모루는 알을 크게
+    // 모루 알갱이는 윗면을 한 높이에 자른다 — 대류권 꼭대기에 부딪혀 평평하다
+    if(b.an) c.off[i*3+1]=Math.min(c.off[i*3+1], yTop-my-c.rad[i]*0.22);
+    c.al[i]=b.an?0.8:1;
   }
+  /* ③ 겉 알갱이 — **콜리플라워 결.** 사진의 적운·적란운은 큰 혹 위에 작은 혹이
+     또렷하게 촘촘히 돋고 그 사이에 그늘이 파인다. 큰 알갱이로 몸통만 채우면
+     윤곽이 뭉개진 솜이다. 몸통 혹의 겉(반지름의 0.78~0.98, 밑면은 빼고)에 크기
+     0.2~0.36 r 의 작은 알갱이를 붙인다. 다른 혹 속으로 파묻히는 자리는 버린다.
+     명암은 몸통 알갱이에만 대어 센다(`c.nBody` — 겉끼리까지 세면 수가 제곱으로 는다). */
+  let nt=n;
+  const nd=K.nd?Math.min(c.cap-n,Math.round(K.nd[0]+rnd()*(K.nd[1]-K.nd[0]))):0;
+  if(nd>0){
+    const body=L.filter(b=>!b.an&&b.wt===1), bw=body.map(b=>b.r*b.r), sw=bw.reduce((p,q)=>p+q,0);
+    for(let k=0;k<nd;k++){
+      let q=rnd()*sw, bi=0; while(q>bw[bi]&&bi<body.length-1){ q-=bw[bi]; bi++; }
+      const b=body[bi];
+      let px=0,py=0,pz=0, ok=false;
+      for(let t=0;t<6&&!ok;t++){
+        const cz=-0.25+rnd()*1.25, cy=clamp(cz,-1,1), sr=Math.sqrt(1-cy*cy), a=rnd()*6.283;
+        const dd=b.r*(0.62+0.2*rnd());
+        px=b.x+Math.cos(a)*sr*dd; py=b.y+cy*dd*b.fl; pz=b.z+Math.sin(a)*sr*dd;
+        ok=true;
+        for(const o of L){ if(o===b||o.an) continue;
+          if(Math.hypot(px-o.x,py-o.y,pz-o.z)<o.r*0.75){ ok=false; break; } }
+      }
+      if(!ok) continue;
+      c.off[nt*3]=px; c.off[nt*3+1]=py; c.off[nt*3+2]=pz;
+      c.rad[nt]=b.r*(0.45+0.2*rnd()); c.al[nt]=0.5; nt++;
+    }
+  }
+  c.nBody=n; c.nb=nt;
   /* `y` 가 **밑동**이 되도록 덩이를 들어 올린다 — 가운데를 `y` 에 두었더니
      키 2 km 짜리 적란운의 밑동이 땅(0~200 m)에 닿았다. 알갱이 그림은 판의
      절반쯤만 보이므로 '가장 낮은 알갱이의 보이는 아랫끝'을 0 에 맞춘다. */
   let yb=1e9;
-  for(let i=0;i<n;i++) yb=Math.min(yb,c.off[i*3+1]-c.rad[i]*0.25);
-  for(let i=0;i<n;i++) c.off[i*3+1]-=yb;
+  for(let i=0;i<nt;i++) yb=Math.min(yb,c.off[i*3+1]-c.rad[i]*0.25);
+  for(let i=0;i<nt;i++) c.off[i*3+1]-=yb;
   /* **밑동은 평평하다** — 적운·층적운·적란운은 공기가 식어 이슬점에 닿는 높이
      (응결 고도)에서 생겨나므로 밑이 칼로 자른 듯 고르다. 혹을 그대로 두면 밑도
      위처럼 울퉁불퉁한 솜덩이가 된다. 밑쪽 알갱이의 아랫끝을 전부 0 에 앉힌다. */
   const flat=h*0.14;
-  for(let i=0;i<n;i++){
+  for(let i=0;i<nt;i++){
     const bot=c.off[i*3+1]-c.rad[i]*0.25;
     if(bot<flat) c.off[i*3+1]=c.rad[i]*0.25+bot*0.15;
   }
@@ -715,12 +755,12 @@ function shapePuff(c){
   for(let i=0;i<n;i++){ sx+=c.off[i*3]; sy+=c.off[i*3+1]; sz+=c.off[i*3+2]; }
   c.cx=sx/n; c.cy=sy/n; c.cz=sz/n;
   if(!c.sh||c.sh.length<c.cap) c.sh=new Float32Array(c.cap);
-  for(let i=0;i<n;i++){
+  for(let i=0;i<nt;i++){
     const t=clamp(c.off[i*3+1]/Math.max(1,ysp*1.3+h*0.3),0,1);
     c.sh[i]=0.72+0.28*Math.pow(t,0.8);
   }
   litPuff(c);
-  for(let i=n;i<c.cap;i++) c.rad[i]=0;        // 남는 알갱이는 크기 0 으로 접는다
+  for(let i=nt;i<c.cap;i++) c.rad[i]=0;       // 남는 알갱이는 크기 0 으로 접는다
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
   c.yaw=99;                                    // 다음 프레임에 행렬을 다시 짠다
   cloudBounds(c);
@@ -739,11 +779,11 @@ const _sd=new THREE.Vector3();
 function litPuff(c){
   if(!c.sh) return;
   _sd.copy(SKYL.dir);                            // 참 해 방향(밤엔 달)
-  const n=c.nb, o=c.off, kap=c.K.kap||2, sx=_sd.x, sy=_sd.y, sz=_sd.z;
+  const n=c.nb, nB=c.nBody||n, o=c.off, kap=c.K.kap||2, sx=_sd.x, sy=_sd.y, sz=_sd.z;
   for(let i=0;i<n;i++){
     const xi=o[i*3], yi=o[i*3+1], zi=o[i*3+2];
     let ts=0, tu=0;
-    for(let j=0;j<n;j++){
+    for(let j=0;j<nB;j++){
       if(j===i) continue;
       const dx=o[j*3]-xi, dy=o[j*3+1]-yi, dz=o[j*3+2]-zi;
       const rv=c.rad[j]*0.4, rv2=rv*rv, d2=dx*dx+dy*dy+dz*dz;
@@ -756,7 +796,7 @@ function litPuff(c){
     const r=0.35*Math.exp(-ts)+0.65/(1+0.75*ts*0.15);
     // 하늘빛을 받는 몫 — 위에 덮인 두께만큼 줄고, 땅에서 튕겨 오른 빛이 받친다
     const g=0.85/(1+0.75*tu*0.15)+0.15;
-    c.m.setColorAt(i,_pfC.setRGB(r,g,0));
+    c.m.setColorAt(i,_pfC.setRGB(r,g,c.al?c.al[i]:0));   // b 칸 = 알갱이 짙기
   }
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
 }
@@ -837,15 +877,22 @@ function cloudShader(mat,bill){
   mat.userData.uR={value:20000}; mat.userData.uHz={value:new THREE.Color()};
   mat.userData.uDirect={value:new THREE.Color(1,1,1)};
   mat.userData.uSkyC={value:new THREE.Color(0.3,0.3,0.3)};
+  mat.userData.uThin={value:1};
   mat.onBeforeCompile=sh=>{
     sh.uniforms.uR=mat.userData.uR; sh.uniforms.uHz=mat.userData.uHz;
     sh.uniforms.uDirect=mat.userData.uDirect; sh.uniforms.uSkyC=mat.userData.uSkyC;
+    sh.uniforms.uThin=mat.userData.uThin;
     const proj=bill
-      ? `vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
-         mvPosition.xy += transformed.xy * length( instanceMatrix[0].xyz );
+      /* 층을 **모로 볼수록 알갱이를 세로로 누른다** — 층은 두께 수백 m~2 km 인데
+         알갱이는 수 km 짜리 원판이라, 옆에서 보면 층이 알갱이 지름만큼 두꺼워 보였다.
+         보는 방향이 수평에 가까울수록 눌러 두께 몫(uThin)까지 납작하게 한다 */
+      ? `vec4 wc = modelMatrix * instanceMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
+         float sq = max( uThin, abs( normalize( wc.xyz - cameraPosition ).y ) );
+         vec4 mvPosition = viewMatrix * wc;
+         mvPosition.xy += transformed.xy * length( instanceMatrix[0].xyz ) * vec2( 1.0, sq );
          gl_Position = projectionMatrix * mvPosition;`
       : '#include <project_vertex>';
-    sh.vertexShader='varying float vCD;\n'+sh.vertexShader.replace('#include <project_vertex>',
+    sh.vertexShader='uniform float uThin;\nvarying float vCD;\n'+sh.vertexShader.replace('#include <project_vertex>',
       proj+'\nvCD = length( mvPosition.xyz );');
     /* ③ 알갱이 색 = 직사광 × r + 하늘빛 × g (instanceColor 의 두 칸).
        r 은 그 알갱이가 해를 얼마나 받나(해 쪽으로 나온 만큼), g 는 하늘빛을 받는
@@ -854,7 +901,8 @@ function cloudShader(mat,bill){
        덩이 전체가 같은 주황으로 물들었다. */
     sh.fragmentShader='uniform float uR;\nuniform vec3 uHz;\nuniform vec3 uDirect;\nuniform vec3 uSkyC;\nvarying float vCD;\n'+
       sh.fragmentShader.replace('#include <color_fragment>',
-        'diffuseColor.rgb *= ( uDirect * vColor.r + uSkyC * vColor.g );')
+        'diffuseColor.rgb *= ( uDirect * vColor.r + uSkyC * vColor.g );\n'+
+        'diffuseColor.a *= ( vColor.b > 0.001 ? vColor.b : 1.0 );')
       .replace('#include <fog_fragment>',
        `float hzF = clamp( vCD / uR, 0.0, 1.0 );
         gl_FragColor.rgb = mix( gl_FragColor.rgb, uHz, pow( hzF, 1.3 ) * 0.78 );
@@ -934,6 +982,10 @@ function shapeLayer(c){
   }
   c.nb=k;
   cloudBounds(c);
+  { let sr=0; for(let i=0;i<k;i++) sr+=c.rad[i];
+    const vis=Math.max(1,sr/Math.max(1,k)*0.8);         // 보이는 알갱이 지름
+    const U=c.m.material.userData;
+    if(U.uThin) U.uThin.value=clamp(Math.max(c.h||0,K.th||0)*1.4/vis,0.12,1); }
   for(let i=0;i<c.cap;i++){
     const r=i<k?c.rad[i]:0;
     _pfV.set(c.off[i*3],c.off[i*3+1],c.off[i*3+2]); _pfS.set(r,r,r);
@@ -1234,7 +1286,7 @@ function buildClouds(seed){
       cloudMat.push(mm);
       mm.opacity=0;
       const w=lerpR(K.w), h=lerpR(K.h);
-      const m=inst ? new THREE.InstancedMesh(pquad.clone(),mm,K.nb[1])
+      const m=inst ? new THREE.InstancedMesh(pquad.clone(),mm,K.nb[1]+(K.nd?K.nd[1]:0))
                    : new THREE.Mesh(quad,mm);     // 덩이마다 제 경계구(cloudBounds)
       if(!inst) m.scale.set(w*(rnd()<0.5?-1:1),h,1);   // 좌우 뒤집기로 한 번 더 다르게
       /* r128 의 InstancedMesh 는 **만들 때 거르기를 스스로 끈다**(인스턴스의
@@ -1252,7 +1304,7 @@ function buildClouds(seed){
                form:K.form, v:K.v*(0.75+rnd()*0.5), op:lerpR(K.op),
                tilt:(rnd()*2-1)*0.25, vis:0, want:0, yaw:99};
       if(inst){
-        c.cap=K.nb[1];
+        c.cap=K.nb[1]+(K.nd?K.nd[1]:0);
         c.off=new Float32Array(c.cap*3); c.rad=new Float32Array(c.cap);
         if(puff) shapePuff(c);
         else if(K.form==='layer') shapeLayer(c); else shapeStrand(c);
