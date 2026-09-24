@@ -1773,9 +1773,16 @@ const SKYP={turb:2.6, exp:0.44, sun:22, gM:0.76, eye:1, ms:1.0};
    해 쪽 지평선의 노랑·주황, 그 위 분홍, 반대편 지평선 위 분홍 띠(비너스 띠)와 그
    밑 검푸른 지구 그림자, 해 진 뒤 오존이 주황을 먹어 생기는 푸른·보랏빛 천정.
    예전 프리섬 식은 해가 지평선 밑이면 맞지 않는 식이라 이 띠들이 없었다.
-   여러 번 흩어지는 빛(다중 산란)은 따로 안 센다 — 등방 위상 `SKYP.ms`(1.0)배를 얹어 어림한다
+   여러 번 흩어지는 빛(다중 산란)은 따로 안 센다 — 레일리 쪽에만 등방 위상 2·`SKYP.ms`배를 얹어
+   어림한다(여러 번 튕겨 온 빛은 하늘빛이라 푸르다 — 에어로졸 쪽에 얹었더니 한낮 지평선이 누렜다)
    (0.25 로 두었더니 공기가 두꺼운 지평선이 누렇게 어두웠다 — 실제 한낮 지평선은 천정보다 밝고 희다).
    셰이더(`SKY_FS`)와 **같은 식**이다(걸음 수만 적다) — 둘을 같이 고칠 것. */
+/* 다중 산란 어림 — 공기 한 점은 해만이 아니라 **둘레 하늘 전체**에 비춰진다. 그 빛(하늘빛,
+   푸르다: `SKYC`)이 그 점에서 등방으로 흩어져 눈까지 오는 몫을 더한다. 세기는 해 높이를
+   따른다(`_skyIll` — 해가 −6° 밑이면 없다). 공기가 두꺼운 지평선이 이 몫으로 밝고 희어진다
+   (실제 한낮 지평선은 천정보다 밝다). 하나만 쓰면 지평선이 누런 갈색 띠였다. */
+const SKYC=[0.55,0.75,1.0];
+const _skyIll=y=>Math.pow(clamp((y+0.1)/1.1,0,1),0.7);
 function _hitS(ox,oy,oz,dx,dy,dz,r){
   const b=ox*dx+oy*dy+oz*dz, c=ox*ox+oy*oy+oz*oz-r*r, h=b*b-c;
   if(h<0) return null; const q=Math.sqrt(h); return [-b-q,-b+q];
@@ -1795,7 +1802,7 @@ function skyScatter(dir,sun,turb,k,out){
   const ox=0, oy=ATM.Re+2, oz=0, dx=dir.x, dy=Math.max(dir.y,0), dz=dir.z;
   const nl=Math.hypot(dx,dy,dz), ux=dx/nl, uy=dy/nl, uz=dz/nl;
   const tEnd=_hitS(ox,oy,oz,ux,uy,uz,ATM.Rt)[1], bM=0.1/ATM.HM*turb/2.6, N=12;
-  _oV[0]=_oV[1]=_oV[2]=0; let sR0=0,sR1=0,sR2=0,sM0=0,sM1=0,sM2=0, prev=0;
+  _oV[0]=_oV[1]=_oV[2]=0; let sR0=0,sR1=0,sR2=0,sM0=0,sM1=0,sM2=0,aR0=0,aR1=0,aR2=0,aM0=0,aM1=0,aM2=0, prev=0;
   for(let k2=1;k2<=N;k2++){
     const u=k2/N, t=tEnd*u*u, ds=t-prev, tm=(t+prev)/2; prev=t;
     const px=ox+ux*tm, py=oy+uy*tm, pz=oz+uz*tm, alt=Math.hypot(px,py,pz)-ATM.Re;
@@ -1804,14 +1811,16 @@ function skyScatter(dir,sun,turb,k,out){
     _odSun(px,py,pz,sun.x,sun.y,sun.z,bM,_oS);
     const T0=Math.exp(-(_oV[0]+_oS[0])), T1=Math.exp(-(_oV[1]+_oS[1])), T2=Math.exp(-(_oV[2]+_oS[2]));
     sR0+=T0*r; sR1+=T1*r; sR2+=T2*r; sM0+=T0*m; sM1+=T1*m; sM2+=T2*m;
+    const V0=Math.exp(-_oV[0]), V1=Math.exp(-_oV[1]), V2=Math.exp(-_oV[2]);
+    aR0+=V0*r; aR1+=V1*r; aR2+=V2*r; aM0+=V0*m; aM1+=V1*m; aM2+=V2*m;
   }
   const mu=ux*sun.x+uy*sun.y+uz*sun.z, g=SKYP.gM, g2=g*g;
-  const pR=0.0596831*(1+mu*mu)+SKYP.ms*0.0795775;
-  const pM=0.1193662*((1-g2)*(1+mu*mu))/((2+g2)*Math.pow(1+g2-2*g*mu,1.5))+SKYP.ms*0.0795775;
-  const E=SKYP.sun*k;
-  out[0]=E*(sR0*ATM.bR[0]*pR+sM0*bM*ATM.ang[0]*pM);
-  out[1]=E*(sR1*ATM.bR[1]*pR+sM1*bM*ATM.ang[1]*pM);
-  out[2]=E*(sR2*ATM.bR[2]*pR+sM2*bM*ATM.ang[2]*pM);
+  const pR=0.0596831*(1+mu*mu);
+  const pM=0.1193662*((1-g2)*(1+mu*mu))/((2+g2)*Math.pow(1+g2-2*g*mu,1.5));
+  const E=SKYP.sun*k, A=E*SKYP.ms*0.0795775*_skyIll(sun.y);
+  out[0]=E*(sR0*ATM.bR[0]*pR+sM0*bM*ATM.ang[0]*pM)+A*SKYC[0]*(aR0*ATM.bR[0]+aM0*bM*ATM.ang[0]);
+  out[1]=E*(sR1*ATM.bR[1]*pR+sM1*bM*ATM.ang[1]*pM)+A*SKYC[1]*(aR1*ATM.bR[1]+aM1*bM*ATM.ang[1]);
+  out[2]=E*(sR2*ATM.bR[2]*pR+sM2*bM*ATM.ang[2]*pM)+A*SKYC[2]*(aR2*ATM.bR[2]+aM2*bM*ATM.ang[2]);
   return out;
 }
 /* 톤 매핑(ACES 어림) — 셰이더와 같은 식 */
@@ -1838,15 +1847,17 @@ vec3 odSun(vec3 p, vec3 s, float bM){
 vec3 scat(vec3 dir, vec3 sun, float k){
   vec3 o=vec3(0.0,RE+2.0,0.0);
   float tEnd=hitS(o,dir,RT).y, bM=0.1/HM*uTurb/2.6, prev=0.0, r, m;
-  vec3 odV=vec3(0.0), sR=vec3(0.0), sM=vec3(0.0);
+  vec3 odV=vec3(0.0), sR=vec3(0.0), sM=vec3(0.0), aR=vec3(0.0), aM=vec3(0.0);
   for(int i=1;i<=16;i++){ float u=float(i)/16.0, t=tEnd*u*u, ds=t-prev, tm=(t+prev)*0.5; prev=t;
     vec3 p=o+dir*tm; odV+=dens(p,bM,r,m)*ds;
     vec3 T=exp(-(odV+odSun(p,sun,bM)));
-    sR+=T*r*ds; sM+=T*m*ds; }
+    sR+=T*r*ds; sM+=T*m*ds; vec3 V=exp(-odV); aR+=V*r*ds; aM+=V*m*ds; }
   float mu=dot(dir,sun), g2=uGM*uGM;
-  float pR=0.0596831*(1.0+mu*mu)+uMS*0.0795775;
-  float pM=0.1193662*((1.0-g2)*(1.0+mu*mu))/((2.0+g2)*pow(1.0+g2-2.0*uGM*mu,1.5))+uMS*0.0795775;
-  return uSunI*k*(sR*BR*pR+sM*bM*ANG*pM);
+  float pR=0.0596831*(1.0+mu*mu);
+  float pM=0.1193662*((1.0-g2)*(1.0+mu*mu))/((2.0+g2)*pow(1.0+g2-2.0*uGM*mu,1.5));
+  float ill=pow(clamp((sun.y+0.1)/1.1,0.0,1.0),0.7);
+  return uSunI*k*(sR*BR*pR+sM*bM*ANG*pM)
+       + uSunI*k*uMS*0.0795775*ill*vec3(0.55,0.75,1.0)*(aR*BR+aM*bM*ANG);
 }
 vec3 tone(vec3 v){ v*=uExp; return clamp((v*(2.51*v+0.03))/(v*(2.43*v+0.59)+0.14),0.0,1.0); }
 void main(){
