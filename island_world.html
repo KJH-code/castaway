@@ -3090,7 +3090,7 @@ function shapePuff(c){
           z=b.z+Math.sin(a)*sz*dd*fz,
           y=b.y+cz*dd*fy*b.fl;
     c.off[i*3]=x; c.off[i*3+1]=y; c.off[i*3+2]=z;
-    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?(b.an?1.2:1.7):1);   // 얇은 모루는 알을 크게
+    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?1.7:1);   // 얇은 모루는 알을 크게
     // 모루 알갱이는 윗면을 한 높이에 자른다 — 대류권 꼭대기에 부딪혀 평평하다
     if(b.an) c.off[i*3+1]=Math.min(c.off[i*3+1], yTop-my-c.rad[i]*0.22);
     c.al[i]=b.an?0.8:1;
