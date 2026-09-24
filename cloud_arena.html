@@ -627,7 +627,7 @@ function shapePuff(c){
         if(Math.abs(lat)>1&&(lead||rnd()<0.15)) continue;
         const lw=lat*st*0.75;
         push(x+ux*sd+vx*lw, ya-ext*ra*0.25+(rnd()-0.5)*ra*0.15, z+uz*sd+vz*lw,
-             ra*(1-0.1*ext), lead?0.4:0.3, 1);
+             ra*(1-0.1*ext), lead?0.5:0.4, 1);
       }
     }
     push(x,yTop,z,w*0.09,0.8);                         // 과돌출 봉우리
@@ -716,7 +716,7 @@ function shapePuff(c){
           z=b.z+Math.sin(a)*sz*dd*fz,
           y=b.y+cz*dd*fy*b.fl;
     c.off[i*3]=x; c.off[i*3+1]=y; c.off[i*3+2]=z;
-    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?(b.an?1.1:1.7):1)*GRAIN_S;   // 얇은 모루는 알을 크게
+    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?(b.an?1.35:1.7):1)*GRAIN_S;   // 얇은 모루는 알을 크게
     // 모루 알갱이는 윗면을 한 높이에 자른다 — 대류권 꼭대기에 부딪혀 평평하다
     if(b.an) c.off[i*3+1]=Math.min(c.off[i*3+1], yTop-my-c.rad[i]*0.22);
     c.al[i]=b.an?0.8:1;
