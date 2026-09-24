@@ -2977,7 +2977,7 @@ function shapePuff(c){
       const dd=0.55*(r0+rr); push(Math.cos(a)*dd,0,Math.sin(a)*dd,rr,0.8); }
     let x=0, z=0, y=0, r=w*0.20, lv=0;
     while(y<ya-r*0.2){
-      const nr=w*(0.42+0.05*y/ya);
+      const nr=w*(0.36+0.05*y/ya);
       y+=0.5*(r+nr); x+=(rnd()-0.5)*w*0.02; z+=(rnd()-0.5)*w*0.02;
       const yy=Math.min(y,ya); push(x,yy,z,nr,1);
       for(let q=0;q<3;q++){                            // 둘레 혹 — 몸통을 벽으로
