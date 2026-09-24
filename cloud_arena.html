@@ -628,6 +628,9 @@ function shapePuff(c){
         const lw=lat*st*0.75;
         push(x+ux*sd+vx*lw, ya-ext*ra*0.25+(rnd()-0.5)*ra*0.15, z+uz*sd+vz*lw,
              ra*(1-0.1*ext), lead?0.5:0.4, 1);
+        // 모루 밑단 — 윗면은 평평하게 두고 아래로 한 겹 더 늘어뜨려 밑이 두툼하게
+        if(!lead&&Math.abs(lat)<1)
+          push(x+ux*sd+vx*lw, ya-ra*(0.55+0.15*ext), z+uz*sd+vz*lw, ra*0.85*(1-0.15*ext), 0.45, 1);
       }
     }
     push(x,yTop,z,w*0.09,0.8);                         // 과돌출 봉우리
