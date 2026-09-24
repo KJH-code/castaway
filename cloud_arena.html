@@ -309,10 +309,10 @@ const CLOUD_KINDS={
                 th:300, R:12000, max:6, op:[0.16,0.27], v:6,
                 draw:'veil', nb:[160,220], tau:12},
   cumulus     :{n:'적운',   form:'puff',  y:[900,1600], w:[1000,2700], h:[430,1280],
-                R:20000, max:400, op:[0.75,0.95], v:8, draw:'cauli', nb:[70,110], kap:1.0},
+                R:20000, max:400, op:[0.75,0.95], v:8, draw:'cauli', nb:[80,120], kap:1.0},
   // 수직운 — 밑동은 하층, 꼭대기는 상층까지
-  cumulonimbus:{n:'적란운', form:'puff',  y:[600,1500], w:[6700,13500], h:[4900,7100],
-                R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[170,250], kap:1.8}
+  cumulonimbus:{n:'적란운', form:'puff',  y:[600,1500], w:[10000,16000], h:[4900,7100],
+                R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[300,420], kap:1.8}
 };
 /* 덩이·무리 하나가 하늘에서 실제로 덮는 넓이(m²) — 날씨가 정한 점유율을
    개수로 바꿀 때 쓴다. 덩이는 화면을 훑어 잰 '보이는 폭' 비율로, 층은 무리
@@ -575,36 +575,66 @@ function shapePuff(c){
      탓에 폭 2 km 짜리 적란운에서 혹 둘이 900 m 넘게 떨어져 **딴 구름 둘로
      보였다.** 그렇다고 당겨 붙이면 이번엔 솟은 기둥이 뭉개진다 — 붙이는 일은
      당기기가 아니라 잇기로 해야 한다. */
-  const L=[], push=(x,y,z,r)=>L.push({x,y,z,r});
+  const L=[], push=(x,y,z,r,fl)=>L.push({x,y,z,r,fl:fl||1});
   if(d==='anvil'){
-    // 적란운 — 기둥이 솟다가 꼭대기에서 모루처럼 옆으로 퍼진다
-    /* 몸통은 **밑이 굵고 위로 갈수록 가늘다.** 처음에 굵기를 폭의 0.15 로
-       잡았더니 폭 1.9 km 짜리가 지름 700 m 짜리 연기 기둥이 됐다 — 적란운은
-       가는 기둥이 아니라 두꺼운 탑이다. 마디 간격보다 가늘어지지도 않게 한다
-       (키만 크고 폭이 좁은 개체에서 마디가 벌어져 토막 났다). */
-    const nt=4+((rnd()*3)|0), dy=h*0.78/nt;
-    let x=0,z=0, tx=0, tz=0;
-    for(let k=0;k<=nt;k++){
-      const t=k/nt, r=Math.max(w*(0.34-0.12*t), dy*0.95);
-      tx=x+(rnd()*2-1)*w*0.05; tz=z+(rnd()*2-1)*w*0.05;
-      push(tx, k*dy, tz, r);
-      x+=(rnd()*2-1)*w*0.04; z+=(rnd()*2-1)*w*0.04;   // 탑이 조금씩 기운다
+    /* 적란운 — **넓은 밑동 · 굵은 탑 · 꼭대기의 모루.** 공기가 대류권 꼭대기(10~12 km)에
+       부딪혀 더 못 오르고 옆으로 퍼지며, 높은 바람에 밀려 **바람 아래쪽으로 길게**
+       뻗는다. 모루는 밑동보다 넓고 얇다(1~2 km). 한가운데는 조금 더 솟는다(과돌출).
+       예전엔 모루 혹 둘을 올렸는데 알갱이를 혹마다 똑같이 나눠 줘서 지름 6 km 짜리
+       모루에 20 알 남짓만 가 거의 투명했다 — 가느다란 연기 기둥으로 보였다. */
+    const Ht=h*1.7;                                    // 꼭대기 높이(보이는 키)
+    const r0=w*0.30;
+    push(0,0,0,r0,0.8);                                // 밑동 가운데
+    for(let k=0;k<3;k++){ const a=(k+rnd()*0.5)/3*6.283, rr=w*0.20;
+      const dd=0.55*(r0+rr); push(Math.cos(a)*dd,0,Math.sin(a)*dd,rr,0.8); }
+    /* 탑 — 굵게(폭의 절반 남짓) 쌓고 옆구리에 혹을 붙인다. 가늘게 쌓으면 공을
+       줄줄이 꿴 애벌레처럼, 폭의 0.22 로는 버섯구름처럼 보였다. 위로 갈수록 조금 굵어지고 조금씩 기운다 */
+    let x=0, z=0, y=0, r=w*0.28;
+    const ya=Ht*0.80;
+    while(y<ya-r*0.8){
+      const nr=w*(0.28+0.03*y/ya);
+      y+=0.55*(r+nr); x+=(rnd()-0.5)*w*0.03; z+=(rnd()-0.5)*w*0.03;
+      const yy=Math.min(y,ya); push(x,yy,z,nr,1);
+      if(rnd()<0.6){ const a=rnd()*6.283;
+        push(x+Math.cos(a)*nr*0.8,yy-nr*0.2,z+Math.sin(a)*nr*0.8,nr*0.6,1); }
+      r=nr;
     }
-    /* 모루 — 꼭대기에서 옆으로 퍼진다. 거리는 **반지름에서 뽑는다**:
-       보기 좋은 값으로 정해 두면 폭이 큰 개체에서 몸통과 끊어진다. */
-    const aa=rnd()*6.283, rtop=w*0.22, ra=w*0.36, st=0.58*(rtop+ra);
-    push(tx+Math.cos(aa)*st,      h*0.80, tz+Math.sin(aa)*st,      ra);
-    push(tx-Math.cos(aa)*st*0.70, h*0.86, tz-Math.sin(aa)*st*0.70, ra*0.90);
+    /* 모루 — 바람 아래쪽(u)으로 길게, 옆(v)으로 넓게, 얇게(fl 0.4). 혹은 크고 적게 —
+       잘게 많이 두면 혹마다 알갱이가 몇 알씩밖에 안 가 좁쌀처럼 흩어졌다 */
+    const ux=windDir.x, uz=windDir.z, vx=-uz, vz=ux, ra=w*0.20, st=0.58*2*ra;
+    for(let s2=-1;s2<=3;s2++){
+      const sd=s2*st*0.8, spread=0.8+0.2*Math.max(0,s2);   // 멀어질수록 넓다
+      for(const lat of [-1,0,1]){
+        if(lat&&rnd()<0.15) continue;
+        const lw=lat*st*0.75*spread;
+        push(x+ux*sd+vx*lw, ya+(rnd()-0.5)*ra*0.3, z+uz*sd+vz*lw,
+             ra*(1-0.06*Math.max(0,s2)),0.4);
+      }
+    }
+    push(x,ya+ra*0.8,z,w*0.12,0.8);                    // 과돌출 봉우리
   }else if(d==='cauli'){
-    // 적운 — 넓고 평평한 밑면에서 작은 혹이 위로 솟는다
-    const nl=3+((rnd()*3)|0);
-    let r=w*0.24, x=0, y=0, z=0;
-    push(x,y,z,r);
-    for(let k=1;k<nl;k++){
-      const a=(k+0.15+rnd()*0.7)/nl*6.283, nr=r*(0.78+rnd()*0.16),
-            st=0.60*(r+nr);
-      x+=Math.cos(a)*st*0.80; z+=Math.sin(a)*st*0.80; y+=st*0.52;
-      push(x,y,z,nr); r=nr;
+    /* 적운 — **넓고 평평한 밑동 위로 둥근 봉우리가 솟는다.** 예전엔 혹을 비스듬히
+       위로 하나씩 이어 쌓아서 혹 서너 개가 비뚤게 포개진 눈사람 꼴이었다.
+       이제 밑동 가운데 혹 + 그 둘레 혹 3~5 개로 넓은 밑동을 깔고(얇게 · fl 0.7),
+       그 위에 봉우리를 쌓는다. 키가 클수록(`h`/`w`) 봉우리가 많고, 봉우리마다
+       절반쯤은 곁봉우리가 붙어 콜리플라워처럼 울퉁불퉁하다. */
+    const r0=w*0.25;
+    push(0,0,0,r0,0.7);
+    const nr0=3+((rnd()*3)|0);
+    for(let k=0;k<nr0;k++){
+      const a=(k+rnd()*0.6)/nr0*6.283, rr=w*(0.16+0.05*rnd());
+      const dd=0.55*(r0+rr)*(0.85+0.15*rnd());
+      push(Math.cos(a)*dd,(rnd()-0.5)*h*0.05,Math.sin(a)*dd,rr,0.7);
+    }
+    let x=(rnd()-0.5)*w*0.08, z=(rnd()-0.5)*w*0.08, y=0, r=r0*0.9;
+    const nu=Math.max(1,Math.round(clamp(h/(w*0.35),0.6,3.2)*(0.7+0.6*rnd())));
+    for(let k=0;k<nu;k++){
+      const nr=r*(0.72+0.14*rnd());
+      y+=0.55*(r+nr); x+=(rnd()-0.5)*nr*0.5; z+=(rnd()-0.5)*nr*0.5;
+      push(x,y,z,nr,1);
+      if(rnd()<0.55){ const a=rnd()*6.283;
+        push(x+Math.cos(a)*nr*0.75,y-nr*0.25,z+Math.sin(a)*nr*0.75,nr*0.72,1); }
+      r=nr;
     }
   }else if(d==='lumpy'){
     // 층적운 — 옆으로만 퍼진 혹 판
@@ -638,13 +668,23 @@ function shapePuff(c){
     y0=Math.min(y0,b.y); y1=Math.max(y1,b.y); }
   const nl=L.length, ysp=Math.max(1,y1-y0);
   c._nl=nl;   // 시험용 — 혹이 몇 개였나
-  // ② 알갱이를 혹 둘레에 몰아 붙인다
+  /* ② 알갱이를 혹 둘레에 몰아 붙인다 — **혹 크기에 비례해 나눠 준다**(넓이 r² ×
+     납작함). 혹마다 똑같이 나누면 큰 혹(적란운 모루)이 성겨 거의 투명해진다. */
+  const own=new Int16Array(n);
+  { let sw=0; const wt=L.map(b=>{ const v=b.r*b.r*(0.4+0.6*b.fl); sw+=v; return v; });
+    let acc=0, li=0, cum=wt[0]/sw;
+    for(let i=0;i<n;i++){
+      const q=(i+0.5)/n;
+      while(q>cum&&li<nl-1){ li++; cum+=wt[li]/sw; }
+      own[i]=li;
+    } }
   for(let i=0;i<n;i++){
-    const b=L[i%nl];
+    const b=L[own[i]];
     const a=rnd()*6.283, cz=rnd()*2-1, sz=Math.sqrt(1-cz*cz);
     /* 혹 안에서 너무 퍼뜨리면 **혹 안에서부터 알갱이가 서로 안 닿는다** —
        이음매가 아니라 혹 속이 성겨서 조각이 났다. */
-    const dd=b.r*0.62*Math.pow(rnd(),0.55);
+    // 납작한 혹(모루·밑동)은 옆으로 넓게 — 알갱이가 판을 이루도록
+    const dd=b.r*0.62*Math.pow(rnd(),0.55)*(b.fl<1?1.15:1);
     /* 혹 둘레에 놓는 알갱이를 **어느 쪽으로 납작하게 누르느냐**도 갈래마다 다르다.
        세로를 한결같이 0.55배로 눌렀더니 **세로로 쌓은 적란운 기둥이 마디마다
        끊어졌다** — 기둥은 세로로 이어 붙이는데 알갱이는 세로로 안 퍼지니
@@ -653,9 +693,9 @@ function shapePuff(c){
           fy=(d==='anvil')?1.0:(d==='cauli'?0.78:0.5);
     const x=b.x+Math.cos(a)*sz*dd,
           z=b.z+Math.sin(a)*sz*dd*fz,
-          y=b.y+cz*dd*fy;
+          y=b.y+cz*dd*fy*b.fl;
     c.off[i*3]=x; c.off[i*3+1]=y; c.off[i*3+2]=z;
-    c.rad[i]=b.r*(0.72+0.48*rnd());
+    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1);   // 얇은 모루는 알을 크게
   }
   /* `y` 가 **밑동**이 되도록 덩이를 들어 올린다 — 가운데를 `y` 에 두었더니
      키 2 km 짜리 적란운의 밑동이 땅(0~200 m)에 닿았다. 알갱이 그림은 판의
@@ -912,25 +952,31 @@ function shapeLayer(c){
 const STRAND_VARIANTS=4;
 let strandTex_=[];
 function strandTex(seed){
-  const W=256, H=48, cv=document.createElement('canvas');
+  /* 가닥 하나 — **붓으로 쓸어 낸 듯한 올**이다. 처음엔 1~2 px 짜리 가는 선만 그어서,
+     실제 크기(가닥 수 km)로 띄우니 폭 30 m 쯤의 날카로운 선 — 하늘을 긁은 자국처럼
+     보였다. 이제 ① 가닥 전체를 따라 넓고 옅은 번짐 띠를 먼저 깔고 ② 그 위에 조금
+     굵고 흐린 올 여럿을 휘게 긋는다. 머리 쪽은 갈고리처럼 꺾인다(갈고리권운). */
+  const W=256, H=96, cv=document.createElement('canvas');
   cv.width=W; cv.height=H;
   const g=cv.getContext('2d'), rnd=mulberry32(hashStr('strand|'+seed));
   g.lineCap='round';
-  const nf=8+((rnd()*6)|0);
+  const yc=H*(0.45+rnd()*0.1), hook=H*(0.18+rnd()*0.22)*(rnd()<0.5?-1:1);
+  const path=(dy,x0,x1)=>{ g.beginPath(); g.moveTo(x0,yc+dy);
+    g.bezierCurveTo(W*0.45,yc+dy+(rnd()-0.5)*H*0.10, W*0.72,yc+dy+hook*0.25,
+                    x1,yc+dy+hook); };
+  const grad=(a0,a1)=>{ const gr=g.createLinearGradient(0,0,W,0);   // 꼬리는 풀리고 머리는 짙다
+    gr.addColorStop(0,'rgba(255,255,255,0)'); gr.addColorStop(0.5,'rgba(255,255,255,'+a0+')');
+    gr.addColorStop(0.86,'rgba(255,255,255,'+a1+')'); gr.addColorStop(1,'rgba(255,255,255,0)');
+    return gr; };
+  // ① 번짐 띠
+  path(0,W*0.04,W*0.94); g.strokeStyle=grad(0.07,0.13);
+  g.lineWidth=H*0.34; g.shadowColor='rgba(255,255,255,0.5)'; g.shadowBlur=18; g.stroke();
+  // ② 올
+  const nf=7+((rnd()*5)|0);
   for(let f=0;f<nf;f++){
-    const y0=H*(0.35+rnd()*0.3), hook=H*(0.12+rnd()*0.25)*(rnd()<0.5?-1:1);
-    const x0=W*(0.02+rnd()*0.25), x1=W*(0.80+rnd()*0.16);
-    g.beginPath(); g.moveTo(x0,y0+(rnd()-0.5)*H*0.2);
-    g.bezierCurveTo(W*0.4,y0+(rnd()-0.5)*H*0.25, W*0.7,y0+(rnd()-0.5)*H*0.15,
-                    x1,y0+hook);
-    const gr=g.createLinearGradient(x0,0,x1,0);    // 꼬리는 풀리고 머리는 짙다
-    gr.addColorStop(0,'rgba(255,255,255,0)');
-    gr.addColorStop(0.55,'rgba(255,255,255,'+(0.18+rnd()*0.12)+')');
-    gr.addColorStop(0.88,'rgba(255,255,255,'+(0.30+rnd()*0.2)+')');
-    gr.addColorStop(1,'rgba(255,255,255,0)');
-    g.strokeStyle=gr; g.lineWidth=0.8+rnd()*1.6;
-    g.shadowColor='rgba(255,255,255,0.7)'; g.shadowBlur=6+rnd()*6;
-    g.stroke();
+    path((rnd()-0.5)*H*0.28, W*(0.02+rnd()*0.3), W*(0.78+rnd()*0.18));
+    g.strokeStyle=grad(0.10+rnd()*0.08,0.22+rnd()*0.16);
+    g.lineWidth=2+rnd()*3; g.shadowBlur=8+rnd()*8; g.stroke();
   }
   // 네 변을 타원으로 지운다 — 네모 흐림은 윤곽이 네모로 남는다
   const im=g.getImageData(0,0,W,H), D=im.data;
@@ -952,7 +998,7 @@ function shapeStrand(c){
     if(i>=n){ _pfS.set(0,0,0); c.m.setMatrixAt(i,_pfM.compose(_pfV.set(0,0,0),_pfQ.identity(),_pfS)); continue; }
     const u=(rnd()*2-1), v=(rnd()*2-1);
     if(Math.hypot(u,v)>1){ i--; continue; }
-    const L=w*(0.25+rnd()*0.30), Wd=L*(0.10+rnd()*0.08);
+    const L=w*(0.25+rnd()*0.30), Wd=L*(0.16+rnd()*0.10);   // 번짐 띠가 들어갈 만큼
     qy.setFromAxisAngle(_pfAx, a0+(rnd()-0.5)*0.7);
     _pfQ.copy(qy).multiply(flat);
     _pfV.set(u*w*0.45,(rnd()-0.5)*(K.th||30),v*h*0.45);
@@ -1262,7 +1308,9 @@ function updateClouds(dt){
     // 솟은 구름은 알갱이가 저마다 카메라를 본다(뭉치 자체는 안 돈다)
     if(c.form==='puff'){
       layPuff(c,px,pz);
-      if((c.litT=(c.litT||0)+dt*ts)>2){ c.litT=Math.random()*0.3; litPuff(c); }
+      // 먼 덩이일수록 드물게(2~6초) — 멀면 명암이 조금 늦어도 안 보인다
+      const lp=2+4*clamp(Math.hypot(dx,dz)/c.K.R,0,1);
+      if((c.litT=(c.litT||0)+dt*ts)>lp){ c.litT=Math.random()*0.3; litPuff(c); }
     }
     // 날씨가 부르면 서서히 짙어지고, 물러나면 옅어진다(한 번 여닫는 데 25초쯤)
     c.vis=clamp(c.vis+(on?1:-1)*dt/FADE,0,1);   // 시험장: 여닫는 시간 조절
