@@ -1354,9 +1354,11 @@ float vn(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
         vec2 p=vTW.xz;
         float big=vn(p/40.0), mid=vn(p/6.0+7.3), fine=vn(p/0.8+3.1)*0.6+vn(p/0.3+9.7)*0.4;
         vec3 c=diffuseColor.rgb;
-        c*=0.88+0.24*big;
-        c*=mix(1.0,0.86+0.28*mid,0.9);
-        c*=mix(1.0,0.82+0.36*fine,nearK);
+        // 큰 얼룩은 밝기와 색조를 함께 흔든다(마른 데는 누렇게, 젖은 데는 푸르게)
+        c*=0.78+0.44*big;
+        c*=mix(vec3(0.92,0.98,1.08),vec3(1.10,1.03,0.86),vn(p/70.0+2.0));
+        c*=0.78+0.44*mid;
+        c*=mix(1.0,0.72+0.56*fine,nearK);
         // 바위 — 가파를수록 드러난다. 높이를 따라 층리
         float steep=1.0-smoothstep(0.62,0.82,normalize(vTN).y);
         float strata=0.5+0.5*sin(vTW.y*2.3+vn(p/9.0)*5.0)*0.6+vn(vec2(vTW.y*1.7,p.x/12.0))*0.4;
@@ -1489,6 +1491,7 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       if(V.y<0.0){ Nw=vec3(0.0,1.0,0.0); }
       vec3 Rr=reflect(-V,Nw); Rr.y=abs(Rr.y);
       float fres=0.02+0.98*pow(1.0-max(dot(Nw,V),0.0),5.0);
+      fres*=0.75;   // 거친 물결 — 물결 사면이 제각각이라 스치는 각에서도 반사가 다 차지 않는다
       vec3 sky=mix(uSkyH,uSkyZ,sqrt(clamp(Rr.y/0.7,0.0,1.0)));
       float sd=max(dot(Rr,uSunDir),0.0);
       vec3 spec=uSunCol*(pow(sd,700.0)*14.0+pow(sd,90.0)*0.35)*step(0.0,uSunDir.y);
@@ -1499,7 +1502,7 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       vec3 T=exp(-absorb*d*2.0);
       vec3 light=uAmb+uSunCol*max(uSunDir.y,0.0)*0.8;
       vec3 bedCol=(uRiver>0.5?vec3(0.30,0.27,0.20):vec3(0.62,0.56,0.42))*light;
-      vec3 deep=(uRiver>0.5?vec3(0.06,0.09,0.06):vec3(0.02,0.085,0.13))*light;  // 물속에서 흩어져 나오는 빛
+      vec3 deep=(uRiver>0.5?vec3(0.06,0.09,0.06):vec3(0.02,0.10,0.19))*light;  // 물속에서 흩어져 나오는 빛
       vec3 body=bedCol*T+deep*(1.0-T.b);
       vec3 col=mix(body,sky,fres)+spec;
       // 거품 — 물가 0.5 m 안, 밀려왔다 빠진다
@@ -4175,7 +4178,10 @@ float cloudSh(){
 }
 `+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();');
   };
-  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind;
+  /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
+     다른 램버트 재질과 같은 프로그램으로 묶여 제 코드가 통째로 빠졌다 */
+  const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
+  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(pk?'-'+pk.call(m):'');
   m.needsUpdate=true;
 }
 
