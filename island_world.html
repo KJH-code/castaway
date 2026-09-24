@@ -1560,7 +1560,10 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       float st2=(1.0-ci*ci)/1.7769, ct=sqrt(max(0.0,1.0-st2));
       float rs=(ci-1.333*ct)/(ci+1.333*ct), rp=(ct-1.333*ci)/(ct+1.333*ci);
       float F=0.5*(rs*rs+rp*rp);
-      vec3 sky=mix(uSkyH,uSkyZ,sqrt(clamp(Rr.y/0.7,0.0,1.0)));
+      /* 비치는 하늘 — 하늘빛은 지평선에서 몇 도만 올라가도 천정색에 가까워진다(지평선이 흰 건
+         공기를 길게 지나서다). 높이에 곧게 섞었더니 물결에 비친 하늘이 온통 지평선 흰빛이라
+         한낮 바다가 회색 거울이었다 */
+      vec3 sky=mix(uSkyH,uSkyZ,1.0-exp(-Rr.y*9.0));
       /* ② 해 반짝임 — 물결 사면 하나하나가 해를 반사하는 몫. 세기도 그 자리의 프레넬을 따른다
          (해가 낮을수록 물결이 금빛으로 번뜩이는 까닭) */
       float sd=max(dot(Rr,uSunDir),0.0);
