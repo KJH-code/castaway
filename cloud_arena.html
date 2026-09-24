@@ -1779,11 +1779,11 @@ const SKYP={turb:2.6, exp:0.44, sun:22, gM:0.76, eye:1, ms:1.0};
    셰이더(`SKY_FS`)와 **같은 식**이다(걸음 수만 적다) — 둘을 같이 고칠 것. */
 /* 다중 산란 어림 — 공기 한 점은 해만이 아니라 **둘레 하늘 전체**에 비춰진다. 그 빛(하늘빛,
    푸르다: `SKYC`)이 그 점에서 등방으로 흩어져 눈까지 오는 몫을 더한다. 세기는 해 높이를
-   따른다(`_skyIll` — 해가 낮으면 빨리 준다, −1° 밑은 없다. 느슨하게 두었더니 노을의
+   따른다(`_skyIll` — 해가 낮으면 빨리 준다, 해 진 뒤 −6° 까지는 2% 가 남는다(시민박명의 짙은 파랑). 느슨하게 두었더니 노을의
    주황 띠를 파란 빛이 덮고 해 진 뒤 하늘이 한낮처럼 파랬다). 공기가 두꺼운 지평선이 이 몫으로 밝고 희어진다
    (실제 한낮 지평선은 천정보다 밝다). 하나만 쓰면 지평선이 누런 갈색 띠였다. */
 const SKYC=[0.55,0.75,1.0];
-const _skyIll=y=>Math.pow(clamp((y+0.02)/1.02,0,1),1.2);
+const _skyIll=y=>Math.pow(clamp((y+0.02)/1.02,0,1),1.2)+0.02*clamp((y+0.1)/0.1,0,1);
 function _hitS(ox,oy,oz,dx,dy,dz,r){
   const b=ox*dx+oy*dy+oz*dz, c=ox*ox+oy*oy+oz*oz-r*r, h=b*b-c;
   if(h<0) return null; const q=Math.sqrt(h); return [-b-q,-b+q];
@@ -1856,7 +1856,7 @@ vec3 scat(vec3 dir, vec3 sun, float k){
   float mu=dot(dir,sun), g2=uGM*uGM;
   float pR=0.0596831*(1.0+mu*mu);
   float pM=0.1193662*((1.0-g2)*(1.0+mu*mu))/((2.0+g2)*pow(1.0+g2-2.0*uGM*mu,1.5));
-  float ill=pow(clamp((sun.y+0.02)/1.02,0.0,1.0),1.2);
+  float ill=pow(clamp((sun.y+0.02)/1.02,0.0,1.0),1.2)+0.02*clamp((sun.y+0.1)/0.1,0.0,1.0);
   return uSunI*k*(sR*BR*pR+sM*bM*ANG*pM)
        + uSunI*k*uMS*0.0795775*ill*vec3(0.55,0.75,1.0)*(aR*BR+aM*bM*ANG);
 }
