@@ -2971,13 +2971,13 @@ function shapePuff(c){
        ④ 한가운데 과돌출 봉우리. */
     const Ht=h*1.7, ya=Ht*0.80;
     const ux=windDir.x, uz=windDir.z, vx=-uz, vz=ux;
-    const r0=w*0.24;
+    const r0=w*0.30;
     push(0,0,0,r0,0.8);
     for(let k=0;k<4;k++){ const a=(k+rnd()*0.5)/4*6.283, rr=w*0.19;
       const dd=0.55*(r0+rr); push(Math.cos(a)*dd,0,Math.sin(a)*dd,rr,0.8); }
     let x=0, z=0, y=0, r=w*0.20, lv=0;
     while(y<ya-r*0.6){
-      const nr=w*(0.23+0.03*y/ya);
+      const nr=w*(0.30+0.04*y/ya);
       y+=0.5*(r+nr); x+=(rnd()-0.5)*w*0.02; z+=(rnd()-0.5)*w*0.02;
       const yy=Math.min(y,ya); push(x,yy,z,nr,1);
       for(let q=0;q<3;q++){                            // 둘레 혹 — 몸통을 벽으로
@@ -2999,14 +2999,14 @@ function shapePuff(c){
        (위에서 보면 둥근 부채꼴). 바람 아래로만 뻗게 했더니 옆에서 ㄱ자로 치우쳤다. */
     const ra=w*0.19, st=0.58*2*ra*0.8;
     yTop=ya+ra*0.55;
-    for(let s2=-3;s2<=4;s2++){
-      const sd=s2*st+st*0.5, ext=Math.abs(s2)/4;
-      const lead=(s2===-3||s2===4);
+    for(let s2=-3;s2<=5;s2++){
+      const sd=s2*st, ext=Math.abs(s2)/5;
+      const lead=(s2===-3||s2===5);
       for(const lat of [-1.5,-0.5,0.5,1.5]){
         if(Math.abs(lat)>1&&(lead||rnd()<0.15)) continue;
         const lw=lat*st*0.75;
         push(x+ux*sd+vx*lw, ya-ext*ra*0.25+(rnd()-0.5)*ra*0.15, z+uz*sd+vz*lw,
-             ra*(1-0.1*ext), lead?0.55:0.45, 1);
+             ra*(1-0.1*ext), lead?0.4:0.3, 1);
       }
     }
     push(x,yTop,z,w*0.09,0.8);                         // 과돌출 봉우리
@@ -3095,7 +3095,7 @@ function shapePuff(c){
           z=b.z+Math.sin(a)*sz*dd*fz,
           y=b.y+cz*dd*fy*b.fl;
     c.off[i*3]=x; c.off[i*3+1]=y; c.off[i*3+2]=z;
-    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?1.7:1)*GRAIN_S;   // 얇은 모루는 알을 크게
+    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?(b.an?1.1:1.7):1)*GRAIN_S;   // 얇은 모루는 알을 크게
     // 모루 알갱이는 윗면을 한 높이에 자른다 — 대류권 꼭대기에 부딪혀 평평하다
     if(b.an) c.off[i*3+1]=Math.min(c.off[i*3+1], yTop-my-c.rad[i]*0.22);
     c.al[i]=b.an?0.8:1;
