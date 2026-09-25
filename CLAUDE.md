@@ -160,11 +160,13 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
 
 예외 넷은 미리 알고 갈 것:
 
-1. **무기는 `WEAPON_FX`(4945)에 생김새 함수를 따로 써야 한다.** 성능은 데이터인데
-   모양은 아니다. 안 쓰면 5117에서 조용히 `return` 하고 손에 아무것도 안 잡힌다.
-   `tool.weapon` 을 단 아이템은 19개인데 `WEAPON_FX` 항목도 19개다 — 하나라도
-   어긋나면 그 무기는 손에 안 잡힌다. 무기를 더하면 이 짝부터 맞춰 볼 것:
-   `node tools/probe.mjs island_world.html "Object.entries(ITEMS).filter(([k,v])=>v.tool&&v.tool.weapon).length" "Object.keys(WEAPON_FX).length"`
+1. **손에 드는 것(`tool` 을 단 아이템)은 전부 `WEAPON_FX` 에 생김새 함수를 따로 써야 한다.**
+   무기만이 아니다 — 도끼·곡괭이·그물·횃불·등잔·활비비·라이터도 들면 보인다(39개 = 39개).
+   안 쓰면 `setWeaponFx` 가 조용히 `return` 하고 손이 빈다. 더하면 이 짝부터 맞춰 볼 것:
+   `node tools/probe.mjs island_world.html "Object.entries(ITEMS).filter(([k,v])=>v.tool).length" "Object.keys(WEAPON_FX).length"`
+   무기가 아닌 것은 `rest:{rx,rz}` 로 세워 들고(횃불·그물), 도끼·곡괭이는 캐는 동안(`HARV.active`)
+   내리친다. `tip`(이름 붙인 Object3D)이 있으면 횃불 불꽃이 그 자리에 앉는다(`updateTorch`).
+   재질은 `WMAT` — 퐁, 무채색일수록(쇠·뼈) 반들거린다. 같은 색은 한 재질을 나눠 쓴다(`_WM`).
 2. **id가 직접 박힌 자리가 여남은 곳 있다** — `tinder`(발화) · `codex` ·
    `ring_platinum` · `stone_block`. `grep -n "id==='"` 로 확인할 것.
    탄약은 여기서 빠졌다 — `ammo` 필드를 단 것이 총에 들어가고 `ammo.dmg` 가

@@ -8457,7 +8457,7 @@ function updateLamp(dt,dh){
   flash.intensity=show?3.4:0;   // decay 2 로 바뀐 몫(×1.8)
 }
 const LAMP_DRAIN=4.0;          // 게임시간 한 시간에 닳는 전기. 40 이면 10시간.
-let torchLight=null, torchFlame=null, torchT=0;
+let torchLight=null, torchFlame=null, torchT=0; const _tipV=new THREE.Vector3();
 function initTorchFx(){
   /* 횃불은 카메라에 붙어 있다 — 광원과 눈이 같은 자리라 제 그림자가 화면에
      나타나지 않는다. 여섯 면을 그려 봐야 버리는 셈이라 예산에 안 넣는다. */
@@ -8490,10 +8490,16 @@ function updateTorch(dt,dh){
   const show=!!litTorch();
   torchT+=dt;
   torchLight.visible=show; torchFlame.visible=show;
+  // 불꽃은 손에 든 횃불·등잔 끝(tip)에 앉는다 — 제 막대는 숨긴다(손의 것이 보인다)
+  const tip=weaponFx&&weaponFx.userData.tip;
+  torchFlame.children[2].visible=!tip;
+  if(show&&tip){ tip.getWorldPosition(_tipV); camera.worldToLocal(_tipV); torchFlame.position.copy(_tipV);
+    torchFlame.userData.s=weaponFx.userData.tipScale; }
+  else torchFlame.userData.s=1;
   if(show){
     const fl=0.8+Math.sin(torchT*15.3)*0.13+Math.sin(torchT*8.7)*0.09;
     torchLight.intensity=3.6*fl;
-    torchFlame.scale.set(1,fl,1);
+    const ts=torchFlame.userData.s||1; torchFlame.scale.set(ts,fl*ts,ts);
     torchFlame.rotation.z=Math.sin(torchT*6.1)*0.09;
   }
 }
@@ -9151,7 +9157,19 @@ const ATK={t:0, cd:0, swing:0, swingMax:0.30, flash:0};
    ========================================================================== */
 let weaponFx=null, weaponFxId=null;
 const WEAPON_HOME=new THREE.Vector3(0.32,-0.30,-0.60);
-const WMAT=c=>new THREE.MeshLambertMaterial({color:c});
+/* 손에 든 것의 재질 — 퐁으로 반사광을 준다. 빛깔이 무채색에 가까울수록(쇠·뼈·키틴)
+   반들거리고, 나무·가죽·풀처럼 빛깔이 짙을수록 무르게 번진다. 같은 색은 한 재질을 나눠 쓴다. */
+const _WM={};
+const WMAT=c=>{
+  if(_WM[c]) return _WM[c];
+  const r=(c>>16&255)/255, g=(c>>8&255)/255, b=(c&255)/255;
+  const mx=Math.max(r,g,b), mn=Math.min(r,g,b), sat=mx>0?(mx-mn)/mx:0;
+  const metal=sat<0.10?1:(sat<0.22?0.4:0.06);
+  return _WM[c]=new THREE.MeshPhongMaterial({color:c,
+    specular:new THREE.Color(0.55*metal+0.04,0.55*metal+0.04,0.55*metal+0.04),
+    shininess:metal>0.5?60:(metal>0.2?24:8)});
+};
+const WBASIC=c=>new THREE.MeshBasicMaterial({color:c});
 const W_WOOD=0x6b5a3c, W_CORD=0xa89a68;
 function haft(len,r0,r1,col){                // 자루 — 밑동이 원점에 오도록 세운다
   const m=new THREE.Mesh(new THREE.CylinderGeometry(r0,r1,len,6),WMAT(col||W_WOOD));
@@ -9162,6 +9180,60 @@ function wbind(y,r){                         // 날을 묶은 노끈
   m.position.y=y; return m;
 }
 /* 활 — 가로로 휜 활대(원호) · 시위 · 메긴 화살. 덧댄 활은 활대 배에 뼈판을 붙인다 */
+/* 도끼 — kind: pebble(돌멩이를 얹어 묶음) · polish(갈아 낸 돌날) · metal(주조·단조 날, 자루 구멍) */
+function axeMesh(L,kind,col,wood,wrap){
+  const g=new THREE.Group();
+  g.add(haft(L,0.019,0.024,wood));
+  if(kind==='metal'){
+    const sh=new THREE.Shape();                     // 자루에서 넓게 퍼지는 날의 윤곽
+    sh.moveTo(0,-0.035); sh.lineTo(0.07,-0.055); sh.quadraticCurveTo(0.125,0,0.07,0.055);
+    sh.lineTo(0,0.035); sh.lineTo(0,-0.035);
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:0.014,bevelEnabled:true,
+      bevelThickness:0.004,bevelSize:0.004,bevelSegments:1,curveSegments:8}),WMAT(col));
+    bl.scale.set(1.45,1.45,1); bl.position.set(0.018,L-0.05,-0.007); g.add(bl);   // 날을 크게 — 손에서 작아 보였다
+    const eye=new THREE.Mesh(new THREE.CylinderGeometry(0.030,0.030,0.08,8),WMAT(col));
+    eye.position.y=L-0.05; g.add(eye);
+    const poll=new THREE.Mesh(new THREE.BoxGeometry(0.035,0.05,0.032),WMAT(col));
+    poll.position.set(-0.035,L-0.05,0); g.add(poll);
+    g.add(wbindC(0.10,0.028,wrap)); g.add(wbindC(0.20,0.028,wrap));   // 손잡이 감개
+  }else{
+    const m=new THREE.Mesh(new THREE.DodecahedronGeometry(0.06,kind==='polish'?1:0),WMAT(col));
+    m.scale.set(kind==='polish'?1.5:1.2,0.8,0.55); m.position.set(0.05,L-0.06,0); g.add(m);
+    g.add(wbindC(L-0.10,0.030,wrap)); g.add(wbindC(L-0.02,0.030,wrap));
+  }
+  return {mesh:g, grip:0.10};
+}
+/* 곡괭이 — 자루 끝에 가로로 뾰족한 머리. 돌은 한쪽만, 쇠는 양쪽으로 뻗는다 */
+function pickMesh(L,kind,col,wood){
+  const g=new THREE.Group();
+  g.add(haft(L,0.019,0.024,wood));
+  if(kind==='metal'||kind==='polish'){
+    for(const sd of [-1,1]){
+      const c=new THREE.Mesh(new THREE.ConeGeometry(0.022,kind==='metal'?0.20:0.14,6),WMAT(col));
+      c.rotation.z=-sd*(Math.PI/2+0.25); c.position.set(sd*(kind==='metal'?0.10:0.07),L-0.03,0); g.add(c);
+    }
+    const eye=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.06,0.045),WMAT(col));
+    eye.position.y=L-0.04; g.add(eye);
+  }else{
+    const c=new THREE.Mesh(new THREE.ConeGeometry(0.035,0.16,5),WMAT(col));
+    c.rotation.z=-(Math.PI/2+0.2); c.position.set(0.07,L-0.04,0); g.add(c);
+    g.add(wbind(L-0.07,0.030)); g.add(wbind(L-0.01,0.030));
+  }
+  return {mesh:g, grip:0.10};
+}
+/* 그물 — 막대에 둘둘 말아 걸친 그물 뭉치. 그물코는 철사틀(wireframe)로 보인다 */
+function netMesh(col){
+  const g=new THREE.Group();
+  g.add(haft(0.40,0.014,0.017));
+  const b=new THREE.Mesh(new THREE.SphereGeometry(0.11,10,8),
+    new THREE.MeshLambertMaterial({color:col,wireframe:true}));
+  b.scale.set(1.2,0.8,0.9); b.position.set(0.02,0.40,0); g.add(b);
+  const b2=new THREE.Mesh(new THREE.SphereGeometry(0.075,7,6),
+    new THREE.MeshLambertMaterial({color:col,wireframe:true}));
+  b2.position.set(0.07,0.30,0.02); g.add(b2);
+  return {mesh:g, grip:0.12, rest:{rx:-0.35, rz:0.30}};
+}
+function wbindC(y,r,col){ const m=wbind(y,r); m.material=WMAT(col||W_CORD); return m; }
 function bowMesh(col,plate){
   /* 활대 — 반지름 R 원의 A 라디안 원호. 가운데(손잡이)가 앞(+Y)으로 불룩하고 두 끝은 뒤로 온다 */
   const g=new THREE.Group(), R=0.62, A=1.9, top=0.30, c=top-R;
@@ -9186,6 +9258,91 @@ const WEAPON_FX={
   /* 활 — 몸체는 +Y(쏘는 쪽)에 화살, 활대는 그에 가로로 휜다. 총처럼 앞으로 겨눈다 */
   bow_wood(){ return bowMesh(0x7a5a36, null); },
   bow_bone(){ return bowMesh(0x6b5442, 0xd8d0b4); },
+
+  /* ── 도구 — 들고 있으면 보인다 ─────────────────────────────────────────
+     도끼·곡괭이는 무기처럼 앞으로 겨누고(캘 때 내리친다), 불·등불·그물 같은 것은
+     rest 로 세워 든다. tip 이 있으면 그 자리에 불꽃이 선다(updateTorch). */
+  handaxe(){                                 // 주먹도끼 — 양면을 떼어 낸 눈물방울 돌
+    const g=new THREE.Group();
+    const m=new THREE.Mesh(new THREE.DodecahedronGeometry(0.07,0),WMAT(0x6d6a62));
+    m.scale.set(0.9,1.55,0.45); m.position.y=0.07; g.add(m);
+    const e=new THREE.Mesh(new THREE.DodecahedronGeometry(0.05,0),WMAT(0x8c877c));
+    e.scale.set(0.8,1.5,0.32); e.position.set(0.012,0.10,0.004); g.add(e);   // 떼어 낸 밝은 면
+    return {mesh:g, grip:0.02};
+  },
+  axe_crude(){ return axeMesh(0.62,'pebble',0x7a756b,W_WOOD,0x7c9440); },
+  axe_stone(){ return axeMesh(0.70,'polish',0x6b6f72,W_WOOD,W_CORD); },
+  axe_bronze(){ return axeMesh(0.74,'metal',0xa9772f,W_WOOD,0x8a6a4a); },
+  axe_iron(){ return axeMesh(0.76,'metal',0x8f959b,W_WOOD,0x8a6a4a); },
+  axe_steel(){ return axeMesh(0.78,'metal',0xb4b9be,0x5f4c3a,0x3a3d40); },
+  pick_crude(){ return pickMesh(0.62,'pebble',0x7a756b,W_WOOD); },
+  pick_stone(){ return pickMesh(0.70,'stone',0x6b6f72,W_WOOD); },
+  pick_polished(){ return pickMesh(0.72,'polish',0x767b7e,W_WOOD); },
+  pick_bronze(){ return pickMesh(0.76,'metal',0xa9772f,W_WOOD); },
+  pick_iron(){ return pickMesh(0.78,'metal',0x8f959b,W_WOOD); },
+  pick_steel(){ return pickMesh(0.80,'metal',0xb4b9be,0x5f4c3a); },
+  net_cord(){ return netMesh(0xa89a68); },
+  net_silk(){ return netMesh(0xe0dcd0); },
+  torch(){                                   // 횃불 — 가지 끝에 섬유를 두툼히 감았다
+    const g=new THREE.Group(), L=0.46;
+    g.add(haft(L,0.017,0.021,0x4a3a29));
+    const wrap=new THREE.Mesh(new THREE.CylinderGeometry(0.036,0.028,0.13,7),WMAT(0x5a4a30));
+    wrap.position.y=L+0.03; g.add(wrap);
+    for(const y of [L-0.02,L+0.05]) g.add(wbind(y,0.038));
+    const tip=new THREE.Object3D(); tip.name='tip'; tip.position.y=L+0.10; g.add(tip);
+    return {mesh:g, grip:0.14, rest:{rx:-0.30, rz:0.18}};
+  },
+  lamp_oil(){                                // 기름 등잔 — 토기에 심지 하나
+    const g=new THREE.Group();
+    const pts=[[0,0],[0.050,0.004],[0.068,0.030],[0.060,0.060],[0.040,0.070],[0.036,0.064]]
+      .map(a=>new THREE.Vector2(a[0],a[1]));
+    const pot=new THREE.Mesh(new THREE.LatheGeometry(pts,14),WMAT(0x9a6a44)); g.add(pot);
+    const oil=new THREE.Mesh(new THREE.CircleGeometry(0.037,14),WMAT(0x7a5a24));
+    oil.rotation.x=-Math.PI/2; oil.position.y=0.058; g.add(oil);
+    const wick=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.004,0.03,4),WMAT(0x2e2a24));
+    wick.position.set(0.02,0.07,0); g.add(wick);
+    const hd=new THREE.Mesh(new THREE.TorusGeometry(0.03,0.007,5,10,Math.PI),WMAT(0x9a6a44));
+    hd.rotation.y=Math.PI/2; hd.position.set(-0.07,0.035,0); hd.rotation.z=Math.PI/2; g.add(hd);
+    const tip=new THREE.Object3D(); tip.name='tip'; tip.position.set(0.02,0.075,0); g.add(tip);
+    return {mesh:g, grip:0.02, rest:{rx:-0.02, rz:0.05}, tipScale:0.45};
+  },
+  lamp_electric(){                           // 전등 — 황동 몸통 · 유리 갓 · 전구
+    const g=new THREE.Group();
+    g.add(haft(0.16,0.028,0.028,0x3a3d40));
+    const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.030,0.05,12),WMAT(0xc4a747));
+    neck.position.y=0.18; g.add(neck);
+    const glass=new THREE.Mesh(new THREE.CylinderGeometry(0.050,0.046,0.06,12,1,true),
+      new THREE.MeshPhongMaterial({color:0xdde8ee,transparent:true,opacity:0.35,shininess:90,side:THREE.DoubleSide}));
+    glass.position.y=0.235; g.add(glass);
+    const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.02,10,8),WBASIC(0xfff2c8));
+    bulb.position.y=0.235; g.add(bulb);
+    const rim=new THREE.Mesh(new THREE.TorusGeometry(0.05,0.006,5,14),WMAT(0xc4a747));
+    rim.rotation.x=Math.PI/2; rim.position.y=0.265; g.add(rim);
+    return {mesh:g, grip:0.08, rest:{rx:-0.9, rz:0.10}};
+  },
+  bowdrill(){                                // 활비비 — 작은 활 · 송곳 · 누름돌
+    const g=new THREE.Group(), R=0.22, A=2.0;
+    const bow=new THREE.Mesh(new THREE.TorusGeometry(R,0.011,5,14,A),WMAT(W_WOOD));
+    bow.rotation.z=Math.PI/2-A/2; bow.position.y=0.12-R; g.add(bow);
+    const ye=0.12-R+R*Math.cos(A/2), xe=R*Math.sin(A/2);
+    const str=new THREE.Mesh(new THREE.CylinderGeometry(0.003,0.003,xe*2,4),WMAT(W_CORD));
+    str.rotation.z=Math.PI/2; str.position.y=ye; g.add(str);
+    const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.009,0.30,6),WMAT(0x8a7048));
+    sp.rotation.z=Math.PI/2; sp.position.set(0,ye+0.035,0.02); g.add(sp);
+    return {mesh:g, grip:0.02, rest:{rx:-0.55, rz:0.25}};
+  },
+  igniter(){                                 // 긴 라이터 — 철관 · 방아쇠 · 불꽃 톱니
+    const g=new THREE.Group();
+    const tube=new THREE.Mesh(new THREE.CylinderGeometry(0.011,0.013,0.36,8),WMAT(0x8f959b));
+    tube.position.y=0.20; g.add(tube);
+    const grip=new THREE.Mesh(new THREE.BoxGeometry(0.035,0.10,0.045),WMAT(0x5f4c3a));
+    grip.position.y=0.03; g.add(grip);
+    const trg=new THREE.Mesh(new THREE.BoxGeometry(0.008,0.035,0.012),WMAT(0x3a3d40));
+    trg.position.set(0,0.07,-0.028); g.add(trg);
+    const wheel=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.010,10),WMAT(0x565b61));
+    wheel.rotation.z=Math.PI/2; wheel.position.y=0.39; g.add(wheel);
+    return {mesh:g, grip:0.04};
+  },
   spear(){                                   // 돌창 — 짧은 뗀석기 날
     const g=new THREE.Group(), L=1.55;
     g.add(haft(L,0.021,0.027));
@@ -9513,12 +9670,14 @@ function setWeaponFx(id){
   weaponFxId=id;
   if(weaponFx){ camera.remove(weaponFx); weaponFx=null; }
   if(!id||!WEAPON_FX[id]) return;
-  const {mesh,grip,muzzle}=WEAPON_FX[id]();
+  const {mesh,grip,muzzle,rest,tipScale}=WEAPON_FX[id]();
   mesh.position.y=-grip;
   weaponFx=new THREE.Group();
   weaponFx.add(mesh);
   weaponFx.userData.muzzle=(muzzle||0)-grip;      // 총구까지의 국소 높이
   weaponFx.userData.flash=mesh.getObjectByName('flash')||null;
+  weaponFx.userData.tip=mesh.getObjectByName('tip')||null;
+  weaponFx.userData.rest=rest||null; weaponFx.userData.tipScale=tipScale||1;
   weaponFx.rotation.set(-Math.PI/2+0.20,0,0.12);
   weaponFx.position.copy(WEAPON_HOME);
   camera.add(weaponFx);
@@ -9571,6 +9730,7 @@ function swingPose(style,p){
   }
   return o;
 }
+let HOLD_T=0;
 function initWeaponFx(){ setWeaponFx(null); }
 const equippedWeapon=()=>{
   const e=equippedTool();
@@ -9796,14 +9956,22 @@ function updateWeapon(dt){
   }
   // 맞은 개체의 기절도 여기서 푼다
   for(const c of CREATURES) if(c.stun>0) c.stun=Math.max(0,c.stun-dt);
-  const w=equippedWeapon();
+  // 무기뿐 아니라 손에 든 도구는 다 보인다
+  const w=equippedTool();
   setWeaponFx(w?w.id:null);
   if(!weaponFx) return;
   const W=ITEMS[w.id].tool;
   const dur=ATK.swingMax||0.30;
-  const p=ATK.swing>0 ? 1-ATK.swing/dur : 0;
+  let p=ATK.swing>0 ? 1-ATK.swing/dur : 0;
   if(ATK.swing>0) ATK.swing=Math.max(0,ATK.swing-dt);
-  const H=WEAPON_HOME, o=swingPose(W.swing,p);
+  let style=W.swing;
+  if(!W.weapon){                                // 도끼·곡괭이는 캐는 동안 내리친다
+    style='smash';
+    if(HARV.active&&(W.axe||W.pick)){ HOLD_T+=dt; p=(HOLD_T*1.3)%1; } else { HOLD_T=0; p=0; }
+  }
+  const H=WEAPON_HOME, o=swingPose(style,p);
+  const rs=weaponFx.userData.rest;
+  if(rs){ o.rx+=rs.rx-WRX; o.rz+=rs.rz-WRZ; }    // 세워 드는 것(횃불·등잔·그물)
   if(RELOAD.t>0){                              // 재장전 — 총을 내리고 노리쇠를 젖힌다
     const R=W.reload||1;
     const k=Math.sin(clamp(1-RELOAD.t/R,0,1)*Math.PI);
