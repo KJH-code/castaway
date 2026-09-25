@@ -395,7 +395,7 @@
     <div><span>I / C / B</span>소지품 · 제작 · 사전</div>
     <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
     <div><span>I</span>소지품 — <b>끌어다 손·옷·입 칸에 놓는다</b> · G 버리기</div>
-    <div><span>F</span>고른 것을 먹거나 감는다 (날것은 탈이 난다)</div>
+    <div><span>우클릭</span>손에 든 것을 쓴다 — 먹기·마시기·감기 · 전등 켜기 · 드릴 충전 · 빈손이면 물가에서 마시기</div>
     <div><span>체력</span>높은 데서 떨어지거나 · 숨이 다하거나 · 굶으면 깎인다</div>
     <div><span>그물</span>무릎 위까지 잠기는 물에 들어가 좌클릭</div>
     <div><span>1 ~ 5</span>빠른 칸 — 손의 것과 맞바꾼다</div>
@@ -5609,7 +5609,7 @@ function dragPut(where){
     grindSel=sl; toast(T.n+' 을 올려놓았다'); drawGrind(); return;
   }
   if(where==='hand'){
-    if(!T.tool){ toast('들 수 있는 물건이 아니다'); return; }
+    if(!holdable(T)){ toast('들 수 있는 물건이 아니다'); return; }
     EQUIP=sl; toast(T.n+' 들었다'); sfx('bind'); invDirty=true; return;
   }
   if(where==='list'){                               // 목록으로 되돌리면 내려놓는다
@@ -5620,7 +5620,7 @@ function dragPut(where){
   }
   if(where.slice(0,2)==='q:'){                      // 빠른 칸
     const i=+where.slice(2);
-    if(!T.tool){ toast('빠른 칸에는 도구만 넣는다'); return; }
+    if(!holdable(T)){ toast('빠른 칸에는 도구와 먹을 것·마실 것·붕대만 넣는다'); return; }
     for(let k=0;k<QUICK.length;k++) if(QUICK[k]===sl) QUICK[k]=null;
     QUICK[i]=sl; toast((i+1)+'번 칸에 넣었다');
     sfx('bind'); invDirty=true; quickDirty=true; return;
@@ -5814,6 +5814,10 @@ function drawQuick(){
   });
 }
 
+/* 손에 들 수 있는 것 — 도구, 그리고 먹고 마시고 감는 것. 드는 것은 우클릭으로 쓴다. */
+const consumable=T=>!!(T&&(T.food||T.drink||T.heal));
+const holdable=T=>!!(T&&(T.tool||consumable(T)));
+const useVerb=T=>T.drink?'마시기':T.heal?'감기':'먹기';
 function equippedTool(){
   if(EQUIP && (INV.slots.indexOf(EQUIP)<0)) EQUIP=null;
   return EQUIP;
@@ -5913,8 +5917,8 @@ function findHarvestTarget(){
    창이 열리고, 길게 누르면 아래의 점화 동작이 이어진다.
    제련로도 불을 붙여야 돌아간다 — 켜는 방법은 화덕과 똑같다. */
 function updateFireInteract(dt,f){
-  const e=equippedTool(), canFire=e&&ITEMS[e.id].tool.fire;
-  const isTorch=e&&ITEMS[e.id].tool.torch;
+  const e=equippedTool(), canFire=e&&(ITEMS[e.id].tool||{}).fire;
+  const isTorch=e&&(ITEMS[e.id].tool||{}).torch;
   const ti=INV.slots.findIndex(s=>s.id==='tinder');
 
   // 불붙은 횃불을 대면 바로 옮겨 붙는다 — 활비비질을 다시 할 필요가 없다
@@ -6049,7 +6053,7 @@ function updateHarvest(dt){
     const e=equippedTool();
     if(e){
       e.dur-=(HARV.mode.wear||3);
-      if(e.dur<=0 && ITEMS[e.id].tool.drill){          // 드릴은 부서지지 않고 전기가 떨어진다
+      if(e.dur<=0 && (ITEMS[e.id].tool||{}).drill){          // 드릴은 부서지지 않고 전기가 떨어진다
         e.dur=0;
         if(!drawFromBattery(e)) toast('드릴 전기가 떨어졌다 — 축전지를 지니거나 발전기 곁에서 채워라');
       }else if(e.dur<=0){
@@ -7150,8 +7154,8 @@ const FIRES=[];
 const IGNITE={t:0, dur:8, stam:9};   // 8초 × 9 = 72 — 기력이 가득하면 한 번에 붙는다
 /* 켜는 데 걸리는 시간과 부싯깃이 드는지는 손에 든 것이 정한다.
    활비비(fire 1)는 8초에 부싯깃이 들고, 긴 라이터(fire 3)는 2.7초에 그냥 붙는다. */
-const igniteDur=e=>IGNITE.dur/((e&&ITEMS[e.id].tool.fire)||1);
-const needsTinder=e=>((e&&ITEMS[e.id].tool.fire)||1)<2;
+const igniteDur=e=>IGNITE.dur/((e&&(ITEMS[e.id].tool||{}).fire)||1);
+const needsTinder=e=>((e&&(ITEMS[e.id].tool||{}).fire)||1)<2;
 
 // 플레이어 앞 1.4 m 지점을 검사한다. 재료를 소모하기 전에 먼저 부른다.
 function campfireSpot(){
@@ -8725,7 +8729,7 @@ function placeCampfireAt(x,y,z){
 // 들고 있는 횃불이 타는 중인가
 function litTorch(){
   const e=equippedTool();
-  return (e && ITEMS[e.id].tool.torch && e.lit && e.fuel>0) ? e : null;
+  return (e && (ITEMS[e.id].tool||{}).torch && e.lit && e.fuel>0) ? e : null;
 }
 /* ── 전등 ────────────────────────────────────────────────────────────────
    횃불과 같은 자리에 서지만 규칙이 다르다. 불씨가 필요 없고, 바람에 안 꺼지고,
@@ -8733,7 +8737,7 @@ function litTorch(){
    전기는 발전기에서만 나온다 — 축전지는 그 전기를 들고 나가는 통이다. */
 function heldLamp(){
   const e=equippedTool();
-  return (e && ITEMS[e.id].tool.lamp) ? e : null;
+  return (e && (ITEMS[e.id].tool||{}).lamp) ? e : null;
 }
 function litLamp(){
   const e=heldLamp();
@@ -10030,8 +10034,9 @@ function setWeaponFx(id){
   if(weaponFxId===id) return;
   weaponFxId=id;
   if(weaponFx){ camera.remove(weaponFx); weaponFx=null; }
-  if(!id||!WEAPON_FX[id]) return;
-  const {mesh,grip,muzzle,rest,tipScale}=WEAPON_FX[id]();
+  const F=id&&(WEAPON_FX[id]||(consumable(ITEMS[id])&&(()=>heldConsumable(id))));
+  if(!F) return;
+  const {mesh,grip,muzzle,rest,tipScale}=F();
   mesh.position.y=-grip;
   weaponFx=new THREE.Group();
   weaponFx.add(mesh);
@@ -10042,6 +10047,79 @@ function setWeaponFx(id){
   weaponFx.rotation.set(-Math.PI/2+0.20,0,0.12);
   weaponFx.position.copy(WEAPON_HOME);
   camera.add(weaponFx);
+}
+
+/* 먹을 것·마실 것·붕대를 손에 든 모습. 무기처럼 id 마다 따로 쓰지 않고 생김새 몇 벌을
+   나눠 쓴다 — 빛깔은 아이템 색(T.c)을 그대로 입힌다. 세워 들고(rest) 쥐는 자리가 원점이다. */
+function heldConsumable(id){
+  const T=ITEMS[id], g=new THREE.Group(), M=WMAT(T.c);
+  const put=(geo,mat,x,y,z,sx,sy,sz,rx,rz)=>{
+    const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z);
+    if(sx) m.scale.set(sx,sy,sz); if(rx) m.rotation.x=rx; if(rz) m.rotation.z=rz;
+    g.add(m); return m;
+  };
+  const S=(r,w,h)=>new THREE.SphereGeometry(r,w||14,h||10);
+  const C=(a,b,h,n)=>new THREE.CylinderGeometry(a,b,h,n||16);
+  const shade=(c,k)=>{ const r=Math.min(255,(c>>16&255)*k|0), gg=Math.min(255,(c>>8&255)*k|0),
+                          b=Math.min(255,(c&255)*k|0); return (r<<16)|(gg<<8)|b; };
+  const pot=(liq)=>{                                  // 토기 — 배부른 항아리 + 전
+    put(S(0.085,16,12),WMAT(0xa8724a),0,0.075,0,1,0.85,1);
+    put(C(0.058,0.066,0.03),WMAT(0x9a6640),0,0.14,0);
+    put(C(0.054,0.054,0.004),WMAT(liq),0,0.152,0);
+  };
+  const fishBody=(col)=>{                             // 물고기 — 방추형 몸 + 꼬리 + 눈
+    put(S(0.05,16,10),WMAT(col),0,0.10,0,0.55,2.2,0.9);
+    put(new THREE.ConeGeometry(0.045,0.07,4),WMAT(shade(col,0.85)),0,-0.02,0,1,1,0.25,Math.PI);
+    put(S(0.007,6,5),WMAT(0x111111),0.018,0.18,0.03);
+    put(S(0.007,6,5),WMAT(0x111111),-0.018,0.18,0.03);
+  };
+  switch(id){
+    case 'meat_bear': case 'meat_cooked': case 'jerky':{
+      const flat=id==='jerky';
+      put(S(0.07,14,10),M,0,0.07,0,flat?0.55:1,flat?1.6:1.15,flat?0.18:0.62);
+      put(S(0.045,10,8),WMAT(shade(T.c,id==='meat_bear'?1.35:0.8)),0.025,0.05,0.02,0.7,0.9,0.5);
+      if(!flat){ put(C(0.012,0.014,0.09,8),WMAT(0xe8dcc8),0,-0.02,0);   // 뼈 손잡이
+                 put(S(0.018,8,6),WMAT(0xe8dcc8),0,-0.07,0); }
+      break;
+    }
+    case 'fish': fishBody(T.c); break;
+    case 'fish_cooked': case 'fish_dried':
+      fishBody(T.c); if(id==='fish_dried') g.scale.set(1,1,0.5); break;
+    case 'can_food':
+      put(C(0.045,0.045,0.11),M,0,0.055,0);
+      put(C(0.047,0.047,0.006),WMAT(0x8a8680),0,0.11,0);
+      put(C(0.047,0.047,0.006),WMAT(0x8a8680),0,0.0,0);
+      put(C(0.0455,0.0455,0.06,16),WMAT(0xb04a38),0,0.058,0);          // 딱지
+      break;
+    case 'bottle_water':
+      put(C(0.038,0.04,0.15),new THREE.MeshPhongMaterial({color:0x7fb0d0,transparent:true,
+        opacity:0.55,shininess:90,specular:0x888888}),0,0.075,0);
+      put(C(0.034,0.036,0.10),WMAT(0x4f86ae),0,0.055,0);               // 안의 물
+      put(C(0.014,0.03,0.04),new THREE.MeshPhongMaterial({color:0x7fb0d0,transparent:true,
+        opacity:0.55}),0,0.17,0);
+      put(C(0.016,0.016,0.02),WMAT(0x2e3a44),0,0.2,0);
+      break;
+    case 'pot_water': pot(0x3f76a0); break;
+    case 'stew_meat': case 'stew_fish': case 'herb_tea': pot(T.c); break;
+    case 'bucket_water':
+      put(C(0.075,0.06,0.13,18),WMAT(0x9aa0a6),0,0.065,0);
+      put(C(0.071,0.071,0.004,18),WMAT(0x3f76a0),0,0.12,0);
+      put(new THREE.TorusGeometry(0.075,0.005,6,20,Math.PI),WMAT(0x6a6e72),0,0.13,0);
+      break;
+    case 'waterskin_water':
+      put(S(0.08,14,10),M,0,0.07,0,0.85,1.1,0.55);
+      put(C(0.016,0.022,0.05,8),WMAT(0x5a4028),0,0.16,0);
+      put(C(0.018,0.018,0.012,8),WMAT(W_CORD),0,0.15,0);
+      break;
+    default:
+      if(T.heal){                                     // 붕대 — 감긴 두루마리 + 풀린 끝
+        put(C(0.038,0.038,0.07,18),M,0,0.035,0,1,1,1,0,Math.PI/2);
+        put(C(0.012,0.012,0.072,10),WMAT(shade(T.c,0.75)),0,0.035,0,1,1,1,0,Math.PI/2);
+        put(new THREE.BoxGeometry(0.068,0.09,0.004),M,0,-0.01,0.036);
+      }else if(T.drink) pot(T.c);
+      else put(S(0.06),M,0,0.06,0,1,0.8,0.8);
+  }
+  return {mesh:g, grip:0.02, rest:{rx:-0.15, rz:0.35}};
 }
 
 /* 휘두르는 자세 — 손은 거의 제자리에 두고 날만 손잡이를 축으로 크게 돈다.
@@ -10095,7 +10173,7 @@ let HOLD_T=0;
 function initWeaponFx(){ setWeaponFx(null); }
 const equippedWeapon=()=>{
   const e=equippedTool();
-  return (e && ITEMS[e.id].tool.weapon) ? e : null;
+  return (e && (ITEMS[e.id].tool||{}).weapon) ? e : null;
 };
 /* ─ 총 ────────────────────────────────────────────────────────────
    근접과 달리 눈에서 뻗은 선으로 맞힌다. 사거리 50 m 안에서 그 선에 걸리는
@@ -10324,6 +10402,28 @@ function castNet(w,T){
   invDirty=true;
 }
 
+/* 우클릭 — 손에 든 것을 쓴다. 공격(좌클릭)과 따로 논다.
+   먹을 것·마실 것·붕대는 먹고, 전등은 켜고 끄고, 빈 드릴은 축전지에서 채우고,
+   그물·수류탄은 던진다. 빈손이면 물가에서 엎드려 마신다. */
+const USE_DUR=0.45; let USE_T=0;
+function useHeld(){
+  const e=equippedTool(), T=e&&ITEMS[e.id];
+  if(!e){ drinkSource(); return; }
+  if(consumable(T)){
+    if(USE_T>0) return;
+    if(eatSlot(e)) USE_T=USE_DUR;
+    return;
+  }
+  const W=T.tool||{};
+  if(W.lamp){ toggleLamp(); return; }
+  if(W.drill){
+    if(e.dur>=T.durMax) toast('이미 가득 찼다');
+    else if(!drawFromBattery(e)) toast('축전지가 없다 — 발전기 곁에서 E 로 채운다');
+    return;
+  }
+  if(W.net||W.throw){ attack(); return; }
+  toast(T.n+' — 좌클릭으로 쓴다');
+}
 function attack(){
   /* 그물은 무기가 아니라서 equippedWeapon() 이 걸러낸다 — 손에 든 것을 먼저 본다 */
   const hand=equippedTool(), HT=hand&&ITEMS[hand.id].tool;
@@ -10391,7 +10491,7 @@ function updateWeapon(dt){
   const w=equippedTool();
   setWeaponFx(w?w.id:null);
   if(!weaponFx) return;
-  const W=ITEMS[w.id].tool;
+  const W=ITEMS[w.id].tool||{};
   const dur=ATK.swingMax||0.30;
   let p=ATK.swing>0 ? 1-ATK.swing/dur : 0;
   if(ATK.swing>0) ATK.swing=Math.max(0,ATK.swing-dt);
@@ -10402,7 +10502,12 @@ function updateWeapon(dt){
   }
   const H=WEAPON_HOME, o=swingPose(style,p);
   const rs=weaponFx.userData.rest;
-  if(rs){ o.rx+=rs.rx-WRX; o.rz+=rs.rz-WRZ; }    // 세워 드는 것(횃불·등잔·그물)
+  if(rs){ o.rx+=rs.rx-WRX; o.rz+=rs.rz-WRZ; }    // 세워 드는 것(횃불·등잔·그물·먹을 것)
+  if(USE_T>0){                                 // 먹고 마시기 — 입으로 가져간다
+    const k=Math.sin(clamp(1-USE_T/USE_DUR,0,1)*Math.PI);
+    USE_T=Math.max(0,USE_T-dt);
+    o.px-=0.26*k; o.py+=0.20*k; o.pz+=0.22*k; o.rx+=(ITEMS[w.id].drink?0.9:0.35)*k;
+  }
   if(RELOAD.t>0){                              // 재장전 — 총을 내리고 노리쇠를 젖힌다
     const R=W.reload||1;
     const k=Math.sin(clamp(1-RELOAD.t/R,0,1)*Math.PI);
@@ -11035,7 +11140,7 @@ function updateHUD(dt){
     lt.innerHTML='[E] '+BKIND_N[w.leaf.kind]+(w.leaf.open?' 닫기':' 열기');
   }else if(HARV.cont){
     const c=HARV.cont, e=equippedTool();
-    const isTorch=e&&ITEMS[e.id].tool.torch;
+    const isTorch=e&&(ITEMS[e.id].tool||{}).torch;
     look.style.display='block'; lb.style.display='none';
     if(c.kind==='grind'){
       look.style.display='block'; lb.style.display='none';
@@ -11058,7 +11163,7 @@ function updateHUD(dt){
       lt.innerHTML=head+'<em>길게 누르면 횃불에 불 붙이기 · 연료 '+fmtFuel(e.fuel)+'</em>';
       if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/1.0*100)+'%'; }
     }else if(isHearth(c) && !c.lit){
-      const canFire=e&&ITEMS[e.id].tool.fire;
+      const canFire=e&&(ITEMS[e.id].tool||{}).fire;
       const tin=needsTinder(e), dur=igniteDur(e);
       const hasTin=INV.slots.some(x=>x.id==='tinder');
       let why;
@@ -11129,13 +11234,18 @@ function updateHUD(dt){
       bar.style.background=e.lit?'#e08a3a':'#5d7a71';
     }else if(T.tool&&T.tool.gun){               // 총 — 내구 대신 탄창을 보여 준다
       const ak=(e.mag&&e.ammoId)?'  ['+ITEMS[e.ammoId].n
-        +(ammoMul(e)!==1?' ×'+ammoMul(e):'')+']':'';
+        +(ammoMul(e)!==1?' ×'+(+ammoMul(e).toFixed(2)):'')+']':'';
       document.getElementById('toolN').textContent=T.n+'  '+(e.mag|0)+' / '+T.tool.mag+ak
         +(RELOAD.t>0?'  (재장전 '+RELOAD.t.toFixed(1)+'초)':'  [X] 재장전')
         +'  · 남은 탄 '+gunAmmo(e);
       const bar=document.getElementById('toolD');
       bar.style.width=((e.mag|0)/T.tool.mag*100)+'%';
       bar.style.background=RELOAD.t>0?'#8fb8d8':(e.mag?'#d8724a':'#5d5a52');
+    }else if(!T.tool){                          // 먹을 것·마실 것·붕대 — 개수(모금)와 우클릭
+      document.getElementById('toolN').textContent=T.n+'  ×'+e.n
+        +(e.sip?'  ('+e.sip+'모금)':'')+'  [우클릭] '+useVerb(T);
+      const bar=document.getElementById('toolD');
+      bar.style.width=(T.drink?((e.sip||1)/(T.sips||1)):1)*100+'%'; bar.style.background='#7fb07a';
     }else{
       document.getElementById('toolN').textContent=T.n;
       const bar=document.getElementById('toolD');
@@ -11568,7 +11678,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyM'&&!e.repeat){                // 미니맵 크기 4배 ↔ 원래대로
     document.getElementById('map').classList.toggle('big');
   }
-  if(e.code==='KeyL'){ toggleLamp(); }         // F 는 먹기·마시기가 쓴다
+  if(e.code==='KeyL'){ toggleLamp(); }         // 전등은 들고 우클릭해도 켜진다
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
   if(e.code==='KeyE'&&boxOpen&&!e.repeat){ toggleBox(null); }
   if((e.code==='Escape'||e.code==='KeyE')&&grindOpen&&!e.repeat){ toggleGrind(); return; }
@@ -11607,9 +11717,7 @@ addEventListener('keydown',e=>{
     toast('삼각 벽 방향 — '+(BUILD.hand>0?'오른쪽':'왼쪽'));
     bldSig=null; return;
   }
-  /* 장착·착용은 이제 소지품 창에서 끌어다 놓는다(I). 먹는 것만 F 로 남겨 둔다 —
-     허기질 때마다 창을 열게 하면 번거롭다. */
-  if(e.code==='KeyF'&&!BUILD.on) eatSlot(INV.slots[INV.sel]||null);
+  /* 먹고 마시고 감는 것은 손에 들고 우클릭한다(useHeld) — F 는 없앴다. */
   if(e.code==='KeyG'&&BUILD.on){ undoBuild(); return; }   // 짓기 중엔 걷어내기
   if(e.code==='KeyG'&&INV.slots.length){
     const s0=INV.slots[INV.sel];
@@ -11697,7 +11805,9 @@ cv.addEventListener('mousedown',e=>{
     mouseDown=true;
     if(BUILD.on) doBuild(); else attack();
   }
+  if(e.button===2 && document.pointerLockElement===cv && !BUILD.on) useHeld();
 });
+cv.addEventListener('contextmenu',e=>e.preventDefault());
 addEventListener('mouseup',()=>{ dragF=false; mouseDown=false; });
 addEventListener('blur',()=>{ mouseDown=false; });
 cv.addEventListener('wheel',e=>{ if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
@@ -11891,7 +12001,7 @@ function loop(){
       const h=document.getElementById('hint');
       if(h&&hasMouse&&!flyMode){
         const locked=document.pointerLockElement===cv;
-        const want=locked?'WASD 이동 · E 채집 · F 먹기/마시기 · L 전등 · I 소지품 · C 제작 · B 사전'
+        const want=locked?'WASD 이동 · E 채집 · 우클릭 쓰기 · L 전등 · I 소지품 · C 제작 · B 사전'
                          :'화면을 클릭하면 시점 조작이 시작됩니다';
         if(h.textContent!==want) h.textContent=want;
       }
