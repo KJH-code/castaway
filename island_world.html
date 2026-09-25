@@ -1405,6 +1405,19 @@ float rh(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
 float rn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(mix(rh(i),rh(i+vec3(1,0,0)),f.x),mix(rh(i+vec3(0,1,0)),rh(i+vec3(1,1,0)),f.x),f.y),
              mix(mix(rh(i+vec3(0,0,1)),rh(i+vec3(1,0,1)),f.x),mix(rh(i+vec3(0,1,1)),rh(i+vec3(1,1,1)),f.x),f.y),f.z); }
+/* 광물 알갱이 — 격자 칸마다 흔든 씨앗점 하나를 두고 가장 가까운 씨앗이 그 자리의 알갱이다
+   (보로노이). floor(p) 로 칸을 통째로 칠하면 알갱이가 정육면체라 네모가 줄지어 보였다.
+   x = 그 알갱이의 난수(무슨 광물인지), y = 알갱이 경계까지 거리(가장 가까운 둘의 차) */
+vec2 grain(vec3 p){
+  vec3 i=floor(p), f=fract(p); float d1=9.0, d2=9.0, id=0.0;
+  for(int z=-1;z<=1;z++) for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++){
+    vec3 c=vec3(float(x),float(y),float(z));
+    vec3 o=vec3(rh(i+c),rh(i+c+17.3),rh(i+c+41.9));
+    float d=length(c+o-f);
+    if(d<d1){ d2=d1; d1=d; id=rh(i+c+7.7); } else if(d<d2) d2=d;
+  }
+  return vec2(id,d2-d1);
+}
 `+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       {
         vec3 p=vRW; vec3 n=normalize(vRN);
@@ -1416,11 +1429,11 @@ float rn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
         c*=mix(vec3(1.05,1.0,0.93),vec3(0.93,0.98,1.06),rn(p/3.0+9.1));
         int T=${TEX};
         float f=rn(p/0.05+1.3);
-        if(T==0){ float g=rh(floor(p/0.035)); c=mix(c,vec3(0.07),step(0.86,g)*0.75*nearK); c=mix(c,vec3(0.86,0.84,0.80),step(g,0.10)*0.55*nearK); }
+        if(T==0){ vec2 gr=grain(p/0.035+rn(p/0.2)*0.6); float g=gr.x; c*=mix(1.0,0.85+0.15*smoothstep(0.0,0.12,gr.y),nearK); c=mix(c,vec3(0.07),step(0.86,g)*0.75*nearK); c=mix(c,vec3(0.86,0.84,0.80),step(g,0.10)*0.55*nearK); }
         else if(T==1){ float v=abs(sin(p.y*7.0+rn(p/0.8)*6.0)); c=mix(c,vec3(0.10,0.45,0.30),smoothstep(0.85,0.97,v)*0.7); }
         else if(T==2){ float v=abs(sin(dot(p,vec3(0.3,5.0,0.4))+rn(p/0.5)*4.0)); c*=1.0-smoothstep(0.93,0.99,v)*0.7; }
         else if(T==3){ c*=0.82+0.3*step(0.5,fract(p.y*3.0+rn(p/0.9)*1.5)); }
-        else if(T==4){ c*=1.0+step(0.93,rh(floor(p/0.03)))*0.9*nearK; }
+        else if(T==4){ c*=1.0+step(0.93,grain(p/0.03).x)*0.9*nearK; }
         else if(T==5){ c*=0.7+0.5*smoothstep(0.2,0.7,rn(p/0.12)); }
         else if(T==6){ c*=0.85+0.25*sin(length(p.xz-floor(p.xz/0.4)*0.4)*40.0)*nearK; }
         // 이끼·지의류 — 위를 향한 면
