@@ -5214,8 +5214,8 @@ const ITEMS={
                use:'구리 탄피에 화약과 철 탄두 — 소총 구경',
                ammo:{dmg:1.0, bore:'rifle'}},
   cartridge_brass:{n:'황동 소총탄', kg:0.05, c:0xc4a747, tags:['ammo'],
-               use:'황동 탄피는 얇고 질겨 더 센 장약을 견딘다 — 피해 1.25배',
-               ammo:{dmg:1.25, bore:'rifle'}},
+               use:'황동 탄피는 얇고 질겨 더 센 장약을 견딘다 — 피해 1.33배(소총 150 → 200)',
+               ammo:{dmg:4/3, bore:'rifle'}},
   /* 무연 탄 — 장약이 세고 찌꺼기가 없다. 자동으로 도는 총은 이것만 먹는다
      (흑색화약 탄을 물리면 몇 발 만에 기관부가 눌어붙는다는 셈이다). */
   cartridge_smokeless:{n:'무연 소총탄', kg:0.05, c:0xd8c88a, tags:['ammo'],
@@ -9216,7 +9216,7 @@ function toolSpec(t,it){
     if(t.gun) p.push((t.bore==='arrow'?'한 대씩 메김 · 메기는 데 '+t.reload+'초 · 쓰는 화살 '
                                       :'탄창 '+t.mag+'발 · 재장전 '+t.reload+'초 · 쓰는 탄 ')
       +Object.keys(ITEMS).filter(k=>isAmmo(k)&&boreOf(k)===(t.bore||'rifle'))   // 구경이 맞는 것만
-        .map(k=>ITEMS[k].n+(ITEMS[k].ammo.dmg!==1?'(×'+ITEMS[k].ammo.dmg+')':''))
+        .map(k=>ITEMS[k].n+(ITEMS[k].ammo.dmg!==1?'(×'+(+ITEMS[k].ammo.dmg.toFixed(2))+')':''))
         .join(' · '));
   }
   if(t.speed&&t.speed!==1) p.push('작업 속도 ×'+t.speed);
