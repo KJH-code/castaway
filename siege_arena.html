@@ -540,7 +540,7 @@ const CONE=0.77;
    예전의 1-방어/24(0.72 에서 자름)는 방어 17.3 부터 전부 같은 값이라
    강철 한 벌과 복합 한 벌이 구별되지 않았다.
    ARMOR_K 는 "피해가 절반이 되는 방어" 다. */
-const ARMOR_K=10;
+const ARMOR_K=5;
 const armorMul=()=>ARMOR_K/(ARMOR_K+Math.max(0,armSum()));
 const mitigate=d=>Math.max(1,d*armorMul());
 

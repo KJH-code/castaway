@@ -5499,7 +5499,7 @@ const armorTotal =()=>wornSum('armor');
    이제 1/(1+방어/k) 로 준다 — 상한이 없고 100% 에 닿지도 않으며,
    한 점을 더 입을 때마다 덜 늘어나되 늘긴 언제나 는다.
    k 는 "피해가 절반이 되는 방어" 다 — 10 이면 방어 10 에서 반이 깎인다. */
-const ARMOR_K=10;
+const ARMOR_K=5;
 const armorMul=()=>ARMOR_K/(ARMOR_K+Math.max(0,armorTotal()));
 const warmthTotal=()=>wornSum('warm');
 
