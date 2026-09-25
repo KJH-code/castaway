@@ -1744,6 +1744,49 @@ const HABIT={
 };
 const HABIT0={amp:0.24,bump:5.0,nb:3,cuts:0,deep:1,cube:0,smooth:0.90,flat:1,st:0.36};
 
+/* 나무 한 그루를 옆에서 찍어 임포스터 그림으로 — 가지·잎 인스턴스를 그 나무 몫만 떼어
+   임시 장면에 세우고, 정투영 카메라로 256×512 에 한 번 그린다. 알파는 잎이 있는 자리만 1.
+   조명은 고르게(환경광 + 위에서 약하게) — 판때기가 게임 안에서 다시 램버트로 빛을 받는다. */
+function bakeTreeImpostor(list,kind){
+  const p=list.find(q=>Math.abs(q.s-1)<0.08&&q._lb)||list.find(q=>q._lb);
+  if(!p) return null;
+  const n=p.limbN, LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), v=new THREE.Vector3();
+  const lm0=p._lb, fm0=p._lf;
+  const lm=new THREE.InstancedMesh(lm0.geometry,new THREE.MeshLambertMaterial({color:lm0.material.color}),n);
+  const fmat=fm0.material.map
+    ? new THREE.MeshLambertMaterial({map:fm0.material.map,alphaTest:0.5,side:THREE.DoubleSide})
+    : new THREE.MeshLambertMaterial({color:fm0.material.color,side:THREE.DoubleSide});
+  const fm=new THREE.InstancedMesh(fm0.geometry,fmat,n*LPB);
+  const off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
+  const box=new THREE.Box3(); const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
+  for(let j=0;j<n;j++){
+    lm0.getMatrixAt(p._lbBase+j,M); M.premultiply(off); lm.setMatrixAt(j,M);
+    M.decompose(pt,q,sc); if(sc.y>0){ box.expandByPoint(pt); v.set(0,1,0).applyQuaternion(q).multiplyScalar(sc.y).add(pt); box.expandByPoint(v); }
+    for(let k=0;k<LPB;k++){ fm0.getMatrixAt((p._lbBase+j)*LPB+k,M); M.premultiply(off); fm.setMatrixAt(j*LPB+k,M);
+      M.decompose(pt,q,sc); if(sc.x>0) box.expandByScalar(0), box.expandByPoint(pt); }
+  }
+  if(box.isEmpty()) return null;
+  box.expandByScalar(0.35*p.s);              // 잎 판때기 반 폭만큼
+  const hw=Math.max(Math.abs(box.min.x),box.max.x,Math.abs(box.min.z),box.max.z);
+  const y0=Math.max(0,box.min.y), y1=box.max.y;
+  const sc0=new THREE.Scene();
+  sc0.add(lm); sc0.add(fm);
+  sc0.add(new THREE.AmbientLight(0xffffff,0.72));
+  const dl=new THREE.DirectionalLight(0xffffff,0.45); dl.position.set(0.3,1,0.6); sc0.add(dl);
+  const cam=new THREE.OrthographicCamera(-hw,hw,y1,y0,-50,50); cam.position.set(0,0,20); cam.lookAt(0,0,0);
+  cam.position.set(0,0,20); cam.updateMatrixWorld();
+  const W=256,H=512;
+  const rt=new THREE.WebGLRenderTarget(W,H,{format:THREE.RGBAFormat,depthBuffer:true});
+  rt.texture.generateMipmaps=true; rt.texture.minFilter=THREE.LinearMipmapLinearFilter;
+  const oc=renderer.getClearColor(new THREE.Color()), oa=renderer.getClearAlpha(), ot=renderer.getRenderTarget(), osh=renderer.shadowMap.enabled;
+  renderer.shadowMap.enabled=false;
+  renderer.setRenderTarget(rt); renderer.setClearColor(0x2c3a22,0); renderer.clear(true,true,true);
+  renderer.render(sc0,cam);
+  renderer.setRenderTarget(ot); renderer.setClearColor(oc,oa); renderer.shadowMap.enabled=osh;
+  lm.material.dispose(); fmat.dispose(); lm.dispose&&lm.dispose(); fm.dispose&&fm.dispose();
+  const s=p.s;
+  return {tex:rt.texture, rt, can:{y0:y0/s, y1:y1/s, w:2*hw/s}};
+}
 function buildProps(){
   TREE_TILES.length=0;
   if(propGroup){
@@ -2254,7 +2297,7 @@ function buildProps(){
       const bbMat=new THREE.MeshLambertMaterial({
         map:R.k==='oak'?treeTexOak:treeTexFir, alphaTest:0.4,
         side:THREE.DoubleSide});
-      const CAN=R.k==='oak'?{y0:2.2,y1:7.6,w:5.4}:{y0:1.4,y1:8.4,w:4.4};
+      var CAN=R.k==='oak'?{y0:2.2,y1:7.6,w:5.4}:{y0:1.4,y1:8.4,w:4.4};
       /* 알파 카드는 깊이 재질을 따로 줘야 한다 — 안 주면 그림자 지도에
          판때기 네모가 통째로 찍혀 잎 사이로 빛이 새지 않는다. */
       const depthOf=(m)=>m.map?new THREE.MeshDepthMaterial({
@@ -2390,6 +2433,26 @@ function buildProps(){
     }
     if(tree) for(const t of TREE_TILES){
       t.lm.instanceMatrix.needsUpdate=true; t.fm.instanceMatrix.needsUpdate=true;
+    }
+    /* 임포스터를 **진짜 나무 한 그루를 찍은 사진**으로 바꾼다 — 그림(`makeTreeTex`)은 55 m 에서
+       갈아 끼우는 순간 모양이 딴판이라 티가 났다. 한 그루를 골라 가지·잎을 그대로 옆에서
+       한 번 그려 두고(불러올 때 한 번), 모든 나무의 판때기가 그 사진을 쓴다. 돌아가는 비용은
+       예전과 같다(판때기 하나). 판때기 크기(CAN)도 그 나무의 실제 폭·높이로 다시 잡는다. */
+    if(tree&&renderer){
+      const bk=bakeTreeImpostor(list,R.k);
+      if(bk){
+        CAN=bk.can; const bbMat=list[0]._bb.material;
+        bbMat.map=bk.tex; bbMat.alphaTest=0.35; bbMat.needsUpdate=true;
+        if(list[0]._bb.customDepthMaterial){ const dm=list[0]._bb.customDepthMaterial; dm.map=bk.tex; dm.alphaTest=0.35; dm.needsUpdate=true; }
+        for(const p of list){
+          // 나무마다 판때기를 제자리에서 돌려 세운다 — 같은 사진이라도 보는 쪽이 달라 덜 똑같다
+          _lbV.set(p.x, p.y+CAN.y0*p.s, p.z);
+          _lbE.set(0,((p._hash>>>9)%628)/100,0); _lbQ.setFromEuler(_lbE);
+          _lbS.set(CAN.w*p.s, (CAN.y1-CAN.y0)*p.s, CAN.w*p.s);
+          M.compose(_lbV,_lbQ,_lbS); p._bb.setMatrixAt(p._bbi,M);
+        }
+        for(const t of TREE_TILES) t.bb.instanceMatrix.needsUpdate=true;
+      }
     }
   }
 
