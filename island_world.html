@@ -1425,8 +1425,15 @@ float rn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
         else if(T==6){ c*=0.85+0.25*sin(length(p.xz-floor(p.xz/0.4)*0.4)*40.0)*nearK; }
         // 이끼·지의류 — 위를 향한 면
         float up=smoothstep(0.55,0.85,n.y)*${moss}.0;
-        float lichen=smoothstep(0.45,0.75,rn(p/0.7+2.2))*up;
-        c=mix(c,vec3(0.38,0.52,0.24)*(0.85+0.4*b),lichen*0.9);   // 더 밝은 풀빛 · 짙기 0.9
+        /* 이끼는 둥근 얼룩이 아니라 방석이 번져 붙은 꼴이다 — 자리를 잡음으로 비틀고(도메인 워프)
+           세 겹 잡음을 문턱으로 잘라 가장자리를 들쭉날쭉하게, 안쪽엔 방석 결과 빈틈을 둔다 */
+        vec3 wq=p+(vec3(rn(p/0.9),rn(p/0.9+5.3),rn(p/0.9+8.1))-0.5)*0.9;
+        float mm=rn(wq/0.8+2.2)*0.55+rn(wq/0.28+1.7)*0.30+rn(wq/0.09+4.4)*0.15;
+        float lichen=smoothstep(0.50,0.56,mm+0.18*(up-1.0))*up;
+        float tuft=mix(0.8,0.55+0.7*rn(p/0.035+6.1),nearK);                 // 방석마다 도톰한 결
+        vec3 mc=mix(vec3(0.24,0.34,0.13),vec3(0.33,0.40,0.15),rn(wq/1.6+7.7)); // 짙은 풀빛 ↔ 누런 풀빛
+        mc*=0.75+0.35*smoothstep(0.50,0.75,mm);                               // 가장자리는 얇아 어둡다
+        c=mix(c,mc*tuft,lichen*0.92);
         // 밑동 그늘 — 아래를 향할수록
         c*=0.62+0.38*smoothstep(-0.6,0.4,n.y);
         // 금속 광택 — 해 쪽 반사
