@@ -2688,31 +2688,95 @@ function placePod(seed){
 let shipMesh=null, SHIP={st:'wait', t:0, from:new THREE.Vector3(), dir:new THREE.Vector3()};
 function makeShip(){
   if(shipMesh){ scene.remove(shipMesh); shipMesh=null; }
-  const g=new THREE.Group();
-  const M=c=>new THREE.MeshLambertMaterial({color:c});
-  // 몸통 — 캡슐보다 훨씬 크다. 앞이 -z 쪽이다
-  const hull=new THREE.Mesh(new THREE.BoxGeometry(5.2,2.6,12.0),M(0x59606a));
-  hull.position.y=3.4; g.add(hull);
-  const nose=new THREE.Mesh(new THREE.ConeGeometry(2.3,3.4,4),M(0x4c525b));
-  nose.rotation.set(Math.PI/2,Math.PI/4,0); nose.position.set(0,3.4,-7.5); g.add(nose);
-  // 날개와 받침다리
-  for(const sx of [-1,1]){
-    const w=new THREE.Mesh(new THREE.BoxGeometry(4.6,0.34,3.2),M(0x4c525b));
-    w.position.set(sx*4.2,3.1,1.6); w.rotation.z=sx*0.16; g.add(w);
-    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.22,2.2,6),M(0x3b4148));
-    leg.position.set(sx*2.0,1.1,2.6); g.add(leg);
-    const foot=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.22,1.0),M(0x3b4148));
-    foot.position.set(sx*2.0,0.11,2.6); g.add(foot);
+  /* 수직 이착륙 수송선 — 앞이 −z. 둥근 동체(돌림체) · 유리 조종석 · 뒤로 젖힌 날개 끝에
+     엔진 통 둘 · 꼬리 엔진 · 기운 수직 꼬리 둘 · 세 발 착륙 다리 · 뒤쪽 화물 경사판.
+     판금 이음을 짙은 띠로 끊고, 날개 끝에 빨강·초록 항법등을 깜박인다.
+     쇠는 퐁으로 해를 받아 번뜩인다(WMAT 과 같은 규칙). */
+  const g=new THREE.Group(); SHIP.navs=[];
+  const P=(c,sh)=>new THREE.MeshPhongMaterial({color:c,specular:0x777777,shininess:sh||40});
+  const HULL=P(0x7d858f), DARK=P(0x3e444c,20), PANEL=P(0x5f6770,30), ACC=P(0xc0762a,30);
+  const Y=3.2;                                                   // 동체 중심 높이
+  // 동체 — 앞은 둥글게 모이고 뒤는 넓게 끝나는 돌림체를 z 축으로 눕힌다
+  const prof=[[0,-7.2],[0.9,-6.8],[1.7,-5.8],[2.2,-4.2],[2.4,-1.5],[2.45,2.5],[2.3,4.8],[2.0,6.0],[0,6.0]]
+    .map(q=>new THREE.Vector2(q[0],q[1]));
+  const hull=new THREE.Mesh(new THREE.LatheGeometry(prof,24),HULL);
+  hull.rotation.x=Math.PI/2; hull.scale.set(1.25,1,0.62); hull.position.y=Y; g.add(hull);  // 옆으로 넓고 위아래로 눌러 — 양력 몸통 꼴
+  for(const z of [-3.2,-0.4,2.4,4.6]){                           // 판금 이음 띠
+    const r=z<-2?2.25:2.46;
+    const band=new THREE.Mesh(new THREE.TorusGeometry(r,0.05,4,28),DARK);
+    band.scale.set(1.25,0.62,1); band.position.set(0,Y,z); g.add(band);
   }
-  // 엔진 — 떠오를 때 밝아진다
+  const belly=new THREE.Mesh(new THREE.BoxGeometry(3.2,0.5,8.5),PANEL);   // 배 밑 판
+  belly.position.set(0,Y-1.85,0.6); g.add(belly);
+  // 조종석 유리 — 앞 윗면에 덮은 짙은 반구
+  const glass=new THREE.Mesh(new THREE.SphereGeometry(1.25,20,12,0,Math.PI*2,0,Math.PI/2),
+    new THREE.MeshPhongMaterial({color:0x18252e,specular:0xbfd8ff,shininess:120,transparent:true,opacity:0.88}));
+  glass.scale.set(1.15,0.75,1.9); glass.position.set(0,Y+0.95,-4.6); g.add(glass);
+  const frame=new THREE.Mesh(new THREE.TorusGeometry(1.25,0.07,4,24,Math.PI),DARK);
+  frame.scale.set(1.15,1.9,0.75); frame.rotation.x=-Math.PI/2; frame.rotation.z=Math.PI/2;
+  frame.position.set(0,Y+0.95,-4.6); g.add(frame);
+  // 날개 — 뒤로 젖힌 평면을 뽑아 낸다
+  const ws=new THREE.Shape(); ws.moveTo(0,-2.6); ws.lineTo(5.4,1.0); ws.lineTo(5.4,2.9); ws.lineTo(0,3.6); ws.lineTo(0,-2.6);   // 뿌리 6.2 m · 끝 1.9 m
+  const wg=new THREE.ExtrudeGeometry(ws,{depth:0.42,bevelEnabled:true,bevelThickness:0.06,bevelSize:0.06,bevelSegments:1});
+  wg.rotateX(Math.PI/2);
   SHIP.jets=[];
+  /* 엔진 통 — 늘 앞뒤(z)로 눕는다. down 이면 통 배에 노즐을 달아 아래로 뿜고(수직 이착륙),
+     아니면 꽁무니 노즐로 뒤로 뿜는다 */
+  const addEngine=(x,y,z,rad,len,down)=>{
+    const body=new THREE.Mesh(new THREE.CylinderGeometry(rad,rad*1.05,len,16),PANEL);
+    body.rotation.x=Math.PI/2; body.position.set(x,y,z); g.add(body);
+    const cone=new THREE.Mesh(new THREE.SphereGeometry(rad,14,8,0,Math.PI*2,0,Math.PI/2),HULL);
+    cone.rotation.x=-Math.PI/2; cone.scale.set(1,1.4,1); cone.position.set(x,y,z-len/2); g.add(cone);   // 둥근 앞
+    const intake=new THREE.Mesh(new THREE.TorusGeometry(rad*1.02,rad*0.12,6,16),DARK);
+    intake.position.set(x,y,z-len/2+0.15); g.add(intake);
+    const noz=new THREE.Mesh(new THREE.CylinderGeometry(rad*0.62,rad*0.78,rad*0.8,16,1,true),DARK);
+    noz.material.side=THREE.DoubleSide;
+    const nzY=down?y-rad-rad*0.3:y, nzZ=down?z+len*0.12:z+len/2+rad*0.35;
+    if(!down) noz.rotation.x=-Math.PI/2;
+    noz.position.set(x,nzY,nzZ); g.add(noz);
+    const pl=makePlume(len*(down?3.2:2.6),rad*(down?0.7:0.8));
+    if(down) pl.position.set(x,nzY-rad*0.4,nzZ);
+    else { pl.rotation.x=-Math.PI/2; pl.position.set(x,y,nzZ+rad*0.4); }
+    g.add(pl); SHIP.jets.push(pl);
+    const hot=new THREE.Mesh(new THREE.CircleGeometry(rad*(down?0.58:0.72),16),new THREE.MeshBasicMaterial({color:0x2a1a10}));
+    if(down){ hot.rotation.x=Math.PI/2; hot.position.set(x,nzY+rad*0.1,nzZ); }   // 노즐 속 — 켜지면 달아오른다
+    else hot.position.set(x,y,nzZ-rad*0.1);
+    g.add(hot); SHIP.hots.push(hot);
+  };
+  SHIP.hots=[];
   for(const sx of [-1,1]){
-    const jm=new THREE.MeshBasicMaterial({color:0x8fd8ff,transparent:true,opacity:0.0});
-    const j=new THREE.Mesh(new THREE.ConeGeometry(0.85,3.0,10),jm);
-    j.rotation.x=Math.PI; j.position.set(sx*2.0,2.2,4.6); g.add(j);
-    SHIP.jets.push(j);
+    const w=new THREE.Mesh(wg,HULL); w.scale.set(sx,1,1); w.position.set(sx*1.9,Y-0.4,0.4);
+    w.rotation.z=sx*0.08; g.add(w);
+    const stripe=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.06,0.5),ACC);   // 날개 위 주황 띠
+    stripe.position.set(sx*4.0,Y-0.12,0.2); stripe.rotation.y=-sx*0.42; g.add(stripe);
+    addEngine(sx*7.7,Y-0.35,1.4,0.85,4.2,true);                // 날개 끝 엔진 통 — 배의 노즐로 내려 뿜는다
+    const nav=new THREE.Mesh(new THREE.SphereGeometry(0.14,8,6),new THREE.MeshBasicMaterial({color:sx<0?0xff3030:0x30ff60}));
+    nav.position.set(sx*8.55,Y-0.35,3.6); g.add(nav); SHIP.navs.push(nav);
+    // 꼬리 날개 — 바깥으로 기운 두 장
+    const fs=new THREE.Shape(); fs.moveTo(0,0); fs.lineTo(2.4,0); fs.lineTo(1.3,2.6); fs.lineTo(0.5,2.6); fs.lineTo(0,0);
+    const fin=new THREE.Mesh(new THREE.ExtrudeGeometry(fs,{depth:0.18,bevelEnabled:false}),HULL);
+    fin.rotation.y=Math.PI/2; fin.rotation.z=-sx*0.35; fin.position.set(sx*1.2,Y+1.5,5.9); g.add(fin);
+    // 착륙 다리 — 버팀대 · 완충기 · 받침
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.2,Y-1.4,8),DARK);
+    leg.position.set(sx*1.9,(Y-1.4)/2+0.2,2.8); leg.rotation.z=sx*0.18; g.add(leg);
+    const foot=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.65,0.18,12),DARK);
+    foot.position.set(sx*2.2,0.1,2.8); g.add(foot);
   }
-  const li=LIGHT.addPoint(g,{color:0x9fd8ff,intensity:0,dist:40,pos:[0,2.0,4.6]});
+  const nleg=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.17,Y-1.6,8),DARK);
+  nleg.position.set(0,(Y-1.6)/2+0.2,-4.0); g.add(nleg);
+  const nfoot=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.5,0.16,12),DARK);
+  nfoot.position.set(0,0.08,-4.0); g.add(nfoot);
+  addEngine(0,Y+0.2,6.6,1.15,1.6,false);                        // 꼬리 주 엔진(뒤로 뿜는다)
+  // 화물 경사판 · 안테나
+  const ramp=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.14,2.2),PANEL);
+  ramp.position.set(0,Y-1.7,5.6); ramp.rotation.x=0.25; g.add(ramp);
+  const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.05,1.6,5),DARK);
+  ant.position.set(0.6,Y+2.4,-1.5); g.add(ant);
+  // 이륙 먼지 — 엔진이 땅을 때려 일으킨다(연기 셰이더를 크게)
+  const dust=new THREE.Mesh(new THREE.PlaneGeometry(1,1).translate(0,0.5,0),fireMats().smoke);
+  dust.scale.set(22,9,1); dust.position.set(0,-0.3,1.5); dust.frustumCulled=false; dust.visible=false; dust.userData.lightRole='none';
+  g.add(dust); SHIP.dust=dust;
+  const li=LIGHT.addPoint(g,{color:0x9fd8ff,intensity:0,dist:40,pos:[0,1.0,2.0]});
   SHIP.light=li;
   /* 캡슐 옆에 내려앉는다 — 바다 쪽으로 머리를 두게 놓는다 */
   const away=new THREE.Vector3(podPos.x,0,podPos.z).normalize();
@@ -2725,23 +2789,31 @@ function makeShip(){
   scene.add(g); shipMesh=g;
   SHIP.st='wait'; SHIP.t=0;
 }
+/* 엔진 세기 k(0~1) — 불꽃 길이·밝기, 노즐 속 달아오름, 광원을 한꺼번에 맞춘다 */
+function shipPower(k,dust){
+  SHIP.jets.forEach(j=>{ j.userData.pow.value=k; });
+  SHIP.hots.forEach(h=>h.material.color.setRGB(0.16+0.84*k,0.10+0.55*k,0.06+0.5*k));
+  SHIP.light.intensity=k*5.0;
+  if(SHIP.dust){ SHIP.dust.visible=dust>0.01; SHIP.dust.scale.set(22*(0.6+0.4*dust),9*dust+0.01,1); }
+}
 /* 떠나는 동안만 움직인다. 다 가면 장면에서 지운다. */
 function updateShip(dt){
   if(!shipMesh) return;
   SHIP.t+=dt;
+  if(SHIP.navs) SHIP.navs.forEach(n=>n.visible=((SHIP.t*1.2)%1)<0.25);   // 항법등 깜박임
+  if(SHIP.st==='away'&&SHIP.dust) SHIP.dust.visible=false;
   if(SHIP.st==='wait'){
     // 잠시 엔진을 데운다
     const k=clamp(SHIP.t/2.6,0,1);
-    SHIP.jets.forEach(j=>j.material.opacity=k*0.35);
-    SHIP.light.intensity=k*1.1;
+    shipPower(k*0.35,k*0.5);
     shipMesh.position.y=SHIP.from.y+Math.sin(SHIP.t*2.2)*0.04*k;
     if(SHIP.t>=2.6){ SHIP.st='rise'; SHIP.t=0; sfx('ignite'); }
     return;
   }
   if(SHIP.st==='rise'){
     const k=clamp(SHIP.t/3.4,0,1);
-    SHIP.jets.forEach(j=>j.material.opacity=0.35+k*0.5);
-    SHIP.light.intensity=1.1+k*4.0;
+    shipPower(0.35+k*0.65, Math.max(0,1-k*k*1.4));      // 오를수록 먼지는 가라앉는다
+    if(SHIP.dust) SHIP.dust.position.y=-0.3-(shipMesh.position.y-SHIP.from.y);   // 먼지는 땅에 남는다
     shipMesh.position.y=SHIP.from.y+k*k*26;      // 처음엔 더디게, 갈수록 빠르게
     shipMesh.rotation.y+=dt*0.16;
     if(k>=1){ SHIP.st='away'; SHIP.t=0; }
@@ -7159,8 +7231,15 @@ function placeFurnaceAt(px,py,pz){
   // 전면 출탕 아치 — 쇳물과 쇠똥이 흘러나오는 구멍
   const arch=new THREE.Mesh(new THREE.BoxGeometry(0.44,0.40,0.34),dark);
   arch.position.set(0,0.30,0.80); grp.add(arch);
-  const glow=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.24,0.06),ember);
-  glow.position.set(0,0.28,0.94); grp.add(glow);
+  /* 제련이 도는 동안 — 아치 안에 이글거리는 잉걸(속 판) · 아치로 새는 불 · 목에서 솟는 불과 연기.
+     예전엔 주황 판 하나였다. 전부 한 무리(glow)로 켜고 끈다 */
+  const glow=new THREE.Group();
+  const coal=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.24,0.06),ember);
+  coal.position.set(0,0.28,0.98); glow.add(coal);
+  // 아치 상자 앞면(z 0.97)보다 앞에 둬야 보인다 — 안에 두면 상자에 가려진다
+  const archFire=makeFire(0.34,{smoke:false}); archFire.position.set(0,0.12,1.03); glow.add(archFire);
+  const topFire=makeFire(0.85); topFire.position.set(0,1.93,0); glow.add(topFire);   // 목 위로 솟는다
+  grp.add(glow);
   // 아치 위를 받치는 상인방 돌
   const lint=new THREE.Mesh(hearthStone(0.20),stone);
   lint.position.set(0,0.58,0.86); lint.scale.set(1.5,0.6,0.7); grp.add(lint);
@@ -8419,6 +8498,63 @@ void main(){ float r=length(gl_PointCoord-0.5)*2.0; if(r>1.0) discard;
   gl_FragColor=vec4(vec3(1.0,0.62,0.22)*vA*(1.0-r),vA); }`});
   return _fireMats={flame:[flame(0.0),flame(4.7)], glow, smoke, sparks};
 }
+/* 총구 화염 — 화면을 마주 보는 별꼴 불(가지 여러 개가 잡음으로 들쭉날쭉) + 짧은 불꽃 혀.
+   쏠 때마다 씨앗을 바꿔 매번 다른 꼴이다. r 은 예전 원뿔 반지름(총마다 크기). */
+function muzzleFlash(r){
+  const seed={value:0};
+  const m=new THREE.ShaderMaterial({uniforms:{uSeed:seed}, vertexShader:BILL_VS,
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+    fragmentShader:`uniform float uSeed; varying vec2 vUv;
+${FIRE_NOISE}
+void main(){ vec2 q=(vUv-0.5)*2.0; float r=length(q), a=atan(q.y,q.x);
+  float spikes=0.35+0.65*fn(vec2(a*2.6+uSeed, uSeed*0.7));        // 들쭉날쭉한 가지
+  float body=spikes-r;
+  float al=smoothstep(0.0,0.35,body);
+  if(al<=0.003) discard;
+  float t=clamp(body*1.8,0.0,1.0);
+  vec3 col=mix(vec3(1.0,0.45,0.08),vec3(1.0,0.85,0.45),smoothstep(0.1,0.6,t));
+  col=mix(col,vec3(1.0,0.98,0.9),smoothstep(0.6,1.0,t));
+  gl_FragColor=vec4(col*al*1.2,al); }`});
+  const g=new THREE.Group(); g.name='flash';
+  const q=new THREE.Mesh(new THREE.PlaneGeometry(1,1),m); q.scale.set(r*4.2,r*4.2,1); g.add(q);
+  q.frustumCulled=false; g.userData.seed=seed;
+  return g;
+}
+/* 로켓 불꽃 — 노즐에서 뻗는 기둥. 노즐 곁은 푸르스름하게 희고(가장 뜨겁다), 멀수록
+   주황으로 식으며 스러진다. 충격파 마디(다이아몬드)가 줄지어 선다. 판 두 장을 십자로 세운다.
+   uPow 0 → 1 로 켜지고, 길이는 메시 배율로 준다. 원점이 노즐, 불꽃은 −Y 로 뻗는다. */
+function makePlume(len,rad){
+  const pow={value:0};
+  const m=new THREE.ShaderMaterial({uniforms:{uTime:FIRE_U.uTime,uPow:pow},
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide,
+    vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:`uniform float uTime; uniform float uPow; varying vec2 vUv;
+${FIRE_NOISE}
+void main(){
+  float y=1.0-vUv.y;                          // 0 노즐 → 1 끝
+  float x=(vUv.x-0.5)*2.0;
+  float w=mix(0.55,1.0,smoothstep(0.0,0.35,y))*(1.0-y*0.55);      // 노즐 밖에서 부풀었다 가늘어진다
+  float n=fbm(vec2(x*3.0, y*6.0-uTime*9.0));
+  float core=1.0-abs(x)/max(w,0.01);
+  float len=0.35+0.65*uPow;                   // 힘이 셀수록 길다
+  float a=smoothstep(0.0,0.35,core+(n-0.5)*0.5)*smoothstep(len,len*0.55,y)*uPow;
+  if(a<=0.003) discard;
+  float diamond=0.5+0.5*cos(y*38.0)*smoothstep(0.45,0.0,y);          // 충격파 마디
+  vec3 hot=vec3(0.80,0.90,1.0), mid=vec3(1.0,0.75,0.40), cool=vec3(1.0,0.35,0.08);
+  vec3 col=mix(hot,mid,smoothstep(0.08,0.35,y/len));
+  col=mix(col,cool,smoothstep(0.35,0.85,y/len));
+  col*=0.8+0.5*diamond*core;
+  gl_FragColor=vec4(col*a*1.3,a);
+}`});
+  const g=new THREE.Group();
+  const pl=new THREE.PlaneGeometry(1,1); pl.translate(0,-0.5,0);
+  for(let i=0;i<2;i++){
+    const q=new THREE.Mesh(pl,m); q.rotation.y=i*Math.PI/2; q.scale.set(rad*2,len,1);
+    q.frustumCulled=false; q.renderOrder=3; g.add(q);
+  }
+  g.userData.pow=pow; g.userData.lightRole='none';
+  return g;
+}
 /* s — 크기(화덕 1 · 횃불 0.25). smoke/sparks 는 끌 수 있다 */
 function makeFire(s,opt){
   opt=opt||{};
@@ -9589,8 +9725,7 @@ const WEAPON_FX={
     const muzzle=new THREE.Mesh(new THREE.CylinderGeometry(0.024,0.024,0.035,10),dark);
     muzzle.position.y=L-0.015; g.add(muzzle);
     // 총구 화염 — 쏠 때만 보인다
-    const fl=new THREE.Mesh(new THREE.ConeGeometry(0.075,0.26,5),
-      new THREE.MeshBasicMaterial({color:0xffd07a}));
+    const fl=muzzleFlash(0.075);                    // 총구 화염 — 셰이더 불(makeFire 와 같은 색)
     fl.position.y=L+0.11; fl.visible=false; fl.name='flash'; g.add(fl);
     return {mesh:g, grip:0.36, muzzle:L+0.02};
   },
@@ -9616,8 +9751,7 @@ const WEAPON_FX={
     guard.rotation.y=Math.PI/2; guard.position.set(0,0.33,-0.014); g.add(guard);
     const bead=new THREE.Mesh(new THREE.SphereGeometry(0.011,6,5),WMAT(0xd8c07a));
     bead.position.y=L-0.02; g.add(bead);     // 가늠쇠는 구슬 하나뿐이다
-    const fl=new THREE.Mesh(new THREE.ConeGeometry(0.115,0.24,6),
-      new THREE.MeshBasicMaterial({color:0xffc060}));
+    const fl=muzzleFlash(0.115);                    // 총구 화염 — 셰이더 불(makeFire 와 같은 색)
     fl.position.y=L+0.10; fl.visible=false; fl.name='flash'; g.add(fl);
     return {mesh:g, grip:0.34, muzzle:L+0.02};
   },
@@ -9646,8 +9780,7 @@ const WEAPON_FX={
     sight.position.y=L-0.05; g.add(sight);
     const rear=new THREE.Mesh(new THREE.TorusGeometry(0.016,0.005,5,10),dark);
     rear.position.set(0,0.62,0.005); g.add(rear);               // 가늠자 고리
-    const fl=new THREE.Mesh(new THREE.ConeGeometry(0.072,0.26,5),
-      new THREE.MeshBasicMaterial({color:0xffe0a0}));
+    const fl=muzzleFlash(0.072);                    // 총구 화염 — 셰이더 불(makeFire 와 같은 색)
     fl.position.y=L+0.11; fl.visible=false; fl.name='flash'; g.add(fl);
     return {mesh:g, grip:0.36, muzzle:L+0.02};
   },
@@ -9671,8 +9804,7 @@ const WEAPON_FX={
     guard.rotation.y=Math.PI/2; guard.position.set(0,0.21,-0.030); g.add(guard);
     const sight=new THREE.Mesh(new THREE.BoxGeometry(0.008,0.026,0.008),dark);
     sight.position.y=0.93; g.add(sight);
-    const fl=new THREE.Mesh(new THREE.ConeGeometry(0.060,0.20,5),
-      new THREE.MeshBasicMaterial({color:0xffd28a}));
+    const fl=muzzleFlash(0.060);                    // 총구 화염 — 셰이더 불(makeFire 와 같은 색)
     fl.position.y=L+0.24; fl.visible=false; fl.name='flash'; g.add(fl);
     return {mesh:g, grip:0.22, muzzle:L+0.26};
   },
@@ -9933,7 +10065,8 @@ function shoot(w,W){
   camera.getWorldPosition(o); camera.getWorldDirection(d);
   const dmg=W.dmg*ammoMul(w);            // 황동 탄피는 더 센 장약을 견딘다
   if(weaponFx&&weaponFx.userData.flash){
-    weaponFx.userData.flash.visible=true; ATK.flash=0.05;
+    const fl=weaponFx.userData.flash; fl.visible=true; ATK.flash=0.05;
+    if(fl.userData.seed) fl.userData.seed.value=Math.random()*50;   // 쏠 때마다 다른 꼴
   }
   sfx('thrust');
   /* 산탄은 한 방에 여러 알이 나간다. 알마다 따로 선을 쏘고 각자 피해를 준다 —
