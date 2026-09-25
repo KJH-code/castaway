@@ -1718,8 +1718,11 @@ const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
    3천 배다. 보이는 나무의 87% 가 이 띠에 든다(넓이로 (150²-55²)/150²).
    칸을 128 → 64 m 로 줄였다 — 칸이 크면 55 m 경계가 뭉툭해져 가까운 칸
    안의 먼 나무까지 통째로 자세히 그리게 된다. */
+const ROCK_TILE=64, ROCK_DIST=200, ROCK_TILES=[], ROCK_MAT={};
 function updateTileVis(){
   const px=PL.pos.x, pz=PL.pos.z;
+  // 바위 — 칸 가장자리가 200 m 밖이면 통째로 안 그린다
+  for(const t of ROCK_TILES) t.m.visible=Math.hypot(t.cx-px,t.cz-pz)-t.r<=ROCK_DIST;
   for(const t of TREE_TILES){
     const d=Math.hypot(t.cx-px,t.cz-pz)-t.r;
     const near=d<=NEAR_DIST, mid=!near && d<=VIEW_DIST;
@@ -1801,7 +1804,8 @@ function bakeTreeImpostor(list,kind){
   return {tex:rt.texture, rt, can:{y0:y0/s, y1:y1/s, w:2*hw/s}};
 }
 function buildProps(){
-  TREE_TILES.length=0;
+  TREE_TILES.length=0; ROCK_TILES.length=0;
+  for(const k in ROCK_MAT) delete ROCK_MAT[k];
   if(propGroup){
     scene.remove(propGroup);
     propGroup.children.forEach(m=>{ m.geometry.dispose(); m.material.dispose(); });
@@ -2205,7 +2209,8 @@ function buildProps(){
     g.setAttribute('position',new THREE.BufferAttribute(pos,3));
     g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
     g.computeBoundingSphere();
-    return new THREE.Mesh(g,rockMat(R.k,R.c));
+    if(!ROCK_MAT[R.k]) ROCK_MAT[R.k]=rockMat(R.k,R.c);   // 칸마다 나눠도 재질은 종류당 하나
+    return new THREE.Mesh(g,ROCK_MAT[R.k]);
   }
 
   /* 몸이 막히는 반지름(×크기). **암석은 전부 막는다** — 예전 표에 화강암·구리·철·석탄만
@@ -2437,10 +2442,21 @@ function buildProps(){
       m.material.userData.wind=R.k; });         // 바람에 잎날 끝이 휜다(envPatch)
     if(ROCK_R[R.k]){
       ms.forEach(m=>{ m.geometry.dispose(); m.material.dispose(); });
-      const batch=buildRockBatch(list,R);
-      batch.frustumCulled=false;
-      list.forEach(p=>{ p._batch=batch; p._fm=null; });
-      propGroup.add(batch);
+      /* 바위를 ROCK_TILE 칸마다 따로 담는다 — 한 덩어리였을 땐 섬 전체 53만 삼각형을 늘 그렸다.
+         칸마다 따로 있어야 멀리 있는 칸을 통째로 끌 수 있다(updateTileVis · ROCK_DIST).
+         정점 구간(_vs)은 칸 묶음 안에서 센다 — 캐기가 제 묶음만 고친다. */
+      const bins=new Map();
+      for(const p of list){
+        const gx=Math.floor(p.x/ROCK_TILE), gz=Math.floor(p.z/ROCK_TILE), key=gx+','+gz;
+        let b=bins.get(key); if(!b){ b={gx,gz,ps:[]}; bins.set(key,b); } b.ps.push(p);
+      }
+      for(const b of bins.values()){
+        const batch=buildRockBatch(b.ps,R);
+        batch.frustumCulled=true;            // 경계구로 화면 밖 칸도 거른다(캐면 안쪽으로만 오므라든다)
+        b.ps.forEach(p=>{ p._batch=batch; p._fm=null; });
+        propGroup.add(batch);
+        ROCK_TILES.push({m:batch, cx:(b.gx+0.5)*ROCK_TILE, cz:(b.gz+0.5)*ROCK_TILE, r:ROCK_TILE*0.71+4});
+      }
     }else{
       ms.forEach(m=>{ m.instanceMatrix.needsUpdate=true; m.frustumCulled=false; propGroup.add(m); });
     }
