@@ -27,7 +27,7 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` | 메인 게임. 아이템 136종 · 레시피 129개 · 제련 10종 |
+| `island_world.html` | 메인 게임. 아이템 155종 · 레시피 148개 · 제련 10종 |
 | `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `wyvern_arena.html` | **잿불 와이번 시험장**(4.1MB). 상공 20 m 선회 → 5초 노려봄 →
@@ -162,7 +162,7 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
 
 1. **무기는 `WEAPON_FX`(4945)에 생김새 함수를 따로 써야 한다.** 성능은 데이터인데
    모양은 아니다. 안 쓰면 5117에서 조용히 `return` 하고 손에 아무것도 안 잡힌다.
-   `tool.weapon` 을 단 아이템은 17개인데 `WEAPON_FX` 항목도 17개다 — 하나라도
+   `tool.weapon` 을 단 아이템은 19개인데 `WEAPON_FX` 항목도 19개다 — 하나라도
    어긋나면 그 무기는 손에 안 잡힌다. 무기를 더하면 이 짝부터 맞춰 볼 것:
    `node tools/probe.mjs island_world.html "Object.entries(ITEMS).filter(([k,v])=>v.tool&&v.tool.weapon).length" "Object.keys(WEAPON_FX).length"`
 2. **id가 직접 박힌 자리가 여남은 곳 있다** — `tinder`(발화) · `codex` ·
@@ -681,6 +681,12 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   지도는 x→오른쪽·z→아래). 예전 시야 부채꼴은 꼭짓점이 뒤를 가리키는 삼각형으로 읽혀 '방향이 반대'로 보였다.
   **M** 은 미니맵 **창 크기**를 4배로(`#map.big` — 172 → 688 px, 화면 높이 82% 에서 멈춤). 지도 배율이 아니다 —
   사용자가 원한 것은 섬 전체를 크게 보는 것이었다(처음에 사람 둘레 확대로 만들었다가 되돌렸다).
+- **활은 총과 같은 틀이다**(`tool.gun` · `bore:'arrow'` · `mag:1` — 시위에 메기는 것이 재장전, 화살이 탄).
+  화살 셋(부싯돌 ×1.0 · 뼈 ×1.15 · 쇠 ×1.35)은 `ammo` 한 줄씩. 무기 설명의 '쓰는 탄'은 **구경이 맞는
+  것만** 보인다(예전엔 모든 탄을 늘어놓아 총에 화살이 적힐 뻔했다). 모양은 `bowMesh`.
+- **먹는 것(`food`)·감는 것(`heal`)도 `water`·`empty` 를 받는다** — 국·달인 물은 목을 축이고 토기를 돌려준다.
+- **가죽은 귀하다 — 북극곰 한 마리에 세 장**(`MOBS.bear.drop`). 키틴·뼈처럼 다룰 것: 새 물건 하나에
+  한두 장만 쓴다(가죽 모자·물주머니·뼈 투구·뼈 덧댄 활 1 · 가죽 배낭 2 · 가죽 속옷 3).
 - **칸마다 상태가 다른 것은 `indiv(T)` 가 가른다** — `T.tool||T.sips||T.durMax`.
   내구(`durMax`)를 단 물건은 도구가 아니어도 따로 선다. 안 그러면 겹쳐 쌓이면서
   남은 양이 사라진다(축전지가 그랬다).

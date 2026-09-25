@@ -5309,6 +5309,69 @@ const ITEMS={
                durMax:420},
   torch:      {n:'횃불',       kg:0.8,  c:0xc07a30, use:'휴대 조명 · 화덕 점화 · 약한 화입',
                tool:{torch:1}, burn:3.0},   // burn = 게임시간(h)
+  /* 기름 등잔 — 횃불과 같은 불(tool.torch)이되 곰 기름을 먹여 네 배 오래 탄다.
+     토기에 기름을 붓고 섬유 심지를 세웠다. 불을 옮겨 붙이는 것도 횃불과 같다. */
+  lamp_oil:   {n:'기름 등잔',   kg:1.6,  c:0xb08a4a, use:'휴대 조명 — 곰 기름을 태워 횃불보다 네 배 오래 간다',
+               tool:{torch:1}, burn:12.0},
+
+  /* ── 활과 화살 ──────────────────────────────────────────────────────────
+     돌창 다음 · 총 이전의 원거리 무기. 총과 같은 틀(tool.gun)을 쓴다 — 시위에 한 대를
+     메기는 것이 '재장전'이고(mag 1), 화살이 탄이다(ammo.bore 'arrow'). 쏜 화살은 돌아오지 않는다. */
+  bow_wood:   {n:'나무 활',    kg:0.9,  c:0x7a5a36,
+               use:'통나무를 깎아 휜 외목 활 — 사거리 30 m · 한 대씩 메긴다',
+               tool:{weapon:1, gun:1, bore:'arrow', dmg:34, reach:30, rate:1.10,
+                     stam:6, swing:'shot', mag:1, reload:1.1},
+               durMax:180},
+  /* 뼈를 덧댄 활 — 배에 뼈판을 대고 등에 가죽을 붙여 되튕기는 힘을 키웠다.
+     가죽이 귀하므로 한 장만 쓰고, 그 값을 사거리·피해로 돌려받는다. */
+  bow_bone:   {n:'뼈 덧댄 활', kg:1.1,  c:0xb4a684,
+               use:'뼈판과 가죽을 겹댄 합성 활 — 사거리 45 m · 나무 활의 1.6배 피해',
+               tool:{weapon:1, gun:1, bore:'arrow', dmg:55, reach:45, rate:1.05,
+                     stam:7, swing:'shot', mag:1, reload:1.2},
+               durMax:320},
+  arrow_flint:{n:'부싯돌 화살', kg:0.06, c:0x7c7466, tags:['ammo'],
+               use:'부싯돌 격지를 촉으로 끼운 화살', ammo:{dmg:1.0, bore:'arrow'}},
+  arrow_bone: {n:'뼈 화살',    kg:0.06, c:0xcfc6a8, tags:['ammo'],
+               use:'뼈를 갈아 세운 촉 — 부싯돌보다 덜 부러지고 깊이 박힌다',
+               ammo:{dmg:1.15, bore:'arrow'}},
+  arrow_iron: {n:'쇠 화살',    kg:0.07, c:0x8f959b, tags:['ammo'],
+               use:'연철을 두드려 뽑은 촉 — 가죽도 뚫는다', ammo:{dmg:1.35, bore:'arrow'}},
+
+  /* ── 먹을 것 ───────────────────────────────────────────────────────────
+     국은 배와 목을 함께 채우고 토기를 돌려준다(water · empty). 말린 것은 가볍고 날것이 아니다. */
+  stew_meat:  {n:'고깃국',     kg:3.9,  c:0x8a5a3a, use:'곰 고기를 토기에 넣고 끓였다 — 배와 목을 함께 채운다',
+               food:50, water:30, empty:'pot'},
+  stew_fish:  {n:'생선국',     kg:3.6,  c:0xb09a78, use:'물고기 두 마리를 끓였다 — 배와 목을 함께 채운다',
+               food:36, water:30, empty:'pot'},
+  jerky:      {n:'육포',       kg:0.4,  c:0x6a3a28, use:'불가에 오래 말린 곰 고기 — 가볍고 날것이 아니다',
+               food:20},
+  fish_dried: {n:'말린 생선',  kg:0.25, c:0x9a8060, use:'배를 갈라 불가에 말렸다 — 가볍게 들고 다닌다',
+               food:12},
+  fat:        {n:'곰 기름',    kg:0.5,  c:0xe0d4a8, use:'곰 고기를 토기에 졸여 받은 기름 — 등잔을 밝힌다'},
+
+  /* ── 감는 것 · 달인 것 ─────────────────────────────────────────────────── */
+  bandage_fiber:{n:'섬유 붕대', kg:0.15, c:0xc8c0a0, use:'섬유를 촘촘히 떠 감는 띠 — 조금 아문다',
+               heal:{hp:12, stam:10}},
+  bandage_clean:{n:'소독 붕대', kg:0.18, c:0xe4e0d4, use:'알코올에 적셔 말린 섬유 붕대 — 상처가 덧나지 않는다',
+               heal:{hp:30, ill:1, stam:20}},
+  herb_tea:   {n:'약초 달인 물', kg:3.5, c:0x7a8a4a, use:'풀과 베리를 토기에 달였다 — 탈 난 속을 가라앉힌다',
+               heal:{ill:1, stam:15, water:25, empty:'pot'}},
+
+  /* ── 가죽 — 북극곰 한 마리에 세 장뿐이다. 그래서 한 가지에 한두 장만 쓴다 ── */
+  pack_hide:  {n:'가죽 배낭',  kg:1.6,  c:0x7a5a3c,
+               use:'가죽 두 장을 뼈 틀에 씌워 지은 배낭 — 엮은 등짐의 두 배를 진다',
+               wear:{slot:'back', carry:30}},
+  waterskin:  {n:'빈 가죽 물주머니', kg:0.35, c:0x7a5a3c,
+               use:'가죽 한 장을 겹쳐 꿰맨 주머니 — 깨지지 않는다. 하천·온천에서 채운다'},
+  waterskin_water:{n:'가죽 물주머니', kg:1.35, c:0x5f6f7a,
+               use:'세 모금 든 물주머니 — 다 마시면 빈 주머니가 남는다',
+               sips:3, drink:{n:45, empty:'waterskin'}},
+  helm_hide:  {n:'가죽 모자',  kg:0.5,  c:0x8a6a4a,
+               use:'가죽 한 장으로 지은 모자 — 막는 힘은 작아도 따뜻하다',
+               wear:{slot:'head', armor:1, warm:3}},
+  helm_bone:  {n:'뼈 투구',    kg:2.0,  c:0xcfc6a8,
+               use:'두개골 뼈판을 가죽 안감에 꿰었다 — 키틴 투구보다 한 칸 약하고 무겁다',
+               wear:{slot:'head', armor:2, warm:1}},
 
   // 곡괭이 — 석기로 감당되는 건 무른 광물까지다
   pick_crude: {n:'간이 곡괭이',     kg:1.6,  c:0x8a7a52, use:'무른 광물 채굴 (점토 · 늪철광 · 석석)',
@@ -5587,16 +5650,20 @@ function eatSlot(sl){
     if(H.hp) PL.hp=Math.min(HPMAX,PL.hp+H.hp);
     if(H.ill) PL.ill=0;
     if(H.stam) PL.stam=clamp(PL.stam+H.stam,0,100);
+    if(H.water) PL.water=clamp(PL.water+H.water,0,100);   // 달인 물은 목도 축인다
     const j=INV.slots.indexOf(sl);
     if(j>=0) invRemove(j,1);
+    if(H.empty && !invAdd(H.empty,1)) toast('빈 '+ITEMS[H.empty].n+'을 들 자리가 없어 버렸다');
     toast(T.n+' — 속이 가라앉는다');
     sfx('bind'); invDirty=true; return true;
   }
   if(!T||!T.food) return drinkSource();
   if(PL.food>=99.5){ toast('더는 들어가지 않는다'); return false; }
   PL.food=clamp(PL.food+T.food,0,100);
+  if(T.water) PL.water=clamp(PL.water+T.water,0,100);     // 국은 목도 축인다
   const i=INV.slots.indexOf(sl);
   if(i>=0) invRemove(i,1);
+  if(T.empty && !invAdd(T.empty,1)) toast('빈 '+ITEMS[T.empty].n+'을 들 자리가 없어 버렸다');
   if(T.raw){ PL.ill=Math.max(PL.ill,45); toast(T.n+' — 날로 먹어 속이 뒤집힌다'); }
   else toast(T.n+' 먹었다');
   sfx('bind'); invDirty=true; return true;
@@ -6037,6 +6104,26 @@ const RECIPES=[
    note:'나뭇가지 끝에 섬유를 두툼히 감는다. 불붙은 화덕에 대면 옮겨 붙는다.',
    in:[{id:'branch',n:1},{id:'fiber',n:2}]},
 
+  {id:'bow_wood', tier:'불', n:'나무 활', out:{id:'bow_wood',n:1}, time:16, stam:14,
+   note:'곧은 통나무를 쪼개 한쪽이 휘도록 깎고 노끈 시위를 건다. 돌창보다 멀리 닿는다.',
+   in:[{id:'log',n:1},{id:'cord',n:3}], need:[{tag:'sharp',n:1}]},
+  {id:'arrow_flint', tier:'불', n:'부싯돌 화살', out:{id:'arrow_flint',n:3}, time:9, stam:8,
+   note:'부싯돌에서 격지 셋을 떼어 가지 끝에 끼우고 섬유로 감는다. 깃은 풀잎이다.',
+   in:[{id:'flint',n:1},{id:'branch',n:2},{id:'fiber',n:2},{id:'grass_blade',n:3}],
+   need:[{tag:'hammer',n:1}]},
+  {id:'bandage_fiber', tier:'불', n:'섬유 붕대', out:{id:'bandage_fiber',n:2}, time:6, stam:4,
+   note:'섬유를 촘촘히 떠서 띠를 만든다. 큰 상처는 못 막아도 피는 멎는다.',
+   in:[{id:'fiber',n:3},{id:'cord',n:1}]},
+  {id:'stew_fish', tier:'불', n:'생선국', out:{id:'stew_fish',n:1}, time:14, stam:4, station:'fire',
+   note:'물 담은 토기에 물고기 두 마리를 넣고 끓인다.',
+   in:[{id:'fish',n:2},{id:'pot_water',n:1}]},
+  {id:'fish_dried', tier:'불', n:'말린 생선', out:{id:'fish_dried',n:2}, time:24, stam:4, station:'fire',
+   note:'물고기 배를 갈라 펴서 불가에 말린다.',
+   in:[{id:'fish',n:2}], need:[{tag:'sharp',n:1}]},
+  {id:'herb_tea', tier:'불', n:'약초 달이기', out:{id:'herb_tea',n:1}, time:12, stam:3, station:'fire',
+   note:'물 담은 토기에 쓴 풀과 베리를 넣고 달인다. 날것을 먹고 탈 난 속을 가라앉힌다.',
+   in:[{id:'pot_water',n:1},{id:'grass_blade',n:6},{id:'berry',n:2}]},
+
   {id:'spear', tier:'불', n:'돌창', out:{id:'spear',n:1}, time:9, stam:12,
    note:'자루 끝을 쪼개 슴베를 끼우고 노끈으로 감아 조인다. 송진이 있으면 더 단단해진다.',
    in:[{id:'point',n:1},{id:'branch',n:1},{id:'cord',n:1}]},
@@ -6332,6 +6419,58 @@ const RECIPES=[
    in:[{id:'hide',n:3},{id:'bone',n:1},{id:'cord',n:3}],
    need:[{tag:'sharp',n:1}]},
 
+  /* 가죽 — 곰 한 마리에 세 장. 한 가지에 한두 장만 들도록 짰다 */
+  {id:'bow_bone', tier:'뼈와 키틴', n:'뼈 덧댄 활', out:{id:'bow_bone',n:1},
+   time:34, stam:26,
+   note:'활 배에 뼈판을 갈아 붙이고 등에 가죽을 덧대 되튕기는 힘을 모은다. 시위는 거미 실이다.',
+   in:[{id:'log',n:1},{id:'bone',n:2},{id:'hide',n:1},{id:'spider_silk',n:3}],
+   need:[{tag:'sharp',n:1}]},
+  {id:'arrow_bone', tier:'뼈와 키틴', n:'뼈 화살', out:{id:'arrow_bone',n:4},
+   time:10, stam:8,
+   note:'뼈를 쪼개 촉 넷을 갈아 내고 곧은 가지에 끼운다.',
+   in:[{id:'bone',n:1},{id:'branch',n:2},{id:'fiber',n:2}],
+   need:[{tag:'sharp',n:1}]},
+  {id:'pack_hide', tier:'뼈와 키틴', n:'가죽 배낭', out:{id:'pack_hide',n:1},
+   time:28, stam:20,
+   note:'뼈로 틀을 짜고 가죽 두 장을 씌워 꿰맨다. 엮은 등짐의 두 배를 진다.',
+   in:[{id:'hide',n:2},{id:'bone',n:2},{id:'cord',n:4}],
+   need:[{tag:'sharp',n:1}]},
+  {id:'waterskin', tier:'뼈와 키틴', n:'가죽 물주머니', out:{id:'waterskin',n:1},
+   time:16, stam:10,
+   note:'가죽 한 장을 겹쳐 가장자리를 촘촘히 꿰매고 목을 노끈으로 조인다.',
+   in:[{id:'hide',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+  {id:'helm_hide', tier:'뼈와 키틴', n:'가죽 모자', out:{id:'helm_hide',n:1},
+   time:14, stam:10,
+   note:'가죽 한 장을 머리에 맞게 재단해 꿰맨다.',
+   in:[{id:'hide',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+  {id:'helm_bone', tier:'뼈와 키틴', n:'뼈 투구', out:{id:'helm_bone',n:1},
+   time:26, stam:22,
+   note:'넓은 뼈판 넷을 갈아 맞추고 가죽 안감에 꿴다.',
+   in:[{id:'bone',n:4},{id:'hide',n:1},{id:'cord',n:2}],
+   need:[{tag:'sharp',n:1}]},
+  {id:'waterskin_water', tier:'뼈와 키틴', n:'물주머니 채우기', out:{id:'waterskin_water',n:1},
+   time:4, stam:2, station:'water',
+   note:'하천이나 분기공 온천에서 채운다. 바닷물은 쓸 수 없다.',
+   in:[{id:'waterskin',n:1}]},
+  {id:'stew_meat', tier:'뼈와 키틴', n:'고깃국', out:{id:'stew_meat',n:1},
+   time:20, stam:4, station:'fire',
+   note:'물 담은 토기에 곰 고기를 썰어 넣고 불에 올려 푹 끓인다.',
+   in:[{id:'meat_bear',n:1},{id:'pot_water',n:1}]},
+  {id:'jerky', tier:'뼈와 키틴', n:'육포', out:{id:'jerky',n:2},
+   time:40, stam:6, station:'fire',
+   note:'곰 고기를 얇게 저며 불가에 오래 말린다. 구운 것만큼 채우면서 무게는 절반이다.',
+   in:[{id:'meat_bear',n:1}], need:[{tag:'sharp',n:1}]},
+  {id:'fat', tier:'뼈와 키틴', n:'곰 기름 졸이기', out:{id:'fat',n:1},
+   time:30, stam:4, station:'fire',
+   note:'기름진 곰 고기를 토기에 졸이면 기름이 뜬다. 토기는 그대로 남는다.',
+   in:[{id:'meat_bear',n:2}], need:[{id:'pot',n:1}]},
+  {id:'lamp_oil', tier:'뼈와 키틴', n:'기름 등잔', out:{id:'lamp_oil',n:1},
+   time:10, stam:4,
+   note:'토기에 곰 기름을 붓고 섬유를 꼬아 심지를 세운다. 횃불보다 네 배 오래 탄다.',
+   in:[{id:'pot',n:1},{id:'fat',n:2},{id:'fiber',n:1}]},
+
   {id:'scale_chitin', tier:'뼈와 키틴', n:'키틴 갑옷', out:{id:'scale_chitin',n:1},
    time:48, stam:38,
    note:'키틴 판을 비늘처럼 겹쳐 가죽 바탕에 꿴다. 청동 비늘보다 단단한데 '
@@ -6515,6 +6654,16 @@ const RECIPES=[
        +'끓인 김이 이 안을 돌며 식는다.',
    in:[{id:'ingot_copper',n:2},{id:'charcoal',n:1}],
    need:[{id:'drawplate',n:1},{id:'hammer_stone',n:1}]},
+
+  {id:'bandage_clean', tier:'화학', n:'소독 붕대', out:{id:'bandage_clean',n:2},
+   time:8, stam:3,
+   note:'섬유 붕대를 알코올에 적셔 말린다. 상처가 덧나지 않고 속병도 가라앉는다.',
+   in:[{id:'bandage_fiber',n:2},{id:'alcohol',n:1}]},
+  {id:'arrow_iron', tier:'철기', n:'쇠 화살', out:{id:'arrow_iron',n:6},
+   time:18, stam:16, station:'anvil',
+   note:'연철을 두드려 촉 여섯을 뽑고 가지에 박는다.',
+   in:[{id:'iron_wrought',n:1},{id:'branch',n:3},{id:'fiber',n:3}],
+   need:[{tag:'hammer',n:1}]},
 
   {id:'alcohol', tier:'화학', n:'술 내리기', out:{id:'alcohol',n:2},
    time:60, stam:24, station:'fire',
@@ -8718,8 +8867,9 @@ function toolSpec(t,it){
     p.push('피해 '+t.dmg+' · 사거리 '+t.reach+' m · '+(1/t.rate).toFixed(2)+'회/초');
     p.push('초당 피해 '+Math.round(t.dmg/t.rate));
     if(t.stun) p.push('기절 '+t.stun+'초');
-    if(t.gun) p.push('탄창 '+t.mag+'발 · 재장전 '+t.reload+'초 · 쓰는 탄 '
-      +Object.keys(ITEMS).filter(isAmmo)
+    if(t.gun) p.push((t.bore==='arrow'?'한 대씩 메김 · 메기는 데 '+t.reload+'초 · 쓰는 화살 '
+                                      :'탄창 '+t.mag+'발 · 재장전 '+t.reload+'초 · 쓰는 탄 ')
+      +Object.keys(ITEMS).filter(k=>isAmmo(k)&&boreOf(k)===(t.bore||'rifle'))   // 구경이 맞는 것만
         .map(k=>ITEMS[k].n+(ITEMS[k].ammo.dmg!==1?'(×'+ITEMS[k].ammo.dmg+')':''))
         .join(' · '));
   }
@@ -9011,8 +9161,31 @@ function wbind(y,r){                         // 날을 묶은 노끈
   const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.09,6),WMAT(W_CORD));
   m.position.y=y; return m;
 }
+/* 활 — 가로로 휜 활대(원호) · 시위 · 메긴 화살. 덧댄 활은 활대 배에 뼈판을 붙인다 */
+function bowMesh(col,plate){
+  /* 활대 — 반지름 R 원의 A 라디안 원호. 가운데(손잡이)가 앞(+Y)으로 불룩하고 두 끝은 뒤로 온다 */
+  const g=new THREE.Group(), R=0.62, A=1.9, top=0.30, c=top-R;
+  const ye=c+R*Math.cos(A/2), xe=R*Math.sin(A/2);      // 활대 두 끝의 자리
+  const limb=new THREE.Mesh(new THREE.TorusGeometry(R,0.018,6,20,A),WMAT(col));
+  limb.rotation.z=Math.PI/2-A/2; limb.position.y=c; g.add(limb);
+  if(plate){                                            // 배에 댄 뼈판 — 손잡이 둘레
+    const B=A*0.6;
+    const pl=new THREE.Mesh(new THREE.TorusGeometry(R-0.018,0.013,5,14,B),WMAT(plate));
+    pl.rotation.z=Math.PI/2-B/2; pl.position.y=c; g.add(pl);
+  }
+  const str=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.004,xe*2,4),WMAT(0xd8d0b8));
+  str.rotation.z=Math.PI/2; str.position.y=ye; g.add(str);   // 시위
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.007,0.78,5),WMAT(W_WOOD));
+  shaft.position.y=ye+0.39; g.add(shaft);                     // 메긴 화살
+  const head=new THREE.Mesh(new THREE.ConeGeometry(0.018,0.06,4),WMAT(0x7c7466));
+  head.position.y=ye+0.81; g.add(head);
+  return {mesh:g, grip:top};
+}
 /* 무기 하나를 만든다. grip 은 자루의 어디를 쥐는가(국소 y). */
 const WEAPON_FX={
+  /* 활 — 몸체는 +Y(쏘는 쪽)에 화살, 활대는 그에 가로로 휜다. 총처럼 앞으로 겨눈다 */
+  bow_wood(){ return bowMesh(0x7a5a36, null); },
+  bow_bone(){ return bowMesh(0x6b5442, 0xd8d0b4); },
   spear(){                                   // 돌창 — 짧은 뗀석기 날
     const g=new THREE.Group(), L=1.55;
     g.add(haft(L,0.021,0.027));
