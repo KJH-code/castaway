@@ -1352,8 +1352,12 @@ varying vec3 vTW;
 varying vec3 vTN;
 varying float vTD;
 float th(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
-float vn(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
+/* 값잡음은 격자 칸 모서리에 값을 두고 섞으므로 x·z 축을 따라 네모진 결이 남는다 — 땅이 바둑판처럼
+   보였다. 두 겹을 서로 다르게 돌린 좌표에서 뽑아 평균하면 축이 어긋나 네모가 사라진다.
+   섞는 곡선도 5차(기울기까지 매끄럽다)로 — 3차는 칸 경계에서 기울기가 꺾여 요철 명암에 금이 갔다. */
+float vn1(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*f*(f*(f*6.0-15.0)+10.0);
   return mix(mix(th(i),th(i+vec2(1,0)),u.x),mix(th(i+vec2(0,1)),th(i+vec2(1,1)),u.x),u.y); }
+float vn(vec2 p){ return 0.5*vn1(mat2(0.80,-0.60,0.60,0.80)*p)+0.5*vn1(mat2(0.34,0.94,-0.94,0.34)*p+17.1); }
 `+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       {
         float nearK=clamp(1.0-vTD/120.0,0.0,1.0);
@@ -1361,10 +1365,11 @@ float vn(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
         float big=vn(p/40.0), mid=vn(p/6.0+7.3), fine=vn(p/0.8+3.1)*0.6+vn(p/0.3+9.7)*0.4;
         vec3 c=diffuseColor.rgb;
         // 큰 얼룩은 밝기와 색조를 함께 흔든다(마른 데는 누렇게, 젖은 데는 푸르게)
-        c*=0.78+0.44*big;
-        c*=mix(vec3(0.92,0.98,1.08),vec3(1.10,1.03,0.86),vn(p/70.0+2.0));
-        c*=0.78+0.44*mid;
-        c*=mix(1.0,0.72+0.56*fine,nearK);
+        // 대비는 옅게 — 두 겹 평균이라 값이 가운데로 몰리므로 (v−0.5) 로 흔든다
+        c*=1.0+0.26*(big-0.5);
+        c*=mix(vec3(0.96,0.99,1.04),vec3(1.05,1.01,0.93),vn(p/70.0+2.0));
+        c*=1.0+0.14*(mid-0.5);
+        c*=mix(1.0,1.0+0.18*(fine-0.5),nearK);
         // 바위 — 가파를수록 드러난다. 높이를 따라 층리
         float steep=1.0-smoothstep(0.62,0.82,normalize(vTN).y);
         float strata=0.5+0.5*sin(vTW.y*2.3+vn(p/9.0)*5.0)*0.6+vn(vec2(vTW.y*1.7,p.x/12.0))*0.4;
@@ -1374,7 +1379,7 @@ float vn(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
         vec2 e=vec2(0.25,0.0);
         vec2 gr=vec2(vn((p+e.xy)/0.8+3.1)-vn((p-e.xy)/0.8+3.1), vn((p+e.yx)/0.8+3.1)-vn((p-e.yx)/0.8+3.1));
         float lowSun=1.0-clamp(uSunDir.y,0.0,1.0);
-        c*=1.0-dot(gr,normalize(uSunDir.xz+1e-4))*(0.9+1.6*lowSun)*nearK*(0.5+steep);
+        c*=1.0-dot(gr,normalize(uSunDir.xz+1e-4))*(0.35+0.6*lowSun)*nearK*(0.5+steep);
         diffuseColor.rgb=c;
       }`);
   };
@@ -1579,11 +1584,21 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       // 법선 — 여덟 겹 파도의 기울기를 더한다(잔 파도는 멀수록 흐리게)
       vec2 grad=vec2(0.0);
       float ampK=uRiver>0.5?0.25:1.0;
-      for(int i=0;i<8;i++){ vec3 w=wv(i); vec2 d=vec2(cos(w.x),sin(w.x)); float k=6.2832/w.y;
-        float fade=i<3?1.0:clamp(1.0-dist/(w.y*60.0),0.0,1.0);
-        grad+=d*(w.z*k*cos(k*dot(d,vWW.xz)-sqrt(G*k)*uWT))*fade*ampK; }
-      vec3 Nw=normalize(vec3(-grad.x,1.0,-grad.y));
+      /* 화소 하나가 덮는 수면 길이(발자국) — 멀수록, 스치듯 볼수록(1/sinθ) 길어진다.
+         물결 한 파장이 화소 몇 개보다 작아지면 눈은 그 물결을 **따로 보지 못하고 평균**만 본다.
+         그런데 법선을 그 자리 한 점에서만 뽑으면 화소마다 제멋대로 튀어(에일리어싱) 수평선에
+         자글자글한 무늬가 섰다. 그래서 파장이 발자국의 4배보다 짧은 물결은 법선에서 걷어 내고,
+         걷어 낸 기울기의 분산(σ²)은 **거칠기**로 돌린다 — 반사가 뭉개지고 반짝임이 넓게 번진다
+         (실제 먼 바다가 매끈한 광택 띠로 보이는 까닭). */
       vec3 V=-normalize(vVD);
+      float foot=dist*0.0016/max(abs(V.y),0.04);
+      float lost=0.0;
+      for(int i=0;i<8;i++){ vec3 w=wv(i); vec2 d=vec2(cos(w.x),sin(w.x)); float k=6.2832/w.y;
+        float fade=clamp(w.y/(foot*4.0)-1.0,0.0,1.0);
+        float sl=w.z*k*ampK;                                   // 이 물결의 기울기 진폭
+        grad+=d*(sl*cos(k*dot(d,vWW.xz)-sqrt(G*k)*uWT))*fade;
+        lost+=0.5*sl*sl*(1.0-fade*fade); }
+      vec3 Nw=normalize(vec3(-grad.x,1.0,-grad.y));
       if(V.y<0.0){ Nw=vec3(0.0,1.0,0.0); }
       vec3 Rr=reflect(-V,Nw); Rr.y=abs(Rr.y);
       /* ① 프레넬 — 쉴릭 어림 대신 **편광 없는 빛의 프레넬 식 그대로**(공기 1 → 물 1.333).
@@ -1599,7 +1614,9 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       /* ② 해 반짝임 — 물결 사면 하나하나가 해를 반사하는 몫. 세기도 그 자리의 프레넬을 따른다
          (해가 낮을수록 물결이 금빛으로 번뜩이는 까닭) */
       float sd=max(dot(Rr,uSunDir),0.0);
-      vec3 spec=uSunCol*F*(pow(sd,700.0)*700.0+pow(sd,90.0)*17.0)*step(0.0,uSunDir.y)*shM;
+      // 거칠기(걷어 낸 기울기 분산)만큼 반짝임 꼬리를 넓히고 에너지는 지킨다(넓어진 만큼 낮게)
+      float e1=700.0/(1.0+lost*700.0), e2=90.0/(1.0+lost*90.0);
+      vec3 spec=uSunCol*F*(pow(sd,e1)*e1+pow(sd,e2)*e2*0.024)*step(0.0,uSunDir.y)*shM;
       /* ③ 물속 — **스넬 굴절**: 보는 빛줄기·햇빛이 물에 들어가며 꺾인다(비스듬할수록 물속
          경로가 길다 — 1/μ). 물의 고유 광학량(1/m, 680·550·440 nm):
            흡수 a — 순수 바닷물(0.45·0.057·0.015) + 용존유기물(CDOM, 파랑을 먹는다)
