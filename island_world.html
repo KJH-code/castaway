@@ -8341,6 +8341,114 @@ function placeCampfire(){
   toast('화덕을 지었다');
   return true;
 }
+/* ── 불꽃 ─────────────────────────────────────────────────────────────────
+   원뿔 두 개를 쌓아 두던 것을 셰이더 불로 바꿨다. 카메라를 마주 보는 판(빌보드)에
+   ① 위로 흘러가는 값잡음 세 겹으로 혀를 날름거리는 윤곽을 깎고 ② 밝기를 흑체 색으로
+   칠한다(가장자리 검붉음 → 주황 → 노랑 → 속은 거의 흰색) — 불빛 색은 온도가 정한다.
+   ③ 더하기 혼합이라 겹칠수록 밝고 뒤가 비친다. 판 둘을 씨앗만 달리해 겹친다.
+   그 위에 튀어 오르는 불티(점 · 셰이더가 시간으로 움직인다 — CPU 가 안 든다),
+   바닥의 잉걸불 번짐, 위로 흩어지는 연기를 얹는다. 크기는 makeFire(s) 의 s 하나다. */
+const FIRE_U={uTime:{value:0}};
+const FIRE_NOISE=`
+float fh(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float fn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y); }
+float fbm(vec2 p){ return fn(p)*0.5+fn(p*2.03+1.7)*0.3+fn(p*4.1+3.1)*0.2; }`;
+const BILL_VS=`varying vec2 vUv;
+void main(){ vUv=uv;
+  // 가운데를 카메라 공간으로 옮긴 뒤 판을 화면에 나란히 편다(세로는 세계 위쪽을 대략 따른다)
+  vec4 c=modelViewMatrix*vec4(0.0,0.0,0.0,1.0);
+  vec2 sc=vec2(length(modelMatrix[0].xyz),length(modelMatrix[1].xyz));
+  c.xy+=position.xy*sc;
+  gl_Position=projectionMatrix*c; }`;
+let _fireMats=null;
+function fireMats(){
+  if(_fireMats) return _fireMats;
+  const flame=seed=>new THREE.ShaderMaterial({uniforms:{uTime:FIRE_U.uTime,uSeed:{value:seed},uHeat:{value:1}},
+    vertexShader:BILL_VS, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+    fragmentShader:`uniform float uTime; uniform float uSeed; uniform float uHeat; varying vec2 vUv;
+${FIRE_NOISE}
+void main(){
+  vec2 uv=vUv; float x=(uv.x-0.5)*2.0, y=uv.y;
+  // 위로 흐르는 잡음 — 위쪽일수록 빠르고 옆으로 흔들린다
+  float n=fbm(vec2(x*1.6+uSeed, y*2.6-uTime*2.4+uSeed*3.0));
+  float n2=fbm(vec2(x*3.4-uSeed, y*4.8-uTime*3.6));
+  float sway=(n-0.5)*0.35*y;
+  float w=pow(1.0-y,0.8)*0.75;                   // 밑이 넓고 위가 뾰족한 몸통
+  float d=abs(x+sway)/max(w,0.001);
+  // 잡음이 위로 갈수록 몸통을 크게 갉아 혀 여러 갈래로 찢긴다
+  float body=1.0-d - y*0.35 + (n*0.9+n2*0.5-0.72)*(0.5+y*1.6);
+  float a=smoothstep(0.0,0.30,body)*smoothstep(0.0,0.08,y);
+  if(a<=0.002) discard;
+  float t=clamp(body*1.35,0.0,1.0)*uHeat;          // 온도 — 속이 가장 뜨겁다
+  vec3 col=mix(vec3(0.55,0.06,0.0),vec3(1.0,0.38,0.05),smoothstep(0.0,0.35,t));
+  col=mix(col,vec3(1.0,0.78,0.30),smoothstep(0.35,0.75,t));
+  col=mix(col,vec3(1.0,0.97,0.85),smoothstep(0.75,1.0,t));
+  gl_FragColor=vec4(col*a*0.85, a);
+}`});
+  const glow=new THREE.ShaderMaterial({uniforms:{uTime:FIRE_U.uTime}, vertexShader:BILL_VS,
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+    fragmentShader:`uniform float uTime; varying vec2 vUv;
+void main(){ float r=length(vUv-0.5)*2.0; float a=pow(max(0.0,1.0-r),2.2)*(0.85+0.15*sin(uTime*9.0));
+  gl_FragColor=vec4(vec3(1.0,0.42,0.12)*a*0.22,a); }`});
+  const smoke=new THREE.ShaderMaterial({uniforms:{uTime:FIRE_U.uTime}, vertexShader:BILL_VS,
+    transparent:true, depthWrite:false,
+    fragmentShader:`uniform float uTime; varying vec2 vUv;
+${FIRE_NOISE}
+void main(){ vec2 uv=vUv; float x=(uv.x-0.5)*2.0;
+  float n=fbm(vec2(x*1.4, uv.y*2.0-uTime*0.45));
+  float w=0.25+uv.y*0.75;                          // 오를수록 퍼진다
+  float a=smoothstep(0.1,0.7,n-abs(x)/w*0.6)*smoothstep(0.0,0.25,uv.y)*(1.0-uv.y)*0.32;
+  if(a<=0.003) discard;
+  gl_FragColor=vec4(vec3(0.32,0.31,0.30),a); }`});
+  const sparks=new THREE.ShaderMaterial({uniforms:{uTime:FIRE_U.uTime,uS:{value:1}},
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+    vertexShader:`uniform float uTime; uniform float uS; attribute float aSeed; varying float vA;
+void main(){
+  float life=1.6+fract(aSeed*7.3)*1.2, t=mod(uTime+aSeed*13.0,life)/life;   // 0→1 한 번 살고 다시
+  vec3 p=position; p.y+=t*t*0.4+t*1.1;               // 뜨거운 공기에 떠밀려 오른다
+  p.x+=sin(uTime*3.0+aSeed*20.0)*0.08*t; p.z+=cos(uTime*2.6+aSeed*17.0)*0.08*t;
+  vA=(1.0-t)*smoothstep(0.0,0.1,t);
+  vec4 mv=modelViewMatrix*vec4(p,1.0);
+  // 크기는 세계 길이(불티 지름 1~2.5 cm × 불 크기)로 — 화면 픽셀로 잡았더니 눈앞의 횃불 불티가 화면을 덮었다
+  float ws=(0.010+0.015*(1.0-t))*length(modelMatrix[0].xyz);
+  gl_PointSize=clamp(ws*projectionMatrix[1][1]*400.0/max(-mv.z,0.05),1.0,24.0);
+  gl_Position=projectionMatrix*mv; }`,
+    fragmentShader:`varying float vA;
+void main(){ float r=length(gl_PointCoord-0.5)*2.0; if(r>1.0) discard;
+  gl_FragColor=vec4(vec3(1.0,0.62,0.22)*vA*(1.0-r),vA); }`});
+  return _fireMats={flame:[flame(0.0),flame(4.7)], glow, smoke, sparks};
+}
+/* s — 크기(화덕 1 · 횃불 0.25). smoke/sparks 는 끌 수 있다 */
+function makeFire(s,opt){
+  opt=opt||{};
+  const M=fireMats(), g=new THREE.Group(), plane=new THREE.PlaneGeometry(1,1);
+  plane.translate(0,0.5,0);                           // 밑동이 원점
+  M.flame.forEach((m,i)=>{
+    const f=new THREE.Mesh(plane,m); f.scale.set((0.95-i*0.25)*s,(1.25-i*0.25)*s,1);
+    f.position.x=(i?0.04:-0.03)*s; f.renderOrder=3; f.frustumCulled=false; g.add(f);
+  });
+  if(opt.glow!==false){                               // 바닥 잉걸불 번짐 — 눈앞의 횃불엔 안 단다(화면을 덮는다)
+    const gl=new THREE.Mesh(new THREE.PlaneGeometry(1,1),M.glow);
+    gl.scale.set(1.8*s,1.1*s,1); gl.position.y=0.18*s; gl.renderOrder=2; gl.frustumCulled=false; g.add(gl);
+  }
+  if(opt.smoke!==false){
+    const sm=new THREE.Mesh(plane,M.smoke); sm.scale.set(1.3*s,2.6*s,1); sm.position.y=0.9*s;
+    sm.renderOrder=1; sm.frustumCulled=false; g.add(sm);
+  }
+  if(opt.sparks!==false){
+    const N=36, pos=new Float32Array(N*3), sd=new Float32Array(N);
+    for(let i=0;i<N;i++){ const a=Math.random()*6.283, r=Math.random()*0.18;   // 크기는 pts.scale 이 준다
+      pos[i*3]=Math.cos(a)*r; pos[i*3+1]=0.15; pos[i*3+2]=Math.sin(a)*r; sd[i]=Math.random(); }
+    const pg=new THREE.BufferGeometry();
+    pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    pg.setAttribute('aSeed',new THREE.BufferAttribute(sd,1));
+    const pts=new THREE.Points(pg,M.sparks); pts.scale.setScalar(s); pts.frustumCulled=false; pts.renderOrder=4;
+    g.add(pts);
+  }
+  g.userData.lightRole='none';
+  return g;
+}
 // 좌표를 직접 받는 형태 — 저장 복원에서 그대로 쓴다
 function placeCampfireAt(x,y,z){
 
@@ -8362,13 +8470,7 @@ function placeCampfireAt(x,y,z){
     w.rotation.set(Math.PI/2.6,a,0);
     g.add(w);
   }
-  const flame=new THREE.Group();
-  const fmat=[new THREE.MeshBasicMaterial({color:0xff7a28}),
-              new THREE.MeshBasicMaterial({color:0xffd06a})];
-  for(let i=0;i<2;i++){
-    const c=new THREE.Mesh(new THREE.ConeGeometry(0.26-i*0.09,0.7-i*0.22,5),fmat[i]);
-    c.position.y=0.42-i*0.06; flame.add(c);
-  }
+  const flame=makeFire(1.35); flame.position.y=0.10;
   flame.visible=false; g.add(flame);
   const light=LIGHT.addPoint(g,{color:0xff8038,intensity:0,dist:22,shadow:true,pos:[0,0.6,0]});
   light.visible=false;
@@ -8464,11 +8566,9 @@ function initTorchFx(){
   torchLight=LIGHT.addPoint(camera,{color:0xff9040,intensity:0,dist:26,pos:[0.42,-0.28,-0.5]});
   torchLight.visible=false;
   torchFlame=new THREE.Group();
-  const c1=new THREE.Mesh(new THREE.ConeGeometry(0.055,0.17,5),
-    new THREE.MeshBasicMaterial({color:0xff7a28}));
-  const c2=new THREE.Mesh(new THREE.ConeGeometry(0.03,0.10,5),
-    new THREE.MeshBasicMaterial({color:0xffd882}));
-  c1.position.y=0.06; c2.position.y=0.09;
+  const c1=makeFire(0.20,{smoke:false,glow:false});        // 화덕과 같은 불 — 작게
+  c1.position.y=-0.02;
+  const c2=new THREE.Object3D();
   const stick=new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.02,0.42,4),
     new THREE.MeshLambertMaterial({color:0x4a3a29}));
   stick.position.y=-0.2;
@@ -8492,7 +8592,7 @@ function updateTorch(dt,dh){
   torchLight.visible=show; torchFlame.visible=show;
   // 불꽃은 손에 든 횃불·등잔 끝(tip)에 앉는다 — 제 막대는 숨긴다(손의 것이 보인다)
   const tip=weaponFx&&weaponFx.userData.tip;
-  torchFlame.children[2].visible=!tip;
+  torchFlame.children[2].visible=!tip;          // [2] 는 막대(손의 횃불이 없을 때만)
   if(show&&tip){ tip.getWorldPosition(_tipV); camera.worldToLocal(_tipV); torchFlame.position.copy(_tipV);
     torchFlame.userData.s=weaponFx.userData.tipScale; }
   else torchFlame.userData.s=1;
@@ -8573,6 +8673,7 @@ function updateFurnaces(dt,dh){
   }
 }
 function updateFires(dt,dh){
+  FIRE_U.uTime.value+=dt;                     // 불꽃 셰이더의 시계 — 모든 불이 나눠 쓴다
   for(const f of FIRES){
     /* 소성: 불이 붙어 있는 동안에만 진행한다. 꺼지면 그 자리에서 멈춘다.
        안에 든 구울 것은 전부 함께 익는다 — 고기와 그릇을 같이 넣어도
@@ -8602,8 +8703,7 @@ function updateFires(dt,dh){
     const low=clamp(f.fuel/0.2,0.35,1);
     const flick=0.78+Math.sin(f.t*13.7)*0.12+Math.sin(f.t*7.1)*0.10;
     f.light.intensity=4.1*flick*low;
-    f.flame.scale.set(1,flick*low,1);
-    f.flame.rotation.y+=dt*2.2;
+    f.flame.scale.set(0.8+0.2*low,flick*low,0.8+0.2*low);
   }
   // 화입법 — 화덕 4 m 안의 화강암 노두가 달궈진다
   if(dh<=0) return;
