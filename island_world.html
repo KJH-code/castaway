@@ -31,6 +31,7 @@
 
   #mapw{right:12px;bottom:12px;padding:7px}
   #map{display:block;width:172px;height:172px;image-rendering:pixelated;border:1px solid var(--line)}
+  #map.big{width:min(688px,82vh);height:min(688px,82vh)}   /* M — 4배(화면이 작으면 높이의 82% 까지) */
   #mapw .c{font-size:9px;color:var(--dim);margin-top:5px;display:flex;justify-content:space-between}
 
   #cross{position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;
@@ -10127,7 +10128,7 @@ function footstep(){
 /* ============================================================================
    11) HUD
    ========================================================================== */
-let mapImg=null, mapCv=null, MAPZ=1;   // MAPZ — 미니맵 배율(M 으로 1 ↔ 4)
+let mapImg=null;
 document.getElementById('mSpan').textContent=WORLD+' m';
 function cacheMap(){
   const ctx=document.getElementById('map').getContext('2d');
@@ -10146,23 +10147,12 @@ function cacheMap(){
     d[o+2]=clamp(col.b*255*sh,0,255); d[o+3]=255;
   }
   mapImg=img;
-  mapCv=document.createElement('canvas'); mapCv.width=mapCv.height=N;
-  mapCv.getContext('2d').putImageData(img,0,0);   // 확대할 때 drawImage 로 늘여 그린다
 }
 function drawMap(){
   if(!mapImg) return;
   const ctx=document.getElementById('map').getContext('2d');
-  const x=PL.pos.x/CELL+N/2, z=PL.pos.z/CELL+N/2, Z=MAPZ;
-  ctx.save();
-  if(Z===1) ctx.putImageData(mapImg,0,0);
-  else{
-    // 확대 — 사람을 가운데 두고 Z 배로 늘인다(바깥은 바다색)
-    ctx.fillStyle='#1d3440'; ctx.fillRect(0,0,N,N);
-    ctx.imageSmoothingEnabled=false;
-    ctx.translate(N/2,N/2); ctx.scale(Z,Z); ctx.translate(-x,-z);
-    ctx.drawImage(mapCv,0,0);
-  }
-  const u=1/Z;                                        // 표시 크기는 배율과 무관하게
+  const x=PL.pos.x/CELL+N/2, z=PL.pos.z/CELL+N/2, u=1;
+  ctx.putImageData(mapImg,0,0);
   if(showProps){
     for(const p of PROPS){
       if(p.k==='oak'||p.k==='fir'||p.k==='reed'||p.k==='grass'||p.k==='pebble') continue;
@@ -10186,7 +10176,6 @@ function drawMap(){
   ctx.lineTo(x-fx*B*0.3, z-fz*B*0.3);                 // 꼬리 홈
   ctx.lineTo(x-fx*B+fz*W, z-fz*B-fx*W);
   ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.restore();
 }
 function drawCompass(){
   const cx=document.getElementById('compassC'), g=cx.getContext('2d');
@@ -10799,10 +10788,8 @@ addEventListener('keydown',e=>{
   }
   keys[e.code]=true;
   if(e.code==='Space') e.preventDefault();
-  if(e.code==='KeyM'&&!e.repeat){                // 미니맵 확대 ↔ 전체
-    MAPZ=MAPZ===1?4:1;
-    document.getElementById('mSpan').textContent=Math.round(WORLD/MAPZ)+' m';
-    drawMap();
+  if(e.code==='KeyM'&&!e.repeat){                // 미니맵 크기 4배 ↔ 원래대로
+    document.getElementById('map').classList.toggle('big');
   }
   if(e.code==='KeyL'){ toggleLamp(); }         // F 는 먹기·마시기가 쓴다
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
