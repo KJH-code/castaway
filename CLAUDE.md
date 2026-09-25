@@ -713,7 +713,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - **전동 드릴(`tool.drill`)은 내구가 곧 충전량이다** — 0 이 되면 부서지지 않고 멈추며, 지닌 납축전지에서
   `drawFromBattery` 로 옮겨 담는다. 발전기 곁 충전(`chargeAtDynamo`)도 받는다. 곡괭이 등급 3 · 빠르기 8.5.
 - **수류탄(`tool.throw`)** — `attack()` 이 `throwGrenade` 로 넘긴다. 포물선(16 m/s · 중력 9.8) → 튀며 구름 →
-  신관 3.5초 → `explode`: 피해 330 · 반경 7 m 안 짐승·사람을 (1−d/r)² 만큼(사람은 0.45배) · 화강암 노두를 깨뜨림.
+  신관 3.5초 → `explode`: 피해 330 · 반경 7 m 안 짐승·사람을 (1−d/r)² 만큼(사람도 같다 — 갑옷만 깎는다) · 화강암 노두를 깨뜨림.
   **폭발 불빛은 하나(`BLAST_LIGHT`)를 계속 쓴다** — 터질 때마다 광원을 달고 떼면 광원 수가 바뀌어
   모든 재질이 셰이더를 다시 짜 멈칫한다.
 - **칸마다 상태가 다른 것은 `indiv(T)` 가 가른다** — `T.tool||T.sips||T.durMax`.

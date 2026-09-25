@@ -10276,7 +10276,7 @@ function explode(p,dmg,r){
     if(d<r){ c.hp-=dmg*Math.pow(1-d/r,2); c.alerted=true; }
   }
   const dp=Math.hypot(PL.pos.x-p.x,PL.pos.y-1.6-p.y,PL.pos.z-p.z);   // 사람
-  if(dp<r) hurtPL(dmg*0.45*Math.pow(1-dp/r,2),'수류탄 파편',true);
+  if(dp<r) hurtPL(dmg*Math.pow(1-dp/r,2),'수류탄 파편',true);   // 짐승과 같은 피해(갑옷만 깎는다)
   for(const t of PROPS){                                // 화강암 노두가 깨진다
     if(t.k!=='granite'||t.cracked||!(t.ore>0)) continue;
     if(Math.hypot(t.x-p.x,t.z-p.z)<r*0.6){ t.cracked=true; t.heat=MINE.granite.fireset; }
