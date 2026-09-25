@@ -5407,7 +5407,7 @@ const ITEMS={
   /* 수류탄 — 던지면 포물선을 그리며 날아가 3.5초 뒤 터진다. 반경 7 m 안을 다치게 하고
      (가운데일수록 세다) 화강암 노두를 깨뜨린다. 던진 사람도 가까우면 다친다. */
   grenade:    {n:'수류탄',     kg:0.6,  c:0x4a5a44, use:'던져서 3.5초 뒤 터진다 — 반경 7 m · 화강암을 깨뜨린다',
-               tool:{weapon:1, throw:1, dmg:220, reach:7, rate:0.9, stam:6, swing:'thrust', fuse:3.5}},
+               tool:{weapon:1, throw:1, dmg:330, reach:7, rate:0.9, stam:6, swing:'thrust', fuse:3.5}},
   lamp_oil:   {n:'기름 등잔',   kg:1.6,  c:0xb08a4a, use:'휴대 조명 — 곰 기름을 태워 횃불보다 네 배 오래 간다',
                tool:{torch:1}, burn:12.0},
 
@@ -6717,7 +6717,7 @@ const RECIPES=[
   {id:'grenade', tier:'화학', n:'수류탄', out:{id:'grenade',n:2},
    time:24, stam:14, station:'anvil',
    note:'연철 통에 화약을 채우고 뇌관 달린 신관을 박는다. 핀을 뽑고 던지면 3.5초 뒤 터진다.',
-   in:[{id:'iron_wrought',n:1},{id:'gunpowder',n:3},{id:'primer',n:1},{id:'cord',n:1}]},
+   in:[{id:'iron_wrought',n:2},{id:'gunpowder',n:6},{id:'primer',n:2},{id:'cord',n:2}]},   // 한 벌 두 개 — 재료를 두 배로 올리고 피해도 1.5배(330)
 
   {id:'arc', tier:'화학', n:'아크로 세우기', out:null, place:'arc',
    time:40, stam:36,
