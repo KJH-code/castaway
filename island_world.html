@@ -391,16 +391,16 @@
     <div><span>Space</span>점프 · Ctrl 앉기 · <b>Ctrl+Space</b> 지붕에서 내려가기</div>
     <div><span>L</span>전등 켜기 · V 자유 카메라</div>
     <div><span>M</span>미니맵 크게 / 작게</div>
-    <div><span>E</span>맨손 채집 (길게)</div>
+    <div><span>E</span>맨손 채집 (길게 · 도구를 들었으면 우클릭 길게도 된다)</div>
     <div><span>I / C / B</span>소지품 · 제작 · 사전</div>
     <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
     <div><span>I</span>소지품 — <b>끌어다 손·옷·입 칸에 놓는다</b> · G 버리기</div>
-    <div><span>우클릭</span>손에 든 것을 쓴다 — 먹기·마시기·감기 · 전등 켜기 · 드릴 충전 · 빈손이면 물가에서 마시기</div>
+    <div><span>우클릭</span>손에 든 것을 쓴다 — 무기 공격 · 도끼·곡괭이·드릴은 누르고 있으면 캐기 · 먹기·마시기·감기 · 전등 켜기 · 빈손이면 물가에서 마시기</div>
+    <div><span>좌클릭</span>전등·드릴을 지닌 축전지로 충전 · 짓기 중엔 조각 놓기</div>
     <div><span>체력</span>높은 데서 떨어지거나 · 숨이 다하거나 · 굶으면 깎인다</div>
-    <div><span>그물</span>무릎 위까지 잠기는 물에 들어가 좌클릭</div>
+    <div><span>그물</span>무릎 위까지 잠기는 물에 들어가 우클릭</div>
     <div><span>1 ~ 5</span>빠른 칸 — 손의 것과 맞바꾼다</div>
     <div><span>Z</span>집 짓기 — 1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽 좌우</div>
-    <div><span>좌클릭</span>무기 찌르기</div>
     <div><span>Tab</span>생성 설정 · R 새 섬(짓기 중엔 방향) · F3 진단</div>
     <div><span>F5 / F9</span>저장 · 불러오기 (F9 은 묻고 나서 불러온다)</div>
     <div><span>T</span>시간 가속 · Esc 일시정지</div>
@@ -5826,7 +5826,8 @@ function equippedTool(){
 function pickMode(t){
   if(!t) return null;
   const e=equippedTool();
-  const T=e?ITEMS[e.id].tool:null;
+  let T=e?ITEMS[e.id].tool:null;
+  if(T && T.drill && e.dur<=0) T=null;             // 전기가 떨어진 드릴은 맨손과 같다(좌클릭으로 채운다)
 
   if(T && T.axe && CHOP[t.k] && t.logs>0){
     // 자루가 없는 주먹도끼는 느리고 빨리 닳는다
@@ -5861,8 +5862,8 @@ function blockReason(t){
   if(!t) return null;
   const e=equippedTool(), T=e?ITEMS[e.id].tool:null;
   const M=MINE[t.k];
-  if(M && t.ore>0 && e && T.drill && e.dur<=0 && !drawFromBattery(e))
-    return '드릴 전기가 없다 — 축전지를 지니거나 발전기 곁에서 채워라';
+  if(M && t.ore>0 && e && T && T.drill && e.dur<=0)
+    return '드릴 전기가 없다 — 좌클릭으로 축전지에서 채우거나 발전기 곁에서 채워라';
   if(M && t.ore>0){
     const tier=t.cracked?2:M.tier;
     if(T && T.pick>=tier) return null;
@@ -6011,7 +6012,7 @@ function updateHarvest(dt){
   HARV.near=prop;
   const t=HARV.near;
   HARV.mode=pickMode(t);
-  const want=!!keys.KeyE && !!HARV.mode && !PL.swim;
+  const want=(!!keys.KeyE || (rightDown && HARV.mode && HARV.mode.tool)) && !!HARV.mode && !PL.swim;
   if(!want || PL.stam<3){
     HARV.t=Math.max(0,HARV.t-dt*2.5); HARV.active=false; return;
   }
@@ -6055,7 +6056,7 @@ function updateHarvest(dt){
       e.dur-=(HARV.mode.wear||3);
       if(e.dur<=0 && (ITEMS[e.id].tool||{}).drill){          // 드릴은 부서지지 않고 전기가 떨어진다
         e.dur=0;
-        if(!drawFromBattery(e)) toast('드릴 전기가 떨어졌다 — 축전지를 지니거나 발전기 곁에서 채워라');
+        toast('드릴 전기가 떨어졌다 — 좌클릭으로 축전지에서 채운다');
       }else if(e.dur<=0){
         toast(ITEMS[e.id].n+' 파손');
         invRemove(INV.slots.indexOf(e), 1); EQUIP=null;
@@ -8749,8 +8750,8 @@ function toggleLamp(){
   const e=heldLamp();
   if(!e){ toast('전등을 손에 들어야 한다'); return; }
   if(e.lit){ e.lit=false; toast('전등을 껐다'); invDirty=true; return; }
-  if(e.dur<=0 && !drawFromBattery(e)){
-    toast('전기가 없다 — 축전지나 발전기가 있어야 한다'); return;
+  if(e.dur<=0){
+    toast('전기가 없다 — 좌클릭으로 축전지에서 채운다'); return;
   }
   e.lit=true; toast('전등을 켰다'); sfx('bind'); invDirty=true;
 }
@@ -10402,9 +10403,11 @@ function castNet(w,T){
   invDirty=true;
 }
 
-/* 우클릭 — 손에 든 것을 쓴다. 공격(좌클릭)과 따로 논다.
-   먹을 것·마실 것·붕대는 먹고, 전등은 켜고 끄고, 빈 드릴은 축전지에서 채우고,
-   그물·수류탄은 던진다. 빈손이면 물가에서 엎드려 마신다. */
+/* 우클릭 — 손에 든 것을 쓴다. 공격도 채집도 먹기도 전부 여기다.
+   · 먹을 것·마실 것·붕대 → 먹는다   · 전등 → 켜고 끈다
+   · 도끼·곡괭이·드릴로 캘 것을 보고 있으면 → 누르고 있는 동안 캔다(updateHarvest 가 rightDown 을 본다)
+   · 무기·그물·수류탄 → 공격   · 빈손 → 물가에서 마신다
+   좌클릭은 짓기와, 축전지로 채우는 물건(전등·드릴)의 충전(chargeHeld)만 한다. */
 const USE_DUR=0.45; let USE_T=0;
 function useHeld(){
   const e=equippedTool(), T=e&&ITEMS[e.id];
@@ -10416,13 +10419,18 @@ function useHeld(){
   }
   const W=T.tool||{};
   if(W.lamp){ toggleLamp(); return; }
-  if(W.drill){
-    if(e.dur>=T.durMax) toast('이미 가득 찼다');
-    else if(!drawFromBattery(e)) toast('축전지가 없다 — 발전기 곁에서 E 로 채운다');
-    return;
-  }
-  if(W.net||W.throw){ attack(); return; }
-  toast(T.n+' — 좌클릭으로 쓴다');
+  if(HARV.mode && HARV.mode.tool) return;          // 캐는 중 — 누르고 있는 동안 updateHarvest 가 한다
+  if(W.weapon||W.net||W.throw){ attack(); return; }
+  if(W.drill && e.dur<=0){ toast('전기가 없다 — 좌클릭으로 축전지에서 채운다'); return; }
+  if(W.axe||W.pick) toast(T.n+' — 나무나 광석을 보고 우클릭을 누르고 있는다');
+}
+/* 좌클릭 — 축전지로 채우는 물건(전등·드릴)을 지닌 축전지에서 채운다 */
+const chargeable=T=>!!(T&&T.tool&&(T.tool.lamp||T.tool.drill));
+function chargeHeld(){
+  const e=equippedTool(), T=e&&ITEMS[e.id];
+  if(!chargeable(T)) return;
+  if(e.dur>=T.durMax){ toast(T.n+' — 이미 가득 찼다'); return; }
+  if(!drawFromBattery(e)) toast('축전지가 없다 — 발전기 곁에서 E 로 채운다');
 }
 function attack(){
   /* 그물은 무기가 아니라서 equippedWeapon() 이 걸러낸다 — 손에 든 것을 먼저 본다 */
@@ -10468,10 +10476,10 @@ function updateWeapon(dt){
   if(ATK.cd>0) ATK.cd=Math.max(0,ATK.cd-dt);
   /* 연사 — 누르고 있는 동안 쿨이 끝날 때마다 한 발씩. 방아쇠를 딸깍이는
      것이 아니라 노리쇠가 제 힘으로 도는 총이다(tool.auto). */
-  if(mouseDown && !BUILD.on && ATK.cd<=0 && !paused && !uiOpen()
+  if(rightDown && !BUILD.on && ATK.cd<=0 && !paused && !uiOpen()
      && document.pointerLockElement===cv){
     const w=equippedWeapon();
-    if(w && ITEMS[w.id].tool.auto) attack();
+    if(w && ITEMS[w.id].tool.auto && !(HARV.mode&&HARV.mode.tool)) attack();
   }
   if(NET.cd>0) NET.cd=Math.max(0,NET.cd-dt);
   updateReload(dt); updateGrenades(dt);
@@ -11678,7 +11686,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyM'&&!e.repeat){                // 미니맵 크기 4배 ↔ 원래대로
     document.getElementById('map').classList.toggle('big');
   }
-  if(e.code==='KeyL'){ toggleLamp(); }         // 전등은 들고 우클릭해도 켜진다
+  if(e.code==='KeyL'){ toggleLamp(); }         // 전등은 들고 우클릭해도 켜진다 · 충전은 좌클릭
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
   if(e.code==='KeyE'&&boxOpen&&!e.repeat){ toggleBox(null); }
   if((e.code==='Escape'||e.code==='KeyE')&&grindOpen&&!e.repeat){ toggleGrind(); return; }
@@ -11798,18 +11806,19 @@ addEventListener('mousemove',e=>{
   PL.pitch=clamp(PL.pitch-e.movementY*0.0022,-1.5,1.5);
 });
 let dragF=false;
-let mouseDown=false;
+let mouseDown=false, rightDown=false;
 cv.addEventListener('mousedown',e=>{
   if(flyMode){ dragF=true; return; }
-  if(e.button===0 && document.pointerLockElement===cv){
+  if(document.pointerLockElement!==cv) return;
+  if(e.button===0){                                  // 좌클릭 — 짓기 · 충전
     mouseDown=true;
-    if(BUILD.on) doBuild(); else attack();
+    if(BUILD.on) doBuild(); else chargeHeld();
   }
-  if(e.button===2 && document.pointerLockElement===cv && !BUILD.on) useHeld();
+  if(e.button===2 && !BUILD.on){ rightDown=true; useHeld(); }   // 우클릭 — 쓰기(공격·채집·먹기)
 });
 cv.addEventListener('contextmenu',e=>e.preventDefault());
-addEventListener('mouseup',()=>{ dragF=false; mouseDown=false; });
-addEventListener('blur',()=>{ mouseDown=false; });
+addEventListener('mouseup',e=>{ dragF=false; if(e.button===2) rightDown=false; else mouseDown=false; });
+addEventListener('blur',()=>{ mouseDown=false; rightDown=false; });
 cv.addEventListener('wheel',e=>{ if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
 document.addEventListener('pointerlockchange',()=>{
   if(document.pointerLockElement!==cv && !paused && !flyMode && !busy && !touchOnly

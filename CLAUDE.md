@@ -696,8 +696,12 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   `holdable(T)` = `tool` 이거나 `consumable(T)`(food·drink·heal) — 손 칸·빠른 칸이 이걸 본다.
   생김새는 `WEAPON_FX` 가 아니라 `heldConsumable(id)`(고기·물고기·통조림·병·토기·양동이·물주머니·붕대
   몇 벌을 나눠 쓰고 색은 `T.c`). 그래서 **손에 든 것의 `ITEMS[id].tool` 이 없을 수 있다** —
-  `(…tool||{})` 로 읽을 것. 우클릭: 먹을 것은 `eatSlot`(입으로 가져가는 `USE_T` 모션) · 전등 켜기 ·
-  빈 드릴 충전 · 그물·수류탄 던지기 · 빈손이면 물가에서 마시기. 무기 공격은 그대로 좌클릭.
+  `(…tool||{})` 로 읽을 것. **우클릭(`useHeld` · 누르는 동안 `rightDown`)이 공격까지 다 한다** —
+  먹을 것은 `eatSlot`(입으로 가져가는 `USE_T` 모션) · 전등 켜고 끄기 · 도끼·곡괭이·드릴로 캘 것을 보고
+  있으면 누르는 동안 캐기(`updateHarvest` 가 `keys.KeyE || rightDown` 을 본다 — E 도 그대로) ·
+  무기·그물·수류탄 공격(연사도 `rightDown`) · 빈손이면 물가에서 마시기.
+  **좌클릭은 짓기와 충전뿐이다**(`chargeHeld` — 전등·드릴을 지닌 축전지로 채운다). 저절로 축전지에서
+  끌어오던 자리(드릴이 떨어질 때 · 전등 켤 때 · `blockReason`)는 없앴고, **빈 드릴은 맨손과 같다**(`pickMode`).
 - **먹는 것(`food`)·감는 것(`heal`)도 `water`·`empty` 를 받는다** — 국·달인 물은 목을 축이고 토기를 돌려준다.
 - **가죽은 귀하다 — 북극곰 한 마리에 세 장**(`MOBS.bear.drop`). 키틴·뼈처럼 다룰 것: 새 물건 하나에
   한두 장만 쓴다(가죽 모자·물주머니·뼈 투구·뼈 덧댄 활 1 · 가죽 배낭 2 · 가죽 속옷 3).
