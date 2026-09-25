@@ -27,7 +27,7 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` | 메인 게임. 아이템 155종 · 레시피 148개 · 제련 10종 |
+| `island_world.html` | 메인 게임. 아이템 157종 · 레시피 151개 · 제련 10종 |
 | `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `wyvern_arena.html` | **잿불 와이번 시험장**(4.1MB). 상공 20 m 선회 → 5초 노려봄 →
@@ -161,7 +161,7 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
 예외 넷은 미리 알고 갈 것:
 
 1. **손에 드는 것(`tool` 을 단 아이템)은 전부 `WEAPON_FX` 에 생김새 함수를 따로 써야 한다.**
-   무기만이 아니다 — 도끼·곡괭이·그물·횃불·등잔·활비비·라이터도 들면 보인다(39개 = 39개).
+   무기만이 아니다 — 도끼·곡괭이·그물·횃불·등잔·활비비·라이터도 들면 보인다(40개 = 40개).
    안 쓰면 `setWeaponFx` 가 조용히 `return` 하고 손이 빈다. 더하면 이 짝부터 맞춰 볼 것:
    `node tools/probe.mjs island_world.html "Object.entries(ITEMS).filter(([k,v])=>v.tool).length" "Object.keys(WEAPON_FX).length"`
    무기가 아닌 것은 `rest:{rx,rz}` 로 세워 들고(횃불·그물), 도끼·곡괭이는 캐는 동안(`HARV.active`)
@@ -706,6 +706,16 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   눕힌 엔진 통 둘(배의 노즐로 내려 뿜는다) · 꼬리 주 엔진(뒤로) · 기운 꼬리 둘 · 세 발 다리 · 항법등 깜박임 ·
   이륙 먼지(연기 셰이더). 세기는 `shipPower(k, 먼지)` 하나로 맞춘다.
   **불티 크기는 세계 길이로 잡을 것** — 화면 픽셀 ÷ 거리로 잡았더니 눈앞 0.5 m 횃불의 불티가 600 px 공이 됐다.
+- **증기기관(`placeSteamAt`)은 화덕과 같은 불 용기다**(`kind:'fire'` · `steam:true` · `FIRES` 에 든다) —
+  땔감 넣기·불 붙이기·꺼짐·저장이 화덕 규칙 그대로다(저장은 `fires[].st`). 불이 붙어 땔감이 남은 동안
+  7 m 안의 발전기를 돌린다 — **`powered()` 는 이제 `turnsDynamo(d)`(물레방아 **또는** 불 땐 증기기관)**.
+  발전기도 증기기관 곁에 놓을 수 있다.
+- **전동 드릴(`tool.drill`)은 내구가 곧 충전량이다** — 0 이 되면 부서지지 않고 멈추며, 지닌 납축전지에서
+  `drawFromBattery` 로 옮겨 담는다. 발전기 곁 충전(`chargeAtDynamo`)도 받는다. 곡괭이 등급 3 · 빠르기 8.5.
+- **수류탄(`tool.throw`)** — `attack()` 이 `throwGrenade` 로 넘긴다. 포물선(16 m/s · 중력 9.8) → 튀며 구름 →
+  신관 3.5초 → `explode`: 반경 7 m 안 짐승·사람을 (1−d/r)² 만큼(사람은 0.45배) · 화강암 노두를 깨뜨림.
+  **폭발 불빛은 하나(`BLAST_LIGHT`)를 계속 쓴다** — 터질 때마다 광원을 달고 떼면 광원 수가 바뀌어
+  모든 재질이 셰이더를 다시 짜 멈칫한다.
 - **칸마다 상태가 다른 것은 `indiv(T)` 가 가른다** — `T.tool||T.sips||T.durMax`.
   내구(`durMax`)를 단 물건은 도구가 아니어도 따로 선다. 안 그러면 겹쳐 쌓이면서
   남은 양이 사라진다(축전지가 그랬다).
