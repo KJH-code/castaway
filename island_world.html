@@ -389,6 +389,7 @@
     <div><span>WASD</span>이동 · Shift 달리기</div>
     <div><span>Space</span>점프 · Ctrl 앉기 · <b>Ctrl+Space</b> 지붕에서 내려가기</div>
     <div><span>L</span>전등 켜기 · V 자유 카메라</div>
+    <div><span>M</span>미니맵 확대 / 전체</div>
     <div><span>E</span>맨손 채집 (길게)</div>
     <div><span>I / C / B</span>소지품 · 제작 · 사전</div>
     <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
@@ -10126,7 +10127,7 @@ function footstep(){
 /* ============================================================================
    11) HUD
    ========================================================================== */
-let mapImg=null;
+let mapImg=null, mapCv=null, MAPZ=1;   // MAPZ — 미니맵 배율(M 으로 1 ↔ 4)
 document.getElementById('mSpan').textContent=WORLD+' m';
 function cacheMap(){
   const ctx=document.getElementById('map').getContext('2d');
@@ -10145,28 +10146,47 @@ function cacheMap(){
     d[o+2]=clamp(col.b*255*sh,0,255); d[o+3]=255;
   }
   mapImg=img;
+  mapCv=document.createElement('canvas'); mapCv.width=mapCv.height=N;
+  mapCv.getContext('2d').putImageData(img,0,0);   // 확대할 때 drawImage 로 늘여 그린다
 }
 function drawMap(){
   if(!mapImg) return;
   const ctx=document.getElementById('map').getContext('2d');
-  ctx.putImageData(mapImg,0,0);
+  const x=PL.pos.x/CELL+N/2, z=PL.pos.z/CELL+N/2, Z=MAPZ;
+  ctx.save();
+  if(Z===1) ctx.putImageData(mapImg,0,0);
+  else{
+    // 확대 — 사람을 가운데 두고 Z 배로 늘인다(바깥은 바다색)
+    ctx.fillStyle='#1d3440'; ctx.fillRect(0,0,N,N);
+    ctx.imageSmoothingEnabled=false;
+    ctx.translate(N/2,N/2); ctx.scale(Z,Z); ctx.translate(-x,-z);
+    ctx.drawImage(mapCv,0,0);
+  }
+  const u=1/Z;                                        // 표시 크기는 배율과 무관하게
   if(showProps){
     for(const p of PROPS){
       if(p.k==='oak'||p.k==='fir'||p.k==='reed'||p.k==='grass'||p.k==='pebble') continue;
       const R=RESOURCES.find(r=>r.k===p.k);
       ctx.fillStyle='#'+R.c.toString(16).padStart(6,'0');
-      ctx.fillRect((p.x/CELL+N/2)|0,(p.z/CELL+N/2)|0,1.5,1.5);
+      ctx.fillRect((p.x/CELL+N/2)|0,(p.z/CELL+N/2)|0,1.5*u,1.5*u);
     }
   }
   // 상륙 지점
   const px=podPos.x/CELL+N/2, pz=podPos.z/CELL+N/2;
-  ctx.fillStyle='#ffb060'; ctx.fillRect(px-1.5,pz-1.5,3,3);
-  // 플레이어 + 시야각
-  const x=PL.pos.x/CELL+N/2, z=PL.pos.z/CELL+N/2;
-  ctx.strokeStyle='rgba(230,255,245,.75)'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(x,z);
-  ctx.arc(x,z,11,-PL.yaw-Math.PI/2-0.45,-PL.yaw-Math.PI/2+0.45); ctx.closePath(); ctx.stroke();
-  ctx.fillStyle='#e8fff6'; ctx.fillRect(x-1,z-1,2.5,2.5);
+  ctx.fillStyle='#ffb060'; ctx.fillRect(px-1.5*u,pz-1.5*u,3*u,3*u);
+  /* 플레이어 — 보는 쪽을 **뾰족한 끝**으로 가리키는 화살 삼각형.
+     예전엔 시야 부채꼴(꼭짓점이 사람, 넓은 쪽이 앞)만 그려서 꼭짓점이 뒤를 가리키는 삼각형으로 읽혔다.
+     앞 = (−sin yaw, −cos yaw) · 지도는 x→오른쪽, z→아래 */
+  const a=-PL.yaw-Math.PI/2, fx=Math.cos(a), fz=Math.sin(a);
+  const L=30*u, W=14*u, B=11*u;                      // 캔버스 768 → 화면 172 px 라 4.5배 작아진다
+  ctx.fillStyle='#e8fff6'; ctx.strokeStyle='rgba(10,20,20,.9)'; ctx.lineWidth=3*u;
+  ctx.beginPath();
+  ctx.moveTo(x+fx*L, z+fz*L);                         // 앞 끝
+  ctx.lineTo(x-fx*B-fz*W, z-fz*B+fx*W);
+  ctx.lineTo(x-fx*B*0.3, z-fz*B*0.3);                 // 꼬리 홈
+  ctx.lineTo(x-fx*B+fz*W, z-fz*B-fx*W);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
 }
 function drawCompass(){
   const cx=document.getElementById('compassC'), g=cx.getContext('2d');
@@ -10779,6 +10799,11 @@ addEventListener('keydown',e=>{
   }
   keys[e.code]=true;
   if(e.code==='Space') e.preventDefault();
+  if(e.code==='KeyM'&&!e.repeat){                // 미니맵 확대 ↔ 전체
+    MAPZ=MAPZ===1?4:1;
+    document.getElementById('mSpan').textContent=Math.round(WORLD/MAPZ)+' m';
+    drawMap();
+  }
   if(e.code==='KeyL'){ toggleLamp(); }         // F 는 먹기·마시기가 쓴다
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
   if(e.code==='KeyE'&&boxOpen&&!e.repeat){ toggleBox(null); }
