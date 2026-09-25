@@ -185,74 +185,147 @@ function renderFrame(){
 }
 
 /* ── 달 ──────────────────────────────────────────────────────────────────
-   예전에는 해 판때기를 반대편으로 옮기고 색만 바꿔 달인 척했다. 그래서 위상도
-   무늬도 없고, 해와 달이 같이 떠 있을 수 없었다(낮에 뜬 달은 실제로 흔하다).
+   해와 따로 선다. 삭망월 29.5일 — 태양과의 **이각이 곧 위상각**이라 달을 해의 자리에서
+   위상만큼 돌린 곳에 둔다(삭이면 해 옆, 망이면 해 반대편 — 뜨고 지는 시각이 날마다 밀린다).
 
-   이제 따로 선다.
-   ① **얼굴** — 캔버스에 바다(어두운 얼룩)와 크레이터를 그린다. 외부 파일 없음.
-   ② **위상** — 삭망월 29.5일. 태양과의 **이각이 곧 위상각**이므로, 달의 자리를
-      해의 자리에서 위상만큼 돌린 곳에 둔다. 그러면 삭이면 해 옆에, 망이면 해
-      반대편에 서고 — 뜨고 지는 시각이 날마다 저절로 밀린다.
-   ③ **모양** — 밝은 쪽만 남긴다(`destination-in`). 밝은 쪽 반원 + 반지름이
-      cos(위상각)인 반타원이 경계다. 상현엔 오른쪽, 하현엔 뒤집어 왼쪽이 밝다.
-   ④ **달빛** — 밤에는 해가 지평선 아래에 있어 **땅 밑에서 비추고 있었다.**
-      이제 밤에는 광원을 달 쪽으로 돌리고, 세기를 밝은 면적에 비례시킨다
-      (삭이면 어둡고 망이면 밝다). 그림자는 여전히 접힌다(세기 0.12 미만). */
-const MOON={phase:0, illum:0, dir:new THREE.Vector3(0,-1,0)};
-const MOON_S=192;
-let moonFace=null, moonCan=null, moonTex=null, moonStep=-1;
+   ① **얼굴**(`makeMoonFace`, 512² 캔버스) — 지구에서 보는 앞면의 실제 배치를 따랐다:
+      왼쪽 큰 폭풍의 대양 · 왼쪽 위 비의 바다 · 가운데 위 맑음·고요의 바다 · 오른쪽 가장자리
+      위기의 바다(따로 떨어진 타원) · 아래 구름·습기의 바다 · 밝은 남쪽 고지대에 티코와 그 광조,
+      비의 바다 아래 코페르니쿠스. 가장자리 어둡게 하기는 그림에 넣지 않는다(③이 한다).
+   ② **위상은 그림을 오려 내지 않고 공으로 비춘다**(`moonMat` 셰이더). 원판 위 한 점을 공의
+      법선 n 으로 되돌리고, 실제 해 방향(`_sd3`)을 원판 좌표로 옮겨 비춘다 — 그래서 명암 경계가
+      위상각과 해의 높이에 맞게 저절로 기운다(초저녁 초승달은 등이 해 쪽을 향해 누워 있다).
+   ③ **달은 램버트가 아니다** — 표토가 빛을 되돌려 보내는 로멜-젤리거 반사 μ₀/(μ₀+μ) 라서
+      보름달은 가장자리까지 고르게 밝은 원판이다(공처럼 가장자리가 어두워지지 않는다).
+      명암 경계는 산그림자로 조금 거칠다.
+   ④ **지구빛** — 초승·그믐에는 지구가 거의 보름이라 달의 어두운 쪽이 잿빛으로 보인다
+      (다빈치 빛). 어두운 쪽 밝기 ∝ 지구의 밝은 면적 (1+cos α)/2 의 1.5%쯤.
+      밤에는 어두운 쪽도 불투명해 뒤의 별을 가린다. 낮엔 하늘에 묻힌다.
+   ⑤ **밝기**(`moonBright`) — 밝은 면적에 비례하지 않는다. 표토 알갱이의 그림자가 보름에
+      한꺼번에 사라지는 **충 효과** 때문에 상현(위상각 90°)은 보름의 8~9%, 초승달(120°)은
+      2.5% 뿐이다 — 등급식 m(α) = 0.026|α| + 4×10⁻⁹α⁴ (앨런)로 센다. */
+const MOON={phase:0, illum:0, bright:0, alpha:Math.PI, dir:new THREE.Vector3(0,-1,0)};
+const MOON_S=512;
+let moonFace=null, moonTex=null, moonMat=null;
+/* 위상각 α(라디안, 0 = 보름) → 보름 대비 밝기 */
+function moonBright(alpha){
+  const d=Math.abs(alpha)*180/Math.PI;
+  return Math.pow(10,-0.4*(0.026*d+4e-9*d*d*d*d));
+}
 function makeMoonFace(){
   const c=document.createElement('canvas'); c.width=c.height=MOON_S;
-  const g=c.getContext('2d'), R=MOON_S/2-2, cx=MOON_S/2, cy=MOON_S/2;
+  const g=c.getContext('2d'), R=MOON_S/2, cx=R, cy=R;
   const rnd=mulberry32(hashStr('moon'));
-  g.save(); g.beginPath(); g.arc(cx,cy,R,0,6.283); g.clip();
-  g.fillStyle='#d8d9d2'; g.fillRect(0,0,MOON_S,MOON_S);
-  // 바다 — 큰 회색 얼룩 몇 장
-  for(let i=0;i<9;i++){
-    const th=rnd()*6.283, rr=Math.sqrt(rnd())*R*0.78;
-    const x=cx+Math.cos(th)*rr, y=cy+Math.sin(th)*rr, br=R*(0.14+rnd()*0.26);
-    const gr=g.createRadialGradient(x,y,br*0.2,x,y,br);
-    gr.addColorStop(0,'rgba(120,124,132,0.55)');
-    gr.addColorStop(1,'rgba(120,124,132,0)');
-    g.fillStyle=gr; g.beginPath(); g.arc(x,y,br,0,6.283); g.fill();
+  // 고지대 — 밝고 조금 누런 잿빛, 잔 얼룩
+  g.fillStyle='#c9c7bf'; g.fillRect(0,0,MOON_S,MOON_S);
+  for(let i=0;i<260;i++){
+    const x=rnd()*MOON_S, y=rnd()*MOON_S, br=R*(0.02+rnd()*0.08), l=rnd()<0.5;
+    const gr=g.createRadialGradient(x,y,0,x,y,br);
+    gr.addColorStop(0,l?'rgba(236,234,226,0.28)':'rgba(150,148,142,0.22)');
+    gr.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=gr; g.fillRect(x-br,y-br,br*2,br*2);
   }
-  // 크레이터 — 햇빛이 왼쪽 위에서 든다고 보고 테두리에 명암을 준다
-  for(let i=0;i<70;i++){
-    const th=rnd()*6.283, rr=Math.sqrt(rnd())*R*0.95;
-    const x=cx+Math.cos(th)*rr, y=cy+Math.sin(th)*rr, br=R*(0.012+rnd()*0.06);
-    g.fillStyle='rgba(150,152,156,0.5)';
-    g.beginPath(); g.arc(x,y,br,0,6.283); g.fill();
-    g.strokeStyle='rgba(255,255,255,0.35)'; g.lineWidth=Math.max(0.6,br*0.22);
-    g.beginPath(); g.arc(x-br*0.1,y-br*0.1,br*0.92,2.4,5.2); g.stroke();
-    g.strokeStyle='rgba(70,72,78,0.4)';
-    g.beginPath(); g.arc(x+br*0.1,y+br*0.1,br*0.92,5.4,2.2); g.stroke();
+  /* 바다 — 원판 좌표(−1..1, 오른쪽 +x · 아래 +y)의 타원 몇 겹. 테두리는 불규칙하게
+     작은 얼룩을 둘러 매끈한 타원이 드러나지 않게 한다 */
+  const MARE=[ // x, y, rx, ry, 짙기
+    [-0.55,-0.05,0.30,0.46,0.85],[-0.62, 0.20,0.22,0.30,0.7],   // 폭풍의 대양
+    [-0.30,-0.38,0.26,0.22,0.95],                               // 비의 바다
+    [ 0.10,-0.38,0.15,0.14,0.9],                                // 맑음의 바다
+    [ 0.24,-0.10,0.20,0.17,0.9],                                // 고요의 바다
+    [ 0.60,-0.30,0.11,0.13,0.95],                               // 위기의 바다
+    [ 0.40, 0.18,0.14,0.12,0.75],                               // 풍요의 바다
+    [ 0.18, 0.22,0.10,0.10,0.7],                                // 감로주의 바다
+    [-0.18, 0.28,0.17,0.13,0.75],                               // 구름의 바다
+    [-0.46, 0.40,0.10,0.09,0.7],                                // 습기의 바다
+    [ 0.00,-0.66,0.30,0.06,0.6],                                // 추위의 바다
+    [-0.10,-0.05,0.10,0.08,0.6]];                               // 가운데 만
+  for(const [mx,my,rx,ry,k] of MARE){
+    for(let j=0;j<26;j++){
+      const t=rnd()*6.283, q=Math.sqrt(rnd());
+      const x=cx+(mx+Math.cos(t)*rx*q*0.9)*R, y=cy+(my+Math.sin(t)*ry*q*0.9)*R;
+      const br=R*Math.min(rx,ry)*(0.35+rnd()*0.5);
+      const gr=g.createRadialGradient(x,y,0,x,y,br);
+      gr.addColorStop(0,'rgba(92,94,98,'+(0.30*k).toFixed(3)+')');
+      gr.addColorStop(0.7,'rgba(92,94,98,'+(0.18*k).toFixed(3)+')');
+      gr.addColorStop(1,'rgba(92,94,98,0)');
+      g.fillStyle=gr; g.fillRect(x-br,y-br,br*2,br*2);
+    }
   }
-  // 가장자리는 조금 어둡게 — 구처럼 보이게
-  const lim=g.createRadialGradient(cx,cy,R*0.6,cx,cy,R);
-  lim.addColorStop(0,'rgba(0,0,0,0)'); lim.addColorStop(1,'rgba(0,0,0,0.38)');
-  g.fillStyle=lim; g.fillRect(0,0,MOON_S,MOON_S);
-  g.restore();
+  // 크레이터 — 작은 것이 훨씬 많다(크기 분포 ~ r⁻²). 고지대에 몰린다
+  for(let i=0;i<520;i++){
+    const t=rnd()*6.283, q=Math.sqrt(rnd());
+    const x=cx+Math.cos(t)*q*R, y=cy+Math.sin(t)*q*R;
+    const br=R*0.006/Math.pow(0.04+rnd()*0.96,0.9)*(rnd()<0.97?1:2.5);
+    if(br>R*0.09) continue;
+    g.fillStyle='rgba(120,118,114,0.35)'; g.beginPath(); g.arc(x,y,br,0,6.283); g.fill();
+    g.strokeStyle='rgba(240,238,230,0.45)'; g.lineWidth=Math.max(0.7,br*0.25);
+    g.beginPath(); g.arc(x,y,br,0,6.283); g.stroke();
+  }
+  // 광조 크레이터 — 티코(남쪽)·코페르니쿠스·케플러. 밝은 줄이 사방으로 뻗는다
+  for(const [x0,y0,n,len,r0] of [[-0.10,0.62,34,0.95,0.035],[-0.32,-0.12,22,0.35,0.028],[-0.60,-0.10,14,0.22,0.02]]){
+    const x=cx+x0*R, y=cy+y0*R;
+    g.lineCap='round';
+    for(let j=0;j<n;j++){
+      const t=rnd()*6.283, L=R*len*(0.3+rnd()*0.7);
+      const gr=g.createLinearGradient(x,y,x+Math.cos(t)*L,y+Math.sin(t)*L);
+      gr.addColorStop(0,'rgba(245,243,236,0.35)'); gr.addColorStop(1,'rgba(245,243,236,0)');
+      g.strokeStyle=gr; g.lineWidth=R*(0.006+rnd()*0.012);
+      g.beginPath(); g.moveTo(x,y); g.lineTo(x+Math.cos(t)*L,y+Math.sin(t)*L); g.stroke();
+    }
+    const gr=g.createRadialGradient(x,y,0,x,y,R*r0*2.2);
+    gr.addColorStop(0,'rgba(252,250,244,0.9)'); gr.addColorStop(1,'rgba(252,250,244,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(x,y,R*r0*2.2,0,6.283); g.fill();
+  }
   return c;
 }
-/* 위상 — 밝은 쪽만 남긴다. 어두운 쪽은 아예 투명해서 밤하늘에 묻힌다. */
-function drawMoonPhase(){
-  const g=moonCan.getContext('2d'), R=MOON_S/2-2, cx=MOON_S/2, cy=MOON_S/2;
-  g.setTransform(1,0,0,1,0,0);
-  g.clearRect(0,0,MOON_S,MOON_S);
-  g.drawImage(moonFace,0,0);
-  const th=MOON.phase*6.283;          // 0 삭 · π 망
-  const k=Math.cos(th);               // +1 삭 · −1 망
-  g.globalCompositeOperation='destination-in';
-  g.save();
-  if(MOON.phase>0.5){ g.translate(MOON_S,0); g.scale(-1,1); }   // 하현은 좌우 뒤집기
-  g.beginPath();
-  g.arc(cx,cy,R,-Math.PI/2,Math.PI/2,false);                    // 밝은 쪽 테두리
-  g.ellipse(cx,cy,Math.abs(k)*R,R,0,Math.PI/2,-Math.PI/2,k>0);  // 명암 경계
-  g.closePath(); g.fill();
-  g.restore();
-  g.globalCompositeOperation='source-over';
-  moonTex.needsUpdate=true;
-}
+const MOON_VS=`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
+const MOON_FS=`
+uniform sampler2D uTex; uniform vec3 uL; uniform vec3 uCol; uniform float uEarth, uDark, uOp;
+varying vec2 vUv;
+void main(){
+  vec2 p=vUv*2.0-1.0; float r2=dot(p,p);
+  float aa=fwidth(r2)*1.5;
+  float edge=1.0-smoothstep(1.0-aa,1.0,r2);
+  if(edge<=0.0) discard;
+  vec3 n=vec3(p,sqrt(max(0.0,1.0-r2)));
+  vec3 alb=texture2D(uTex,vUv).rgb;
+  float mu0=dot(n,uL), mu=n.z;
+  // 명암 경계는 산그림자로 조금 거칠다 — 알베도 무늬로 경계를 흔든다
+  float rough=(alb.r-0.7)*0.12;
+  float lit=smoothstep(-0.015,0.05,mu0+rough);
+  float ls=lit*max(mu0,0.0)/(max(mu0,0.0)+mu+1e-3)*2.0;      // 로멜-젤리거(보름에 1)
+  vec3 c=alb*uCol*ls + alb*vec3(0.55,0.62,0.75)*uEarth*(1.0-lit);
+  float a=max(clamp(ls*1.4,0.0,1.0),uDark)*edge*uOp;
+  gl_FragColor=vec4(c,a);
+}`;
+/* ── 해 ──────────────────────────────────────────────────────────────────
+   원판 + 둘레의 빛무리(더하기 혼합). 원판은 **주연 감광** I(μ)=1−0.6(1−μ) — 가장자리가
+   가운데보다 40% 어둡고 붉다. 빛깔은 땅에 닿는 햇빛색(`cSun`) — 지평선에선 주황·빨강.
+   지평선 가까이에선 **굴절로 위아래가 눌린다**(아랫단이 더 떠 보여 납작해진다, 0° 에서 0.8배).
+   빛무리는 공기 속 에어로졸의 앞쪽 산란이라 탁할수록·안개일수록 넓고, 해가 낮을수록 붉다. */
+const SUN_FS=`
+uniform vec3 uCol; uniform float uOp, uK; varying vec2 vUv;
+void main(){
+  vec2 p=vUv*2.0-1.0; float r2=dot(p,p);
+  float aa=fwidth(r2)*1.5;
+  float edge=1.0-smoothstep(1.0-aa,1.0,r2);
+  if(edge<=0.0) discard;
+  float mu=sqrt(max(0.0,1.0-r2));
+  float I=1.0-0.6*(1.0-mu);
+  vec3 c=uCol*I*mix(vec3(1.0,0.82,0.62),vec3(1.0),mu);       // 가장자리는 더 붉다
+  gl_FragColor=vec4(c*uK,edge*uOp);   // 높이 뜬 해는 눈이 부셔 가장자리까지 하얗게 탄다
+}`;
+const GLOW_FS=`
+uniform vec3 uCol; uniform float uOp, uW; varying vec2 vUv;
+void main(){
+  float r=length(vUv*2.0-1.0);
+  if(r>=1.0) discard;
+  float g=exp(-r*uW)*0.9+exp(-r*uW*0.25)*0.12;
+  g*=1.0-smoothstep(0.7,1.0,r);
+  gl_FragColor=vec4(uCol*g*uOp,1.0);
+}`;
+let sunGlow=null; const _mInv=new THREE.Matrix4();
+const SUN_R=21, MOON_R=21;                // 각반지름 약 1° — 실제(0.26°)의 4배. 둘은 같은 크기다
 
 /* ── 구름 ────────────────────────────────────────────────────────────────
    실제 구름 아홉 갈래를 **실제 고도·크기·두께 그대로** 세운다(단위 m).
@@ -1593,6 +1666,10 @@ function updateCloudShadow(dt){
    바람만. 재질마다 모드가 다르므로 `customProgramCacheKey` 로 프로그램을 가른다. */
 const WIND_GLSL={
   grass:'float wk=transformed.y*transformed.y*0.55; wpos.xz+=uWind.xy*sw*wk;',
+  // 베리 — 덤불(풀)과 **같은 식**으로 민다. 풀은 제 몸 높이 y(덤불 크기로 나눈 값)의 제곱만큼
+  // 밀리므로, 알은 매단 자리 높이 aH 로 통째로(모양 그대로), 줄기는 밑동 aH0 → 꼭지 aH1 사이를 휜다
+  berry:'float wk=aH*aH*0.55; wpos.xz+=uWind.xy*sw*wk;',
+  stalk:'float hh=mix(aH0,aH1,clamp(transformed.y,0.0,1.0)); float wk=hh*hh*0.55; wpos.xz+=uWind.xy*sw*wk;',
   reed :'float wk=transformed.y*transformed.y*0.075; wpos.xz+=uWind.xy*sw*wk;',
   limb :'wpos.xz+=uWind.xy*sw*0.10*clamp(transformed.y,0.0,1.0);',
   leaf :`wpos.xz+=uWind.xy*sw*0.10;
@@ -1640,7 +1717,10 @@ float cloudSh(){
 }
 `+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();');
   };
-  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind;
+  /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
+     다른 램버트 재질과 같은 프로그램으로 묶여 제 코드가 통째로 빠졌다 */
+  const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
+  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(pk?'-'+pk.call(m):'');
   m.needsUpdate=true;
 }
 
@@ -1879,18 +1959,26 @@ function initSky(){
     side:THREE.BackSide, depthWrite:false, depthTest:false}));
   skyDome.renderOrder=-10; skyScene.add(skyDome);
 
-  sunDisc=new THREE.Mesh(new THREE.CircleGeometry(52,16),
-    new THREE.MeshBasicMaterial({color:0xffe9b0,fog:false,transparent:true,depthWrite:false}));
-  sunDisc.renderOrder=-9; skyScene.add(sunDisc);
+  sunGlow=new THREE.Mesh(new THREE.PlaneGeometry(SUN_R*16,SUN_R*16),
+    new THREE.ShaderMaterial({vertexShader:MOON_VS, fragmentShader:GLOW_FS,
+      uniforms:{uCol:{value:new THREE.Color(1,0.9,0.7)}, uOp:{value:1}, uW:{value:9}},
+      transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending}));
+  sunGlow.renderOrder=-9; sunGlow.userData.lightRole='none'; skyScene.add(sunGlow);
+  sunDisc=new THREE.Mesh(new THREE.PlaneGeometry(SUN_R*2,SUN_R*2),
+    new THREE.ShaderMaterial({vertexShader:MOON_VS, fragmentShader:SUN_FS,
+      uniforms:{uCol:{value:new THREE.Color(1,0.95,0.85)}, uOp:{value:1}, uK:{value:3}},
+      transparent:true, depthWrite:false, depthTest:false, extensions:{derivatives:true}}));
+  sunDisc.renderOrder=-8; sunDisc.userData.lightRole='none'; skyScene.add(sunDisc);
 
   initRain();
   moonFace=makeMoonFace();
-  moonCan=document.createElement('canvas'); moonCan.width=moonCan.height=MOON_S;
-  moonTex=new THREE.CanvasTexture(moonCan);
-  moonDisc=new THREE.Mesh(new THREE.PlaneGeometry(64,64),
-    new THREE.MeshBasicMaterial({map:moonTex,fog:false,transparent:true,
-                                 depthWrite:false,opacity:1}));
-  moonDisc.renderOrder=-9; moonDisc.userData.lightRole='none'; skyScene.add(moonDisc);
+  moonTex=new THREE.CanvasTexture(moonFace);
+  moonMat=new THREE.ShaderMaterial({vertexShader:MOON_VS, fragmentShader:MOON_FS,
+    uniforms:{uTex:{value:moonTex}, uL:{value:new THREE.Vector3(0,0,1)},
+      uCol:{value:new THREE.Color(1,1,1)}, uEarth:{value:0}, uDark:{value:0}, uOp:{value:1}},
+    transparent:true, depthWrite:false, depthTest:false, extensions:{derivatives:true}});
+  moonDisc=new THREE.Mesh(new THREE.PlaneGeometry(MOON_R*2,MOON_R*2),moonMat);
+  moonDisc.renderOrder=-8; moonDisc.userData.lightRole='none'; skyScene.add(moonDisc);
 
   // 별 — 아주 작은 흰 점. 대부분 희미하고 몇 개만 또렷하다.
   const NSTAR=210;
@@ -1935,14 +2023,19 @@ function updateSky(){
   const sx=Math.cos(ang), sy=Math.sin(ang);
   // 삭망월 29.5일 — 밝은 면적은 (1−cos 위상각)/2 다
   MOON.phase=((gameHours/(24*29.5))%1+1)%1;
-  MOON.illum=(1-Math.cos(MOON.phase*6.283))/2;
   const mAng=ang-MOON.phase*6.283, mmy=Math.sin(mAng);
   _sd3.set(sx,sy,0.37).normalize();
   _md3.set(Math.cos(mAng),mmy,0.37).normalize();
+  /* 위상각 α(0 보름 · π 삭)는 삭망월에서 바로 센다 — 하늘의 해·달 길은 기운 원뿔이라
+     (z 0.37) 둘이 정반대에 서지 못해, 자리에서 재면 보름도 41° 에 머문다.
+     밝은 면적 (1+cos α)/2, 밝기는 충 효과를 넣은 moonBright */
+  MOON.alpha=Math.PI*Math.abs(1-2*MOON.phase);
+  MOON.illum=(1+Math.cos(MOON.alpha))/2;
+  MOON.bright=moonBright(MOON.alpha);
 
   /* 하늘색 — 산란식. 탁도는 습도를 따른다(흐릴수록·안개일수록 뿌옇다) */
   const turb=SKYP.turb+WEA.cover*2.2+WEA.mist*5+WEA.rain*2;
-  const moonK=0.0035*MOON.illum;
+  const moonK=0.0035*MOON.bright;
   const tone3=(dir,out)=>{
     skyScatter(dir,_sd3,turb,1,_c3); skyScatter(dir,_md3,turb,moonK,_c4);
     for(let i=0;i<3;i++) out[i]=skyTone(_c3[i])+skyTone(_c4[i]);
@@ -1977,7 +2070,7 @@ function updateSky(){
 
   /* 구름이 받는 빛(cloudLight)과 그늘을 채우는 하늘빛의 재료 */
   SKYL.sunEl=Math.asin(clamp(_sd3.y,-1,1)); SKYL.moonEl=Math.asin(clamp(_md3.y,-1,1));
-  SKYL.illum=MOON.illum; SKYL.turb=turb;
+  SKYL.illum=MOON.bright; SKYL.turb=turb;
   atmoTransmit(0,Math.PI/2,turb,_c4); SKYL.tz=_c4[0];
   /* 구름을 비추는 방향 — **해가 지평선 밑이어도 높은 구름엔 아직 볕이 든다**(−11° 까지).
      예전엔 해가 −3° 만 가도 달 쪽으로 넘겨, 지평선 밑의 해가 구름 **밑면**을 붉게
@@ -2019,28 +2112,48 @@ function updateSky(){
   cSky.lerp(cTmp,grey); cHz.lerp(cTmp,grey); cSun.lerp(cTmp,grey*0.7);
   // 안개는 지평선 색을 따라가야 먼 지형이 하늘에 자연스럽게 녹는다
   skyScene.background.copy(cHz);
-  scene.fog.color.copy(cHz);
+  /* 먼 땅에 더해지는 하늘빛 — 카메라가 보는 쪽 지평선(2°) 하늘색 */
+  camera.getWorldDirection(_dv3); _dv3.y=0;
+  if(_dv3.lengthSq()<1e-6) _dv3.set(1,0,0);
+  _dv3.normalize(); _dv3.y=0.035; _dv3.normalize();
+  { const F3=tone3(_dv3,[0,0,0]); scene.fog.color.setRGB(F3[0]+0.008,F3[1]+0.016,F3[2]+0.043).lerp(cTmp,grey); }
   /* 날씨가 안개와 볕을 함께 민다 — 흐리면 뿌옇다.
      **해의 세기는 구름양으로 깎지 않는다** — 구름이 해를 가리는 것은 구름 그림자가
      자리마다 한다(`cloudSh`). 다만 구름 그림자가 꺼지는 밤·노을녘에는 예전처럼
      구름양으로 깎는다(달빛이 흐린 날에도 밝으면 안 된다). */
-  scene.fog.density=lerp(A.d,Bk.d,t)*WEA.fog/farScale;
+  /* 땅 높이의 소광계수(550 nm, 1/m) — 레일리 1.36e-5 + 에어로졸(탁도에 비례, 맑은 바다 공기
+     가시거리 약 40 km) + 비(3 km 가시) + 안개(짙을 때 가시 200 m). 가시거리 V = 3.9/β(코시미더). */
+  scene.fog.density=(1.36e-5+0.1/ATM.HM*turb/2.6*1.1+WEA.rain*3.9/3000+WEA.mist*3.9/200)/farScale;
   amb.intensity=lerp(A.a,Bk.a,t)*(1-WEA.rain*0.25)*(1-(1-CSH.sunVis)*0.25);
   sun.color.copy(cSun);
   const sunK=lerp(WEA.light,WEA.lightSun,CSH.on.value);
   sun.intensity=lerp(A.i,Bk.i,t)*sunK;
 
+  /* **밤의 밝기 — 달이 얼마나 차고 얼마나 높이 떴는지로 센다.** 땅의 조도(럭스):
+       보름달 천정 0.26 lx × 위상 밝기(충 효과 — 상현 9%) × sin(고도) × 대기 소광 10^(−0.4·0.25·공기량)
+       + 별빛·대기광 0.002 lx(달 없는 맑은 밤). 흐리면 구름이 막는다.
+     실제 비는 보름:그믐 ≈ 100:1 이지만 눈이 어둠에 익으므로(막대세포) 밝기는 조도의
+     0.45제곱으로 느낀다(스티븐스) — 보름 1 · 상현 0.36 · 그믐 0.12. 이 값을 밤의 광원·
+     환경광·하늘빛에 곱한다. 해가 −6°(시민 박명)→−18° 로 내려가는 동안 서서히 넘어간다. */
+  const nightK=clamp((-_sd3.y-0.05)/0.26,0,1);
+  const mEl=Math.max(0,_md3.y);
+  const air=1/Math.max(0.05,mEl+0.025);
+  const cloudCut=1-clamp(WEA.cover,0,1)*0.8;
+  const luxM=0.26*MOON.bright*mEl*Math.pow(10,-0.1*Math.min(air,38))*cloudCut;
+  const luxS=0.002*(1-clamp(WEA.cover,0,1)*0.6);
+  const perc=Math.pow((luxM+luxS)/0.26,0.45), percM=Math.pow(luxM/0.26,0.45);
+  MOON.lux=luxM+luxS; MOON.perc=perc;
   if(sy<-0.05 && mmy>-0.02){
-    /* 밤에는 달이 광원이다. 예전에는 해가 지평선 아래로 내려간 채로 계속 비춰
-       **땅 밑에서 올라오는 빛**이었다 — 물체 아랫면이 밝았다. */
+    /* 밤에는 달이 광원이다(해가 지평선 밑이면 땅 밑에서 비추게 된다) */
     sun.position.set(Math.cos(mAng)*400, mmy*380+60, 150);
-    sun.intensity*=0.35+0.85*MOON.illum;
+    sun.intensity=lerp(sun.intensity, 0.16*percM, nightK);
   }else{
     sun.position.set(sx*400, sy*380+60, 150);
     // 해도 달도 진 깜깜한 밤 — 남은 희미한 빛이라도 위에서 와야 한다
-    if(sy<-0.05) sun.position.y=90;
+    if(sy<-0.05){ sun.position.y=90; sun.intensity=lerp(sun.intensity,0,nightK); }
   }
-  hemi.intensity=0.18+amb.intensity*0.5;
+  amb.intensity*=lerp(1,1.5*perc,nightK);
+  hemi.intensity=lerp(0.18,0.18*perc,nightK)+amb.intensity*0.5;
 
   if(skyDome){
     skyDome.position.copy(camera.position);
@@ -2049,30 +2162,43 @@ function updateSky(){
     U.uTurb.value=turb; U.uExp.value=SKYP.exp*SKYP.eye; U.uGrey.value=grey; U.uGreyCol.value.copy(cTmp);
   }
   if(sunDisc){
-    sunDisc.position.set(camera.position.x+sx*1200,
-                         camera.position.y+sy*1200+40,
-                         camera.position.z+0.37*1200);
-    sunDisc.lookAt(camera.position);
-    sunDisc.material.opacity=clamp(0.35+sy*1.6,0,0.95)*(1-WEA.mist*0.85);
-    sunDisc.visible=sy>-0.10;                    // 지평선 아래로 내려가면 끈다
+    const D=1200, px=camera.position.x+_sd3.x*D, py=camera.position.y+_sd3.y*D, pz=camera.position.z+_sd3.z*D;
+    sunDisc.position.set(px,py,pz); sunDisc.lookAt(camera.position);
+    sunGlow.position.set(px,py,pz); sunGlow.lookAt(camera.position);
+    // 굴절로 지평선에서 위아래가 눌린다(0° 에서 0.8배 · 5° 위면 거의 없다)
+    sunDisc.scale.set(1,1-0.2*clamp(1-_sd3.y/0.09,0,1),1);
+    const U=sunDisc.material.uniforms, G=sunGlow.material.uniforms;
+    U.uCol.value.copy(cSun).lerp(_white3,clamp(_sd3.y*3,0,0.75));
+    const vis=(1-WEA.mist*0.85)*(1-clamp((WEA.cover-0.75)*3,0,0.9));
+    U.uOp.value=clamp((_sd3.y+0.012)/0.02,0,1)*vis;
+    U.uK.value=lerp(1.15,4,clamp(_sd3.y*5,0,1));     // 지평선의 해는 똑바로 볼 수 있을 만큼 어둡다
+    G.uCol.value.copy(cSun).lerp(_white3,clamp(_sd3.y*2,0,0.5));
+    G.uOp.value=clamp((_sd3.y+0.05)/0.06,0,1)*vis*(0.55+0.45*clamp(1-_sd3.y*2,0,1));
+    G.uW.value=clamp(11-turb*0.9-WEA.mist*4,3,11);
+    sunDisc.visible=sunGlow.visible=_sd3.y>-0.03;
   }
   if(moonDisc){
-    /* 달은 해에서 위상만큼 돌아간 자리에 선다 — 이각 = 위상각.
-       삭이면 해 옆이라 안 보이고, 망이면 해 반대편이라 밤새 떠 있다. */
-    const ma=ang-MOON.phase*6.283;
-    const mx=Math.cos(ma), my=Math.sin(ma);
-    MOON.dir.set(mx,my,0.37).normalize();
-    moonDisc.position.set(camera.position.x+mx*1200,
-                          camera.position.y+my*1200+40,
-                          camera.position.z+0.37*1200);
+    const D=1200;
+    MOON.dir.copy(_md3);
+    moonDisc.position.set(camera.position.x+_md3.x*D, camera.position.y+_md3.y*D, camera.position.z+_md3.z*D);
     moonDisc.lookAt(camera.position);
-    // 낮에도 보이되 옅게 — 하늘이 밝을수록 묻힌다
-    const up=clamp(my*6+0.25,0,1);
-    moonDisc.material.opacity=up*(sy>0?0.34:0.95)*clamp(MOON.illum*3,0.12,1)
-                             *(1-WEA.mist*0.85);
-    moonDisc.visible=my>-0.06 && MOON.illum>0.01;
-    const step=Math.floor(MOON.phase*64);
-    if(step!==moonStep){ moonStep=step; drawMoonPhase(); }
+    moonDisc.updateMatrixWorld();
+    /* 해 방향을 원판 좌표로 — 원판의 +z 가 눈 쪽이고 x·y 가 원판 면이다 */
+    const U=moonMat.uniforms;
+    /* 빛 방향 = 원판 위에서 해 쪽(t) × sin α + 눈 쪽(z) × cos α — 보름엔 정면, 상·하현엔
+       해 쪽 옆, 삭이면 뒤에서 든다. t 는 하늘에서 해가 있는 쪽이라 명암 경계가 제대로 기운다 */
+    _dv3.copy(_sd3).transformDirection(_mInv.copy(moonDisc.matrixWorld).invert());
+    _dv3.z=0; if(_dv3.lengthSq()<1e-8) _dv3.set(1,0,0); _dv3.normalize();
+    U.uL.value.set(_dv3.x*Math.sin(MOON.alpha),_dv3.y*Math.sin(MOON.alpha),Math.cos(MOON.alpha));
+    // 낮엔 하늘빛에 묻힌다 — 해가 높을수록 옅게, 지평선 가까이선 소광으로 누렇게
+    const day=clamp((_sd3.y+0.1)/0.35,0,1);
+    const low=clamp(_md3.y/0.25,0,1);
+    U.uCol.value.setRGB(1,0.9+0.1*low,0.72+0.28*low).multiplyScalar(lerp(1.05,0.75,day));
+    U.uEarth.value=0.02*(1+Math.cos(MOON.alpha))/2*(1-day);   // 지구빛
+    U.uDark.value=0.92*(1-day);                                // 밤엔 어두운 쪽이 별을 가린다
+    U.uOp.value=clamp(_md3.y*8+0.3,0,1)*lerp(1,0.42,day)*(1-WEA.mist*0.85)
+               *(1-clamp((WEA.cover-0.75)*3,0,0.9));
+    moonDisc.visible=_md3.y>-0.04;
   }
   {
     /* 구름 색 — 볕을 받는 쪽이므로 광원색을 따라간다. 해가 낮으면 붉고
@@ -2089,9 +2215,16 @@ function updateSky(){
     stars.position.copy(camera.position);
     stars.material.opacity=clamp(-sy*1.9-0.10,0,1)*(1-WEA.mist);
   }
-  if(ocean){
-    ocean.material.color.copy(cHz).multiplyScalar(0.42).offsetHSL(0,0.14,-0.03);
-    ocean.position.set(camera.position.x,0,camera.position.z);
+  if(ocean) ocean.position.set(camera.position.x,0,camera.position.z);
+  /* 물이 받는 빛 — 해(색×세기)와 하늘빛, 비칠 하늘(천정·지평선).
+     구름 시험장에는 물이 없다(하늘 구역만 베껴 간다) */
+  if(typeof WATER_U!=='undefined'){
+  WATER_U.uSunDir.value.copy(_sd3);
+  WATER_U.uSunCol.value.copy(sun.color).multiplyScalar(sy>-0.05?sun.intensity:0);
+  WATER_U.uAmb.value.copy(hemi.color).multiplyScalar(hemi.intensity*0.6)
+    .add(cTmp.copy(amb.color).multiplyScalar(amb.intensity*0.6));
+  WATER_U.uSkyZ.value.copy(cSky); WATER_U.uSkyH.value.copy(cHz);
+  TERR_U.uSunDir.value.copy(_sd3);
   }
 }
 
