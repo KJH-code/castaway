@@ -2500,7 +2500,7 @@ function buildBerries(){
      제 몸 좌표의 아래(−y)가 곧 땅쪽이다. */
   bmat.onBeforeCompile=sh=>{
     sh.uniforms.uSunDir=TERR_U.uSunDir;
-    sh.vertexShader='varying vec3 vBN;\nvarying vec3 vBV;\nvarying vec3 vBP;\n'+
+    sh.vertexShader='attribute float aH;\nvarying vec3 vBN;\nvarying vec3 vBV;\nvarying vec3 vBP;\n'+
       sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n  vBN=normalize(transformedNormal); vBV=mvPosition.xyz; vBP=position;');
     sh.fragmentShader='uniform vec3 uSunDir;\nvarying vec3 vBN;\nvarying vec3 vBV;\nvarying vec3 vBP;\n'+
       sh.fragmentShader.replace('vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;',`
@@ -2517,9 +2517,9 @@ function buildBerries(){
       }`);
   };
   bmat.customProgramCacheKey=()=>'berry';
-  // 바람은 안 단다 — 'leaf' 는 정점마다 잘게 떨게 해서 둥근 알이 우글쭈글해졌고, 줄기와 떨어졌다
+  bmat.userData.wind='berry';   // 'leaf' 는 정점마다 떨어 알이 우글쭈글했다 — 덤불과 같은 식으로 통째로 민다
   const bm=new THREE.InstancedMesh(geo,bmat,total);
-  const C=new THREE.Color(), stems=[];
+  const C=new THREE.Color(), stems=[], aH=new Float32Array(total);
   for(const p of bushes){
     const rnd=mulberry32((p._hash||0)^0x2f6b1a3d);
     p._bs=[];
@@ -2532,7 +2532,7 @@ function buildBerries(){
         cl={x:Math.cos(a)*rr, z:Math.sin(a)*rr,
             y:(0.62-0.28*t+rnd()*0.12)*p.s};
         cn=2+((rnd()*3)|0); cl.i=0;
-        stems.push([p.x+cl.x,p.y+cl.y+0.03*p.s,p.z+cl.z,p.x,p.y+0.30*p.s,p.z]);
+        stems.push([p.x+cl.x,p.y+cl.y+0.03*p.s,p.z+cl.z,p.x,p.y+0.30*p.s,p.z,0.30,cl.y/p.s+0.03]);
         cl.hue=rnd();                        // 한 송이는 익는 정도가 비슷하다
       }
       cn--;
@@ -2553,9 +2553,11 @@ function buildBerries(){
       _bE.set((rnd()-0.5)*0.4,rnd()*6.283,(rnd()-0.5)*0.4); _bQ.setFromEuler(_bE);   // 거의 곧추 — 꽃받침 자국이 아래로
       _bS.set(sc,sc*(0.80+rnd()*0.14),sc);     // 세로로 조금 납작하게
       _bM.compose(_bV,_bQ,_bS); bm.setMatrixAt(p._bi+k,_bM);
+      aH[p._bi+k]=Math.max(0,(_bV.y-p.y)/p.s);
       p._bs[k]=[_bV.x,_bV.y,_bV.z,_bS.x,_bS.y,_bS.z,_bQ.x,_bQ.y,_bQ.z,_bQ.w];
     }
   }
+  geo.setAttribute('aH',new THREE.InstancedBufferAttribute(aH,1));
   bm.instanceMatrix.needsUpdate=true;
   if(bm.instanceColor) bm.instanceColor.needsUpdate=true;
   bm.frustumCulled=false;
@@ -2564,7 +2566,14 @@ function buildBerries(){
      없으면 알이 잎 사이 허공에 떠 있었다. 줄기는 따도 남는다(덤불의 일부). */
   if(stems.length){
     const sg=new THREE.CylinderGeometry(0.5,0.5,1,4,1,true); sg.translate(0,0.5,0);
-    const smat=new THREE.MeshLambertMaterial({color:0x4a5a2a}); 
+    const smat=new THREE.MeshLambertMaterial({color:0x4a5a2a}); smat.userData.wind='stalk';
+    smat.onBeforeCompile=sh=>{ sh.vertexShader='attribute float aH0;\nattribute float aH1;\n'+sh.vertexShader; };
+    smat.customProgramCacheKey=()=>'stalk';
+    const h0=new Float32Array(stems.length), h1=new Float32Array(stems.length);
+    stems.forEach((t,i)=>{ h0[i]=t[6]; h1[i]=t[7]; });
+    sg.setAttribute('aH0',new THREE.InstancedBufferAttribute(h0,1));
+    sg.setAttribute('aH1',new THREE.InstancedBufferAttribute(h1,1));
+    
     const sm=new THREE.InstancedMesh(sg,smat,stems.length);
     const a=new THREE.Vector3(), d=new THREE.Vector3(), up=new THREE.Vector3(0,1,0);
     stems.forEach((t,i)=>{
@@ -4355,6 +4364,10 @@ function updateCloudShadow(dt){
    바람만. 재질마다 모드가 다르므로 `customProgramCacheKey` 로 프로그램을 가른다. */
 const WIND_GLSL={
   grass:'float wk=transformed.y*transformed.y*0.55; wpos.xz+=uWind.xy*sw*wk;',
+  // 베리 — 덤불(풀)과 **같은 식**으로 민다. 풀은 제 몸 높이 y(덤불 크기로 나눈 값)의 제곱만큼
+  // 밀리므로, 알은 매단 자리 높이 aH 로 통째로(모양 그대로), 줄기는 밑동 aH0 → 꼭지 aH1 사이를 휜다
+  berry:'float wk=aH*aH*0.55; wpos.xz+=uWind.xy*sw*wk;',
+  stalk:'float hh=mix(aH0,aH1,clamp(transformed.y,0.0,1.0)); float wk=hh*hh*0.55; wpos.xz+=uWind.xy*sw*wk;',
   reed :'float wk=transformed.y*transformed.y*0.075; wpos.xz+=uWind.xy*sw*wk;',
   limb :'wpos.xz+=uWind.xy*sw*0.10*clamp(transformed.y,0.0,1.0);',
   leaf :`wpos.xz+=uWind.xy*sw*0.10;
