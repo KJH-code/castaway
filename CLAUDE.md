@@ -701,6 +701,12 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - **활은 총과 같은 틀이다**(`tool.gun` · `bore:'arrow'` · `mag:1` — 시위에 메기는 것이 재장전, 화살이 탄).
   화살 셋(부싯돌 ×1.0 · 뼈 ×1.15 · 쇠 ×1.35)은 `ammo` 한 줄씩. 무기 설명의 '쓰는 탄'은 **구경이 맞는
   것만** 보인다(예전엔 모든 탄을 늘어놓아 총에 화살이 적힐 뻔했다). 모양은 `bowMesh`.
+- **대물 저격총(`rifle_sniper`)·바주카(`bazooka`)** — 둘 다 총 틀(`tool.gun`)이고 구경이 새것이다
+  (`bore:'heavy'` 대물탄 · `'rocket'` 로켓탄). 저격총은 500 · 120 m · 5발 · 13 kg, **`tool.scope`(배율)을 단 총은
+  좌클릭을 누르는 동안 조준경**(`updateScope` — 화각 70/배율 · `#scope` 테 · 손의 총 감춤 · 마우스 `PL.aimMul`).
+  바주카는 `tool.rocket` 이면 `shoot` 이 선을 쏘지 않고 `launchRocket` 으로 넘긴다 — 초속 70 m · 중력 1.5 ·
+  꼬리 `makePlume` · 땅/짐승에 닿거나 사거리 끝에서 수류탄과 같은 `explode`(420 · 반경 `blast` 6 m).
+  **몸에 맞으면 그 짐승 자리에서 터뜨린다** — 스친 자리에서 터뜨렸더니 직격이 182 뿐이었다. 쏜 사람도 다친다.
 - **먹고 마시고 감는 것도 손에 든다 — 쓰기는 전부 우클릭이다**(`useHeld` · F 키는 없앴다).
   `holdable(T)` = `tool` 이거나 `consumable(T)`(food·drink·heal) — 손 칸·빠른 칸이 이걸 본다.
   생김새는 `WEAPON_FX` 가 아니라 `heldConsumable(id)`(고기·물고기·통조림·병·토기·양동이·물주머니·붕대

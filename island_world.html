@@ -34,6 +34,11 @@
   #map.big{width:min(688px,82vh);height:min(688px,82vh)}   /* M — 4배(화면이 작으면 높이의 82% 까지) */
   #mapw .c{font-size:9px;color:var(--dim);margin-top:5px;display:flex;justify-content:space-between}
 
+  #scope{position:absolute;inset:0;pointer-events:none;display:none;
+    background:radial-gradient(circle at 50% 50%,transparent 0,transparent 34vmin,#000 34.4vmin);}
+  #scope:before,#scope:after{content:'';position:absolute;background:#000;}
+  #scope:before{left:50%;top:calc(50% - 34vmin);width:1px;height:68vmin;}
+  #scope:after{top:50%;left:calc(50% - 34vmin);height:1px;width:68vmin;}
   #cross{position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;
     background:#e8fff6;opacity:.55;border-radius:50%}
   #look{position:absolute;left:50%;top:57%;transform:translateX(-50%);font-size:11px;
@@ -261,6 +266,7 @@
 <div id="hud">
   <div id="vig"></div>
   <div id="cross"></div>
+  <div id="scope"></div>
   <div class="pnl" id="compass"><canvas id="compassC" width="230" height="20"></canvas></div>
 
   <div class="pnl" id="info">
@@ -5337,6 +5343,12 @@ const ITEMS={
   cartridge_smokeless:{n:'무연 소총탄', kg:0.05, c:0xd8c88a, tags:['ammo'],
                use:'무연화약을 재고 뇌관을 물렸다 — 피해 1.6배 · 자동 화기용',
                ammo:{dmg:1.6, bore:'rifle', clean:1}},
+  cartridge_heavy:{n:'대물탄',  kg:0.12, c:0xc8a850, tags:['ammo'],
+               use:'12.7 mm — 대물 저격총 전용. 무연화약을 세 배로 잰다',
+               ammo:{dmg:1.0, bore:'heavy'}},
+  rocket:     {n:'로켓탄',     kg:2.6,  c:0x5a6a4a, tags:['ammo'],
+               use:'바주카 전용 — 꼬리의 무연화약이 밀고 머리의 화약이 터진다',
+               ammo:{dmg:1.0, bore:'rocket'}},
   shell_buck: {n:'산탄',       kg:0.08, c:0xa8402e, tags:['ammo'],
                use:'종이 탄피에 납 알을 아홉 개 재웠다 — 산탄총 구경',
                ammo:{dmg:1.0, bore:'shot'}},
@@ -5371,6 +5383,20 @@ const ITEMS={
                tool:{weapon:1, gun:1, bore:'rifle', dmg:62, reach:30, rate:0.10,
                      stam:1, swing:'shot', mag:25, reload:3.6, auto:1},
                durMax:300},
+  /* 대물 저격총 — 12.7 mm 대물탄을 쓰는 볼트식. 13 kg 이라 들고 다니기 버겁다.
+     조준경 배율 6 — 좌클릭을 누르고 있는 동안 들여다본다(scope). 와이번(700)도 두 발. */
+  rifle_sniper:{n:'대물 저격총', kg:13.0, c:0x4a4f45,
+               use:'사거리 120 m · 5발 · 한 발 500 — 좌클릭을 누르고 있으면 조준경(6배)',
+               tool:{weapon:1, gun:1, bore:'heavy', dmg:500, reach:120, rate:4.0,
+                     stam:5, swing:'shot', mag:5, reload:7.5, scope:6},
+               durMax:250},
+  /* 바주카 — 어깨에 메는 통. 로켓이 초속 70 m 로 곧게 날아가 부딪히는 자리에서 터진다
+     (수류탄과 같은 폭발 · 반경 6 m). 가까이 쏘면 쏜 사람도 다친다. */
+  bazooka:    {n:'바주카',     kg:7.0,  c:0x55603f,
+               use:'로켓 한 발 · 폭발 420(반경 6 m) · 150 m — 가까이 쏘면 나도 다친다',
+               tool:{weapon:1, gun:1, bore:'rocket', dmg:420, reach:150, rate:1.2,
+                     stam:6, swing:'shot', mag:1, reload:3.5, rocket:1, blast:6},
+               durMax:60},
   // 금속 가공 · 전기
   ring_platinum:{n:'백금 반지', kg:0.05, c:0xd8dce0,
                use:'표류 전부터 끼고 있던 것 — 백금은 촉매가 된다'},
@@ -7007,6 +7033,33 @@ const RECIPES=[
    in:[{id:'barrel_rifled',n:1},{id:'ingot_steel',n:2},{id:'spring_steel',n:3},
        {id:'iron_wrought',n:2},{id:'charcoal',n:3}],
    need:[{id:'hammer_stone',n:1}]},
+
+  {id:'rifle_sniper', tier:'강철', n:'대물 저격총', out:{id:'rifle_sniper',n:1},
+   time:200, stam:120, station:'lathe',
+   note:'강선 총열 둘을 이어 길게 뽑고 끝에 반동을 옆으로 흘리는 제퇴기를 단다. '
+       +'유리를 갈아 렌즈 둘로 조준경을 짠다. 무거워서 엎드려 쏘는 총이다.',
+   in:[{id:'barrel_rifled',n:2},{id:'ingot_steel',n:6},{id:'spring_steel',n:2},
+       {id:'glass',n:2},{id:'log',n:1},{id:'charcoal',n:4}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'cartridge_heavy', tier:'화학', n:'대물탄', out:{id:'cartridge_heavy',n:5},
+   time:40, stam:28, station:'anvil',
+   note:'굵은 황동 탄피에 무연화약을 소총탄의 세 배로 잰다. 탄두는 강철심.',
+   in:[{id:'ingot_brass',n:1},{id:'powder_smokeless',n:3},{id:'primer',n:5},
+       {id:'ingot_steel',n:2}]},
+
+  {id:'bazooka', tier:'강철', n:'바주카', out:{id:'bazooka',n:1},
+   time:140, stam:90, station:'lathe',
+   note:'강철판을 말아 곧은 통을 깎는다. 뒤는 열려 있어 불꽃이 빠진다 — 뒤에 서지 말 것. '
+       +'방아쇠는 구리선으로 로켓 꼬리에 불을 댄다.',
+   in:[{id:'ingot_steel',n:5},{id:'spring_steel',n:1},{id:'wire_copper',n:2},{id:'log',n:1}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'rocket', tier:'화학', n:'로켓탄', out:{id:'rocket',n:2},
+   time:36, stam:24, station:'anvil',
+   note:'연철 통 꼬리에 무연화약을 재워 밀고, 머리에 화약과 뇌관을 담아 부딪히면 터지게 한다.',
+   in:[{id:'iron_wrought',n:3},{id:'powder_smokeless',n:3},{id:'gunpowder',n:6},
+       {id:'primer',n:2}]},
 
   {id:'gunpowder', tier:'화학', n:'화약 빻기', out:{id:'gunpowder',n:2},
    time:30, stam:22,
@@ -10034,6 +10087,57 @@ const WEAPON_FX={
     fl.position.y=L+0.11; fl.visible=false; fl.name='flash'; g.add(fl);
     return {mesh:g, grip:0.36, muzzle:L+0.02};
   },
+  rifle_sniper(){                            // 대물 저격총 — 긴 총열 · 제퇴기 · 조준경 · 양각대
+    const g=new THREE.Group(), L=1.75;
+    const body=WMAT(0x4a4f45), steel=WMAT(0x5e6368), dark=WMAT(0x2b2e30), glass=WMAT(0x8fb4c8);
+    const stock=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.40,0.13),body); stock.position.y=0.20; g.add(stock);
+    const pad=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.04,0.17),dark); pad.position.y=0.0; g.add(pad);
+    const recv=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.34,0.09),steel); recv.position.y=0.52; g.add(recv);
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(0.024,0.028,L-0.55,12),steel);
+    barrel.position.y=0.62+(L-0.55)/2; g.add(barrel);
+    const brake=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.11,0.06),dark);
+    brake.position.y=L+0.05; g.add(brake);                        // 제퇴기
+    const mag=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.14,0.10),dark);
+    mag.position.set(0,0.46,-0.07); g.add(mag);
+    const grip=new THREE.Mesh(new THREE.BoxGeometry(0.045,0.13,0.06),dark);
+    grip.position.set(0,0.36,-0.07); grip.rotation.x=0.25; g.add(grip);
+    const sc=new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.028,0.34,12),dark);
+    sc.position.set(0,0.56,0.085); g.add(sc);                    // 조준경 몸통
+    for(const [y,r] of [[0.74,0.040],[0.38,0.034]]){
+      const bell=new THREE.Mesh(new THREE.CylinderGeometry(r,0.028,0.06,12),dark); bell.position.set(0,y,0.085);
+      if(y<0.5) bell.rotation.x=Math.PI; g.add(bell);
+      const ln=new THREE.Mesh(new THREE.CircleGeometry(r*0.85,12),glass); ln.position.set(0,y+(y<0.5?-0.031:0.031),0.085);
+      ln.rotation.x=y<0.5?Math.PI/2:-Math.PI/2; g.add(ln);
+    }
+    for(const s of [-1,1]){                                      // 양각대(접힌 채)
+      const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.007,0.26,6),dark);
+      leg.position.set(s*0.025,L-0.42,-0.04); leg.rotation.x=0.12; g.add(leg);
+    }
+    const fl=muzzleFlash(0.16); fl.position.y=L+0.16; fl.visible=false; fl.name='flash'; g.add(fl);
+    return {mesh:g, grip:0.40, muzzle:L+0.1};
+  },
+  bazooka(){                                 // 바주카 — 어깨에 메는 곧은 통 · 나팔 뒤끝 · 손잡이 둘 · 가늠자
+    const g=new THREE.Group(), L=1.40;
+    const tubeM=WMAT(0x55603f), dark=WMAT(0x2e3230), wood=WMAT(0x5f4c3a);
+    const tube=new THREE.Mesh(new THREE.CylinderGeometry(0.046,0.046,L,16,1,true),tubeM);
+    tube.material.side=THREE.DoubleSide; tube.position.y=L/2; g.add(tube);
+    const flare=new THREE.Mesh(new THREE.CylinderGeometry(0.047,0.07,0.14,16,1,true),dark);
+    flare.position.y=0.07; g.add(flare);                         // 뒤 나팔
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(0.048,0.008,6,16),dark);
+    ring.rotation.x=Math.PI/2; ring.position.y=L-0.01; g.add(ring);
+    const shoulder=new THREE.Mesh(new THREE.CylinderGeometry(0.058,0.058,0.20,12),wood);
+    shoulder.position.y=0.42; g.add(shoulder);                  // 어깨받이
+    for(const y of [0.62,0.92]){
+      const gr=new THREE.Mesh(new THREE.BoxGeometry(0.035,0.11,0.05),dark);
+      gr.position.set(0,y,-0.075); gr.rotation.x=0.2; g.add(gr);
+    }
+    const sight=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.03,0.05),dark);
+    sight.position.set(0,1.05,0.07); g.add(sight);
+    const head=new THREE.Mesh(new THREE.ConeGeometry(0.04,0.12,12),WMAT(0x6a7a58));
+    head.position.y=L+0.05; head.name='warhead'; g.add(head);   // 물린 로켓 머리
+    const fl=muzzleFlash(0.12); fl.position.y=L+0.12; fl.visible=false; fl.name='flash'; g.add(fl);
+    return {mesh:g, grip:0.62, muzzle:L};
+  },
   smg(){                                     // 기관단총 — 나무가 없고 탄창이 길다
     const g=new THREE.Group(), L=0.72;
     const steel=WMAT(0x565b61), dark=WMAT(0x2e3134);
@@ -10388,6 +10492,9 @@ function shoot(w,W){
   const o=new THREE.Vector3(), d=new THREE.Vector3();
   camera.getWorldPosition(o); camera.getWorldDirection(d);
   const dmg=W.dmg*ammoMul(w);            // 황동 탄피는 더 센 장약을 견딘다
+  if(W.rocket){ launchRocket(o,d,dmg,W); sfx('boom');
+    if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
+    invDirty=true; return; }
   if(weaponFx&&weaponFx.userData.flash){
     const fl=weaponFx.userData.flash; fl.visible=true; ATK.flash=0.05;
     if(fl.userData.seed) fl.userData.seed.value=Math.random()*50;   // 쏠 때마다 다른 꼴
@@ -10462,6 +10569,67 @@ function updateGrenades(dt){
     b.smoke.scale.set(5+k*6,6+k*8,1); b.smoke.position.y=0.5+k*3;
     b.light.intensity=Math.max(0,1-b.t*3)*40;
     if(k>=1){ scene.remove(b.g); BLASTS.splice(i,1); }
+  }
+}
+/* ── 조준경 ──────────────────────────────────────────────────────────────
+   `tool.scope`(배율)를 단 총을 들고 좌클릭을 누르고 있으면 들여다본다. 화각을 배율만큼
+   좁히고(70° → 70/배율), 손의 총을 감추고 검은 둥근 테와 십자선을 씌운다. 마우스도
+   배율만큼 둔해진다(PL.aimMul). 0.15초에 걸쳐 들어가고 나온다. */
+const SCOPE={k:0};
+function updateScope(dt){
+  const e=equippedTool(), W=e&&(ITEMS[e.id].tool||{});
+  const want=!!(W&&W.scope&&mouseDown&&!BUILD.on&&RELOAD.t<=0);
+  SCOPE.k=clamp(SCOPE.k+(want?dt:-dt)/0.15,0,1);
+  const zoom=1+(((W&&W.scope)||1)-1)*SCOPE.k;
+  const fov=70/zoom;
+  if(Math.abs(camera.fov-fov)>0.01){ camera.fov=fov; camera.updateProjectionMatrix(); }
+  PL.aimMul=1/zoom;
+  const on=SCOPE.k>0.9;
+  const el=document.getElementById('scope'); if(el) el.style.display=on?'block':'none';
+  if(weaponFx){
+    weaponFx.visible=!on;
+    const wh=weaponFx.getObjectByName('warhead');     // 바주카 — 물린 로켓 머리는 쏘면 사라진다
+    if(wh) wh.visible=!!(e&&e.mag>0);
+  }
+}
+/* ── 로켓 ────────────────────────────────────────────────────────────────
+   초속 70 m 로 곧게 날고(중력 1.5 m/s² — 멀리 가면 조금 처진다) 꼬리에 불꽃(makePlume)과
+   연기를 끈다. 땅·짐승에 닿거나 사거리를 다 가면 `explode` 로 터진다(수류탄과 같은 폭발). */
+const ROCKETS=[];
+function launchRocket(o,d,dmg,W){
+  const m=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.5,10),WMAT(0x5a6a4a)); m.add(body);
+  const head=new THREE.Mesh(new THREE.ConeGeometry(0.04,0.14,10),WMAT(0x6a7a58)); head.position.y=0.32; m.add(head);
+  for(let i=0;i<4;i++){ const f=new THREE.Mesh(new THREE.BoxGeometry(0.006,0.12,0.07),WMAT(0x3f4a38));
+    f.position.y=-0.2; f.rotation.y=i*Math.PI/2; f.position.x=Math.cos(i*Math.PI/2)*0.04;
+    f.position.z=-Math.sin(i*Math.PI/2)*0.04; m.add(f); }
+  const pl=makePlume(0.9,0.07); pl.userData.pow.value=1; pl.position.y=-0.26; m.add(pl);
+  m.position.copy(o).addScaledVector(d,1.2);
+  m.userData.lightRole='none';
+  scene.add(m);
+  ROCKETS.push({m,v:d.clone().multiplyScalar(70),dmg,r:W.blast||6,left:W.reach,trail:0});
+}
+const _ry=new THREE.Vector3(0,1,0), _rv=new THREE.Vector3();
+function updateRockets(dt){
+  for(let i=ROCKETS.length-1;i>=0;i--){
+    const R=ROCKETS[i], p=R.m.position;
+    R.v.y-=1.5*dt;
+    const step=R.v.length()*dt;
+    R.m.quaternion.setFromUnitVectors(_ry,_rv.copy(R.v).normalize());
+    // 한 걸음을 잘게 나눠 땅·짐승을 뚫고 지나가지 않게 한다
+    const n=Math.max(1,Math.ceil(step/1.5));
+    let hit=false;
+    for(let k=0;k<n&&!hit;k++){
+      p.addScaledVector(R.v,dt/n);
+      if(p.y<=Math.max(heightAt(p.x,p.z),-0.3)+0.05) hit=true;
+      for(const c of CREATURES){
+        if(c.hp>0 && Math.hypot(c.x-p.x,(c.y||0)+1-p.y,c.z-p.z)<(c.r||1.5)){
+          hit=true; p.set(c.x,c.y||0,c.z); break;                // 몸에 맞으면 그 자리에서 터진다(420 그대로)
+        }
+      }
+    }
+    R.left-=step;
+    if(hit||R.left<=0){ explode(p.clone(),R.dmg,R.r); scene.remove(R.m); ROCKETS.splice(i,1); }
   }
 }
 function explode(p,dmg,r){
@@ -10598,7 +10766,7 @@ function updateWeapon(dt){
     if(w && ITEMS[w.id].tool.auto && !(HARV.mode&&HARV.mode.tool)) attack();
   }
   if(NET.cd>0) NET.cd=Math.max(0,NET.cd-dt);
-  updateReload(dt); updateGrenades(dt);
+  updateReload(dt); updateGrenades(dt); updateRockets(dt); updateScope(dt);
   if(ATK.flash>0){
     ATK.flash-=dt;
     if(ATK.flash<=0 && weaponFx && weaponFx.userData.flash)
@@ -11918,8 +12086,9 @@ addEventListener('mousemove',e=>{
     return;
   }
   if(document.pointerLockElement!==cv) return;
-  PL.yaw-=e.movementX*0.0022;
-  PL.pitch=clamp(PL.pitch-e.movementY*0.0022,-1.5,1.5);
+  const ms=0.0022*(PL.aimMul||1);                // 조준경을 들여다보면 둔해진다
+  PL.yaw-=e.movementX*ms;
+  PL.pitch=clamp(PL.pitch-e.movementY*ms,-1.5,1.5);
 });
 let dragF=false;
 let mouseDown=false, rightDown=false;
