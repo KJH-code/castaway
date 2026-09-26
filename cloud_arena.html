@@ -1490,7 +1490,11 @@ function updateClouds(dt){
        그래서 **죽은 동안에는 흐르지도 않고**, 부르는 그 자리에서 새로 뽑는다. */
     if(c.dead){
       if(!on){ c.m.visible=false; continue; }
-      rerollCloud(c,WEA.jumpT>0); c.dead=0;
+      /* **새로 불린 구름은 하늘 아무 데서나 생긴다**(실제 적운도 제자리에서 피어난다 · 25초에 걸쳐 짙어짐).
+         예전엔 바람 위쪽 가장자리에만 세워, 날씨가 적운을 부르면 60 덩이가 한 줄로 20 km 밖에
+         몰려 섰다가 초속 24 m 로 한꺼번에 하늘을 건넜다(5분 뒤에도 60 이 전부 바람 위쪽) —
+         한쪽 하늘에만 구름이 쌓여 보였다. 바람 위쪽에서 들이는 것은 멀어져 되돌아오는 구름뿐이다. */
+      rerollCloud(c,true); c.dead=0;
     }
     const vv=c.v*CLOUD_SPD;
     c.x+=wx*vv*ts*dt; c.z+=wz*vv*ts*dt;
