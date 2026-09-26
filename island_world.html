@@ -1484,9 +1484,9 @@ vec2 grain(vec3 p){
           vec3 q=p+(vec3(rn(p/0.7),rn(p/0.7+2.1),rn(p/0.7+4.3))-0.5)*0.5;
           float r=length(q-floor(q/1.6)*1.6-0.8);
           float band=0.5+0.5*sin(r*38.0+rn(p/0.3)*3.0);
-          float patch=smoothstep(0.42,0.60,rn(p/1.1+8.8));
-          vec3 mal=mix(vec3(0.05,0.30,0.18),vec3(0.30,0.66,0.44),smoothstep(0.25,0.75,band));
-          c=mix(c,mal*(0.85+0.3*a),patch*0.85);
+          float mpat=smoothstep(0.50,0.66,rn(p/0.9+8.8));
+          vec3 mal=mix(vec3(0.04,0.20,0.12),vec3(0.16,0.42,0.28),smoothstep(0.25,0.75,band));
+          c=mix(c,mal*(0.85+0.3*a),mpat*0.7);
         }
         else if(T==2){
           /* 석탄 — 반짝이는 띠(비트레인)와 흐린 띠(듀레인)가 켜켜이 · 층에 수직으로 두 갈래 결리(갈라진 금) */
@@ -1510,7 +1510,7 @@ vec2 grain(vec3 p){
           float face=rn(id*1.7+0.3);
           float e=min(min(min(f.x,1.0-f.x),min(f.y,1.0-f.y)),min(f.z,1.0-f.z));
           c*=mix(1.0,0.78+0.42*face,mix(0.55,1.0,nearK));
-          c*=1.0-(1.0-smoothstep(0.0,0.06,e))*0.45*nearK;                 // 조각 사이 금
+          c*=1.0-(1.0-smoothstep(0.0,0.04,e))*0.25*nearK;                 // 조각 사이 금
           c+=vec3(0.18)*step(0.86,face)*nearK*${L.met.toFixed(2)};        // 볕 받은 면의 번쩍임
         }
         else if(T==4){ c*=1.0+step(0.93,grain(p/0.03).x)*0.9*nearK; }
@@ -1805,6 +1805,12 @@ const COLLIDERS=[];                    // {x,z,r} 나무·바위 충돌체
    임포스터(나무당 판 4장)를 450 m 까지 그린다 */
 const VIEW_DIST=450, NEAR_DIST=55, TILE=64;
 const TREE_TILES=[];
+const WIND_ON=false;
+/* 풀·갈대·자갈처럼 작은 것은 멀면 안 보인다 — 섬 전체를 한 인스턴스 메시로 들고 있으면 발밑 풀
+   한 포기 때문에 1920 m 섬의 풀 4만 포기(삼각형 220만)를 매 프레임 다 그렸다. 64 m 칸으로 쪼개
+   `PROP_DIST` 밖 칸을 통째로 끈다(updateTileVis). 가까운 풀의 빽빽함은 그대로다. */
+const PROP_TILE=64, PROP_TILES=[];
+const PROP_DIST={grass:85, reed:110, pebble:90, flint:110};
 const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
 /* 칸마다 셋 중 하나를 고른다.
      NEAR_DIST(55 m) 안   — 가지와 잎을 다 그린다
@@ -1819,6 +1825,7 @@ function updateTileVis(){
   const px=PL.pos.x, pz=PL.pos.z;
   // 바위 — 칸 가장자리가 200 m 밖이면 통째로 안 그린다
   for(const t of ROCK_TILES) t.m.visible=Math.hypot(t.cx-px,t.cz-pz)-t.r<=ROCK_DIST;
+  for(const t of PROP_TILES){ const v=Math.hypot(t.cx-px,t.cz-pz)-t.r<=t.d; for(const m of t.ms) m.visible=v; }
   for(const t of TREE_TILES){
     const d=Math.hypot(t.cx-px,t.cz-pz)-t.r;
     const near=d<=NEAR_DIST, mid=!near && d<=VIEW_DIST;
@@ -2553,6 +2560,27 @@ function buildProps(){
         propGroup.add(batch);
         ROCK_TILES.push({m:batch, cx:(b.gx+0.5)*ROCK_TILE, cz:(b.gz+0.5)*ROCK_TILE, r:ROCK_TILE*0.71+4});
       }
+    }else if(PROP_DIST[R.k]){
+      const bins=new Map(), _TM=new THREE.Matrix4();
+      list.forEach((p,ix)=>{
+        const k=Math.floor(p.x/PROP_TILE)+'|'+Math.floor(p.z/PROP_TILE);
+        let b=bins.get(k);
+        if(!b){ b={ix:[], gx:Math.floor(p.x/PROP_TILE), gz:Math.floor(p.z/PROP_TILE)}; bins.set(k,b); }
+        b.ix.push(ix);
+      });
+      for(const b of bins.values()){
+        const tms=geos.map((g,gi)=>{
+          const t=new THREE.InstancedMesh(g,mats[gi],b.ix.length);
+          b.ix.forEach((ix,j)=>{ ms[gi].getMatrixAt(ix,_TM); t.setMatrixAt(j,_TM); });
+          t.instanceMatrix.needsUpdate=true; t.frustumCulled=false;
+          t.userData.lightRole=ms[gi].userData.lightRole;
+          propGroup.add(t); return t;
+        });
+        b.ix.forEach((ix,j)=>{ const p=list[ix]; if(p._fm){ p._fm=tms[0]; p._fi=j; } });
+        PROP_TILES.push({ms:tms, cx:(b.gx+0.5)*PROP_TILE, cz:(b.gz+0.5)*PROP_TILE,
+                         r:PROP_TILE*0.71, d:PROP_DIST[R.k]});
+      }
+      ms.forEach(m=>m.dispose&&m.dispose());
     }else{
       ms.forEach(m=>{ m.instanceMatrix.needsUpdate=true; m.frustumCulled=false; propGroup.add(m); });
     }
@@ -2617,7 +2645,9 @@ function buildBerries(){
   if(!total) return;
   /* 알 하나는 반지름 1 의 공으로 만들고 인스턴스 배율로 크기를 준다.
      가로보다 세로를 조금 눌러야 매달린 열매처럼 보인다. */
-  const geo=new THREE.SphereGeometry(1,12,9);      // 6×5 는 가까이서 모가 났다
+  /* 8×6 공(삼각형 80) — 12×9(216)이던 것을 줄였다. 지름 4~7 cm 라 두세 걸음만 떨어져도 몇 화소이고,
+     섬 전체 1만 5천 알이 삼각형 316만을 먹어 한 프레임 삼각형의 1/5 이었다. 매끈함은 셰이더 명암이 맡는다 */
+  const geo=new THREE.SphereGeometry(1,8,6);
   const bmat=new THREE.MeshLambertMaterial({color:0xffffff});
   /* 열매답게 — ① 껍질이 매끄러워 해를 받는 한 점이 반짝이고(좁은 반사광)
      ② 얇은 껍질 밑 과육이 빛을 머금어 가장자리가 붉게 비치고(역광 투과 흉내)
@@ -4652,7 +4682,9 @@ const WIND_GLSL={
 function envPatch(m){
   if(!m||m.userData._env) return;
   const lam=!!m.isMeshLambertMaterial, dep=!!m.isMeshDepthMaterial;
-  const wind=m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';
+  /* 바람 흔들림은 껐다(`WIND_ON`) — 풀·잎·베리·가지 정점마다 사인파를 셌는데, 정점이 한 프레임에
+     수백만 개라 가장 비싼 축에 들었다. 켜려면 true 로(코드는 그대로 남아 있다). */
+  const wind=WIND_ON&&m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';
   if(!lam&&!(dep&&wind)) return;
   m.userData._env=1;
   const prev=m.onBeforeCompile;
@@ -4894,14 +4926,15 @@ vec3 dens(vec3 p, float bM, out float r, out float m){ float alt=length(p)-RE;
 vec3 odSun(vec3 p, vec3 s, float bM){
   if(hitS(p,s,RE).x>0.0) return vec3(60.0);
   float L=hitS(p,s,RT).y, prev=0.0; vec3 od=vec3(0.0); float r,m;
-  for(int k=1;k<=6;k++){ float u=float(k)/6.0, t=L*u*u, ds=t-prev, tm=(t+prev)*0.5; prev=t;
+  for(int k=1;k<=4;k++){ float u=float(k)/4.0, t=L*u*u, ds=t-prev, tm=(t+prev)*0.5; prev=t;
     od+=dens(p+s*tm,bM,r,m)*ds; }
   return od; }
 vec3 scat(vec3 dir, vec3 sun, float k){
   vec3 o=vec3(0.0,RE+2.0,0.0);
   float tEnd=hitS(o,dir,RT).y, bM=0.1/HM*uTurb/2.6, prev=0.0, r, m;
   vec3 odV=vec3(0.0), sR=vec3(0.0), sM=vec3(0.0), aR=vec3(0.0), aM=vec3(0.0);
-  for(int i=1;i<=16;i++){ float u=float(i)/16.0, t=tEnd*u*u, ds=t-prev, tm=(t+prev)*0.5; prev=t;
+  for(int i=1;i<=10;i++){ float u=float(i)/10.0,   // 16×6 → 10×4 걸음(u² 간격이라 지평선·노을 띠는 거의 그대로, 화소당 반복 96 → 40)
+  t=tEnd*u*u, ds=t-prev, tm=(t+prev)*0.5; prev=t;
     vec3 p=o+dir*tm; odV+=dens(p,bM,r,m)*ds;
     vec3 T=exp(-(odV+odSun(p,sun,bM)));
     sR+=T*r*ds; sM+=T*m*ds; vec3 V=exp(-odV); aR+=V*r*ds; aM+=V*m*ds; }
@@ -11377,7 +11410,7 @@ function footstep(){
 /* ============================================================================
    11) HUD
    ========================================================================== */
-let mapImg=null;
+let mapImg=null, mapBase=null, mapBaseProps=null, mapBaseT=0;
 document.getElementById('mSpan').textContent=WORLD+' m';
 function cacheMap(){
   const ctx=document.getElementById('map').getContext('2d');
@@ -11395,24 +11428,33 @@ function cacheMap(){
     d[o]=clamp(col.r*255*sh,0,255); d[o+1]=clamp(col.g*255*sh,0,255);
     d[o+2]=clamp(col.b*255*sh,0,255); d[o+3]=255;
   }
-  mapImg=img;
+  mapImg=img; mapBaseT=-1e9;          // 새 섬이면 바탕을 다시 굽는다
 }
 function drawMap(){
   if(!mapImg) return;
   const ctx=document.getElementById('map').getContext('2d');
   const x=PL.pos.x/CELL+N/2, z=PL.pos.z/CELL+N/2, u=1;
-  ctx.putImageData(mapImg,0,0);
-  if(showProps){
-    for(const p of PROPS){
-      if(p.k==='oak'||p.k==='fir'||p.k==='reed'||p.k==='grass'||p.k==='pebble') continue;
-      const R=RESOURCES.find(r=>r.k===p.k);
-      ctx.fillStyle='#'+R.c.toString(16).padStart(6,'0');
-      ctx.fillRect((p.x/CELL+N/2)|0,(p.z/CELL+N/2)|0,1.5*u,1.5*u);
+  /* 지도 바탕(지형 + 자원 점 + 상륙 지점)은 한 장으로 구워 두고 매번 그대로 붙인다 — 예전엔 0.12초마다
+     768² 화소를 putImageData 하고 자원 수천 개를 RESOURCES.find 로 찾아 찍어 한 번에 4 ms 였다.
+     바탕은 자원 표시를 켜고 끌 때와 10초마다(캐서 사라진 것 반영)만 다시 굽는다 */
+  const now=performance.now();
+  if(!mapBase||mapBaseProps!==showProps||now-mapBaseT>10000){
+    if(!mapBase){ mapBase=document.createElement('canvas'); mapBase.width=mapBase.height=N; }
+    const b=mapBase.getContext('2d');
+    b.putImageData(mapImg,0,0);
+    if(showProps){
+      const colOf={}; for(const r of RESOURCES) colOf[r.k]='#'+r.c.toString(16).padStart(6,'0');
+      for(const p of PROPS){
+        if(p.k==='oak'||p.k==='fir'||p.k==='reed'||p.k==='grass'||p.k==='pebble') continue;
+        b.fillStyle=colOf[p.k];
+        b.fillRect((p.x/CELL+N/2)|0,(p.z/CELL+N/2)|0,1.5*u,1.5*u);
+      }
     }
+    const px=podPos.x/CELL+N/2, pz=podPos.z/CELL+N/2;      // 상륙 지점
+    b.fillStyle='#ffb060'; b.fillRect(px-1.5*u,pz-1.5*u,3*u,3*u);
+    mapBaseProps=showProps; mapBaseT=now;
   }
-  // 상륙 지점
-  const px=podPos.x/CELL+N/2, pz=podPos.z/CELL+N/2;
-  ctx.fillStyle='#ffb060'; ctx.fillRect(px-1.5*u,pz-1.5*u,3*u,3*u);
+  ctx.drawImage(mapBase,0,0);
   /* 플레이어 — 보는 쪽을 **뾰족한 끝**으로 가리키는 화살 삼각형.
      예전엔 시야 부채꼴(꼭짓점이 사람, 넓은 쪽이 앞)만 그려서 꼭짓점이 뒤를 가리키는 삼각형으로 읽혔다.
      앞 = (−sin yaw, −cos yaw) · 지도는 x→오른쪽, z→아래 */
