@@ -1,0 +1,2433 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>CASTAWAY — 구름 시험장</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#0b0e13;
+    font:13px/1.5 system-ui,'Malgun Gothic',sans-serif;color:#dfe6ee}
+  canvas{display:block}
+  #ui{position:fixed;left:10px;top:10px;width:330px;max-height:calc(100% - 20px);
+    overflow:auto;background:rgba(14,18,25,.88);border:1px solid #2b3644;
+    border-radius:8px;padding:10px 12px;backdrop-filter:blur(4px)}
+  #ui h2{margin:0 0 6px;font-size:14px;color:#9fd0ff;font-weight:600}
+  .row{display:flex;align-items:center;gap:6px;margin:3px 0}
+  .row .nm{flex:1;white-space:nowrap}
+  .row .ct{width:52px;text-align:right;color:#8fe0a8;font-variant-numeric:tabular-nums}
+  button{background:#1d2836;color:#dfe6ee;border:1px solid #33455c;border-radius:4px;
+    padding:2px 7px;cursor:pointer;font:inherit}
+  button:hover{background:#27364a}
+  button.on{background:#2f5a8a;border-color:#4e86c4}
+  .sec{margin-top:9px;padding-top:8px;border-top:1px solid #253040}
+  .sl{display:flex;align-items:center;gap:6px;margin:4px 0}
+  .sl label{width:74px;color:#9fb2c6}
+  .sl input{flex:1}
+  .sl .v{width:56px;text-align:right;color:#8fe0a8;font-variant-numeric:tabular-nums}
+  #hud{position:fixed;right:10px;top:10px;background:rgba(14,18,25,.8);
+    border:1px solid #2b3644;border-radius:8px;padding:8px 11px;text-align:right;
+    font-variant-numeric:tabular-nums}
+  #hud b{color:#9fd0ff;font-weight:600}
+  #tip{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
+    background:rgba(14,18,25,.8);border:1px solid #2b3644;border-radius:6px;
+    padding:5px 12px;color:#9fb2c6}
+  #toast{position:fixed;left:50%;top:60px;transform:translateX(-50%);
+    background:rgba(20,28,38,.92);border:1px solid #3b4f68;border-radius:6px;
+    padding:6px 14px;opacity:0;transition:opacity .25s;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="ui">
+  <h2>구름 시험장</h2>
+  <div id="kinds"></div>
+  <div class="sec">
+    <div class="row">
+      <button id="bAll">전부 소환</button>
+      <button id="bNone">전부 없애기</button>
+      <button id="bAuto" class="on">날씨에 맡김</button>
+    </div>
+    <div class="row"><button id="bRoll">모양 다시 굴리기 (R)</button>
+      <button id="bFront">앞에 세우기 (F)</button>
+      <button id="bPause">멈춤 (P)</button></div>
+  </div>
+  <div class="sec">
+    <div class="sl"><label>시각</label><input id="sH" type="range" min="0" max="24"
+      step="0.1" value="9"><span class="v" id="vH">9.0시</span></div>
+    <div class="sl"><label>배속</label><input id="sT" type="range" min="0" max="4"
+      step="1" value="0"><span class="v" id="vT">1배</span></div>
+    <div class="sl"><label>날씨 단계</label><input id="sC" type="range" min="-1" max="100"
+      step="1" value="-1"><span class="v" id="vC">자동</span></div>
+    <div class="sl"><label>저기압 세기</label><input id="sS" type="range" min="-1" max="100"
+      step="1" value="-1"><span class="v" id="vS">자동</span></div>
+    <div class="sl"><label>안개</label><input id="sM" type="range" min="-1" max="100"
+      step="1" value="-1"><span class="v" id="vM">자동</span></div>
+    <div class="sl"><label>짙기 배율</label><input id="sO" type="range" min="10" max="250"
+      step="5" value="100"><span class="v" id="vO">1.00×</span></div>
+    <div class="sl"><label>여닫는 초</label><input id="sF" type="range" min="1" max="30"
+      step="1" value="4"><span class="v" id="vF">4초</span></div>
+    <div class="sl"><label>바람</label><input id="sW" type="range" min="0" max="359"
+      step="1" value="0"><span class="v" id="vW">0°</span></div>
+  </div>
+  <div class="sec" style="color:#8ea3ba">
+    알갱이 뭉치가 보이는지 확인하려면 <b>F</b> 로 눈앞에 세우고 <b>A/D</b> 로
+    옆걸음질 쳐 볼 것 — 앞뒤 알갱이가 어긋나 움직이면 깊이가 살아 있는 것이다.
+  </div>
+</div>
+<div id="hud"></div>
+<div id="tip">마우스 눌러 둘러보기 · <b>WASD</b> 날기 · <b>Space/Shift</b> 위아래 ·
+  <b>Esc</b> 마우스 풀기</div>
+<div id="toast"></div>
+<script src="three.min.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   구름 시험장 — 본편(`island_world.html`)의 하늘·구름·날씨 코드를 그대로 옮겨
+   놓고, 갈래마다 손으로 소환하고 없앨 수 있게 손잡이만 달았다.
+
+   본편 코드에 낸 구멍은 다섯 뿐이다(전부 `// 시험장:` 으로 표시해 두었다):
+     PHASE  날씨 단계(저기압 위상 0~1)   STR    저기압 세기   MANUAL 갈래마다 개수
+     MIST   안개를 손으로 잡는다          FADE   여닫는 시간(본편 25초)
+     OPMUL  짙기 배율
+   나머지는 본편과 한 글자도 다르지 않다 — 여기서 맞춘 값은 본편에 그대로 옮기면
+   된다. 반대로 **본편의 구름 코드를 고치면 이 파일도 같이 고쳐야 한다.**
+   ══════════════════════════════════════════════════════════════════════════ */
+const lerp=(a,b,t)=>a+(b-a)*t;
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+function hashStr(s){
+  let h=2166136261>>>0;
+  for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); }
+  return h>>>0;
+}
+function mulberry32(a){
+  return function(){
+    a|=0; a=a+0x6D2B79F5|0;
+    let t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return ((t^t>>>14)>>>0)/4294967296;
+  };
+}
+let windDir={x:1,z:0,name:'서풍'};
+let farScale=1.0, ocean=null;
+/* 시험장 손잡이 */
+let PHASE=null, STR=null, MIST=null, OPMUL=1, FADE=4;
+/* 멈춤 — 시간·구름을 세우고 그리기만 한다. 뜯어볼 때와 사진 찍을 때 쓴다.
+   멈추지 않으면 1562 m(`CLOUD_R`×1.25) 밖에 갖다 놓은 구름을 루프가 곧바로
+   되굴려 치워 버린다. */
+let PAUSE=false;
+const MANUAL={};
+let toastT=0;
+function toast(s){
+  const e=document.getElementById('toast');
+  e.textContent=s; e.style.opacity=1;
+  clearTimeout(toastT); toastT=setTimeout(()=>e.style.opacity=0,1600);
+}
+
+/* ---------------- 무대 ---------------- */
+const cv=document.getElementById('cv');
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=null;           // 하늘은 skyScene 이 먼저 칠한다
+scene.fog=new THREE.FogExp2(0x87a0b8,0.005);
+const camera=new THREE.PerspectiveCamera(62,1,0.5,3000);
+camera.position.set(0,30,0);
+const amb=new THREE.AmbientLight(0xffffff,0.5);
+const hemi=new THREE.HemisphereLight(0xbfd6ff,0x4a4335,0.3);
+const sun=new THREE.DirectionalLight(0xffffff,1.0);
+scene.add(amb,hemi,sun);
+/* 땅 — 지평선이 있어야 구름 높이가 가늠된다. 격자를 넣어 걸음을 잰다 */
+{
+  const g=new THREE.PlaneGeometry(4000,4000,1,1);
+  const m=new THREE.MeshLambertMaterial({color:0x5c6b4a});
+  const pl=new THREE.Mesh(g,m); pl.rotation.x=-Math.PI/2; scene.add(pl);
+  const gr=new THREE.GridHelper(4000,80,0x40506a,0x33404f);
+  gr.position.y=0.2; gr.material.transparent=true; gr.material.opacity=0.25;
+  scene.add(gr);
+  // 100 m 짜리 기둥 몇 개 — 구름 크기를 눈으로 견줄 자
+  const pm=new THREE.MeshLambertMaterial({color:0xb9c2cc});
+  for(let i=0;i<6;i++){
+    const p=new THREE.Mesh(new THREE.CylinderGeometry(3,3,100,8),pm);
+    const a=i/6*6.283;
+    p.position.set(Math.cos(a)*300,50,Math.sin(a)*300);
+    scene.add(p);
+  }
+}
+/* ---------------- 하늘 · 광원 · 시간 ---------------- */
+/* s = 천정색, z = 지평선색, u = 광원색, a = 환경광, d = 안개, i = 태양광 */
+const SKY=[
+  {h:0, s:0x000103,z:0x02040a,u:0x141c2e,a:0.030,d:0.0250,i:0.05},
+  {h:5, s:0x02040c,z:0x070c16,u:0x1e2740,a:0.045,d:0.0215,i:0.09},
+  {h:7, s:0x2a3850,z:0x8f6a52,u:0x8a7660,a:0.28,d:0.0110,i:0.62},
+  {h:11,s:0x63819c,z:0x9fb0b8,u:0xc9c6b4,a:0.55,d:0.0052,i:1.08},
+  {h:16,s:0x5e7b93,z:0x9aa8ac,u:0xc2b79c,a:0.50,d:0.0058,i:0.98},
+  {h:19,s:0x22243a,z:0x8e5a3e,u:0x7d5a4c,a:0.20,d:0.0130,i:0.43},
+  {h:21,s:0x010206,z:0x04070f,u:0x162034,a:0.038,d:0.0235,i:0.06},
+  {h:24,s:0x000103,z:0x02040a,u:0x141c2e,a:0.030,d:0.0250,i:0.05}
+];
+let skyDome=null, skyCol=null, sunDisc=null, stars=null, moonDisc=null;
+/* 하늘 장면 — 해·달·별·하늘 돔·구름. 땅과 따로 그린다(구름 머리말 참고).
+   `skyCam` 은 매 프레임 `camera` 의 자리·방향·화각을 그대로 베낀다. */
+const skyScene=new THREE.Scene();
+skyScene.background=new THREE.Color(0x7d8f9b);
+const skyCam=new THREE.PerspectiveCamera(60,1,20,250000);
+let skyUnder=false;            // 물속이면 하늘 대신 물빛으로 칠한다
+function renderFrame(){
+  skyCam.position.copy(camera.position);
+  skyCam.quaternion.copy(camera.quaternion);
+  if(skyCam.fov!==camera.fov||skyCam.aspect!==camera.aspect){
+    skyCam.fov=camera.fov; skyCam.aspect=camera.aspect; skyCam.updateProjectionMatrix();
+  }
+  renderer.autoClear=false;
+  renderer.setClearColor(skyUnder?0x0b2430:skyScene.background,1);
+  renderer.clear();
+  if(!skyUnder){ renderer.render(skyScene,skyCam); renderer.clearDepth(); }
+  renderer.render(scene,camera);
+  renderer.autoClear=true; skyUnder=false;
+}
+
+/* ── 달 ──────────────────────────────────────────────────────────────────
+   해와 따로 선다. 삭망월 29.5일 — 태양과의 **이각이 곧 위상각**이라 달을 해의 자리에서
+   위상만큼 돌린 곳에 둔다(삭이면 해 옆, 망이면 해 반대편 — 뜨고 지는 시각이 날마다 밀린다).
+
+   ① **얼굴**(`makeMoonFace`, 512² 캔버스) — 지구에서 보는 앞면의 실제 배치를 따랐다:
+      왼쪽 큰 폭풍의 대양 · 왼쪽 위 비의 바다 · 가운데 위 맑음·고요의 바다 · 오른쪽 가장자리
+      위기의 바다(따로 떨어진 타원) · 아래 구름·습기의 바다 · 밝은 남쪽 고지대에 티코와 그 광조,
+      비의 바다 아래 코페르니쿠스. 가장자리 어둡게 하기는 그림에 넣지 않는다(③이 한다).
+   ② **위상은 그림을 오려 내지 않고 공으로 비춘다**(`moonMat` 셰이더). 원판 위 한 점을 공의
+      법선 n 으로 되돌리고, 실제 해 방향(`_sd3`)을 원판 좌표로 옮겨 비춘다 — 그래서 명암 경계가
+      위상각과 해의 높이에 맞게 저절로 기운다(초저녁 초승달은 등이 해 쪽을 향해 누워 있다).
+   ③ **달은 램버트가 아니다** — 표토가 빛을 되돌려 보내는 로멜-젤리거 반사 μ₀/(μ₀+μ) 라서
+      보름달은 가장자리까지 고르게 밝은 원판이다(공처럼 가장자리가 어두워지지 않는다).
+      명암 경계는 산그림자로 조금 거칠다.
+   ④ **지구빛** — 초승·그믐에는 지구가 거의 보름이라 달의 어두운 쪽이 잿빛으로 보인다
+      (다빈치 빛). 어두운 쪽 밝기 ∝ 지구의 밝은 면적 (1+cos α)/2 의 1.5%쯤.
+      밤에는 어두운 쪽도 불투명해 뒤의 별을 가린다. 낮엔 하늘에 묻힌다.
+   ⑤ **밝기**(`moonBright`) — 밝은 면적에 비례하지 않는다. 표토 알갱이의 그림자가 보름에
+      한꺼번에 사라지는 **충 효과** 때문에 상현(위상각 90°)은 보름의 8~9%, 초승달(120°)은
+      2.5% 뿐이다 — 등급식 m(α) = 0.026|α| + 4×10⁻⁹α⁴ (앨런)로 센다. */
+const MOON={phase:0, illum:0, bright:0, alpha:Math.PI, dir:new THREE.Vector3(0,-1,0)};
+const MOON_S=512;
+let moonFace=null, moonTex=null, moonMat=null;
+/* 위상각 α(라디안, 0 = 보름) → 보름 대비 밝기 */
+function moonBright(alpha){
+  const d=Math.abs(alpha)*180/Math.PI;
+  return Math.pow(10,-0.4*(0.026*d+4e-9*d*d*d*d));
+}
+function makeMoonFace(){
+  const c=document.createElement('canvas'); c.width=c.height=MOON_S;
+  const g=c.getContext('2d'), R=MOON_S/2, cx=R, cy=R;
+  const rnd=mulberry32(hashStr('moon'));
+  // 고지대 — 밝고 조금 누런 잿빛, 잔 얼룩
+  g.fillStyle='#c9c7bf'; g.fillRect(0,0,MOON_S,MOON_S);
+  for(let i=0;i<260;i++){
+    const x=rnd()*MOON_S, y=rnd()*MOON_S, br=R*(0.02+rnd()*0.08), l=rnd()<0.5;
+    const gr=g.createRadialGradient(x,y,0,x,y,br);
+    gr.addColorStop(0,l?'rgba(236,234,226,0.28)':'rgba(150,148,142,0.22)');
+    gr.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=gr; g.fillRect(x-br,y-br,br*2,br*2);
+  }
+  /* 바다 — 원판 좌표(−1..1, 오른쪽 +x · 아래 +y)의 타원 몇 겹. 테두리는 불규칙하게
+     작은 얼룩을 둘러 매끈한 타원이 드러나지 않게 한다 */
+  const MARE=[ // x, y, rx, ry, 짙기
+    [-0.55,-0.05,0.30,0.46,0.85],[-0.62, 0.20,0.22,0.30,0.7],   // 폭풍의 대양
+    [-0.30,-0.38,0.26,0.22,0.95],                               // 비의 바다
+    [ 0.10,-0.38,0.15,0.14,0.9],                                // 맑음의 바다
+    [ 0.24,-0.10,0.20,0.17,0.9],                                // 고요의 바다
+    [ 0.60,-0.30,0.11,0.13,0.95],                               // 위기의 바다
+    [ 0.40, 0.18,0.14,0.12,0.75],                               // 풍요의 바다
+    [ 0.18, 0.22,0.10,0.10,0.7],                                // 감로주의 바다
+    [-0.18, 0.28,0.17,0.13,0.75],                               // 구름의 바다
+    [-0.46, 0.40,0.10,0.09,0.7],                                // 습기의 바다
+    [ 0.00,-0.66,0.30,0.06,0.6],                                // 추위의 바다
+    [-0.10,-0.05,0.10,0.08,0.6]];                               // 가운데 만
+  for(const [mx,my,rx,ry,k] of MARE){
+    for(let j=0;j<26;j++){
+      const t=rnd()*6.283, q=Math.sqrt(rnd());
+      const x=cx+(mx+Math.cos(t)*rx*q*0.9)*R, y=cy+(my+Math.sin(t)*ry*q*0.9)*R;
+      const br=R*Math.min(rx,ry)*(0.35+rnd()*0.5);
+      const gr=g.createRadialGradient(x,y,0,x,y,br);
+      gr.addColorStop(0,'rgba(92,94,98,'+(0.30*k).toFixed(3)+')');
+      gr.addColorStop(0.7,'rgba(92,94,98,'+(0.18*k).toFixed(3)+')');
+      gr.addColorStop(1,'rgba(92,94,98,0)');
+      g.fillStyle=gr; g.fillRect(x-br,y-br,br*2,br*2);
+    }
+  }
+  // 크레이터 — 작은 것이 훨씬 많다(크기 분포 ~ r⁻²). 고지대에 몰린다
+  for(let i=0;i<520;i++){
+    const t=rnd()*6.283, q=Math.sqrt(rnd());
+    const x=cx+Math.cos(t)*q*R, y=cy+Math.sin(t)*q*R;
+    const br=R*0.006/Math.pow(0.04+rnd()*0.96,0.9)*(rnd()<0.97?1:2.5);
+    if(br>R*0.09) continue;
+    g.fillStyle='rgba(120,118,114,0.35)'; g.beginPath(); g.arc(x,y,br,0,6.283); g.fill();
+    g.strokeStyle='rgba(240,238,230,0.45)'; g.lineWidth=Math.max(0.7,br*0.25);
+    g.beginPath(); g.arc(x,y,br,0,6.283); g.stroke();
+  }
+  // 광조 크레이터 — 티코(남쪽)·코페르니쿠스·케플러. 밝은 줄이 사방으로 뻗는다
+  for(const [x0,y0,n,len,r0] of [[-0.10,0.62,34,0.95,0.035],[-0.32,-0.12,22,0.35,0.028],[-0.60,-0.10,14,0.22,0.02]]){
+    const x=cx+x0*R, y=cy+y0*R;
+    g.lineCap='round';
+    for(let j=0;j<n;j++){
+      const t=rnd()*6.283, L=R*len*(0.3+rnd()*0.7);
+      const gr=g.createLinearGradient(x,y,x+Math.cos(t)*L,y+Math.sin(t)*L);
+      gr.addColorStop(0,'rgba(245,243,236,0.35)'); gr.addColorStop(1,'rgba(245,243,236,0)');
+      g.strokeStyle=gr; g.lineWidth=R*(0.006+rnd()*0.012);
+      g.beginPath(); g.moveTo(x,y); g.lineTo(x+Math.cos(t)*L,y+Math.sin(t)*L); g.stroke();
+    }
+    const gr=g.createRadialGradient(x,y,0,x,y,R*r0*2.2);
+    gr.addColorStop(0,'rgba(252,250,244,0.9)'); gr.addColorStop(1,'rgba(252,250,244,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(x,y,R*r0*2.2,0,6.283); g.fill();
+  }
+  return c;
+}
+const MOON_VS=`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
+const MOON_FS=`
+uniform sampler2D uTex; uniform vec3 uL; uniform vec3 uCol; uniform float uEarth, uDark, uOp;
+varying vec2 vUv;
+void main(){
+  vec2 p=vUv*2.0-1.0; float r2=dot(p,p);
+  float aa=fwidth(r2)*1.5;
+  float edge=1.0-smoothstep(1.0-aa,1.0,r2);
+  if(edge<=0.0) discard;
+  vec3 n=vec3(p,sqrt(max(0.0,1.0-r2)));
+  vec3 alb=texture2D(uTex,vUv).rgb;
+  float mu0=dot(n,uL), mu=n.z;
+  // 명암 경계는 산그림자로 조금 거칠다 — 알베도 무늬로 경계를 흔든다
+  float rough=(alb.r-0.7)*0.12;
+  float lit=smoothstep(-0.015,0.05,mu0+rough);
+  float ls=lit*max(mu0,0.0)/(max(mu0,0.0)+mu+1e-3)*2.0;      // 로멜-젤리거(보름에 1)
+  vec3 c=alb*uCol*ls + alb*vec3(0.55,0.62,0.75)*uEarth*(1.0-lit);
+  float a=max(clamp(ls*1.4,0.0,1.0),uDark)*edge*uOp;
+  gl_FragColor=vec4(c,a);
+}`;
+/* ── 해 ──────────────────────────────────────────────────────────────────
+   원판 + 둘레의 빛무리(더하기 혼합). 원판은 **주연 감광** I(μ)=1−0.6(1−μ) — 가장자리가
+   가운데보다 40% 어둡고 붉다. 빛깔은 땅에 닿는 햇빛색(`cSun`) — 지평선에선 주황·빨강.
+   지평선 가까이에선 **굴절로 위아래가 눌린다**(아랫단이 더 떠 보여 납작해진다, 0° 에서 0.8배).
+   빛무리는 공기 속 에어로졸의 앞쪽 산란이라 탁할수록·안개일수록 넓고, 해가 낮을수록 붉다. */
+const SUN_FS=`
+uniform vec3 uCol; uniform float uOp, uK; varying vec2 vUv;
+void main(){
+  vec2 p=vUv*2.0-1.0; float r2=dot(p,p);
+  float aa=fwidth(r2)*1.5;
+  float edge=1.0-smoothstep(1.0-aa,1.0,r2);
+  if(edge<=0.0) discard;
+  float mu=sqrt(max(0.0,1.0-r2));
+  float I=1.0-0.6*(1.0-mu);
+  vec3 c=uCol*I*mix(vec3(1.0,0.82,0.62),vec3(1.0),mu);       // 가장자리는 더 붉다
+  gl_FragColor=vec4(c*uK,edge*uOp);   // 높이 뜬 해는 눈이 부셔 가장자리까지 하얗게 탄다
+}`;
+const GLOW_FS=`
+uniform vec3 uCol; uniform float uOp, uW; varying vec2 vUv;
+void main(){
+  float r=length(vUv*2.0-1.0);
+  if(r>=1.0) discard;
+  float g=exp(-r*uW)*0.9+exp(-r*uW*0.25)*0.12;
+  g*=1.0-smoothstep(0.7,1.0,r);
+  gl_FragColor=vec4(uCol*g*uOp,1.0);
+}`;
+let sunGlow=null; const _mInv=new THREE.Matrix4();
+const SUN_R=21, MOON_R=21;                // 각반지름 약 1° — 실제(0.26°)의 4배. 둘은 같은 크기다
+
+/* ── 구름 ────────────────────────────────────────────────────────────────
+   실제 구름 아홉 갈래를 **실제 고도·크기·두께 그대로** 세운다(단위 m).
+   꼴은 셋 — `puff` 솟은 덩이(적운·적란운·층적운) · `layer` 한 고도 띠에 흩은
+   알갱이 층(권층운·고층운·층운·권적운·고적운) · `strand` 실(권운).
+
+   **하늘은 따로 그린다**(`skyScene`/`skyCam` · `renderFrame`). 권운이 9 km,
+   적란운 꼭대기가 12 km 라 땅을 그리는 카메라(far 3000)로는 닿지 않는다.
+   하늘 카메라는 250 km 까지 보고, 하늘을 먼저 그린 뒤 깊이만 지우고 땅을
+   덧그린다. 구름은 땅보다 늘 멀리 있으므로 순서가 곧 가림이다.
+
+   **갈래마다 그리는 반경 `R` 이 다르다** — 높은 구름일수록 멀리까지 보인다.
+   반경은 대략 '그 구름이 지평선 위 8~10° 로 보이는 거리'다. 반경 끝 40% 에서
+   **지평선 색으로 스러진다**(대기 원근) — 먼 구름이 흰 채로 딱 끊기면 하늘
+   가장자리에 테가 선다.
+   **흐르는 속도 `v` 는 실제 m/s 다**(예전에는 고도를 압축한 만큼 줄여 두었다).
+   다만 이 게임의 시간이 실제보다 60배 빠르므로 `CLOUD_SPD`(3) 를 곱한다 —
+   해가 24분에 하늘을 도는 옆에서 구름만 실제 빠르기면 붙박이처럼 보인다.
+
+   `y` 는 솟은 덩이면 **밑동**, 층이면 층 가운데 고도다. `w`·`h` 는 덩이면
+   알갱이를 뿌리는 범위(보이는 폭은 이보다 작다 — 적운 0.60 · 층적운 0.59 ·
+   적란운 0.89 배, 화면을 훑어 잰 값), 층·실이면 무리의 가로·세로다.
+   `th` 는 층 두께. 그림은 전부 캔버스다(외부 파일 없음). 안개는 받지 않는다. */
+const CLOUD_SPD=3;
+/* 알갱이 곱 — 실(권운)을 뺀 모든 구름의 알갱이를 **개수 `GRAIN_N` 배 · 크기 `GRAIN_S` 배**로
+   곱게 쪼갠다. 표의 `nb` 는 예전 굵은 알 기준 수이고 여기서 곱한다. */
+const GRAIN_N=8, GRAIN_S=0.5;
+const grainN=K=>K.form==='strand'?1:GRAIN_N;
+/* 구름 미세물리 — 소광계수 σ = 3·LWC /(2·ρw·r_eff) = 1.5·LWC[g/m³]/r_eff[µm] (1/m).
+   물방울은 파장보다 커서(10 µm ≫ 0.5 µm) 소광 효율이 2 로 색과 무관하다 — 구름이
+   희거나 회색이지 색을 띠지 않는 까닭이다. 흡수는 가시광에서 거의 없어(단일 산란
+   반사율 ≈ 0.9999) 빛은 튕기며 돌아다니다 위(반사)나 아래(투과)로 빠져나간다.
+   적운 LWC 0.4 g/m³·r_eff 8 µm → σ 0.075/m(평균 자유 행로 13 m) · 적란운 1.0·12 → 0.125 ·
+   모루는 얼음(IWC 0.05·r_eff 30 µm → 0.0025, 얇고 비친다). 비대칭 인자 g 는 물방울 0.85 ·
+   얼음 0.75. */
+const cloudSigma=(lwc,reff)=>1.5*lwc/reff;
+const ICE={lwc:0.05, reff:30, g:0.75};
+const CLOUD_G=0.85;
+const CLOUD_KINDS={
+  // 상층운 6~12 km — 얼음 알갱이. 얇고 희다
+  cirrus      :{n:'권운',   form:'strand',y:[7000,11000], w:[8000,20000], h:[4000,10000],
+                th:600, R:45000, max:80, op:[0.22,0.40], v:30, draw:'streak', nb:[16,32]},
+  cirrostratus:{n:'권층운', form:'layer', y:[7000,10000], w:[30000,50000], h:[26000,44000],
+                th:1200, R:45000, max:14, op:[0.07,0.13], v:28,
+                draw:'veil', nb:[160,220], tau:0.8},
+  cirrocumulus:{n:'권적운', form:'layer', y:[6500,10000], w:[2000,5000], h:[1600,4200],
+                th:300, R:30000, max:40, op:[0.35,0.55], v:27,
+                draw:'ripple', nb:[220,480], cell:130, fill:0.35, tau:1.5},
+  // 중층운 2~6 km
+  altocumulus :{n:'고적운', form:'layer', y:[2500,5000], w:[8000,20000], h:[6000,16000],
+                th:450, R:20000, max:10, op:[0.45,0.7], v:16,
+                draw:'ripple', nb:[160,260], cell:600, fill:0.5, tau:6},
+  altostratus :{n:'고층운', form:'layer', y:[2500,5000], w:[25000,40000], h:[22000,36000],
+                th:2000, R:21000, max:7, op:[0.13,0.22], v:14,
+                draw:'veil', nb:[160,220], tau:25},
+  /* 난층운 — 비를 내리는 두꺼운 잿빛 층. 밑동은 낮고(0.5~2 km) 위로 수 km 두껍다.
+     밑에서 보면 무늬 없이 어둡고 고르다. 온난전선 한가운데에서 하늘을 다 덮는다. */
+  nimbostratus:{n:'난층운', form:'layer', y:[1200,2200], w:[30000,50000], h:[26000,44000],
+                th:1500, R:25000, max:7, op:[0.40,0.60], v:12,
+                draw:'veil', nb:[180,240], tau:90},
+  // 하층운 0~2 km
+  /* 층적운은 덩이가 아니라 **깔린 층**이다(층운형) — 굵은 혹이 줄지어 거의 이어진
+     판을 이룬다. 바다 위에서 가장 흔한 구름이다. `gapf` 로 줄 사이를 좁혀 판이 되게 한다 */
+  stratocumulus:{n:'층적운',form:'layer', y:[600,1500], w:[15000,30000], h:[13000,26000],
+                th:400, R:18000, max:8, op:[0.55,0.8], v:9,
+                draw:'ripple', nb:[220,400], cell:1200, fill:0.75, gapf:0.8, tau:14},
+  stratus     :{n:'층운',   form:'layer', y:[150,500], w:[10000,16000], h:[9000,15000],
+                th:300, R:12000, max:6, op:[0.16,0.27], v:6,
+                draw:'veil', nb:[160,220], tau:12},
+  cumulus     :{n:'적운',   form:'puff',  y:[900,1600], w:[1000,2700], h:[430,1280],
+                R:20000, max:400, op:[0.75,0.95], v:8, draw:'cauli', nb:[80,120], lwc:0.4, reff:8},
+  // 수직운 — 밑동은 하층, 꼭대기는 상층까지
+  cumulonimbus:{n:'적란운', form:'puff',  y:[600,1500], w:[10000,16000], h:[4900,7100],
+                R:40000, max:8, op:[0.8,0.95], v:10, draw:'anvil', nb:[700,860], lwc:1.0, reff:12}
+};
+/* 덩이·무리 하나가 하늘에서 실제로 덮는 넓이(m²) — 날씨가 정한 점유율을
+   개수로 바꿀 때 쓴다. 덩이는 화면을 훑어 잰 '보이는 폭' 비율로, 층은 무리
+   넓이 × 그 안에서 구름이 차지하는 몫(`fill`)으로 잡는다. */
+function kindArea(K){
+  const w=(K.w[0]+K.w[1])/2, h=(K.h[0]+K.h[1])/2;
+  if(K.form==='puff'){
+    const vw=w*({cauli:0.60,lumpy:0.59,anvil:0.89}[K.draw]||0.6);
+    return Math.PI/4*vw*vw;
+  }
+  const fill=K.fill||(K.form==='strand'?0.25:0.85);
+  return Math.PI/4*w*h*fill;
+}
+
+/* ── 날씨 ────────────────────────────────────────────────────────────────
+   **실제 날씨처럼 차례가 있다.** 중위도 바다의 섬은 저기압과 고기압이 번갈아
+   지난다. 저기압 하나가 지나는 한 바퀴(평균 5일 · `WEA_CYC`)를 위상 φ 0→1 로
+   두고, 위상마다 뜨는 구름이 정해져 있다 —
+
+     φ 0.00~0.30  고기압 — 맑음. 낮에 적운이 피었다 저녁에 사그라든다(하루 변화).
+                  바다 쪽 층적운이 밤·새벽에 깔렸다 걷힌다.
+     φ 0.28~0.52  온난전선이 다가온다 — 권운이 먼저 오고, 권적운이 잠깐, 권층운이
+                  하늘을 덮는다(해무리가 생기는 때다).
+     φ 0.40~0.66  고적운 → 고층운이 두꺼워진다. 해가 젖빛 유리 너머로 흐려진다.
+     φ 0.56~0.75  난층운 — 하늘이 다 덮이고 오래 내리는 비.
+     φ 0.62~0.90  온난역 — 낮은 층운·층적운. 이슬비.
+     φ 0.84~0.96  한랭전선 — 적란운 소나기. 오후일수록 세다.
+     φ 0.86~1.00  전선 뒤 — 맑아지며 적운이 뭉게뭉게(찬 공기가 바다에 데워져 선다).
+
+   바퀴마다 **세기**가 다르다(`cycS` — 약 4분의 1은 권운만 스치고 비가 없고,
+   4분의 1은 센 저기압). 위상이 흐르는 빠르기도 흔들린다(단조 증가만 지킨다).
+   **시드와 누적 시간만으로 정해지므로 저장할 것이 없다.**
+
+   갈래마다 **하늘 점유율** `amt`(0~1)를 정하고, 그만큼을 덮는 개수로 바꾼다.
+   무리를 제멋대로 흩으면 서로 겹치므로 N 개가 덮는 몫은 1−exp(−N·A/πR²) 이다
+   (A: 무리 하나가 덮는 넓이 `kindArea` · R: 그 갈래를 그리는 반경). 그래서
+     N = −ln(1−amt) · πR² / A
+   전체 구름양(`cover`)은 갈래끼리 서로 겹친다고 보고 1−Π(1−amt) 로 낸다.
+   비는 난층운(오래 내리는 비)과 적란운(소나기 — 오락가락)이 내린다.
+
+   구름은 **못수(`max`)만큼 미리 만들어 두고 짙기로 여닫는다.** 날씨가 개면
+   서서히 흐려져 사라지고, 사라진 것은 **다시 굴려** 다음에 뜰 때 다른 구름이 된다. */
+const WEA={cover:0.3, rain:0, mist:0, mistT:0, name:'', fog:1, light:1, t:0,
+           phase:0, str:0, amt:{}, cnt:{}};
+const WEA_CYC=120;                 // 저기압 한 바퀴 — 게임시간 평균 5일
+let weaLast=0;
+const WEA_PER=2.6;                 // 마디 하나가 게임시간 몇 시간인가
+let weaSalt=0;
+function weaNoise(t,salt){         // 마디 사이를 부드럽게 잇는 값잡음
+  const i=Math.floor(t), f=t-i, s=f*f*(3-2*f);
+  const h=n=>{
+    let x=(n^salt)>>>0;
+    x=Math.imul(x^(x>>>15),2246822519)>>>0;
+    x=Math.imul(x^(x>>>13),3266489917)>>>0;
+    return ((x^(x>>>16))>>>8&0xffff)/65535;
+  };
+  return h(i)*(1-s)+h(i+1)*s;
+}
+/* 바퀴마다 세기 — 약 4분의 1 은 약하고(권운만 스친다), 절반은 보통, 4분의 1 은 세다 */
+function cycS(n){
+  const r=weaNoise(n+0.0,weaSalt^0x2c1b);           // 마디 한가운데는 값 그대로다
+  return r<0.25?0.15+r*1.0 : r<0.75?0.42+(r-0.25)*0.76 : 0.80+(r-0.75)*0.8;
+}
+/* 사다리꼴 창 — a 에서 오르기 시작해 b 에서 다 차고, c 부터 내려 d 에서 0 */
+function win(x,a,b,c,d){
+  if(x<=a||x>=d) return 0;
+  if(x<b){ const u=(x-a)/(b-a); return u*u*(3-2*u); }
+  if(x<=c) return 1;
+  const u=(d-x)/(d-c); return u*u*(3-2*u);
+}
+function updateWeather(){
+  const t=gameHours/WEA_PER, T=gameHours;
+  /* 위상 — 평균 5일에 한 바퀴. 빠르기를 흔들되 거꾸로 가지는 않게 한다
+     (흔들기의 기울기 최대 0.2×1.5/60 = 0.005 < 1/120) */
+  const u=T/WEA_CYC+0.2*weaNoise(T/60,weaSalt^0x6a09);
+  const cyc=Math.floor(u);
+  let phi=u-cyc, S=cycS(cyc);
+  if(PHASE!=null) phi=PHASE; if(STR!=null) S=STR;   // 시험장: 날씨 단계·세기 손으로 잡기
+  /* 날씨가 **건너뛰었나** — 불러오기·시험장 슬라이더·첫 프레임. 평소에는 새 구름을
+     바람 위쪽 가장자리에서 흘러 들어오게 하는데(전선이 다가오는 모습 그대로다),
+     건너뛴 때는 그러면 하늘이 채워지는 데 수 분이 걸린다 — 큰비인데 머리 위가
+     파랬다. 건너뛴 뒤 2초 동안 새로 뜨는 구름은 하늘 전체에 흩어 세운다. */
+  const dp=Math.abs(phi-(WEA._lp??-9));
+  if(dp>0.02&&dp<0.98) WEA.jumpT=2;
+  WEA._lp=phi;
+  WEA.phase=phi; WEA.str=S;
+  const h=hourOfDay;
+  // 낮의 가열 — 10시에 오르기 시작해 14~15시에 가장 세고 19시면 끝난다
+  const D=clamp(Math.sin(Math.PI*(h-10)/9),0,1);
+  // 밤·새벽 쪽 — 바다의 층적운·층운은 밤에 두꺼워지고 오후에 얇아진다
+  const N=0.5+0.5*Math.cos(2*Math.PI*(h-5)/24);
+  const nz=(k,sc)=>0.7+0.6*weaNoise(T/sc,weaSalt^k);  // 갈래마다 제 흔들림
+  /* 드문드문 — 잡음이 문턱을 넘을 때만 뜬다. 고기압의 구름은 날마다 있는 게
+     아니다(층적운이 늘 깔려 있으면 바다 하늘이 맑은 날이 없다) */
+  const on=(k,sc,thr)=>clamp((weaNoise(T/sc,weaSalt^k)-thr)/0.22,0,1);
+  /* 저기압 세기는 **구름이 오느냐 마느냐**를 정한다 — 얼마나 두꺼우냐가 아니다.
+     전선의 고층운·난층운은 오면 하늘을 다 덮는다. 세기에 비례해 옅게 했더니
+     보통 저기압에서도 하늘이 반쯤만 덮여 흐린 날이 11% 뿐이었다(바다는 25% 안팎). */
+  const g=(a,b)=>{ const u=clamp((S-a)/(b-a),0,1); return u*u*(3-2*u); };
+  const fair=1-win(phi,0.40,0.52,0.86,0.94);        // 전선이 하늘을 쥔 동안은 덜 맑다
+  const A={};
+  A.cirrus      = (0.10*on(0x11,20,0.55) + 0.35*g(0.10,0.30)*win(phi,0.26,0.34,0.44,0.52))
+                  *nz(0x12,4);
+  A.cirrocumulus= 0.14*g(0.15,0.35)*win(phi,0.30,0.35,0.40,0.46)*on(0x13,6,0.3);
+  A.cirrostratus= 0.90*g(0.20,0.45)*win(phi,0.36,0.45,0.56,0.62);
+  A.altocumulus = (0.12*fair*on(0x14,16,0.58) + 0.40*g(0.2,0.4)*win(phi,0.40,0.46,0.54,0.60)
+                  +0.25*g(0.4,0.6)*win(phi,0.80,0.83,0.86,0.89))*nz(0x15,5);
+  A.altostratus = 0.95*g(0.30,0.55)*win(phi,0.46,0.53,0.62,0.67);
+  A.nimbostratus= 0.97*g(0.42,0.65)*win(phi,0.58,0.63,0.69,0.74);
+  A.stratus     = (0.30*fair*N*on(0x16,14,0.80) + 0.75*g(0.30,0.60)*win(phi,0.64,0.69,0.79,0.85))
+                  *nz(0x17,4);
+  A.stratocumulus=(0.55*fair*(0.6+0.4*N)*on(0x18,18,0.50)
+                  +0.70*g(0.25,0.50)*win(phi,0.72,0.77,0.86,0.91))*nz(0x19,5);
+  A.cumulus     = (0.26*fair*D*on(0x1a,20,0.12) + 0.35*g(0.2,0.5)*(0.4+0.6*D)
+                  *win(phi,0.86,0.90,0.99,1.01))*nz(0x1b,3);
+  A.cumulonimbus= 0.30*g(0.40,0.75)*(0.35+0.65*D)*win(phi,0.82,0.85,0.93,0.97);
+  let clear=1;
+  for(const k in CLOUD_KINDS){
+    const a=clamp(A[k]||0,0,0.97); A[k]=a; clear*=1-a;
+    const K=CLOUD_KINDS[k];
+    if(!K._A) K._A=kindArea(K);
+    const n=a<0.004?0:-Math.log(1-a)*Math.PI*K.R*K.R/K._A;
+    WEA.cnt[k]=Math.min(K.max,Math.round(n));
+  }
+  WEA.amt=A;
+  const c=1-clear;
+  WEA.cover=c;
+  /* 비 — 난층운은 오래 고르게, 적란운은 오락가락(소나기). 층운은 이슬비 */
+  const shw=weaNoise(T*1.6,weaSalt^0x51ed);
+  WEA.shower=clamp(A.cumulonimbus*4,0,1)*clamp((shw-0.30)/0.2,0,1);
+  WEA.rain=Math.max(clamp((A.nimbostratus-0.45)/0.4,0,1),
+                    WEA.shower, clamp((A.stratus-0.70)/0.3,0,0.25));
+  WEA.fog =1+c*0.9+WEA.rain*2.2;                    // 흐릴수록·비 올수록 뿌옇다
+  WEA.light=1-c*0.40-A.nimbostratus*0.25-WEA.rain*0.3;   // 볕이 죽는다
+  /* ── 안개 ──
+     날씨와 다른 리듬을 탄다. 실제 복사안개는 **맑고 바람 없는 밤**에 땅이 식으면서
+     새벽에 생기고, 해가 뜨면 데워져 걷힌다. 골짜기와 물가에 고이고 높은 데는 맑다.
+     그래서 네 가지를 곱한다 —
+       ① 안개 잡음   날마다 끼는 게 아니다(마디가 구름양보다 느리다)
+       ② 시각 창     03~09시에 열리고 새벽 5~6시가 가장 짙다. 10시면 닫힌다
+       ③ 맑은 하늘   구름이 덮으면 땅이 덜 식어 덜 낀다(흐려도 조금은 낀다)
+       ④ 낮은 땅     사람이 선 높이로 잰다. 높이 오르면 안개 위로 올라선다 */
+  const mn=weaNoise(t*0.45,weaSalt^0x3a71);
+  const hw=clamp((hourOfDay-2.6)/1.6,0,1)*clamp((10.0-hourOfDay)/2.2,0,1);
+  const clr=0.3+0.7*(1-c);
+  const ph=(typeof PL!=='undefined'&&PL.pos)?PL.pos.y:0;
+  const low=clamp(1-(ph-2)/95,0.18,1);
+  WEA.mistT=clamp((mn-0.55)/0.32,0,1)*hw*clr*low;
+  if(MIST!=null) WEA.mistT=MIST;      // 시험장: 안개 손으로 잡기
+  /* 목표값을 바로 쓰지 않고 2.5초에 걸쳐 따라간다. 시각·구름양은 원래 천천히
+     움직이지만 **높이는 즉시 바뀌므로**(절벽에서 뛰어내리면 한 프레임에 확 옅어진다)
+     여기서 한 번 눌러 준다. 시간 배속을 올리면 따라가는 속도도 같이 오른다.
+     첫 프레임과 불러오기 직후에는 곧바로 맞춘다 — 서서히 끼는 모습을 보여 줄
+     까닭이 없다. */
+  const now=performance.now();
+  if(!weaLast){ weaLast=now; WEA.mist=WEA.mistT; }
+  else{
+    const dtm=Math.min(0.5,(now-weaLast)/1000)*Math.min(timeScale,20);
+    weaLast=now;
+    WEA.mist+=(WEA.mistT-WEA.mist)*clamp(dtm/2.5,0,1);
+  }
+  /* 4배까지 — 가장 짙은 아침이 가시거리 30 m 쯤이다. 처음에 14배로 잡았다가
+     8 m 가 나왔는데, 그건 발밑도 안 보이는 값이라 걸을 수가 없다. */
+  WEA.fog+=WEA.mist*4;
+  WEA.light*=1-WEA.mist*0.45;
+  /* 구름 그림자가 켜진 낮에 해에 곱할 몫 — 구름 몫은 그림자가 자리마다 하므로 뺀다 */
+  WEA.lightSun=(1-WEA.rain*0.15)*(1-WEA.mist*0.45);
+  /* 바람 — 고기압은 잔잔하고, 전선이 지날 때와 적란운 돌풍에 세다. 잔 흔들림을 얹는다 */
+  WEA.wind=clamp(0.22+0.55*S*win(phi,0.38,0.50,0.88,0.97)
+                +1.6*A.cumulonimbus*(0.5+0.5*weaNoise(T*3,weaSalt^0x3d))
+                +0.18*(weaNoise(T/2,weaSalt^0x4e)-0.5),0.05,1.3);
+  const nm = WEA.mist>0.55?'짙은 안개':WEA.mist>0.22?'안개':
+             WEA.shower>0.3?'소나기':WEA.rain>0.65?'큰비':WEA.rain>0.15?'비':
+             c>0.82?'잔뜩 흐림':c>0.62?'흐림':c>0.38?'구름 많음':
+             c>0.16?'구름 조금':'맑음';
+  if(nm!==WEA.name){
+    if(WEA.name) toast('날씨가 바뀐다 — '+nm);
+    WEA.name=nm;
+  }
+}
+/* 갈래마다 밑그림 몇 장. 적게 두면 한 하늘에 같은 실루엣이 여럿 떠서 눈에 띈다.
+   12장이면 그림 108장(256², 28MB쯤)이고 세상을 만들 때 캔버스 작업이 그만큼 는다. */
+const CLOUD_VARIANTS=12;
+let cloudGroup=null, CLOUDS=[], cloudMat=[], cloudTex_=[], cloudTint=new THREE.Color();
+let cloudRnd=Math.random;
+/* ── 솟은 구름은 판때기가 아니라 알갱이 뭉치다 ───────────────────────────
+   판때기 한 장은 어느 쪽에서 봐도 같은 그림이라, 걸어가도 구름이 제자리에
+   붙어 있고 옆으로 지나가도 옆모습이 없다. 그래서 솟은 구름(`puff`)은
+   **지름 수십 m 짜리 작은 알갱이 수십 개를 3차원으로 흩어** 한 덩이로 세운다.
+
+   알갱이 하나하나는 여전히 카메라를 본다(솜뭉치는 어느 쪽에서 봐도 솜뭉치다).
+   **다만 자리는 세계 좌표에 박혀 있다** — 뭉치를 통째로 돌리면 늘 같은 면만
+   보여 판때기와 다를 것이 없다. 자리를 박아 두면 앞쪽 알갱이와 뒤쪽 알갱이가
+   서로 어긋나 움직이고(시차), 그것이 덩이에 깊이를 준다. 옆으로 돌아가면
+   실제로 옆모습이 보이고, 알갱이가 작아 카메라를 보고 도는 것도 안 보인다.
+
+   값: 덩이 스무 남짓 × 알갱이 40~85 = 1,100 장 남짓이고 덩이마다 `InstancedMesh`
+   하나라 그리기 부름은 덩이 수만큼이다. 행렬은 **요각이 눈에 띄게 바뀔 때만**
+   다시 짠다. */
+const PUFF_VARIANTS=4;
+let puffTex_=[];
+const _pfM=new THREE.Matrix4(), _pfQ=new THREE.Quaternion(),
+      _pfV=new THREE.Vector3(), _pfS=new THREE.Vector3(),
+      _pfC=new THREE.Color(), _pfAx=new THREE.Vector3(0,1,0);
+
+/* 알갱이 한 알 — 가운데가 희고 가장자리가 스러지는 솜덩이. 정확한 원이면
+   뭉쳐 놨을 때 비눗방울 더미로 보이므로, 작은 혹 몇 개를 겹쳐 윤곽을 흐트러뜨린다.
+   네 변은 반드시 0 으로 끝낸다(판때기 경계가 선으로 드러나지 않게). */
+function puffTex(seed){
+  const W=128, cv=document.createElement('canvas');
+  cv.width=cv.height=W;
+  const g=cv.getContext('2d'), rnd=mulberry32(hashStr('puff|'+seed));
+  const blob=(x,y,r,a)=>{
+    const gr=g.createRadialGradient(x-r*0.22,y-r*0.3,r*0.05,x,y,r);
+    /* 알갱이 하나는 **거의 안 보일 만큼 옅다** — 예닐곱 알이 겹쳐야 비로소
+       구름 한 덩이가 된다. 한 알이 진하면 겹치는 자리가 새하얗게 타고
+       안 겹치는 알은 하늘에 뜬 물방울처럼 따로 논다. */
+    gr.addColorStop(0,   'rgba(255,255,255,'+(0.42*a)+')');
+    gr.addColorStop(0.5, 'rgba(255,255,255,'+(0.25*a)+')');
+    gr.addColorStop(0.82,'rgba(255,255,255,'+(0.07*a)+')');
+    gr.addColorStop(1,   'rgba(255,255,255,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(x,y,r,0,6.283); g.fill();
+  };
+  blob(W*0.5,W*0.52,W*0.40,1);
+  for(let i=0;i<5;i++){
+    const a=rnd()*6.283, d=W*(0.08+rnd()*0.12);
+    blob(W*0.5+Math.cos(a)*d, W*0.52+Math.sin(a)*d, W*(0.16+rnd()*0.13), 0.8);
+  }
+  // 네 변 지우기 — 16% 테두리
+  const im=g.getImageData(0,0,W,W), D=im.data, pad=W*0.16;
+  for(let y=0;y<W;y++) for(let x=0;x<W;x++){
+    const e=Math.min(x,y,W-1-x,W-1-y);
+    if(e<pad){ const f=e/pad; D[(y*W+x)*4+3]*=f*f*(3-2*f); }
+  }
+  g.putImageData(im,0,0);
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping;
+  return t;
+}
+
+/* 덩이 모양 — 갈래마다 알갱이를 어디에 놓을지가 곧 구름의 생김새다.
+   `cauli` 적운(평평한 밑면 위로 솟은 돔) · `anvil` 적란운(솟다가 꼭대기에서
+   모루처럼 퍼진다) · `lumpy` 층적운(넓게 깔린 혹 판) · `roll` 고적운(한 줄로
+   길게 늘어선 두루마리). 위쪽 알갱이는 볕을 받아 희고 아래는 그늘진다.
+
+   **알갱이를 덩이 안에 고루 뿌리면 구름이 아니라 싸라기가 된다.** 폭 669 m
+   짜리 덩이에 지름 78 m 짜리를 46 알 흩었더니 한 알도 서로 닿지 않고
+   하늘에 물방울이 흩뿌려진 꼴이 됐다. 그래서 두 단계로 놓는다 —
+   ① **혹 2~4 개**를 먼저 잡고(이것이 구름의 큰 덩어리다)
+   ② 알갱이를 그 혹 둘레 `0.6 r` 안에 몰아 붙인다.
+   알갱이 지름도 혹 크기의 **절반 남짓**(덩이 폭의 1/4~1/3)이라 예닐곱 알이
+   늘 겹친다. 겹쳐야 덩이가 되고, 겹치는 수가 들쭉날쭉해야 윤곽이 뭉실해진다. */
+function shapePuff(c){
+  const rnd=cloudRnd, K=c.K, w=c.w, h=c.h, d=K.draw;
+  const n=Math.min(c.cap, Math.round((K.nb[0]+rnd()*(K.nb[1]-K.nb[0]))*GRAIN_N));
+  c.nb=n;
+
+  /* ① 혹은 **사슬**이다 — 다음 혹을 앞 혹에 이어 붙이므로 구조상 반드시
+     한 덩이가 된다. 갈래는 '어느 쪽으로 이어 붙이느냐'가 정한다.
+     처음에는 혹을 제각기 뿌리고 나중에 당겨 붙였는데, 방위각만 갈라 세운
+     탓에 폭 2 km 짜리 적란운에서 혹 둘이 900 m 넘게 떨어져 **딴 구름 둘로
+     보였다.** 그렇다고 당겨 붙이면 이번엔 솟은 기둥이 뭉개진다 — 붙이는 일은
+     당기기가 아니라 잇기로 해야 한다. */
+  const L=[], push=(x,y,z,r,fl,an,wt)=>L.push({x,y,z,r,fl:fl||1,an:an||0,wt:wt||1});
+  let yTop=1e9;                                        // 모루 윗면(평평하게 자른다)
+  if(d==='anvil'){
+    /* 적란운 — 실제 사진(옆모습)에 맞췄다: **육중한 몸통 · 계단식 딸린 탑 · 두껍고
+       평평한 모루.** 예전엔 가는 탑 위에 얇은 선반을 얹은 T자라 지팡이처럼 보였다.
+       ① 몸통은 층마다 가운데 혹 + 둘레 혹 셋으로 쌓아 모루 폭의 7할쯤 되는 벽이 된다
+       ② 바람 위쪽에 키가 계단처럼 낮아지는 딸린 탑(탑운의 줄) 셋
+       ③ 모루는 대류권 꼭대기에 부딪혀 **윗면이 평평한 두꺼운 판**(키의 15~20%)이
+          되어 바람 아래로 몸통 폭의 1.5~2배를 드리운다. 앞끝은 둥글게 말린다.
+       ④ 한가운데 과돌출 봉우리. */
+    const Ht=h*1.7, ya=Ht*0.80;
+    const ux=windDir.x, uz=windDir.z, vx=-uz, vz=ux;
+    const r0=w*0.40;
+    push(0,0,0,r0,0.8);
+    for(let k=0;k<4;k++){ const a=(k+rnd()*0.5)/4*6.283, rr=w*0.26;
+      const dd=0.55*(r0+rr); push(Math.cos(a)*dd,0,Math.sin(a)*dd,rr,0.8); }
+    let x=0, z=0, y=0, r=w*0.20, lv=0;
+    while(y<ya-r*0.2){
+      const nr=w*(0.36+0.05*y/ya);
+      y+=0.5*(r+nr); x+=(rnd()-0.5)*w*0.02; z+=(rnd()-0.5)*w*0.02;
+      const yy=Math.min(y,ya); push(x,yy,z,nr,1);
+      for(let q=0;q<3;q++){                            // 둘레 혹 — 몸통을 벽으로
+        const a=(q+lv*0.37+rnd()*0.4)/3*6.283, rr=nr*0.7, dd=0.35*(nr+rr);
+        push(x+Math.cos(a)*dd,yy+(rnd()-0.5)*nr*0.3,z+Math.sin(a)*dd,rr,1);
+      }
+      r=nr; lv++;
+    }
+    /* 딸린 탑 — **밑동에 바짝 붙여 사방에** 세운다. 바람 위쪽 한 줄로 멀리 세웠더니
+       덩이가 한쪽으로 쏠려 보였고, 떨어진 탑이 따로 노는 알갱이 떼로 보였다. */
+    const nf=4+((rnd()*2)|0);
+    for(let k=0;k<nf;k++){
+      const a=(k+0.2+rnd()*0.6)/nf*6.283, rr=w*(0.20+0.04*rnd());
+      const dd=0.45*(r0+rr), top=ya*(0.25+0.3*rnd());
+      const bx=Math.cos(a)*dd, bz=Math.sin(a)*dd;
+      for(let yy=0; yy<top; yy+=rr*0.8) push(bx,yy,bz,rr,1,0,1.6);
+    }
+    /* 모루 — 탑 꼭대기를 가운데로 **사방으로 퍼지되 바람 아래로 조금 더** 뻗는다
+       (위에서 보면 둥근 부채꼴). 바람 아래로만 뻗게 했더니 옆에서 ㄱ자로 치우쳤다. */
+    const ra=w*0.24, st=0.58*2*ra*0.8;
+    yTop=ya+ra*0.55;
+    for(let s2=-3;s2<=5;s2++){
+      const sd=s2*st, ext=Math.abs(s2)/5;
+      const lead=(s2===-3||s2===5);
+      for(const lat of [-1.5,-0.5,0.5,1.5]){
+        if(Math.abs(lat)>1&&(lead||rnd()<0.15)) continue;
+        const lw=lat*st*0.75;
+        /* 사진(옆모습)대로 — **끝으로 갈수록 얇게** 저며지고, 밑면은 탑 쪽으로 **볼록하게**
+           부풀어 탑에 녹아든다. 윗면은 평평하게 두고 두께는 밑으로만 준다. */
+        push(x+ux*sd+vx*lw, ya-ext*ra*0.1+(rnd()-0.5)*ra*0.1, z+uz*sd+vz*lw,
+             ra*(1-0.3*ext), lead?0.35:0.3, 1);
+        const bel=1-ext;                                    // 탑에 가까울수록 1
+        if(!lead&&Math.abs(lat)<1&&bel>0.15)
+          push(x+ux*sd+vx*lw, ya-ra*(0.3+0.35*bel), z+uz*sd+vz*lw, ra*(0.35+0.45*bel), 0.5, 1);
+        if(bel>0.75&&Math.abs(lat)<1)                       // 탑 둘레는 한 겹 더 — 볼록한 배
+          push(x+ux*sd+vx*lw*0.8, ya-ra*(0.7+0.5*bel), z+uz*sd+vz*lw*0.8, ra*(0.4+0.3*bel), 0.7, 1);
+      }
+    }
+    push(x,yTop,z,w*0.09,0.8);                         // 과돌출 봉우리
+    push(x+ux*w*0.08,yTop-ra*0.1,z+uz*w*0.08,w*0.07,0.8);
+  }else if(d==='cauli'){
+    /* 적운 — **넓고 평평한 밑동 위로 둥근 봉우리가 솟는다.** 예전엔 혹을 비스듬히
+       위로 하나씩 이어 쌓아서 혹 서너 개가 비뚤게 포개진 눈사람 꼴이었다.
+       이제 밑동 가운데 혹 + 그 둘레 혹 3~5 개로 넓은 밑동을 깔고(얇게 · fl 0.7),
+       그 위에 봉우리를 쌓는다. 키가 클수록(`h`/`w`) 봉우리가 많고, 봉우리마다
+       절반쯤은 곁봉우리가 붙어 콜리플라워처럼 울퉁불퉁하다. */
+    /* 사진대로 — **넓고 평평한 잿빛 밑동 위에 둥근 봉긋한 몸이 얹히고, 윗면은 콜리플라워
+       혹이 울퉁불퉁하며 한쪽이 더 높이 솟는다**(폭이 키의 1.5~2배). 예전엔 봉우리를 위로
+       하나씩 쌓아 공이 몇 개 포개진 꼴이었다. 이제 반구 윤곽 R(y)=Rb·√(1−(y/H)²) 을
+       층마다 고리로 두르고, 봉우리 쪽(`lean`)으로 윤곽을 밀어 한쪽을 높인다. */
+    const H=Math.min(h,w*0.42), Rb=w*0.46;
+    const la=rnd()*6.283, lx=Math.cos(la), lz=Math.sin(la);
+    // 밑동 — 얇고 넓은 판
+    push(0,0,0,w*0.24,0.5);
+    for(let k=0;k<7;k++){ const a=(k+rnd()*0.5)/7*6.283;
+      push(Math.cos(a)*Rb*0.62,0,Math.sin(a)*Rb*0.62,w*(0.15+0.03*rnd()),0.5); }
+    // 몸 — 층마다 고리
+    const nL=2;
+    for(let L=1;L<=nL;L++){
+      const t=L/(nL+0.9), y=H*t, R=Rb*Math.sqrt(1-t*t), lr=w*(0.24-0.03*L);
+      const sh=Rb*0.18*t;                                 // 봉우리 쪽으로 밀린다
+      const cx=lx*sh, cz=lz*sh;
+      push(cx,y,cz,lr*1.2,1);
+      const m=Math.max(3,Math.round(6-L));
+      for(let k=0;k<m;k++){ const a=(k+rnd()*0.6)/m*6.283;
+        const f=1+0.35*Math.max(0,Math.cos(a-la));         // 봉우리 쪽 혹이 크다
+        push(cx+Math.cos(a)*R*0.6,y+(rnd()-0.3)*lr*0.4*f,cz+Math.sin(a)*R*0.55,lr*f*(0.85+0.3*rnd()),1); }
+    }
+    // 꼭대기 콜리플라워 — 봉우리 쪽이 가장 높다
+    const nt=2+((rnd()*3)|0);
+    for(let k=0;k<nt;k++){
+      const a=la+(rnd()-0.5)*2.4, d=Rb*(0.1+0.25*rnd()), rr=w*(0.13+0.04*rnd());
+      const up=Math.max(0,Math.cos(a-la))*d;
+      push(Math.cos(a)*d,H*0.72+up*0.4+rr*0.2,Math.sin(a)*d,rr,1);
+    }
+  }else if(d==='lumpy'){
+    // 층적운 — 옆으로만 퍼진 혹 판
+    const nl=3+((rnd()*3)|0);
+    let r=w*0.19, x=0, z=0;
+    push(x,0,z,r);
+    for(let k=1;k<nl;k++){
+      const a=(k+0.15+rnd()*0.7)/nl*6.283, nr=r*(0.85+rnd()*0.3),
+            st=0.62*(r+nr);
+      x+=Math.cos(a)*st; z+=Math.sin(a)*st*0.8;
+      push(x,(rnd()-0.4)*h*0.3,z,nr); r=nr;
+    }
+  }else{
+    // 고적운 — 한 줄로 길게 늘어선 두루마리
+    /* 혹이 잘면 두루마리가 아니라 싸라기로 보인다 — 실제 고적운도 잔 구름이
+       늘어선 것이지만, 잔 구름 하나하나가 동그랗게 따로 놀면 색종이 조각이다.
+       혹을 굵게 잡고 바짝 붙여 **이어진 두루마리**로 만든다. */
+    const nl=3+((rnd()*3)|0);
+    let r=w*0.21, x=0;
+    push(x,0,0,r);
+    for(let k=1;k<nl;k++){
+      const nr=r*(0.85+rnd()*0.3), st=0.56*(r+nr);
+      x+=st; push(x,(rnd()-0.5)*h*0.3,(rnd()-0.5)*w*0.10,nr); r=nr;
+    }
+  }
+  // 사슬이 어디서 시작했든 덩이가 제자리에 서도록 가운데를 맞춘다
+  let mx=0,my=0,mz=0, y0=1e9, y1=-1e9;
+  for(const b of L){ mx+=b.x; my+=b.y; mz+=b.z; }
+  mx/=L.length; my/=L.length; mz/=L.length;
+  for(const b of L){ b.x-=mx; b.y-=my; b.z-=mz;
+    y0=Math.min(y0,b.y); y1=Math.max(y1,b.y); }
+  const nl=L.length, ysp=Math.max(1,y1-y0);
+  c._nl=nl;   // 시험용 — 혹이 몇 개였나
+  /* ② 알갱이를 혹 둘레에 몰아 붙인다 — **혹 크기에 비례해 나눠 준다**(넓이 r² ×
+     납작함). 혹마다 똑같이 나누면 큰 혹(적란운 모루)이 성겨 거의 투명해진다. */
+  const own=new Int16Array(n);
+  if(!c.sg||c.sg.length<c.cap) c.sg=new Float32Array(c.cap);
+  { let sw=0; const wt=L.map(b=>{ const v=b.r*b.r*(0.4+0.6*b.fl)*(b.an?1.8:1)*b.wt; sw+=v; return v; });
+    let acc=0, li=0, cum=wt[0]/sw;
+    for(let i=0;i<n;i++){
+      const q=(i+0.5)/n;
+      while(q>cum&&li<nl-1){ li++; cum+=wt[li]/sw; }
+      own[i]=li;
+    } }
+  for(let i=0;i<n;i++){
+    const b=L[own[i]];
+    const a=rnd()*6.283, cz=rnd()*2-1, sz=Math.sqrt(1-cz*cz);
+    /* 혹 안에서 너무 퍼뜨리면 **혹 안에서부터 알갱이가 서로 안 닿는다** —
+       이음매가 아니라 혹 속이 성겨서 조각이 났다. */
+    // 납작한 혹(모루·밑동)은 옆으로 넓게 — 알갱이가 판을 이루도록
+    const dd=b.r*(d==='anvil'?0.5:0.62)*Math.pow(rnd(),0.55)*(b.fl<1?1.15:1);
+    /* 혹 둘레에 놓는 알갱이를 **어느 쪽으로 납작하게 누르느냐**도 갈래마다 다르다.
+       세로를 한결같이 0.55배로 눌렀더니 **세로로 쌓은 적란운 기둥이 마디마다
+       끊어졌다** — 기둥은 세로로 이어 붙이는데 알갱이는 세로로 안 퍼지니
+       이음매가 닿지 않는다. 솟는 갈래는 안 누르고 깔리는 갈래만 누른다. */
+    const fz=(d==='roll')?0.55:0.85,
+          fy=(d==='anvil'||d==='cauli')?1.0:0.5;
+    const x=b.x+Math.cos(a)*sz*dd,
+          z=b.z+Math.sin(a)*sz*dd*fz,
+          y=b.y+cz*dd*fy*b.fl;
+    c.off[i*3]=x; c.off[i*3+1]=y; c.off[i*3+2]=z;
+    c.rad[i]=b.r*(0.72+0.48*rnd())*(b.fl<0.6?1.35:1)*(d==='anvil'?(b.an?1.1:1.7):d==='cauli'?1.6:1)*GRAIN_S;   // 얇은 모루는 알을 크게
+    // 모루 알갱이는 윗면을 한 높이에 자른다 — 대류권 꼭대기에 부딪혀 평평하다
+    if(b.an) c.off[i*3+1]=Math.min(c.off[i*3+1], yTop-my-c.rad[i]*0.22);
+    c.sg[i]=b.an?cloudSigma(ICE.lwc,ICE.reff):cloudSigma(K.lwc||0.4,K.reff||10);
+  }
+  /* ③ 겉 알갱이 — **콜리플라워 결.** 사진의 적운·적란운은 큰 혹 위에 작은 혹이
+     또렷하게 촘촘히 돋고 그 사이에 그늘이 파인다. 큰 알갱이로 몸통만 채우면
+     윤곽이 뭉개진 솜이다. 몸통 혹의 겉(반지름의 0.78~0.98, 밑면은 빼고)에 크기
+     0.2~0.36 r 의 작은 알갱이를 붙인다. 다른 혹 속으로 파묻히는 자리는 버린다.
+     명암은 몸통 알갱이에만 대어 센다(`c.nBody` — 겉끼리까지 세면 수가 제곱으로 는다). */
+  let nt=n;
+  const nd=K.nd?Math.min(c.cap-n,Math.round(K.nd[0]+rnd()*(K.nd[1]-K.nd[0]))):0;
+  if(nd>0){
+    const body=L.filter(b=>!b.an&&b.wt===1), bw=body.map(b=>b.r*b.r), sw=bw.reduce((p,q)=>p+q,0);
+    for(let k=0;k<nd;k++){
+      let q=rnd()*sw, bi=0; while(q>bw[bi]&&bi<body.length-1){ q-=bw[bi]; bi++; }
+      const b=body[bi];
+      let px=0,py=0,pz=0, ok=false;
+      for(let t=0;t<6&&!ok;t++){
+        const cz=-0.25+rnd()*1.25, cy=clamp(cz,-1,1), sr=Math.sqrt(1-cy*cy), a=rnd()*6.283;
+        const dd=b.r*(0.62+0.2*rnd());
+        px=b.x+Math.cos(a)*sr*dd; py=b.y+cy*dd*b.fl; pz=b.z+Math.sin(a)*sr*dd;
+        ok=true;
+        for(const o of L){ if(o===b||o.an) continue;
+          if(Math.hypot(px-o.x,py-o.y,pz-o.z)<o.r*0.75){ ok=false; break; } }
+      }
+      if(!ok) continue;
+      c.off[nt*3]=px; c.off[nt*3+1]=py; c.off[nt*3+2]=pz;
+      c.rad[nt]=b.r*(0.45+0.2*rnd())*(d==='anvil'?1.7:1.3); c.sg[nt]=cloudSigma(K.lwc||0.4,K.reff||10); nt++;
+    }
+  }
+  c.nBody=n; c.nb=nt;
+  /* 알갱이는 서로 겹친다(한 자리를 여러 알이 덮는다). 알 하나가 제 몫의 물을 다 가진
+     것으로 치면 겹친 수만큼 두께를 여러 번 센다 — 알 가운데 둘레에 **평균 몇 알이
+     겹치나**를 재서 σ 를 그만큼 나눈다. 알의 보이는 반지름은 판 반지름의 0.45 다. */
+  { let cnt=0, tot=0; const sN=Math.min(nt,160), stp=Math.max(1,Math.floor(nt/sN));
+    for(let a=0;a<nt;a+=stp){ let m=0;
+      for(let j=0;j<nt;j+=Math.max(1,Math.floor(nt/400))){
+        const re=c.rad[j]*0.45, dx=c.off[j*3]-c.off[a*3], dy=c.off[j*3+1]-c.off[a*3+1], dz=c.off[j*3+2]-c.off[a*3+2];
+        if(dx*dx+dy*dy+dz*dz<re*re) m++; }
+      tot+=m*Math.max(1,Math.floor(nt/400)); cnt++; }
+    const ov=Math.max(1,tot/Math.max(1,cnt));
+    for(let i=0;i<nt;i++) c.sg[i]/=ov; }
+  /* `y` 가 **밑동**이 되도록 덩이를 들어 올린다 — 가운데를 `y` 에 두었더니
+     키 2 km 짜리 적란운의 밑동이 땅(0~200 m)에 닿았다. 알갱이 그림은 판의
+     절반쯤만 보이므로 '가장 낮은 알갱이의 보이는 아랫끝'을 0 에 맞춘다. */
+  let yb=1e9;
+  for(let i=0;i<nt;i++) yb=Math.min(yb,c.off[i*3+1]-c.rad[i]*0.25);
+  for(let i=0;i<nt;i++) c.off[i*3+1]-=yb;
+  /* **밑동은 평평하다** — 적운·층적운·적란운은 공기가 식어 이슬점에 닿는 높이
+     (응결 고도)에서 생겨나므로 밑이 칼로 자른 듯 고르다. 혹을 그대로 두면 밑도
+     위처럼 울퉁불퉁한 솜덩이가 된다. 밑쪽 알갱이의 아랫끝을 전부 0 에 앉힌다. */
+  const flat=h*0.14;
+  for(let i=0;i<nt;i++){
+    const bot=c.off[i*3+1]-c.rad[i]*0.25;
+    if(bot<flat) c.off[i*3+1]=c.rad[i]*0.25+bot*0.15;
+  }
+  let sx=0,sy=0,sz=0;
+  for(let i=0;i<n;i++){ sx+=c.off[i*3]; sy+=c.off[i*3+1]; sz+=c.off[i*3+2]; }
+  c.cx=sx/n; c.cy=sy/n; c.cz=sz/n;
+  if(!c.sh||c.sh.length<c.cap) c.sh=new Float32Array(c.cap);
+  for(let i=0;i<nt;i++){
+    const t=clamp(c.off[i*3+1]/Math.max(1,ysp*1.3+h*0.3),0,1);
+    c.sh[i]=0.72+0.28*Math.pow(t,0.8);
+  }
+  litPuff(c);
+  for(let i=nt;i<c.cap;i++) c.rad[i]=0;       // 남는 알갱이는 크기 0 으로 접는다
+  if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
+  c.yaw=99;                                    // 다음 프레임에 행렬을 다시 짠다
+  cloudBounds(c);
+}
+
+/* 알갱이 밝기 — **광학 두께로 센다.** 알갱이마다 해 쪽으로 빛줄기를 쏴 다른
+   알갱이를 몇 개, 얼마나 깊이 뚫는지(τs), 위로 몇 개가 덮고 있는지(τu)를 더한다
+   (알갱이 한 알 가운데를 지나면 `kap` — 적운 1.0 · 적란운 1.8, 가장자리로 갈수록 0).
+   2 로 잡았더니 한낮 적운이 옆면까지 칙칙한 회색이었다 — 실제는 평평한 밑동만 회색이다.
+   그래서 해 쪽 겉은 새하얗고, 덩이 속·해 반대편·밑동은 두께만큼 회색이 된다 —
+   적운은 밑동만 연한 회색, 적란운은 속이 짙은 청회색. 예전의 높이 그늘(0.72~1)과
+   '해 쪽으로 나온 만큼'이라는 어림을 둘 다 이것이 대신한다.
+   알갱이 수의 제곱이라(적운 110 알이면 1만 2천 번) 2초마다만 다시 센다.
+   밤에는 `SKYL.dir` 이 달 쪽이라 달빛 쪽이 밝다. */
+const _sd=new THREE.Vector3();
+function litPuff(c){
+  if(!c.sh) return;
+  _sd.copy(SKYL.dir);                            // 참 해 방향(밤엔 달)
+  const n=c.nb, nB=c.nBody||n, o=c.off, sx=_sd.x, sy=_sd.y, sz=_sd.z;
+  /* **빛이 실제로 지나는 구름 길이**를 잰다 — 해 쪽 빛줄기가 알갱이 j(보이는 반지름
+     0.45·rad 의 공)를 지나면 그 현의 길이 2√(re²−p²) × σⱼ 가 광학 두께 τ 에 더해진다.
+     가리는 쪽은 많아야 700 알만 표본으로 세고 건너뛴 만큼 곱한다(n² 을 피한다). */
+  const st=Math.max(1,Math.ceil(nB/700)), sg=c.sg;
+  for(let i=0;i<n;i++){
+    const xi=o[i*3], yi=o[i*3+1], zi=o[i*3+2];
+    let ts=0, tu=0, tb=0, td=0;
+    for(let j=(i%st);j<nB;j+=st){
+      if(j===i) continue;
+      const dx=o[j*3]-xi, dy=o[j*3+1]-yi, dz=o[j*3+2]-zi;
+      const re=c.rad[j]*0.45, re2=re*re, d2=dx*dx+dy*dy+dz*dz, k=sg[j]*st*2;
+      const t=dx*sx+dy*sy+dz*sz;                      // 해 쪽 빛줄기가 j 를 지나나
+      { const p2=d2-t*t; if(p2<re2){ const L=k*Math.sqrt(re2-p2); if(t>0) ts+=L; else tb+=L; } }  // 해 쪽 · 반대쪽
+      { const p2=dx*dx+dz*dz; if(p2<re2){ const L=k*Math.sqrt(re2-p2); if(dy>0) tu+=L; else td+=L; } } // 위 · 아래
+    }
+    /* 두 흐름 근사(two-stream): 광학 두께 τ 인 구름을 **여러 번 튕겨 빠져나오는 빛**은
+       T = 1/(1+¾·τ·(1−g)). 곧장 뚫고 오는 빛(홑산란의 재료)은 exp(−τ) 다.
+       r = 해에서 온 빛 중 여기까지 오는 몫 · b = 곧장 온 몫(셰이더가 위상함수를 곱한다) ·
+       g = 하늘빛(위에서 고루 오는 빛)이 위의 두께를 지나 오는 몫 + 땅·옆 구름에서 튕긴 빛 */
+    /* 두꺼운 구름 속 빛은 확산이다 — 보존 산란(흡수 없음) 평판의 두 흐름 해에서
+       구름 속 한 점의 빛 세기는 **해 쪽 면에서 반대쪽 면까지 곧게 줄어든다**:
+       J(τ) ∝ (a·τ_반대쪽 + 1)/(a·(τ_해쪽+τ_반대쪽) + 2), a = ¾(1−g).
+       얇으면(τ→0) ½ 이라 2 를 곱해 1 로 맞춘다. 적운(τ≈75) 해 쪽 겉은 1, 한가운데 1,
+       반대쪽 겉 0.19 — 해를 받는 쪽은 희고 그늘진 쪽만 잿빛이다.
+       (한 방향 감쇠 1/(1+aτ) 만 썼더니 덩이 속이 다 까매 먹구름이 됐다.) */
+    const A=0.75*(1-CLOUD_G);
+    const r=Math.min(1,2*(A*tb+1)/(A*(ts+tb)+2));
+    const ss=Math.exp(-ts);
+    const g=Math.min(1,0.85*2*(A*td+1)/(A*(tu+td)+2)+0.15);
+    c.m.setColorAt(i,_pfC.setRGB(r,g,Math.max(ss,0.002)));
+  }
+  if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
+}
+/* 덩이마다 경계구를 달아 **화면 밖 덩이는 안 그린다.** 알갱이를 여러 판에 흩은
+   `InstancedMesh` 는 판 하나(1 m 네모)의 경계구로 거르므로 그대로는 못 쓴다 —
+   덩이마다 판 모양을 복제해(정점 넷이라 값이 없다) 제 경계구를 준다.
+   구름을 실제 크기로 세우니 적운만 반경 20 km 에 수백 덩이라, 거르지 않으면
+   등 뒤의 구름까지 다 그린다. */
+function cloudBounds(c){
+  let x0=1e9,y0=1e9,z0=1e9,x1=-1e9,y1=-1e9,z1=-1e9,pad=0;
+  for(let i=0;i<c.nb;i++){
+    const r=(c.rad[i]||0)*0.5; pad=Math.max(pad,r);
+    x0=Math.min(x0,c.off[i*3]);   x1=Math.max(x1,c.off[i*3]);
+    y0=Math.min(y0,c.off[i*3+1]); y1=Math.max(y1,c.off[i*3+1]);
+    z0=Math.min(z0,c.off[i*3+2]); z1=Math.max(z1,c.off[i*3+2]);
+  }
+  if(c.form==='strand'||!(x1>x0)){          // 실은 자리만 적어 둔다 — 폭으로 잡는다
+    x0=-c.w*0.5; x1=c.w*0.5; z0=-c.h*0.5; z1=c.h*0.5;
+    y0=-(c.K.th||50); y1=(c.K.th||50); pad=c.w*0.3;
+  }
+  const g=c.m.geometry;
+  if(!g.boundingSphere) g.boundingSphere=new THREE.Sphere();
+  g.boundingSphere.center.set((x0+x1)/2,(y0+y1)/2,(z0+z1)/2);
+  g.boundingSphere.radius=Math.hypot(x1-x0,y1-y0,z1-z0)/2+pad;
+}
+
+/* 알갱이를 카메라 쪽으로 세운다. 한 덩이 안에서는 요각이 거의 같으므로
+   회전은 한 번만 구하고 자리·크기만 알갱이마다 바꾼다. */
+function layPuff(c,px,pz){
+  const y=Math.atan2(px-c.x, pz-c.z);
+  if(Math.abs(y-c.yaw)<0.004) return;          // 눈에 안 띄는 변화면 그냥 둔다
+  c.yaw=y;
+  _pfQ.setFromAxisAngle(_pfAx,y);
+  for(let i=0;i<c.cap;i++){
+    const r=c.rad[i];
+    _pfV.set(c.off[i*3],c.off[i*3+1],c.off[i*3+2]);
+    _pfS.set(r,r,r);
+    c.m.setMatrixAt(i,_pfM.compose(_pfV,_pfQ,_pfS));
+  }
+  c.m.instanceMatrix.needsUpdate=true;
+}
+
+/* ── 깔린 구름은 한 고도 띠에 흩은 알갱이 층이다 ─────────────────────────
+   권층운·고층운·층운(`veil`)과 권적운(`ripple`)은 예전에 하늘에 눕힌 판때기
+   한 장이었다. 판때기는 **가장자리가 있다** — 지평선 쪽으로 스치듯 보면 원근
+   때문에 테두리 흐림(그림의 16%)이 몇 화소로 눌려 하늘에 자로 그은 직선이
+   생겼고, 흐림 자체도 '가장 가까운 변까지 거리'라 윤곽이 둥근 네모였다.
+   이제는 솟은 구름처럼 알갱이를 흩되 **두께 `th`(수십 m) 안에만** 놓는다.
+   알갱이는 **카메라를 온전히 마주 보는 판**(구면 빌보드)이다 — 솟은 구름처럼
+   요각만 돌리면 바로 밑에서 올려다볼 때 판이 모로 서서 사라진다. 깔린 구름은
+   거의 늘 머리 위에 있으므로 그럴 수 없다. 돌리는 일은 정점 셰이더가 한다
+   (`cloudShader`) — 행렬에는 자리와 크기만 담아 한 번 쓰고 끝이다. */
+/* 막의 알은 **혹 무늬가 없어야 한다.** 솟은 구름용 알(`puffTex`)은 작은 혹을
+   겹쳐 윤곽을 흐트러뜨려 두었는데, 그걸로 막을 깔았더니 권층운·층운이 매끈한
+   막이 아니라 뭉게구름 덩이로 보였다. 막은 둥근 흐림 하나로 깐다. */
+let softTex_=null;
+function softTex(){
+  const W=128, cv=document.createElement('canvas'); cv.width=cv.height=W;
+  const g=cv.getContext('2d'), gr=g.createRadialGradient(W/2,W/2,0,W/2,W/2,W/2);
+  gr.addColorStop(0,'rgba(255,255,255,0.34)');
+  gr.addColorStop(0.45,'rgba(255,255,255,0.20)');
+  gr.addColorStop(0.8,'rgba(255,255,255,0.05)');
+  gr.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=gr; g.fillRect(0,0,W,W);
+  return new THREE.CanvasTexture(cv);
+}
+/* 구름 재질 손질 — ① 층이면 알갱이를 카메라에 온전히 마주 세운다(빌보드)
+   ② **대기 원근을 섞기로 낸다**: 화소색 = 구름색×(1−a) + 지평선색×a.
+   a 와 반경 끝 스러짐은 **화소마다 제 거리로** 잰다 — 무리 가운데까지의 거리로
+   쟀더니 폭 40 km 난층운의 가운데가 20 km 밖이면 머리 위에 걸친 부분까지 먼
+   구름으로 쳐 지워져, 큰비 속에서 머리 위로 파란 하늘이 보였다.
+   재질 색(`color`)은 곱하기라, 지평선 색 쪽으로 끌어도 알갱이 그늘이 다시 곱해져
+   먼 적운이 짙은 잿빛 그대로 줄지어 섰다(먹구름 떼처럼 보였다). 실제로 먼 것이
+   옅어지는 건 사이 공기가 빛을 **더하기** 때문이다.
+   재질마다 제 `uHaze`·`uHz` 를 갖는다 — 셰이더 프로그램은 나눠 쓰되 값은 따로다.
+   `customProgramCacheKey` 로 빌보드 여부를 갈라 둔다(소스가 같아 섞이지 않게). */
+function cloudShader(mat,bill){
+  mat.userData.uR={value:20000}; mat.userData.uHz={value:new THREE.Color()};
+  mat.userData.uDirect={value:new THREE.Color(1,1,1)};
+  mat.userData.uSkyC={value:new THREE.Color(0.3,0.3,0.3)};
+  mat.userData.uThin={value:1};
+  mat.userData.uSun={value:new THREE.Vector3(0,1,0)};
+  mat.userData.uSkyS={value:new THREE.Color(0,0,0)}; mat.userData.uSkyA={value:new THREE.Color(0,0,0)};
+  mat.onBeforeCompile=sh=>{
+    sh.uniforms.uR=mat.userData.uR; sh.uniforms.uHz=mat.userData.uHz;
+    sh.uniforms.uDirect=mat.userData.uDirect; sh.uniforms.uSkyC=mat.userData.uSkyC;
+    sh.uniforms.uThin=mat.userData.uThin; sh.uniforms.uSun=mat.userData.uSun; sh.uniforms.uSkyS=mat.userData.uSkyS; sh.uniforms.uSkyA=mat.userData.uSkyA;
+    const proj=bill
+      /* 층을 **모로 볼수록 알갱이를 세로로 누른다** — 층은 두께 수백 m~2 km 인데
+         알갱이는 수 km 짜리 원판이라, 옆에서 보면 층이 알갱이 지름만큼 두꺼워 보였다.
+         보는 방향이 수평에 가까울수록 눌러 두께 몫(uThin)까지 납작하게 한다 */
+      ? `vec4 wc = modelMatrix * instanceMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
+         float sq = max( uThin, abs( normalize( wc.xyz - cameraPosition ).y ) );
+         vec4 mvPosition = viewMatrix * wc;
+         mvPosition.xy += transformed.xy * length( instanceMatrix[0].xyz ) * vec2( 1.0, sq );
+         gl_Position = projectionMatrix * mvPosition;`
+      : '#include <project_vertex>';
+    sh.vertexShader='uniform float uThin;\nvarying float vCD;\nvarying vec3 vWP;   // 카메라→화소 방향(세계)\n'+sh.vertexShader.replace('#include <project_vertex>',
+      proj+'\nvCD = length( mvPosition.xyz );\nvWP = vec3( dot( viewMatrix[0].xyz, mvPosition.xyz ), dot( viewMatrix[1].xyz, mvPosition.xyz ), dot( viewMatrix[2].xyz, mvPosition.xyz ) );');
+    /* ③ 알갱이 색 = 직사광 × r + 하늘빛 × g (instanceColor 의 두 칸).
+       r 은 그 알갱이가 해를 얼마나 받나(해 쪽으로 나온 만큼), g 는 하늘빛을 받는
+       몫이다. 노을에는 직사광이 주황·빨강이고 하늘빛이 파랗다 — 둘이 겹쳐 분홍·
+       보랏빛이 나고, 해 쪽과 반대쪽이 갈라진다. 색을 한 가지로 곱하던 때는
+       덩이 전체가 같은 주황으로 물들었다. */
+    /* 홑산란은 **방향을 탄다** — 물방울은 빛을 앞으로 몰아 뿌린다(헨예-그린스타인 위상함수,
+       g≈0.85 중 회절 봉우리를 뺀 넓은 몫 0.6). 해를 등진 구름의 가장자리(τ 가 얇은 곳)가
+       해 쪽을 볼 때 눈부시게 빛나는 **은빛 테두리**가 이것이고, 해를 등지고 보면
+       홑산란이 약해 겉이 조금 수수해진다. 평균이 1 이 되게 적었다(등방 = 1). */
+    sh.fragmentShader='uniform float uR;\nuniform vec3 uHz;\nuniform vec3 uDirect;\nuniform vec3 uSkyC;\nuniform vec3 uSkyS;\nuniform vec3 uSkyA;\nuniform vec3 uSun;\nvarying float vCD;\nvarying vec3 vWP;   // 카메라→화소 방향(세계)\n'+
+      sh.fragmentShader.replace('#include <color_fragment>',
+        `float cth = dot( normalize( vWP ), uSun );
+         float hg = 0.64 / pow( 1.36 - 1.2 * cth, 1.5 );
+         float ss = vColor.b * 0.35;
+         diffuseColor.rgb *= uDirect * ( vColor.r * ( 1.0 - ss ) + ss * min( hg, 10.0 ) ) + uSkyC * vColor.g
+                            + uSkyS * vColor.r + uSkyA * ( 1.0 - vColor.r ) * vColor.g;`)
+      .replace('#include <fog_fragment>',
+       `float hzF = clamp( vCD / uR, 0.0, 1.0 );
+        gl_FragColor.rgb = mix( gl_FragColor.rgb, uHz, pow( hzF, 1.3 ) * 0.78 );
+        gl_FragColor.a *= clamp( ( uR * 1.15 - vCD ) / ( uR * 0.4 ), 0.0, 1.0 )
+                        * ( 1.0 - hzF * hzF * 0.35 );
+        #include <fog_fragment>`);
+  };
+  mat.customProgramCacheKey=()=>bill?'cloud-bill':'cloud';
+  return mat;
+}
+/* 값잡음 한 장 — 층 안에 짙고 옅은 데를 만든다(고른 층은 인공물로 보인다) */
+function layerNoise(x,z,seed){
+  const h=(i,j)=>{ let t=Math.imul(i*374761393+j*668265263+seed,1274126177);
+    t^=t>>>13; t=Math.imul(t,1103515245); return ((t>>>0)&0xffff)/65535; };
+  const xi=Math.floor(x), zi=Math.floor(z), fx=x-xi, fz=z-zi;
+  const sx=fx*fx*(3-2*fx), sz=fz*fz*(3-2*fz);
+  const a=h(xi,zi), b=h(xi+1,zi), c=h(xi,zi+1), d=h(xi+1,zi+1);
+  return a+(b-a)*sx+(c-a)*sz+(a-b-c+d)*sx*sz;
+}
+/* 층의 밑면 밝기 — 광학 두께 τ 인 층을 밑에서 보면 빛이 몇 번이고 튕기다 위로
+   되돌아 나간 만큼 어둡다. 물방울은 빛을 대부분 앞으로 흩뿌리므로(g ≈ 0.85)
+   밑으로 빠져나오는 몫이 1/(1+0.75·τ·(1−g)) 이다. 해를 받는 몫(r)이 그것이고,
+   하늘빛(g)도 층을 지나오므로 같이 줄되 땅에서 튕겨 오른 빛(0.22)이 밑면을 받친다.
+   권층운 τ 0.8 → 0.92 · 층운 12 → 0.43 · 고층운 25 → 0.26 · 난층운 90 → 0.09. */
+function layerTone(tau,out){
+  const T=1/(1+0.75*tau*(1-CLOUD_G));
+  return out.setRGB(T,T*0.6+0.22,Math.max(Math.exp(-tau),0.002));
+}
+function shapeLayer(c){
+  const rnd=cloudRnd, K=c.K, w=c.w, h=c.h, n=Math.min(c.cap,
+        Math.round((K.nb[0]+rnd()*(K.nb[1]-K.nb[0]))*GRAIN_N));
+  const seed=(rnd()*1e9)|0, th=K.th||40;
+  let k=0, guard=0;
+  if(K.draw==='ripple'){
+    /* 권적운 — 잔 구름이 물결진 줄을 지어 늘어선다(비늘구름). 줄은 곧지 않고
+       출렁이며, 줄 사이 간격과 알 크기도 흔들린다. 무리 가장자리로 갈수록 성기다. */
+    const a0=rnd()*6.283, ca=Math.cos(a0), sa=Math.sin(a0);
+    /* 줄 안의 알 간격(step)을 줄 사이(gap)의 절반 아래로 잡아야 **줄이 선다** —
+       둘이 비슷하면 줄 없이 고르게 흩은 좁쌀이 된다. */
+    /* `cell` 이 있으면 잔구름 크기를 무리 폭과 떼어 놓는다 — 실제 크기로
+       맞추면 무리는 수 km 인데 잔구름은 수백 m 라 비율로는 못 잡는다.
+       보이는 잔구름 ≈ 알 간격 × 1.1 이다(알 판의 절반쯤이 보인다). */
+    const step=(K.cell?K.cell/1.1*(0.9+rnd()*0.2):w*(0.07+rnd()*0.025)*0.43)*GRAIN_S,
+          gap=step/((K.gapf||0.43)*(0.88+rnd()*0.24));
+    const ph=rnd()*6.283, amp=gap*(0.6+rnd()*0.8), wl=w*(0.3+rnd()*0.3);
+    for(let v=-h*0.5; v<=h*0.5 && k<n; v+=gap*(0.85+rnd()*0.3)){
+      for(let u=-w*0.5; u<=w*0.5 && k<n; u+=step*(0.8+rnd()*0.4)){
+        const vv=v+Math.sin(u/wl*6.283+ph)*amp*0.5;
+        const e=Math.hypot(u/(w*0.5), vv/(h*0.5));      // 무리 가장자리까지
+        if(e>1) continue;
+        const dens=layerNoise(u/(w*0.22),vv/(w*0.22),seed)*(1-e*e);
+        if(rnd()>dens*2.6) continue;                      // 가장자리·옅은 데는 빠진다
+        const x=u*ca-vv*sa, z=u*sa+vv*ca;
+        // 간격을 절반으로 줄여 넓이로 4배, 격자점마다 둘씩 놓아 8배가 된다
+        for(let q=0;q<2&&k<n;q++){
+          c.off[k*3]=x+(rnd()-0.5)*step*0.6; c.off[k*3+1]=(rnd()-0.5)*th;
+          c.off[k*3+2]=z+(rnd()-0.5)*step*0.6;
+          c.rad[k]=step*(1.9+rnd()*0.7)*(0.55+0.45*(1-e));
+          layerTone(K.tau*(0.6+0.8*rnd())*(0.4+0.6*(1-e)),_pfC);
+          c.m.setColorAt(k,_pfC); k++;
+        }
+      }
+    }
+  }else{
+    /* 막 — 넓은 타원 안에 고르지 않게 깐다. 가장자리로 갈수록 알이 작아져
+       층이 스러지듯 끝난다(판때기처럼 칼로 자른 가장자리가 없다). */
+    while(k<n && guard++<n*30){
+      const u=(rnd()*2-1), v=(rnd()*2-1), e=Math.hypot(u,v);
+      if(e>1) continue;
+      const x=u*w*0.5, z=v*h*0.5;
+      const dens=0.35+0.65*layerNoise(x/(w*0.3),z/(w*0.3),seed);
+      if(rnd()>dens) continue;
+      c.off[k*3]=x; c.off[k*3+1]=(rnd()-0.5)*th; c.off[k*3+2]=z;
+      /* 알을 크게(폭의 22~32%) 잡아 여남은 알이 늘 겹치게 한다 — 알이 잘면
+         알 하나하나가 보여 막이 아니라 얼룩이 된다 */
+      c.rad[k]=w*(0.22+rnd()*0.10)*(0.45+0.55*Math.sqrt(1-e*e))*GRAIN_S;
+      layerTone(K.tau*(0.6+0.8*dens)*(0.4+0.6*Math.sqrt(1-e*e)),_pfC);
+      c.m.setColorAt(k,_pfC); k++;
+    }
+  }
+  c.nb=k;
+  cloudBounds(c);
+  { let sr=0; for(let i=0;i<k;i++) sr+=c.rad[i];
+    const vis=Math.max(1,sr/Math.max(1,k)*0.8);         // 보이는 알갱이 지름
+    const U=c.m.material.userData;
+    if(U.uThin) U.uThin.value=clamp(Math.max(c.h||0,K.th||0)*1.4/vis,0.12,1); }
+  for(let i=0;i<c.cap;i++){
+    const r=i<k?c.rad[i]:0;
+    _pfV.set(c.off[i*3],c.off[i*3+1],c.off[i*3+2]); _pfS.set(r,r,r);
+    c.m.setMatrixAt(i,_pfM.compose(_pfV,_pfQ.identity(),_pfS));
+  }
+  c.m.instanceMatrix.needsUpdate=true;
+  if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
+}
+
+/* ── 권운은 실이다 ───────────────────────────────────────────────────────
+   새털구름은 알갱이가 아니라 **가닥**이다 — 얼음 알갱이가 떨어지며 바람에
+   끌려 가는 꼬리다. 가닥 하나는 하늘에 눕힌 가늘고 긴 판(`strandTex` — 한쪽
+   끝이 짙고 갈고리처럼 휘며 반대쪽은 풀려 스러진다)이고, 한 무리가 16~32 가닥을
+   거의 같은 쪽(±20°)으로 늘어놓는다. 가닥은 폭이 좁아서 모로 서도 선 하나로
+   보일 뿐이라 판때기 직선 문제가 없다. */
+const STRAND_VARIANTS=4;
+let strandTex_=[];
+function strandTex(seed){
+  /* 가닥 하나 — **붓으로 쓸어 낸 듯한 올**이다. 처음엔 1~2 px 짜리 가는 선만 그어서,
+     실제 크기(가닥 수 km)로 띄우니 폭 30 m 쯤의 날카로운 선 — 하늘을 긁은 자국처럼
+     보였다. 이제 ① 가닥 전체를 따라 넓고 옅은 번짐 띠를 먼저 깔고 ② 그 위에 조금
+     굵고 흐린 올 여럿을 휘게 긋는다. 머리 쪽은 갈고리처럼 꺾인다(갈고리권운). */
+  const W=256, H=96, cv=document.createElement('canvas');
+  cv.width=W; cv.height=H;
+  const g=cv.getContext('2d'), rnd=mulberry32(hashStr('strand|'+seed));
+  g.lineCap='round';
+  const yc=H*(0.45+rnd()*0.1), hook=H*(0.18+rnd()*0.22)*(rnd()<0.5?-1:1);
+  const path=(dy,x0,x1)=>{ g.beginPath(); g.moveTo(x0,yc+dy);
+    g.bezierCurveTo(W*0.45,yc+dy+(rnd()-0.5)*H*0.10, W*0.72,yc+dy+hook*0.25,
+                    x1,yc+dy+hook); };
+  const grad=(a0,a1)=>{ const gr=g.createLinearGradient(0,0,W,0);   // 꼬리는 풀리고 머리는 짙다
+    gr.addColorStop(0,'rgba(255,255,255,0)'); gr.addColorStop(0.5,'rgba(255,255,255,'+a0+')');
+    gr.addColorStop(0.86,'rgba(255,255,255,'+a1+')'); gr.addColorStop(1,'rgba(255,255,255,0)');
+    return gr; };
+  // ① 번짐 띠
+  path(0,W*0.04,W*0.94); g.strokeStyle=grad(0.07,0.13);
+  g.lineWidth=H*0.34; g.shadowColor='rgba(255,255,255,0.5)'; g.shadowBlur=18; g.stroke();
+  // ② 올
+  const nf=7+((rnd()*5)|0);
+  for(let f=0;f<nf;f++){
+    path((rnd()-0.5)*H*0.28, W*(0.02+rnd()*0.3), W*(0.78+rnd()*0.18));
+    g.strokeStyle=grad(0.10+rnd()*0.08,0.22+rnd()*0.16);
+    g.lineWidth=2+rnd()*3; g.shadowBlur=8+rnd()*8; g.stroke();
+  }
+  // 네 변을 타원으로 지운다 — 네모 흐림은 윤곽이 네모로 남는다
+  const im=g.getImageData(0,0,W,H), D=im.data;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const e=Math.hypot((x-W/2)/(W/2),(y-H/2)/(H/2));
+    const f=clamp((1-e)/0.25,0,1); D[(y*W+x)*4+3]*=f*f*(3-2*f);
+  }
+  g.putImageData(im,0,0);
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping;
+  return t;
+}
+function shapeStrand(c){
+  const rnd=cloudRnd, K=c.K, w=c.w, h=c.h;
+  const n=Math.min(c.cap, Math.round(K.nb[0]+rnd()*(K.nb[1]-K.nb[0])));
+  const a0=rnd()*6.283, flat=new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(1,0,0),-Math.PI/2), qy=new THREE.Quaternion();
+  for(let i=0;i<c.cap;i++){
+    if(i>=n){ _pfS.set(0,0,0); c.m.setMatrixAt(i,_pfM.compose(_pfV.set(0,0,0),_pfQ.identity(),_pfS)); continue; }
+    const u=(rnd()*2-1), v=(rnd()*2-1);
+    if(Math.hypot(u,v)>1){ i--; continue; }
+    const L=w*(0.25+rnd()*0.30), Wd=L*(0.16+rnd()*0.10);   // 번짐 띠가 들어갈 만큼
+    qy.setFromAxisAngle(_pfAx, a0+(rnd()-0.5)*0.7);
+    _pfQ.copy(qy).multiply(flat);
+    _pfV.set(u*w*0.45,(rnd()-0.5)*(K.th||30),v*h*0.45);
+    _pfS.set(L*(rnd()<0.5?-1:1),Wd,1);
+    c.m.setMatrixAt(i,_pfM.compose(_pfV,_pfQ,_pfS));
+    const sv=0.9+rnd()*0.1;
+    c.m.setColorAt(i,_pfC.setRGB(sv,sv*0.6,0));           // 얼음 실은 볕을 그대로 받는다
+  }
+  c.nb=n;
+  cloudBounds(c);
+  c.m.instanceMatrix.needsUpdate=true;
+  if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
+}
+
+/* 그리는 차례는 **고도**로 정한다 — 높은 구름을 먼저. 투명한 것은 보통 물체
+   가운데까지의 거리로 앞뒤를 가리는데, 높이가 다른 층끼리는 그게 틀린다(9 km
+   권운 무리의 가운데가 2 km 난층운 무리의 가운데보다 가까우면 권운이 난층운 앞에
+   그려져, 큰비 속에 새털구름이 보였다). 땅에서 올려다보면 높은 구름은 늘 낮은
+   구름 뒤다. 하늘 돔(−10) · 별(−9.5) · 해·달(−9) 보다는 뒤에 그린다. */
+function cloudOrder(y){ return -8-clamp(y,0,14000)/20000; }
+/* 사라진 구름을 다시 굴린다 — 그림도 크기도 자리도 새로 뽑으므로,
+   날씨가 개었다 흐려지면 **아까 그 구름이 아니라 다른 구름**이 뜬다. */
+function rerollCloud(c,anywhere){
+  const rnd=cloudRnd, K=c.K;
+  const lerpR=a=>a[0]+rnd()*(a[1]-a[0]);
+  const w=lerpR(K.w), h=lerpR(K.h);
+  if(c.form==='puff'){
+    // 솟은 구름은 그림이 아니라 알갱이 배치가 곧 생김새다 — 덩이를 다시 빚는다
+    c.w=w; c.h=h; shapePuff(c);
+  }else if(c.form==='layer'){ c.w=w; c.h=h; shapeLayer(c);
+  }else if(c.form==='strand'){ c.w=w; c.h=h; shapeStrand(c);
+  }else{
+    const mp=c.mats[(rnd()*CLOUD_VARIANTS)|0].map;
+    c.m.material.map=mp; c.m.material.needsUpdate=true;
+    c.m.scale.set(w*(rnd()<0.5?-1:1),h,1);
+  }
+  c.y=lerpR(K.y); c.op=lerpR(K.op); c.v=K.v*(0.75+rnd()*0.5);
+  c.tilt=(rnd()*2-1)*0.25;
+  // 바람이 불어오는 쪽 가장자리에 세운다 — 하늘 한복판에 불쑥 나타나지 않게
+  const rr=anywhere?(rnd()*2-1)*K.R*0.9:K.R*(0.75+rnd()*0.25);
+  const sp=(rnd()*2-1)*K.R*(anywhere?0.9:0.8);
+  c.x=-windDir.x*rr-windDir.z*sp; c.z=-windDir.z*rr+windDir.x*sp;
+  if(camera){ c.x+=camera.position.x; c.z+=camera.position.z; }
+  c.m.renderOrder=cloudOrder(c.y);
+  if(K.form==='sheet') c.m.rotation.set(-Math.PI/2,0,rnd()*6.283);
+}
+
+/* 밑그림 — 한 장씩 캔버스에 그린다. 알파만 쓰므로 흰빛과 그늘만 칠한다. */
+function cloudTex(draw,seed){
+  const W=256, H=256, c=document.createElement('canvas');
+  c.width=W; c.height=H;
+  const g=c.getContext('2d'), rnd=mulberry32(hashStr('cloud|'+draw+'|'+seed));
+  // 솜뭉치 하나 — 위는 볕을 받아 희고 아래는 그늘져 푸르스름하다
+  const puff=(x,y,r,top)=>{
+    const gr=g.createRadialGradient(x-r*0.25,y-r*0.35,r*0.08,x,y,r);
+    gr.addColorStop(0,   'rgba(255,255,255,'+(0.85*top)+')');
+    gr.addColorStop(0.45,'rgba(246,248,252,'+(0.55*top)+')');
+    gr.addColorStop(0.8, 'rgba(206,214,228,'+(0.18*top)+')');
+    gr.addColorStop(1,   'rgba(196,205,220,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(x,y,r,0,6.283); g.fill();
+  };
+  if(draw==='cauli'||draw==='lumpy'||draw==='roll'||draw==='anvil'){
+    // 솟은 구름 — 평평한 밑면 위로 뭉치를 쌓는다
+    const base=draw==='anvil'?H*0.92:(draw==='roll'?H*0.72:H*0.86);
+    const nb=draw==='cauli'?16:draw==='lumpy'?22:draw==='roll'?10:26;
+    for(let i=0;i<nb;i++){
+      const t=i/nb;
+      let x,y,r;
+      if(draw==='anvil'){
+        // 적란운 — 위로 솟다가 꼭대기에서 모루처럼 옆으로 퍼진다
+        const up=Math.pow(rnd(),0.7);
+        const spread=0.10+up*up*0.44;
+        x=W*0.5+(rnd()*2-1)*W*spread;
+        y=base-up*base*0.92;
+        r=W*(0.10+0.10*(1-up))*(0.7+rnd()*0.6);
+      }else if(draw==='roll'){
+        x=W*(0.08+t*0.84)+(rnd()*2-1)*W*0.04;
+        y=base-H*(0.10+rnd()*0.10);
+        r=W*(0.09+rnd()*0.05);
+      }else{
+        const up=Math.pow(rnd(),draw==='cauli'?0.8:1.4);
+        x=W*0.5+(rnd()*2-1)*W*(0.40-up*0.16);
+        y=base-up*base*(draw==='cauli'?0.78:0.52);
+        r=W*(draw==='cauli'?0.10+rnd()*0.10:0.07+rnd()*0.07)*(1-up*0.25);
+      }
+      puff(x,y,r,0.55+ (1-y/H)*0.65);
+    }
+    // 밑면을 잘라 평평하게 — 구름은 응결고도에서 바닥이 맞춰진다
+    if(draw!=='roll'){
+      g.globalCompositeOperation='destination-out';
+      const gr=g.createLinearGradient(0,base,0,Math.min(H,base+H*0.10));
+      gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(0,0,0,1)');
+      g.fillStyle=gr; g.fillRect(0,base,W,H-base);
+      g.globalCompositeOperation='source-over';
+    }
+  }else if(draw==='streak'){
+    /* 권운 — 바람에 빗질된 새털. 한 가닥이 여러 올로 갈라지고 끝이 갈고리처럼
+       굽는다. 올을 넉넉히 둬야 실뭉치가 아니라 깃털로 보인다. */
+    const ny=10+Math.floor(rnd()*8);
+    for(let i=0;i<ny;i++){
+      const y0=H*(0.14+rnd()*0.72), len=W*(0.30+rnd()*0.46), x0=W*(0.06+rnd()*0.36);
+      const bow=(rnd()*2-1)*H*0.18, hook=(rnd()*2-1)*H*0.16;
+      const th=0.5+rnd()*1.2;                       // 가닥 굵기
+      const nk=9+Math.floor(rnd()*9);               // 한 가닥을 이루는 올
+      for(let k=0;k<nk;k++){
+        g.strokeStyle='rgba(255,255,255,'+(0.035+rnd()*0.05)+')';
+        g.lineWidth=(0.6+rnd()*4)*th;
+        g.beginPath();
+        const o=(rnd()*2-1)*H*0.045, sh=rnd()*0.3;  // 올마다 시작이 조금씩 어긋난다
+        g.moveTo(x0+len*sh,y0+o);
+        g.bezierCurveTo(x0+len*0.35,y0+bow+o, x0+len*0.7,y0+bow*0.4+o,
+                        x0+len*(0.9+rnd()*0.2),y0+hook+o);
+        g.stroke();
+      }
+    }
+  }else if(draw==='ripple'){
+    /* 권적운·비늘구름. 예전에는 격자에 도장을 찍은 꼴이라 한눈에 인공물이었다.
+       실제로는 **무리 몇 덩이**가 있고, 그 안에서 물결을 따라 알갱이가 뭉친다 —
+         ① 무리 중심을 몇 개 잡고(타원형으로 퍼진다)
+         ② 무리 안에서 물결선을 따라가되 간격·크기를 흔들고
+         ③ 이웃끼리 붙어 띠가 되기도, 듬성해져 끊기기도 한다
+         ④ 무리 가장자리로 갈수록 알갱이가 작아지고 성겨진다
+       줄이 남아 있되 자로 잰 줄은 아니게 된다. */
+    const clumps=2+Math.floor(rnd()*3);
+    for(let c0=0;c0<clumps;c0++){
+      const cxp=W*(0.18+rnd()*0.64), cyp=H*(0.18+rnd()*0.64);
+      const rx=W*(0.22+rnd()*0.26), ry=H*(0.14+rnd()*0.22);
+      const rot=(rnd()*2-1)*0.5;                    // 무리마다 물결 방향이 다르다
+      const wav=0.6+rnd()*1.8, amp=ry*(0.08+rnd()*0.16);
+      const gapY=ry*(0.15+rnd()*0.10);              // 줄 간격
+      const nR=Math.ceil(ry*2/gapY);
+      const cs=Math.cos(rot), sn=Math.sin(rot);
+      for(let r0=0;r0<nR;r0++){
+        const ly=-ry+r0*gapY+(rnd()*2-1)*gapY*0.35;
+        if(rnd()<0.12) continue;                    // 줄이 통째로 빠지기도 한다
+        let lx=-rx*(0.9+rnd()*0.2);
+        while(lx<rx){
+          const t=Math.hypot(lx/rx,ly/ry);          // 무리 중심에서 얼마나 먼가
+          if(t>1){ lx+=W*0.02; continue; }
+          const edge=1-t*t;                         // 가장자리로 갈수록 작고 성기다
+          const r=W*(0.008+rnd()*0.020)*(0.45+edge*0.9);
+          if(rnd()<0.20+t*0.35){ lx+=r*(2.2+rnd()*3.4); continue; }  // 듬성한 자리
+          const yy=ly+Math.sin(lx/rx*3.1*wav)*amp;
+          puff(cxp+lx*cs-yy*sn, cyp+lx*sn+yy*cs, r, 0.55+edge*0.5);
+          // 이따금 옆에 바짝 붙여 띠로 만든다
+          if(rnd()<0.34){
+            const r2=r*(0.6+rnd()*0.6), dx2=r*(0.9+rnd()*0.5);
+            puff(cxp+(lx+dx2)*cs-yy*sn, cyp+(lx+dx2)*sn+yy*cs, r2, 0.5+edge*0.5);
+            lx+=dx2;
+          }
+          lx+=r*(1.5+rnd()*2.6);
+        }
+      }
+    }
+  }else{                                   // 'veil' — 층운·고층운·권층운
+    // 넓게 깔린 막. 큰 얼룩을 겹쳐 두께가 고르지 않게 만든다
+    for(let i=0;i<26;i++){
+      const x=W*rnd(), y=H*rnd(), r=W*(0.14+rnd()*0.3);
+      const gr=g.createRadialGradient(x,y,0,x,y,r);
+      gr.addColorStop(0,'rgba(255,255,255,'+(0.10+rnd()*0.10)+')');
+      gr.addColorStop(1,'rgba(255,255,255,0)');
+      g.fillStyle=gr; g.beginPath(); g.arc(x,y,r,0,6.283); g.fill();
+    }
+  }
+  /* **테두리는 어느 갈래든 지운다.** 그림을 캔버스 끝까지 그려 두면 판때기가
+     끝나는 자리가 하늘에 직선으로 그인다 — 새털 가닥이 중간에서 뚝 끊기거나
+     솜뭉치 한쪽이 칼로 자른 듯 평평해지던 것이 이것이다. 네 변을 안쪽으로
+     흐려서 없앤다. 솟은 구름의 평평한 밑면은 이 앞에서 이미 만들어 두었다. */
+  {
+    const band=0.16;
+    g.globalCompositeOperation='destination-out';
+    for(const [x0,y0,x1,y1] of [[0,0,W*band,0],[W,0,W*(1-band),0],
+                                [0,0,0,H*band],[0,H,0,H*(1-band)]]){
+      const gr=g.createLinearGradient(x0,y0,x1,y1);
+      gr.addColorStop(0,'rgba(0,0,0,1)');
+      gr.addColorStop(0.45,'rgba(0,0,0,0.35)');
+      gr.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle=gr; g.fillRect(0,0,W,H);
+    }
+    g.globalCompositeOperation='source-over';
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.minFilter=THREE.LinearFilter; t.generateMipmaps=false;
+  return t;
+}
+
+function buildClouds(seed){
+  if(cloudGroup){ scene.remove(cloudGroup); }
+  for(const m of cloudMat) m.dispose();
+  for(const t of cloudTex_) t.dispose();
+  cloudMat.length=0; cloudTex_.length=0; CLOUDS.length=0;
+  cloudGroup=new THREE.Group(); cloudGroup.userData.lightRole='none';
+  cloudGroup.renderOrder=-8; skyScene.add(cloudGroup);
+  const rnd=mulberry32((seed>>>0)^0x0c10d5a7);
+  cloudRnd=rnd;                                  // 되살릴 때도 같은 난수를 쓴다
+  weaSalt=(seed>>>0)^0x5ea50017;
+  const quad=new THREE.PlaneGeometry(1,1);
+  puffTex_=[]; for(let v=0;v<PUFF_VARIANTS;v++) puffTex_.push(puffTex(v+'|'+seed));
+  strandTex_=[]; for(let v=0;v<STRAND_VARIANTS;v++) strandTex_.push(strandTex(v+'|'+seed));
+  softTex_=softTex();
+  /* 알갱이용 판때기는 **흰 정점색을 달아 둔다.** r128 은 알갱이마다 주는 색
+     (`instanceColor`)을 `USE_COLOR` 가 켜져 있을 때만 화소에 곱한다 —
+     `vertexColors:true` 로 켜야 하는데, 그러면 `color` 어트리뷰트가 필요하고
+     없으면 검게 나온다. 그래서 1 로 채운 것을 붙인다. */
+  const pquad=quad.clone();
+  pquad.setAttribute('color',new THREE.BufferAttribute(
+    new Float32Array(pquad.attributes.position.count*3).fill(1),3));
+  const lerpR=(a)=>a[0]+rnd()*(a[1]-a[0]);
+  for(const key in CLOUD_KINDS){
+    const K=CLOUD_KINDS[key];
+    /* 갈래마다 밑그림 여러 장 — 같은 갈래라도 개체마다 다르게 보인다.
+       솟은 구름은 알갱이 한 알짜리 그림을 나눠 쓰므로 여기서 뽑지 않는다. */
+    const mats=[];
+    if(K.form==='sheet') for(let v=0;v<CLOUD_VARIANTS;v++){
+      const tx=cloudTex(K.draw,key+v+seed); cloudTex_.push(tx);
+      mats.push(new THREE.MeshBasicMaterial({
+        map:tx, transparent:true, depthWrite:false,
+        fog:false, side:THREE.DoubleSide, opacity:1}));
+    }
+    /* 못수만큼 미리 만들어 두고 날씨가 짙기로 여닫는다 */
+    for(let i=0;i<K.max;i++){
+      /* 재질은 개체마다 복제한다 — 나눠 쓰면 짙기가 마지막 구름 것으로 통일된다
+         (그림은 복제해도 그대로 나눠 쓴다). */
+      const puff=(K.form==='puff'), inst=(K.form!=='sheet');
+      const mm=inst
+        ? new THREE.MeshBasicMaterial({
+            map:K.form==='strand'?strandTex_[(rnd()*STRAND_VARIANTS)|0]
+               :K.draw==='veil'?softTex_:puffTex_[(rnd()*PUFF_VARIANTS)|0],
+            transparent:true, depthWrite:false, fog:false, vertexColors:true,
+            side:THREE.DoubleSide, opacity:0})
+        : mats[(rnd()*CLOUD_VARIANTS)|0].clone();
+      if(inst) cloudShader(mm,K.form==='layer');
+      cloudMat.push(mm);
+      mm.opacity=0;
+      const w=lerpR(K.w), h=lerpR(K.h);
+      const m=inst ? new THREE.InstancedMesh(pquad.clone(),mm,K.nb[1]*grainN(K)+(K.nd?K.nd[1]:0))
+                   : new THREE.Mesh(quad,mm);     // 덩이마다 제 경계구(cloudBounds)
+      if(!inst) m.scale.set(w*(rnd()<0.5?-1:1),h,1);   // 좌우 뒤집기로 한 번 더 다르게
+      /* r128 의 InstancedMesh 는 **만들 때 거르기를 스스로 끈다**(인스턴스의
+         경계를 모르므로). 경계구를 직접 주므로(`cloudBounds`) 다시 켠다. */
+      else m.frustumCulled=true;
+      /* 하늘을 덮는 큰 막은 사람 머리 위 가까이 둔다 — 멀리 두면 지름이 커서
+         카메라 far 밖으로 모서리가 나간다. */
+      const th=rnd()*6.283;
+      /* 눕는 구름은 판때기 한 장이 그대로 하늘 전체가 될 수 있다 — 지름만 한
+         거리 밖에 세워 한 장이 하늘의 한 조각만 차지하게 한다. 하늘을 통째로
+         덮으라고 만든 막(`veil`)만 예외다. */
+      const rr=Math.sqrt(rnd())*K.R;
+      const c={m, key, K, mats, i, w, h,
+               x:Math.cos(th)*rr, z:Math.sin(th)*rr, y:lerpR(K.y),
+               form:K.form, v:K.v*(0.75+rnd()*0.5), op:lerpR(K.op),
+               tilt:(rnd()*2-1)*0.25, vis:0, want:0, yaw:99};
+      if(inst){
+        c.cap=K.nb[1]*grainN(K)+(K.nd?K.nd[1]:0);
+        c.off=new Float32Array(c.cap*3); c.rad=new Float32Array(c.cap);
+        if(puff) shapePuff(c);
+        else if(K.form==='layer') shapeLayer(c); else shapeStrand(c);
+      }
+      m.position.set(c.x,c.y,c.z);
+      if(K.form==='sheet'){ m.rotation.set(-Math.PI/2, 0, rnd()*6.283); }
+      m.renderOrder=cloudOrder(c.y); m.userData.lightRole='none'; m.visible=false;
+      cloudGroup.add(m); CLOUDS.push(c);
+    }
+  }
+}
+
+/* 흐르기 · 여닫기 · 색 — 매 프레임. 개체 서른 남짓이라 값이 없다시피 하다. */
+function updateClouds(dt){
+  if(!cloudGroup) return;
+  const px=camera.position.x, pz=camera.position.z;
+  const wx=windDir.x, wz=windDir.z;
+  /* 갈래마다 지금 몇 덩이가 떠야 하는가는 날씨가 정한다(`WEA.cnt` — 하늘 점유율을
+     덮는 넓이로 바꾼 개수). 흰 개수만큼 앞에서부터 켜고 나머지는 여닫는다. */
+  if(WEA.jumpT>0) WEA.jumpT-=dt;
+  const want={};                                // 날씨가 정한 개수(updateWeather)
+  for(const k in CLOUD_KINDS)            // 시험장: 갈래마다 손으로 개수 지정
+    want[k]=(MANUAL[k]!=null)?MANUAL[k]:(WEA.cnt[k]||0);
+  const seen={};
+  /* 시간을 빨리 돌리면(T) 구름도 같이 빨라진다 — 해는 달리는데 구름만 멈춰
+     있으면 어색하다. 다만 300배에서는 순간이동처럼 보이므로 20배에서 끊는다. */
+  const ts=Math.min(timeScale,20);
+  for(const c of CLOUDS){
+    const n=(seen[c.key]=(seen[c.key]||0)+1);
+    const on=n<=want[c.key];
+    /* **다시 굴리는 때는 사라질 때가 아니라 불릴 때다.**
+       처음에는 다 옅어지는 순간에 굴려 바람 위쪽에 세워 뒀는데, 죽은 뒤에도
+       아래의 흐르기·되돌려보내기가 계속 돌아서 그 자리가 남아나지 않았다 —
+       날씨가 다시 부를 무렵이면 엉뚱한 데, 심하면 머리 위에 있었다.
+       그래서 **죽은 동안에는 흐르지도 않고**, 부르는 그 자리에서 새로 뽑는다. */
+    if(c.dead){
+      if(!on){ c.m.visible=false; continue; }
+      /* **새로 불린 구름은 하늘 아무 데서나 생긴다**(실제 적운도 제자리에서 피어난다 · 25초에 걸쳐 짙어짐).
+         예전엔 바람 위쪽 가장자리에만 세워, 날씨가 적운을 부르면 60 덩이가 한 줄로 20 km 밖에
+         몰려 섰다가 초속 24 m 로 한꺼번에 하늘을 건넜다(5분 뒤에도 60 이 전부 바람 위쪽) —
+         한쪽 하늘에만 구름이 쌓여 보였다. 바람 위쪽에서 들이는 것은 멀어져 되돌아오는 구름뿐이다. */
+      rerollCloud(c,true); c.dead=0;
+    }
+    const vv=c.v*CLOUD_SPD;
+    c.x+=wx*vv*ts*dt; c.z+=wz*vv*ts*dt;
+    /* 바람에 실려 멀어진 구름은 **그대로 돌려보내지 않고 다시 굴린다.**
+       예전에는 반대편에 그대로 옮겨 놓았는데, 그러면 날씨가 그대로인 동안
+       **같은 구름 스무 장이 영영 돌기만 하고 새 구름이 나지 않는다.**
+       이제 지나간 자리에서 다른 구름이 되어 바람 위쪽에서 다시 온다 —
+       옅은 데서 시작하므로 멀리서 스며들듯 나타난다. */
+    let dx=c.x-px, dz=c.z-pz;
+    if(Math.hypot(dx,dz)>c.K.R*1.25){
+      rerollCloud(c); c.vis=Math.min(c.vis,0.04);
+      dx=c.x-px; dz=c.z-pz;
+    }
+    c.m.position.set(c.x,c.y,c.z);
+    // 솟은 구름은 알갱이가 저마다 카메라를 본다(뭉치 자체는 안 돈다)
+    if(c.form==='puff'){
+      layPuff(c,px,pz);
+      // 먼 덩이일수록 드물게(2~6초) — 멀면 명암이 조금 늦어도 안 보인다
+      const lp=2+4*clamp(Math.hypot(dx,dz)/c.K.R,0,1);
+      if((c.litT=(c.litT||0)+dt*ts)>lp){ c.litT=Math.random()*0.3; litPuff(c); }
+    }
+    // 날씨가 부르면 서서히 짙어지고, 물러나면 옅어진다(한 번 여닫는 데 25초쯤)
+    c.vis=clamp(c.vis+(on?1:-1)*dt/FADE,0,1);   // 시험장: 여닫는 시간 조절
+    if(c.vis<=0){ c.dead=1; c.m.visible=false; continue; }
+    c.m.visible=true;
+    const ease=c.vis*c.vis*(3-2*c.vis);
+    /* 대기 원근(멀수록 옅고 지평선 색) · 반경 끝 스러짐은 셰이더가 화소마다 한다 */
+    c.m.material.opacity=c.op*OPMUL*cloudFade*ease;
+    c.m.material.color.setRGB(1,1,1);
+    const U=c.m.material.userData;
+    if(U.uR){ U.uR.value=c.K.R; U.uHz.value.copy(cHz);
+      const hk=c.form==='puff'?c.y+c.h*0.6:c.y;
+      cloudLight(hk,U.uDirect.value); U.uSkyC.value.copy(SKYL.amb); if(U.uSun){ U.uSun.value.copy(SKYL.dir); U.uSkyS.value.copy(SKYL.ambS); U.uSkyA.value.copy(SKYL.ambA); } }
+  }
+  updateCloudShadow(dt);
+}
+let cloudFade=1;
+
+/* ── 비 ──────────────────────────────────────────────────────────────────
+   짧은 선분 한 뭉치를 카메라 둘레 상자 안에 넣고 떨어뜨린다. 바닥에 닿으면
+   위로 돌려보내므로 몇 개만 있으면 끝없이 내린다. 상자가 카메라를 따라다녀
+   어디서 봐도 같은 밀도로 보인다. 물리도 충돌도 없다 — 보이는 것만 한다. */
+const RAIN_N=1400, RAIN_BOX=26, RAIN_TOP=17;
+let rainMesh=null, rainPos=null, rainV=null;
+function initRain(){
+  const g=new THREE.BufferGeometry();
+  rainPos=new Float32Array(RAIN_N*6);
+  rainV=new Float32Array(RAIN_N);
+  for(let i=0;i<RAIN_N;i++){
+    rainV[i]=13+Math.random()*7;                 // 빗방울 종단속도 언저리
+    const x=(Math.random()*2-1)*RAIN_BOX, z=(Math.random()*2-1)*RAIN_BOX,
+          y=Math.random()*RAIN_TOP;
+    const L=rainV[i]*0.045;
+    rainPos[i*6]=x;   rainPos[i*6+1]=y;   rainPos[i*6+2]=z;
+    rainPos[i*6+3]=x; rainPos[i*6+4]=y-L; rainPos[i*6+5]=z;
+  }
+  g.setAttribute('position',new THREE.BufferAttribute(rainPos,3));
+  rainMesh=new THREE.LineSegments(g,new THREE.LineBasicMaterial({
+    color:0xa8c4d8, transparent:true, opacity:0, depthWrite:false, fog:true}));
+  rainMesh.frustumCulled=false; rainMesh.userData.lightRole='none';
+  rainMesh.renderOrder=6; rainMesh.visible=false;
+  scene.add(rainMesh);
+}
+function updateRain(dt){
+  if(!rainMesh) return;
+  const on=WEA.rain>0.04;
+  rainMesh.visible=on;
+  if(!on) return;
+  rainMesh.material.opacity=clamp(WEA.rain*0.55,0,0.5);
+  const cx=camera.position.x, cy=camera.position.y, cz=camera.position.z;
+  const wx=windDir.x*3.5, wz=windDir.z*3.5;      // 바람에 비껴 내린다
+  for(let i=0;i<RAIN_N;i++){
+    const o=i*6;
+    let x=rainPos[o]+wx*dt, y=rainPos[o+1]-rainV[i]*dt, z=rainPos[o+2]+wz*dt;
+    // 상자를 벗어나면 반대편으로 — 카메라를 따라다니는 상자다
+    if(y<cy-4){ y=cy+RAIN_TOP; }
+    if(x-cx>RAIN_BOX) x-=RAIN_BOX*2; else if(x-cx<-RAIN_BOX) x+=RAIN_BOX*2;
+    if(z-cz>RAIN_BOX) z-=RAIN_BOX*2; else if(z-cz<-RAIN_BOX) z+=RAIN_BOX*2;
+    const L=rainV[i]*0.045;
+    rainPos[o]=x;   rainPos[o+1]=y;   rainPos[o+2]=z;
+    rainPos[o+3]=x+wx*0.045; rainPos[o+4]=y-L; rainPos[o+5]=z+wz*0.045;
+  }
+  rainMesh.geometry.attributes.position.needsUpdate=true;
+}
+
+/* ── 구름 그림자 · 바람 — 하늘이 땅에 닿는 것 ─────────────────────────────
+   ① **구름 그림자**. 사람 둘레 8 km 네모를 위에서 내려다본 '구름 두께 지도'로
+     그린다(`CSH`). 떠 있는 구름의 알갱이를 해 방향으로 땅에 비춰(높이 y 인 알갱이는
+     −y·해x/해y 만큼 밀린다) 두께(광학 깊이 τ)를 쌓고, 땅은 exp(−τ) 만큼만 볕을
+     받는다. 판 둘이다 — 잔 알갱이(적운)는 256²(31 m), 큰 알갱이(막의 수 km 짜리)는
+     48²(167 m)에 쌓는다. 큰 알을 잘게 쌓으면 한 번에 수백만 칸이다.
+     0.4초마다 다시 쌓는다(구름은 초당 수십 m 라 그 사이에 한 칸도 안 간다).
+     **땅 쪽은 모든 램버트 재질의 '직사광 × 그림자' 자리에 구름 그림자를 곱한다**
+     (`envPatch` → `getShadowMask()*cloudSh()`). 그래서 구름 밑에서는 물체 그림자도
+     저절로 사라진다(해가 없으니까). 해가 낮으면(해 높이 0.15 밑) 서서히 끈다 —
+     그림자가 수십 km 로 늘어나고 판 밖으로 나간다.
+   ② **해가 가려지면 볕이 죽는다** — ①이 자리마다 한다. 사람이 선 자리의 값은
+     `CSH.sunVis` 로 따로 재 두고 환경광을 조금 줄이는 데 쓴다(구름 밑은 하늘빛도 준다).
+   ③ **바람에 풀과 나무가 흔들린다**. 같은 `envPatch` 가 정점을 세계 좌표에서 바람
+     쪽으로 민다 — 풀은 잎날 높이의 제곱만큼(밑동은 박혀 있다), 가지는 밑동에서
+     끝으로 갈수록, 잎은 통째로 + 잔 떨림. 흔들림의 위상을 자리에 따라 바람 쪽으로
+     밀어 두어 **바람결이 풀밭을 쓸고 지나간다.** 세기는 날씨가 정한다(`WEA.wind` —
+     고기압은 잔잔하고 전선·적란운에서 세다). 그림자 지도에는 잎만 따라 흔든다
+     (풀 그림자는 기본 깊이 재질이라 손대지 않았다 — 풀이라 눈에 안 띈다). */
+const CSH={N:256, NC:48, SIZE:8000, t:0, sunVis:1,
+  on:{value:0}, ctr:{value:new THREE.Vector2()}, size:{value:8000},
+  fine:{value:null}, coarse:{value:null}, time:{value:0},
+  wind:{value:new THREE.Vector3(1,0,0.3)}};
+(function(){
+  const mk=n=>{ const t=new THREE.DataTexture(new Uint8Array(n*n*4),n,n,THREE.RGBAFormat);
+    t.magFilter=t.minFilter=THREE.LinearFilter; t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping;
+    t.needsUpdate=true; return t; };
+  CSH.fine.value=mk(CSH.N); CSH.coarse.value=mk(CSH.NC);
+  CSH.tf=new Float32Array(CSH.N*CSH.N); CSH.tc=new Float32Array(CSH.NC*CSH.NC);
+})();
+const CS_TAU=8;                           // 판에 담는 τ 의 끝값(255 = τ 8)
+function updateCloudShadow(dt){
+  CSH.time.value+=dt;
+  CSH.wind.value.set(windDir.x,windDir.z,WEA.wind||0);
+  const ang=(hourOfDay-6)/12*Math.PI;
+  const sx=Math.cos(ang), sy=Math.sin(ang);
+  CSH.on.value=clamp((sy-0.05)/0.15,0,1);
+  if((CSH.t+=dt)<0.4) return;
+  CSH.t=0;
+  const N=CSH.N, NC=CSH.NC, S=CSH.SIZE, tf=CSH.tf, tc=CSH.tc;
+  const ft=S/N, ct=S/NC;
+  const cx=Math.round(camera.position.x/ft)*ft, cz=Math.round(camera.position.z/ft)*ft;
+  CSH.ctr.value.set(cx,cz);
+  tf.fill(0); tc.fill(0);
+  if(CSH.on.value>0){
+    const L=Math.hypot(sx,sy,0.37), ux=sx/L, uy=Math.max(0.15,sy/L), uz=0.37/L;
+    const x0=cx-S/2, z0=cz-S/2;
+    const splat=(buf,n,cell,px,pz,r,a)=>{
+      const gx=(px-x0)/cell, gz=(pz-z0)/cell, gr=r/cell;
+      const i0=Math.max(0,Math.floor(gx-gr)), i1=Math.min(n-1,Math.ceil(gx+gr));
+      const j0=Math.max(0,Math.floor(gz-gr)), j1=Math.min(n-1,Math.ceil(gz+gr));
+      if(i0>i1||j0>j1) return;
+      const ir2=1/(gr*gr);
+      for(let j=j0;j<=j1;j++){ const dz=j+0.5-gz, rowo=j*n;
+        for(let i=i0;i<=i1;i++){ const dx=i+0.5-gx, q=1-(dx*dx+dz*dz)*ir2;
+          if(q>0) buf[rowo+i]+=a*q*q; } }
+    };
+    for(const c of CLOUDS){
+      if(!c.m.visible||c.form==='strand'||!c.nb) continue;
+      const op=c.m.material.opacity; if(op<0.01) continue;
+      const bs=c.m.geometry.boundingSphere, br=bs?bs.radius:c.w;
+      // 해 방향으로 밀린 덩이 가운데가 판에서 너무 멀면 건너뛴다
+      const hy=c.y+(bs?bs.center.y:0);
+      const px=c.x-hy*ux/uy, pz=c.z-hy*uz/uy;
+      if(Math.abs(px-cx)>S/2+br||Math.abs(pz-cz)>S/2+br) continue;
+      const peak=c.form==='puff'||c.K.draw==='ripple'?0.42:0.34;
+      const a=op*peak*1.6;
+      for(let i=0;i<c.nb;i++){
+        const r=c.rad[i]*0.42; if(!(r>0)) continue;
+        const y=c.y+c.off[i*3+1];
+        const bx=c.x+c.off[i*3]-y*ux/uy, bz=c.z+c.off[i*3+2]-y*uz/uy;
+        // 적운 알갱이(반지름 수백 m)까지는 잔 판에 — 굵은 판에 쌓으면 그림자 가장자리가
+        // 167 m 칸만큼 뭉개진다. 실제 적운 그림자는 가장자리가 꽤 또렷하다
+        if(r>ft*12) splat(tc,NC,ct,bx,bz,r,a); else splat(tf,N,ft,bx,bz,r,a);
+      }
+    }
+  }
+  const put=(src,tex)=>{ const d=tex.image.data;
+    for(let i=0;i<src.length;i++){ const v=Math.min(255,src[i]/CS_TAU*255)|0; d[i*4]=v; }
+    tex.needsUpdate=true; };
+  put(tf,CSH.fine.value); put(tc,CSH.coarse.value);
+  // 사람이 선 자리 — 해가 가려졌나
+  const tau=tf[(N>>1)*N+(N>>1)]+tc[(NC>>1)*NC+(NC>>1)];
+  CSH.sunVis=1-(1-Math.exp(-tau))*CSH.on.value;
+}
+/* 땅 쪽 재질 손질 — `LIGHT.refresh` 가 씬을 훑을 때 재질마다 한 번 붙인다.
+   램버트면 구름 그림자, `userData.wind` 가 있으면 바람까지. 깊이 재질(잎 그림자)은
+   바람만. 재질마다 모드가 다르므로 `customProgramCacheKey` 로 프로그램을 가른다. */
+const WIND_GLSL={
+  grass:'float wk=transformed.y*transformed.y*0.55; wpos.xz+=uWind.xy*sw*wk;',
+  // 베리 — 덤불(풀)과 **같은 식**으로 민다. 풀은 제 몸 높이 y(덤불 크기로 나눈 값)의 제곱만큼
+  // 밀리므로, 알은 매단 자리 높이 aH 로 통째로(모양 그대로), 줄기는 밑동 aH0 → 꼭지 aH1 사이를 휜다
+  berry:'float wk=aH*aH*0.55; wpos.xz+=uWind.xy*sw*wk;',
+  stalk:'float hh=mix(aH0,aH1,clamp(transformed.y,0.0,1.0)); float wk=hh*hh*0.55; wpos.xz+=uWind.xy*sw*wk;',
+  reed :'float wk=transformed.y*transformed.y*0.075; wpos.xz+=uWind.xy*sw*wk;',
+  limb :'wpos.xz+=uWind.xy*sw*0.10*clamp(transformed.y,0.0,1.0);',
+  leaf :`wpos.xz+=uWind.xy*sw*0.10;
+         wpos.xz+=vec2(sin(uTime*7.1+ph*5.0+transformed.x*9.0),
+                       cos(uTime*6.3+ph*4.0+transformed.z*9.0))*0.03*uWind.z;
+         wpos.y +=sin(uTime*8.3+ph*6.0)*0.02*uWind.z;`
+};
+function envPatch(m){
+  if(!m||m.userData._env) return;
+  const lam=!!m.isMeshLambertMaterial, dep=!!m.isMeshDepthMaterial;
+  /* 바람 흔들림은 껐다(`WIND_ON`) — 풀·잎·베리·가지 정점마다 사인파를 셌는데, 정점이 한 프레임에
+     수백만 개라 가장 비싼 축에 들었다. 켜려면 true 로(코드는 그대로 남아 있다). */
+  const wind=WIND_ON&&m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';
+  if(!lam&&!(dep&&wind)) return;
+  m.userData._env=1;
+  const prev=m.onBeforeCompile;
+  m.onBeforeCompile=(sh,r)=>{
+    if(prev&&prev!==THREE.Material.prototype.onBeforeCompile) prev(sh,r);
+    Object.assign(sh.uniforms,{csFine:CSH.fine, csCoarse:CSH.coarse, csC:CSH.ctr,
+      csS:CSH.size, csOn:CSH.on, uTime:CSH.time, uWind:CSH.wind});
+    const W=WIND_GLSL[wind]||'';
+    sh.vertexShader='uniform float uTime;\nuniform vec3 uWind;\nvarying vec2 vCsXZ;\n'+
+      sh.vertexShader.replace('#include <project_vertex>',`
+      vec4 wpos=vec4(transformed,1.0);
+      vec4 wb4=vec4(0.0,0.0,0.0,1.0);
+      #ifdef USE_INSTANCING
+        wpos=instanceMatrix*wpos; wb4=instanceMatrix*wb4;
+      #endif
+      wpos=modelMatrix*wpos; wb4=modelMatrix*wb4;
+      ${W?`float ph=dot(wb4.xz,uWind.xy)*0.06+dot(wb4.xz,vec2(0.031,0.017));
+      float sw=uWind.z*(sin(uTime*1.7-ph)*0.6+sin(uTime*3.1-ph*1.9)*0.25+0.55);
+      ${W}`:''}
+      vCsXZ=wpos.xz;
+      vec4 mvPosition=viewMatrix*wpos;
+      gl_Position=projectionMatrix*mvPosition;`);
+    if(lam) sh.fragmentShader=`uniform sampler2D csFine;
+uniform sampler2D csCoarse;
+uniform vec2 csC;
+uniform float csS;
+uniform float csOn;
+varying vec2 vCsXZ;
+float cloudSh(){
+  vec2 uv=(vCsXZ-csC)/csS+0.5;
+  vec2 e=smoothstep(0.0,0.08,uv)*smoothstep(0.0,0.08,1.0-uv);
+  float t=(texture2D(csFine,uv).r+texture2D(csCoarse,uv).r)*${CS_TAU.toFixed(1)};
+  return mix(1.0,exp(-t),csOn*e.x*e.y);
+}
+`+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();');
+  };
+  /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
+     다른 램버트 재질과 같은 프로그램으로 묶여 제 코드가 통째로 빠졌다 */
+  const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
+  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(pk?'-'+pk.call(m):'');
+  m.needsUpdate=true;
+}
+
+/* ── 구름이 받는 빛 — 제 높이에서 본 해 ────────────────────────────────
+   높이 h 에 선 구름은 지평선이 acos(Rₑ/(Rₑ+h)) 만큼 내려가 있다(Rₑ 6371 km —
+   1.5 km 1.2° · 9 km 3.0° · 12 km 3.5°). 그래서 **땅에서 해가 져도 높은 구름엔
+   볕이 남는다** — 실제 노을은 아래 구름부터 잿빛으로 식고, 높은 권운이 가장 오래
+   분홍으로 남는다. 그 해 높이로 공기를 지나온 햇빛(`sunTransmit`)을 계산한다.
+   해가 그 구름의 지평선 밑으로 0.9° 넘게 가면 지구 그림자 속이라 직사광이 없다.
+   밝기는 투과한 양의 제곱근으로 눅인다 — 눈이 노을빛에 익으므로 그대로 쓰면
+   노을 구름이 실제보다 너무 어둡다. 밤에는 달빛을 같은 식으로 받는다. */
+const SKYL={dir:new THREE.Vector3(0,1,0), sunEl:0.5, moonEl:-1, illum:0,
+            turb:2.6, tz:1, amb:new THREE.Color(0.4,0.45,0.5),
+            ambS:new THREE.Color(0,0,0), ambA:new THREE.Color(0,0,0)};
+const _cl=[0,0,0];
+/* ── 둥근 지구 대기를 따라가며 햇빛 투과를 적분한다 ─────────────────────
+   노을빛은 **해가 낮을 때 빛이 지나는 공기가 얼마나 기냐**가 전부다. 평평한 땅 어림
+   (공기 질량 1/cos)은 지평선 근처에서 틀리고, 해가 진 뒤 높은 구름에 남는 볕과
+   지구 그림자는 아예 못 낸다. 그래서 높이 h 의 점에서 해 쪽으로 반지름 6371 km 지구
+   둘레 100 km 대기를 실제로 **걸어가며** 세 가지 광학 두께를 더한다:
+   · 레일리(공기 분자, 높이 8 km 마다 1/e) — 해면 β = 5.80·13.56·33.1 ×10⁻⁶/m
+     (680·550·440 nm). 파장⁻⁴ 라 파란빛이 먼저 빠진다 → 주황·빨강
+   · 에어로졸(먼지·소금, 1.2 km 마다 1/e) — 550 nm 광학 두께 0.1(맑은 바다 공기) × 탁도/2.6,
+     옹스트룀 지수 1.3
+     (거의 회색으로 깎는다 — 노을을 탁하게, 해를 흐리게)
+   · 오존(10~40 km, 25 km 가 가장 짙은 천막꼴) — 흡수 0.65·1.88·0.085 ×10⁻⁶/m.
+     **초록·주황을 먹는 샤퓌 띠**라, 해가 거의 진 뒤 높은 구름·하늘이 분홍·보라로 가는
+     것이 이것이다(레일리만 있으면 끝까지 주황이다)
+   빛줄기가 땅에 닿으면 막힌다 — 이것이 **지구 그림자**다. 해 원반은 폭 0.53° 라
+   세 점(위·가운데·아래)을 평균해 반그림자를 낸다. 지평선 가까이에선 공기가 빛을
+   굽혀(굴절, 지평선에서 0.57°) 해가 실제보다 높이 보이므로 그만큼 올려 계산한다.
+   빛줄기에서 가장 낮은 곳(접점) 둘레가 가장 짙으므로 거기로 걸음을 몰아 준다. */
+const ATM={Re:6371e3, Rt:6471e3, HR:8000, HM:1200,
+  bR:[5.802e-6,13.558e-6,33.1e-6], bO:[0.650e-6,1.881e-6,0.085e-6], ang:[0.76,1,1.34]};
+function _atmOD(h,el,turb,od){
+  od[0]=od[1]=od[2]=0;
+  const r0=ATM.Re+h, dx=Math.cos(el), dy=Math.sin(el);
+  // 땅에 닿나 — |P + t d| = Re 의 양의 근
+  const b=r0*dy, cG=r0*r0-ATM.Re*ATM.Re, disG=b*b-cG;
+  if(disG>=0 && -b-Math.sqrt(disG)>0) return false;
+  const cT=r0*r0-ATM.Rt*ATM.Rt, L=-b+Math.sqrt(Math.max(0,b*b-cT));   // 대기 끝까지
+  const tT=clamp(-b,0,L);                                            // 접점
+  const segs=tT>0?[[tT,-1,tT],[L-tT,1,tT]]:[[L,1,0]];
+  const bM=0.1/ATM.HM*turb/2.6;             // 550 nm 에어로졸 광학 두께 0.1 × 탁도/2.6
+  for(const [len,sgn,base] of segs){
+    const N=24;
+    let prev=0;
+    for(let k=1;k<=N;k++){
+      const u=k/N, tt=len*u*u, ds=tt-prev, tm=base+sgn*(prev+tt)/2; prev=tt;
+      const px=tm*dx, py=r0+tm*dy, alt=Math.hypot(px,py)-ATM.Re;
+      if(alt<0) return false;
+      const dR=Math.exp(-alt/ATM.HR)*ds, dM=Math.exp(-alt/ATM.HM)*ds,
+            dO=Math.max(0,1-Math.abs(alt-25000)/15000)*ds;
+      for(let i=0;i<3;i++) od[i]+=ATM.bR[i]*dR+bM*ATM.ang[i]*1.1*dM+ATM.bO[i]*dO;
+    }
+  }
+  return true;
+}
+const _od=[0,0,0];
+/* 높이 h 에서 받는 햇빛 투과(0~1, 세 파장). el 은 그 자리의 참 해 높이(rad) */
+function atmoTransmit(h,el,turb,out){
+  const deg=el*57.29578;
+  const refr=deg>-2 ? (1.02/Math.tan((deg+10.3/(deg+5.11))/57.29578))/60/57.29578 : 0;
+  const e=el+Math.max(0,refr);
+  out[0]=out[1]=out[2]=0;
+  for(const o of [-0.00465,0,0.00465])
+    if(_atmOD(h,e+o,turb,_od)) for(let i=0;i<3;i++) out[i]+=Math.exp(-_od[i])/3;
+  return out;
+}
+/* **색 순응** — 눈(과 사진기의 화이트밸런스)은 둘레 빛에 맞춰 흰색을 다시 잡는다.
+   해가 10° 일 때 땅에 오는 햇빛은 파랑이 30% 만 남은 주황인데, 그대로 칠하면 구름이
+   살구색이다 — 실제로는 금빛 흰색으로 보인다. 땅의 햇빛색 W(해 높이 6° 밑으로는 6°
+   값으로 멈춘다 — 해가 지면 눈이 더 따라가지 못해 노을이 붉게 남는다)의 제곱근으로
+   나눠 반만 순응한다(폰 크리스 식). 땅의 햇빛(cSun)도 같은 몫으로 나눈다. */
+const ADAPT=[1,1,1]; let _adEl=99;
+function adaptWhite(el,turb){
+  const e=Math.max(el,6/57.3);
+  if(Math.abs(e-_adEl)<1e-4) return ADAPT;
+  _adEl=e; atmoTransmit(0,e,turb,ADAPT);
+  const m=Math.max(ADAPT[0],ADAPT[1],ADAPT[2],1e-6);
+  for(let i=0;i<3;i++) ADAPT[i]=Math.sqrt(ADAPT[i]/m);
+  return ADAPT;
+}
+/* 구름이 받는 빛 — 제 높이에서 걸어간 투과. 같은 높이대는 한 프레임에 한 번만 센다 */
+const _atmCache=new Map(); let _atmKey='';
+function cloudLight(h,out){
+  const key=SKYL.sunEl.toFixed(4)+'|'+SKYL.moonEl.toFixed(4)+'|'+SKYL.turb.toFixed(2);
+  if(key!==_atmKey){ _atmCache.clear(); _atmKey=key; }
+  const hk=Math.round(h/100);
+  let v=_atmCache.get(hk);
+  if(!v){
+    v=[0,0,0];
+    const add=(el,k)=>{
+      if(el<-0.25) return;
+      atmoTransmit(hk*100,el,SKYL.turb,_cl);
+      const mag=clamp(_cl[0]/SKYL.tz,0,1);
+      if(k>0.5){ const W=adaptWhite(SKYL.sunEl,SKYL.turb); for(let i=0;i<3;i++) _cl[i]/=W[i]; }
+      const m=Math.max(_cl[0],_cl[1],_cl[2],1e-6);
+      if(m<1e-6) return;
+      /* 눈이 노을빛에 익는다 — 투과한 양만큼 다 어두워지지 않고 제곱근만큼. 대신
+         아주 적게 남으면(지구 그림자 가장자리) 0 으로 가야 하므로 m 자체도 조금 곱한다 */
+      const g=(0.60+0.40*Math.sqrt(mag))*Math.min(1,m*40)*k/m;
+      v[0]+=_cl[0]*g; v[1]+=_cl[1]*g; v[2]+=_cl[2]*g;
+    };
+    add(SKYL.sunEl,0.72);
+    add(SKYL.moonEl,0.10*SKYL.illum);
+    _atmCache.set(hk,v);
+  }
+  return out.setRGB(v[0],v[1],v[2]);
+}
+/* ── 대기 산란 하늘 ──────────────────────────────────────────────────────
+   하늘색을 시각별 색표로 보간하던 것을 **레일리·미 산란식**(프리섬 모형 — three.js
+   예제 Sky 와 같은 식)으로 화소마다 계산한다. 공기 분자는 파란빛을 많이 흩어
+   (레일리, 파장⁻⁴) 한낮 하늘이 파랗고, 해가 낮으면 빛이 공기를 길게 지나며 파란빛을
+   다 잃어 지평선이 주황·빨강이 된다. 물방울·먼지(미)는 해 둘레를 하얗게 번지게 한다.
+   색표로는 해 쪽 지평선과 반대쪽 지평선의 색 차이, 해 둘레 번짐, 노을이 해의
+   높이를 따라 바뀌는 모양이 안 나왔다 — 노을 구름이 칙칙하던 근본 원인이었다.
+   **같은 식을 JS 로도 돌린다**(`skyScatter`) — 안개·지평선색(`cHz`)·햇빛 색(`cSun`)이
+   하늘과 한 식에서 나와야 먼 땅이 하늘에 녹는다. 밝기(환경광·해 세기·안개 짙기)는
+   여전히 `SKY` 표가 쥔다. 탁도(`turb`)는 습도를 따라 흐릴수록·안개일수록 높다.
+   밤에는 달빛이 같은 식으로 흩어진다(밝은 면적에 비례해 아주 어둡게).
+   **해가 빛을 끊는 각은 95° 로 늦췄다**(원래 식 92.3°) — 그대로 두면 해 지고 6분
+   (게임시간)만에 하늘이 깜깜했다. 실제 시민박명은 해가 6° 아래로 갈 때까지다. */
+const SKYP={turb:2.6, exp:0.44, sun:22, gM:0.76, eye:1, ms:1.0};
+/* 하늘도 구름·햇빛과 **같은 둥근 대기**(`ATM`)로 센다 — 단일 산란 레이마칭.
+   눈(2 m)에서 보는 방향으로 대기 끝까지 걸어가며, 걸음마다 ① 그 점까지 오며 빛이
+   잃는 몫(보는 쪽 광학 두께) ② 그 점에 해가 닿는 몫(해 쪽 광학 두께 — 땅에 막히면
+   지구 그림자) ③ 그 점에서 눈 쪽으로 흩어지는 몫(레일리 위상 3/16π(1+μ²) · 미 위상
+   코넷-섕크스 g 0.76)을 곱해 더한다. 그래서 **노을 하늘의 띠**가 저절로 나온다 —
+   해 쪽 지평선의 노랑·주황, 그 위 분홍, 반대편 지평선 위 분홍 띠(비너스 띠)와 그
+   밑 검푸른 지구 그림자, 해 진 뒤 오존이 주황을 먹어 생기는 푸른·보랏빛 천정.
+   예전 프리섬 식은 해가 지평선 밑이면 맞지 않는 식이라 이 띠들이 없었다.
+   여러 번 흩어지는 빛(다중 산란)은 따로 안 센다 — 레일리 쪽에만 등방 위상 2·`SKYP.ms`배를 얹어
+   어림한다(여러 번 튕겨 온 빛은 하늘빛이라 푸르다 — 에어로졸 쪽에 얹었더니 한낮 지평선이 누렜다)
+   (0.25 로 두었더니 공기가 두꺼운 지평선이 누렇게 어두웠다 — 실제 한낮 지평선은 천정보다 밝고 희다).
+   셰이더(`SKY_FS`)와 **같은 식**이다(걸음 수만 적다) — 둘을 같이 고칠 것. */
+/* 다중 산란 어림 — 공기 한 점은 해만이 아니라 **둘레 하늘 전체**에 비춰진다. 그 빛(하늘빛,
+   푸르다: `SKYC`)이 그 점에서 등방으로 흩어져 눈까지 오는 몫을 더한다. 세기는 해 높이를
+   따른다(`_skyIll` — 해가 낮으면 빨리 준다, 해 진 뒤 −6° 까지는 2% 가 남는다(시민박명의 짙은 파랑). 느슨하게 두었더니 노을의
+   주황 띠를 파란 빛이 덮고 해 진 뒤 하늘이 한낮처럼 파랬다). 공기가 두꺼운 지평선이 이 몫으로 밝고 희어진다
+   (실제 한낮 지평선은 천정보다 밝다). 하나만 쓰면 지평선이 누런 갈색 띠였다. */
+const SKYC=[0.55,0.75,1.0];
+const _skyIll=y=>Math.pow(clamp((y+0.02)/1.02,0,1),1.2)+0.02*clamp((y+0.1)/0.1,0,1);
+function _hitS(ox,oy,oz,dx,dy,dz,r){
+  const b=ox*dx+oy*dy+oz*dz, c=ox*ox+oy*oy+oz*oz-r*r, h=b*b-c;
+  if(h<0) return null; const q=Math.sqrt(h); return [-b-q,-b+q];
+}
+function _odSun(px,py,pz,sx,sy,sz,bM,od){
+  od[0]=od[1]=od[2]=0;
+  const g=_hitS(px,py,pz,sx,sy,sz,ATM.Re); if(g&&g[0]>0){ od[0]=od[1]=od[2]=60; return; }
+  const t=_hitS(px,py,pz,sx,sy,sz,ATM.Rt); const L=t?t[1]:0, N=6; let prev=0;
+  for(let k=1;k<=N;k++){ const u=k/N, tt=L*u*u, ds=tt-prev, tm=(tt+prev)/2; prev=tt;
+    const alt=Math.hypot(px+sx*tm,py+sy*tm,pz+sz*tm)-ATM.Re;
+    const r=Math.exp(-alt/ATM.HR)*ds, m=Math.exp(-alt/ATM.HM)*ds, o=Math.max(0,1-Math.abs(alt-25000)/15000)*ds;
+    for(let i=0;i<3;i++) od[i]+=ATM.bR[i]*r+bM*ATM.ang[i]*1.1*m+ATM.bO[i]*o; }
+}
+const _oS=[0,0,0], _oV=[0,0,0];
+/* dir·sun: 단위벡터(y 위). k: 광원 세기 배율(달이면 작다). 돌려주는 값은 톤 매핑 전(선형) */
+function skyScatter(dir,sun,turb,k,out){
+  const ox=0, oy=ATM.Re+2, oz=0, dx=dir.x, dy=Math.max(dir.y,0), dz=dir.z;
+  const nl=Math.hypot(dx,dy,dz), ux=dx/nl, uy=dy/nl, uz=dz/nl;
+  const tEnd=_hitS(ox,oy,oz,ux,uy,uz,ATM.Rt)[1], bM=0.1/ATM.HM*turb/2.6, N=12;
+  _oV[0]=_oV[1]=_oV[2]=0; let sR0=0,sR1=0,sR2=0,sM0=0,sM1=0,sM2=0,aR0=0,aR1=0,aR2=0,aM0=0,aM1=0,aM2=0, prev=0;
+  for(let k2=1;k2<=N;k2++){
+    const u=k2/N, t=tEnd*u*u, ds=t-prev, tm=(t+prev)/2; prev=t;
+    const px=ox+ux*tm, py=oy+uy*tm, pz=oz+uz*tm, alt=Math.hypot(px,py,pz)-ATM.Re;
+    const r=Math.exp(-alt/ATM.HR)*ds, m=Math.exp(-alt/ATM.HM)*ds, o=Math.max(0,1-Math.abs(alt-25000)/15000)*ds;
+    for(let i=0;i<3;i++) _oV[i]+=ATM.bR[i]*r+bM*ATM.ang[i]*1.1*m+ATM.bO[i]*o;
+    _odSun(px,py,pz,sun.x,sun.y,sun.z,bM,_oS);
+    const T0=Math.exp(-(_oV[0]+_oS[0])), T1=Math.exp(-(_oV[1]+_oS[1])), T2=Math.exp(-(_oV[2]+_oS[2]));
+    sR0+=T0*r; sR1+=T1*r; sR2+=T2*r; sM0+=T0*m; sM1+=T1*m; sM2+=T2*m;
+    const V0=Math.exp(-_oV[0]), V1=Math.exp(-_oV[1]), V2=Math.exp(-_oV[2]);
+    aR0+=V0*r; aR1+=V1*r; aR2+=V2*r; aM0+=V0*m; aM1+=V1*m; aM2+=V2*m;
+  }
+  const mu=ux*sun.x+uy*sun.y+uz*sun.z, g=SKYP.gM, g2=g*g;
+  const pR=0.0596831*(1+mu*mu);
+  const pM=0.1193662*((1-g2)*(1+mu*mu))/((2+g2)*Math.pow(1+g2-2*g*mu,1.5));
+  const E=SKYP.sun*k, A=E*SKYP.ms*0.0795775*_skyIll(sun.y);
+  out[0]=E*(sR0*ATM.bR[0]*pR+sM0*bM*ATM.ang[0]*pM)+A*SKYC[0]*(aR0*ATM.bR[0]+aM0*bM*ATM.ang[0]);
+  out[1]=E*(sR1*ATM.bR[1]*pR+sM1*bM*ATM.ang[1]*pM)+A*SKYC[1]*(aR1*ATM.bR[1]+aM1*bM*ATM.ang[1]);
+  out[2]=E*(sR2*ATM.bR[2]*pR+sM2*bM*ATM.ang[2]*pM)+A*SKYC[2]*(aR2*ATM.bR[2]+aM2*bM*ATM.ang[2]);
+  return out;
+}
+/* 톤 매핑(ACES 어림) — 셰이더와 같은 식 */
+function skyTone(v){ v*=SKYP.exp*SKYP.eye; return clamp((v*(2.51*v+0.03))/(v*(2.43*v+0.59)+0.14),0,1); }
+const SKY_VS=`varying vec3 vDir;
+void main(){ vDir=normalize((modelMatrix*vec4(position,1.0)).xyz-cameraPosition);
+  vec4 p=projectionMatrix*modelViewMatrix*vec4(position,1.0); gl_Position=p.xyww; }`;
+const SKY_FS=`varying vec3 vDir;
+uniform vec3 uSun, uMoon; uniform float uMoonK, uTurb, uExp, uGrey, uSunI, uGM, uMS;
+uniform vec3 uGreyCol, uNight;
+const float RE=6371e3, RT=6471e3, HR=8000.0, HM=1200.0;
+const vec3 BR=vec3(5.802e-6,13.558e-6,33.1e-6), BO=vec3(0.650e-6,1.881e-6,0.085e-6), ANG=vec3(0.76,1.0,1.34);
+vec2 hitS(vec3 o, vec3 d, float r){ float b=dot(o,d), c=dot(o,o)-r*r, h=b*b-c;
+  if(h<0.0) return vec2(-1.0); h=sqrt(h); return vec2(-b-h,-b+h); }
+vec3 dens(vec3 p, float bM, out float r, out float m){ float alt=length(p)-RE;
+  r=exp(-alt/HR); m=exp(-alt/HM); float o=max(0.0,1.0-abs(alt-25000.0)/15000.0);
+  return BR*r+bM*ANG*1.1*m+BO*o; }
+vec3 odSun(vec3 p, vec3 s, float bM){
+  if(hitS(p,s,RE).x>0.0) return vec3(60.0);
+  float L=hitS(p,s,RT).y, prev=0.0; vec3 od=vec3(0.0); float r,m;
+  for(int k=1;k<=4;k++){ float u=float(k)/4.0, t=L*u*u, ds=t-prev, tm=(t+prev)*0.5; prev=t;
+    od+=dens(p+s*tm,bM,r,m)*ds; }
+  return od; }
+vec3 scat(vec3 dir, vec3 sun, float k){
+  vec3 o=vec3(0.0,RE+2.0,0.0);
+  float tEnd=hitS(o,dir,RT).y, bM=0.1/HM*uTurb/2.6, prev=0.0, r, m;
+  vec3 odV=vec3(0.0), sR=vec3(0.0), sM=vec3(0.0), aR=vec3(0.0), aM=vec3(0.0);
+  for(int i=1;i<=10;i++){ float u=float(i)/10.0,   // 16×6 → 10×4 걸음(u² 간격이라 지평선·노을 띠는 거의 그대로, 화소당 반복 96 → 40)
+  t=tEnd*u*u, ds=t-prev, tm=(t+prev)*0.5; prev=t;
+    vec3 p=o+dir*tm; odV+=dens(p,bM,r,m)*ds;
+    vec3 T=exp(-(odV+odSun(p,sun,bM)));
+    sR+=T*r*ds; sM+=T*m*ds; vec3 V=exp(-odV); aR+=V*r*ds; aM+=V*m*ds; }
+  float mu=dot(dir,sun), g2=uGM*uGM;
+  float pR=0.0596831*(1.0+mu*mu);
+  float pM=0.1193662*((1.0-g2)*(1.0+mu*mu))/((2.0+g2)*pow(1.0+g2-2.0*uGM*mu,1.5));
+  float ill=pow(clamp((sun.y+0.02)/1.02,0.0,1.0),1.2)+0.02*clamp((sun.y+0.1)/0.1,0.0,1.0);
+  return uSunI*k*(sR*BR*pR+sM*bM*ANG*pM)
+       + uSunI*k*uMS*0.0795775*ill*vec3(0.55,0.75,1.0)*(aR*BR+aM*bM*ANG);
+}
+vec3 tone(vec3 v){ v*=uExp; return clamp((v*(2.51*v+0.03))/(v*(2.43*v+0.59)+0.14),0.0,1.0); }
+void main(){
+  vec3 d=normalize(vDir);
+  vec3 dd=normalize(vec3(d.x,max(d.y,0.0),d.z));    // 지평선 아래는 지평선 색으로
+  vec3 c=tone(scat(dd,uSun,1.0))+tone(scat(dd,uMoon,uMoonK))+uNight;
+  c=mix(c,uGreyCol,uGrey);
+  gl_FragColor=vec4(c,1.0);
+}`;
+function initSky(){
+  const g=new THREE.SphereGeometry(1500,32,16);
+  skyDome=new THREE.Mesh(g,new THREE.ShaderMaterial({
+    vertexShader:SKY_VS, fragmentShader:SKY_FS,
+    uniforms:{uSun:{value:new THREE.Vector3(0,1,0)}, uMoon:{value:new THREE.Vector3(0,-1,0)},
+      uMoonK:{value:0}, uTurb:{value:SKYP.turb}, uSunI:{value:SKYP.sun}, uGM:{value:SKYP.gM}, uMS:{value:SKYP.ms},
+      uExp:{value:SKYP.exp}, uGrey:{value:0},
+      uGreyCol:{value:new THREE.Color()}, uNight:{value:new THREE.Color(0x02040b)}},
+    side:THREE.BackSide, depthWrite:false, depthTest:false}));
+  skyDome.renderOrder=-10; skyScene.add(skyDome);
+
+  sunGlow=new THREE.Mesh(new THREE.PlaneGeometry(SUN_R*16,SUN_R*16),
+    new THREE.ShaderMaterial({vertexShader:MOON_VS, fragmentShader:GLOW_FS,
+      uniforms:{uCol:{value:new THREE.Color(1,0.9,0.7)}, uOp:{value:1}, uW:{value:9}},
+      transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending}));
+  sunGlow.renderOrder=-9; sunGlow.userData.lightRole='none'; skyScene.add(sunGlow);
+  sunDisc=new THREE.Mesh(new THREE.PlaneGeometry(SUN_R*2,SUN_R*2),
+    new THREE.ShaderMaterial({vertexShader:MOON_VS, fragmentShader:SUN_FS,
+      uniforms:{uCol:{value:new THREE.Color(1,0.95,0.85)}, uOp:{value:1}, uK:{value:3}},
+      transparent:true, depthWrite:false, depthTest:false, extensions:{derivatives:true}}));
+  sunDisc.renderOrder=-8; sunDisc.userData.lightRole='none'; skyScene.add(sunDisc);
+
+  initRain();
+  moonFace=makeMoonFace();
+  moonTex=new THREE.CanvasTexture(moonFace);
+  moonMat=new THREE.ShaderMaterial({vertexShader:MOON_VS, fragmentShader:MOON_FS,
+    uniforms:{uTex:{value:moonTex}, uL:{value:new THREE.Vector3(0,0,1)},
+      uCol:{value:new THREE.Color(1,1,1)}, uEarth:{value:0}, uDark:{value:0}, uOp:{value:1}},
+    transparent:true, depthWrite:false, depthTest:false, extensions:{derivatives:true}});
+  moonDisc=new THREE.Mesh(new THREE.PlaneGeometry(MOON_R*2,MOON_R*2),moonMat);
+  moonDisc.renderOrder=-8; moonDisc.userData.lightRole='none'; skyScene.add(moonDisc);
+
+  // 별 — 아주 작은 흰 점. 대부분 희미하고 몇 개만 또렷하다.
+  const NSTAR=210;
+  const sp=new Float32Array(NSTAR*3), sc=new Float32Array(NSTAR*3);
+  for(let i=0;i<NSTAR;i++){
+    const th=Math.random()*Math.PI*2, ph=Math.acos(Math.random()*0.94+0.03);
+    sp[i*3]=Math.sin(ph)*Math.cos(th)*1400;
+    sp[i*3+1]=Math.cos(ph)*1400;
+    sp[i*3+2]=Math.sin(ph)*Math.sin(th)*1400;
+    // 밝기를 세제곱으로 치우쳐 대부분 겨우 보이게 한다
+    const b=Math.pow(Math.random(),3)*0.85+0.15;
+    const warm=0.9+Math.random()*0.1;
+    sc[i*3]=b*warm; sc[i*3+1]=b*warm; sc[i*3+2]=b;
+  }
+  const sg=new THREE.BufferGeometry();
+  sg.setAttribute('position',new THREE.BufferAttribute(sp,3));
+  sg.setAttribute('color',new THREE.BufferAttribute(sc,3));
+  stars=new THREE.Points(sg,new THREE.PointsMaterial({
+    size:1.6,sizeAttenuation:false,vertexColors:true,transparent:true,opacity:0,
+    fog:false,depthWrite:false}));
+  stars.renderOrder=-9.5; skyScene.add(stars);
+}
+let hourOfDay=8.5, timeScale=1, gameHours=0;
+/* 주소 뒤 ?t=20 · ?h=5 로 배속과 시작 시각을 준다 — 하늘을 살필 때 쓴다 */
+try{
+  const q=new URLSearchParams(location.search);
+  if(q.has('t')) timeScale=Math.max(1,Math.min(300,parseFloat(q.get('t'))||1));
+  if(q.has('h')) hourOfDay=Math.max(0,Math.min(24,parseFloat(q.get('h'))||0));
+}catch(e){}   // gameHours: 랩되지 않는 누적 시간
+const cA=new THREE.Color(), cB=new THREE.Color(), cSky=new THREE.Color(),
+      cHz=new THREE.Color(), cSun=new THREE.Color(), cTmp=new THREE.Color();
+const _white3=new THREE.Color(1,1,1);
+const _sd3=new THREE.Vector3(), _md3=new THREE.Vector3(), _dv3=new THREE.Vector3(),
+      _c3=[0,0,0], _c4=[0,0,0];
+function updateSky(){
+  updateWeather();                 // 안개·볕이 날씨를 먼저 받아야 한다
+  let k=0; while(k<SKY.length-2 && SKY[k+1].h<=hourOfDay) k++;
+  const A=SKY[k],Bk=SKY[k+1];
+  const t=clamp((hourOfDay-A.h)/Math.max(0.001,Bk.h-A.h),0,1);
+
+  const ang=(hourOfDay-6)/12*Math.PI;                    // 06시 일출, 18시 일몰
+  const sx=Math.cos(ang), sy=Math.sin(ang);
+  // 삭망월 29.5일 — 밝은 면적은 (1−cos 위상각)/2 다
+  MOON.phase=((gameHours/(24*29.5))%1+1)%1;
+  const mAng=ang-MOON.phase*6.283, mmy=Math.sin(mAng);
+  _sd3.set(sx,sy,0.37).normalize();
+  _md3.set(Math.cos(mAng),mmy,0.37).normalize();
+  /* 위상각 α(0 보름 · π 삭)는 삭망월에서 바로 센다 — 하늘의 해·달 길은 기운 원뿔이라
+     (z 0.37) 둘이 정반대에 서지 못해, 자리에서 재면 보름도 41° 에 머문다.
+     밝은 면적 (1+cos α)/2, 밝기는 충 효과를 넣은 moonBright */
+  MOON.alpha=Math.PI*Math.abs(1-2*MOON.phase);
+  MOON.illum=(1+Math.cos(MOON.alpha))/2;
+  MOON.bright=moonBright(MOON.alpha);
+
+  /* 하늘색 — 산란식. 탁도는 습도를 따른다(흐릴수록·안개일수록 뿌옇다) */
+  const turb=SKYP.turb+WEA.cover*2.2+WEA.mist*5+WEA.rain*2;
+  const moonK=0.0035*MOON.bright;
+  const tone3=(dir,out)=>{
+    skyScatter(dir,_sd3,turb,1,_c3); skyScatter(dir,_md3,turb,moonK,_c4);
+    for(let i=0;i<3;i++) out[i]=skyTone(_c3[i])+skyTone(_c4[i]);
+    return out;
+  };
+  /* 눈의 순응(노출) — 해가 지면 하늘이 수십 배 어두워지는데 눈은 그만큼 열린다.
+     천정 밝기를 해 60° 일 때의 밝기와 견줘 제곱근만큼(최대 16배) 노출을 올린다 */
+  if(!SKYP.Lref){ skyScatter(_dv3.set(0,1,0),new THREE.Vector3(0.5,0.866,0),SKYP.turb,1,_c3);
+    SKYP.Lref=_c3[0]*0.3+_c3[1]*0.59+_c3[2]*0.11; }
+  skyScatter(_dv3.set(0,1,0),_sd3,turb,1,_c3);
+  SKYP.eye=clamp(Math.sqrt(SKYP.Lref/Math.max(1e-9,_c3[0]*0.3+_c3[1]*0.59+_c3[2]*0.11)),1,16);
+  const z=tone3(_dv3.set(0,1,0),[0,0,0]);
+  cSky.setRGB(z[0]+0.008,z[1]+0.016,z[2]+0.043);          // 밤바탕(uNight)을 더한다
+  /* 지평선색 — 네 방위의 평균(해 쪽이 붉고 반대쪽이 푸르다). 안개가 이 색이다 */
+  let hr=0,hg=0,hb=0;
+  for(let q=0;q<4;q++){
+    const az=q*Math.PI/2+0.4;
+    const h3=tone3(_dv3.set(Math.cos(az),0.035,Math.sin(az)).normalize(),[0,0,0]);
+    hr+=h3[0]/4; hg+=h3[1]/4; hb+=h3[2]/4;
+  }
+  cHz.setRGB(hr+0.008,hg+0.016,hb+0.043);
+  // 햇빛 색 — 해가 공기를 지나며 남는 빛. 밤에는 달빛(차가운 흰빛)
+  if(sy>-0.05){
+    // 땅(2 m)에 오는 햇빛 — 구름과 같은 둥근 대기 적분. 색만 쓰므로 가장 센 파장에 맞춘다
+    atmoTransmit(2,Math.asin(clamp(_sd3.y,-1,1)),turb,_c3);
+    const W=adaptWhite(Math.asin(clamp(_sd3.y,-1,1)),turb);
+    for(let i=0;i<3;i++) _c3[i]/=W[i];
+    const m=Math.max(_c3[0],_c3[1],_c3[2]);
+    if(m>1e-5) cSun.setRGB(_c3[0]/m,_c3[1]/m,_c3[2]/m); else cSun.setRGB(1,0.35,0.15);
+  }
+  else cSun.setRGB(0.62,0.70,0.86);
+
+  /* 구름이 받는 빛(cloudLight)과 그늘을 채우는 하늘빛의 재료 */
+  SKYL.sunEl=Math.asin(clamp(_sd3.y,-1,1)); SKYL.moonEl=Math.asin(clamp(_md3.y,-1,1));
+  SKYL.illum=MOON.bright; SKYL.turb=turb;
+  atmoTransmit(0,Math.PI/2,turb,_c4); SKYL.tz=_c4[0];
+  /* 구름을 비추는 방향 — **해가 지평선 밑이어도 높은 구름엔 아직 볕이 든다**(−11° 까지).
+     예전엔 해가 −3° 만 가도 달 쪽으로 넘겨, 지평선 밑의 해가 구름 **밑면**을 붉게
+     태우는 가장 노을다운 모습이 거꾸로(윗면이 밝게) 칠해졌다. 그 사이 구름 색은
+     `cloudLight` 가 높이마다 지구 그림자로 끈다. */
+  SKYL.dir.copy(SKYL.sunEl>-0.19?_sd3:_md3);
+  /* 구름 그늘진 쪽이 받는 하늘빛 — 천정색을 반쯤 무채색으로 눅여(구름 속에서 여러
+     번 흩어지며 색이 섞인다) 쓴다. 밤엔 아주 어둡다 */
+  {
+    const L=(cSky.r*0.3+cSky.g*0.59+cSky.b*0.11);
+    /* 어스름에는 눈이 익는다 — 하늘이 어두워진 만큼(3배까지) 밝혀 쓴다 */
+    const ad=clamp(0.62/Math.max(cSky.r,cSky.g,cSky.b,1e-3),1,3);
+    SKYL.amb.setRGB(cSky.r*0.55+L*0.45,cSky.g*0.55+L*0.45,cSky.b*0.55+L*0.45)
+            .multiplyScalar(0.62*ad);
+    /* **옆에서 오는 하늘빛** — 노을녘 구름은 머리 위 하늘만이 아니라 해 쪽의 밝은 주황
+       지평선과 반대편의 분홍 띠(비너스 띠)에서도 빛을 받는다. 구름 속에서 여러 번
+       흩어지므로 색을 절반쯤 눅여, 해 쪽 면은 해 쪽 하늘빛을, 반대쪽 면은 반대쪽 하늘빛을
+       받게 한다(셰이더 `uSkyS`/`uSkyA`). 그래서 노을 구름의 그늘이 잿빛이 아니라 보랏빛·분홍빛이다. */
+    const hs=Math.hypot(_sd3.x,_sd3.z)||1;
+    const S3=tone3(_dv3.set(_sd3.x/hs,0.17,_sd3.z/hs).normalize(),[0,0,0]);
+    const A3=tone3(_dv3.set(-_sd3.x/hs,0.17,-_sd3.z/hs).normalize(),[0,0,0]);
+    const LS=S3[0]*0.3+S3[1]*0.59+S3[2]*0.11, LA=A3[0]*0.3+A3[1]*0.59+A3[2]*0.11;
+    SKYL.ambS.setRGB(S3[0]*0.5+LS*0.5,S3[1]*0.5+LS*0.5,S3[2]*0.5+LS*0.5).multiplyScalar(0.35*ad);
+    SKYL.ambA.setRGB(A3[0]*0.5+LA*0.5,A3[1]*0.5+LA*0.5,A3[2]*0.5+LA*0.5).multiplyScalar(0.35*ad);
+  }
+  /* 그늘을 채우는 빛의 색 — **그림자 색은 산란이다.** 그늘진 땅은 햇빛 대신 하늘빛만
+     받으니 한낮엔 푸르스름하고 노을녘엔 보랏빛이다. 고정 색이던 하늘빛(hemi)과
+     환경광(amb)을 천정색(+지평선색 조금)에 맨다. 세기는 여전히 SKY 표가 쥔다. */
+  {
+    cTmp.copy(cSky).lerp(cHz,0.3);
+    const m=Math.max(cTmp.r,cTmp.g,cTmp.b,1e-4); cTmp.multiplyScalar(1/m);
+    hemi.color.copy(cTmp).lerp(_white3,0.35);
+    amb.color.copy(cTmp).lerp(_white3,0.65);
+  }
+  /* 흐린 날 · 안개 — 하늘도 잿빛으로 지운다. 땅만 뿌옇고 하늘이 말짱하면 유리 돔
+     안에 선 꼴이 된다. 구름은 `fog:false` 라 저절로 안 지워지므로 여기서 같이 민다. */
+  cTmp.setHex(0xb6bfc2).multiplyScalar(0.35+clamp(Math.sin((hourOfDay-6)/12*Math.PI),0,1)*0.65);
+  const grey=clamp(WEA.mist*0.92+Math.max(0,WEA.cover-0.6)*0.9,0,0.95);
+  cSky.lerp(cTmp,grey); cHz.lerp(cTmp,grey); cSun.lerp(cTmp,grey*0.7);
+  // 안개는 지평선 색을 따라가야 먼 지형이 하늘에 자연스럽게 녹는다
+  skyScene.background.copy(cHz);
+  /* 먼 땅에 더해지는 하늘빛 — 카메라가 보는 쪽 지평선(2°) 하늘색 */
+  camera.getWorldDirection(_dv3); _dv3.y=0;
+  if(_dv3.lengthSq()<1e-6) _dv3.set(1,0,0);
+  _dv3.normalize(); _dv3.y=0.035; _dv3.normalize();
+  { const F3=tone3(_dv3,[0,0,0]); scene.fog.color.setRGB(F3[0]+0.008,F3[1]+0.016,F3[2]+0.043).lerp(cTmp,grey); }
+  /* 날씨가 안개와 볕을 함께 민다 — 흐리면 뿌옇다.
+     **해의 세기는 구름양으로 깎지 않는다** — 구름이 해를 가리는 것은 구름 그림자가
+     자리마다 한다(`cloudSh`). 다만 구름 그림자가 꺼지는 밤·노을녘에는 예전처럼
+     구름양으로 깎는다(달빛이 흐린 날에도 밝으면 안 된다). */
+  /* 땅 높이의 소광계수(550 nm, 1/m) — 레일리 1.36e-5 + 에어로졸(탁도에 비례, 맑은 바다 공기
+     가시거리 약 40 km) + 비(3 km 가시) + 안개(짙을 때 가시 200 m). 가시거리 V = 3.9/β(코시미더). */
+  scene.fog.density=(1.36e-5+0.1/ATM.HM*turb/2.6*1.1+WEA.rain*3.9/3000+WEA.mist*3.9/200)/farScale;
+  amb.intensity=lerp(A.a,Bk.a,t)*(1-WEA.rain*0.25)*(1-(1-CSH.sunVis)*0.25);
+  sun.color.copy(cSun);
+  const sunK=lerp(WEA.light,WEA.lightSun,CSH.on.value);
+  sun.intensity=lerp(A.i,Bk.i,t)*sunK;
+
+  /* **밤의 밝기 — 달이 얼마나 차고 얼마나 높이 떴는지로 센다.** 땅의 조도(럭스):
+       보름달 천정 0.26 lx × 위상 밝기(충 효과 — 상현 9%) × sin(고도) × 대기 소광 10^(−0.4·0.25·공기량)
+       + 별빛·대기광 0.002 lx(달 없는 맑은 밤). 흐리면 구름이 막는다.
+     실제 비는 보름:그믐 ≈ 100:1 이지만 눈이 어둠에 익으므로(막대세포) 밝기는 조도의
+     0.45제곱으로 느낀다(스티븐스) — 보름 1 · 상현 0.36 · 그믐 0.12. 이 값을 밤의 광원·
+     환경광·하늘빛에 곱한다. 해가 −6°(시민 박명)→−18° 로 내려가는 동안 서서히 넘어간다. */
+  const nightK=clamp((-_sd3.y-0.05)/0.26,0,1);
+  const mEl=Math.max(0,_md3.y);
+  const air=1/Math.max(0.05,mEl+0.025);
+  const cloudCut=1-clamp(WEA.cover,0,1)*0.8;
+  const luxM=0.26*MOON.bright*mEl*Math.pow(10,-0.1*Math.min(air,38))*cloudCut;
+  const luxS=0.002*(1-clamp(WEA.cover,0,1)*0.6);
+  const perc=Math.pow((luxM+luxS)/0.26,0.45), percM=Math.pow(luxM/0.26,0.45);
+  MOON.lux=luxM+luxS; MOON.perc=perc;
+  if(sy<-0.05 && mmy>-0.02){
+    /* 밤에는 달이 광원이다(해가 지평선 밑이면 땅 밑에서 비추게 된다) */
+    sun.position.set(Math.cos(mAng)*400, mmy*380+60, 150);
+    sun.intensity=lerp(sun.intensity, 0.16*percM, nightK);
+  }else{
+    sun.position.set(sx*400, sy*380+60, 150);
+    // 해도 달도 진 깜깜한 밤 — 남은 희미한 빛이라도 위에서 와야 한다
+    if(sy<-0.05){ sun.position.y=90; sun.intensity=lerp(sun.intensity,0,nightK); }
+  }
+  amb.intensity*=lerp(1,1.5*perc,nightK);
+  hemi.intensity=lerp(0.18,0.18*perc,nightK)+amb.intensity*0.5;
+
+  if(skyDome){
+    skyDome.position.copy(camera.position);
+    const U=skyDome.material.uniforms;
+    U.uSun.value.copy(_sd3); U.uMoon.value.copy(_md3); U.uMoonK.value=moonK;
+    U.uTurb.value=turb; U.uExp.value=SKYP.exp*SKYP.eye; U.uGrey.value=grey; U.uGreyCol.value.copy(cTmp);
+  }
+  if(sunDisc){
+    const D=1200, px=camera.position.x+_sd3.x*D, py=camera.position.y+_sd3.y*D, pz=camera.position.z+_sd3.z*D;
+    sunDisc.position.set(px,py,pz); sunDisc.lookAt(camera.position);
+    sunGlow.position.set(px,py,pz); sunGlow.lookAt(camera.position);
+    // 굴절로 지평선에서 위아래가 눌린다(0° 에서 0.8배 · 5° 위면 거의 없다)
+    sunDisc.scale.set(1,1-0.2*clamp(1-_sd3.y/0.09,0,1),1);
+    const U=sunDisc.material.uniforms, G=sunGlow.material.uniforms;
+    U.uCol.value.copy(cSun).lerp(_white3,clamp(_sd3.y*3,0,0.75));
+    const vis=(1-WEA.mist*0.85)*(1-clamp((WEA.cover-0.75)*3,0,0.9));
+    U.uOp.value=clamp((_sd3.y+0.012)/0.02,0,1)*vis;
+    U.uK.value=lerp(1.15,4,clamp(_sd3.y*5,0,1));     // 지평선의 해는 똑바로 볼 수 있을 만큼 어둡다
+    G.uCol.value.copy(cSun).lerp(_white3,clamp(_sd3.y*2,0,0.5));
+    G.uOp.value=clamp((_sd3.y+0.05)/0.06,0,1)*vis*(0.55+0.45*clamp(1-_sd3.y*2,0,1));
+    G.uW.value=clamp(11-turb*0.9-WEA.mist*4,3,11);
+    sunDisc.visible=sunGlow.visible=_sd3.y>-0.03;
+  }
+  if(moonDisc){
+    const D=1200;
+    MOON.dir.copy(_md3);
+    moonDisc.position.set(camera.position.x+_md3.x*D, camera.position.y+_md3.y*D, camera.position.z+_md3.z*D);
+    moonDisc.lookAt(camera.position);
+    moonDisc.updateMatrixWorld();
+    /* 해 방향을 원판 좌표로 — 원판의 +z 가 눈 쪽이고 x·y 가 원판 면이다 */
+    const U=moonMat.uniforms;
+    /* 빛 방향 = 원판 위에서 해 쪽(t) × sin α + 눈 쪽(z) × cos α — 보름엔 정면, 상·하현엔
+       해 쪽 옆, 삭이면 뒤에서 든다. t 는 하늘에서 해가 있는 쪽이라 명암 경계가 제대로 기운다 */
+    _dv3.copy(_sd3).transformDirection(_mInv.copy(moonDisc.matrixWorld).invert());
+    _dv3.z=0; if(_dv3.lengthSq()<1e-8) _dv3.set(1,0,0); _dv3.normalize();
+    U.uL.value.set(_dv3.x*Math.sin(MOON.alpha),_dv3.y*Math.sin(MOON.alpha),Math.cos(MOON.alpha));
+    // 낮엔 하늘빛에 묻힌다 — 해가 높을수록 옅게, 지평선 가까이선 소광으로 누렇게
+    const day=clamp((_sd3.y+0.1)/0.35,0,1);
+    const low=clamp(_md3.y/0.25,0,1);
+    U.uCol.value.setRGB(1,0.9+0.1*low,0.72+0.28*low).multiplyScalar(lerp(1.05,0.75,day));
+    U.uEarth.value=0.02*(1+Math.cos(MOON.alpha))/2*(1-day);   // 지구빛
+    U.uDark.value=0.92*(1-day);                                // 밤엔 어두운 쪽이 별을 가린다
+    U.uOp.value=clamp(_md3.y*8+0.3,0,1)*lerp(1,0.42,day)*(1-WEA.mist*0.85)
+               *(1-clamp((WEA.cover-0.75)*3,0,0.9));
+    moonDisc.visible=_md3.y>-0.04;
+  }
+  {
+    /* 구름 색 — 볕을 받는 쪽이므로 광원색을 따라간다. 해가 낮으면 붉고
+       밤에는 지평선색 쪽으로 어두워진다. 흰 판때기를 그대로 두면 밤에도
+       하얗게 떠서 하늘에 구멍이 뚫린 것처럼 보인다. */
+    const day=clamp(sy*2.2+0.25,0,1);
+    /* 노을 구름은 밝다 — 해가 지평선에 걸리면 구름 밑면이 볕을 정면으로 받아
+       주황·분홍으로 빛난다. 광원색 쪽으로 더 끌고, 어둡게 누르는 몫을 줄였다 */
+    cloudTint.copy(cHz).lerp(cSun,0.55).multiplyScalar(0.72+day*0.58);
+    if(sy>0.15) cloudTint.lerp(cTmp.setRGB(1,1,1),clamp((sy-0.15)*1.6,0,0.7));
+    cloudFade=(0.35+day*0.65)*(1-WEA.mist*0.9);
+  }
+  if(stars){
+    stars.position.copy(camera.position);
+    stars.material.opacity=clamp(-sy*1.9-0.10,0,1)*(1-WEA.mist);
+  }
+  if(ocean) ocean.position.set(camera.position.x,0,camera.position.z);
+  /* 물이 받는 빛 — 해(색×세기)와 하늘빛, 비칠 하늘(천정·지평선).
+     구름 시험장에는 물이 없다(하늘 구역만 베껴 간다) */
+  if(typeof WATER_U!=='undefined'){
+  WATER_U.uSunDir.value.copy(_sd3);
+  WATER_U.uSunCol.value.copy(sun.color).multiplyScalar(sy>-0.05?sun.intensity:0);
+  WATER_U.uAmb.value.copy(hemi.color).multiplyScalar(hemi.intensity*0.6)
+    .add(cTmp.copy(amb.color).multiplyScalar(amb.intensity*0.6));
+  WATER_U.uSkyZ.value.copy(cSky); WATER_U.uSkyH.value.copy(cHz);
+  TERR_U.uSunDir.value.copy(_sd3);
+  }
+}
+
+/* 풀밭 한 뙈기 — 바람(envPatch 의 'grass')을 눈으로 보려고 깐다. 본편의 풀처럼
+   밑동이 원점이고 +Y 로 선 잎날이다. 가운데 60 m 네모에 6천 포기. */
+{
+  const g=new THREE.PlaneGeometry(0.07,0.75,1,4); g.translate(0,0.375,0);
+  const pos=g.attributes.position;
+  for(let i=0;i<pos.count;i++){ const y=pos.getY(i); pos.setX(i,pos.getX(i)*(1-y/0.8)); }
+  const m=new THREE.MeshLambertMaterial({color:0x6f8f3e, side:THREE.DoubleSide});
+  m.userData.wind='grass';
+  const im=new THREE.InstancedMesh(g,m,6000), M=new THREE.Matrix4(),
+        q=new THREE.Quaternion(), v=new THREE.Vector3(), sc=new THREE.Vector3();
+  const r=mulberry32(7);
+  for(let i=0;i<6000;i++){
+    q.setFromAxisAngle(new THREE.Vector3(0,1,0),r()*6.283);
+    const k=0.7+r()*0.7; sc.set(k,k,k);
+    v.set((r()-0.5)*60,0,(r()-0.5)*60-20);
+    im.setMatrixAt(i,M.compose(v,q,sc));
+  }
+  scene.add(im);
+}
+/* 땅 쪽 재질에 구름 그림자를 붙인다(본편은 LIGHT.refresh 가 한다) */
+scene.traverse(o=>{ if(o.material) envPatch(o.material); });
+
+/* ---------------- 조종 ---------------- */
+const keys={};
+addEventListener('keydown',e=>{
+  keys[e.code]=1;
+  if(e.code==='KeyR'){ for(const c of CLOUDS) if(c.vis>0) rerollCloud(c);
+    toast('모양 다시 굴림'); }
+  if(e.code==='KeyF') spawnFront();
+  if(e.code==='KeyP'){ PAUSE=!PAUSE;
+    document.getElementById('bPause').classList.toggle('on',PAUSE);
+    toast(PAUSE?'멈춤':'다시 흐름'); }
+  if(e.code==='KeyT'){
+    timeScale=timeScale===1?20:(timeScale===20?60:(timeScale===60?300:1));
+    document.getElementById('sT').value=[1,20,60,300].indexOf(timeScale);
+    syncT(); }
+});
+addEventListener('keyup',e=>{ keys[e.code]=0; });
+let yaw=0, pit=0, locked=false;
+cv.addEventListener('pointerdown',()=>cv.requestPointerLock());
+document.addEventListener('pointerlockchange',()=>{ locked=(document.pointerLockElement===cv); });
+addEventListener('mousemove',e=>{
+  if(!locked) return;
+  yaw-=e.movementX*0.0022; pit=clamp(pit-e.movementY*0.0022,-1.5,1.5);
+});
+
+/* 갈래 하나를 눈앞에 세운다 — 제 폭의 1.3배(적어도 800 m) 밖. 구름이 실제
+   크기라 가까이 세우면 화면을 다 덮는다. */
+let frontKey='cumulus';
+function spawnFront(){
+  const c=CLOUDS.find(x=>x.key===frontKey);
+  if(!c) return;
+  MANUAL[frontKey]=Math.max(1,MANUAL[frontKey]||1);
+  rerollCloud(c); c.dead=0; c.vis=1;
+  const d=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  const D=Math.max(800,c.w*1.3); d.y=0; d.normalize();
+  c.x=camera.position.x+d.x*D; c.z=camera.position.z+d.z*D;
+  c.m.position.set(c.x,c.y,c.z); c.yaw=99;
+  syncUI(); toast(CLOUD_KINDS[frontKey].n+' 을 눈앞 '+(D/1000).toFixed(1)+' km 에 세웠다');
+}
+
+/* ---------------- 조작판 ---------------- */
+const kindsEl=document.getElementById('kinds');
+const rowEls={};
+for(const k in CLOUD_KINDS){
+  const K=CLOUD_KINDS[k];
+  const d=document.createElement('div'); d.className='row';
+  d.innerHTML='<span class="nm">'+K.n+' <span style="color:#6f8199">'
+    +({puff:'덩이',layer:'층',strand:'실'}[K.form]||'판때기')+'</span></span>'
+    +'<span class="ct"></span>';
+  const mk=(t,f)=>{ const b=document.createElement('button'); b.textContent=t;
+    b.onclick=f; d.appendChild(b); return b; };
+  mk('−',()=>{ MANUAL[k]=Math.max(0,(MANUAL[k]!=null?MANUAL[k]:cur(k))-1); auto(false); syncUI(); });
+  mk('+',()=>{ MANUAL[k]=Math.min(K.max,(MANUAL[k]!=null?MANUAL[k]:cur(k))+1); auto(false); syncUI(); });
+  const bf=mk('앞',()=>{ frontKey=k; spawnFront(); });
+  bf.title='이 갈래를 눈앞 600 m 에 세운다';
+  kindsEl.appendChild(d);
+  rowEls[k]=d.querySelector('.ct');
+}
+function cur(k){ return CLOUDS.filter(c=>c.key===k&&c.vis>0.02).length; }
+let autoW=true;
+function auto(v){
+  autoW=v;
+  document.getElementById('bAuto').classList.toggle('on',v);
+  if(v) for(const k in MANUAL) delete MANUAL[k];
+}
+document.getElementById('bAuto').onclick=()=>{ auto(!autoW); syncUI(); };
+document.getElementById('bAll').onclick=()=>{
+  auto(false); for(const k in CLOUD_KINDS) MANUAL[k]=CLOUD_KINDS[k].max; syncUI(); };
+document.getElementById('bNone').onclick=()=>{
+  auto(false); for(const k in CLOUD_KINDS) MANUAL[k]=0; syncUI(); };
+document.getElementById('bRoll').onclick=()=>{
+  for(const c of CLOUDS) if(c.vis>0) rerollCloud(c); toast('모양 다시 굴림'); };
+document.getElementById('bFront').onclick=spawnFront;
+document.getElementById('bPause').onclick=()=>{ PAUSE=!PAUSE;
+  document.getElementById('bPause').classList.toggle('on',PAUSE); };
+
+const $=id=>document.getElementById(id);
+function syncT(){
+  $('vT').textContent=timeScale+'배';
+  $('sT').value=[1,20,60,300,900].indexOf(timeScale)<0?0:[1,20,60,300,900].indexOf(timeScale);
+}
+$('sH').oninput=e=>{ hourOfDay=parseFloat(e.target.value);
+  $('vH').textContent=hourOfDay.toFixed(1)+'시'; };
+$('sT').oninput=e=>{ timeScale=[1,5,20,60,300][parseInt(e.target.value)];
+  $('vT').textContent=timeScale+'배'; };
+/* 날씨 단계 — 0 고기압 · 0.35 권운 · 0.5 권층운·고층운 · 0.65 난층운 비 ·
+   0.75 층운 · 0.9 적란운 소나기 · 0.95 갬(적운) */
+const PH_NM=p=>p<0.28?'고기압':p<0.40?'권운 옴':p<0.52?'권층운':p<0.60?'고층운':
+  p<0.74?'난층운 비':p<0.84?'층운·층적운':p<0.94?'한랭전선':'갬';
+$('sC').oninput=e=>{ const v=parseInt(e.target.value);
+  PHASE=v<0?null:v/100; $('vC').textContent=v<0?'자동':PH_NM(PHASE); };
+$('sS').oninput=e=>{ const v=parseInt(e.target.value);
+  STR=v<0?null:v/100; $('vS').textContent=v<0?'자동':STR.toFixed(2); };
+$('sM').oninput=e=>{ const v=parseInt(e.target.value);
+  MIST=v<0?null:v/100; $('vM').textContent=v<0?'자동':(v/100).toFixed(2); };
+$('sO').oninput=e=>{ OPMUL=parseInt(e.target.value)/100;
+  $('vO').textContent=OPMUL.toFixed(2)+'×'; };
+$('sF').oninput=e=>{ FADE=parseInt(e.target.value);
+  $('vF').textContent=FADE+'초'; };
+$('sW').oninput=e=>{ const a=parseInt(e.target.value)*Math.PI/180;
+  windDir.x=Math.cos(a); windDir.z=Math.sin(a);
+  $('vW').textContent=parseInt(e.target.value)+'°'; };
+
+function syncUI(){
+  for(const k in CLOUD_KINDS){
+    const n=cur(k), want=(MANUAL[k]!=null)?MANUAL[k]:'자동';
+    rowEls[k].textContent=n+' / '+want;
+    rowEls[k].style.color=(MANUAL[k]!=null)?'#ffd27f':'#8fe0a8';
+  }
+}
+
+/* ---------------- 시작 ---------------- */
+initSky();
+buildClouds(hashStr('cloud_arena'));
+initRain();
+hourOfDay=parseFloat($('sH').value);
+$('vF').textContent=FADE+'초';
+syncT(); syncUI();
+
+function resize(){
+  const w=innerWidth,h=innerHeight;
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  renderer.setSize(w,h,false);
+}
+addEventListener('resize',resize); resize();
+
+const hud=document.getElementById('hud');
+let last=performance.now(), fps=60, uiT=0;
+function loop(){
+  requestAnimationFrame(loop);
+  const now=performance.now();
+  let dt=Math.min(0.1,(now-last)/1000); last=now;
+  fps+=((1/Math.max(dt,0.001))-fps)*0.08;
+
+  const rdt=dt;                  // 계기판은 멈춤 중에도 돈다
+  if(PAUSE) dt=0;
+  // 시간 — 실제 1초가 게임 1분(본편과 같다)
+  hourOfDay+=dt/60*timeScale; gameHours+=dt/60*timeScale;
+  if(hourOfDay>=24) hourOfDay-=24;
+  $('sH').value=hourOfDay; $('vH').textContent=hourOfDay.toFixed(1)+'시';
+
+  // 날기
+  const sp=(keys.ShiftLeft?120:45)*dt*(keys.ControlLeft?4:1);
+  const f=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+  const r=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+  if(keys.KeyW) camera.position.addScaledVector(f,sp);
+  if(keys.KeyS) camera.position.addScaledVector(f,-sp);
+  if(keys.KeyD) camera.position.addScaledVector(r,sp);
+  if(keys.KeyA) camera.position.addScaledVector(r,-sp);
+  if(keys.Space) camera.position.y+=sp;
+  if(keys.ShiftRight||keys.KeyC) camera.position.y-=sp;
+  camera.position.y=Math.max(2,camera.position.y);
+  camera.quaternion.setFromEuler(new THREE.Euler(pit,yaw,0,'YXZ'));
+
+  updateSky();
+  if(!PAUSE){ updateClouds(dt); updateRain(dt); }
+  renderFrame();
+
+  if((uiT+=rdt)>0.25){
+    uiT=0; syncUI();
+    let on=0, blob=0;
+    for(const c of CLOUDS) if(c.m.visible){ on++; if(c.form==='puff') blob+=c.nb; }
+    hud.innerHTML='<b>'+fps.toFixed(0)+'</b> fps<br>'
+      +'떠 있는 덩이 <b>'+on+'</b><br>알갱이 <b>'+blob+'</b><br>'
+      +'구름양 <b>'+WEA.cover.toFixed(2)+'</b> · '+(WEA.name||'—')+'<br>'
+      +'날씨 단계 <b>'+WEA.phase.toFixed(2)+'</b> '+PH_NM(WEA.phase)
+      +' · 세기 <b>'+WEA.str.toFixed(2)+'</b><br>'
+      +'안개 <b>'+WEA.mist.toFixed(2)+'</b> · 비 <b>'+WEA.rain.toFixed(2)+'</b><br>'
+      +'높이 <b>'+camera.position.y.toFixed(0)+'</b> m';
+  }
+}
+loop();
+</script>
+</body>
+</html>

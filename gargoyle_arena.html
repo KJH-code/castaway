@@ -66,7 +66,9 @@
   <div id="dmg"></div>
   <div id="cross"></div>
   <div class="pnl" id="gear">
-    <div><span class="k">무기</span><b>돌창</b> 피해 22 · 사거리 2.4 m</div>
+    <div><span class="k">무기</span><span id="wep">–</span></div>
+    <div style="color:var(--dim);font-size:9px;margin:2px 0 4px">
+      1 돌창 · 2 철 검 · 3 철 창 · 4 철 전투도끼 · 5 철 해머 · 6 볼트 소총 (X 재장전)</div>
     <div><span class="k">갑옷</span><b>청동 비늘</b> 방어 6</div>
     <div><span class="k">머리</span><b>청동 투구</b> 방어 3</div>
     <div><span class="k">옷</span>섬유 옷 방어 1</div>
@@ -123,7 +125,9 @@
   <div class="k">
     <div><span>WASD</span>이동 · Shift 달리기</div>
     <div><span>Space</span>점프</div>
-    <div><span>좌클릭</span>창 찌르기</div>
+    <div><span>좌클릭</span>휘두르기</div>
+    <div><span>1 ~ 9 · 0</span>무기 바꾸기 — 돌창 · 철(검·창·도끼·해머) · 키틴 검 · 뼈 창 · 키틴 도끼 · 뼈 해머 · 소총</div>
+    <div><span>X</span>재장전 (소총)</div>
     <div><span>R</span>되살리기 · Tab 설정 접기</div>
     <div><span>Esc</span>커서 되찾기 (일시정지)</div>
   </div>
@@ -131,7 +135,7 @@
   <div id="load"></div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="three.min.js"></script>
 <script>
 "use strict";
 /* ============================================================================
@@ -196,13 +200,39 @@ const P={wander:1.6, chase:1.1, see:30, trig:10, prep:1.0,
 const WALK=4.3, RUN=7.4, JUMP=7.6, GRAV=-22, EYE=1.66;
 const PL={pos:new THREE.Vector3(0,0,14), vel:new THREE.Vector3(),
           yaw:Math.PI, pitch:-0.05, hp:100, stam:100, grounded:false,
-          bob:0, camY:0, atkCd:0, swing:0, hits:0};
+          bob:0, camY:0, atkCd:0, swing:0, swingMax:0.30, hits:0};
 const ARMOR=10;                       // 청동 비늘 6 + 투구 3 + 섬유 옷 1
-const SPEAR={dmg:22, reach:2.4, rate:0.9, cone:0.77};
+/* 무기 — 본 게임의 ITEMS 값을 그대로 옮겨 왔다. 숫자 1~5 로 바꿔 든다.
+   검은 빠르게 여러 번, 창은 멀리서, 도끼는 한 번에 크게, 해머는 상대를 멈춰 세운다. */
+const WEAPONS=[
+  {id:'spear',      n:'돌창',        dmg:22, reach:2.6, rate:0.90, stam: 9, swing:'thrust'},
+  {id:'sword_iron', n:'철 검',       dmg:30, reach:1.5, rate:0.40, stam: 5, swing:'slash'},
+  {id:'spear_iron', n:'철 창',       dmg:40, reach:2.6, rate:1.00, stam: 8, swing:'thrust'},
+  {id:'axe_war',    n:'철 전투도끼',  dmg:80, reach:2.1, rate:1.60, stam:15, swing:'slash'},
+  {id:'hammer_iron',n:'철 해머',     dmg:55, reach:2.1, rate:1.20, stam:17, swing:'smash', stun:0.2},
+  {id:'sword_chitin',n:'키틴 검',    dmg:22, reach:1.5, rate:0.32, stam: 5, swing:'slash'},
+  {id:'spear_bone', n:'뼈 창',       dmg:30, reach:2.6, rate:0.80, stam: 8, swing:'thrust'},
+  {id:'axe_chitin', n:'키틴 도끼',    dmg:60, reach:2.1, rate:1.28, stam:15, swing:'slash'},
+  {id:'hammer_bone',n:'뼈 해머',     dmg:41, reach:2.1, rate:0.96, stam:17, swing:'smash', stun:0.2},
+  {id:'rifle_bolt', n:'볼트 소총',    dmg:150,reach: 50, rate:2.40, stam: 3, swing:'shot',
+   gun:1, mag:5, reload:6.5}
+];
+/* 잡으면 나오는 것 — 본 게임의 MOBS 표와 같은 값이다.
+   키틴 검 3 · 키틴 도끼 3 이니, 한 마리에 무기 두 자루 분이 나온다. */
+const LOOT=[{n:'키틴', k:6}];
+function dropLoot(){
+  msg('쓰러뜨렸다 — '+LOOT.map(l=>l.n+' ×'+l.k).join(' · ')+' 를 얻었다');
+}
+const RELOAD={t:0};                         // 재장전 남은 시간
+let magLeft=5;                              // 탄창에 남은 발수 (아레나는 예비탄 무한)
+const MAG_FULL=5;
+let tracer=null, tracerT=0, flashT=0;
+let WI=0;                                   // 지금 든 무기
+const CONE=0.77;
 const mitigate=d=>Math.max(1,d*(1-clamp(ARMOR/24,0,0.72)));
 
 /* ---- 가고일 ---- */
-const G={pos:new THREE.Vector3(0,0,-16), yaw:0, hp:120, hpMax:120,
+const G={pos:new THREE.Vector3(0,0,-16), yaw:0, hp:120, hpMax:120, frz:0, alerted:false,
          state:'wander', t:0, target:new THREE.Vector3(), dir:new THREE.Vector3(0,0,1),
          dashLeft:0, speed:0, wing:0, wingPh:0, hitDone:false, alive:true};
 const SNAME={wander:'배회',chase:'추격',prep:'준비',dash:'돌진',stun:'경직',dead:'쓰러짐'};
@@ -279,13 +309,23 @@ function setState(s){ G.state=s; G.t=0; G.hitDone=false; }
 
 function updateG(dt){
   if(!G.alive){ G.speed=0; G.wing=0; return; }
+  /* 굳어 있는 동안은 아무것도 하지 않는다.
+     돌진 뒤의 경직과 해머 기절이 같은 시계(G.frz)를 쓰고, 서로 더해진다. */
+  if(G.frz>0){
+    G.frz=Math.max(0,G.frz-dt); G.speed=0; G.wing=0;
+    if(G.frz<=0 && G.state==='stun'){
+      const dd=Math.hypot(PL.pos.x-G.pos.x,PL.pos.z-G.pos.z);
+      setState(dd<P.see?'chase':'wander');
+    }
+    return;
+  }
   const toP=new THREE.Vector3(PL.pos.x-G.pos.x,0,PL.pos.z-G.pos.z);
   const dist=toP.length();
   G.t+=dt;
   let move=new THREE.Vector3(), spd=0;
 
   if(G.state==='wander'){
-    if(dist<P.see){ setState('chase'); }
+    if(dist<P.see||G.alerted){ setState('chase'); }  // 총에 맞았으면 거리와 무관하게
     else{
       const d=new THREE.Vector3().subVectors(G.target,G.pos); d.y=0;
       if(d.length()<2.5){ newWanderTarget(); }
@@ -293,7 +333,7 @@ function updateG(dt){
     }
   }
   else if(G.state==='chase'){
-    if(dist>P.see*1.35){ setState('wander'); newWanderTarget(); }
+    if(dist>P.see*1.35&&!G.alerted){ setState('wander'); newWanderTarget(); }
     else if(dist<P.trig){ setState('prep'); }
     else { move=toP.clone().normalize(); spd=RUN*P.chase; }
   }
@@ -315,10 +355,10 @@ function updateG(dt){
       G.hitDone=true;
       hurtPlayer(P.dmg);
     }
-    if(G.dashLeft<=0.001) setState('stun');
+    if(G.dashLeft<=0.001){ setState('stun'); G.frz+=P.stun; }
   }
-  else if(G.state==='stun'){
-    if(G.t>=P.stun) setState(dist<P.see?'chase':'wander');
+  else if(G.state==='stun'){         // G.frz 가 다 풀린 뒤에만 여기 닿는다
+    setState(dist<P.see?'chase':'wander');
   }
 
   if(spd>0&&move.lengthSq()>0){
@@ -327,7 +367,7 @@ function updateG(dt){
     if(Math.abs(G.pos.x)>lim||Math.abs(G.pos.z)>lim){
       G.pos.x=clamp(G.pos.x,-lim,lim); G.pos.z=clamp(G.pos.z,-lim,lim);
       if(G.state==='wander') newWanderTarget();
-      if(G.state==='dash'){ G.dashLeft=0; setState('stun'); }
+      if(G.state==='dash'){ G.dashLeft=0; setState('stun'); G.frz+=P.stun; }
     }
     const want=Math.atan2(move.x,move.z);
     let d=want-G.yaw; while(d>Math.PI)d-=6.283; while(d<-Math.PI)d+=6.283;
@@ -358,17 +398,93 @@ function hurtPlayer(raw){
   msg('팔에 맞았다 — '+d.toFixed(0)+' 피해');
   if(PL.hp<=0) showOv('쓰러졌다','가고일이 돌진을 끝내고 굳어 있을 때가 때릴 기회입니다.','다시 시작');
 }
+
+/* ─ 총 ── 눈에서 뻗은 선으로 맞힌다. 예비탄은 이 시험장에서 무한이다. ── */
+function initTracer(){
+  tracer=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1,5),
+    new THREE.MeshBasicMaterial({color:0xffe6a8,transparent:true,opacity:0}));
+  tracer.visible=false; scene.add(tracer);
+}
+function showTracer(a,b){
+  if(!tracer) return;
+  const d=new THREE.Vector3().subVectors(b,a), len=d.length();
+  tracer.position.copy(a).addScaledVector(d,0.5);
+  tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize());
+  tracer.scale.set(1,len,1);
+  tracer.visible=true; tracer.material.opacity=0.85; tracerT=0.09;
+}
+/* 선이 표적 구를 지나가는가 — 지나가면 맞은 거리를 준다 */
+function rayTarget(o,dir,range,cx,cy,cz,r){
+  const ox=cx-o.x, oy=cy-o.y, oz=cz-o.z;
+  const t=ox*dir.x+oy*dir.y+oz*dir.z;
+  if(t<0||t>range) return -1;
+  const px=ox-dir.x*t, py=oy-dir.y*t, pz=oz-dir.z*t;
+  return (px*px+py*py+pz*pz<=r*r) ? t : -1;
+}
+function startReload(){
+  const W=WEAPONS[WI];
+  if(!W.gun||RELOAD.t>0||magLeft>=W.mag) return false;
+  RELOAD.t=W.reload; msg('재장전…'); return true;
+}
+function updateGun(dt){
+  if(RELOAD.t>0){
+    RELOAD.t-=dt;
+    if(RELOAD.t<=0){ magLeft=WEAPONS[WI].mag; msg('장전 '+magLeft+' / '+magLeft); }
+  }
+  if(flashT>0){
+    flashT-=dt;
+    if(flashT<=0&&weaponFx&&weaponFx.userData.flash) weaponFx.userData.flash.visible=false;
+  }
+  if(tracerT>0){
+    tracerT-=dt;
+    tracer.material.opacity=Math.max(0,tracerT/0.09)*0.85;
+    if(tracerT<=0) tracer.visible=false;
+  }
+}
+function shoot(){
+  const W=WEAPONS[WI];
+  if(RELOAD.t>0) return;
+  if(magLeft<=0){ startReload(); msg('철컥 — 비었다'); return; }
+  PL.atkCd=W.rate; PL.swing=0.28; PL.swingMax=0.28;
+  PL.stam=clamp(PL.stam-W.stam,0,100);
+  magLeft--;
+  const o=new THREE.Vector3(), d=new THREE.Vector3();
+  camera.getWorldPosition(o); camera.getWorldDirection(d);
+  let t=-1;
+  if(G.alive) t=rayTarget(o,d,W.reach,G.pos.x,G.pos.y+0.8,G.pos.z, 0.9);
+  showTracer(o.clone().addScaledVector(d,0.6),
+             o.clone().addScaledVector(d,t>0?t:W.reach));
+  if(weaponFx&&weaponFx.userData.flash){ weaponFx.userData.flash.visible=true; flashT=0.05; }
+  if(t>0){
+    G.hp-=W.dmg; G.flash=1; PL.hits2=(PL.hits2||0)+1;
+    /* 총에 맞으면 인식 반경 밖이라도 쏜 쪽을 알아챈다 — 한 번 알아채면 잊지 않는다 */
+    G.alerted=true;
+    if(G.state==='wander') setState('chase');
+    if(G.hp<=0){ G.hp=0; G.alive=false; setState('dead');
+      dropLoot(); }
+    else msg('명중 '+Math.round(t)+' m −'+W.dmg);
+  }else msg('빗나갔다');
+}
 function attack(){
-  if(PL.atkCd>0||PL.stam<6||PL.hp<=0) return;
-  PL.atkCd=SPEAR.rate; PL.swing=0.3; PL.stam=clamp(PL.stam-9,0,100);
+  if(WEAPONS[WI].gun){
+    if(paused||PL.hp<=0||PL.atkCd>0||PL.stam<WEAPONS[WI].stam||PL.stun>0) return;
+    shoot(); return;
+  }
+  const W=WEAPONS[WI];
+  if(PL.atkCd>0||PL.stam<W.stam||PL.hp<=0) return;
+  PL.atkCd=W.rate;
+  PL.swing=Math.min(0.30,W.rate*0.55);       // 빠른 무기는 모션도 짧아야 겹치지 않는다
+  PL.swingMax=PL.swing;
+  PL.stam=clamp(PL.stam-W.stam,0,100);
   if(!G.alive) { msg('허공을 갈랐다'); return; }
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
   const dx=G.pos.x-PL.pos.x, dz=G.pos.z-PL.pos.z, d=Math.hypot(dx,dz);
-  if(d<=SPEAR.reach+0.6 && (dx/d)*fx+(dz/d)*fz>=SPEAR.cone
+  if(d<=W.reach+0.6 && (dx/d)*fx+(dz/d)*fz>=CONE
      && Math.abs(G.pos.y-PL.pos.y)<2.4){
-    G.hp-=SPEAR.dmg; PL.hits++;
-    if(G.hp<=0){ G.hp=0; G.alive=false; setState('dead'); msg('가고일을 쓰러뜨렸다'); }
-    else msg('명중 — 남은 체력 '+G.hp);
+    G.hp-=W.dmg; PL.hits++;
+    if(W.stun) G.frz+=W.stun;                  // 해머 — 굳은 시간에 그대로 더해진다
+    if(G.hp<=0){ G.hp=0; G.alive=false; setState('dead'); dropLoot(); }
+    else msg(W.n+' −'+W.dmg+(W.stun?' · 기절':'')+' · 남은 체력 '+G.hp);
   }else msg('허공을 갈랐다');
 }
 let msgT=0;
@@ -407,41 +523,272 @@ function updatePL(dt){
   if(PL.atkCd>0) PL.atkCd=Math.max(0,PL.atkCd-dt);
 }
 
-/* ---------------- 창 뷰모델 ---------------- */
-let spearFx;
-const SPEAR_HOME=new THREE.Vector3(0.32,-0.30,-0.60);
-function makeSpear(){
-  /* 창을 국소 +Y 축에 똑바로 세워 만들고, 다 만든 뒤 통째로 눕힌다.
-     부품마다 각도를 따로 주면 자루와 날이 어긋난다. */
-  const L=1.55;
-  const body=new THREE.Group();
-  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.021,0.027,L,6),
-    new THREE.MeshLambertMaterial({color:0x6b5a3c}));
-  shaft.position.y=L/2;
-  const tip=new THREE.Mesh(new THREE.ConeGeometry(0.052,0.24,4),
-    new THREE.MeshLambertMaterial({color:0x59636b}));
-  tip.position.y=L+0.10; tip.rotation.y=Math.PI/4;
-  const bind=new THREE.Mesh(new THREE.CylinderGeometry(0.034,0.034,0.10,6),
-    new THREE.MeshLambertMaterial({color:0xa89a68}));
-  bind.position.y=L-0.04;
-  body.add(shaft); body.add(tip); body.add(bind);
-  body.position.y=-0.42;
+/* ---------------- 무기 뷰모델 ---------------- */
+/* 본 게임(island_world.html) · 북극곰 아레나와 같은 것을 쓴다. */
+let weaponFx=null, weaponFxId=null;
+const WEAPON_HOME=new THREE.Vector3(0.32,-0.30,-0.60);
+const WMAT=c=>new THREE.MeshLambertMaterial({color:c});
+const W_WOOD=0x6b5a3c, W_CORD=0xa89a68;
+function haft(len,r0,r1,col){                // 자루 — 밑동이 원점에 오도록 세운다
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(r0,r1,len,6),WMAT(col||W_WOOD));
+  m.position.y=len/2; return m;
+}
+function wbind(y,r){                         // 날을 묶은 노끈
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.09,6),WMAT(W_CORD));
+  m.position.y=y; return m;
+}
+/* 무기 하나를 만든다. grip 은 자루의 어디를 쥐는가(국소 y). */
+const WEAPON_FX={
+  spear(){                                   // 돌창 — 짧은 뗀석기 날
+    const g=new THREE.Group(), L=1.55;
+    g.add(haft(L,0.021,0.027));
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.052,0.24,4),WMAT(0x59636b));
+    tip.position.y=L+0.10; tip.rotation.y=Math.PI/4; g.add(tip);
+    g.add(wbind(L-0.04,0.034));
+    return {mesh:g, grip:0.42};
+  },
+  spear_iron(){                              // 철 창 — 자루도 날도 길다
+    const g=new THREE.Group(), L=2.05;
+    g.add(haft(L,0.022,0.028));
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.048,0.40,6),WMAT(0xb4b9be));
+    tip.position.y=L+0.19; g.add(tip);
+    const sock=new THREE.Mesh(new THREE.CylinderGeometry(0.038,0.045,0.16,6),WMAT(0x9aa0a6));
+    sock.position.y=L-0.03; g.add(sock);
+    g.add(wbind(L-0.16,0.035));
+    return {mesh:g, grip:0.60};
+  },
+  sword_iron(){                              // 철 검 — 자루 · 코등이 · 양날
+    const g=new THREE.Group(), H=0.26, B2=0.92;
+    g.add(haft(H,0.028,0.032,0x4a3a29));
+    const pom=new THREE.Mesh(new THREE.SphereGeometry(0.042,8,6),WMAT(0x8f959b));
+    pom.position.y=0.01; g.add(pom);
+    const gd=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.045,0.06),WMAT(0x9aa0a6));
+    gd.position.y=H+0.02; g.add(gd);
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(0.085,B2,0.022),WMAT(0xc3c7cb));
+    bl.position.y=H+0.05+B2/2; g.add(bl);
+    const pt=new THREE.Mesh(new THREE.ConeGeometry(0.060,0.16,4),WMAT(0xc3c7cb));
+    pt.position.y=H+0.05+B2+0.07; pt.rotation.y=Math.PI/4;
+    pt.scale.set(1,1,0.36); g.add(pt);
+    return {mesh:g, grip:0.16};
+  },
+  axe_war(){                                 // 철 전투도끼 — 무게가 날 끝에 몰려 있다
+    const g=new THREE.Group(), L=0.92;
+    g.add(haft(L,0.026,0.030));
+    const head=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.22,0.11),WMAT(0x8f959b));
+    head.position.y=L-0.04; g.add(head);
+    /* 날은 윤곽을 직접 그려 뽑는다 — 원통을 잘라 쓰면 자루에서 떨어져 보인다.
+       자루(x=0)에 물려 시작해 바깥으로 넓게 퍼지는 초승달꼴이다. */
+    const sh=new THREE.Shape();
+    sh.moveTo(0.00,-0.11);
+    sh.lineTo(0.20,-0.21);
+    sh.quadraticCurveTo(0.36,-0.04, 0.30,0.19);
+    sh.lineTo(0.00, 0.11);
+    sh.closePath();
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,
+      {depth:0.030, bevelEnabled:true, bevelThickness:0.006, bevelSize:0.006,
+       bevelSegments:1, curveSegments:8}),WMAT(0xb4b9be));
+    bl.position.set(0.02,L-0.04,-0.021); g.add(bl);
+    g.add(wbind(L-0.20,0.036));
+    return {mesh:g, grip:0.30};
+  },
+  sword_chitin(){                            // 키틴 검 — 겹쳐 세운 껍질 날
+    const g=new THREE.Group(), H=0.24, B2=0.88;
+    g.add(haft(H,0.028,0.032,0x4a3a29));
+    const wrap=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.038,H-0.03,8),
+      WMAT(0x8a6a4a));
+    wrap.position.y=H/2; g.add(wrap);        // 가죽으로 감은 손잡이
+    const gd=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.040,0.06),WMAT(0x3f4f44));
+    gd.position.y=H+0.02; g.add(gd);
+    for(let i=0;i<3;i++){                    // 껍질을 세 겹으로 겹쳐 붙였다
+      const bl=new THREE.Mesh(new THREE.BoxGeometry(0.075-i*0.012,B2-i*0.16,0.020),
+        WMAT(i%2?0x5b6d5e:0x4a5a4e));
+      bl.position.set(0,H+0.05+(B2-i*0.16)/2,(i-1)*0.010); g.add(bl);
+    }
+    const pt=new THREE.Mesh(new THREE.ConeGeometry(0.052,0.17,4),WMAT(0x6b7d6e));
+    pt.position.y=H+0.05+B2+0.07; pt.rotation.y=Math.PI/4;
+    pt.scale.set(1,1,0.34); g.add(pt);
+    return {mesh:g, grip:0.15};
+  },
+  spear_bone(){                              // 뼈 창 — 비스듬히 간 창끝
+    const g=new THREE.Group(), L=2.00;
+    g.add(haft(L,0.022,0.028));
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.046,0.36,5),WMAT(0xd6cfb4));
+    tip.position.y=L+0.17; g.add(tip);
+    const collar=new THREE.Mesh(new THREE.CylinderGeometry(0.034,0.040,0.12,6),
+      WMAT(0xbdb497));
+    collar.position.y=L-0.02; g.add(collar);
+    g.add(wbind(L-0.13,0.034));
+    g.add(wbind(0.52,0.034));
+    return {mesh:g, grip:0.58};
+  },
+  axe_chitin(){                              // 키틴 도끼 — 뼈 심에 물린 넓은 날
+    const g=new THREE.Group(), L=0.90;
+    g.add(haft(L,0.026,0.030));
+    const core=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.21,0.10),WMAT(0xd6cfb4));
+    core.position.y=L-0.04; g.add(core);     // 뼈 심
+    const sh=new THREE.Shape();
+    sh.moveTo(0.00,-0.11);
+    sh.lineTo(0.19,-0.20);
+    sh.quadraticCurveTo(0.35,-0.03, 0.29,0.18);
+    sh.lineTo(0.00, 0.11);
+    sh.closePath();
+    const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,
+      {depth:0.026, bevelEnabled:true, bevelThickness:0.005, bevelSize:0.005,
+       bevelSegments:1, curveSegments:8}),WMAT(0x53685a));
+    bl.position.set(0.02,L-0.04,-0.018); g.add(bl);
+    g.add(wbind(L-0.19,0.036));
+    return {mesh:g, grip:0.29};
+  },
+  hammer_bone(){                             // 뼈 해머 — 관절 뼈를 통째로
+    const g=new THREE.Group(), L=0.95;
+    g.add(haft(L,0.030,0.034));
+    const head=new THREE.Mesh(new THREE.CylinderGeometry(0.085,0.085,0.34,8),
+      WMAT(0xd6cfb4));
+    head.rotation.x=Math.PI/2; head.position.y=L-0.02; g.add(head);
+    for(const sz of [-1,1]){                 // 관절 끝이 불룩하다
+      const k=new THREE.Mesh(new THREE.SphereGeometry(0.098,8,6),WMAT(0xc7bfa2));
+      k.position.set(0,L-0.02,sz*0.17); k.scale.set(1,0.9,0.8); g.add(k);
+    }
+    const lash=new THREE.Mesh(new THREE.CylinderGeometry(0.040,0.040,0.10,8),
+      WMAT(0x8a6a4a));
+    lash.position.y=L-0.19; g.add(lash);     // 가죽으로 조여 묶은 자리
+    g.add(wbind(L-0.28,0.040));
+    return {mesh:g, grip:0.32};
+  },
+  rifle_bolt(){                              // 볼트 소총 — 나무 개머리 · 강철 총열
+    const g=new THREE.Group(), L=1.22;
+    const wood=WMAT(0x6b5442), steel=WMAT(0x6e747a), dark=WMAT(0x3a3d40);
+    // 개머리판에서 총열까지 하나로 이어지는 몸통
+    const stock=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.46,0.115),wood);
+    stock.position.y=0.20; g.add(stock);
+    const butt=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.13,0.165),wood);
+    butt.position.set(0,0.02,0.015); g.add(butt);
+    const fore=new THREE.Mesh(new THREE.BoxGeometry(0.062,0.52,0.085),wood);
+    fore.position.y=0.72; g.add(fore);
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(0.019,0.021,L-0.28,10),steel);
+    barrel.position.y=0.42+(L-0.28)/2; g.add(barrel);
+    const recv=new THREE.Mesh(new THREE.BoxGeometry(0.062,0.20,0.075),steel);
+    recv.position.y=0.50; g.add(recv);
+    // 노리쇠 — 오른쪽으로 젖혀 나온 손잡이
+    const bolt=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.13,6),steel);
+    bolt.rotation.z=Math.PI/2; bolt.position.set(0.052,0.47,0.02); g.add(bolt);
+    const knob=new THREE.Mesh(new THREE.SphereGeometry(0.021,8,6),steel);
+    knob.position.set(0.115,0.47,0.02); g.add(knob);
+    // 탄창 · 방아쇠울
+    const mag=new THREE.Mesh(new THREE.BoxGeometry(0.052,0.10,0.055),dark);
+    mag.position.set(0,0.395,-0.005); g.add(mag);
+    const guard=new THREE.Mesh(new THREE.TorusGeometry(0.032,0.007,6,10,Math.PI),dark);
+    guard.rotation.y=Math.PI/2; guard.position.set(0,0.34,-0.012); g.add(guard);
+    // 가늠쇠 · 총구
+    const sight=new THREE.Mesh(new THREE.BoxGeometry(0.010,0.030,0.010),dark);
+    sight.position.y=L-0.04; g.add(sight);
+    const muzzle=new THREE.Mesh(new THREE.CylinderGeometry(0.024,0.024,0.035,10),dark);
+    muzzle.position.y=L-0.015; g.add(muzzle);
+    // 총구 화염 — 쏠 때만 보인다
+    const fl=new THREE.Mesh(new THREE.ConeGeometry(0.075,0.26,5),
+      new THREE.MeshBasicMaterial({color:0xffd07a}));
+    fl.position.y=L+0.11; fl.visible=false; fl.name='flash'; g.add(fl);
+    return {mesh:g, grip:0.36, muzzle:L+0.02};
+  },
+  hammer_iron(){                             // 철 해머 — 통짜 머리
+    const g=new THREE.Group(), L=0.98;
+    g.add(haft(L,0.030,0.034));
+    const head=new THREE.Mesh(new THREE.BoxGeometry(0.17,0.19,0.36),WMAT(0x8f959b));
+    head.position.y=L-0.02; g.add(head);
+    for(const sz of [-1,1]){                 // 때리는 면을 조금 밝게
+      const f=new THREE.Mesh(new THREE.BoxGeometry(0.175,0.195,0.02),WMAT(0xb4b9be));
+      f.position.set(0,L-0.02,sz*0.185); g.add(f);
+    }
+    g.add(wbind(L-0.20,0.040));
+    return {mesh:g, grip:0.34};
+  }
+};
+/* 지금 든 무기에 맞춰 손의 것을 갈아 끼운다.
+   mesh 를 -grip 만큼 내려 두므로 weaponFx 의 원점이 곧 손잡이다 —
+   아래 휘두르기의 회전은 전부 이 손잡이를 축으로 돈다. */
+function setWeaponFx(id){
+  if(weaponFxId===id) return;
+  weaponFxId=id;
+  if(weaponFx){ camera.remove(weaponFx); weaponFx=null; }
+  if(!id||!WEAPON_FX[id]) return;
+  const {mesh,grip,muzzle}=WEAPON_FX[id]();
+  mesh.position.y=-grip;
+  weaponFx=new THREE.Group();
+  weaponFx.add(mesh);
+  weaponFx.userData.muzzle=(muzzle||0)-grip;
+  weaponFx.userData.flash=mesh.getObjectByName('flash')||null;
+  weaponFx.rotation.set(-Math.PI/2+0.20,0,0.12);
+  weaponFx.position.copy(WEAPON_HOME);
+  camera.add(weaponFx);
+}
 
-  spearFx=new THREE.Group();
-  spearFx.add(body);
-  spearFx.rotation.set(-Math.PI/2+0.20, 0, 0.12);
-  spearFx.position.copy(SPEAR_HOME);
-  camera.add(spearFx);
+/* 휘두르는 자세 — 손은 거의 제자리에 두고 날만 손잡이를 축으로 크게 돈다.
+   p 는 0→1 진행도. 창은 찌르고, 검·도끼는 베고, 해머는 내리친다. */
+const WRX=-Math.PI/2+0.20, WRZ=0.12;         // 쉴 때의 자세
+const wlerp=(a,b,t)=>a+(b-a)*t;
+const wease=t=>t*t*(3-2*t);
+const wIn=t=>t*t*t;
+const WPOSE={rx:0,ry:0,rz:0,px:0,py:0,pz:0};
+function swingPose(style,p){
+  const o=WPOSE;
+  o.rx=WRX; o.ry=0; o.rz=WRZ; o.px=0; o.py=0; o.pz=0;
+  if(p<=0||p>=1) return o;
+  if(style==='shot'){                        // 반동 — 뒤로 차고 총구가 들렸다 내려온다
+    const k=p<0.22 ? p/0.22 : 1-(p-0.22)/0.78;
+    o.rx=WRX+0.30*k; o.pz=0.14*k; o.py=0.03*k;
+    return o;
+  }
+  if(style==='thrust'){                      // 찌르기 — 손이 앞으로 나간다
+    const k=Math.sin(p*Math.PI);
+    o.pz=-0.55*k; o.px=-0.10*k; o.rx=WRX-0.10*k;
+    return o;
+  }
+  if(style==='smash'){                       // 내리치기 — 머리 위로 들었다 내린다
+    if(p<0.34){ const k=wease(p/0.34);
+      o.rx=wlerp(WRX,WRX-1.15,k); o.rz=wlerp(WRZ,0.30,k); o.py=0.16*k;
+    }else if(p<0.56){ const k=wIn((p-0.34)/0.22);
+      o.rx=wlerp(WRX-1.15,WRX+1.30,k); o.rz=wlerp(0.30,0.02,k);
+      o.py=wlerp(0.16,-0.16,k); o.pz=-0.22*k;
+    }else{ const k=wease((p-0.56)/0.44);
+      o.rx=wlerp(WRX+1.30,WRX,k); o.rz=wlerp(0.02,WRZ,k);
+      o.py=wlerp(-0.16,0,k); o.pz=wlerp(-0.22,0,k);
+    }
+    return o;
+  }
+  // 베기 — 오른쪽 위로 치켜들었다가 왼쪽 아래로 그어 내린다
+  if(p<0.30){ const k=wease(p/0.30);
+    o.rx=wlerp(WRX,WRX-0.55,k); o.ry=wlerp(0,0.50,k); o.rz=wlerp(WRZ,1.20,k);
+    o.px=0.10*k; o.py=0.10*k;
+  }else if(p<0.56){ const k=wIn((p-0.30)/0.26);
+    o.rx=wlerp(WRX-0.55,WRX+0.70,k); o.ry=wlerp(0.50,-0.60,k);
+    o.rz=wlerp(1.20,-1.35,k);
+    o.px=wlerp(0.10,-0.22,k); o.py=wlerp(0.10,-0.08,k); o.pz=-0.16*k;
+  }else{ const k=wease((p-0.56)/0.44);
+    o.rx=wlerp(WRX+0.70,WRX,k); o.ry=wlerp(-0.60,0,k); o.rz=wlerp(-1.35,WRZ,k);
+    o.px=wlerp(-0.22,0,k); o.py=wlerp(-0.08,0,k); o.pz=wlerp(-0.16,0,k);
+  }
+  return o;
+}
+function makeSpear(){ setWeaponFx(WEAPONS[WI].id); }
+/* 무기를 바꿔 든다 */
+function syncWeapon(){ setWeaponFx(WEAPONS[WI].id); wepLine(); }
+/* 무기 줄은 탄창이 줄어드는 것도 보여야 하므로 매 프레임 다시 쓴다 */
+function wepLine(){
+  const W=WEAPONS[WI], e=document.getElementById('wep');
+  if(e) e.innerHTML='<b>'+W.n+'</b> 피해 '+W.dmg+' · 사거리 '+W.reach.toFixed(1)
+    +' m · '+(1/W.rate).toFixed(2)+'회/초 · 초당 '+Math.round(W.dmg/W.rate)
+    +(W.stun?' · 기절 '+W.stun+'초':'')
+    +(W.gun?' · 탄창 '+magLeft+' / '+W.mag+(RELOAD.t>0?' (재장전 '+RELOAD.t.toFixed(1)+'초)':(magLeft?' [X]':' — 비었다 [X]')):'');
 }
 function updateSpear(dt){
-  if(PL.swing>0){
-    PL.swing-=dt;
-    const k=Math.sin((1-PL.swing/0.3)*Math.PI);
-    spearFx.position.z=SPEAR_HOME.z-k*0.55; spearFx.position.x=SPEAR_HOME.x-k*0.10;
-  }else{
-    spearFx.position.z+=(SPEAR_HOME.z-spearFx.position.z)*clamp(12*dt,0,1);
-    spearFx.position.x+=(SPEAR_HOME.x-spearFx.position.x)*clamp(12*dt,0,1);
-  }
+  if(!weaponFx) return;
+  const W=WEAPONS[WI];
+  const dur=PL.swingMax||0.30;
+  const p=PL.swing>0 ? 1-PL.swing/dur : 0;
+  if(PL.swing>0) PL.swing=Math.max(0,PL.swing-dt);
+  const H=WEAPON_HOME, o=swingPose(W.swing,p);
+  weaponFx.position.set(H.x+o.px, H.y+o.py, H.z+o.pz);
+  weaponFx.rotation.set(o.rx,o.ry,o.rz);
 }
 
 /* ---------------- 초기화 ---------------- */
@@ -456,7 +803,7 @@ function init(){
   scene.add(new THREE.AmbientLight(0x5a6a78,0.55));
   const key=new THREE.DirectionalLight(0xffeedd,0.8); key.position.set(30,50,20); scene.add(key);
   const rim=new THREE.DirectionalLight(0x6fa8d8,0.4); rim.position.set(-25,18,-30); scene.add(rim);
-  makeGround(); makeRings(); makeSpear(); updateRings();
+  makeGround(); makeRings(); makeSpear(); initTracer(); updateRings(); syncWeapon();
 
   // 접지 그림자
   const sg=new THREE.CircleGeometry(0.75,20); sg.rotateX(-Math.PI/2);
@@ -488,6 +835,14 @@ addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='Space') e.preventDefault();
   if(e.code==='KeyR') reset();
+  if(e.code>='Digit0'&&e.code<='Digit9'){          // 1~9·0 으로 무기를 바꿔 든다
+    const i=(+e.code.slice(5)+9)%10;              // 0 은 열 번째 자리
+    /* 바꿔 들어도 쿨타임은 그대로 남는다 — 초기화하면 도끼로 한 대 치고 검으로
+       갈아 들어 쿨타임을 건너뛸 수 있다. 탄창도 그대로 둔다(갈아 들어 재장전을
+       건너뛰지 못하게). 다만 하던 재장전은 끊긴다. */
+    if(i<WEAPONS.length && i!==WI){ WI=i; RELOAD.t=0; syncWeapon(); msg(WEAPONS[i].n); }
+  }
+  if(e.code==='KeyX') startReload();               // 재장전
   if(e.code==='Tab'){ e.preventDefault();
     const c=document.getElementById('cfg');
     c.style.display=c.style.display==='none'?'block':'none'; }
@@ -506,13 +861,15 @@ addEventListener('mousemove',e=>{
 });
 document.addEventListener('pointerlockchange',()=>{
   document.getElementById('hint').textContent=(document.pointerLockElement===cv)
-    ? 'WASD 이동 · 좌클릭 찌르기 · Tab 설정 접기 · Esc 로 커서 되찾기'
+    ? 'WASD 이동 · 좌클릭 휘두르기 · 1~5 무기 · Tab 설정 접기 · Esc 로 커서 되찾기'
     : '화면을 클릭하면 시점 조작이 시작됩니다';
 });
 function reset(){
   PL.hp=100; PL.stam=100; PL.hits=0;
   PL.pos.set(0,h(0,14),14); PL.vel.set(0,0,0); PL.yaw=Math.PI;
-  G.hp=G.hpMax; G.alive=true; G.pos.set(0,0,-16); setState('wander'); newWanderTarget();
+  G.hp=G.hpMax; G.alive=true; G.frz=0; G.alerted=false; G.pos.set(0,0,-16);
+  magLeft=MAG_FULL; RELOAD.t=0;
+  WI=0; syncWeapon(); setState('wander'); newWanderTarget();
   msg('되살렸다');
 }
 /* 포인터 잠금을 확실히 풀어준다. 잠긴 채로 창을 벗어나면 커서가 사라진 것처럼 보인다. */
@@ -577,17 +934,18 @@ function hud(dt){
   document.getElementById('ehpF').style.width=(G.hp/G.hpMax*100)+'%';
   set('ehpT',G.alive?G.hp+' / '+G.hpMax:'쓰러짐');
   const st=document.getElementById('stName');
-  st.textContent=SNAME[G.state]||G.state;
-  st.className='st'+(G.state==='dash'?' dash':G.state==='prep'?' prep':
-    G.state==='stun'?' stun':'');
+  st.textContent=(G.frz>0&&G.alive)?'굳음':(SNAME[G.state]||G.state);
+  st.className='st'+(G.frz>0?' stun':G.state==='dash'?' dash':
+    G.state==='prep'?' prep':'');
   const d=Math.hypot(G.pos.x-PL.pos.x,G.pos.z-PL.pos.z);
   set('sDist',d.toFixed(1)+' m');
   set('sSpd',G.speed.toFixed(1)+' m/s');
   set('sAlt',(G.pos.y-h(G.pos.x,G.pos.z)).toFixed(2)+' m');
   set('sWing',doWing?G.wing.toFixed(2):'끔');
-  set('sT', G.state==='prep'?(P.prep-G.t).toFixed(2)+' s'
-         : G.state==='stun'?(P.stun-G.t).toFixed(2)+' s'
+  set('sT', G.frz>0?G.frz.toFixed(2)+' s (경직·기절 합)'
+         : G.state==='prep'?(P.prep-G.t).toFixed(2)+' s'
          : G.state==='dash'?G.dashLeft.toFixed(1)+' m 남음' : '–');
+  wepLine();
   set('sHit',PL.hits);
   set('sFps',fps);
   set('armT',ARMOR);
@@ -603,7 +961,7 @@ function loop(){
   let dt=Math.min(0.05,(now-last)/1000); last=now;
   if(slow) dt*=0.5;
   if(!paused){
-    updatePL(dt); updateG(dt); updateSpear(dt);
+    updatePL(dt); updateG(dt); updateSpear(dt); updateGun(dt);
     if(gMesh){
       gMesh.position.copy(G.pos);
       gMesh.rotation.y=G.yaw;
