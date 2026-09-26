@@ -1480,13 +1480,22 @@ vec2 grain(vec3 p){
            이제 광물마다 실제 결을 따른다. 결의 방향은 6 m 짜리 잡음으로 천천히 돌려 바위마다 다르게 눕는다. */
         vec3 ax=normalize(vec3(rn(p/6.0+0.5)-0.5,0.6,rn(p/6.0+3.5)-0.5));   // 이어지는 잡음이라 한 바위 안에서 끊기지 않는다
         if(T==1){
-          /* 공작석 — 동심원 띠. 한 점을 둘러 굽이치는 짙은/옅은 녹색 겹, 모암 위에 얼룩으로만 난다 */
-          vec3 q=p+(vec3(rn(p/0.7),rn(p/0.7+2.1),rn(p/0.7+4.3))-0.5)*0.5;
-          float r=length(q-floor(q/1.6)*1.6-0.8);
-          float band=0.5+0.5*sin(r*38.0+rn(p/0.3)*3.0);
-          float mpat=smoothstep(0.50,0.66,rn(p/0.9+8.8));
-          vec3 mal=mix(vec3(0.04,0.20,0.12),vec3(0.16,0.42,0.28),smoothstep(0.25,0.75,band));
-          c=mix(c,mal*(0.85+0.3*a),mpat*0.7);
+          /* 공작석 — 사진처럼 **가는 띠가 촘촘히 겹겹이** 굽이친다. 짙은 녹색 바탕에 밝은 녹색 가는 선,
+             중심(눈)이 여럿이라 띠가 서로 밀어 휘고, 곳곳에 작은 동그란 눈이 박힌다.
+             띠 간격 약 1.5 cm(주파수 420) · 선 굵기는 띠의 12% 안팎으로 가늘게 · 잡음으로 크게 휘게 한다 */
+          vec3 q=p+(vec3(rn(p/0.45),rn(p/0.45+2.1),rn(p/0.45+4.3))-0.5)*0.30
+                  +(vec3(rn(p/0.12+7.0),rn(p/0.12+9.0),rn(p/0.12+11.0))-0.5)*0.03;
+          vec3 cc=floor(q/0.9)*0.9+0.45+(vec3(rh(floor(q/0.9)),rh(floor(q/0.9)+5.0),rh(floor(q/0.9)+9.0))-0.5)*0.5;
+          float r=length(q-cc);
+          float t=r*420.0+rn(p/0.2)*6.0;
+          float w=fract(t), idb=floor(t);
+          float line=1.0-smoothstep(0.0,0.10+0.08*rh(vec3(idb,1.0,2.0)),abs(w-0.5)*2.0-0.78);   // 가는 밝은 선
+          float tone=rh(vec3(idb,3.0,4.0));                                                    // 띠마다 짙기가 다르다
+          vec3 mal=mix(vec3(0.008,0.07,0.035),vec3(0.015,0.17,0.085),smoothstep(0.2,0.9,tone));
+          mal=mix(mal,vec3(0.07,0.30,0.17),clamp(1.0-line,0.0,1.0)*step(0.35,tone)*0.9);
+          mal=mix(mal,vec3(0.05,0.26,0.15),(1.0-smoothstep(0.0,0.012,r))*0.9);                // 가운데 눈
+          float mpat=smoothstep(0.05,0.22,rn(p/1.3+8.8));                                       // 거의 온 바위가 공작석
+          c=mix(c,mal*mix(1.0,0.9+0.2*a,0.5),mpat*mix(0.75,1.0,nearK));
         }
         else if(T==2){
           /* 석탄 — 반짝이는 띠(비트레인)와 흐린 띠(듀레인)가 켜켜이 · 층에 수직으로 두 갈래 결리(갈라진 금) */
@@ -9307,7 +9316,7 @@ const ICONS={};
 const LUSTRE={
   galena  :{met:1.00,tex:'step'},   // 납빛 정벽 — 계단처럼 어긋난 면
   iron    :{met:0.55,tex:'grain'},
-  copper  :{met:0.50,tex:'vein'},   // 공작석 결 무늬
+  copper  :{met:0.30,tex:'vein'},   // 공작석 결 무늬
   tin     :{met:0.45,tex:'grain'},
   zinc    :{met:0.70,tex:'step'},
   coal    :{met:0.30,tex:'crack'},  // 결을 따라 갈라진 금
