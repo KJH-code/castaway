@@ -1812,7 +1812,7 @@ const COLLIDERS=[];                    // {x,z,r} 나무·바위 충돌체
    칸 반지름(대각선 절반 + 나무 가지가 칸 밖으로 나가는 여유 12 m)을 빼고 잰다. */
 /* 땅 안개가 물리값(가시거리 수십 km)이 되어 150 m 에서 나무가 사라지는 경계가 드러났다 —
    임포스터(나무당 판 4장)를 450 m 까지 그린다 */
-const VIEW_DIST=450, NEAR_DIST=55, TILE=64, COPY_DIST=100;
+const VIEW_DIST=450, NEAR_DIST=55, TILE=64, COPY_DIST=150;
 const TREE_TILES=[];
 const WIND_ON=false;
 /* 풀·갈대·자갈처럼 작은 것은 멀면 안 보인다 — 섬 전체를 한 인스턴스 메시로 들고 있으면 발밑 풀
@@ -1839,7 +1839,7 @@ function updateTileVis(){
     const d=Math.hypot(t.cx-px,t.cz-pz)-t.r;
     const near=d<=NEAR_DIST, mid=!near && d<=VIEW_DIST;
     t.lm.visible=near; t.fm.visible=near;
-    const cp=mid && d<=COPY_DIST;              // 55~100 m 기준 나무 입체 복제 · 그 밖은 같은 나무를 찍은 그림
+    const cp=mid && d<=COPY_DIST;              // 55~150 m 기준 나무 입체 복제 · 그 밖은 같은 나무를 찍은 그림
     if(t.cl){ t.cl.visible=cp; t.cf.visible=cp; }
     if(t.bb) t.bb.visible=mid && !(t.cl&&cp);
   }
