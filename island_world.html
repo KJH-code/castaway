@@ -1840,8 +1840,9 @@ function updateTileVis(){
     const near=d<=NEAR_DIST, mid=!near && d<=VIEW_DIST;
     t.lm.visible=near; t.fm.visible=near;
     const cp=mid && d<=COPY_DIST;              // 55~150 m 기준 나무 입체 복제 · 그 밖은 같은 나무를 찍은 그림
-    if(t.cl){ t.cl.visible=cp; t.cf.visible=cp; }
-    if(t.bb) t.bb.visible=mid && !(t.cl&&cp);
+    if(t.cps){ const lo=d>COPY_MID;               // 90 m 밖 칸은 더 줄인 복제
+      t.cps[0].visible=t.cps[1].visible=cp&&!lo; t.cps[2].visible=t.cps[3].visible=cp&&lo; }
+    if(t.bb) t.bb.visible=mid && !(t.cps&&cp);
   }
 }
 /* 광물별 생김새 배합.
@@ -1924,8 +1925,8 @@ function bakeTreeImpostor(list,kind){
    그 덩어리를 제 자리·크기(q.s/기준.s)·방향으로 한 번씩 찍는다(칸마다 가지·잎 인스턴스 메시 둘).
    줄기는 나무마다 제 것이 늘 그려진다. 기준 나무 자신은 복제본이 곧 제 모습이라 멀어져도 그대로다.
    삼각형: 참나무 한 그루 약 1.8만(가지 3각 기둥 6 · 잎 판 4) — 55~150 m 에 선 나무 수만큼 곱해진다. */
-const FAR_REF={}, FAR_LIMB=0.3, FAR_LEAF=0.3;
-function bakeTreeGeo(p,kind){
+const FAR_REF={}, FAR_LOD=[[0.3,0.3],[0.1,0.1]], COPY_MID=90;   // [가지 몫, 잎 몫] — 55~90 m · 90~150 m
+function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
   const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
   const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
   const merge=(src,idxs,grow)=>{
@@ -1973,8 +1974,8 @@ function buildFarTrees(){
       const d=(p.x-px)**2+(p.z-pz)**2; if(d<bd){ bd=d; best=p; }
     }
     if(!best) continue;
-    if(FAR_REF[kind]){ FAR_REF[kind].geo.limb.dispose(); FAR_REF[kind].geo.leaf.dispose(); }
-    FAR_REF[kind]={p:best, geo:bakeTreeGeo(best,kind)};
+    if(FAR_REF[kind]) for(const g of FAR_REF[kind].geos){ g.limb.dispose(); g.leaf.dispose(); }
+    FAR_REF[kind]={p:best, geos:FAR_LOD.map(([a,b])=>bakeTreeGeo(best,kind,a,b))};
   }
   const M=new THREE.Matrix4(), V=new THREE.Vector3(), Q=new THREE.Quaternion(), S=new THREE.Vector3(), E=new THREE.Euler();
   /* 100 m 밖은 **같은 기준 나무를 찍은 그림**(임포스터) — 450 m 까지 입체 복제를 세우면 나무 수천 그루 ×
@@ -1988,26 +1989,27 @@ function buildFarTrees(){
       const bm=t.bb.material; bm.map=bk.tex; bm.alphaTest=0.35; bm.needsUpdate=true;
       if(t.bb.customDepthMaterial){ const dm=t.bb.customDepthMaterial; dm.map=bk.tex; dm.alphaTest=0.35; dm.needsUpdate=true; }
     }
-    if(t.cl){ propGroup.remove(t.cl); propGroup.remove(t.cf); t.cl.dispose(); t.cf.dispose(); }
-    const fl=new THREE.InstancedMesh(ref.geo.limb,t.lm.material,n);
-    const ff=new THREE.InstancedMesh(ref.geo.leaf,t.fm.material,n);
-    if(t.fm.customDepthMaterial) ff.customDepthMaterial=t.fm.customDepthMaterial;
-    fl.frustumCulled=ff.frustumCulled=false;
+    if(t.cps) for(const m of t.cps){ propGroup.remove(m); m.dispose(); }
+    const cps=[];
+    for(const g of ref.geos){
+      const a=new THREE.InstancedMesh(g.limb,t.lm.material,n), b=new THREE.InstancedMesh(g.leaf,t.fm.material,n);
+      if(t.fm.customDepthMaterial) b.customDepthMaterial=t.fm.customDepthMaterial;
+      a.frustumCulled=b.frustumCulled=false; cps.push(a,b);
+    }
     t.ps.forEach((q,i)=>{
       const k=q.felled?0:q.s/ref.p.s, yaw=q===ref.p?0:((q._hash>>>9)%628)/100;
       V.set(q.x,q.y,q.z); E.set(0,yaw,0); Q.setFromEuler(E); S.set(k,k,k);
-      M.compose(V,Q,S); fl.setMatrixAt(i,M); ff.setMatrixAt(i,M);
-      q._cp=[fl,ff];
+      M.compose(V,Q,S); for(const m of cps) m.setMatrixAt(i,M);
+      q._cp=cps;
       if(bk&&t.bb){                                    // 그림 판때기도 같은 방향·크기로
         _lbV.set(q.x, q.y+bk.can.y0*q.s, q.z);
         _lbS.set(q.felled?0:bk.can.w*q.s, q.felled?0:(bk.can.y1-bk.can.y0)*q.s, q.felled?0:bk.can.w*q.s);
         M.compose(_lbV,Q,_lbS); t.bb.setMatrixAt(q._bbi,M);
       }
     });
-    fl.instanceMatrix.needsUpdate=ff.instanceMatrix.needsUpdate=true;
+    for(const m of cps) m.instanceMatrix.needsUpdate=true;
     if(t.bb) t.bb.instanceMatrix.needsUpdate=true;
-    t.cl=fl; t.cf=ff; fl.visible=ff.visible=false;
-    propGroup.add(fl); propGroup.add(ff);
+    t.cps=cps; for(const m of cps){ m.visible=false; propGroup.add(m); }
   }
 }
 function buildProps(){
