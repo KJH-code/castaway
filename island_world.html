@@ -1830,14 +1830,24 @@ const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
    칸을 128 → 64 m 로 줄였다 — 칸이 크면 55 m 경계가 뭉툭해져 가까운 칸
    안의 먼 나무까지 통째로 자세히 그리게 된다. */
 const ROCK_TILE=64, ROCK_DIST=200, ROCK_TILES=[], ROCK_MAT={};
+/* 화면 밖 칸 거르기 — 칸을 경계구(가로 반경 + 높이 몫 30 m)로 보고 시야 절두체에 안 걸리면 끈다.
+   가장자리가 `CULL_NEAR`(10 m) 안인 칸은 늘 그린다(몸을 돌리는 순간 곁의 나무가 튀어나오지 않게). */
+const CULL_NEAR=10, _tFr=new THREE.Frustum(), _tPM=new THREE.Matrix4(), _tSp=new THREE.Sphere();
+function tileSeen(t,d){
+  if(d<=CULL_NEAR) return true;
+  if(t._cy===undefined) t._cy=heightAt(t.cx,t.cz)+10;
+  _tSp.center.set(t.cx,t._cy,t.cz); _tSp.radius=t.r+30;
+  return _tFr.intersectsSphere(_tSp);
+}
 function updateTileVis(){
   const px=PL.pos.x, pz=PL.pos.z;
+  camera.updateMatrixWorld(); _tPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _tFr.setFromProjectionMatrix(_tPM);
   // 바위 — 칸 가장자리가 200 m 밖이면 통째로 안 그린다
   for(const t of ROCK_TILES) t.m.visible=Math.hypot(t.cx-px,t.cz-pz)-t.r<=ROCK_DIST;
-  for(const t of PROP_TILES){ const v=Math.hypot(t.cx-px,t.cz-pz)-t.r<=t.d; for(const m of t.ms) m.visible=v; }
+  for(const t of PROP_TILES){ const d=Math.hypot(t.cx-px,t.cz-pz)-t.r, v=d<=t.d&&tileSeen(t,d); for(const m of t.ms) m.visible=v; }
   for(const t of TREE_TILES){
-    const d=Math.hypot(t.cx-px,t.cz-pz)-t.r;
-    const near=d<=NEAR_DIST, mid=!near && d<=VIEW_DIST;
+    const d=Math.hypot(t.cx-px,t.cz-pz)-t.r, seen=tileSeen(t,d);
+    const near=seen&&d<=NEAR_DIST, mid=seen&&d>NEAR_DIST&&d<=VIEW_DIST;
     t.lm.visible=near; t.fm.visible=near;
     const cp=mid && d<=COPY_DIST;              // 55~150 m 기준 나무 입체 복제 · 그 밖은 같은 나무를 찍은 그림
     if(t.cps){ const lo=d>COPY_MID;               // 90 m 밖 칸은 더 줄인 복제
