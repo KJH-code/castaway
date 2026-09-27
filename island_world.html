@@ -1848,10 +1848,11 @@ function updateTileVis(){
   for(const t of TREE_TILES){
     const d=Math.hypot(t.cx-px,t.cz-pz)-t.r, seen=tileSeen(t,d);
     const near=seen&&d<=NEAR_DIST, mid=seen&&d>NEAR_DIST&&d<=VIEW_DIST;
-    t.lm.visible=near; t.fm.visible=near;
-    const cp=mid && d<=COPY_DIST;              // 55~150 m 기준 나무 입체 복제 · 그 밖은 같은 나무를 찍은 그림
-    if(t.cps){ const lo=d>COPY_MID;               // 90 m 밖 칸은 더 줄인 복제
-      t.cps[0].visible=t.cps[1].visible=cp&&!lo; t.cps[2].visible=t.cps[3].visible=cp&&lo; }
+    const full=near&&(d<=FULL_DIST||!t.cps);     // 25 m 안 칸만 제 나무 그대로
+    t.lm.visible=full; t.fm.visible=full;
+    const cp=mid && d<=COPY_DIST;              // 기준 나무 복제 · 150 m 밖은 같은 나무를 찍은 그림
+    if(t.cps){ const lv=near&&!full?0:cp?(d>COPY_MID?2:1):-1;   // 25~55 · 55~90 · 90~150 m
+      for(let k=0;k<3;k++) t.cps[2*k].visible=t.cps[2*k+1].visible=lv===k; }
     if(t.bb) t.bb.visible=mid && !(t.cps&&cp);
   }
 }
@@ -1935,7 +1936,7 @@ function bakeTreeImpostor(list,kind){
    그 덩어리를 제 자리·크기(q.s/기준.s)·방향으로 한 번씩 찍는다(칸마다 가지·잎 인스턴스 메시 둘).
    줄기는 나무마다 제 것이 늘 그려진다. 기준 나무 자신은 복제본이 곧 제 모습이라 멀어져도 그대로다.
    삼각형: 참나무 한 그루 약 1.8만(가지 3각 기둥 6 · 잎 판 4) — 55~150 m 에 선 나무 수만큼 곱해진다. */
-const FAR_REF={}, FAR_LOD=[[0.3,0.3],[0.1,0.1]], COPY_MID=90;   // [가지 몫, 잎 몫] — 55~90 m · 90~150 m
+const FAR_REF={}, FAR_LOD=[[0.6,0.6],[0.3,0.3],[0.1,0.1]], FULL_DIST=25, COPY_MID=90;   // [가지 몫, 잎 몫] — 25~55 · 55~90 · 90~150 m
 function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
   const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
   const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
@@ -2004,7 +2005,9 @@ function buildFarTrees(){
     for(const g of ref.geos){
       const a=new THREE.InstancedMesh(g.limb,t.lm.material,n), b=new THREE.InstancedMesh(g.leaf,t.fm.material,n);
       if(t.fm.customDepthMaterial) b.customDepthMaterial=t.fm.customDepthMaterial;
-      a.frustumCulled=b.frustumCulled=false; cps.push(a,b);
+      a.frustumCulled=b.frustumCulled=false;
+      if(cps.length) a.userData.lightRole=b.userData.lightRole='recv';   // 55 m 밖 복제는 그림자를 안 드리운다
+      cps.push(a,b);
     }
     t.ps.forEach((q,i)=>{
       const k=q.felled?0:q.s/ref.p.s, yaw=q===ref.p?0:((q._hash>>>9)%628)/100;
