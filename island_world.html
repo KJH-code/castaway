@@ -1812,14 +1812,14 @@ const COLLIDERS=[];                    // {x,z,r} 나무·바위 충돌체
    칸 반지름(대각선 절반 + 나무 가지가 칸 밖으로 나가는 여유 12 m)을 빼고 잰다. */
 /* 땅 안개가 물리값(가시거리 수십 km)이 되어 150 m 에서 나무가 사라지는 경계가 드러났다 —
    임포스터(나무당 판 4장)를 450 m 까지 그린다 */
-const VIEW_DIST=450, NEAR_DIST=55, TILE=64;
+const VIEW_DIST=450, NEAR_DIST=55, TILE=64, COPY_DIST=100;
 const TREE_TILES=[];
 const WIND_ON=false;
 /* 풀·갈대·자갈처럼 작은 것은 멀면 안 보인다 — 섬 전체를 한 인스턴스 메시로 들고 있으면 발밑 풀
    한 포기 때문에 1920 m 섬의 풀 4만 포기(삼각형 220만)를 매 프레임 다 그렸다. 64 m 칸으로 쪼개
    `PROP_DIST` 밖 칸을 통째로 끈다(updateTileVis). 가까운 풀의 빽빽함은 그대로다. */
 const PROP_TILE=64, PROP_TILES=[];
-const PROP_DIST={grass:85, reed:110, pebble:90, flint:110};
+const PROP_DIST={grass:200, reed:110, pebble:90, flint:110};
 const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
 /* 칸마다 셋 중 하나를 고른다.
      NEAR_DIST(55 m) 안   — 가지와 잎을 다 그린다
@@ -1839,7 +1839,9 @@ function updateTileVis(){
     const d=Math.hypot(t.cx-px,t.cz-pz)-t.r;
     const near=d<=NEAR_DIST, mid=!near && d<=VIEW_DIST;
     t.lm.visible=near; t.fm.visible=near;
-    if(t.bb) t.bb.visible=mid;
+    const cp=mid && d<=COPY_DIST;              // 55~100 m 기준 나무 입체 복제 · 그 밖은 같은 나무를 찍은 그림
+    if(t.cl){ t.cl.visible=cp; t.cf.visible=cp; }
+    if(t.bb) t.bb.visible=mid && !(t.cl&&cp);
   }
 }
 /* 광물별 생김새 배합.
@@ -1914,6 +1916,91 @@ function bakeTreeImpostor(list,kind){
   lm.material.dispose(); fmat.dispose(); lm.dispose&&lm.dispose(); fm.dispose&&fm.dispose();
   const s=p.s;
   return {tex:rt.texture, rt, can:{y0:y0/s, y1:y1/s, w:2*hw/s}};
+}
+/* ── 먼 나무 = 기준 나무 복제 ─────────────────────────────────────────────
+   55 m 밖 나무를 그림 판때기(임포스터) 대신 **진짜 나무 한 그루를 그대로 복제한 입체**로 그린다.
+   상륙 직후 사람에게서 가장 가까운 참나무·전나무 한 그루씩을 기준으로 삼고(`FAR_REF`), 그 나무의
+   가지·잎 인스턴스를 제 밑동 기준 좌표로 옮겨 **한 덩어리 지오메트리로 굳힌다.** 먼 나무는 종류에 따라
+   그 덩어리를 제 자리·크기(q.s/기준.s)·방향으로 한 번씩 찍는다(칸마다 가지·잎 인스턴스 메시 둘).
+   줄기는 나무마다 제 것이 늘 그려진다. 기준 나무 자신은 복제본이 곧 제 모습이라 멀어져도 그대로다.
+   삼각형: 참나무 한 그루 약 1.8만(가지 3각 기둥 6 · 잎 판 4) — 55~150 m 에 선 나무 수만큼 곱해진다. */
+const FAR_REF={};
+function bakeTreeGeo(p,kind){
+  const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
+  const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
+  const merge=(src,idxs)=>{
+    const g0=src.geometry.index?src.geometry.toNonIndexed():src.geometry;
+    const P0=g0.attributes.position, N0=g0.attributes.normal, U0=g0.attributes.uv;
+    const keep=[];
+    for(const i of idxs){ src.getMatrixAt(i,M); M.decompose(pt,q,sc); if(sc.x*sc.y*sc.z>1e-9) keep.push(M.clone().premultiply(off)); }
+    const nv=P0.count, pos=new Float32Array(keep.length*nv*3), nor=new Float32Array(keep.length*nv*3),
+          uv=U0?new Float32Array(keep.length*nv*2):null, v=new THREE.Vector3(), nm=new THREE.Matrix3();
+    keep.forEach((m,k)=>{
+      nm.getNormalMatrix(m);
+      for(let j=0;j<nv;j++){
+        const o=(k*nv+j)*3;
+        v.fromBufferAttribute(P0,j).applyMatrix4(m); pos[o]=v.x; pos[o+1]=v.y; pos[o+2]=v.z;
+        if(N0){ v.fromBufferAttribute(N0,j).applyMatrix3(nm).normalize(); nor[o]=v.x; nor[o+1]=v.y; nor[o+2]=v.z; }
+        if(uv){ uv[(k*nv+j)*2]=U0.getX(j); uv[(k*nv+j)*2+1]=U0.getY(j); }
+      }
+    });
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+    if(uv) g.setAttribute('uv',new THREE.BufferAttribute(uv,2));
+    g.computeBoundingSphere();
+    return g;
+  };
+  const li=[], fi=[];
+  for(let j=0;j<p.limbN;j++){ li.push(p._lbBase+j); for(let k=0;k<LPB;k++) fi.push((p._lbBase+j)*LPB+k); }
+  return {limb:merge(p._lb,li), leaf:merge(p._lf,fi)};
+}
+function buildFarTrees(){
+  if(!TREE_TILES.length) return;
+  const px=PL.pos.x, pz=PL.pos.z;
+  for(const kind of ['oak','fir']){
+    let best=null, bd=1e18;
+    for(const t of TREE_TILES) if(t.kind===kind) for(const p of t.ps){
+      if(p.felled||!p._lb) continue;
+      const d=(p.x-px)**2+(p.z-pz)**2; if(d<bd){ bd=d; best=p; }
+    }
+    if(!best) continue;
+    if(FAR_REF[kind]){ FAR_REF[kind].geo.limb.dispose(); FAR_REF[kind].geo.leaf.dispose(); }
+    FAR_REF[kind]={p:best, geo:bakeTreeGeo(best,kind)};
+  }
+  const M=new THREE.Matrix4(), V=new THREE.Vector3(), Q=new THREE.Quaternion(), S=new THREE.Vector3(), E=new THREE.Euler();
+  /* 100 m 밖은 **같은 기준 나무를 찍은 그림**(임포스터) — 450 m 까지 입체 복제를 세우면 나무 수천 그루 ×
+     1~2.5만 삼각형으로 수천만이 되어 헤드리스가 죽었다(실제 그래픽 카드도 못 버틴다). */
+  const bak={};
+  if(renderer) for(const kind in FAR_REF){ const bk=bakeTreeImpostor([FAR_REF[kind].p],kind); if(bk) bak[kind]=bk; }
+  for(const t of TREE_TILES){
+    const ref=FAR_REF[t.kind]; if(!ref) continue;
+    const n=t.ps.length, bk=bak[t.kind];
+    if(bk&&t.bb){
+      const bm=t.bb.material; bm.map=bk.tex; bm.alphaTest=0.35; bm.needsUpdate=true;
+      if(t.bb.customDepthMaterial){ const dm=t.bb.customDepthMaterial; dm.map=bk.tex; dm.alphaTest=0.35; dm.needsUpdate=true; }
+    }
+    if(t.cl){ propGroup.remove(t.cl); propGroup.remove(t.cf); t.cl.dispose(); t.cf.dispose(); }
+    const fl=new THREE.InstancedMesh(ref.geo.limb,t.lm.material,n);
+    const ff=new THREE.InstancedMesh(ref.geo.leaf,t.fm.material,n);
+    if(t.fm.customDepthMaterial) ff.customDepthMaterial=t.fm.customDepthMaterial;
+    fl.frustumCulled=ff.frustumCulled=false;
+    t.ps.forEach((q,i)=>{
+      const k=q.felled?0:q.s/ref.p.s, yaw=q===ref.p?0:((q._hash>>>9)%628)/100;
+      V.set(q.x,q.y,q.z); E.set(0,yaw,0); Q.setFromEuler(E); S.set(k,k,k);
+      M.compose(V,Q,S); fl.setMatrixAt(i,M); ff.setMatrixAt(i,M);
+      q._cp=[fl,ff];
+      if(bk&&t.bb){                                    // 그림 판때기도 같은 방향·크기로
+        _lbV.set(q.x, q.y+bk.can.y0*q.s, q.z);
+        _lbS.set(q.felled?0:bk.can.w*q.s, q.felled?0:(bk.can.y1-bk.can.y0)*q.s, q.felled?0:bk.can.w*q.s);
+        M.compose(_lbV,Q,_lbS); t.bb.setMatrixAt(q._bbi,M);
+      }
+    });
+    fl.instanceMatrix.needsUpdate=ff.instanceMatrix.needsUpdate=true;
+    if(t.bb) t.bb.instanceMatrix.needsUpdate=true;
+    t.cl=fl; t.cf=ff; fl.visible=ff.visible=false;
+    propGroup.add(fl); propGroup.add(ff);
+  }
 }
 function buildProps(){
   TREE_TILES.length=0; ROCK_TILES.length=0;
@@ -2452,7 +2539,7 @@ function buildProps(){
         });
         bb.instanceMatrix.needsUpdate=true;
         propGroup.add(lm); propGroup.add(fm); propGroup.add(bb);
-        TREE_TILES.push({lm, fm, bb,
+        TREE_TILES.push({lm, fm, bb, ps:b.ps, kind:R.k,
           cx:(b.gx+0.5)*TILE, cz:(b.gz+0.5)*TILE, r:TILE*0.71+12});
       }
     }
@@ -2600,7 +2687,7 @@ function buildProps(){
        갈아 끼우는 순간 모양이 딴판이라 티가 났다. 한 그루를 골라 가지·잎을 그대로 옆에서
        한 번 그려 두고(불러올 때 한 번), 모든 나무의 판때기가 그 사진을 쓴다. 돌아가는 비용은
        예전과 같다(판때기 하나). 판때기 크기(CAN)도 그 나무의 실제 폭·높이로 다시 잡는다. */
-    if(tree&&renderer){
+    if(false&&tree&&renderer){    // 그림 임포스터는 안 쓴다 — 상륙 뒤 buildFarTrees 가 기준 나무 복제로 갈아 끼운다
       const bk=bakeTreeImpostor(list,R.k);
       if(bk){
         CAN=bk.can; const bbMat=list[0]._bb.material;
@@ -6367,6 +6454,7 @@ function shrinkFoliage(p){
         _V.set(p.x,p.y,p.z); _S.set(0,0,0);
         _M.compose(_V,_Q,_S);
         p._bb.setMatrixAt(p._bbi,_M); p._bb.instanceMatrix.needsUpdate=true;
+        if(p._cp) for(const m of p._cp){ m.setMatrixAt(p._bbi,_M); m.instanceMatrix.needsUpdate=true; }
       }
       const ss=p.s*0.22;
       _E.set(0,p.r,0); _Q.setFromEuler(_E);
@@ -11770,7 +11858,7 @@ async function generateWorld(){
   await phase('광상 탐사',82);      placeResources(seed);
   await phase('지형 메시',90);      buildBioTex(); buildChunks(); buildWater();
   await phase('자원 배치',96);      placeProps_(seed);
-  await phase('상륙 준비',99);      cacheMap(); spawnPlayer();
+  await phase('상륙 준비',99);      cacheMap(); spawnPlayer(); buildFarTrees();
                                     INV.slots.length=0; INV.sel=0; invDirty=true;
                                     for(const k in WEAR) WEAR[k]=null; INV.max=INV.base;
                                     invAdd('codex',1);        // 사전은 처음부터 지닌다
