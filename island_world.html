@@ -1924,15 +1924,15 @@ function bakeTreeImpostor(list,kind){
    그 덩어리를 제 자리·크기(q.s/기준.s)·방향으로 한 번씩 찍는다(칸마다 가지·잎 인스턴스 메시 둘).
    줄기는 나무마다 제 것이 늘 그려진다. 기준 나무 자신은 복제본이 곧 제 모습이라 멀어져도 그대로다.
    삼각형: 참나무 한 그루 약 1.8만(가지 3각 기둥 6 · 잎 판 4) — 55~150 m 에 선 나무 수만큼 곱해진다. */
-const FAR_REF={};
+const FAR_REF={}, FAR_LIMB=0.3, FAR_LEAF=0.3;
 function bakeTreeGeo(p,kind){
   const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
   const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
-  const merge=(src,idxs)=>{
+  const merge=(src,idxs,grow)=>{
     const g0=src.geometry.index?src.geometry.toNonIndexed():src.geometry;
     const P0=g0.attributes.position, N0=g0.attributes.normal, U0=g0.attributes.uv;
     const keep=[];
-    for(const i of idxs){ src.getMatrixAt(i,M); M.decompose(pt,q,sc); if(sc.x*sc.y*sc.z>1e-9) keep.push(M.clone().premultiply(off)); }
+    for(const i of idxs){ src.getMatrixAt(i,M); M.decompose(pt,q,sc); if(sc.x*sc.y*sc.z>1e-9) { if(grow&&grow!==1){ M.decompose(pt,q,sc); sc.multiplyScalar(grow); M.compose(pt,q,sc); } keep.push(M.clone().premultiply(off)); } }
     const nv=P0.count, pos=new Float32Array(keep.length*nv*3), nor=new Float32Array(keep.length*nv*3),
           uv=U0?new Float32Array(keep.length*nv*2):null, v=new THREE.Vector3(), nm=new THREE.Matrix3();
     keep.forEach((m,k)=>{
@@ -1951,9 +1951,17 @@ function bakeTreeGeo(p,kind){
     g.computeBoundingSphere();
     return g;
   };
-  const li=[], fi=[];
-  for(let j=0;j<p.limbN;j++){ li.push(p._lbBase+j); for(let k=0;k<LPB;k++) fi.push((p._lbBase+j)*LPB+k); }
-  return {limb:merge(p._lb,li), leaf:merge(p._lf,fi)};
+  /* 줄인 복제(LOD): 55 m 밖이라 잔가지·잎 한 장은 몇 화소다 — 가지는 긴 것 `FAR_LIMB` 몫만,
+     잎은 온 수관에 고루 `FAR_LEAF` 몫만 남기고 그만큼 크게(1/√몫) 해 덮는 넓이를 맞춘다. */
+  const all=[];
+  for(let j=0;j<p.limbN;j++){ p._lb.getMatrixAt(p._lbBase+j,M); M.decompose(pt,q,sc); all.push([sc.y,p._lbBase+j]); }
+  all.sort((a,b)=>b[0]-a[0]);
+  const li=all.slice(0,Math.max(1,Math.ceil(all.length*FAR_LIMB))).map(a=>a[1]);
+  const fi=[]; let h=p._hash>>>0;
+  for(let j=0;j<p.limbN;j++) for(let k=0;k<LPB;k++){
+    h=(h*1664525+1013904223)>>>0; if(h/4294967296<FAR_LEAF) fi.push((p._lbBase+j)*LPB+k);
+  }
+  return {limb:merge(p._lb,li), leaf:merge(p._lf,fi,1/Math.sqrt(FAR_LEAF))};
 }
 function buildFarTrees(){
   if(!TREE_TILES.length) return;
