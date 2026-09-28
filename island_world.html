@@ -1753,7 +1753,7 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
                +0.5*sin(vWW.x*2.7-vWW.z*2.1+uWT*0.6);
       diffuseColor.a=smoothstep(0.03,0.55,d+wig*0.06);   // 물가를 넓게 녹인다
       // 하천 판의 볼록한 모서리 — 판의 삼각형 끝이 땅 위에 세모로 드러나지 않게 녹인다(aEdge 0.25 → 0 · 0.5 이상 → 1)
-      if(uRiver>0.5) diffuseColor.a*=smoothstep(0.26,0.5,vEdge+wig*0.03);
+      if(uRiver>0.5) diffuseColor.a*=smoothstep(0.0,0.5,vEdge+wig*0.04);
       vec3 outgoingLight=col;`);
   };
   m.customProgramCacheKey=()=>'water';
@@ -1800,13 +1800,21 @@ function buildWater(){
     return n?sm/n:null;
   };
   const tris=[], edg=[];
-  /* 가장자리 값 — 이 격자점을 둘러싼 네 칸 중 물길 몫(0.25~1). 볼록한 모서리 점(0.25)만 투명하게 녹인다 —
-     세모꼴은 이 점에서 뾰족하게 튀어나온 삼각형이다. 곧은 둑(0.5)은 그대로 두어 한 칸 폭 개울도 안 사라진다 */
+  /* 가장자리 값 — 이 격자점을 둘러싼 네 칸 중 물길 몫(0~1). 셰이더가 0→0.5 사이에서 알파를 녹인다.
+     **판을 물길 밖으로 한 칸 더 깐다**(둘레 칸) — 물길 칸만 깔면 판이 끝나는 둑에서 물이 아직 깊어
+     알파가 1 인 채로 끊겨 칸 모양 계단·세모가 그대로 보였다. 바깥 둘레 점은 0 이라 한 칸(2.5 m)에 걸쳐 스러진다 */
   const inner=(x,z)=>{ let n=0; for(let d=0;d<4;d++){ const xx=x-(d&1), zz=z-((d>>1)&1);
     if(xx>=0&&zz>=0&&xx<N&&zz<N&&F.river[IDX(xx,zz)]) n++; } return n/4; };
+  // 둘레 점의 수위 — 가까운(4×4 칸) 물길 칸 수위의 평균
+  const vw2=(x,z)=>{ const v=vw(x,z); if(v!==null) return v; let sm=0,n=0;
+    for(let zz=z-2;zz<=z+1;zz++) for(let xx=x-2;xx<=x+1;xx++){
+      if(xx<0||zz<0||xx>=N||zz>=N) continue; const j=IDX(xx,zz); if(F.river[j]){ sm+=F.wlev[j]; n++; } }
+    return n?sm/n:null; };
+  const nearRiver=(x,z)=>{ for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const xx=x+dx, zz=z+dz;
+    if(xx>=0&&zz>=0&&xx<N&&zz<N&&F.river[IDX(xx,zz)]) return true; } return false; };
   for(let z=0;z<N-1;z++) for(let x=0;x<N-1;x++){
-    if(!F.river[IDX(x,z)]) continue;
-    const a=vw(x,z), b=vw(x,z+1), c=vw(x+1,z), d=vw(x+1,z+1);
+    if(!nearRiver(x,z)) continue;
+    const a=vw2(x,z), b=vw2(x,z+1), c=vw2(x+1,z), d=vw2(x+1,z+1);
     if(a===null||b===null||c===null||d===null) continue;
     const X=(x-N/2)*CELL, Z=(z-N/2)*CELL, S=CELL;
     tris.push(X,a,Z, X,b,Z+S, X+S,c,Z,
