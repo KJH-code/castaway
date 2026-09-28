@@ -1400,15 +1400,21 @@ float vn(vec2 p){ return 0.5+0.36*snoise(p); }
         vec2 p=vTW.xz;
         /* 바이옴 색 — 비튼 자리에서 텍스처로 읽는다(경계가 칸·삼각형을 따르지 않고 굽이친다) */
         vec2 wp=p+vec2(snoise(p/16.0),snoise(p/16.0+31.7))*2.6+vec2(snoise(p/3.5+5.1),snoise(p/3.5+9.3))*0.8;
-        diffuseColor.rgb=texture2D(uBio,(wp/uCell+uBioN*0.5+0.5)/uBioN).rgb;
-        float big=vn(p/40.0), mid=vn(p/6.0+7.3), fine=vn(p/0.8+3.1)*0.6+vn(p/0.3+9.7)*0.4;
+        /* 경계를 부드럽게 — 가운데 + 둘레 여섯 점(반경 3.5 m)을 평균한다. 한 점만 읽으면 칸 폭(2.5 m)만큼의 띠로 뚝 바뀐다 */
+        vec2 bu=(wp/uCell+uBioN*0.5+0.5)/uBioN; float br=3.5/uCell/uBioN;
+        vec3 bc=texture2D(uBio,bu).rgb*2.0;
+        for(int k=0;k<6;k++){ float an=float(k)*1.0472+0.5; bc+=texture2D(uBio,bu+vec2(cos(an),sin(an))*br).rgb; }
+        diffuseColor.rgb=bc/8.0;
+        /* 얼룩은 비튼 좌표에서 읽는다 — 곧은 잡음은 둥근 얼룩이 고르게 늘어서 무늬로 읽혔다 */
+        vec2 pw=p+vec2(snoise(p/23.0+1.7),snoise(p/23.0+8.2))*9.0;
+        float big=vn(pw/40.0)*0.65+vn(pw/17.0+4.4)*0.35, mid=vn(pw/6.0+7.3)*0.7+vn(pw/2.6+1.9)*0.3, fine=vn(p/0.8+3.1)*0.6+vn(p/0.3+9.7)*0.4;
         vec3 c=diffuseColor.rgb;
         // 큰 얼룩은 밝기와 색조를 함께 흔든다(마른 데는 누렇게, 젖은 데는 푸르게)
         // 대비는 옅게 — 두 겹 평균이라 값이 가운데로 몰리므로 (v−0.5) 로 흔든다
-        c*=1.0+0.26*(big-0.5);
+        c*=1.0+0.16*(big-0.5);
         c*=mix(vec3(0.96,0.99,1.04),vec3(1.05,1.01,0.93),vn(p/70.0+2.0));
-        c*=1.0+0.14*(mid-0.5);
-        c*=mix(1.0,1.0+0.18*(fine-0.5),nearK);
+        c*=1.0+0.08*(mid-0.5);
+        c*=mix(1.0,1.0+0.12*(fine-0.5),nearK);
         // 바위 — 가파를수록 드러난다. 높이를 따라 층리
         float steep=1.0-smoothstep(0.62,0.82,normalize(vTN).y);
         float strata=0.5+0.5*sin(vTW.y*2.3+vn(p/9.0)*5.0)*0.6+vn(vec2(vTW.y*1.7,p.x/12.0))*0.4;
@@ -1418,7 +1424,7 @@ float vn(vec2 p){ return 0.5+0.36*snoise(p); }
         vec2 e=vec2(0.25,0.0);
         vec2 gr=vec2(vn((p+e.xy)/0.8+3.1)-vn((p-e.xy)/0.8+3.1), vn((p+e.yx)/0.8+3.1)-vn((p-e.yx)/0.8+3.1));
         float lowSun=1.0-clamp(uSunDir.y,0.0,1.0);
-        c*=1.0-dot(gr,normalize(uSunDir.xz+1e-4))*(0.35+0.6*lowSun)*nearK*(0.5+steep);
+        c*=1.0-dot(gr,normalize(uSunDir.xz+1e-4))*(0.18+0.32*lowSun)*nearK*(0.5+steep);
         diffuseColor.rgb=c;
       }`);
   };
@@ -1745,7 +1751,7 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
          알파를 0.06 m 부터 올려 메시와 만나는 금을 투명한 데로 밀고, 잔물결 잡음으로 물가를 굽이치게 한다 */
       float wig=sin(vWW.x*0.9+sin(vWW.z*0.7)*1.6)*sin(vWW.z*1.1+sin(vWW.x*0.5)*1.3)
                +0.5*sin(vWW.x*2.7-vWW.z*2.1+uWT*0.6);
-      diffuseColor.a=smoothstep(0.06,0.34,d+wig*0.05);
+      diffuseColor.a=smoothstep(0.03,0.55,d+wig*0.06);   // 물가를 넓게 녹인다
       // 하천 판의 볼록한 모서리 — 판의 삼각형 끝이 땅 위에 세모로 드러나지 않게 녹인다(aEdge 0.25 → 0 · 0.5 이상 → 1)
       if(uRiver>0.5) diffuseColor.a*=smoothstep(0.26,0.5,vEdge+wig*0.03);
       vec3 outgoingLight=col;`);
