@@ -1502,7 +1502,7 @@ vec2 grain(vec3 p){
           }
           /* 띠 간격 약 1.4 cm(주파수 70). 예전 420(2.4 mm)은 화소보다 가늘어 뭉개졌다.
              화소 하나가 덮는 길이(거리×0.0016)가 띠 폭에 가까워지면 무늬를 평균색으로 녹인다 */
-          float FQ=70.0;
+          float FQ=140.0;   // 띠 간격 약 7 mm
           float t=r*FQ+rn(p/0.2)*3.0;
           float w=fract(t), idb=floor(t);
           float line=1.0-smoothstep(0.0,0.14+0.08*rh(vec3(idb,1.0,2.0)),abs(w-0.5)*2.0-0.70);
@@ -1510,8 +1510,6 @@ vec2 grain(vec3 p){
           vec3 mal=mix(vec3(0.008,0.07,0.035),vec3(0.015,0.17,0.085),smoothstep(0.2,0.9,tone));
           mal=mix(mal,vec3(0.07,0.30,0.17),clamp(1.0-line,0.0,1.0)*step(0.35,tone)*0.9);
           mal=mix(mal,vec3(0.05,0.26,0.15),(1.0-smoothstep(0.0,0.02,r))*0.9);
-          float blur=clamp(dist*0.0016*FQ*3.0-0.5,0.0,1.0);
-          mal=mix(mal,vec3(0.025,0.14,0.07),blur);
           c=mal*mix(1.0,0.9+0.2*a,0.5);                                                          // 온 바위가 공작석 — 본래 색은 안 남긴다
         }
         else if(T==2){
