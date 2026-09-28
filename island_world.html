@@ -1642,7 +1642,7 @@ function waterMat(river){
       if(i==4) return vec3(-1.10,5.3,0.028); if(i==5) return vec3(0.80,3.1,0.017);
       if(i==6) return vec3(2.30,1.7,0.009); return vec3(-2.60,0.9,0.005); }
     `;
-    sh.vertexShader='uniform float uWT;\nuniform float uRiver;\nvarying vec3 vWW;\nvarying vec3 vVD;\n'+WAVES+
+    sh.vertexShader='uniform float uWT;\nuniform float uRiver;\nvarying vec3 vWW;\nvarying vec3 vVD;\nattribute float aEdge;\nvarying float vEdge;\n'+WAVES+
       sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
       vec3 wp0=(modelMatrix*vec4(transformed,1.0)).xyz;
       if(uRiver<0.5){
@@ -1650,11 +1650,13 @@ function waterMat(river){
           transformed.y+=w.z*sin(k*dot(d,wp0.xz)-sqrt(G*k)*uWT); }
       }
       vWW=(modelMatrix*vec4(transformed,1.0)).xyz;
+      vEdge=aEdge;
       // 눈→물 방향(세계) — 카메라 공간 위치를 뷰 행렬의 회전으로 되돌린다(cameraPosition 은 믿지 않는다)
       vec3 mvp=(modelViewMatrix*vec4(transformed,1.0)).xyz;
       vVD=vec3(dot(viewMatrix[0].xyz,mvp),dot(viewMatrix[1].xyz,mvp),dot(viewMatrix[2].xyz,mvp));`);
     sh.fragmentShader=`uniform float uWT;
 uniform float uRiver;
+varying float vEdge;
 uniform vec3 uSunDir;
 uniform vec3 uSunCol;
 uniform vec3 uAmb;
@@ -1744,6 +1746,8 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       float wig=sin(vWW.x*0.9+sin(vWW.z*0.7)*1.6)*sin(vWW.z*1.1+sin(vWW.x*0.5)*1.3)
                +0.5*sin(vWW.x*2.7-vWW.z*2.1+uWT*0.6);
       diffuseColor.a=smoothstep(0.06,0.34,d+wig*0.05);
+      // 하천 판의 볼록한 모서리 — 판의 삼각형 끝이 땅 위에 세모로 드러나지 않게 녹인다(aEdge 0.25 → 0 · 0.5 이상 → 1)
+      if(uRiver>0.5) diffuseColor.a*=smoothstep(0.26,0.5,vEdge+wig*0.03);
       vec3 outgoingLight=col;`);
   };
   m.customProgramCacheKey=()=>'water';
@@ -1789,7 +1793,11 @@ function buildWater(){
     }
     return n?sm/n:null;
   };
-  const tris=[];
+  const tris=[], edg=[];
+  /* 가장자리 값 — 이 격자점을 둘러싼 네 칸 중 물길 몫(0.25~1). 볼록한 모서리 점(0.25)만 투명하게 녹인다 —
+     세모꼴은 이 점에서 뾰족하게 튀어나온 삼각형이다. 곧은 둑(0.5)은 그대로 두어 한 칸 폭 개울도 안 사라진다 */
+  const inner=(x,z)=>{ let n=0; for(let d=0;d<4;d++){ const xx=x-(d&1), zz=z-((d>>1)&1);
+    if(xx>=0&&zz>=0&&xx<N&&zz<N&&F.river[IDX(xx,zz)]) n++; } return n/4; };
   for(let z=0;z<N-1;z++) for(let x=0;x<N-1;x++){
     if(!F.river[IDX(x,z)]) continue;
     const a=vw(x,z), b=vw(x,z+1), c=vw(x+1,z), d=vw(x+1,z+1);
@@ -1797,6 +1805,8 @@ function buildWater(){
     const X=(x-N/2)*CELL, Z=(z-N/2)*CELL, S=CELL;
     tris.push(X,a,Z, X,b,Z+S, X+S,c,Z,
               X+S,c,Z, X,b,Z+S, X+S,d,Z+S);
+    const ea=inner(x,z), eb=inner(x,z+1), ec=inner(x+1,z), ed=inner(x+1,z+1);
+    edg.push(ea,eb,ec, ec,eb,ed);
   }
   if(tris.length){
     const g=new THREE.BufferGeometry();
@@ -1806,6 +1816,7 @@ function buildWater(){
     const nrm=new Float32Array(tris.length);
     for(let i=1;i<nrm.length;i+=3) nrm[i]=1;
     g.setAttribute('normal',new THREE.BufferAttribute(nrm,3));
+    g.setAttribute('aEdge',new THREE.BufferAttribute(new Float32Array(edg),1));
     g.computeBoundingSphere();
     riverMesh=new THREE.Mesh(g,waterMat(true));
     riverMesh.userData.lightRole='recv';
