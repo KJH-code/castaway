@@ -620,6 +620,7 @@ function genBase(seed){
       // 해안 완만화: 해수면 ±BAND 구간을 압축 → 넓은 해빈·간석지·완사면 형성
       const BAND=15;
       if(Math.abs(e)<BAND) e=Math.sign(e)*Math.pow(Math.abs(e)/BAND,2.3)*BAND;
+      if(e<0) e*=1.6;   // 바다를 더 깊게 — 해안선(0)은 그대로이고 물 밑만 1.6배
       F.elev[IDX(x,z)]=e;
     }
   }
@@ -770,8 +771,8 @@ function hydrology(){
   for(let i=0;i<N*N;i++) if(h[i]>0.4 && F.flow[i]>thr) core.push(i);
 
   for(const i of core){
-    // 하폭 3~14 m — 유량이 많을수록 넓다
-    const rM=clamp(1.6+Math.log(F.flow[i]/thr+1)*2.2, 1.6, 7.0);
+    // 하폭 4~19 m — 유량이 많을수록 넓다
+    const rM=clamp(2.2+Math.log(F.flow[i]/thr+1)*2.9, 2.2, 9.5);   // 예전 1.6~7 m 에서 1.35배로 넓혔다
     const rC=rM/CELL, rc=Math.ceil(rC);
     const cx=i%N, cz=(i/N)|0;
     for(let dz=-rc;dz<=rc;dz++) for(let dx=-rc;dx<=rc;dx++){
@@ -11275,9 +11276,11 @@ function updatePlayer(dt){
   const wl=(sm.river&&sm.elev>0)?waterLevelAt(p.x,p.z):0;
   const depth=Math.max(0,wl-gy);          // 수심
   const sub=Math.max(0,wl-p.y);           // 플레이어 발이 잠긴 깊이
-  PL.swim = depth>1.7 && sub>0.6;
+  // 헤엄은 가슴 넘게 잠겨야 — 하천(수심 1 m 안팎)은 걸어서 건넌다. 예전 1.7 m 는 하천 판 경사에서도 걸렸다
+  const SWIMD=(sm.river&&sm.elev>0)?2.6:2.2;
+  PL.swim = depth>SWIMD && sub>1.0;
   PL.depth = depth;                       // 그물질 판정에 쓴다
-  PL.wade = clamp(depth/1.7,0,1);
+  PL.wade = clamp(depth/SWIMD,0,1);
 
   // 하중 페널티 — 만재에서 속도 55%, 80% 이상이면 달릴 수 없다
   const load=invLoad();
