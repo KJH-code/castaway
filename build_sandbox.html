@@ -1824,11 +1824,11 @@ const ITEMS={
   chitin:     {n:'키틴',       kg:0.5,  c:0x4a5a4e,
                use:'가고일 껍질 — 철보다 무르지만 절반 무게다'},
   bone:       {n:'뼈',         kg:0.7,  c:0xd6cfb4,
-               use:'북극곰 뼈 — 창대와 망치 머리로 쓴다'},
+               use:'아르크토스 뼈 — 창대와 망치 머리로 쓴다'},
   hide:       {n:'가죽',       kg:1.1,  c:0x8a6a4a,
-               use:'북극곰 가죽 — 손잡이를 감고 이음매를 묶는다'},
+               use:'아르크토스 가죽 — 손잡이를 감고 이음매를 묶는다'},
   spider_silk:{n:'거미 실',     kg:0.2,  c:0xd8d4c8,
-               use:'모방 거미의 실 — 노끈보다 가늘고 훨씬 질기다'},
+               use:'스킨워커의 실 — 노끈보다 가늘고 훨씬 질기다'},
   mimic_flesh:{n:'모방 조직',   kg:0.9,  c:0x6a4a5a,
                use:'삼킨 것의 모습을 베끼는 살 — 무엇이든 될 수 있어 아무것도 아니다'},
   pot_sand:   {n:'모래 담은 토기', kg:3.4, c:0xc9b98a,
@@ -1887,7 +1887,7 @@ const ITEMS={
   /* 사냥물 방어구 — 무기와 같은 셈법이다. 방어는 청동·철에 못 미치지만
      무게가 3분의 1이라 짐을 지고도 뛸 수 있고, 가죽은 따뜻하기까지 하다. */
   coat_hide:  {n:'가죽 외투',  kg:3.0,  c:0x8a6a4a,
-               use:'북극곰 가죽을 통째로 걸친다 — 가볍고 몹시 따뜻하다',
+               use:'아르크토스 가죽을 통째로 걸친다 — 가볍고 몹시 따뜻하다',
                wear:{slot:'armor', armor:4, warm:6}},
   scale_chitin:{n:'키틴 갑옷', kg:4.5,  c:0x4a5a4e,
                use:'키틴 판을 비늘처럼 겹쳐 꿰었다 — 청동보다 낫고 절반 무게다',
@@ -1951,7 +1951,7 @@ const ITEMS={
 
   /* 철기 무기 — 넷이 서로 다른 값을 판다.
      검은 빠르게 여러 번, 창은 멀리서, 도끼는 한 번에 크게, 해머는 상대를 멈춰 세운다.
-     북극곰 경직 1.05초짜리 틈에 넣을 수 있는 피해는
+     아르크토스 경직 1.05초짜리 틈에 넣을 수 있는 피해는
        검 3타 90 · 창 2타 80 · 도끼 1타 80 · 해머 1타 55(+기절) 로 엇비슷하다.
      길게 끌면 검이 초당 75 로 가장 세지만, 사거리가 1.5 m 라 곰 품에 들어가야 한다 —
      빠른 만큼 가까이 붙는 것이 검의 값이다. */
@@ -2828,7 +2828,7 @@ const RECIPES=[
   {id:'coat_hide', tier:'뼈와 키틴', n:'가죽 외투', out:{id:'coat_hide',n:1},
    time:30, stam:24,
    note:'가죽을 무두질해 어깨에서 무릎까지 덮는다. 방어는 낮아도 3 kg 이고, '
-       +'북극곰 가죽이라 몹시 따뜻하다.',
+       +'아르크토스 가죽이라 몹시 따뜻하다.',
    in:[{id:'hide',n:3},{id:'bone',n:1},{id:'cord',n:3}],
    need:[{tag:'sharp',n:1}]},
 
@@ -5229,22 +5229,22 @@ const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
 
    가중치는 전성기에서 멀어질수록 반씩 줄어드는 종 모양이라 날마다 값이 바뀐다.
    그래서 몹들이 저절로 순서대로 들어왔다 물러난다.
-   북극곰의 전성기 16일·배증 3일은 12일에 가고일과 개체수가 맞도록 맞춘 값이다.
-   가중치는 가고일 25 대 북극곰 40 으로 곰이 높은데, 예산이 바닥날 무렵엔 값싼
+   아르크토스의 전성기 16일·배증 3일은 12일에 가고일과 개체수가 맞도록 맞춘 값이다.
+   가중치는 가고일 25 대 아르크토스 40 으로 곰이 높은데, 예산이 바닥날 무렵엔 값싼
    가고일만 들어갈 수 있어 마지막 자리를 가고일이 쓸어가기 때문이다. 그만큼을
    곰 쪽에 얹어야 실제 마릿수가 같아진다 (12일 실측 3.16 대 3.12). */
 /* drop — 한 마리를 잡으면 나오는 것. 그 재료로 만드는 무기 두 자루 분이 기준이다
    (키틴 검 3 · 키틴 도끼 3 → 키틴 6 / 뼈 창 3 · 뼈 해머 4 → 뼈 8 에 가죽 3). */
 const MOBS=[
   //  id            이름              power first peak rise fall
-  {id:'gargoyle',  n:'곤충형 가고일', power:   1, first: 2, peak: 4, rise:2, fall: 4,
+  {id:'gargoyle',  n:'가고일', power:   1, first: 2, peak: 4, rise:2, fall: 4,
    drop:[{id:'chitin',n:6}]},
-  {id:'bear',      n:'북극곰',        power:   3, first: 2, peak:16, rise:3, fall: 8,
+  {id:'bear',      n:'아르크토스',        power:   3, first: 2, peak:16, rise:3, fall: 8,
    drop:[{id:'bone',n:8},{id:'hide',n:3}]},
   {id:'saltcrab',  n:'소금게',        power:   4, first: 3, peak:18, rise:3, fall: 6},
-  /* 모방 거미 — 먹은 것의 모습을 흉내 낸다. 멀티플레이가 붙으면 시신이나 산 사람을
+  /* 스킨워커 — 먹은 것의 모습을 흉내 낸다. 멀티플레이가 붙으면 시신이나 산 사람을
      삼켜 그 사람으로 변신한다(계획). 지금은 혼자 하는 게임이라 변신할 대상이 없다. */
-  {id:'mimicspider', n:'모방 거미',   power:  10, first: 6, peak:21, rise:3, fall: 6,
+  {id:'mimicspider', n:'스킨워커',   power:  10, first: 6, peak:21, rise:3, fall: 6,
    drop:[{id:'spider_silk',n:6},{id:'mimic_flesh',n:2}]},
   {id:'sulfnewt',  n:'유황 도롱뇽',   power:  20, first:10, peak:24, rise:3, fall: 6},
   {id:'stonewing', n:'석화 가고일',   power:  35, first:13, peak:27, rise:3, fall: 6},
@@ -5254,7 +5254,7 @@ const MOBS=[
   {id:'deeparm',   n:'심해 촉수',     power: 200, first:23, peak:35, rise:3, fall: 8},
   {id:'plutonspawn',n:'관입체의 것',  power: 500, first:28, peak:38, rise:3, fall:60}
 ];
-/* 모델이 있는 것은 북극곰뿐이다. 나머지는 표만 있고 섬에는 나오지 않는다 —
+/* 모델이 있는 것은 아르크토스뿐이다. 나머지는 표만 있고 섬에는 나오지 않는다 —
    개체를 붙일 때마다 그 줄의 hold 를 지운다. */
 for(const M of MOBS) if(M.id!=='bear') M.hold=true;
 function mobWeight(M,d){

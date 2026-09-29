@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>전투 시험장 — 북극곰 (내려찍기)</title>
+<title>전투 시험장 — 아르크토스 (내려찍기)</title>
 <style>
   :root{--ink:#cdd8e0;--dim:#6f8390;--acc:#8fc9d6;--panel:rgba(6,10,13,.84);
         --line:rgba(140,175,195,.2);--warn:#e0a24a;--bad:#d8724a}
@@ -85,7 +85,7 @@
       <div class="t"><div class="f" id="hpF" style="width:100%"></div></div></div>
     <div class="bar"><div class="l"><span>기력</span><span id="stT">100</span></div>
       <div class="t"><div class="f" id="stF" style="width:100%"></div></div></div>
-    <div class="bar"><div class="l"><span>북극곰</span><span id="ehpT">–</span></div>
+    <div class="bar"><div class="l"><span>아르크토스</span><span id="ehpT">–</span></div>
       <div class="t"><div class="f" id="ehpF" style="width:100%"></div></div></div>
   </div>
   <div class="pnl" id="state">
@@ -104,7 +104,7 @@
 </div>
 
 <div class="pnl" id="cfg">
-  <div class="grp">북극곰 — 내려찍기</div>
+  <div class="grp">아르크토스 — 내려찍기</div>
   <div class="row2"><label>추격 배율</label><input type="range" id="pMul" min="0.6" max="2" step="0.05" value="1.3"><span class="val" id="vMul"></span></div>
   <div class="row2"><label>공격 모션</label><input type="range" id="pAtk" min="0.3" max="2.5" step="0.05" value="1"><span class="val" id="vAtk"></span></div>
   <div class="row2"><label>경직 시간</label><input type="range" id="pStun" min="0" max="5" step="0.05" value="1.05"><span class="val" id="vStun"></span></div>
@@ -126,8 +126,8 @@
 </div>
 
 <div id="ov">
-  <h1>전투 시험장 — 북극곰</h1>
-  <div class="s">볼리베어의 Q(내려찍기)를 본뜬 북극곰과 붙습니다.
+  <h1>전투 시험장 — 아르크토스</h1>
+  <div class="s">볼리베어의 Q(내려찍기)를 본뜬 아르크토스와 붙습니다.
     곰은 배회하다 여러분을 보면 <b>달리기보다 빠르게</b> 쫓아옵니다 — 도망쳐서 벗어날 수는 없습니다.
     사거리에 닿으면 뒷발로 서서 앞발을 치켜들고(모션 1초) 내려찍습니다.
     곰은 휘두르는 내내 여러분 쪽으로 몸을 돌리므로 <b>옆으로 도는 것만으로는 흘릴 수 없습니다</b> —
@@ -151,7 +151,7 @@
 <script>
 "use strict";
 /* ============================================================================
-   전투 시험장 — 북극곰 · 내려찍기 (볼리베어 Q)
+   전투 시험장 — 아르크토스 · 내려찍기 (볼리베어 Q)
    ----------------------------------------------------------------------------
    본 게임과 분리된 실험장이다. 여기서 수치를 맞춘 뒤 옮겨 붙이면 된다.
 
@@ -365,7 +365,7 @@ const SPEAR=WEAPONS[0];                     // 옛 이름 — 아래에서 cone 
 const CONE=0.77;
 const mitigate=d=>Math.max(1,d*(1-clamp(armSum()/24,0,0.72)));
 
-/* ---- 북극곰 ---- */
+/* ---- 아르크토스 ---- */
 const B={pos:new THREE.Vector3(0,0,-18), yaw:0, hp:400, hpMax:400, frz:0, alerted:false,
          state:'wander', t:0, target:new THREE.Vector3(), dir:new THREE.Vector3(0,0,1),
          speed:0, walkPh:0, hitDone:false, alive:true, flash:0, aimYaw:0};
@@ -521,7 +521,7 @@ function updateRings(){
   }
 }
 
-/* ---------------- 북극곰 AI ---------------- */
+/* ---------------- 아르크토스 AI ---------------- */
 function bGround(){ return h(B.pos.x,B.pos.z); }
 function newWanderTarget(){
   const a=rnd(0,6.283), r=rnd(10,ARENA*0.7);
@@ -752,7 +752,7 @@ function attack(){
   if(W.stun) B.frz+=W.stun;                     // 해머 — 굳은 시간에 그대로 더해진다
   if(B.hp<=0){ B.hp=0; B.alive=false; setState('dead');
     dropLoot(); paused=true; unlock();
-    showOv('북극곰을 잡았다','내려찍기를 '+PL.hits+'번 맞고 '+PL.miss+'번 흘렸습니다.','다시');
+    showOv('아르크토스를 잡았다','내려찍기를 '+PL.hits+'번 맞고 '+PL.miss+'번 흘렸습니다.','다시');
   }else msg(W.n+' −'+W.dmg+(W.stun?' · 기절':''));
 }
 let msgT=0;
