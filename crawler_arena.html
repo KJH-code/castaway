@@ -95,12 +95,12 @@
 
 <div class="pnl" id="cfg">
   <div class="grp">다지류</div>
-  <div class="row2"><label>속도(달리기×)</label><input type="range" id="pSpd" min="0.5" max="1.6" step="0.05" value="1.1"><span class="val" id="vSpd"></span></div>
-  <div class="row2"><label>선회 °/초</label><input type="range" id="pTurn" min="10" max="180" step="5" value="40"><span class="val" id="vTurn"></span></div>
+  <div class="row2"><label>속도(달리기×)</label><input type="range" id="pSpd" min="0.5" max="1.6" step="0.05" value="0.95"><span class="val" id="vSpd"></span></div>
+  <div class="row2"><label>선회 °/초</label><input type="range" id="pTurn" min="10" max="180" step="5" value="75"><span class="val" id="vTurn"></span></div>
   <div class="row2"><label>닿음 피해</label><input type="range" id="pDmg" min="5" max="100" step="1" value="40"><span class="val" id="vDmg"></span></div>
   <div class="row2"><label>피해 간격 초</label><input type="range" id="pTick" min="0.1" max="2" step="0.05" value="0.5"><span class="val" id="vTick"></span></div>
-  <div class="row2"><label>몸 반지름</label><input type="range" id="pRad" min="0.3" max="1.4" step="0.05" value="0.75"><span class="val" id="vRad"></span></div>
-  <div class="row2"><label>보폭 m</label><input type="range" id="pStride" min="0.4" max="3" step="0.1" value="1.2"><span class="val" id="vStride"></span></div>
+  <div class="row2"><label>몸 반지름</label><input type="range" id="pRad" min="0.3" max="2" step="0.05" value="1.1"><span class="val" id="vRad"></span></div>
+  <div class="row2"><label>보폭 m</label><input type="range" id="pStride" min="0.4" max="3" step="0.1" value="1.8"><span class="val" id="vStride"></span></div>
   <div class="grp">보기</div>
   <div>
     <button id="bSlow">절반 속도</button>
@@ -111,9 +111,9 @@
 
 <div id="ov">
   <h1>전투 시험장 — 다지류</h1>
-  <div class="s">몸마디 열세 개 · 다리 스물여섯 개. 체력 1000.
-    머리는 늘 당신을 보고 달려오며 사람 달리기의 1.1배로 빠르지만, 방향을 트는 데 굼뜹니다 —
-    곧게 달아나면 잡히고, 옆으로 비키면 지나칩니다. 뒤 마디는 머리가 지나간 길을 그대로 따라옵니다.
+  <div class="s">몸마디 스물두 개 · 다리 마흔여섯 개 · 몸길이 약 20 m. 체력 1000.
+    머리는 늘 당신을 보고 달려오며 사람 달리기의 0.95배로 조금 느리지만 방향을 빨리 틉니다 —
+    곧게 달아나면 겨우 떨치지만, 옆으로 비켜도 금방 돌아섭니다. 뒤 마디는 머리가 지나간 길을 그대로 따라옵니다.
     몸에 닿아 있는 동안 0.5초마다 40 을 입습니다.</div>
   <div class="k">
     <div><span>WASD</span>이동 · Shift 달리기</div>
@@ -148,7 +148,7 @@ function h(x,z){
 }
 
 /* ---- 설정값 ---- */
-const P={spd:1.1, turn:40, dmg:40, tick:0.5, rad:0.75, stride:1.2};
+const P={spd:0.95, turn:75, dmg:40, tick:0.5, rad:1.1, stride:1.8};
 
 /* ---- 플레이어 ---- */
 const WALK=4.3, RUN=7.4, JUMP=7.6, GRAV=-22, EYE=1.66;
@@ -212,9 +212,9 @@ function makeGround(){
   scene.add(gh);
 }
 /* ============================================================================
-   다지류 — 몸마디 13개 · 다리 26개. 몸은 뼈 사슬(SkinnedMesh)이다.
+   다지류 — 몸마디 22개(모델 13 + 복제 9) · 다리 46개 · 크기 1.5배. 몸은 뼈 사슬(SkinnedMesh)이다.
    ① 머리가 앞장선다: 늘 사람 쪽으로 방향을 틀되 선회가 굼뜨다(P.turn °/초).
-      속도는 사람 달리기의 1.1배(P.spd)라 곧게 달아나면 잡히고, 옆으로 비키면 지나친다.
+      속도는 사람 달리기의 0.95배(P.spd) · 선회 75°/초 — 곧게 달아나면 겨우 떨치고, 옆으로 비켜도 금방 돌아선다.
    ② 뒤 몸마디는 앞 마디를 따라간다: 머리가 지나간 길(`TRAIL`)을 적어 두고,
       마디마다 제 쉼 자세의 머리로부터 길이(s)만큼 뒤의 길 위 점에 선다 — 뱀·지네 걸음.
    ③ 머리는 늘 사람을 본다: 목(Bone_012)을 축으로 머리 두 뼈를 사람 쪽으로 돌린다(±70°).
@@ -231,48 +231,106 @@ let cMesh=null, cBones=null, SPINE=[], LEGS=[], REARLEG=[];
 const TRAIL=[];                              // 머리가 지나간 길 — [x,z] (앞이 최근)
 const TRAIL_STEP=0.08;
 
+const SIZE=1.5;                              // 모델 크기 배율
+const CL_A=3, CL_B=11;                       // 몸마디를 늘린다 — 척추 3~11(Bone_011~003) 아홉 마디를 복제해 11 뒤에 끼운다
 function buildCrawler(){
   const buf=b64buf(MODEL_B64), M=MODEL_META;
-  const TA=(k,T,n)=>new T(buf,M[k][0],M[k][1]);
+  const TA=(k,T)=>new T(buf,M[k][0],M[k][1]);
+  const pos0=TA('pos',Float32Array), nrm0=TA('nrm',Float32Array), uv0=TA('uv',Float32Array);
+  const ji0=TA('ji',Uint8Array), jw0=TA('jw',Float32Array), idx0=TA('idx',Uint32Array);
+  const ibmA=TA('ibm',Float32Array).slice();
+  for(let k=0;k<ibmA.length;k+=16){ ibmA[k+12]*=SIZE; ibmA[k+13]*=SIZE; ibmA[k+14]*=SIZE; }
+  const SPN=['Bone_000','Bone_013','Bone_012','Bone_011','Bone_010','Bone_009','Bone_008',
+             'Bone_007','Bone_006','Bone_005','Bone_004','Bone_003','Bone_002','Bone_001'];
+  const par={}; M.nodes.forEach((n,i)=>n.c.forEach(c=>par[c]=i));
+  const segOf=M.nodes.map((n,i)=>{ let j=i; while(j!=null){ const s=SPN.indexOf(M.nodes[j].n); if(s>=0) return s; j=par[j]; } return -1; });
+  const inS=s=>s>=CL_A&&s<=CL_B;
+  // 뼈 — 노드 표 그대로(크기 배율을 자리에 곱한다)
+  const bones=M.nodes.map(n=>{ const b=new THREE.Bone(); b.name=n.n;
+    b.position.fromArray(n.t).multiplyScalar(SIZE); b.quaternion.fromArray(n.r); return b; });
+  M.nodes.forEach((n,i)=>n.c.forEach(c=>{ if(bones[c]&&M.nodes[c].n.indexOf('Mesh')<0) bones[i].add(bones[c]); }));
+  // 복제 뼈 — 마디 3~11 의 척추·다리 뼈
+  const clone={};
+  M.nodes.forEach((n,i)=>{ if(inS(segOf[i])){ const b=new THREE.Bone(); b.name=n.n+'_c';
+    b.position.fromArray(n.t).multiplyScalar(SIZE); b.quaternion.fromArray(n.r); clone[i]=b; } });
+  M.nodes.forEach((n,i)=>{ if(clone[i]) n.c.forEach(c=>{ if(clone[c]) clone[i].add(clone[c]); }); });
+  const nodeBy=nm=>M.nodes.findIndex(n=>n.n===nm);
+  // 조인트 = (뼈, 역묶음 행렬). 복제 뼈는 원본 뼈의 행렬을 그대로 쓴다
+  const jB=M.joints.map(i=>bones[i]), jI=M.joints.map((_,k)=>new THREE.Matrix4().fromArray(ibmA,k*16));
+  const jSeg=M.joints.map(i=>segOf[i]), jmap=new Map();
+  const getJ=(bone,k)=>{ const key=bone.uuid+'|'+k; let r=jmap.get(key);
+    if(r==null){ r=jB.length; jB.push(bone); jI.push(jI[k].clone()); jmap.set(key,r); } return r; };
+  const aC=clone[nodeBy(SPN[CL_A])], bO=bones[nodeBy(SPN[CL_B])];
+  const nV=pos0.length/3, vd=new Int8Array(nV);
+  for(let v=0;v<nV;v++){ let m=0; for(let q=1;q<4;q++) if(jw0[v*4+q]>jw0[v*4+m]) m=q; vd[v]=jSeg[ji0[v*4+m]]; }
+  const P=[],N=[],U=[],JI=[],JW=[];
+  const pushV=(v,ctx)=>{
+    for(let q=0;q<3;q++){ P.push(pos0[v*3+q]*SIZE); N.push(nrm0[v*3+q]); }
+    U.push(uv0[v*2],uv0[v*2+1]);
+    for(let q=0;q<4;q++){ const k=ji0[v*4+q], s=jSeg[k]; let r=k;
+      if(jw0[v*4+q]>0){
+        if(ctx===0){                            // 원본 — 끊긴 이음매(11|12)만 새 이웃으로
+          if(vd[v]===CL_B&&s===CL_B+1) r=getJ(aC,k);
+          else if(vd[v]===CL_B+1&&s===CL_B) r=getJ(clone[M.joints[k]],k);
+        }else{                                  // 복제 — 제 마디는 복제 뼈, 앞 이웃은 원본 11
+          if(inS(s)) r=getJ(clone[M.joints[k]],k);
+          else if(s===CL_A-1) r=getJ(bO,k);
+        }
+      }
+      JI.push(r); JW.push(jw0[v*4+q]); }
+    return P.length/3-1; };
+  for(let v=0;v<nV;v++) pushV(v,0);
+  const I=[], cmap=new Map(), cv=v=>{ let r=cmap.get(v); if(r==null){ r=pushV(v,1); cmap.set(v,r); } return r; };
+  for(let t=0;t<idx0.length;t+=3){
+    const a=idx0[t],b=idx0[t+1],c=idx0[t+2], sa=vd[a],sb=vd[b],sc=vd[c];
+    const hasB=sa===CL_B||sb===CL_B||sc===CL_B, hasB1=sa===CL_B+1||sb===CL_B+1||sc===CL_B+1;
+    if(!(hasB&&hasB1)) I.push(a,b,c);          // 11|12 이음매는 복제 쪽 이음매가 대신한다
+    if(inS(sa)||inS(sb)||inS(sc)) I.push(cv(a),cv(b),cv(c));
+  }
   const g=new THREE.BufferGeometry();
-  g.setAttribute('position',new THREE.BufferAttribute(TA('pos',Float32Array),3));
-  g.setAttribute('normal',new THREE.BufferAttribute(TA('nrm',Float32Array),3));
-  g.setAttribute('uv',new THREE.BufferAttribute(TA('uv',Float32Array),2));
-  g.setAttribute('skinIndex',new THREE.BufferAttribute(new Uint16Array(TA('ji',Uint8Array)),4));
-  g.setAttribute('skinWeight',new THREE.BufferAttribute(TA('jw',Float32Array),4));
-  g.setIndex(new THREE.BufferAttribute(TA('idx',Uint32Array),1));
+  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));
+  g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));
+  g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(JI,4));
+  g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(JW,4));
+  g.setIndex(new THREE.Uint32BufferAttribute(I,1));
   g.computeBoundingSphere(); g.boundingSphere.radius=1e4;     // 뼈가 움직이므로 거르지 않는다
   const url=URL.createObjectURL(new Blob([new Uint8Array(buf,M.img[0],M.img[1])],{type:'image/jpeg'}));
   const tex=new THREE.TextureLoader().load(url); tex.flipY=false;
   const mat=new THREE.MeshLambertMaterial({map:tex,side:THREE.DoubleSide,skinning:true});
-  // 뼈 — 노드 표 그대로 세운다
-  const bones=M.nodes.map(n=>{ const b=new THREE.Bone(); b.name=n.n;
-    b.position.fromArray(n.t); b.quaternion.fromArray(n.r); return b; });
-  M.nodes.forEach((n,i)=>n.c.forEach(c=>{ if(bones[c]&&M.nodes[c].n.indexOf('Mesh')<0) bones[i].add(bones[c]); }));
-  const ibmA=TA('ibm',Float32Array);
-  const inv=M.joints.map((_,k)=>new THREE.Matrix4().fromArray(ibmA,k*16));
-  const skel=new THREE.Skeleton(M.joints.map(i=>bones[i]),inv);
   cMesh=new THREE.SkinnedMesh(g,mat); cMesh.frustumCulled=false;
-  const root=bones[M.nodes.findIndex(n=>n.n==='Bone_000')];
-  cMesh.add(root); cMesh.bind(skel,new THREE.Matrix4());
+  const root=bones[nodeBy('Bone_000')];
+  cMesh.add(root);
+  for(let s=CL_A;s<=CL_B;s++){ const b=clone[nodeBy(SPN[s])]; if(!b.parent) cMesh.add(b); }
+  const skel=new THREE.Skeleton(jB,jI);
+  cMesh.bind(skel,new THREE.Matrix4());
   scene.add(cMesh); cBones=bones;
+  // 복제 뼈를 원본 자리에 겹쳐 두고 쉼 자세를 잰다
+  for(let s=CL_A;s<=CL_B;s++){ const o=bones[nodeBy(SPN[s])], c=clone[nodeBy(SPN[s])];
+    if(c.parent===cMesh){ cMesh.updateMatrixWorld(true); o.getWorldPosition(c.position); o.getWorldQuaternion(c.quaternion); } }
   cMesh.updateMatrixWorld(true);
-  // 척추 — 머리(Bone_000)에서 꼬리(Bone_001) 차례
-  const by=nm=>bones[M.nodes.findIndex(n=>n.n===nm)];
-  const order=['Bone_000','Bone_013','Bone_012','Bone_011','Bone_010','Bone_009','Bone_008',
-               'Bone_007','Bone_006','Bone_005','Bone_004','Bone_003','Bone_002','Bone_001'];
-  let s=0, prev=null;
-  SPINE=order.map(nm=>{ const b=by(nm), p=new THREE.Vector3(), q=new THREE.Quaternion();
-    b.getWorldPosition(p); b.getWorldQuaternion(q);
-    if(prev) s+=Math.hypot(p.x-prev.x,p.z-prev.z);
-    prev=p; return {b, s, y0:p.y, q0:q.clone(), p:p.clone(), qw:q.clone()}; });
-  // 다리 — Leg_L01_Hip … 뒤에서 앞으로 01~12
-  for(const b of bones){ const m=/^Leg_([LR])(\d\d)_Hip$/.exec(b.name); if(!m) continue;
+  const rest=SPN.map(nm=>{ const b=bones[nodeBy(nm)], p=new THREE.Vector3(), q=new THREE.Quaternion();
+    b.getWorldPosition(p); b.getWorldQuaternion(q); return {p,q}; });
+  const s0=[0]; for(let i=1;i<rest.length;i++) s0.push(s0[i-1]+Math.hypot(rest[i].p.x-rest[i-1].p.x,rest[i].p.z-rest[i-1].p.z));
+  // 새 사슬 — 0..11 원본 · 3'..11' 복제 · 12..13 원본
+  const chain=[];
+  for(let i=0;i<=CL_B;i++) chain.push({b:bones[nodeBy(SPN[i])],src:i,s:s0[i]});
+  const g0=s0[CL_A]-s0[CL_A-1], base=s0[CL_B]+g0-s0[CL_A];
+  for(let i=CL_A;i<=CL_B;i++) chain.push({b:clone[nodeBy(SPN[i])],src:i,s:base+s0[i]});
+  const sb=chain[chain.length-1].s-s0[CL_B];
+  for(let i=CL_B+1;i<SPN.length;i++) chain.push({b:bones[nodeBy(SPN[i])],src:i,s:sb+s0[i]});
+  SPINE=chain.map(c=>({b:c.b, s:c.s, y0:rest[c.src].p.y, q0:rest[c.src].q.clone(),
+                       p:rest[c.src].p.clone(), qw:new THREE.Quaternion()}));
+  // 다리 — 원본·복제 모두. 걸음 위상은 새 사슬에서 붙은 자리로 민다
+  const at=new Map(SPINE.map((S,i)=>[S.b,i]));
+  const allB=bones.concat(Object.values(clone));
+  for(const b of allB){ const m=/^Leg_([LR])(\d\d)_Hip(_c)?$/.exec(b.name); if(!m) continue;
     const knee=b.children[0], ankle=knee&&knee.children[0];
-    LEGS.push({hip:b, knee, ankle, side:m[1]==='L'?0:1, k:+m[2]}); }
+    LEGS.push({hip:b, knee, ankle, side:m[1]==='L'?0:1, k:SPINE.length-at.get(b.parent)}); }
+  const by=nm=>bones[nodeBy(nm)];
   REARLEG=['Bone_018','Bone_022'].map((nm,i)=>({b:by(nm), q0:by(nm).quaternion.clone(), side:i}));
   C.restLen=SPINE[SPINE.length-1].s;
-  placeCrawler(0,-30,0);
+  placeCrawler(0,-40,0);
 }
 /* 곧게 편 채로 (x,z) 에 머리를 두고 방향 hdg 로 세운다 — 길도 그만큼 뒤로 깔아 둔다 */
 function placeCrawler(x,z,hdg){
@@ -374,7 +432,7 @@ function updateCrawler(dt){
   C.touching=false;
   for(const S of SPINE){
     const dx=PL.pos.x-S.p.x, dz=PL.pos.z-S.p.z, d=Math.hypot(dx,dz), R=P.rad+0.35;
-    if(d<R && PL.pos.y<S.p.y+1.0){
+    if(d<R && PL.pos.y<S.p.y+1.5){
       C.touching=true;
       if(d>1e-3){ PL.pos.x=S.p.x+dx/d*R; PL.pos.z=S.p.z+dz/d*R; }
     }
@@ -390,7 +448,7 @@ function crawlerHitMelee(reach){
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
   for(const S of SPINE){
     const dx=S.p.x-PL.pos.x, dz=S.p.z-PL.pos.z, d=Math.hypot(dx,dz);
-    if(d<=reach+P.rad && (dx/d)*fx+(dz/d)*fz>=0.55 && Math.abs(S.p.y-PL.pos.y)<2.6) return true;
+    if(d<=reach+P.rad && (dx/d)*fx+(dz/d)*fz>=0.55 && Math.abs(S.p.y-PL.pos.y)<3.5) return true;
   }
   return false;
 }
