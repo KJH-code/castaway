@@ -114,7 +114,7 @@
   <div class="s">몸마디 예순일곱 개 · 다리 백마흔여섯 개 · 몸길이 약 62 m. 체력 1000.
     머리는 늘 당신을 보고 달려오며 사람 달리기의 0.85배로 느리지만 방향을 빨리 틉니다 —
     곧게 달아나면 떨치지만, 옆으로 비켜도 금방 돌아섭니다. 뒤 마디는 머리가 지나간 길을 그대로 따라옵니다.
-    몸에 닿아 있는 동안 0.5초마다 40 을 입습니다.</div>
+    몸에 닿아 있는 동안 0.5초마다 40 을 입습니다. 가끔(20초에 한 번꼴) 멈춰 노려보다가 50 m 를 곧게 돌진합니다.</div>
   <div class="k">
     <div><span>WASD</span>이동 · Shift 달리기</div>
     <div><span>Space</span>점프</div>
@@ -148,7 +148,7 @@ function h(x,z){
 }
 
 /* ---- 설정값 ---- */
-const P={spd:0.85, turn:50, dmg:40, tick:0.5, rad:1.1, stride:1.8};
+const P={spd:0.85, turn:50, dmg:40, tick:0.5, rad:1.1, stride:1.8, dashEvery:20, dashLen:50};
 
 /* ---- 플레이어 ---- */
 const WALK=4.3, RUN=7.4, JUMP=7.6, GRAV=-22, EYE=1.66;
@@ -368,12 +368,22 @@ function updateCrawler(dt){
     // ① 머리 — 사람 쪽으로 틀되 초당 P.turn 도까지만
     const want=Math.atan2(toX,toZ);
     let d=want-C.hdg; while(d>Math.PI)d-=6.2832; while(d<-Math.PI)d+=6.2832;
-    const mx=P.turn*Math.PI/180*dt;
-    C.hdg+=clamp(d,-mx,mx);
-    C.speed=RUN*P.spd;
+    // 돌진 — 평균 P.dashEvery 초에 한 번: 2초 멈춤 → 0.5초 사람 쪽으로 틀어 겨눔 → 가고일 돌진 빠르기로 50 m 곧게
+    if(C.state==='chase' && Math.random()<dt/P.dashEvery){ C.state='halt'; C.dT=2; }
+    if(C.state==='halt'){ C.dT-=dt; C.speed=0; if(C.dT<=0){ C.state='aim'; C.dT=0.5; } }
+    else if(C.state==='aim'){ C.dT-=dt; C.speed=0;
+      C.hdg+=d*clamp(dt/Math.max(C.dT,dt),0,1);   // 0.5초 안에 정면으로
+      if(C.dT<=0){ C.state='dash'; C.dL=P.dashLen; } }
+    else if(C.state==='dash'){ C.speed=RUN*1.1*1.8;  // gargoyle_arena 돌진: RUN×chase 1.1×dspd 1.8 = 14.7 m/s
+      C.dL-=C.speed*dt; if(C.dL<=0) C.state='chase'; }
+    else{
+      const mx=P.turn*Math.PI/180*dt;
+      C.hdg+=clamp(d,-mx,mx);
+      C.speed=RUN*P.spd; }
     C.head.x+=Math.sin(C.hdg)*C.speed*dt; C.head.z+=Math.cos(C.hdg)*C.speed*dt;
     const lim=ARENA*0.97;
     if(Math.abs(C.head.x)>lim||Math.abs(C.head.z)>lim){
+      if(C.state==='dash') C.state='chase';
       C.head.x=clamp(C.head.x,-lim,lim); C.head.z=clamp(C.head.z,-lim,lim); }
     // 길에 적는다
     const f=TRAIL[0];
@@ -986,8 +996,8 @@ function hud(dt){
   document.getElementById('ehpF').style.width=(C.hp/C.hpMax*100)+'%';
   set('ehpT',C.alive?C.hp+' / '+C.hpMax:'쓰러짐');
   const st=document.getElementById('stName');
-  st.textContent=!C.alive?'쓰러짐':C.frz>0?'기절':hold?'멈춤':'추격';
-  st.className='st'+(C.frz>0?' stun':C.touching?' dash':'');
+  st.textContent=!C.alive?'쓰러짐':C.frz>0?'기절':hold?'멈춤':({halt:'멈춤',aim:'노려봄',dash:'돌진'})[C.state]||'추격';
+  st.className='st'+(C.frz>0?' stun':(C.state==='dash'||C.touching)?' dash':(C.state==='halt'||C.state==='aim')?' prep':'');
   set('sDist',Math.hypot(C.head.x-PL.pos.x,C.head.z-PL.pos.z).toFixed(1)+' m');
   set('sSpd',C.speed.toFixed(1)+' m/s (사람 달리기 '+RUN+')');
   let d=Math.atan2(PL.pos.x-C.head.x,PL.pos.z-C.head.z)-C.hdg;
