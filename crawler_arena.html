@@ -500,7 +500,7 @@ function updateCrawler(dt){
   if(!C) return;
   stepCrawler(C,dt,PL.pos,crwOpt());
   if(!C.alive){ C.touching=false; return; }
-  // 닿기 — 마디 구(반지름 P.rad)에 사람이 들어오면 밀어내고 0.5초마다 피해(방어 무시)
+  // 닿기 — 마디 구(반지름 P.rad)에 사람이 들어오면 밀어내고 0.5초마다 피해(갑옷이 깎는다)
   C.touching=false;
   for(const S of C.SPINE){
     const dx=PL.pos.x-S.p.x, dz=PL.pos.z-S.p.z, d=Math.hypot(dx,dz), R=P.rad+0.35;
@@ -511,7 +511,7 @@ function updateCrawler(dt){
   }
   if(C.touching){
     C.touchT-=dt;
-    if(C.touchT<=0){ C.touchT=P.tick; hurtPlayer(P.dmg); }
+    if(C.touchT<=0){ C.touchT=P.tick; hurtPlayer(P.dmg,true); }
   }else C.touchT=Math.min(C.touchT,0);         // 떨어지면 다음 닿는 순간 바로 한 번
 }
 /* 맞히기 — 마디 구 중 가장 가까운 것 */
@@ -555,7 +555,7 @@ function hurtPlayer(raw,armored){
   PL.hp=clamp(PL.hp-d,0,100);
   const el=document.getElementById('dmg');
   el.style.opacity=0.95; setTimeout(()=>el.style.opacity=0,150);
-  msg((armored?'폭발에 휘말렸다 — ':'몸에 쓸렸다 — ')+d.toFixed(0)+' 피해');
+  msg('맞았다 — '+d.toFixed(1)+' 피해 (방어 '+armSum()+')');
   if(PL.hp<=0) showOv('쓰러졌다','곧게 달아나면 잡힙니다. 머리가 틀기 어려운 쪽으로 크게 비켜 지나가게 하세요.','다시 시작');
 }
 
@@ -1482,7 +1482,7 @@ function hud(dt){
   wepLine();
   set('sHit',PL.hits);
   set('sFps',fps);
-  set('armT',armSum()); set('armR',Math.round((1-armorMul())*100)+'% (폭발만 · 닿음 피해엔 안 듣는다)');
+  set('armT',armSum()); set('armR',Math.round((1-armorMul())*100)+'%');
   if(msgT>0){ msgT-=dt; if(msgT<=0) document.getElementById('msg').style.opacity=0; }
 }
 
