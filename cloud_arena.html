@@ -469,6 +469,31 @@ function win(x,a,b,c,d){
   if(x<=c) return 1;
   const u=(d-x)/(d-c); return u*u*(3-2*u);
 }
+/* ISCCP D1 북반구 중위도(30~65°N) 기상 상태 9개 — 중심값 파일(`D1_MN_all.cent9.1`)의
+   구름 꼭대기 기압 7 × 광학 두께 6 칸을 ISCCP 구름 갈래 아홉으로 묶은 것(위성에서 본 덮개 %).
+   높이: <440 hPa 상층 · 440~680 중층 · >680 하층 / 두께: <3.6 · 3.6~23 · >23.
+   상층 두꺼운 칸(ISCCP '깊은 대류')은 WS1 에서는 전선의 난층운으로, 나머지에서는 적란운으로 옮겼다.
+   상층 얇은 칸은 권운 9 : 권적운 1 로 나눴다. tot 은 그 상태의 전체 구름양(%)이다.
+   출현 빈도 RFO: WS1 8.1 · WS2 8.6 · WS3 9.8 · WS4 10.8 · WS5 7.5 · WS6 32.7 · WS7 7.2 · WS8 4.9 · WS9 10.4 */
+const WS_PROF={
+  1:{tot:98.9, cirrus:6.5, cirrocumulus:0.7, cirrostratus:37.9, nimbostratus:34.3, altocumulus:4.1, altostratus:12.1, cumulus:1.0, stratocumulus:1.7, stratus:0.6},
+  2:{tot:94.5, cirrus:38.5, cirrocumulus:4.3, cirrostratus:19.7, cumulonimbus:1.9, altocumulus:15.8, altostratus:7.8, nimbostratus:1.2, cumulus:3.2, stratocumulus:2.0, stratus:0.2},
+  3:{tot:94.6, cirrus:3.2, cirrocumulus:0.3, cirrostratus:5.0, cumulonimbus:3.5, altocumulus:7.3, altostratus:33.3, nimbostratus:18.9, cumulus:4.2, stratocumulus:12.7, stratus:6.3},
+  4:{tot:88.6, cirrus:9.9, cirrocumulus:1.1, cirrostratus:3.9, cumulonimbus:0.8, altocumulus:32.4, altostratus:17.7, nimbostratus:2.1, cumulus:12.3, stratocumulus:7.4, stratus:0.9},
+  5:{tot:74.3, cirrus:40.9, cirrocumulus:4.5, cirrostratus:2.1, cumulonimbus:0.6, altocumulus:10.2, altostratus:3.5, nimbostratus:0.8, cumulus:7.6, stratocumulus:3.8, stratus:0.4},
+  6:{tot:39.8, cirrus:9.7, cirrocumulus:1.1, cirrostratus:1.5, cumulonimbus:0.9, altocumulus:7.0, altostratus:2.5, nimbostratus:1.0, cumulus:9.2, stratocumulus:5.2, stratus:1.7},
+  7:{tot:90.8, cirrus:2.0, cirrocumulus:0.2, cirrostratus:0.7, cumulonimbus:0.2, altocumulus:4.6, altostratus:8.8, nimbostratus:2.0, cumulus:14.6, stratocumulus:50.9, stratus:6.8},
+  8:{tot:87.1, cirrus:1.5, cirrocumulus:0.2, cirrostratus:0.7, cumulonimbus:0.3, altocumulus:2.3, altostratus:3.7, nimbostratus:1.2, cumulus:14.4, stratocumulus:56.5, stratus:6.3},
+  9:{tot:71.1, cirrus:3.5, cirrocumulus:0.4, cirrostratus:0.6, cumulonimbus:0.3, altocumulus:5.5, altostratus:2.9, nimbostratus:0.9, cumulus:39.2, stratocumulus:16.5, stratus:1.4}
+};
+/* 갈래 % 를 0~1 로 바꾸고, 게임이 겹침을 1−Π(1−a) 로 세므로 그렇게 합쳐도 tot 이 나오게 배율 _f 를 푼다
+   (위성의 갈래 % 는 서로 안 겹친 넓이라 그냥 더하면 tot 이지만, 겹친다고 치면 모자란다) */
+for(const s in WS_PROF){ const P=WS_PROF[s], tot=P.tot/100; delete P.tot;
+  for(const k in P) P[k]/=100;
+  let lo=1, hi=8;
+  for(let it=0;it<40;it++){ const f=(lo+hi)/2; let c=1; for(const k in P) c*=1-Math.min(0.97,P[k]*f); if(1-c<tot) lo=f; else hi=f; }
+  Object.defineProperty(P,'_f',{value:(lo+hi)/2,enumerable:false});
+}
 function updateWeather(){
   const t=gameHours/WEA_PER, T=gameHours;
   /* 위상 — 평균 5일에 한 바퀴. 빠르기를 흔들되 거꾸로 가지는 않게 한다
@@ -498,27 +523,30 @@ function updateWeather(){
      전선의 고층운·난층운은 오면 하늘을 다 덮는다. 세기에 비례해 옅게 했더니
      보통 저기압에서도 하늘이 반쯤만 덮여 흐린 날이 11% 뿐이었다(바다는 25% 안팎). */
   const g=(a,b)=>{ const u=clamp((S-a)/(b-a),0,1); return u*u*(3-2*u); };
-  const fair=1-win(phi,0.36,0.46,0.86,0.90);        // 전선이 하늘을 쥔 동안은 덜 맑다
+  /* 기상 상태가 섞인 몫 — 전선 쪽 일곱은 위상 창(길이 = 출현 빈도) × 저기압 세기, 나머지는 맑은 쪽(WS6·WS9).
+     약한 바퀴는 전선 상태가 안 와서 그 몫이 맑은 쪽으로 간다. */
+  const w={};
+  w[5]=win(phi,0.27,0.29,0.34,0.36)*g(0.05,0.20);
+  w[2]=win(phi,0.34,0.36,0.43,0.45)*g(0.15,0.35);
+  w[1]=win(phi,0.43,0.45,0.51,0.53)*g(0.30,0.50);
+  w[3]=win(phi,0.51,0.53,0.61,0.63)*g(0.30,0.50);
+  w[8]=win(phi,0.61,0.63,0.66,0.68)*g(0.25,0.45);
+  w[7]=win(phi,0.66,0.68,0.73,0.75)*g(0.20,0.40);
+  w[4]=win(phi,0.73,0.75,0.84,0.86)*g(0.20,0.40);
+  let wf=1; for(const s in w) wf-=w[s]; wf=Math.max(0,wf);
+  w[9]=wf*(0.08+0.45*D); w[6]=wf-w[9];              // 얕은 적운은 낮에 는다
   const A={};
-  A.cirrus      = (0.10*on(0x11,20,0.55) + 0.35*g(0.10,0.30)*win(phi,0.28,0.31,0.40,0.45))
-                  *nz(0x12,4);
-  A.cirrocumulus= 0.14*g(0.15,0.35)*win(phi,0.32,0.34,0.37,0.40)*on(0x13,6,0.3);
-  A.cirrostratus= 0.90*g(0.20,0.45)*win(phi,0.35,0.38,0.50,0.55);
-  A.altocumulus = (0.12*fair*on(0x14,16,0.58) + 0.25*g(0.2,0.4)*win(phi,0.43,0.46,0.52,0.55)
-                  +0.45*g(0.3,0.5)*win(phi,0.74,0.77,0.86,0.89))*nz(0x15,5);
-  A.altostratus = 0.95*g(0.30,0.55)*win(phi,0.42,0.45,0.56,0.59);
-  A.nimbostratus= 0.97*g(0.42,0.65)*win(phi,0.53,0.56,0.64,0.66);
-  A.stratus     = (0.30*fair*N*on(0x16,14,0.80) + 0.75*g(0.30,0.60)*win(phi,0.61,0.63,0.69,0.71))
-                  *nz(0x17,4);
-  A.stratocumulus=(0.55*fair*(0.6+0.4*N)*on(0x18,18,0.50)
-                  +0.70*g(0.25,0.50)*win(phi,0.66,0.69,0.76,0.79))*nz(0x19,5);
-  A.cumulus     = (0.26*fair*D*on(0x1a,20,0.12) + 0.35*g(0.2,0.5)*(0.4+0.6*D)
-                  *win(phi,0.85,0.88,0.99,1.01))*nz(0x1b,3);
-  A.cumulonimbus= 0.30*g(0.40,0.75)*(0.35+0.65*D)*win(phi,0.77,0.79,0.87,0.89);
-  /* 해양 연평균 구름양(Eastman·Warren·Hahn 2011, 선박 관측 1954~2008)에 맞춘 배율 —
-     층적운 22% · 적운 13% · 적란운 6% · 난층운 5% · 고층운 6%. 재 보니 층적운 13.7 · 적운 4.7 · 적란운 0.9 · 고적운 7.5% 였다.
-     맞춘 뒤 60일×시드 8: 층적운 21 · 적운 12 · 적란운 3 · 고적운 10 · 난층운 5.6 · 고층운 9% · 전체 60% */
-  A.stratocumulus*=1.6; A.cumulus*=2.6; A.cumulonimbus*=3; A.altocumulus*=1.3;
+  for(const k in CLOUD_KINDS) A[k]=0;
+  /* WS6 은 '거의 맑음'의 평균(구름 40%)이라 그대로 쓰면 날마다 똑같이 40% 로 맑은 날이 없다.
+     실제로는 맑은 날과 구름 낀 날이 섞인 평균이므로 날마다 0~2.8배로 흔든다(평균 약 1 · 약 3분의 1 은 0 — 맑은 날) */
+  const qn=2.8*clamp((weaNoise(T/18,weaSalt^0x61)-0.35)/0.4,0,1);   // 맑은 쪽 두 상태가 함께 오르내린다
+  const q=[0,0,0,0,0,0,qn,0,0,qn];
+  for(const s in w){ const P=WS_PROF[s]; if(!w[s]) continue; const m=w[s]*P._f*(s==6||s==9?q[s]:1);
+    for(const k in P) A[k]+=m*P[k]; }
+  // 갈래마다 제 흔들림(같은 상태 안에서도 날마다 조금씩 다르다)
+  A.cirrus*=nz(0x12,4); A.altocumulus*=nz(0x15,5); A.stratus*=nz(0x17,4)*(0.7+0.6*N);
+  A.stratocumulus*=nz(0x19,5)*(0.8+0.4*N); A.cumulus*=nz(0x1b,3); A.cirrocumulus*=on(0x13,6,0.3)*1.6;
+  WEA.ws=w;
   let clear=1;
   for(const k in CLOUD_KINDS){
     const a=clamp(A[k]||0,0,0.97); A[k]=a; clear*=1-a;
@@ -533,8 +561,8 @@ function updateWeather(){
   /* 비 — 난층운은 오래 고르게, 적란운은 오락가락(소나기). 층운은 이슬비 */
   const shw=weaNoise(T*1.6,weaSalt^0x51ed);
   WEA.shower=clamp(A.cumulonimbus*4,0,1)*clamp((shw-0.30)/0.2,0,1);
-  WEA.rain=Math.max(clamp((A.nimbostratus-0.45)/0.4,0,1),
-                    WEA.shower, clamp((A.stratus-0.70)/0.3,0,0.25));
+  // 비 — 전선 한가운데(WS1)와 두꺼운 중층(WS3)이 비를 뿌린다. 온난역 낮은 구름(WS8)은 이슬비. 적란운은 소나기
+  WEA.rain=Math.max(w[1]||0, 0.8*(w[3]||0), WEA.shower, 0.2*(w[8]||0));
   WEA.fog =1+c*0.9+WEA.rain*2.2;                    // 흐릴수록·비 올수록 뿌옇다
   WEA.light=1-c*0.40-A.nimbostratus*0.25-WEA.rain*0.3;   // 볕이 죽는다
   /* ── 안개 ──
