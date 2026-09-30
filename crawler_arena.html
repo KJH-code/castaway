@@ -108,8 +108,8 @@
 
 <div class="pnl" id="cfg">
   <div class="grp">다지류</div>
-  <div class="row2"><label>속도(달리기×)</label><input type="range" id="pSpd" min="0.5" max="1.6" step="0.05" value="0.85"><span class="val" id="vSpd"></span></div>
-  <div class="row2"><label>선회 °/초</label><input type="range" id="pTurn" min="10" max="180" step="5" value="50"><span class="val" id="vTurn"></span></div>
+  <div class="row2"><label>속도(달리기×)</label><input type="range" id="pSpd" min="0.5" max="1.6" step="0.05" value="1"><span class="val" id="vSpd"></span></div>
+  <div class="row2"><label>선회 °/초</label><input type="range" id="pTurn" min="10" max="180" step="5" value="30"><span class="val" id="vTurn"></span></div>
   <div class="row2"><label>닿음 피해</label><input type="range" id="pDmg" min="5" max="100" step="1" value="40"><span class="val" id="vDmg"></span></div>
   <div class="row2"><label>피해 간격 초</label><input type="range" id="pTick" min="0.1" max="2" step="0.05" value="0.5"><span class="val" id="vTick"></span></div>
   <div class="row2"><label>몸 반지름</label><input type="range" id="pRad" min="0.3" max="2" step="0.05" value="1.1"><span class="val" id="vRad"></span></div>
@@ -125,9 +125,9 @@
 <div id="ov">
   <h1>전투 시험장 — 다지류</h1>
   <div class="s">몸마디 예순일곱 개 · 다리 백마흔여섯 개 · 몸길이 약 62 m. 체력 1500.
-    머리는 늘 당신을 보고 달려오며 사람 달리기의 0.85배로 느리지만 방향을 빨리 틉니다 —
-    곧게 달아나면 떨치지만, 옆으로 비켜도 금방 돌아섭니다. 뒤 마디는 머리가 지나간 길을 그대로 따라옵니다.
-    몸에 닿아 있는 동안 0.5초마다 40 을 입습니다. 가끔(20초에 한 번꼴) 멈춰 노려보다가 50 m 를 곧게 돌진합니다.</div>
+    머리는 늘 당신을 보고 달려오며 사람 달리기와 같은 빠르기지만 방향을 굼뜨게 틉니다 —
+    곧게 달아나면 거리가 안 벌어지고, 옆으로 크게 비키면 지나칩니다. 뒤 마디는 머리가 지나간 길을 그대로 따라옵니다.
+    몸에 닿아 있는 동안 0.5초마다 40 을 입습니다. 가끔(20초에 한 번꼴) 1초 멈췄다가 노려보고 50 m 를 곧게 돌진합니다.</div>
   <div class="k">
     <div><span>WASD</span>이동 · Shift 달리기</div>
     <div><span>Space</span>점프</div>
@@ -167,7 +167,7 @@ function h(x,z){
 }
 
 /* ---- 설정값 ---- */
-const P={spd:0.85, turn:50, dmg:40, tick:0.5, rad:1.1, stride:1.8, dashEvery:20, dashLen:50};
+const P={spd:1.0, turn:30, dmg:40, tick:0.5, rad:1.1, stride:1.8, dashEvery:20, dashLen:50};
 
 /* ---- 플레이어 ---- */
 const WALK=4.3, RUN=7.4, JUMP=7.6, GRAV=-22, EYE=1.66;
@@ -257,7 +257,7 @@ function makeGround(){
       길이(s)만큼 뒤의 길 위 점에 선다.
    ③ 머리는 늘 표적을 본다: 목(Bone_012)을 축으로 머리 두 뼈를 돌린다(±70°).
    ④ 걸음: 다리 쌍마다 위상이 밀린 물결. 위상은 간 거리로 민다(프레임률 무관).
-   ⑤ 돌진: 쫓는 동안 평균 opt.dashEvery 초에 한 번 — 2초 멈춤 → 0.5초 겨눔 → 가고일 돌진 빠르기로 opt.dashLen m.
+   ⑤ 돌진: 쫓는 동안 평균 opt.dashEvery 초에 한 번 — 1초 멈춤 → 0.5초 겨눔 → 가고일 돌진의 1.2배 빠르기로 opt.dashLen m.
    지오메트리·재질은 한 번만 만들어 나눠 쓰고(`crwBuild`), 뼈는 개체마다 따로 세운다(`makeCrawler`).
    조인트는 (뼈 자리 · 역묶음 행렬) 짝이라 복제 뼈가 원본 행렬을 그대로 쓴다.
    ========================================================================== */
@@ -410,17 +410,19 @@ function stepCrawler(cr,dt,tg,opt){
   else{
     const want=Math.atan2(tx-cr.head.x,tz-cr.head.z);
     let d=want-cr.hdg; while(d>Math.PI)d-=6.2832; while(d<-Math.PI)d+=6.2832;
-    // 돌진 — 평균 dashEvery 초에 한 번: 2초 멈춤 → 0.5초 겨눔 → 가고일 돌진 빠르기(RUN×1.1×1.8 = 14.7 m/s)로 dashLen m
-    if(tg && cr.state==='chase' && Math.random()<dt/opt.dashEvery){ cr.state='halt'; cr.dT=2; }
+    // 돌진 — 평균 dashEvery 초에 한 번: 1초 멈춤 → 0.5초 겨눔 → 가고일 돌진의 1.2배(RUN×1.1×1.8×1.2 = 17.6 m/s)로 dashLen m
+    if(tg && cr.state==='chase' && Math.random()<dt/opt.dashEvery){ cr.state='halt'; cr.dT=1; }
     if(cr.state==='halt'){ cr.dT-=dt; cr.speed=0; if(cr.dT<=0){ cr.state='aim'; cr.dT=0.5; } }
     else if(cr.state==='aim'){ cr.dT-=dt; cr.speed=0;
       cr.hdg+=d*clamp(dt/Math.max(cr.dT,dt),0,1);   // 0.5초 안에 정면으로
       if(cr.dT<=0){ cr.state='dash'; cr.dL=opt.dashLen; } }
-    else if(cr.state==='dash'){ cr.speed=RUN*1.1*1.8;
+    else if(cr.state==='dash'){ cr.speed=RUN*1.1*1.8*1.2;   // 가고일 돌진의 1.2배 = 17.6 m/s
       cr.dL-=cr.speed*dt; if(cr.dL<=0) cr.state='chase'; }
     else{
       cr.state='chase';
-      const mx=opt.turn*Math.PI/180*dt;
+      cr.jT=(cr.jT||0)-dt;                      // 선회력은 1초마다 ±3° 흔든다
+      if(cr.jT<=0){ cr.jT=1; cr.turnJ=(Math.random()*2-1)*3; }
+      const mx=(opt.turn+(cr.turnJ||0))*Math.PI/180*dt;
       cr.hdg+=clamp(d,-mx,mx);
       cr.speed=RUN*opt.spd; }
     cr.head.x+=Math.sin(cr.hdg)*cr.speed*dt; cr.head.z+=Math.cos(cr.hdg)*cr.speed*dt;
