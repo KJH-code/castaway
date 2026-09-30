@@ -420,8 +420,8 @@ function stepCrawler(cr,dt,tg,opt){
       cr.dL-=cr.speed*dt; if(cr.dL<=0) cr.state='chase'; }
     else{
       cr.state='chase';
-      cr.jT=(cr.jT||0)-dt;                      // 선회력은 1초마다 ±3° 흔든다
-      if(cr.jT<=0){ cr.jT=1; cr.turnJ=(Math.random()*2-1)*3; }
+      cr.jT=(cr.jT||0)-dt;                      // 선회력은 0.1초마다 ±20° 흔든다
+      if(cr.jT<=0){ cr.jT=0.1; cr.turnJ=(Math.random()*2-1)*20; }
       const mx=(opt.turn+(cr.turnJ||0))*Math.PI/180*dt;
       cr.hdg+=clamp(d,-mx,mx);
       cr.speed=RUN*opt.spd; }
