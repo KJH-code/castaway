@@ -109,7 +109,7 @@
 <div class="pnl" id="cfg">
   <div class="grp">다지류</div>
   <div class="row2"><label>속도(달리기×)</label><input type="range" id="pSpd" min="0.5" max="1.6" step="0.05" value="1"><span class="val" id="vSpd"></span></div>
-  <div class="row2"><label>선회 °/초</label><input type="range" id="pTurn" min="10" max="180" step="5" value="30"><span class="val" id="vTurn"></span></div>
+  <div class="row2"><label>선회 °/초</label><input type="range" id="pTurn" min="10" max="180" step="5" value="40"><span class="val" id="vTurn"></span></div>
   <div class="row2"><label>닿음 피해</label><input type="range" id="pDmg" min="5" max="100" step="1" value="40"><span class="val" id="vDmg"></span></div>
   <div class="row2"><label>피해 간격 초</label><input type="range" id="pTick" min="0.1" max="2" step="0.05" value="0.5"><span class="val" id="vTick"></span></div>
   <div class="row2"><label>몸 반지름</label><input type="range" id="pRad" min="0.3" max="2" step="0.05" value="1.1"><span class="val" id="vRad"></span></div>
@@ -167,7 +167,7 @@ function h(x,z){
 }
 
 /* ---- 설정값 ---- */
-const P={spd:1.0, turn:30, dmg:40, tick:0.5, rad:1.1, stride:1.8, dashEvery:20, dashLen:50};
+const P={spd:1.0, turn:40, dmg:40, tick:0.5, rad:1.1, stride:1.8, dashEvery:20, dashLen:50};
 
 /* ---- 플레이어 ---- */
 const WALK=4.3, RUN=7.4, JUMP=7.6, GRAV=-22, EYE=1.66;
