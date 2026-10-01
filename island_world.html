@@ -1281,6 +1281,19 @@ function growLimbs(p,TR,emit){
   }
 }
 
+/* 원기둥을 휘고 굵기를 흔든다. f(t,θ,r) → [새 반지름, x 밀기, z 밀기].
+   t 는 밑동 0 → 끝 1. H 를 주면 가운데가 원점인 높이 H 원기둥(줄기)이고, 안 주면 밑동이 원점인 길이 1(가지)다. */
+function gnarl(g,f,H){
+  const p=g.attributes.position;
+  for(let i=0;i<p.count;i++){
+    const x=p.getX(i), y=p.getY(i), z=p.getZ(i);
+    const t=H?(y+H/2)/H:y, r=Math.hypot(x,z), th=Math.atan2(z,x);
+    const [nr,dx,dz]=f(t,th,r), k=r>1e-6?nr/r:0;
+    p.setXYZ(i,x*k+dx,y,z*k+dz);
+  }
+  g.computeVertexNormals();
+  return g;
+}
 function mergeParts(parts){
   const M=new THREE.Matrix4(), NM=new THREE.Matrix3(), V=new THREE.Vector3();
   const chunks=[]; let total=0;
@@ -1395,6 +1408,7 @@ varying float vTD;
 ${SIMPLEX2}
 /* 0..1 로 옮긴 심플렉스 — 예전 값잡음 두 겹 평균과 퍼짐(표준편차 ≈ 0.2)을 맞춘다 */
 float vn(vec2 p){ return 0.5+0.36*snoise(p); }
+vec2 th2(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453); }
 `+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       {
         float nearK=clamp(1.0-vTD/120.0,0.0,1.0);
@@ -1426,6 +1440,37 @@ float vn(vec2 p){ return 0.5+0.36*snoise(p); }
         vec2 gr=vec2(vn((p+e.xy)/0.8+3.1)-vn((p-e.xy)/0.8+3.1), vn((p+e.yx)/0.8+3.1)-vn((p-e.yx)/0.8+3.1));
         float lowSun=1.0-clamp(uSunDir.y,0.0,1.0);
         c*=1.0-dot(gr,normalize(uSunDir.xz+1e-4))*(0.18+0.32*lowSun)*nearK*(0.5+steep);
+        /* ── 발밑 결(30 m 안) — 가까이서 보면 물감 칠한 언덕처럼 매끈하던 것 ──────────
+           ① 흙 알갱이(3·8 cm 두 겹) ② 잔돌 — 22 cm 보로노이 칸의 일부만 돌이 되고, 돌마다
+           해 쪽 면은 밝고 반대쪽·밑동은 그늘(오목한 테두리) ③ 풀빛 땅엔 한 방향으로 늘인
+           잡음으로 풀잎 결 ④ 오목한 데 그늘 — 잔 요철이 낮은 자리를 어둡게(흙 틈·발자국 자리).
+           비탈 바위 위에서는 ①④만 남기고 풀 결은 뺀다. */
+        float dK=clamp(1.0-vTD/30.0,0.0,1.0); dK*=dK;
+        if(dK>0.001){
+          float gA=vn(p/0.03+11.3), gB=vn(p/0.08+5.7);
+          c*=1.0+(0.26*(gA-0.5)+0.18*(gB-0.5))*dK;
+          vec2 q=p/0.22, qi=floor(q), qf=fract(q); float d1=9.0; vec2 cid=vec2(0.0), dv=vec2(0.0);
+          for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++){
+            vec2 o=vec2(float(x),float(y)), r=o+th2(qi+o)-qf; float d=dot(r,r);
+            if(d<d1){ d1=d; cid=qi+o; dv=r; }
+          }
+          vec2 hs=th2(cid+7.1); d1=sqrt(d1);
+          float green=clamp((c.g-max(c.r,c.b))*8.0,0.0,1.0);
+          float stoneP=mix(0.20,0.06,green)+steep*0.25;          // 풀밭엔 돌이 드물고 비탈엔 많다
+          float rad=0.22+0.22*hs.y;
+          float st=step(1.0-stoneP,hs.x)*smoothstep(rad,rad-0.10,d1);
+          vec3 sc=mix(vec3(0.42,0.40,0.37),vec3(0.55,0.50,0.43),th2(cid+3.3).x)*(0.85+0.3*gB);
+          float lit=clamp(0.5-dot(normalize(-dv+1e-4),normalize(uSunDir.xz+1e-4))*0.5*(d1/rad),0.0,1.0);
+          sc*=0.75+0.5*lit;
+          c=mix(c,sc,st*dK);
+          float rim=step(1.0-stoneP,hs.x)*smoothstep(rad+0.05,rad,d1)*(1.0-smoothstep(rad,rad-0.04,d1));
+          c*=1.0-0.35*rim*dK;
+          vec2 gq=vec2(p.x*0.6+p.y*0.8,-p.x*0.8+p.y*0.6);
+          float blade=vn(vec2(gq.x/0.012,gq.y/0.12)+vn(p/0.5)*3.0);
+          c*=1.0+0.30*(blade-0.5)*green*(1.0-steep)*dK*(1.0-st);
+          float cav=smoothstep(0.42,0.25,fine*0.6+gB*0.4);
+          c*=1.0-0.25*cav*dK;
+        }
         diffuseColor.rgb=c;
       }`);
   };
@@ -1975,7 +2020,8 @@ function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
   const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
   const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
   const merge=(src,idxs,grow)=>{
-    const g0=src.geometry.index?src.geometry.toNonIndexed():src.geometry;
+    const gs=src.userData.lo||src.geometry;           // 가지는 낮은 정점판으로 굳힌다
+    const g0=gs.index?gs.toNonIndexed():gs;
     const P0=g0.attributes.position, N0=g0.attributes.normal, U0=g0.attributes.uv;
     const keep=[];
     for(const i of idxs){ src.getMatrixAt(i,M); M.decompose(pt,q,sc); if(sc.x*sc.y*sc.z>1e-9) { if(grow&&grow!==1){ M.decompose(pt,q,sc); sc.multiplyScalar(grow); M.compose(pt,q,sc); } keep.push(M.clone().premultiply(off)); } }
@@ -2105,9 +2151,19 @@ function buildProps(){
          가지 하나하나가 인스턴스라 꺾으면 실제로 그 가지가 사라진다. ---- */
   // 길이 1, 밑동이 원점, +Y 로 뻗는 가지. 방향과 길이는 인스턴스에서 준다
   // 가지가 빽빽해지므로 단면을 3각으로 낮춰 정점 수를 아낀다
-  const limbUnit=mergeParts([
-    {g:new THREE.CylinderGeometry(0.5,1,1,3,1,true), y:0.5}
-  ]);
+  /* 가지는 곧은 원기둥이 아니다 — 마디 여섯으로 쪼개 위로 휘고(빛을 찾아 굽는다) 옆으로 살짝
+     S 자로 굽힌다. 굽힘은 양 끝에서 0 이라 밑동·끝 자리는 그대로다(곁가지·잎이 붙는 자리가 안 바뀐다).
+     굽는 폭은 가지 굵기 단위(인스턴스가 x·z 를 굵기로 늘린다) — 굵은 원가지일수록 크게 굽는다.
+     단면은 4각, 마디마다 굵기를 ±8% 흔들어 옹이 진 결을 낸다. */
+  const limbUnit=(()=>{
+    const g=new THREE.CylinderGeometry(0.5,1,1,4,6,true); g.translate(0,0.5,0);
+    return gnarl(g,(t,th,r)=>[r*(1+0.08*Math.sin(th*2+t*9)), 1.25*Math.sin(Math.PI*t), 0.5*Math.sin(2*Math.PI*t)]);
+  })();
+  /* 먼 나무 복제(`bakeTreeGeo`)용 — 3각 3마디로 같은 활 모양만. 6 → 18 삼각형(가까운 것은 48) */
+  const limbLo=(()=>{
+    const g=new THREE.CylinderGeometry(0.5,1,1,3,3,true); g.translate(0,0.5,0);
+    return gnarl(g,(t,th,r)=>[r, 1.25*Math.sin(Math.PI*t), 0]);
+  })();
   /* ---- 잎 ----------------------------------------------------------------
      예전에는 정20면체 공 하나였다. 멀리서는 수관으로 읽히는데 가까이 가면
      초록 자갈이 가지 끝에 박힌 꼴이었다.
@@ -2282,8 +2338,18 @@ function buildProps(){
   TREE_T.oak=TREE.oak;   TREE_T.fir=TREE.fir;
 
   const geoFor={
-    oak:    [new THREE.CylinderGeometry(0.26,0.5,5.2,5)],
-    fir:    [new THREE.CylinderGeometry(0.2,0.44,7.0,5)],
+    /* 줄기 — 곧은 5각 기둥이던 것을 8각 10마디로 쪼개 ① 밑동을 뿌리 쪽으로 벌리고(판근 —
+       참나무 다섯 갈래·전나무 여섯 갈래) ② 위로 갈수록 한쪽으로 살짝 굽히고 ③ 세로 골(나무껍질 결)을
+       판다. 굽는 폭은 가지가 붙는 높이에서도 줄기 반지름 안이라 가지가 줄기에서 떨어져 보이지 않는다.
+       나무마다 줄기를 돌려 세우므로 굽는 쪽은 나무마다 다르다. */
+    oak:    [gnarl(new THREE.CylinderGeometry(0.26,0.5,5.2,8,10),(t,th,r)=>{
+              const flare=1+0.6*Math.exp(-t*9)*(1+0.35*Math.cos(5*th));
+              return [r*flare*(1+0.045*Math.sin(th*9+t*7)), 0.16*Math.sin(2.2*t+0.3)*t, 0.10*Math.sin(3.7*t)*t];
+            },5.2)],
+    fir:    [gnarl(new THREE.CylinderGeometry(0.2,0.44,7.0,8,10),(t,th,r)=>{
+              const flare=1+0.45*Math.exp(-t*10)*(1+0.3*Math.cos(6*th));
+              return [r*flare*(1+0.04*Math.sin(th*11+t*5)), 0.07*Math.sin(2.6*t)*t, 0.05*Math.sin(4.1*t)*t];
+            },7.0)],
     flint:  [new THREE.IcosahedronGeometry(0.18,0)],
     pebble: [new THREE.IcosahedronGeometry(0.13,0)],
     granite:[new THREE.IcosahedronGeometry(1.8,0)],
@@ -2581,6 +2647,7 @@ function buildProps(){
       if(leafDepth) leafDepth.userData.wind='leaf';   // 그림자도 같이 흔든다
       for(const b of bins.values()){
         const lm=new THREE.InstancedMesh(limbUnit,limbMat,b.total);
+        lm.userData.lo=limbLo;
         const fm=new THREE.InstancedMesh(R.k==='oak'?leafUnitOak:leafUnitFir,
                                          leafMat,b.total*LPB);
         const bb=new THREE.InstancedMesh(bbUnit,bbMat,b.ps.length);
