@@ -1283,6 +1283,65 @@ function growLimbs(p,TR,emit){
 
 /* 원기둥을 휘고 굵기를 흔든다. f(t,θ,r) → [새 반지름, x 밀기, z 밀기].
    t 는 밑동 0 → 끝 1. H 를 주면 가운데가 원점인 높이 H 원기둥(줄기)이고, 안 주면 밑동이 원점인 길이 1(가지)다. */
+/* ── 나무껍질 · 꺾인 가지 ─────────────────────────────────────────────────
+   ① **꺾임**(가지만 · 정점 셰이더): 가지는 6마디인데, 마디 경계(정점 줄)마다 인스턴스 자리로 씨앗을
+      뽑아 옆으로 ±1.2 굵기씩 밀어 **마디 사이가 곧고 마디에서 꺾인** 지그재그를 만든다(참나무 큰 가지가
+      팔꿈치처럼 꺾이는 것). 양 끝 줄은 0 이라 붙는 자리·끝은 그대로다. 정점 줄에서만 셈하므로 따로
+      정점이 늘지 않고, 가지마다 꺾임이 다르다(한 지오메트리를 나눠 쓰는 인스턴스라 CPU 로는 못 한다).
+   ② **껍질**(조각 셰이더): 세로로 길게 갈라진 골(늘인 잡음의 능선) + 골 사이 판(가로 금으로 끊긴
+      조각) + 판마다 밝기 흔들기 + 골은 짙게. 램버트라 화소 법선을 못 흔드니 골 옆 해 쪽 면을 조금
+      밝혀 요철을 흉내 낸다. 좌표는 가지 둘레각 × 길이(m) — 굵기가 달라도 결 간격이 m 단위로 같다. */
+let LIMB_FAR_MAT=null;
+function barkMat(col,kind){
+  const m=new THREE.MeshLambertMaterial({color:col});
+  m.onBeforeCompile=sh=>{
+    sh.vertexShader='varying vec3 vBk;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+      float bkLen=1.0, bkR=1.0;
+      #ifdef USE_INSTANCING
+        bkLen=length(instanceMatrix[1].xyz); bkR=length(instanceMatrix[0].xyz);
+      #endif
+      ${kind==='limb'?`
+      #ifdef USE_INSTANCING
+      {
+        float seg=floor(transformed.y*6.0+0.5);
+        vec3 sd=instanceMatrix[3].xyz;
+        float k=fract(sin(dot(sd,vec3(12.9898,78.233,37.719))+seg*17.13)*43758.5453);
+        float k2=fract(sin(dot(sd,vec3(39.346,11.135,83.155))+seg*29.71)*43758.5453);
+        float on=step(0.5,seg)*step(seg,5.5);
+        transformed.x+=(k-0.5)*2.4*on;
+        transformed.z+=(k2-0.5)*2.4*on;
+      }
+      #endif`:''}
+      vBk=vec3(atan(position.z,position.x), transformed.y*bkLen, length(position.xz)*bkR);`);
+    sh.fragmentShader=`varying vec3 vBk;
+float bh(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float bn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(bh(i),bh(i+vec2(1,0)),f.x),mix(bh(i+vec2(0,1)),bh(i+vec2(1,1)),f.x),f.y); }
+`+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+      {
+        /* 둘레 길이(m) = 각 × 반지름 — 굵은 줄기는 골이 많고 가는 가지는 적다 */
+        float circ=6.2832*max(vBk.z,0.02);
+        float nAround=max(2.0,floor(circ/0.13));
+        vec2 q=vec2(vBk.x/6.2832*nAround, vBk.y);
+        q.x+=(bn(vec2(q.y*1.3,q.x*0.4))-0.5)*1.4+(bn(vec2(q.y*4.1,q.x*1.7))-0.5)*0.35;   // 골이 구불구불
+        float id=floor(q.x), col=fract(q.x);
+        float fw=0.10+0.12*bn(vec2(id*3.1,q.y*2.0));                   // 골 너비도 자리마다 다르다
+        float fis=smoothstep(0.0,fw,col)*smoothstep(1.0,1.0-fw,col);   // 0 = 골 · 1 = 판 가운데
+        float pl=0.35+0.6*bh(vec2(id,7.0));                            // 판 길이 — 골 줄마다 다르다
+        float qy=q.y/pl+bh(vec2(id,3.0))*5.0+(bn(vec2(id,q.y*2.0))-0.5)*0.6;
+        float cut=fract(qy), plate=bh(vec2(id,floor(qy)));
+        float br=0.70+0.40*plate;
+        br*=mix(0.38,1.0,fis);
+        br*=mix(0.62,1.0,smoothstep(0.0,0.05,cut)*smoothstep(1.0,0.97,cut)*(0.6+0.4*fis)+ (1.0-fis)*0.0);
+        br*=1.0+0.22*(col-0.5)*fis;                                    // 판 한쪽 면이 밝다(요철 흉내)
+        br*=0.82+0.30*bn(vec2(vBk.x*14.0,vBk.y*24.0));                  // 잔 세로 결
+        br*=0.9+0.2*bn(vBk.xy*vec2(1.1,0.9));                          // 큰 얼룩
+        diffuseColor.rgb*=br;
+      }`);
+  };
+  m.customProgramCacheKey=()=>'bark-'+kind;
+  return m;
+}
 function gnarl(g,f,H){
   const p=g.attributes.position;
   for(let i=0;i<p.count;i++){
@@ -2087,7 +2146,7 @@ function buildFarTrees(){
     if(t.cps) for(const m of t.cps){ propGroup.remove(m); m.dispose(); }
     const cps=[];
     for(const g of ref.geos){
-      const a=new THREE.InstancedMesh(g.limb,t.lm.material,n), b=new THREE.InstancedMesh(g.leaf,t.fm.material,n);
+      const a=new THREE.InstancedMesh(g.limb,LIMB_FAR_MAT||t.lm.material,n), b=new THREE.InstancedMesh(g.leaf,t.fm.material,n);
       if(t.fm.customDepthMaterial) b.customDepthMaterial=t.fm.customDepthMaterial;
       a.frustumCulled=b.frustumCulled=false;
       if(cps.length) a.userData.lightRole=b.userData.lightRole='recv';   // 55 m 밖 복제는 그림자를 안 드리운다
@@ -2544,9 +2603,10 @@ function buildProps(){
      `ROCK_R` 의 0.85(울퉁불퉁한 겉보다 조금 안쪽). 자갈·부싯돌은 발목 아래라 넘어간다. */
   const RAD={oak:0.6,fir:0.5};
   for(const k in ROCK_R) if(ROCK_R[k]>=0.4) RAD[k]=ROCK_R[k]*0.85;
-  const trunkMat=new THREE.MeshLambertMaterial({color:0x392f26});
-  const limbMat =new THREE.MeshLambertMaterial({color:0x453729});
+  const trunkMat=barkMat(0x4a3d31,'trunk');
+  const limbMat =barkMat(0x4f4033,'limb');
   limbMat.userData.wind='limb';                // 바람에 가지 끝이 흔들린다(envPatch)
+  LIMB_FAR_MAT=barkMat(0x4f4033,'far');       // 먼 복제(굳힌 지오메트리) — 꺾기는 이미 굳힌 활 모양만
 
   const byKind={};
   for(const p of PROPS){ (byKind[p.k]=byKind[p.k]||[]).push(p); }
