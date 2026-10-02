@@ -1231,6 +1231,7 @@ const LIMB_DEPTH=4;                  // 안전장치 — 길이가 먼저 재귀
 function growLimbs(p,TR,emit){
   const rnd=mulberry32((p._hash||0)^0x7a5d1c9b);
   const S=p.s;
+  if(TR.form==='oak') return growOak(p,TR,emit,rnd);
   const LAYER=[1.0,0.76,0.55];       // 겉가지·속가지 층 — 속이 비어 보이지 않게
   for(let j=0;j<TR.n;j++){
     const t=(j+0.5)/TR.n;
@@ -1278,6 +1279,68 @@ function growLimbs(p,TR,emit){
     const leafS=TR.leaf*S*(kids.length?0.62:1.0)*(0.8+rnd()*0.5);
     emit(base,q,len,rad,leafS);
     for(const [kb,kq,kl] of kids) grow(kb,kq,kl,rad*0.72,depth+1);
+  }
+}
+
+/* ── 참나무 가지: 굵은 원가지가 갈라지며 가늘어진다 ─────────────────────
+   예전에는 참나무도 전나무처럼 줄기에 굵기 4.6 cm 짜리 가는 막대 50개를 빗살처럼
+   꽂았다 — 실제 참나무와 가장 다른 점이었다. 실제 참나무는
+   ① 줄기 위쪽에서 **굵은 원가지 몇 개**(줄기 굵기의 절반 남짓)가 비스듬히 위·바깥으로 뻗고
+   ② 가지 끝이 **두셋으로 갈라지며**(차례로 짧아지고 가늘어진다 — 갈라진 굵기의 제곱 합 ≈ 어미)
+   ③ 몸통 중간에서도 잔가지를 치고 ④ 바깥 가지일수록 옆으로 눕는다 — 그래서 수관이 넓은 우산꼴이다.
+   가지 지오메트리가 밑동 1 → 끝 0.5 로 가늘어지므로, 끝에서 갈라지는 자식은 어미 끝 굵기에서 시작한다.
+   굵은 가지(4 cm 넘게)에는 잎을 달지 않는다. */
+function growOak(p,TR,emit,rnd){
+  const S=p.s, n=TR.sc;
+  const up=new THREE.Vector3(0,1,0);
+  const qFrom=(d)=>new THREE.Quaternion().setFromUnitVectors(up,d);
+  for(let j=0;j<n;j++){
+    const t=j/(n-1||1);
+    const az=(p.brMax+j)*2.399+rnd()*0.5;
+    const lead=(j===n-1);                         // 맨 위 하나는 줄기를 잇는 우듬지
+    const tilt=lead?0.12+rnd()*0.15:(1.05-0.45*t)+(rnd()-0.5)*0.25;   // 수직에서 기운 각
+    const d=new THREE.Vector3(-Math.sin(tilt)*Math.cos(az),Math.cos(tilt),Math.sin(tilt)*Math.sin(az));
+    const base=new THREE.Vector3(0,(TR.y0+(TR.y1-TR.y0)*t)*S,0);
+    const len=(lead?TR.L1:TR.L0*(0.85+rnd()*0.3))*S;
+    grow(base,d,len,TR.rad*(lead?0.85:1)*(0.85+rnd()*0.25)*S,0);
+  }
+  function grow(base,d,len,rad,depth){
+    const q=qFrom(d);
+    const kids=[];
+    const end=base.clone().addScaledVector(d,len);
+    if(depth<TR.depth && len>0.3*S){
+      // ② 끝에서 갈래 — 둘, 가끔 셋. 한쪽이 더 굵고 곧다(주축을 잇는다)
+      const nf=rnd()<0.25?3:2;
+      const side=new THREE.Vector3().crossVectors(d,Math.abs(d.y)>0.95?new THREE.Vector3(1,0,0):up).normalize();
+      side.applyAxisAngle(d,rnd()*6.283);
+      for(let c=0;c<nf;c++){
+        const main=(c===0);
+        const ang=main?0.18+rnd()*0.2:0.45+rnd()*0.4;
+        const ax=side.clone().applyAxisAngle(d,c*6.283/nf);
+        const kd=d.clone().applyAxisAngle(ax,ang);
+        // ④ 바깥으로 눕기 · 끝은 빛 쪽으로 살짝 든다
+        const out=new THREE.Vector3(kd.x,0,kd.z); if(out.lengthSq()>1e-6) out.normalize();
+        kd.addScaledVector(out,0.12).addScaledVector(up,0.05*(depth>=2?1:-1)).normalize();
+        const kl=len*(main?0.72+rnd()*0.12:0.55+rnd()*0.15);
+        const kr=rad*0.5*(main?0.85:0.62);
+        kids.push([end,kd,kl,kr]);
+      }
+      // ③ 몸통 중간의 잔가지 — 길이에 비례
+      const want=len/(TR.space*S);
+      let ns=Math.floor(want); if(rnd()<want-ns) ns++;
+      for(let c=0;c<ns;c++){
+        const u=0.3+rnd()*0.55;
+        const kb=base.clone().addScaledVector(d,len*u);
+        const ax=new THREE.Vector3().crossVectors(d,up);
+        if(ax.lengthSq()<1e-6) ax.set(1,0,0); ax.normalize().applyAxisAngle(d,rnd()*6.283);
+        const kd=d.clone().applyAxisAngle(ax,0.7+rnd()*0.4);
+        kd.addScaledVector(up,0.15).normalize();
+        kids.push([kb,kd,Math.max(0.25*S,len*(1-u)*(0.45+rnd()*0.25)),rad*(1-0.5*u)*0.45,true]);
+      }
+    }
+    const leafS=rad>0.04*S?0:TR.leaf*S*(kids.length?0.7:1.0)*(0.8+rnd()*0.5);
+    emit(base,q,len,rad,leafS);
+    for(const [kb,kd,kl,kr,tw] of kids) grow(kb,kd,kl,kr,depth+(tw?2:1));
   }
 }
 
@@ -2392,12 +2455,12 @@ function buildProps(){
      곁가지가 평균 2.0개씩 더 붙으므로 총수는 예전과 비슷하다.
      잎은 더 이상 가지마다 달지 않는다. 곁가지가 없는 **끝가지**에만 달린다. */
   const TREE={
-    oak:{n:Math.round(63*LD), y0:2.70, y1:4.55, L0:2.45, L1:1.45, t0:1.24, t1:0.22,
-         rad:0.046, leaf:0.28, hy:2.50, hL:2.50, hT:1.32, space:0.40},
+    oak:{form:'oak', sc:Math.max(3,Math.round(7*LD)), depth:5, y0:2.9, y1:4.9, L0:2.9, L1:2.4,
+         rad:0.17, leaf:0.34, hy:2.50, hL:2.50, hT:1.32, space:0.75, brR:0.07},
     fir:{n:Math.round(89*LD), y0:2.20, y1:6.45, L0:2.20, L1:0.50, t0:1.36, t1:0.68,
          rad:0.036, leaf:0.40, hy:1.60, hL:2.40, hT:1.44, space:0.355}
   };
-  TREE_N.oak=TREE.oak.n; TREE_N.fir=TREE.fir.n;      // 검사용 창구
+  TREE_N.oak=TREE.oak.sc; TREE_N.fir=TREE.fir.n;      // 검사용 창구
   TREE_T.oak=TREE.oak;   TREE_T.fir=TREE.fir;
 
   const geoFor={
@@ -2786,7 +2849,7 @@ function buildProps(){
         const put=(j,az,ay,len,tilt,leafS)=>{
           E.set(0,az,tilt); Q.setFromEuler(E);
           V.set(p.x,gy+ay,p.z);
-          S.set(TR.rad*p.s, len*p.s, TR.rad*p.s);
+          S.set((TR.brR||TR.rad)*p.s, len*p.s, (TR.brR||TR.rad)*p.s);
           M.compose(V,Q,S); limbMesh.setMatrixAt(li+j,M);
           putLeaf(li+j, V, Q, len*p.s, leafS*p.s);
         };
