@@ -5447,7 +5447,8 @@ function updateSky(){
   const ang=(hourOfDay-6)/12*Math.PI;                    // 06시 일출, 18시 일몰
   const sx=Math.cos(ang), sy=Math.sin(ang);
   // 삭망월 29.5일 — 밝은 면적은 (1−cos 위상각)/2 다
-  MOON.phase=((gameHours/(24*29.5))%1+1)%1;
+  /* 30일째로 넘어가는 자정(dayNo() 가 30 이 되는 순간 · 절대 시각 29×24 시)에 딱 보름(위상 0.5) — 사용자 요청 */
+  MOON.phase=(((gameHours+START_HOUR-29*24)/(24*29.5)+0.5)%1+1)%1;
   const mAng=ang-MOON.phase*6.283, mmy=Math.sin(mAng);
   _sd3.set(sx,sy,0.37).normalize();
   _md3.set(Math.cos(mAng),mmy,0.37).normalize();
