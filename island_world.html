@@ -5557,8 +5557,7 @@ function updateSky(){
   /* **밤의 밝기 — 달이 얼마나 차고 얼마나 높이 떴는지로 센다.** 땅의 조도(럭스):
        보름달 천정 0.26 lx × 위상 밝기(충 효과 — 상현 9%) × sin(고도) × 대기 소광 10^(−0.4·0.25·공기량)
        + 별빛·대기광 0.002 lx(달 없는 맑은 밤). 흐리면 구름이 막는다.
-     실제 비는 보름:그믐 ≈ 100:1 이지만 눈이 어둠에 익으므로(막대세포) 밝기는 조도의
-     0.45제곱으로 느낀다(스티븐스) — 보름 1 · 상현 0.36 · 그믐 0.12. 이 값을 밤의 광원·
+     보정 없이 조도 그대로 쓴다 — 보름 천정 1 · 상현 약 0.09 · 달 없음 약 0.008. 이 값을 밤의 광원·
      환경광·하늘빛에 곱한다. 해가 −6°(시민 박명)→−18° 로 내려가는 동안 서서히 넘어간다. */
   const nightK=clamp((-_sd3.y-0.05)/0.26,0,1);
   const mEl=Math.max(0,_md3.y);
@@ -5566,7 +5565,7 @@ function updateSky(){
   const cloudCut=1-clamp(WEA.cover,0,1)*0.8;
   const luxM=0.26*MOON.bright*mEl*Math.pow(10,-0.1*Math.min(air,38))*cloudCut;
   const luxS=0.002*(1-clamp(WEA.cover,0,1)*0.6);
-  const perc=Math.pow((luxM+luxS)/0.26,0.45), percM=Math.pow(luxM/0.26,0.45);
+  const perc=(luxM+luxS)/0.26, percM=luxM/0.26;     // 조도 그대로(눈 순응 보정 없음 — 사용자 요청)
   MOON.lux=luxM+luxS; MOON.perc=perc;
   if(sy<-0.05 && mmy>-0.02){
     /* 밤에는 달이 광원이다(해가 지평선 밑이면 땅 밑에서 비추게 된다) */
