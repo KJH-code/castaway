@@ -2358,6 +2358,7 @@ function buildProps(){
       g.bezierCurveTo(-w*0.74,-len*0.84, -w,-len*0.26, 0,0);
       g.closePath();
       g.fillStyle=body; g.fill();
+      g.clip();               // 잎맥은 잎 안에서만 — 안 자르면 곁맥 끝·둥근 붓끝이 테두리 밖으로 삐져 알파 카드에 가시처럼 남았다
       g.strokeStyle=vein; g.lineCap='round';
       g.lineWidth=Math.max(1.1,len*0.030);
       g.beginPath(); g.moveTo(0,-len*0.02); g.lineTo(0,-len*0.94); g.stroke();
