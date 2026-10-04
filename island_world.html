@@ -1224,6 +1224,24 @@ const LIMB_MIN=0.06;
 const SHORT_LIMB=0.5;
 function limbAt(p,j){ const v=p._lmap[j]; return v>=0?[p._lb,v]:[p._ls,-v-1]; }
 function getLimbM(p,j,M){ const [m,i]=limbAt(p,j); m.getMatrixAt(i,M); return M; }
+/* 가지 위 u(0 밑동 → 1 끝) 자리가 곧은 중심선에서 얼마나 비켜 있나 — 세계 좌표 벡터로 더해 준다.
+   가지는 곧은 선이 아니다: 지오메트리가 활(1.25)·S(0.5, 긴 가지만) 로 굽고, 셰이더(barkMat 'limb')가 안쪽
+   정점 줄마다 ±1.2 를 민다(전부 굵기 단위 — 인스턴스가 x·z 를 굵기로 늘린다). 곁가지를 곧은 선에 붙였더니
+   어미 가지에서 떨어져 허공에 떴다. 셰이더와 **같은 식**(같은 씨앗 = 인스턴스 자리, float32)으로 줄 사이를 잇는다. */
+const _lbX=new THREE.Vector3(), _lbZ=new THREE.Vector3();
+function limbBend(wx,wy,wz,q,len,rad,u,out){
+  const sh=len<SHORT_LIMB, rows=sh?2:6, f=Math.fround;
+  const sx=f(wx), sy=f(wy), sz=f(wz), b=sx*0.0371+sy*0.0213+sz*0.0517;
+  const at=(i)=>{ const t=i/rows, seg=Math.round(t*6);
+    let x=1.25*Math.sin(Math.PI*t), z=sh?0:0.5*Math.sin(2*Math.PI*t);
+    if(seg>=1&&seg<=5){ let h=b+seg*0.3183; h-=Math.floor(h);
+      const k=h*137.13+0.123, k2=h*71.37+0.567; x+=(k-Math.floor(k)-0.5)*2.4; z+=(k2-Math.floor(k2)-0.5)*2.4; }
+    return [x,z]; };
+  const fi=u*rows, i0=Math.min(rows-1,Math.floor(fi)), w=fi-i0, a=at(i0), c=at(i0+1);
+  const dx=(a[0]+(c[0]-a[0])*w)*rad, dz=(a[1]+(c[1]-a[1])*w)*rad;
+  _lbX.set(1,0,0).applyQuaternion(q); _lbZ.set(0,0,1).applyQuaternion(q);
+  return out.copy(_lbX).multiplyScalar(dx).addScaledVector(_lbZ,dz);
+}
 function setLimbM(p,j,M){ const [m,i]=limbAt(p,j); m.setMatrixAt(i,M); m.instanceMatrix.needsUpdate=true; }                 // 곁가지가 가질 수 있는 가장 짧은 길이 (m)
 /* 곁가지 하나가 차지하는 가지 길이(m). 나무마다 다르다(TREE[].space).
    작을수록 촘촘하다 — 0.56/0.505 에서 0.40/0.355 로 내려 가지 수를 두 배로
@@ -1278,6 +1296,7 @@ function growLimbs(p,TR,emit){
       const kq=q.clone().multiply(_lbQ2);
       _lbD.set(0,1,0).applyQuaternion(q);
       const kb=base.clone().addScaledVector(_lbD,len*u);
+      if(p._org) kb.add(limbBend(p._org.x+base.x,p._org.y+base.y,p._org.z+base.z,q,len,rad,u,_lbB));
       kids.push([kb,kq,kl]);
     }
     /* 잎은 모든 가지에 단다. 예전에는 끝가지에만 달아 속가지가 맨 나무처럼
@@ -1338,6 +1357,7 @@ function growOak(p,TR,emit,rnd){
       for(let c=0;c<ns;c++){
         const u=0.3+rnd()*0.55;
         const kb=base.clone().addScaledVector(d,len*u);
+        if(p._org) kb.add(limbBend(p._org.x+base.x,p._org.y+base.y,p._org.z+base.z,q,len,rad,u,_lbB));
         const ax=new THREE.Vector3().crossVectors(d,up);
         if(ax.lengthSq()<1e-6) ax.set(1,0,0); ax.normalize().applyAxisAngle(d,rnd()*6.283);
         const kd=d.clone().applyAxisAngle(ax,0.7+rnd()*0.4);
@@ -1375,8 +1395,8 @@ function barkMat(col,kind){
       {
         float seg=floor(transformed.y*6.0+0.5);
         vec3 sd=instanceMatrix[3].xyz;
-        float k=fract(sin(dot(sd,vec3(12.9898,78.233,37.719))+seg*17.13)*43758.5453);
-        float k2=fract(sin(dot(sd,vec3(39.346,11.135,83.155))+seg*29.71)*43758.5453);
+        float h=fract(dot(sd,vec3(0.0371,0.0213,0.0517))+seg*0.3183);   // limbBend() 와 같은 식 — CPU 가 곁가지 자리를 맞춘다
+        float k=fract(h*137.13+0.123), k2=fract(h*71.37+0.567);
         float on=step(0.5,seg)*step(seg,5.5);
         transformed.x+=(k-0.5)*2.4*on;
         transformed.z+=(k2-0.5)*2.4*on;
@@ -2880,6 +2900,7 @@ function buildProps(){
         }
         // 구조 가지 — 원가지에서 곁가지가 뻗는다
         let k=p.brMax;
+        p._org=new THREE.Vector3(p.x,gy,p.z);       // 곁가지를 굽은 어미 가지에 붙이려면 세계 자리가 필요하다
         growLimbs(p,TR,(pos,quat,len,rad,leafS)=>{
           // growLimbs 는 나무 밑동을 원점으로 센다 — 여기서 세계 자리로 옮긴다
           _lbV.set(p.x+pos.x, gy+pos.y, p.z+pos.z);
