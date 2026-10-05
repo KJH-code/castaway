@@ -11210,7 +11210,16 @@ function gScalesOnMesh(G,mat,sgeo,d,seed){
     const dx=p.x-cx, dz=p.z-cz, rad=Math.max(0.04,Math.hypot(dx,dz)), th=Math.atan2(dx,dz);
     const row=Math.floor(p.y/rowH), sh=(row&1)*0.5, ncol=Math.max(3,Math.round(2*Math.PI*rad/colW)), cf=th/(2*Math.PI)*ncol-sh, col=Math.round(cf);
     const err=Math.hypot((cf-col)*colW,(p.y/rowH-row-0.5)*rowH), key=rg+':'+row+':'+((col%ncol+ncol)%ncol);
-    const o=best.get(key); if(err<d*0.75&&(!o||rad>o[5])) best.set(key,[p,Nn,err,cx,cz,rad,row,col,ncol,sh]); }   // 칸 안에서 가장 바깥 점 — 장식이 비늘 위로 솟지 않게
+    const o=best.get(key); if(!o||err<o[2]){ const mx=o?Math.max(o[10],rad):rad; best.set(key,[p,Nn,err,cx,cz,rad,row,col,ncol,sh,mx]); } else o[10]=Math.max(o[10],rad); }
+  /* 칸 가운데에 가장 가까운 점에 세우되, 칸 안에서 더 바깥 점이 있으면 1.2 cm 까지만 따라 나간다 — 장식이 비늘 위로 솟지 않게.
+     끝까지 따라가면 등에서 어깨받이·깃 뒤 날개에 붙어 비늘이 등판을 떠났다 */
+  for(const v of best.values()) v[5]=Math.min(v[10],v[5]+0.012);
+  /* 빈 칸 메우기 — 같은 줄에서 양옆이 찬 빈 칸(8칸까지)은 양옆 반지름을 이어 비늘을 세운다(등 가운데 트임·장식 사이) */
+  const rows=new Map(); for(const [k,v] of best){ const [rg,row,col]=k.split(':').map(Number); const kk=rg+':'+row; (rows.get(kk)||rows.set(kk,[]).get(kk)).push([col,v]); }
+  for(const [kk,arr] of rows){ arr.sort((a,b)=>a[0]-b[0]); const ncol=arr[0][1][8]; if(arr.length<2) continue;
+    for(let i=0;i<arr.length;i++){ const [c0,v0]=arr[i], [c1r,v1]=arr[(i+1)%arr.length], c1=i+1<arr.length?c1r:c1r+ncol, gap=c1-c0-1;
+      if(gap<1||gap>8) continue;
+      for(let g=1;g<=gap;g++){ const f=g/(gap+1), col=c0+g, v=v0.slice(); v[5]=v0[5]+(v1[5]-v0[5])*f; v[7]=col; v[1]=new THREE.Vector3(0,0,0); v[2]=0; best.set(kk+':'+((col%ncol+ncol)%ncol),v); } } }
   /* 비늘은 칸 가운데에 정확히 세우고(뽑힌 점의 반지름만 쓴다), 바라보는 쪽은 축에서 바깥(가로) 3/4 + 면 법선 1/4 — 장식 요철을 따라 비늘이 제멋대로 눕지 않게 */
   const pts=[...best.values()].map(([p,Nn,e,cx,cz,rad,row,col,ncol,sh])=>{ const th=(col+sh)/ncol*2*Math.PI, q=new THREE.Vector3(cx+rad*Math.sin(th),(row+0.5)*rowH,cz+rad*Math.cos(th));
     const out=new THREE.Vector3(Math.sin(th),0,Math.cos(th)), N=out.multiplyScalar(0.75).addScaledVector(Nn,0.25).normalize(); return [q.addScaledVector(N,0.006),N]; });
@@ -11567,13 +11576,14 @@ function gPackHide(g){
 function gSentArmor(g,mat,cloth,sc,scaleOn){
   const G=gSentinelGeo(), b=gBone(g,'chest');
   /* 비늘 밑 바탕은 법선 쪽으로 1.4 cm 밀어 넣는다 — 모형 장식이 비늘 사이로 솟아 빈자리처럼 보였다 */
-  const sink=k=>{ const g=G[k].clone(), P=g.attributes.position.clone(), N=g.attributes.normal; for(let i=0;i<P.count;i++) P.setXYZ(i,P.getX(i)-N.getX(i)*0.014,P.getY(i)-N.getY(i)*0.014,P.getZ(i)-N.getZ(i)*0.014); g.setAttribute('position',P); return g; };
+  const sink=k=>{ const g=G[k].clone(), P=g.attributes.position.clone(), N=g.attributes.normal; for(let i=0;i<P.count;i++){ const x=P.getX(i), y=P.getY(i), z=P.getZ(i); let nx=N.getX(i), ny=N.getY(i), nz=N.getZ(i); if(nx*x+nz*z<0){ nx=-nx; ny=-ny; nz=-nz; }   // 모형 법선이 안쪽을 볼 때가 있다(등) — 바깥으로 돌려 놓고 민다
+      P.setXYZ(i,x-nx*0.014,y-ny*0.014,z-nz*0.014); } g.setAttribute('position',P); return g; };
   const put=(k,m,hide)=>{ const me=new THREE.Mesh(sc&&scaleOn.includes(k)?sink(k):G[k],m); b.add(hide?gHide(me):me);
     if(sc&&scaleOn.includes(k)){ const s=gScalesOnMesh(G[k],sc.mat,gScaleGeo('dropL'),0.013,11+k.length); b.add(hide?gHide(s):s); } };
   put('u',mat); put('l',mat,true); put('c',cloth,true);
 }
 const GEAR={ plate_steel:gPlate,
-  scale_bronze:g=>gSentArmor(g,gM('scB',0x5a4020,0.8,0.5),GMT.cloth(0x6e6a44,[1,1]),{mat:gScaleMat('bronze'),geo:gScaleGeo('drop')},['u','l','c']), scale_iron:g=>gSentArmor(g,gM('scI',0x45423e,0.8,0.5),GMT.leather(0x3e3024,[1,1]),{mat:gScaleMat('iron'),geo:gScaleGeo('drop')},['u','l','c']), scale_ember:g=>gSentArmor(g,gM('scE',0x120e0d,0.6,0.5),GMT.leather(0x181312,[1,1]),{mat:gScaleMat('ember'),geo:gScaleGeo('drop')},['u','l','c']),
+  scale_bronze:g=>gSentArmor(g,gM('scB',0x5a4020,0.8,0.5),gM('scB',0x5a4020,0.8,0.5),{mat:gScaleMat('bronze'),geo:gScaleGeo('drop')},['u','l','c']), scale_iron:g=>gSentArmor(g,gM('scI',0x45423e,0.8,0.5),gM('scI',0x45423e,0.8,0.5),{mat:gScaleMat('iron'),geo:gScaleGeo('drop')},['u','l','c']), scale_ember:g=>gSentArmor(g,gM('scE',0x120e0d,0.6,0.5),gM('scE',0x120e0d,0.6,0.5),{mat:gScaleMat('ember'),geo:gScaleGeo('drop')},['u','l','c']),
   scale_chitin:g=>gSentArmor(g,GMT.chitin(),GMT.leather(0x2a2018,[1,1])), scale_ember_chitin:g=>gSentArmor(g,GMT.chitin(),GMT.leather(0x181312,[1,1]),{mat:gScaleMat('ember'),geo:gScaleGeo('drop')},['l','c']),
   helm_steel:gHelmSteel, helm_bronze:gHelmBronze, helm_chitin:gHelmChitin, helm_ember:g=>gHelmEmber(g,false), helm_ember_chitin:g=>gHelmEmber(g,true),
   helm_hide:gHelmHide, helm_bone:gHelmBone,
