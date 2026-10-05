@@ -248,7 +248,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - **프레임률에 의존하는 로직을 만들지 말 것.** 이동 판정이 한 번 이 문제로 깨졌다
   (`높이차/프레임이동거리` → 지형 경사 기반으로 교체, 오판율 0.11% → 0%).
   거리·속도·시간 판정은 프레임당 이동량이 아니라 물리량으로 쓴다.
-- **숫돌은 용기가 아니지만 같은 자리에서 E 를 받는다.** `findContainer()` 가 같이
+- **숫돌은 용기가 아니지만 같은 자리에서 좌클릭(예전 E)을 받는다.** `findContainer()` 가 같이
   훑도록 `kind:'grind'` 를 달아 두었을 뿐, `slots` 는 없다 — 용기인 줄 알고
   `contWeight` 를 부르면 터진다. 보는 안내와 `releaseE` 에서 먼저 갈라진다.
   수리 값은 `repairCost(id)` — 처음 레시피의 **한 개분의 절반, 내림**이고
@@ -748,7 +748,10 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   그리고 **캐기도 좌클릭을 누르고 있는 동안뿐이다 — E 로 캐던 것은 없앴다**(`updateHarvest` 는 `useDown && harvestByUse()`).
   `harvestByUse()` = 캘 것을 보고 있고(`HARV.mode`) **빈손이거나 손의 것이 그 캐기 도구**(`HARV.mode.tool`)일 때 — 칼을 들고 덤불을 보면 캐지 않고 휘두른다.
   누르는 상태는 `useDown`(예전 이름 `rightDown`). **우클릭은 저격총 조준경(`mouseDown` → `updateScope`)과 전등·드릴 충전(`chargeHeld`)** 이다.
-  짓기 중엔 좌클릭이 조각 놓기. **E 는 열기·여닫기·불 피우기 등 설비만** 남았다. 모바일 '줍기' 단추는 `useDown` 을 같이 켠다.
+  짓기 중엔 좌클릭이 조각 놓기. **설비 조작도 좌클릭이다**(사용자 요청 — 예전엔 E): 상자·화덕·제련로·숫돌·발전기 열기와 문짝 여닫기는
+  좌클릭을 짧게 눌렀다 떼면(`mouseup` → `releaseE`), 불 피우기·횃불 옮기기는 누르고 있으면(`updateFireInteract` 가 `useDown` 을 본다).
+  **설비를 보고 있으면(`facing()` = `HARV.fit||HARV.cont`) 좌클릭이 공격·먹기를 안 한다**(연사도 멈춘다).
+  **E 는 열린 상자·화덕·숫돌 창을 닫는 것만** 남았다(Esc 도 된다). 모바일 '줍기' 단추는 `useDown` 을 같이 켠다.
   `holdable(T)` = `tool` 이거나 `consumable(T)`(food·drink·heal). 생김새는 `WEAPON_FX` 가 아니라 `heldConsumable(id)` — 그래서 **손에 든 것의 `ITEMS[id].tool` 이 없을 수 있다**(`(…tool||{})` 로 읽을 것).
   **빈 드릴은 맨손과 같다**(`pickMode`).
 - **먹는 것(`food`)·감는 것(`heal`)도 `water`·`empty` 를 받는다** — 국·달인 물은 목을 축이고 토기를 돌려준다.

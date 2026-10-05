@@ -398,7 +398,8 @@
     <div><span>L</span>전등 켜기 · V 자유 카메라</div>
     <div><span>M</span>미니맵 크게 / 작게</div>
     <div><span>I / C / B</span>소지품 · 제작 · 사전</div>
-    <div><span>E</span>상자 · 화덕 · 제련로 열기 (길게 누르면 불 피우기)</div>
+    <div><span>좌클릭</span>(설비를 보고) 상자·화덕·제련로·숫돌·발전기 열기 · 문 여닫기 · 길게 누르면 불 피우기</div>
+    <div><span>E</span>열린 상자·화덕·숫돌 창 닫기</div>
     <div><span>I</span>소지품 — <b>끌어다 손·옷·입 칸에 놓는다</b> · G 버리기</div>
     <div><span>좌클릭</span>손에 든 것을 쓴다 — 무기 공격 · 캘 것을 보고 누르고 있으면 캐기(빈손·도끼·곡괭이·드릴) · 먹기·마시기·감기 · 전등 켜기 · 빈손이면 물가에서 마시기 · 짓기 중엔 조각 놓기</div>
     <div><span>우클릭</span>저격총 조준경 · 전등·드릴을 지닌 축전지로 충전</div>
@@ -5972,7 +5973,7 @@ const ITEMS={
   bulb:       {n:'전구',       kg:0.25, c:0xe4dcc0,
                use:'유리 안에 탄소 실을 걸었다 — 공기를 뺐으니 타지 않고 달아오른다'},
   battery:    {n:'납축전지',   kg:8.2,  c:0x4a4f56,
-               use:'납 극판과 황산 — 발전기에서 채워 들고 다닌다. E로 전등에 옮긴다',
+               use:'납 극판과 황산 — 발전기에서 채워 들고 다닌다. 우클릭으로 전등에 옮긴다',
                durMax:100},
   lamp_electric:{n:'전등',     kg:0.9,  c:0xd8d2b8,
                use:'L 로 켜고 끈다 — 전기가 닳으면 축전지에서 옮겨 담는다',
@@ -6410,7 +6411,7 @@ const CHOP={
   fir:{item:'log', label:'나무 베기', dur:4.0, stam:8.5, yield:[1,1], logs:[2,4]}
 };
 const HARV={near:null, t:0, active:false, mode:null, cont:null, fire:null, fit:null};
-/* E 짧게 누르기 = 용기 열기 / 길게 누르기 = 화덕 다루기 */
+/* 좌클릭 짧게 = 용기 열기 / 길게 = 화덕 다루기 */
 const EK={hold:0, tgt:null};
 const E_TAP=0.35;
 let EQUIP=null;                                     // 장착 중인 도구 슬롯
@@ -6624,7 +6625,7 @@ function updateFireInteract(dt,f){
 
   // 불붙은 횃불을 대면 바로 옮겨 붙는다 — 활비비질을 다시 할 필요가 없다
   if(!f.lit && isTorch && e.lit && e.fuel>0.12){
-    if(!keys.KeyE || !contFuel(f)){ IGNITE.t=Math.max(0,IGNITE.t-dt*2); return; }
+    if(!useDown || !contFuel(f)){ IGNITE.t=Math.max(0,IGNITE.t-dt*2); return; }
     IGNITE.t+=dt;
     if(IGNITE.t<1.5) return;
     IGNITE.t=0; e.fuel-=0.1;
@@ -6634,7 +6635,7 @@ function updateFireInteract(dt,f){
   }
   // 꺼진 횃불은 타는 화덕에서 불을 얻는다
   if(f.lit && isTorch && !e.lit && e.fuel>0){
-    if(!keys.KeyE){ IGNITE.t=Math.max(0,IGNITE.t-dt*2); return; }
+    if(!useDown){ IGNITE.t=Math.max(0,IGNITE.t-dt*2); return; }
     IGNITE.t+=dt;
     if(IGNITE.t<1.0) return;
     IGNITE.t=0; e.lit=true;
@@ -6645,7 +6646,7 @@ function updateFireInteract(dt,f){
   if(!f.lit){
     // 불 만들기 — 안에 땔감이 들어 있어야 불이 옮겨 붙을 자리가 있다
     const tin=needsTinder(e), dur=igniteDur(e);
-    if(!keys.KeyE||!canFire||(tin&&ti<0)||PL.stam<5||!contFuel(f)){
+    if(!useDown||!canFire||(tin&&ti<0)||PL.stam<5||!contFuel(f)){
       IGNITE.t=Math.max(0,IGNITE.t-dt*2); return; }
     const pv=IGNITE.t;
     IGNITE.t+=dt;
@@ -6686,12 +6687,12 @@ function updateHarvest(dt){
     HARV.active=false; EK.hold=0; EK.tgt=null; IGNITE.t=0;
     return;
   }
-  // 문짝·창짝이 눈앞이면 그쪽이 먼저다 — 짧게 E 로 여닫는다
+  // 문짝·창짝이 눈앞이면 그쪽이 먼저다 — 짧게 좌클릭으로 여닫는다
   const fit=BUILD.on?null:findFit();
   if(fit){
     HARV.cont=null; HARV.fire=null; HARV.near=null; HARV.mode=null;
     HARV.active=false; HARV.t=0; IGNITE.t=0; HARV.fit=fit;
-    if(keys.KeyE){ EK.hold+=dt; EK.tgt={kind:'fit', w:fit}; }
+    if(useDown){ EK.hold+=dt; EK.tgt={kind:'fit', w:fit}; }
     else{ EK.hold=0; EK.tgt=null; }
     return;
   }
@@ -6703,7 +6704,7 @@ function updateHarvest(dt){
     HARV.cont=cont; HARV.fire=(cont.kind==='fire')?cont:null;
     HARV.near=null; HARV.mode=null; HARV.active=false; HARV.t=0;
     // 누른 시간을 재둔다 — 짧게 떼면 열고(releaseE), 계속 누르면 불을 다룬다
-    if(keys.KeyE){ EK.hold+=dt; EK.tgt=cont; }else{ EK.hold=0; EK.tgt=null; }
+    if(useDown){ EK.hold+=dt; EK.tgt=cont; }else{ EK.hold=0; EK.tgt=null; }
     if(cont.kind==='fire'||cont.kind==='furnace') updateFireInteract(dt,cont);
     else IGNITE.t=0;
     return;
@@ -6999,11 +7000,11 @@ const RECIPES=[
    in:[{id:'branch',n:4},{id:'fiber',n:5},{id:'cord',n:2}]},
   {id:'b_thatch_leaf', tier:'불', n:'초가 문짝', out:null, place:'build',
    build:'leaf', btier:0, time:0, stam:0,
-   note:'문틀에 다는 널문. E 로 여닫고, 닫으면 뚫려 있던 자리가 도로 막힌다. 여는 각 95°. 내구 80.',
+   note:'문틀에 다는 널문. 좌클릭으로 여닫고, 닫으면 뚫려 있던 자리가 도로 막힌다. 여는 각 95°. 내구 80.',
    in:[{id:'branch',n:6},{id:'cord',n:3}]},
   {id:'b_thatch_pane', tier:'불', n:'초가 창짝', out:null, place:'build',
    build:'pane', btier:0, time:0, stam:0,
-   note:'창틀에 다는 유리 여닫이. 규사를 녹여 만든 유리판을 창살에 끼운다. E 로 여닫는다. 내구 80.',
+   note:'창틀에 다는 유리 여닫이. 규사를 녹여 만든 유리판을 창살에 끼운다. 좌클릭으로 여닫는다. 내구 80.',
    in:[{id:'glass',n:2},{id:'branch',n:3},{id:'cord',n:2}]},
   {id:'b_wood_found', tier:'나무와 점토', n:'나무 토대', out:null, place:'build',
    build:'found', btier:1, time:0, stam:0,
@@ -7035,11 +7036,11 @@ const RECIPES=[
    in:[{id:'log',n:1},{id:'branch',n:4},{id:'cord',n:2}]},
   {id:'b_wood_leaf', tier:'나무와 점토', n:'나무 문짝', out:null, place:'build',
    build:'leaf', btier:1, time:0, stam:0,
-   note:'문틀에 다는 널문. E 로 여닫고, 닫으면 뚫려 있던 자리가 도로 막힌다. 여는 각 95°. 내구 300.',
+   note:'문틀에 다는 널문. 좌클릭으로 여닫고, 닫으면 뚫려 있던 자리가 도로 막힌다. 여는 각 95°. 내구 300.',
    in:[{id:'log',n:1},{id:'branch',n:4},{id:'cord',n:3}]},
   {id:'b_wood_pane', tier:'나무와 점토', n:'나무 창짝', out:null, place:'build',
    build:'pane', btier:1, time:0, stam:0,
-   note:'창틀에 다는 유리 여닫이. 규사를 녹여 만든 유리판을 창살에 끼운다. E 로 여닫는다. 내구 300.',
+   note:'창틀에 다는 유리 여닫이. 규사를 녹여 만든 유리판을 창살에 끼운다. 좌클릭으로 여닫는다. 내구 300.',
    in:[{id:'glass',n:2},{id:'log',n:1},{id:'cord',n:2}]},
   {id:'b_stone_found', tier:'간석기', n:'돌 토대', out:null, place:'build',
    build:'found', btier:2, time:0, stam:0,
@@ -7071,11 +7072,11 @@ const RECIPES=[
    in:[{id:'stone_block',n:2},{id:'log',n:1},{id:'clay_lump',n:1}]},
   {id:'b_stone_leaf', tier:'간석기', n:'돌 문짝', out:null, place:'build',
    build:'leaf', btier:2, time:0, stam:0,
-   note:'문틀에 다는 널문. E 로 여닫고, 닫으면 뚫려 있던 자리가 도로 막힌다. 여는 각 95°. 내구 900.',
+   note:'문틀에 다는 널문. 좌클릭으로 여닫고, 닫으면 뚫려 있던 자리가 도로 막힌다. 여는 각 95°. 내구 900.',
    in:[{id:'log',n:2},{id:'branch',n:4},{id:'cord',n:4}]},
   {id:'b_stone_pane', tier:'간석기', n:'돌 창짝', out:null, place:'build',
    build:'pane', btier:2, time:0, stam:0,
-   note:'창틀에 다는 유리 여닫이. 규사를 녹여 만든 유리판을 창살에 끼운다. E 로 여닫는다. 내구 900.',
+   note:'창틀에 다는 유리 여닫이. 규사를 녹여 만든 유리판을 창살에 끼운다. 좌클릭으로 여닫는다. 내구 900.',
    in:[{id:'glass',n:3},{id:'log',n:1},{id:'cord',n:2}]},
 
   {id:'charcoal_pile', tier:'나무와 점토', n:'숯가마 쌓기', out:{id:'charcoal_pile',n:1}, time:20, stam:14,
@@ -7460,7 +7461,7 @@ const RECIPES=[
   {id:'battery', tier:'화학', n:'납축전지 짜기', out:{id:'battery',n:1},
    time:70, stam:44,
    note:'납판과 과산화납판을 번갈아 세우고 황산에 담근다. 무겁다 — 8 kg 이 '
-       +'넘는다. 발전기 곁에서 E 로 채운다.',
+       +'넘는다. 발전기 곁에서 좌클릭으로 채운다.',
    in:[{id:'ingot_lead',n:4},{id:'acid_sulfuric',n:2},{id:'wire_copper',n:2},
        {id:'pot',n:1}],
    need:[{id:'hammer_stone',n:1}]},
@@ -8276,7 +8277,7 @@ const BKIND_N={found:'토대', wall:'벽', door:'문틀', leaf:'문짝',
                window:'창틀', pane:'창짝',
                roof:'지붕', slope:'경사 지붕', gable:'삼각 벽'};
 /* 문짝 · 창짝은 문틀 · 창틀에 달린다. 벽 항목의 leaf 에 얹혀 함께 움직인다.
-   문짝은 E 로 여닫고, 닫으면 뚫려 있던 충돌체가 되살아난다. */
+   문짝은 좌클릭으로 여닫고, 닫으면 뚫려 있던 충돌체가 되살아난다. */
 const FITS={leaf:'door', pane:'window'};
 const WALLV=['wall','door','window'];               // 벽 자리에 들어가는 세 가지
 const FOUNDS=new Map();      // "gx,gz"     → {gx,gz,x,z,y,tier,hp,mesh}
@@ -11276,7 +11277,7 @@ function chargeHeld(){
   const e=equippedTool(), T=e&&ITEMS[e.id];
   if(!chargeable(T)) return;
   if(e.dur>=T.durMax){ toast(T.n+' — 이미 가득 찼다'); return; }
-  if(!drawFromBattery(e)) toast('축전지가 없다 — 발전기 곁에서 E 로 채운다');
+  if(!drawFromBattery(e)) toast('축전지가 없다 — 발전기 곁에서 좌클릭으로 채운다');
 }
 function attack(){
   /* 그물은 무기가 아니라서 equippedWeapon() 이 걸러낸다 — 손에 든 것을 먼저 본다 */
@@ -11325,7 +11326,7 @@ function updateWeapon(dt){
   if(useDown && !BUILD.on && ATK.cd<=0 && !paused && !uiOpen()
      && document.pointerLockElement===cv){
     const w=equippedWeapon();
-    if(w && ITEMS[w.id].tool.auto && !(HARV.mode&&HARV.mode.tool)) attack();
+    if(w && ITEMS[w.id].tool.auto && !(HARV.mode&&HARV.mode.tool) && !facing()) attack();
   }
   if(NET.cd>0) NET.cd=Math.max(0,NET.cd-dt);
   updateReload(dt); updateGrenades(dt); updateRockets(dt); updateScope(dt);
@@ -12002,25 +12003,25 @@ function updateHUD(dt){
   }else if(HARV.fit){
     const w=HARV.fit;
     look.style.display='block'; lb.style.display='none';
-    lt.innerHTML='[E] '+BKIND_N[w.leaf.kind]+(w.leaf.open?' 닫기':' 열기');
+    lt.innerHTML='[좌클릭] '+BKIND_N[w.leaf.kind]+(w.leaf.open?' 닫기':' 열기');
   }else if(HARV.cont){
     const c=HARV.cont, e=equippedTool();
     const isTorch=e&&(ITEMS[e.id].tool||{}).torch;
     look.style.display='block'; lb.style.display='none';
     if(c.kind==='grind'){
       look.style.display='block'; lb.style.display='none';
-      lt.innerHTML='[E] 숫돌 — 갈아 만들기와 수리<em>'
+      lt.innerHTML='[좌클릭] 숫돌 — 갈아 만들기와 수리<em>'
         +'수리는 처음 재료의 절반(내림)이 든다</em>';
       return;
     }
     if(c.kind==='power'){
       look.style.display='block'; lb.style.display='none';
-      lt.innerHTML='[E] 발전기 — 축전지와 전등 채우기<em>'
+      lt.innerHTML='[좌클릭] 발전기 — 축전지와 전등 채우기<em>'
         +(powered()?'물레방아가 돌고 있다':'물레방아가 서 있다 — 채울 수 없다')+'</em>';
       return;
     }
-    const head='[E] '+c.cname+' 열기';
-    // 화덕은 E를 계속 누르면 불을 다루는 쪽으로 넘어간다
+    const head='[좌클릭] '+c.cname+' 열기';
+    // 화덕은 좌클릭을 계속 누르면 불을 다루는 쪽으로 넘어간다
     if(isHearth(c) && !c.lit && isTorch && e.lit && e.fuel>0.12 && contFuel(c)){
       lt.innerHTML=head+'<em>길게 누르면 횃불로 불 옮기기</em>';
       if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/1.5*100)+'%'; }
@@ -12632,8 +12633,8 @@ addEventListener('keydown',e=>{
     syncLock();
   }
 });
-addEventListener('keyup',e=>{ keys[e.code]=false; if(e.code==='KeyE') releaseE(); });
-/* E를 짧게 눌렀다 떼면 눈앞의 용기를 연다. 길게 누른 것은 화덕을 다룬 것이므로
+addEventListener('keyup',e=>{ keys[e.code]=false; });   // E 는 이제 열린 창 닫기만 — 여는 것은 좌클릭(releaseE)
+/* 좌클릭을 짧게 눌렀다 떼면 눈앞의 용기·문짝·숫돌·발전기를 다룬다(사용자 요청 — 예전엔 E). 길게 누른 것은 화덕을 다룬 것이므로
    손을 뗐다고 창이 열리면 안 된다. */
 function releaseE(){
   const c=EK.tgt, held=EK.hold;
@@ -12670,12 +12671,17 @@ cv.addEventListener('mousedown',e=>{
   if(document.pointerLockElement!==cv) return;
   /* 좌클릭 — 쓰기(공격·채집·먹기 전부) · 짓기 중엔 조각 놓기. 우클릭 — 조준경 · 충전. */
   if(e.button===0){
-    if(BUILD.on) doBuild(); else { useDown=true; useHeld(); }
+    if(BUILD.on) doBuild();
+    else { useDown=true; if(!facing()) useHeld(); }   // 설비를 보고 있으면 손의 것을 안 쓴다(뗄 때 releaseE)
   }
   if(e.button===2 && !BUILD.on){ mouseDown=true; chargeHeld(); }
 });
 cv.addEventListener('contextmenu',e=>e.preventDefault());
-addEventListener('mouseup',e=>{ dragF=false; if(e.button===0) useDown=false; else if(e.button===2) mouseDown=false; });
+addEventListener('mouseup',e=>{ dragF=false;
+  if(e.button===0){ const was=useDown; useDown=false; if(was) releaseE(); }
+  else if(e.button===2) mouseDown=false; });
+/* 눈앞에 설비(문짝·상자·화덕·제련로·숫돌·발전기)가 있나 — 그때 좌클릭은 공격·먹기가 아니라 설비 조작이다 */
+function facing(){ return !!(HARV.fit||HARV.cont); }
 addEventListener('blur',()=>{ mouseDown=false; useDown=false; });
 cv.addEventListener('wheel',e=>{ if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
 document.addEventListener('pointerlockchange',()=>{
@@ -12868,7 +12874,7 @@ function loop(){
       const h=document.getElementById('hint');
       if(h&&hasMouse&&!flyMode){
         const locked=document.pointerLockElement===cv;
-        const want=locked?'WASD 이동 · 좌클릭 쓰기·채집 · E 열기 · L 전등 · I 소지품 · C 제작 · B 사전'
+        const want=locked?'WASD 이동 · 좌클릭 쓰기·채집·열기 · E 창 닫기 · L 전등 · I 소지품 · C 제작 · B 사전'
                          :'화면을 클릭하면 시점 조작이 시작됩니다';
         if(h.textContent!==want) h.textContent=want;
       }
