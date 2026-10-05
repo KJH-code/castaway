@@ -2051,7 +2051,7 @@ const WIND_ON=false;
    한 포기 때문에 1920 m 섬의 풀 4만 포기(삼각형 220만)를 매 프레임 다 그렸다. 64 m 칸으로 쪼개
    `PROP_DIST` 밖 칸을 통째로 끈다(updateTileVis). 가까운 풀의 빽빽함은 그대로다. */
 const PROP_TILE=64, PROP_TILES=[];
-const PROP_DIST={grass:200, reed:110, pebble:90, flint:110};
+const PROP_DIST={grass:200, reed:110, pebble:90, flint:110, oak:250, fir:250};   // 나무는 줄기 메시 — 섬 전체 4천 그루를 늘 그렸다(70만)
 const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
 /* 칸마다 셋 중 하나를 고른다.
      NEAR_DIST(55 m) 안   — 가지와 잎을 다 그린다
@@ -2965,7 +2965,7 @@ function buildProps(){
           t.userData.lightRole=ms[gi].userData.lightRole;
           propGroup.add(t); return t;
         });
-        b.ix.forEach((ix,j)=>{ const p=list[ix]; if(p._fm){ p._fm=tms[0]; p._fi=j; } });
+        b.ix.forEach((ix,j)=>{ const p=list[ix]; if(p._fm){ p._fm=tms[0]; p._fi=j; } if(p._tm){ p._tm=tms[0]; p._fi=j; } });
         PROP_TILES.push({ms:tms, cx:(b.gx+0.5)*PROP_TILE, cz:(b.gz+0.5)*PROP_TILE,
                          r:PROP_TILE*0.71, d:PROP_DIST[R.k]});
       }
