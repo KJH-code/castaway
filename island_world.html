@@ -11195,14 +11195,25 @@ function gScalesOnMesh(G,mat,sgeo,d,seed){
     N.subVectors(B,A).cross(_gv.subVectors(C,A)); const ar=N.length()/2; if(ar<1e-9) continue; N.normalize();
     const m=A.clone().add(B).add(C).divideScalar(3), out=m.clone().sub(cen); out.y*=0.3; if(N.dot(out)<0) N.negate();
     if(N.dot(out.normalize())<0.15) continue; tot+=ar; tri.push([k,N.clone()]); cum.push(tot); }
-  const pts=[], grid=new Map(), key=(p)=>Math.floor(p.x/d)+','+Math.floor(p.y/d)+','+Math.floor(p.z/d), n=Math.round(tot/(d*d)*1.6);
-  for(let t=0;t<n*3&&pts.length<n;t++){ const r=rn()*tot; let lo=0,hi=cum.length-1; while(lo<hi){ const mid=(lo+hi)>>1; if(cum[mid]<r) lo=mid+1; else hi=mid; }
+  /* 줄 맞추기 — 점을 부위 축(몸통 · 두 다리 · 두 팔) 둘레 원기둥 좌표(둘레 각 × 높이)로 옮겨 칸(줄 높이 rowH · 칸 폭 colW,
+     홀수 줄은 반 칸 민다)에 넣고, 칸마다 칸 가운데에 가장 가까운 점 하나만 남긴다. 그래서 비늘이 가로줄로 가지런히 선다 */
+  const rowH=d*0.9, colW=d*1.15, best=new Map();
+  const axis=p=>{ const ax=Math.abs(p.x), s=Math.sign(p.x)||1;
+    if(ax>0.16&&p.y>0.7&&p.y<1.45) return [1+(s>0), s*(0.2+(1.42-p.y)*0.25), 0];
+    if(p.y<0.92&&ax<0.2) return [3+(s>0), s*0.1, 0.01];
+    return [0,0,0]; };
+  const n=Math.round(tot/(d*d)*8);
+  for(let t=0;t<n;t++){ const r=rn()*tot; let lo=0,hi=cum.length-1; while(lo<hi){ const mid=(lo+hi)>>1; if(cum[mid]<r) lo=mid+1; else hi=mid; }
     const [k,Nn]=tri[lo]; let a=rn(), b=rn(); if(a+b>1){ a=1-a; b=1-b; }
     A.fromBufferAttribute(P,I[k]); B.fromBufferAttribute(P,I[k+1]); C.fromBufferAttribute(P,I[k+2]);
-    const p=A.clone().multiplyScalar(1-a-b).addScaledVector(B,a).addScaledVector(C,b);
-    let ok=true; const kx=Math.floor(p.x/d), ky=Math.floor(p.y/d), kz=Math.floor(p.z/d);
-    for(let x=-1;x<=1&&ok;x++) for(let y=-1;y<=1&&ok;y++) for(let z=-1;z<=1&&ok;z++){ const q=grid.get((kx+x)+','+(ky+y)+','+(kz+z)); if(q&&q.some(o=>o.distanceTo(p)<d*0.8)) ok=false; }
-    if(!ok) continue; const kk=key(p); (grid.get(kk)||grid.set(kk,[]).get(kk)).push(p); pts.push([p,Nn]); }
+    const p=A.clone().multiplyScalar(1-a-b).addScaledVector(B,a).addScaledVector(C,b), [rg,cx,cz]=axis(p);
+    const dx=p.x-cx, dz=p.z-cz, rad=Math.max(0.04,Math.hypot(dx,dz)), th=Math.atan2(dx,dz);
+    const row=Math.floor(p.y/rowH), sh=(row&1)*0.5, ncol=Math.max(3,Math.round(2*Math.PI*rad/colW)), cf=th/(2*Math.PI)*ncol-sh, col=Math.round(cf);
+    const err=Math.hypot((cf-col)*colW,(p.y/rowH-row-0.5)*rowH), key=rg+':'+row+':'+((col%ncol+ncol)%ncol);
+    const o=best.get(key); if(!o||err<o[2]) best.set(key,[p,Nn,err,cx,cz,rad,row,col,ncol,sh]); }
+  /* 비늘은 칸 가운데에 정확히 세우고(뽑힌 점의 반지름만 쓴다), 바라보는 쪽은 축에서 바깥(가로) 3/4 + 면 법선 1/4 — 장식 요철을 따라 비늘이 제멋대로 눕지 않게 */
+  const pts=[...best.values()].filter(v=>v[2]<d*0.7).map(([p,Nn,e,cx,cz,rad,row,col,ncol,sh])=>{ const th=(col+sh)/ncol*2*Math.PI, q=new THREE.Vector3(cx+rad*Math.sin(th),(row+0.5)*rowH,cz+rad*Math.cos(th));
+    const out=new THREE.Vector3(Math.sin(th),0,Math.cos(th)), N=out.multiplyScalar(0.75).addScaledVector(Nn,0.25).normalize(); return [q.addScaledVector(N,0.004),N]; });
   const im=new THREE.InstancedMesh(sgeo,mat,pts.length), m4=new THREE.Matrix4(), col=new THREE.Color(), Y=new THREE.Vector3(), X=new THREE.Vector3();
   pts.forEach(([p,Nn],i)=>{ Y.set(0,1,0).addScaledVector(Nn,-Nn.y); if(Y.lengthSq()<0.09) Y.copy(_gv.copy(p).sub(cen).setY(0)).addScaledVector(Nn,-Nn.dot(_gv)); Y.normalize();
     const a=0.22, Y2=Y.clone().multiplyScalar(Math.cos(a)).addScaledVector(Nn,-Math.sin(a)), Z2=Nn.clone().multiplyScalar(Math.cos(a)).addScaledVector(Y,Math.sin(a));
