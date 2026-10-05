@@ -10854,10 +10854,12 @@ function _icoShape(id){
     if(liq!=null) add(cyl(0.15,0.16,0.26),WMAT(liq),0,-0.04,0); };
   const pile=(c)=>{ add(new THREE.ConeGeometry(0.3,0.22,16),WMAT(c),0,0,0); };
   const strands=(c,n,len,w)=>{ const rn=mulberry32(hashStr(id)); for(let i=0;i<n;i++) add(box(w,len,w*0.4),WMAT(c),(rn()-0.5)*0.12,0,(rn()-0.5)*0.08,0,0,(rn()-0.5)*0.35); };
-  const torso=(c,scale)=>{ const m=WMAT(c);
-    add(cyl(0.2,0.17,0.42,12),m,0,0,0,0,0,0,1,1,0.62);
-    add(sph(0.11,10,8),m,-0.2,0.15,0,0,0,0,1,0.8,0.8); add(sph(0.11,10,8),m,0.2,0.15,0,0,0,0,1,0.8,0.8);
-    if(scale){ const d=dark(c); for(let r=0;r<4;r++) add(box(0.36,0.025,0.01),d,0,0.13-r*0.09,0.125); } };
+  const torso=(c,scale)=>{ const m=WMAT(c), d=dark(c);        // 앞에서 본 몸통 — 어깨·소매·목 파임
+    add(cyl(0.2,0.16,0.44,4),m,0,-0.02,0,0,Math.PI/4,0,1.15,1,0.45);
+    add(box(0.13,0.16,0.14),m,-0.27,0.13,0,0,0,0.5); add(box(0.13,0.16,0.14),m,0.27,0.13,0,0,0,-0.5);
+    add(cyl(0.07,0.07,0.02,12),d,0,0.2,0.03,1.4,0,0);
+    if(scale) for(let r=0;r<4;r++) for(let k=-2;k<=2;k++) add(sph(0.035,8,6),d,k*0.065+(r%2)*0.03,0.1-r*0.085,0.075,0,0,0,1,0.8,0.4);
+    g.userData.front=true; };
   const helm=(c,crest)=>{ add(new THREE.SphereGeometry(0.22,16,10,0,Math.PI*2,0,Math.PI*0.55),WMAT(c),0,0,0);
     add(cyl(0.225,0.235,0.04,16),dark(c),0,-0.01,0); if(crest) add(box(0.04,0.08,0.3),dark(c),0,0.22,0); };
   if(/^ingot_|bloom_iron|iron_wrought/.test(id)){ add(cyl(0.16,0.22,0.12,4),M,0,0,0,0,Math.PI/4,0,1.6,1,0.8); }
@@ -10929,7 +10931,7 @@ function itemIcon(id){
   const held=WEAPON_FX[id]||(consumable(T)&&(()=>heldConsumable(id)));
   if(held){ const r=held(); obj=new THREE.Group(); r.mesh.position.y=-(r.grip||0); obj.add(r.mesh);
     obj.rotation.set(0.25,0.5,-Math.PI/4);            // 손에 든 것은 대각선으로 눕힌다(마크 아이콘처럼)
-  }else{ obj=_icoShape(id); obj.rotation.set(0.45,-0.6,0); }
+  }else{ obj=_icoShape(id); if(obj.userData.front) obj.rotation.set(0.12,-0.25,0); else obj.rotation.set(0.45,-0.6,0); }
   _icoScene.add(obj); obj.updateMatrixWorld(true);
   const bb=new THREE.Box3().setFromObject(obj), c=bb.getCenter(new THREE.Vector3()), sz=bb.getSize(new THREE.Vector3());
   const h=Math.max(sz.x,sz.y)*0.56||0.5;
