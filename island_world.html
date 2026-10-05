@@ -11225,25 +11225,30 @@ function gScalesOnMesh(G,mat,sgeo,d,seed){
     const out=new THREE.Vector3(Math.sin(th),0,Math.cos(th)), N=out.multiplyScalar(0.75).addScaledVector(Nn,0.25).normalize(); return [q.addScaledVector(N,0.006),N]; });
   /* 구멍 메우기 — 겉을 촘촘히 훑어, 둘레 0.85d 안에 비늘이 없는 점마다 비늘을 하나 더 세운다(줄 칸이 못 잡은 겹친 겉·오목한 데·손).
      이 점 자리에 세운 비늘도 다음 점을 덮으므로 빈자리가 남지 않을 때까지 한 번에 메워진다 */
-  { const hd=d*0.5, H=new Map(), hk=(x,y,z)=>x+','+y+','+z, ins=p=>{ const k=hk(Math.floor(p.x/hd),Math.floor(p.y/hd),Math.floor(p.z/hd)); (H.get(k)||H.set(k,[]).get(k)).push(p); };
-    const near=p=>{ const x=Math.floor(p.x/hd), y=Math.floor(p.y/hd), z=Math.floor(p.z/hd);
-      for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++) for(let c=-1;c<=1;c++){ const L=H.get(hk(x+a,y+b,z+c)); if(L) for(const q of L) if(q.distanceToSquared(p)<hd*hd) return true; } return false; };
-    for(const [q] of pts) ins(q);
+  { const hd=d*0.35, H=new Map(), hk=(x,y,z)=>x+','+y+','+z, ins=p=>{ const k=hk(Math.floor(p.x/hd),Math.floor(p.y/hd),Math.floor(p.z/hd)); (H.get(k)||H.set(k,[]).get(k)).push(p); };
+    const near=(p,n)=>{ const x=Math.floor(p.x/hd), y=Math.floor(p.y/hd), z=Math.floor(p.z/hd);
+      for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++) for(let c=-1;c<=1;c++){ const L=H.get(hk(x+a,y+b,z+c)); if(L) for(const q of L) if(q.distanceToSquared(p)<(p.y<0.2?d*d*0.04:hd*hd)&&(!n||!q.n||q.n.dot(n)>0.2)) return true; } return false; };
+    for(const [q,qn] of pts){ q.n=qn; ins(q); }
     const m2=Math.round(tot/(d*d)*140);
     for(let t=0;t<m2;t++){ const r=rn()*tot; let lo=0,hi=cum.length-1; while(lo<hi){ const mid=(lo+hi)>>1; if(cum[mid]<r) lo=mid+1; else hi=mid; }
       const [k,Nn]=tri[lo]; let a=rn(), b=rn(); if(a+b>1){ a=1-a; b=1-b; }
       A.fromBufferAttribute(P,I[k]); B.fromBufferAttribute(P,I[k+1]); C.fromBufferAttribute(P,I[k+2]);
       const p0=A.clone().multiplyScalar(1-a-b).addScaledVector(B,a).addScaledVector(C,b);
       /* 겉의 앞뒤를 몸 가운데로만 가리므로 손바닥·안쪽 팔은 틀린 쪽에 설 수 있다 — 메우는 비늘은 양쪽에 다 세운다(속에 든 쪽은 안 보일 뿐이다) */
-      for(const sg of [1,-1]){ const p=p0.clone().addScaledVector(Nn,0.006*sg); if(near(p)) continue; ins(p); pts.push([p,Nn.clone().multiplyScalar(sg)]); } }
+      for(const sg of [1,-1]){ const p=p0.clone().addScaledVector(Nn,0.006*sg); if(near(p)) continue; ins(p); pts.push([p,Nn.clone().multiplyScalar(sg),1]); } }
+    /* 열린 가장자리(삼각형 하나만 쓰는 변 — 투구를 떼어 낸 목둘레·발끝)를 따라 hd 마다 짚는다 — 바탕이 모로 드러나는 자리다 */
+    { const E=new Map(), ek=(i,j)=>{ const a=Math.round(P.getX(i)*1e4)+','+Math.round(P.getY(i)*1e4)+','+Math.round(P.getZ(i)*1e4), b=Math.round(P.getX(j)*1e4)+','+Math.round(P.getY(j)*1e4)+','+Math.round(P.getZ(j)*1e4); return a<b?a+'|'+b:b+'|'+a; };
+      for(const [k,Nn] of tri) for(let e=0;e<3;e++){ const i=I[k+e], j=I[k+(e+1)%3], key=ek(i,j), o=E.get(key); if(o) o.n++; else E.set(key,{n:1,i,j,Nn}); }
+      for(const {n,i,j,Nn} of E.values()) if(n===1){ A.fromBufferAttribute(P,i); B.fromBufferAttribute(P,j); const m=Math.max(1,Math.ceil(A.distanceTo(B)/(hd*0.5)));
+        for(let t=0;t<=m;t++){ const p0=A.clone().lerp(B,t/m); for(const sg of [1,-1]){ const p=p0.clone().addScaledVector(Nn,0.006*sg), pn=Nn.clone().multiplyScalar(sg); if(near(p,pn)) continue; p.n=pn; ins(p); pts.push([p,pn]); } } } }
     /* 끝으로 삼각형마다 가운데와 세 꼭짓점을 빠짐없이 짚는다 — 아주 작거나 가는 삼각형은 넓이 비례로 뽑으면 거의 안 걸려 한두 화소 구멍이 남았다 */
     for(const [k,Nn] of tri){ A.fromBufferAttribute(P,I[k]); B.fromBufferAttribute(P,I[k+1]); C.fromBufferAttribute(P,I[k+2]);
       for(const p0 of [A.clone().add(B).add(C).divideScalar(3),A.clone(),B.clone(),C.clone()])
-        for(const sg of [1,-1]){ const p=p0.clone().addScaledVector(Nn,0.006*sg); if(near(p)) continue; ins(p); pts.push([p,Nn.clone().multiplyScalar(sg)]); } } }
+        for(const sg of [1,-1]){ const p=p0.clone().addScaledVector(Nn,0.006*sg); if(near(p)) continue; ins(p); pts.push([p,Nn.clone().multiplyScalar(sg),1]); } } }
   const im=new THREE.InstancedMesh(sgeo,mat,pts.length), m4=new THREE.Matrix4(), col=new THREE.Color(), Y=new THREE.Vector3(), X=new THREE.Vector3();
-  pts.forEach(([p,Nn],i)=>{ Y.set(0,1,0).addScaledVector(Nn,-Nn.y); if(Y.lengthSq()<0.09) Y.copy(_gv.copy(p).sub(cen).setY(0)).addScaledVector(Nn,-Nn.dot(_gv)); Y.normalize();
+  pts.forEach(([p,Nn,fc],i)=>{ Y.set(0,1,0).addScaledVector(Nn,-Nn.y); if(Y.lengthSq()<0.09) Y.copy(_gv.copy(p).sub(cen).setY(0)).addScaledVector(Nn,-Nn.dot(_gv)); Y.normalize();
     const a=0.22, Y2=Y.clone().multiplyScalar(Math.cos(a)).addScaledVector(Nn,-Math.sin(a)), Z2=Nn.clone().multiplyScalar(Math.cos(a)).addScaledVector(Y,Math.sin(a));
-    X.crossVectors(Y2,Z2).normalize(); const w=d*2.0, h=d*2.5;
+    X.crossVectors(Y2,Z2).normalize(); const w=d*2.3, h=d*2.8;
     m4.makeBasis(X.multiplyScalar(w),Y2.multiplyScalar(h),Z2.multiplyScalar(w)); m4.setPosition(p.clone().addScaledVector(Nn,0.003).addScaledVector(Y,h*0.45)); im.setMatrixAt(i,m4);
     const v=0.84+0.24*rn(); col.setRGB(v,v,v); im.setColorAt(i,col); });
   im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true; return im;
@@ -11593,8 +11598,11 @@ function gPackHide(g){
 function gSentArmor(g,mat,cloth,sc,scaleOn){
   const G=gSentinelGeo(), b=gBone(g,'chest');
   /* 비늘 밑 바탕은 4 mm 밀어 넣는다 — 비늘이 옆으로 비껴 보이는 틈에서 바탕이 한두 화소씩 비쳤다. 법선이 뒤집힌 데서 4 mm 밖으로 나가도 비늘(6 mm 띄움) 밑이다. 1.4 cm 일 땐 그게 비늘을 덮었다 */
-  const sink=k=>{ const g=G[k].clone(), P=g.attributes.position.clone(), N=g.attributes.normal; for(let i=0;i<P.count;i++){ const x=P.getX(i), y=P.getY(i), z=P.getZ(i); let nx=N.getX(i), ny=N.getY(i), nz=N.getZ(i); if(nx*x+nz*z<0){ nx=-nx; ny=-ny; nz=-nz; }   // 모형 법선이 안쪽을 볼 때가 있다(등) — 바깥으로 돌려 놓고 민다
-      P.setXYZ(i,x-nx*0.004,y-ny*0.004,z-nz*0.004); } g.setAttribute('position',P); return g; };
+  const sink=k=>{ const g=G[k].clone(), P=g.attributes.position.clone(), N=g.attributes.normal; for(let i=0;i<P.count;i++){ const x=P.getX(i), y=P.getY(i), z=P.getZ(i); let nx=N.getX(i), ny=N.getY(i), nz=N.getZ(i); if(nx*x+nz*z<0&&!(y>1.36&&x*x+z*z<0.13*0.13)&&y>0.2){   // 목둘레·발은 몸 가운데 기준이 틀린다 — 모형 법선 그대로
+      nx=-nx; ny=-ny; nz=-nz; }   // 모형 법선이 안쪽을 볼 때가 있다(등) — 바깥으로 돌려 놓고 민다
+      const rim=(y>1.40&&x*x+z*z<0.13*0.13)?0.01:0;   // 목둘레 끝(투구를 떼어 낸 자리) — 안팎 비늘 사이로 바탕 윗단이 비친다, 1 cm 내려 비늘 밑에 숨긴다
+      const dd=(y>0.1&&y<0.17)?0.002:0.006;
+      P.setXYZ(i,x-nx*dd,y-ny*dd-rim,z-nz*dd); } g.setAttribute('position',P); return g; };
   const put=(k,m,hide)=>{ const me=new THREE.Mesh(sc&&scaleOn.includes(k)?sink(k):G[k],m); if(sc&&scaleOn.includes(k)) me.userData.under=true; b.add(hide?gHide(me):me);
     if(sc&&scaleOn.includes(k)){ const s=gScalesOnMesh(G[k],sc.mat,gScaleGeo('dropL'),0.013,11+k.length); b.add(hide?gHide(s):s); } };
   put('u',mat); put('l',mat,true); put('c',cloth,true);
