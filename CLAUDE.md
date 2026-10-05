@@ -740,20 +740,17 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   것만** 보인다(예전엔 모든 탄을 늘어놓아 총에 화살이 적힐 뻔했다). 모양은 `bowMesh`.
 - **대물 저격총(`rifle_sniper`)·바주카(`bazooka`)** — 둘 다 총 틀(`tool.gun`)이고 구경이 새것이다
   (`bore:'heavy'` 대물탄 · `'rocket'` 로켓탄). 저격총은 500 · 120 m · 5발 · 13 kg, **`tool.scope`(배율)을 단 총은
-  좌클릭을 누르는 동안 조준경**(`updateScope` — 화각 70/배율 · `#scope` 테 · 손의 총 감춤 · 마우스 `PL.aimMul`).
+  우클릭을 누르는 동안 조준경**(`updateScope` — 화각 70/배율 · `#scope` 테 · 손의 총 감춤 · 마우스 `PL.aimMul`).
   바주카는 `tool.rocket` 이면 `shoot` 이 선을 쏘지 않고 `launchRocket` 으로 넘긴다 — 초속 70 m · 중력 1.5 ·
   꼬리 `makePlume` · 땅/짐승에 닿거나 사거리 끝에서 수류탄과 같은 `explode`(420 · 반경 `blast` 6 m).
   **몸에 맞으면 그 짐승 자리에서 터뜨린다** — 스친 자리에서 터뜨렸더니 직격이 182 뿐이었다. 쏜 사람도 다친다.
-- **먹고 마시고 감는 것도 손에 든다 — 쓰기는 전부 우클릭이다**(`useHeld` · F 키는 없앴다).
-  `holdable(T)` = `tool` 이거나 `consumable(T)`(food·drink·heal) — 손 칸·빠른 칸이 이걸 본다.
-  생김새는 `WEAPON_FX` 가 아니라 `heldConsumable(id)`(고기·물고기·통조림·병·토기·양동이·물주머니·붕대
-  몇 벌을 나눠 쓰고 색은 `T.c`). 그래서 **손에 든 것의 `ITEMS[id].tool` 이 없을 수 있다** —
-  `(…tool||{})` 로 읽을 것. **우클릭(`useHeld` · 누르는 동안 `rightDown`)이 공격까지 다 한다** —
-  먹을 것은 `eatSlot`(입으로 가져가는 `USE_T` 모션) · 전등 켜고 끄기 · 도끼·곡괭이·드릴로 캘 것을 보고
-  있으면 누르는 동안 캐기(`updateHarvest` 가 `keys.KeyE || rightDown` 을 본다 — E 도 그대로) ·
-  무기·그물·수류탄 공격(연사도 `rightDown`) · 빈손이면 물가에서 마시기.
-  **좌클릭은 짓기와 충전뿐이다**(`chargeHeld` — 전등·드릴을 지닌 축전지로 채운다). 저절로 축전지에서
-  끌어오던 자리(드릴이 떨어질 때 · 전등 켤 때 · `blockReason`)는 없앴고, **빈 드릴은 맨손과 같다**(`pickMode`).
+- **쓰기는 전부 좌클릭이다**(사용자 요청 — 예전엔 우클릭) — 공격(연사도 누르고 있는 동안) · 먹기·마시기·감기 · 전등 · 그물·수류탄 · 빈손이면 물가에서 마시기,
+  그리고 **캐기도 좌클릭을 누르고 있는 동안뿐이다 — E 로 캐던 것은 없앴다**(`updateHarvest` 는 `useDown && harvestByUse()`).
+  `harvestByUse()` = 캘 것을 보고 있고(`HARV.mode`) **빈손이거나 손의 것이 그 캐기 도구**(`HARV.mode.tool`)일 때 — 칼을 들고 덤불을 보면 캐지 않고 휘두른다.
+  누르는 상태는 `useDown`(예전 이름 `rightDown`). **우클릭은 저격총 조준경(`mouseDown` → `updateScope`)과 전등·드릴 충전(`chargeHeld`)** 이다.
+  짓기 중엔 좌클릭이 조각 놓기. **E 는 열기·여닫기·불 피우기 등 설비만** 남았다. 모바일 '줍기' 단추는 `useDown` 을 같이 켠다.
+  `holdable(T)` = `tool` 이거나 `consumable(T)`(food·drink·heal). 생김새는 `WEAPON_FX` 가 아니라 `heldConsumable(id)` — 그래서 **손에 든 것의 `ITEMS[id].tool` 이 없을 수 있다**(`(…tool||{})` 로 읽을 것).
+  **빈 드릴은 맨손과 같다**(`pickMode`).
 - **먹는 것(`food`)·감는 것(`heal`)도 `water`·`empty` 를 받는다** — 국·달인 물은 목을 축이고 토기를 돌려준다.
 - **가죽은 귀하다 — 아르크토스 한 마리에 세 장**(`MOBS.bear.drop`). 키틴·뼈처럼 다룰 것: 새 물건 하나에
   한두 장만 쓴다(가죽 모자·물주머니·뼈 투구·뼈 덧댄 활 1 · 가죽 배낭 2 · 가죽 속옷 3).
