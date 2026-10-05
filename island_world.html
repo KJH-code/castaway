@@ -2051,7 +2051,11 @@ const WIND_ON=false;
    한 포기 때문에 1920 m 섬의 풀 4만 포기(삼각형 220만)를 매 프레임 다 그렸다. 64 m 칸으로 쪼개
    `PROP_DIST` 밖 칸을 통째로 끈다(updateTileVis). 가까운 풀의 빽빽함은 그대로다. */
 const PROP_TILE=64, PROP_TILES=[];
-const PROP_DIST={grass:200, reed:110, pebble:90, flint:110, oak:250, fir:250};   // 나무는 줄기 메시 — 섬 전체 4천 그루를 늘 그렸다(70만)
+/* 나무(oak·fir)는 줄기 메시 — 섬 전체 4천 그루를 늘 그렸다(70만). 그 밖은 그림 판때기 속 줄기가 대신한다.
+   162 = COPY_DIST 150 + 12: 나무 칸은 반경 TILE·0.71+12, 프롭 칸은 PROP_TILE·0.71 이라 12 m 를 더해야
+   판때기가 켜지는 바로 그 거리에서 줄기 메시가 꺼진다(둘 다 같은 64 m 격자). */
+const TRUNK_DIST=162;
+const PROP_DIST={grass:200, reed:110, pebble:90, flint:110, oak:TRUNK_DIST, fir:TRUNK_DIST};
 const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
 /* 칸마다 셋 중 하나를 고른다.
      NEAR_DIST(55 m) 안   — 가지와 잎을 다 그린다
@@ -2141,10 +2145,21 @@ function bakeTreeImpostor(list,kind){
   }
   if(box.isEmpty()) return null;
   box.expandByScalar(0.35*p.s);              // 잎 판때기 반 폭만큼
+  /* 줄기도 그림에 넣는다 — 줄기 메시는 칸마다 TRUNK_DIST 까지만 그리므로(그 밖은 끈다) 그림 판때기가
+     넘겨받는 거리부터는 그림 속 줄기가 대신한다. 두 거리를 맞춰 둬서 겹쳐 깜빡이지 않는다. */
+  let trunk=null;
+  if(p._tm){
+    const tm=new THREE.Matrix4(); p._tm.getMatrixAt(p._fi,tm); tm.premultiply(off);
+    trunk=new THREE.Mesh(p._tm.geometry,new THREE.MeshLambertMaterial({color:p._tm.material.color}));
+    trunk.matrixAutoUpdate=false; trunk.matrix.copy(tm);
+    p._tm.geometry.computeBoundingBox();
+    const tb=p._tm.geometry.boundingBox.clone().applyMatrix4(tm); tb.min.y=Math.max(tb.min.y,0);
+    box.union(tb);
+  }
   const hw=Math.max(Math.abs(box.min.x),box.max.x,Math.abs(box.min.z),box.max.z);
   const y0=Math.max(0,box.min.y), y1=box.max.y;
   const sc0=new THREE.Scene();
-  sc0.add(lm); sc0.add(fm);
+  sc0.add(lm); sc0.add(fm); if(trunk) sc0.add(trunk);
   sc0.add(new THREE.AmbientLight(0xffffff,0.72));
   const dl=new THREE.DirectionalLight(0xffffff,0.45); dl.position.set(0.3,1,0.6); sc0.add(dl);
   const cam=new THREE.OrthographicCamera(-hw,hw,y1,y0,-50,50); cam.position.set(0,0,20); cam.lookAt(0,0,0);
