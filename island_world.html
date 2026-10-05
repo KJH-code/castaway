@@ -56,6 +56,7 @@
     border-bottom:1px solid rgba(130,180,165,.08)}
   .it.sel{background:rgba(143,214,180,.1)}
   .it .sw{width:9px;height:9px;flex:0 0 9px;border:1px solid rgba(0,0,0,.5)}
+  img.sw.ico{width:28px;height:28px;flex:0 0 28px;border:0;background:rgba(0,0,0,.25)}
   .it .nm{flex:1;color:var(--ink)}
   .it .qt{color:var(--acc)}
   .it .kg{color:var(--dim);flex:0 0 46px;text-align:right}
@@ -154,14 +155,13 @@
   #tool{position:absolute;left:12px;bottom:118px;font-size:10px;display:none}
   #tool .tn{color:var(--ink)}
   /* 손에 든 것 아래의 빠른 칸 다섯. 숫자를 누르면 손의 것과 서로 바뀐다. */
-  #quick{position:absolute;left:12px;bottom:92px;display:flex;gap:4px}
-  #quick .q{display:flex;align-items:center;gap:4px;background:var(--panel);
-    border:1px solid var(--line);padding:3px 6px 3px 4px;font-size:9px;
-    color:var(--dim);min-width:64px;max-width:96px}
-  #quick .q b{font-weight:500;color:#8fa8a0;font-size:8px;min-width:6px}
-  #quick .q .sw{width:8px;height:8px;border-radius:2px;background:transparent;
-    border:1px solid rgba(140,175,165,.35);flex:0 0 auto}
-  #quick .q span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 빠른 칸 — 화면 아래 가운데(마크 핫바처럼). 왼쪽 아래에 두었더니 산소 칸이 생겨 길어진 상태 막대를 가렸다. */
+  #quick{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;display:flex;gap:4px}
+  #quick .q{position:relative;width:46px;height:46px;background:var(--panel);
+    border:1px solid var(--line);font-size:9px;color:var(--dim)}
+  #quick .q b{position:absolute;left:3px;top:1px;font-weight:500;color:#8fa8a0;font-size:9px;z-index:1}
+  #quick .q .sw{position:absolute;left:5px;top:5px;width:36px;height:36px}
+  #quick .q span{display:none}
   #quick .q.on{border-color:var(--acc)}
   #quick .q.has span{color:var(--ink)}
   #tool .td{height:4px;width:110px;margin-top:3px;background:rgba(0,0,0,.55);border:1px solid var(--line)}
@@ -301,11 +301,11 @@
     <div class="wy" id="bldW"></div>
   </div>
   <div id="quick">
-    <div class="q" data-i="0"><b>1</b><i class="sw"></i><span>–</span></div>
-    <div class="q" data-i="1"><b>2</b><i class="sw"></i><span>–</span></div>
-    <div class="q" data-i="2"><b>3</b><i class="sw"></i><span>–</span></div>
-    <div class="q" data-i="3"><b>4</b><i class="sw"></i><span>–</span></div>
-    <div class="q" data-i="4"><b>5</b><i class="sw"></i><span>–</span></div>
+    <div class="q" data-i="0"><b>1</b><img class="sw" alt=""><span>–</span></div>
+    <div class="q" data-i="1"><b>2</b><img class="sw" alt=""><span>–</span></div>
+    <div class="q" data-i="2"><b>3</b><img class="sw" alt=""><span>–</span></div>
+    <div class="q" data-i="3"><b>4</b><img class="sw" alt=""><span>–</span></div>
+    <div class="q" data-i="4"><b>5</b><img class="sw" alt=""><span>–</span></div>
   </div>
   <div class="pnl" id="cbar">
     <div class="t"><span id="cbN">–</span><em id="cbP">0%</em></div>
@@ -6272,7 +6272,7 @@ function drawInv(){
   L.innerHTML=INV.slots.map((s,i)=>{
     const t=ITEMS[s.id];
     return '<div class="it'+(i===INV.sel?' sel':'')+'" data-i="'+i+'" draggable="true">'
-      +'<i class="sw" style="background:#'+t.c.toString(16).padStart(6,'0')+'"></i>'
+      +iconTag(s.id,t)
       +'<span class="nm">'+t.n+' <span class="qt">×'+s.n+'</span>'
       +(s===EQUIP?'<span class="eq">장착</span>':'')
       +(t.wear&&WEAR[t.wear.slot]===s?'<span class="eq">착용</span>':'')
@@ -6509,8 +6509,9 @@ function drawQuick(){
   bar.querySelectorAll('.q').forEach(el=>{
     const sl=QUICK[+el.dataset.i], it=sl&&ITEMS[sl.id];
     el.querySelector('span').textContent=it?it.n:'–';
-    el.querySelector('.sw').style.background=
-      it?('#'+it.c.toString(16).padStart(6,'0')):'transparent';
+    el.title=it?it.n:'';
+    const im=el.querySelector('.sw'), src=it?itemIcon(sl.id):'';
+    if(src){ im.src=src; im.style.visibility='visible'; } else im.style.visibility='hidden';
     el.classList.toggle('has',!!it);
   });
 }
@@ -10011,7 +10012,7 @@ function drawBox(){
   const row=(sl,side,i)=>{
     const t=ITEMS[sl.id];
     return '<div class="bi" data-s="'+side+'" data-i="'+i+'">'
-      +'<i class="sw" style="background:#'+t.c.toString(16).padStart(6,'0')+'"></i>'
+      +iconTag(sl.id,t)
       +'<span class="nm">'+t.n+'</span>'
       +(sl.dur!==undefined?'<span class="qt">'+sl.dur+'</span>':'')
       +(sl.fuel!==undefined?'<span class="qt">'+Math.round(sl.fuel/t.burn*100)+'%</span>':'')
@@ -10830,6 +10831,124 @@ function setWeaponFx(id){
   camera.add(weaponFx);
 }
 
+/* ── 아이템 아이콘 ────────────────────────────────────────────────────────
+   마인크래프트처럼 칸마다 그림을 단다. **그림은 실제 입체를 찍은 것이다** — 손에 드는 것은
+   손에 든 모습 그대로(`WEAPON_FX` · `heldConsumable`), 그 밖(재료·옷·탄·약품…)은 아래
+   `ICON_SHAPE` 가 같은 재질 `WMAT` 로 빚는다. 광물은 사전 삽화(`mineralIcon`)를 그대로 쓴다.
+   처음 부를 때 한 번 64×64 로 그려 dataURL 로 남긴다(`ITEM_ICON`). 렌더러가 없으면 빈 그림. */
+const ITEM_ICON={}, ICON_PX=64;
+let _icoRT=null, _icoScene=null, _icoCam=null;
+function _icoShape(id){
+  const T=ITEMS[id], g=new THREE.Group(), M=WMAT(T.c);
+  const add=(geo,mat,x,y,z,rx,ry,rz,sx,sy,sz)=>{ const m=new THREE.Mesh(geo,mat||M);
+    m.position.set(x||0,y||0,z||0); m.rotation.set(rx||0,ry||0,rz||0); if(sx) m.scale.set(sx,sy,sz); g.add(m); return m; };
+  const box=(w,h,d)=>new THREE.BoxGeometry(w,h,d), cyl=(a,b,h,n)=>new THREE.CylinderGeometry(a,b,h,n||14),
+        sph=(r,w,h)=>new THREE.SphereGeometry(r,w||14,h||10), tor=(r,t,a)=>new THREE.TorusGeometry(r,t,8,24,a||Math.PI*2);
+  const dark=c=>WMAT(((c>>16&255)*0.6<<16)|((c>>8&255)*0.6<<8)|((c&255)*0.6|0));
+  const lump=(r,seed)=>{ const geo=new THREE.IcosahedronGeometry(r,1), p=geo.attributes.position, rn=mulberry32(hashStr(id+(seed||'')));
+    const cache={}; for(let i=0;i<p.count;i++){ const k=p.getX(i).toFixed(3)+p.getY(i).toFixed(3)+p.getZ(i).toFixed(3);
+      const f=cache[k]||(cache[k]=0.78+rn()*0.4); p.setXYZ(i,p.getX(i)*f,p.getY(i)*f*0.8,p.getZ(i)*f); }
+    geo.computeVertexNormals(); return geo; };
+  const bottle=(liq,glassC)=>{ const gl=new THREE.MeshPhongMaterial({color:glassC||0xcfe6ee,transparent:true,opacity:0.45,shininess:90});
+    add(cyl(0.16,0.17,0.36),gl,0,0,0); add(cyl(0.06,0.09,0.1),gl,0,0.23,0); add(cyl(0.065,0.065,0.05),WMAT(0x8a6a44),0,0.3,0);
+    if(liq!=null) add(cyl(0.15,0.16,0.26),WMAT(liq),0,-0.04,0); };
+  const pile=(c)=>{ add(new THREE.ConeGeometry(0.3,0.22,16),WMAT(c),0,0,0); };
+  const strands=(c,n,len,w)=>{ const rn=mulberry32(hashStr(id)); for(let i=0;i<n;i++) add(box(w,len,w*0.4),WMAT(c),(rn()-0.5)*0.12,0,(rn()-0.5)*0.08,0,0,(rn()-0.5)*0.35); };
+  const torso=(c,scale)=>{ const m=WMAT(c);
+    add(cyl(0.2,0.17,0.42,12),m,0,0,0,0,0,0,1,1,0.62);
+    add(sph(0.11,10,8),m,-0.2,0.15,0,0,0,0,1,0.8,0.8); add(sph(0.11,10,8),m,0.2,0.15,0,0,0,0,1,0.8,0.8);
+    if(scale){ const d=dark(c); for(let r=0;r<4;r++) add(box(0.36,0.025,0.01),d,0,0.13-r*0.09,0.125); } };
+  const helm=(c,crest)=>{ add(new THREE.SphereGeometry(0.22,16,10,0,Math.PI*2,0,Math.PI*0.55),WMAT(c),0,0,0);
+    add(cyl(0.225,0.235,0.04,16),dark(c),0,-0.01,0); if(crest) add(box(0.04,0.08,0.3),dark(c),0,0.22,0); };
+  if(/^ingot_|bloom_iron|iron_wrought/.test(id)){ add(cyl(0.16,0.22,0.12,4),M,0,0,0,0,Math.PI/4,0,1.6,1,0.8); }
+  else if(/^cartridge|shell_buck/.test(id)){ const brass=WMAT(id==='shell_buck'?0xb03a2a:0xc8a050);
+    for(let i=0;i<3;i++){ add(cyl(0.035,0.035,0.26),brass,(i-1)*0.1,0,0); add(new THREE.ConeGeometry(0.035,0.08,12),WMAT(id==='shell_buck'?0xc8a050:0x9a6a3a),(i-1)*0.1,0.17,0); } }
+  else if(id==='rocket'){ add(cyl(0.06,0.06,0.5),WMAT(0x5a6a4a),0,0,0); add(new THREE.ConeGeometry(0.06,0.16,14),WMAT(0x8a8a7a),0,0.33,0);
+    for(let i=0;i<4;i++) add(box(0.01,0.12,0.09),WMAT(0x3a3a34),Math.cos(i*1.57)*0.07,-0.2,Math.sin(i*1.57)*0.07,0,-i*1.57,0); }
+  else if(/^arrow_/.test(id)){ add(cyl(0.012,0.012,0.8),WMAT(0x9a7a50),0,0,0); add(new THREE.ConeGeometry(0.035,0.12,4),M,0,0.45,0);
+    for(let i=0;i<3;i++) add(box(0.005,0.12,0.05),WMAT(0xe8e2d4),Math.cos(i*2.1)*0.02,-0.34,Math.sin(i*2.1)*0.02,0,i*2.1,0); }
+  else if(/^helm_/.test(id)) helm(T.c,/steel|bronze/.test(id));
+  else if(/^scale_|plate_steel|coat_hide|tunic_fiber/.test(id)) torso(T.c,/^scale_/.test(id));
+  else if(id==='cape_grass'){ add(new THREE.ConeGeometry(0.28,0.5,14,1,true),WMAT(T.c),0,0,0); }
+  else if(/^pack_/.test(id)){ add(box(0.34,0.4,0.18),M,0,0,0); add(box(0.34,0.14,0.2),dark(T.c),0,0.17,0.01); add(box(0.2,0.12,0.04),dark(T.c),0,-0.06,0.1); }
+  else if(id==='ring_platinum'){ add(tor(0.16,0.035),M,0,0,0,1.1,0,0); add(new THREE.OctahedronGeometry(0.06),WMAT(0xe8f4ff),0,0.17,0.06); }
+  else if(id==='wire_copper'||id==='cord'){ for(let i=0;i<5;i++) add(tor(0.2-i*0.02,0.018),M,0,0,i*0.015,1.2,0,0); }
+  else if(id==='spring_steel'){ for(let i=0;i<7;i++) add(tor(0.1,0.015),M,0,(i-3)*0.06,0,1.45,0,0); }
+  else if(id==='gauze_platinum'){ add(box(0.4,0.4,0.01),new THREE.MeshPhongMaterial({color:T.c,wireframe:true}),0,0,0); add(box(0.4,0.4,0.005),WMAT(T.c),0,0,-0.01,0,0,0,1,1,1).material.transparent=true; }
+  else if(id==='magnet'){ add(tor(0.14,0.05,Math.PI),WMAT(0xb83a2a),0,0,0); add(box(0.1,0.1,0.1),WMAT(0xc8c8cc),-0.14,-0.05,0); add(box(0.1,0.1,0.1),WMAT(0xc8c8cc),0.14,-0.05,0); }
+  else if(id==='electrode'||id==='barrel_rifled'||id==='pipe_copper'||id==='blowpipe'){ const L=id==='electrode'?0.5:0.8, r=id==='electrode'?0.04:0.05;
+    add(cyl(r,r,L),M,0,0,0); if(id!=='electrode') add(cyl(r*0.6,r*0.6,L+0.01),WMAT(0x111111),0,0,0); }
+  else if(id==='bulb'){ add(sph(0.16,16,12),new THREE.MeshPhongMaterial({color:0xfff6c8,transparent:true,opacity:0.7,emissive:0x444020}),0,0.08,0); add(cyl(0.07,0.07,0.12),WMAT(0xb0b0b0),0,-0.12,0); }
+  else if(id==='battery'){ add(box(0.4,0.26,0.24),WMAT(0x2a2e30),0,0,0); add(cyl(0.03,0.03,0.05),WMAT(0xb03a2a),-0.12,0.15,0); add(cyl(0.03,0.03,0.05),WMAT(0x333333),0.12,0.15,0); }
+  else if(id==='drawplate'){ add(box(0.4,0.08,0.22),M,0,0,0); for(let i=0;i<5;i++) add(cyl(0.012+i*0.006,0.012+i*0.006,0.09,10),WMAT(0x111111),-0.14+i*0.07,0,0); }
+  else if(id==='blade_polished'||id==='point'){ add(new THREE.ConeGeometry(0.12,0.42,4),M,0,0,0,0,0,0,1,1,0.3); }
+  else if(id==='hammer_stone'){ add(cyl(0.02,0.025,0.55),WMAT(0x8a6a44),0,0,0); add(lump(0.12),M,0,0.28,0); }
+  else if(/^(lye|nitric|acid_sulfuric|alcohol)$/.test(id)) bottle(T.c);
+  else if(id==='mercury') bottle(0xc8ccd0);
+  else if(id==='bottle_empty') bottle(null);
+  else if(/^(ash|saltpeter|gunpowder|fulminate|guncotton|powder_smokeless)$/.test(id)) pile(T.c);
+  else if(id==='primer'){ for(let i=0;i<4;i++) add(cyl(0.05,0.05,0.04),WMAT(0xc8a050),(i%2-0.5)*0.12,0,(i>>1)*0.12-0.06); }
+  else if(/^(pot|pot_raw|pot_sand|crucible|crucible_raw)$/.test(id)){ const c=/raw/.test(id)?0x8a7a66:0xa8724a;
+    if(/crucible/.test(id)) add(cyl(0.16,0.11,0.3,14),WMAT(c),0,0,0);
+    else{ add(sph(0.2,16,12),WMAT(c),0,0,0,0,0,0,1,0.85,1); add(cyl(0.13,0.15,0.06),WMAT(c),0,0.17,0); }
+    if(id==='pot_sand') add(cyl(0.12,0.12,0.01),WMAT(0xd8c890),0,0.2,0); }
+  else if(id==='bucket_iron'){ add(cyl(0.2,0.16,0.34,16,1,true),WMAT(0x8a8e90),0,0,0); add(tor(0.2,0.012,Math.PI),WMAT(0x6a6e70),0,0.17,0); }
+  else if(id==='waterskin'){ add(sph(0.2,14,10),M,0,0,0,0,0,0,1,1.2,0.6); add(cyl(0.04,0.05,0.1),dark(T.c),0,0.26,0); }
+  else if(id==='branch'){ add(cyl(0.03,0.045,0.8,8),M,0,0,0); add(cyl(0.015,0.025,0.3,6),M,0.08,0.1,0,0,0,-0.7); }
+  else if(id==='log'){ add(cyl(0.16,0.16,0.6,14),WMAT(0x5a4430),0,0,0,0,0,Math.PI/2); add(cyl(0.155,0.155,0.61,14),WMAT(0xc8a676),0,0,0,0,0,Math.PI/2,0.98,1,0.98); }
+  else if(id==='stone_block'){ add(box(0.36,0.26,0.26),M,0,0,0); }
+  else if(id==='codex'){ add(box(0.32,0.42,0.08),WMAT(0x6a3a28),0,0,0); add(box(0.3,0.4,0.07),WMAT(0xe8dcc0),0.012,0,0); }
+  else if(id==='glass'){ add(box(0.36,0.42,0.02),new THREE.MeshPhongMaterial({color:0xcfe6ee,transparent:true,opacity:0.55,shininess:100}),0,0,0); }
+  else if(id==='berry'){ const rn=mulberry32(5); for(let i=0;i<7;i++) add(sph(0.08,12,8),WMAT(0x8e2438),(rn()-0.5)*0.24,(rn()-0.5)*0.2,(rn()-0.5)*0.12); }
+  else if(/^(grass_blade|reed_stalk)$/.test(id)) strands(T.c,7,0.6,0.035);
+  else if(/^(fiber|spider_silk|tinder)$/.test(id)) strands(T.c,12,0.5,0.012);
+  else if(id==='bone'){ add(cyl(0.035,0.035,0.5),M,0,0,0); for(const s of [-1,1]) for(const t of [-1,1]) add(sph(0.06,10,8),M,t*0.04,s*0.26,0); }
+  else if(/^(hide|chitin|ember_scale)$/.test(id)){ const geo=new THREE.CircleGeometry(0.28,7); const p=geo.attributes.position, rn=mulberry32(hashStr(id));
+    for(let i=1;i<p.count;i++){ p.setXY(i,p.getX(i)*(0.75+rn()*0.4),p.getY(i)*(0.75+rn()*0.4)); p.setZ(i,(p.getX(i)*p.getX(i))*(id==='hide'?0.2:0.9)); }
+    geo.computeVertexNormals(); const m=WMAT(T.c).clone(); m.side=THREE.DoubleSide; add(geo,m,0,0,0); }
+  else if(id==='charcoal_pile'){ add(new THREE.ConeGeometry(0.34,0.3,14),WMAT(0x5a4a3a),0,0,0); }
+  else add(lump(0.22),M,0,0,0);        // 덩이(광석·점토·석탄·숯·기름·조직 …)
+  return g;
+}
+const iconTag=(id,t)=>{ const u=itemIcon(id);
+  return u?'<img class="sw ico" src="'+u+'" alt="">':'<i class="sw" style="background:#'+t.c.toString(16).padStart(6,'0')+'"></i>'; };
+function itemIcon(id){
+  if(ITEM_ICON[id]) return ITEM_ICON[id];
+  const T=ITEMS[id]; if(!T) return '';
+  if(typeof MINERALS!=='undefined'&&MINERALS.includes(id)&&RESOURCES.find(r=>r.k===id)) return ITEM_ICON[id]=mineralIcon(id,RESOURCES.find(r=>r.k===id).c);
+  if(!renderer) return '';
+  if(!_icoRT){
+    _icoRT=new THREE.WebGLRenderTarget(ICON_PX*2,ICON_PX*2);
+    _icoScene=new THREE.Scene();
+    _icoScene.add(new THREE.AmbientLight(0xffffff,0.55));
+    const dl=new THREE.DirectionalLight(0xffffff,0.85); dl.position.set(-0.6,1,0.9); _icoScene.add(dl);
+    const dl2=new THREE.DirectionalLight(0xbcd0ff,0.3); dl2.position.set(0.8,-0.2,-0.6); _icoScene.add(dl2);
+    _icoCam=new THREE.OrthographicCamera(-1,1,1,-1,0.01,20);
+  }
+  let obj;
+  const held=WEAPON_FX[id]||(consumable(T)&&(()=>heldConsumable(id)));
+  if(held){ const r=held(); obj=new THREE.Group(); r.mesh.position.y=-(r.grip||0); obj.add(r.mesh);
+    obj.rotation.set(0.25,0.5,-Math.PI/4);            // 손에 든 것은 대각선으로 눕힌다(마크 아이콘처럼)
+  }else{ obj=_icoShape(id); obj.rotation.set(0.45,-0.6,0); }
+  _icoScene.add(obj); obj.updateMatrixWorld(true);
+  const bb=new THREE.Box3().setFromObject(obj), c=bb.getCenter(new THREE.Vector3()), sz=bb.getSize(new THREE.Vector3());
+  const h=Math.max(sz.x,sz.y)*0.56||0.5;
+  _icoCam.left=c.x-h; _icoCam.right=c.x+h; _icoCam.top=c.y+h; _icoCam.bottom=c.y-h;
+  _icoCam.position.set(c.x,c.y,c.z+10); _icoCam.lookAt(c); _icoCam.updateProjectionMatrix();
+  const prevT=renderer.getRenderTarget(), prevC=renderer.getClearColor(new THREE.Color()), prevA=renderer.getClearAlpha(),
+        prevS=renderer.shadowMap.enabled, prevAC=renderer.autoClear;
+  renderer.shadowMap.enabled=false; renderer.autoClear=true;
+  renderer.setRenderTarget(_icoRT); renderer.setClearColor(0x000000,0); renderer.clear(); renderer.render(_icoScene,_icoCam);
+  const W=ICON_PX*2, px=new Uint8Array(W*W*4); renderer.readRenderTargetPixels(_icoRT,0,0,W,W,px);
+  renderer.setRenderTarget(prevT); renderer.setClearColor(prevC,prevA); renderer.shadowMap.enabled=prevS; renderer.autoClear=prevAC;
+  _icoScene.remove(obj);
+  obj.traverse(o=>{ if(o.geometry) o.geometry.dispose(); });
+  const cv=document.createElement('canvas'); cv.width=cv.height=W; const g2=cv.getContext('2d'), im=g2.createImageData(W,W);
+  for(let y=0;y<W;y++) im.data.set(px.subarray((W-1-y)*W*4,(W-y)*W*4),y*W*4);   // 위아래 뒤집기
+  g2.putImageData(im,0,0);
+  const out=document.createElement('canvas'); out.width=out.height=ICON_PX; out.getContext('2d').drawImage(cv,0,0,ICON_PX,ICON_PX);
+  return ITEM_ICON[id]=out.toDataURL();
+}
 /* 먹을 것·마실 것·붕대를 손에 든 모습. 무기처럼 id 마다 따로 쓰지 않고 생김새 몇 벌을
    나눠 쓴다 — 빛깔은 아이템 색(T.c)을 그대로 입힌다. 세워 들고(rest) 쥐는 자리가 원점이다. */
 function heldConsumable(id){
