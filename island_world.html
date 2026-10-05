@@ -2260,7 +2260,7 @@ function buildFarTrees(){
   }
 }
 function buildProps(){
-  TREE_TILES.length=0; ROCK_TILES.length=0;
+  TREE_TILES.length=0; ROCK_TILES.length=0; PROP_TILES.length=0;
   for(const k in ROCK_MAT) delete ROCK_MAT[k];
   if(propGroup){
     scene.remove(propGroup);
@@ -3023,7 +3023,19 @@ const BERRY_RIPE=[0x7e1e2e,0x8e2438,0xa02c40,0xb0364a];   // 익은 것 — 짙�
 const BERRY_RAW =[0xc0764e,0xa8894a,0x8a9a52];            // 덜 익은 것 — 주홍·연둣빛
 function buildBerries(){
   berryMesh=null;
-  const bushes=PROPS.filter(p=>p.k==='grass'&&p.berryMax>0);
+  const ALL=PROPS.filter(p=>p.k==='grass'&&p.berryMax>0);
+  if(!ALL.length) return;
+  /* 64 m 칸(PROP_TILE)마다 따로 담는다 — 섬 전체 1만 5천 알이 한 메시라 거리와 상관없이 늘 전부
+     그려졌다(130만 삼각형). 칸마다 알 메시·꼭지 줄기 메시를 두고 PROP_TILES 에 넣어 BERRY_DIST 밖·화면 밖을 끈다.
+     덤불은 제 칸 메시 p._bm 의 p._bi 번부터 쓴다. */
+  const byTile=new Map();
+  for(const p of ALL){ const k=Math.floor(p.x/PROP_TILE)+','+Math.floor(p.z/PROP_TILE);
+    let a=byTile.get(k); if(!a){ a=[]; byTile.set(k,a); } a.push(p); }
+  for(const bushes of byTile.values()) buildBerryTile(bushes);
+  refreshAllBerries();
+}
+const BERRY_DIST=90;
+function buildBerryTile(bushes){
   let total=0;
   for(const p of bushes){
     /* 딸 수 있는 알(berryMax) 뒤에 덜 익은 알 둘을 덤으로 붙인다. 이것은
@@ -3032,6 +3044,7 @@ function buildBerries(){
     p._bi=total; p._bn=p.berryMax+2; total+=p._bn;
   }
   if(!total) return;
+  const gx=Math.floor(bushes[0].x/PROP_TILE), gz=Math.floor(bushes[0].z/PROP_TILE);
   /* 알 하나는 반지름 1 의 공으로 만들고 인스턴스 배율로 크기를 준다.
      가로보다 세로를 조금 눌러야 매달린 열매처럼 보인다. */
   /* 8×6 공(삼각형 80) — 12×9(216)이던 것을 줄였다. 지름 4~7 cm 라 두세 걸음만 떨어져도 몇 화소이고,
@@ -3106,6 +3119,9 @@ function buildBerries(){
   if(bm.instanceColor) bm.instanceColor.needsUpdate=true;
   bm.frustumCulled=false;
   berryMesh=bm; propGroup.add(bm);
+  for(const p of bushes) p._bm=bm;
+  const tile={ms:[bm], cx:(gx+0.5)*PROP_TILE, cz:(gz+0.5)*PROP_TILE, r:PROP_TILE*0.71, d:BERRY_DIST};
+  PROP_TILES.push(tile);
   /* 송이마다 꼭지 줄기 — 덤불 밑동 가운데에서 송이 꼭대기까지 가는 줄기 하나.
      없으면 알이 잎 사이 허공에 떠 있었다. 줄기는 따도 남는다(덤불의 일부). */
   if(stems.length){
@@ -3126,21 +3142,21 @@ function buildBerries(){
       _bS.set(0.006,L,0.006); _bM.compose(a,_bQ,_bS); sm.setMatrixAt(i,_bM);
     });
     sm.instanceMatrix.needsUpdate=true; sm.frustumCulled=false; propGroup.add(sm);
+    tile.ms.push(sm);
   }
-  refreshAllBerries();
 }
 /* 딴 만큼 사라진다 — 남은 알만 세워 두고 나머지는 배율 0 으로 접는다 */
 function refreshBerry(p){
-  if(!berryMesh||p._bi===undefined||!p._bs) return;
+  const bm=p._bm; if(!bm||p._bi===undefined||!p._bs) return;
   for(let k=0;k<(p._bn||p.berryMax);k++){
     const d=p._bs[k]; if(!d) continue;
     const on=(k>=p.berryMax) || k<(p.berry|0);   // 덜 익은 알은 따지지 않으니 늘 남는다
     _bV.set(d[0],d[1],d[2]);
     _bQ.set(d[6],d[7],d[8],d[9]);
     _bS.set(on?d[3]:0, on?d[4]:0, on?d[5]:0);
-    _bM.compose(_bV,_bQ,_bS); berryMesh.setMatrixAt(p._bi+k,_bM);
+    _bM.compose(_bV,_bQ,_bS); bm.setMatrixAt(p._bi+k,_bM);
   }
-  berryMesh.instanceMatrix.needsUpdate=true;
+  bm.instanceMatrix.needsUpdate=true;
 }
 function refreshAllBerries(){
   if(!berryMesh) return;
