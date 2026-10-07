@@ -11177,18 +11177,20 @@ function gSentinelGeo(){
   const G={}; for(const k in S.r) G[k]=sub(S.r[k][0],S.r[k][1]); return _sentG=G;
 }
 /* 가슴 보석 — 납작한 사각뿔 하나(사용자가 보석 맞추기 페이지에서 정한 값 · 갑옷 여섯 모두). 자리는 그 높이에서 앞에서 쏜 광선이 판에 닿는 곳 + off */
-const CHEST_GEM={x:-0.002,y:1.208,off:-0.014,tilt:8,w:0.08,h:0.08,d:0.03,rot:45,col:0xc0182a,glow:0.15};
+const CHEST_GEM={x:-0.002,y:1.208,off:-0.014,tilt:8,w:0.08,h:0.08,d:0.03,rot:45,glow:0.15};
+/* 보석 빛깔은 갑옷마다 다르다(사용자 요청) — 강철 사파이어 · 청동 에메랄드 · 철 비늘 루비 · 키틴 호박 · 잿불 진홍(빛남) · 복합 자수정 */
+const CHEST_GEM_COL={plate_steel:[0x1f4fd1,0.15],scale_bronze:[0x0f9a55,0.15],scale_iron:[0xc0182a,0.15],scale_chitin:[0xe08a12,0.2],scale_ember:[0xff2a0a,0.6],scale_ember_chitin:[0x8a2be2,0.2]};
 let _gemZ=null;
-function gChestGem(b){ const S=CHEST_GEM;
+function gChestGem(b,id){ const S=CHEST_GEM, [col,glow]=CHEST_GEM_COL[id];
   if(_gemZ===null){ const rc=new THREE.Raycaster(new THREE.Vector3(S.x,S.y,1),new THREE.Vector3(0,0,-1)), h=rc.intersectObject(new THREE.Mesh(gSentinelGeo().u,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}))); _gemZ=h.length?h[0].point.z:0.15; }
   const w=S.w/2,hh=S.h/2,P=[[-w,-hh,0],[w,-hh,0],[w,hh,0],[-w,hh,0]],T=[0,0,S.d],v=[];
   for(let i=0;i<4;i++) v.push(...P[i],...P[(i+1)%4],...T);
   v.push(...P[0],...P[3],...P[2],...P[0],...P[2],...P[1]);
   const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.Float32BufferAttribute(v,3)); geo.computeVertexNormals();
-  const m=new THREE.Mesh(geo,gM('gemChest',S.col,0.1,0.15,mt=>{ mt.emissive.setHex(S.col); mt.emissiveIntensity=S.glow; mt.flatShading=true; }));
+  const m=new THREE.Mesh(geo,gM('gem_'+id,col,0.1,0.15,mt=>{ mt.emissive.setHex(col); mt.emissiveIntensity=glow; mt.flatShading=true; }));
   m.position.set(S.x,S.y,_gemZ+S.off); m.rotation.set(-S.tilt*Math.PI/180,0,S.rot*Math.PI/180); b.add(m); }
 function gPlate(g){ const G=gSentinelGeo(), b=gBone(g,'chest');
-  b.add(new THREE.Mesh(G.u,GMT.steel())); b.add(gHide(new THREE.Mesh(G.l,GMT.steel()))); b.add(gHide(new THREE.Mesh(G.c,GMT.cloth(0xece8e0,[1,1])))); gChestGem(b); }
+  b.add(new THREE.Mesh(G.u,GMT.steel())); b.add(gHide(new THREE.Mesh(G.l,GMT.steel()))); b.add(gHide(new THREE.Mesh(G.c,GMT.cloth(0xece8e0,[1,1])))); }
 /* 모형에서 떼어 낸 왼 어깨받이(pl)·왼 팔꿈치(el) — 다른 갑옷이 같은 구조를 쓴다(오른쪽은 gMirror).
    팔꿈치는 모형의 팔꿈치(E)를 몸 GB.el 로 옮긴다. scale 이면 그 겉에 비늘을 덮는다 */
 function gSentPiece(grp,name,mat,scale){
@@ -11665,7 +11667,6 @@ function gSentArmor(g,mat,cloth,sc,scaleOn,spot){
   if(sc&&!scaleOn.includes('u')&&scaleOn.length){ const g2=G.u.clone(), I=G.u.index.array, P=G.u.attributes.position, keep=[];
     for(let k=0;k<I.length;k+=3) if((P.getY(I[k])+P.getY(I[k+1])+P.getY(I[k+2]))/3<1.02) keep.push(I[k],I[k+1],I[k+2]);
     g2.setIndex(keep); g2.computeBoundingBox(); b.add(gHide(gScalesOnMesh(g2,sc.mat,gScaleGeo('dropL'),0.013,19))); }
-  gChestGem(b);
 }
 const GEAR={ plate_steel:gPlate,
   scale_bronze:g=>gSentArmor(g,gM('scB',0x5a4020,0.8,0.5),gM('scB',0x5a4020,0.8,0.5),{mat:gScaleMat('bronze'),geo:gScaleGeo('drop')},['u','l','c']), scale_iron:g=>gSentArmor(g,gM('scI',0x45423e,0.8,0.5),gM('scI',0x45423e,0.8,0.5),{mat:gScaleMat('iron'),geo:gScaleGeo('drop')},['u','l','c']), scale_ember:g=>gSentArmor(g,gM('scE',0x120e0d,0.6,0.5),gM('scE',0x120e0d,0.6,0.5),{mat:gScaleMat('ember'),geo:gScaleGeo('drop')},['u','l','c']),
@@ -11683,6 +11684,7 @@ function gearModel(id){
   const f=GEAR[id]; if(!f) return null;
   const g=new THREE.Group(); g.userData.gear=id;
   if(/^helm_/.test(id)){ const h=gBone(g,'head'); f(h); } else f(g);
+  if(CHEST_GEM_COL[id]) gChestGem(g.children.find(c=>c.userData.bone==='chest')||g,id);
   return g;
 }
 /* 인스턴스까지 넣은 경계 상자(Box3.setFromObject 는 인스턴스를 안 본다) — 숨긴 것은 뺀다 */
