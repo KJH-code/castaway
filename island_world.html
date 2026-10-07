@@ -11192,7 +11192,17 @@ function gChestGem(b,id,root){ const S=CHEST_GEM, [col,glow,core]=CHEST_GEM_COL[
   if(core){ const c=new THREE.Mesh(geo,gM('gemCore_'+id,core,0.1,0.2,mt=>{ mt.emissive.setHex(core); mt.emissiveIntensity=0.6; mt.flatShading=true; mt.transparent=true; mt.opacity=0.95; })); c.scale.set(0.5,0.5,0.95); c.position.z=0.002; c.renderOrder=2; m.renderOrder=1; m.add(c); }   // 속 알은 껍질 다음에 그린다 — 반투명 빨강 밑에 그리면 섞여 갈색이 됐다(껍질은 깊이를 안 쓰므로 위로 비친다)   // 복합 — 빨간 알 속에 초록 알
   /* 비늘 갑옷은 비늘이 판보다 1~2 cm 바깥이라 판 기준으로 박으면 묻힌다 — 다 지은 갑옷에 앞에서 광선을 쏴 가장 바깥 겉면을 찾고 4 mm 만 묻는다 */
   let zo=-1e9; { const rc=new THREE.Raycaster(new THREE.Vector3(S.x,S.y,1),new THREE.Vector3(0,0,-1)); for(const h of rc.intersectObject(root||b,true)) if(h.object.visible!==false){ zo=h.point.z; break; } }
-  m.position.set(S.x,S.y,Math.max(_gemZ+S.off,zo-0.001)); m.rotation.set(-S.tilt*Math.PI/180,0,S.rot*Math.PI/180); b.add(m); }
+  m.position.set(S.x,S.y,Math.max(_gemZ+S.off,zo-0.001)); m.rotation.set(-S.tilt*Math.PI/180,0,S.rot*Math.PI/180);
+  /* 받침(사용자 요청) — 반투명이라 보석 속으로 판 장식·비늘이 얼룩처럼 비쳤다. ① 바닥 면을 훑어(7×7 점) 보석 쪽으로 솟은 갑옷이 있으면 그만큼 보석을 띄우고
+     ② 바닥에 같은 빛깔의 짙은 불투명 받침(실제 보석의 은박·박음틀처럼)을 깔아 밑이 안 비치게 한다 */
+  if(root){ m.updateMatrix(); const nrm=new THREE.Vector3(0,0,1).applyQuaternion(m.quaternion), rc=new THREE.Raycaster(), q=new THREE.Vector3(); let up=0;
+    for(let i=0;i<=6;i++) for(let j=0;j<=6;j++){ const u=(i/6-0.5)*2, v=(j/6-0.5)*2;
+      q.set(u*w,v*hh,0).applyMatrix4(m.matrix); rc.set(q.clone().addScaledVector(nrm,0.5),nrm.clone().negate()); rc.far=0.5;
+      for(const h of rc.intersectObject(root,true)) if(h.object.visible!==false){ up=Math.max(up,0.5-h.distance); break; } }
+    m.position.addScaledVector(nrm,up>0?up+0.001:0); }
+  { const bg=new THREE.BufferGeometry(); bg.setAttribute('position',new THREE.Float32BufferAttribute([...P[0],...P[1],...P[2],...P[0],...P[2],...P[3]],3)); bg.computeVertexNormals();
+    const bc=new THREE.Color(col).multiplyScalar(0.35), bed=new THREE.Mesh(bg,gM('gemBed_'+id,bc.getHex(),0.3,0.4)); bed.position.z=0.0004; m.add(bed); }
+  b.add(m); }
 function gPlate(g){ const G=gSentinelGeo(), b=gBone(g,'chest');
   b.add(new THREE.Mesh(G.u,GMT.steel())); b.add(gHide(new THREE.Mesh(G.l,GMT.steel()))); b.add(gHide(new THREE.Mesh(G.c,GMT.cloth(0xece8e0,[1,1])))); }
 /* 모형에서 떼어 낸 왼 어깨받이(pl)·왼 팔꿈치(el) — 다른 갑옷이 같은 구조를 쓴다(오른쪽은 gMirror).
