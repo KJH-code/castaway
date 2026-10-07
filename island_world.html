@@ -11612,8 +11612,8 @@ function gSentArmor(g,mat,cloth,sc,scaleOn,spot){
   /* spot(자리 판정)이 있으면 갈래마다 비늘 쪽(이름+'s')과 판 쪽으로 나눈다 */
   const G=spot?Object.assign({},G0):G0;
   if(spot){ /* 망토(c) 비늘도 이웃 판 쪽으로 2.5 cm 넘겨 단다 — 예전엔 다리 비늘이 덮던 망토 바탕 끝이 비쳤다 */
-    const e=0.04, H=new Set(), Pc=G0.c.attributes.position, key=(x,y,z)=>Math.floor(x/e)+','+Math.floor(y/e)+','+Math.floor(z/e);
-    /* 망토 천은 판 밑으로 넓게 깔려 있다 — '망토 가까이' 가 아니라 망토의 열린 가장자리(삼각형 하나만 쓰는 변) 6 cm 안만 넘긴다 */
+    const e=0.025, H=new Set(), Pc=G0.c.attributes.position, key=(x,y,z)=>Math.floor(x/e)+','+Math.floor(y/e)+','+Math.floor(z/e);
+    /* 망토 천은 판 밑으로 넓게 깔려 있다 — '망토 가까이' 가 아니라 망토의 열린 가장자리(삼각형 하나만 쓰는 변) 2.5 cm 안만 넘긴다 */
     const Ic=G0.c.index.array, vk=i=>Math.round(Pc.getX(i)*1e4)+','+Math.round(Pc.getY(i)*1e4)+','+Math.round(Pc.getZ(i)*1e4), EC=new Map();
     for(let t=0;t<Ic.length;t+=3) for(let q=0;q<3;q++){ const a=vk(Ic[t+q]), b=vk(Ic[t+(q+1)%3]), kk=a<b?a+'|'+b:b+'|'+a; const o=EC.get(kk); if(o) o.n++; else EC.set(kk,{n:1,i:Ic[t+q],j:Ic[t+(q+1)%3]}); }
     const BP=new Map(); for(const {n,i,j} of EC.values()) if(n===1) for(const v of [i,j]){ const x=Pc.getX(v), y=Pc.getY(v), z=Pc.getZ(v), kk=key(x,y,z); (BP.get(kk)||BP.set(kk,[]).get(kk)).push([x,y,z]); }
@@ -11621,7 +11621,7 @@ function gSentArmor(g,mat,cloth,sc,scaleOn,spot){
     const parts=[G0.c,gSubGeo(G0.u,nearC),gSubGeo(G0.l,nearC)], pos=[], idx=[];
     for(const p of parts){ const P=p.attributes.position, I=p.index.array, o=pos.length/3; for(let i=0;i<P.count;i++) pos.push(P.getX(i),P.getY(i),P.getZ(i)); for(const v of I) idx.push(v+o); }
     const gc=new THREE.BufferGeometry(); gc.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); gc.setIndex(idx); gc.computeVertexNormals(); gc.computeBoundingBox(); G.cx=gc; }
-  if(spot) for(const k of ['u','l']){ G[k+'s']=gSubGeo(G0[k],spot); { const e=0.04; G[k+'sx']=gSubGeo(G0[k],(x,y,z)=>spot(x,y,z)||spot(x+e,y,z)||spot(x-e,y,z)||spot(x,y+e,z)||spot(x,y-e,z)||spot(x,y,z+e)||spot(x,y,z-e)); }   // 비늘은 바탕보다 6 cm 넓게 단다(2.5 cm 땐 옆구리 경계에 13 화소 · 4 cm 땐 2) — 바탕 끝이 비늘 밖으로 비쳤다
+  if(spot) for(const k of ['u','l']){ G[k+'s']=gSubGeo(G0[k],spot); { const e=0.025; G[k+'sx']=gSubGeo(G0[k],(x,y,z)=>spot(x,y,z)||spot(x+e,y,z)||spot(x-e,y,z)||spot(x,y+e,z)||spot(x,y-e,z)||spot(x,y,z+e)||spot(x,y,z-e)); }   // 비늘은 바탕보다 2.5 cm 넓게 단다(경계에 몇 화소 비치는 것은 사용자가 괜찮다고 함 · 4 cm 는 판을 너무 덮었다) — 바탕 끝이 비늘 밖으로 비쳤다
     G[k]=gSubGeo(G0[k],(x,y,z)=>{ const e=0.025; return !(spot(x,y,z)&&spot(x+e,y,z)&&spot(x-e,y,z)&&spot(x,y+e,z)&&spot(x,y-e,z)&&spot(x,y,z+e)&&spot(x,y,z-e)); }); }   // 판은 비늘 자리 안쪽으로 2.5 cm 더 깐다 — 경계에서 비늘 바탕 끝이 비쳤다
   /* 비늘 밑 바탕은 4 mm 밀어 넣는다 — 비늘이 옆으로 비껴 보이는 틈에서 바탕이 한두 화소씩 비쳤다. 법선이 뒤집힌 데서 4 mm 밖으로 나가도 비늘(6 mm 띄움) 밑이다. 1.4 cm 일 땐 그게 비늘을 덮었다 */
   const sink=k=>{ const g=G[k].clone(), P=g.attributes.position.clone(), N=g.attributes.normal; for(let i=0;i<P.count;i++){ const x=P.getX(i), y=P.getY(i), z=P.getZ(i); let nx=N.getX(i), ny=N.getY(i), nz=N.getZ(i); if(nx*x+nz*z<0&&!(y>1.36&&x*x+z*z<0.13*0.13)&&y>0.2){   // 목둘레·발은 몸 가운데 기준이 틀린다 — 모형 법선 그대로
