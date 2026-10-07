@@ -11178,16 +11178,18 @@ function gSentinelGeo(){
 }
 /* 가슴 보석 — 납작한 사각뿔 하나(사용자가 보석 맞추기 페이지에서 정한 값 · 갑옷 여섯 모두). 자리는 그 높이에서 앞에서 쏜 광선이 판에 닿는 곳 + off */
 const CHEST_GEM={x:-0.002,y:1.208,off:-0.014,tilt:8,w:0.08,h:0.08,d:0.03,rot:45,glow:0.15};
-/* 보석 빛깔은 갑옷마다 다르다(사용자 요청) — 강철 사파이어 · 청동 에메랄드 · 철 비늘 루비 · 키틴 호박 · 잿불 진홍(빛남) · 복합 자수정 */
-const CHEST_GEM_COL={plate_steel:[0x1f4fd1,0.15],scale_bronze:[0x0f9a55,0.15],scale_iron:[0xc0182a,0.15],scale_chitin:[0xe08a12,0.2],scale_ember:[0xff2a0a,0.6],scale_ember_chitin:[0x8a2be2,0.2]};
+/* 보석 빛깔은 갑옷마다 다르다(사용자 요청) — 강철 사파이어 · 청동 주황 · 철 비늘 노랑 · 키틴 에메랄드 · 잿불 루비 · 복합 빨강에 가운데 초록(셋째 값 = 속 알 빛깔).
+   보석은 반투명이다(사용자 요청 · 불투명도 0.62 · 깊이는 안 쓴다 — 속 알이 비쳐야 한다) */
+const CHEST_GEM_COL={plate_steel:[0x1f4fd1,0.15],scale_bronze:[0xff7a10,0.2],scale_iron:[0xf2c81a,0.2],scale_chitin:[0x0f9a55,0.15],scale_ember:[0xc0182a,0.25],scale_ember_chitin:[0xd0121e,0.2,0x18c050]};
 let _gemZ=null;
-function gChestGem(b,id,root){ const S=CHEST_GEM, [col,glow]=CHEST_GEM_COL[id];
+function gChestGem(b,id,root){ const S=CHEST_GEM, [col,glow,core]=CHEST_GEM_COL[id];
   if(_gemZ===null){ const rc=new THREE.Raycaster(new THREE.Vector3(S.x,S.y,1),new THREE.Vector3(0,0,-1)), h=rc.intersectObject(new THREE.Mesh(gSentinelGeo().u,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}))); _gemZ=h.length?h[0].point.z:0.15; }
   const w=S.w/2,hh=S.h/2,P=[[-w,-hh,0],[w,-hh,0],[w,hh,0],[-w,hh,0]],T=[0,0,S.d],v=[];
   for(let i=0;i<4;i++) v.push(...P[i],...P[(i+1)%4],...T);
   v.push(...P[0],...P[3],...P[2],...P[0],...P[2],...P[1]);
   const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.Float32BufferAttribute(v,3)); geo.computeVertexNormals();
-  const m=new THREE.Mesh(geo,gM('gem_'+id,col,0.1,0.15,mt=>{ mt.emissive.setHex(col); mt.emissiveIntensity=glow; mt.flatShading=true; }));
+  const m=new THREE.Mesh(geo,gM('gem_'+id,col,0.1,0.15,mt=>{ mt.emissive.setHex(col); mt.emissiveIntensity=glow; mt.flatShading=true; mt.transparent=true; mt.opacity=0.62; mt.depthWrite=false; }));
+  if(core){ const c=new THREE.Mesh(geo,gM('gemCore_'+id,core,0.1,0.2,mt=>{ mt.emissive.setHex(core); mt.emissiveIntensity=0.35; mt.flatShading=true; })); c.scale.set(0.42,0.42,0.7); c.position.z=0.002; m.add(c); }   // 복합 — 빨간 알 속에 초록 알
   /* 비늘 갑옷은 비늘이 판보다 1~2 cm 바깥이라 판 기준으로 박으면 묻힌다 — 다 지은 갑옷에 앞에서 광선을 쏴 가장 바깥 겉면을 찾고 4 mm 만 묻는다 */
   let zo=-1e9; { const rc=new THREE.Raycaster(new THREE.Vector3(S.x,S.y,1),new THREE.Vector3(0,0,-1)); for(const h of rc.intersectObject(root||b,true)) if(h.object.visible!==false){ zo=h.point.z; break; } }
   m.position.set(S.x,S.y,Math.max(_gemZ+S.off,zo-0.004)); m.rotation.set(-S.tilt*Math.PI/180,0,S.rot*Math.PI/180); b.add(m); }
