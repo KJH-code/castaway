@@ -11262,7 +11262,8 @@ function gHelmParts(){ if(_helmPart) return _helmPart;
   const h=gSentinelGeo().h, I=h.index.array, B=atob(HELM_MASK), on=t=>(B.charCodeAt((t/3)>>3)>>((t/3)&7))&1;
   const sub=keep=>{ const g2=h.clone(), k=[]; for(let t=0;t<I.length;t+=3) if(keep(t)) k.push(I[t],I[t+1],I[t+2]); g2.setIndex(k); g2.computeBoundingBox(); return g2; };
   return _helmPart={shell:sub(t=>!on(t)), orn:sub(t=>on(t))}; }
-function gSentHelm(g,shell,orn){ const P=gHelmParts(), b=gBone(g,'head'); b.add(new THREE.Mesh(P.shell,shell)); b.add(new THREE.Mesh(P.orn,orn)); }
+function gSentHelm(g,shell,orn,sc){ const P=gHelmParts(), b=gBone(g,'head'); b.add(new THREE.Mesh(P.shell,shell)); b.add(new THREE.Mesh(P.orn,orn));
+  if(sc) b.add(gScalesOnMesh(P.shell,sc,gScaleGeo('dropL'),0.013,23)); }   // 잿불 투구 둘은 껍질 겉에 비늘을 뒤집어씌운다(사용자 요청)
 function gHelmSteel(g){ gSentHelm(g,GMT.steel(),gM('plumeR',0x9e1b1b,0,0.75)); }   // 강철 — 진홍 깃
 
 /* 판금 장갑 — 손등 띠판 · 손가락 마디 · 엄지 · 가죽 손바닥 */
@@ -11660,8 +11661,8 @@ const GEAR={ plate_steel:gPlate,
   helm_steel:gHelmSteel,
   helm_bronze:g=>gSentHelm(g,GMT.bronze(),gM('plumeH',0xb02a1c,0,0.85)),                 // 청동 — 붉은 말총
   helm_chitin:g=>gSentHelm(g,GMT.chitin(),GMT.chitinE()),                                // 키틴 — 밝은 초록 키틴 볏
-  helm_ember:g=>gSentHelm(g,gM('scE',0x120e0d,0.6,0.5),GMT.glow()),                      // 잿불 — 검은 껍질 · 달아오른 볏
-  helm_ember_chitin:g=>gSentHelm(g,GMT.chitin(),GMT.glow()),                             // 복합 — 키틴 · 잿불 볏
+  helm_ember:g=>gSentHelm(g,gM('scE',0x120e0d,0.6,0.5),GMT.glow(),gScaleMat('ember')),                      // 잿불 — 검은 껍질 · 달아오른 볏
+  helm_ember_chitin:g=>gSentHelm(g,GMT.chitin(),GMT.glow(),gScaleMat('ember')),                             // 복합 — 키틴 · 잿불 볏
   helm_hide:g=>gSentHelm(g,GMT.leather(0x6b4a2e,[1,1]),GMT.fur(0xd9cdb4)),               // 가죽 — 흰 털 장식
   helm_bone:g=>gSentHelm(g,GMT.bone(),GMT.leather(0x3a2618,[1,1])),                      // 뼈 — 짙은 가죽 끈 장식
   tunic_fiber:gTunic, coat_hide:gHideCoat, cape_grass:gStrawCape, pack_woven:gPackWoven, pack_hide:gPackHide };
