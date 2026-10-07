@@ -11253,7 +11253,27 @@ function gScalesOnMesh(G,mat,sgeo,d,seed){
     const v=0.84+0.24*rn(); col.setRGB(v,v,v); im.setColorAt(i,col); });
   im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true; return im;
 }
-function gHelmSteel(g){ g.add(new THREE.Mesh(gSentinelGeo().h,GMT.steel())); }
+/* 투구 일곱은 전부 사용자가 준 모형의 투구 꼴이다(사용자 요청) — 껍질(머리 타원체 둘레·턱·목 가리개)과 장식(그 밖으로 솟은 깃·볏)을 갈라 재질을 따로 칠한다 */
+let _helmPart=null;
+function gHelmParts(){ if(_helmPart) return _helmPart;
+  /* 장식(깃·볏)은 얇은 판이고 껍질은 두꺼운 덩이다 — 삼각형마다 면 법선 앞뒤로 광선을 쏴 제 몸의 다른 면까지 거리(두께)를 재고, 3 cm 안이고 1.64 m 위면 장식으로 친다(낯가리개 판도 얇아 높이로 뺀다).
+     머리 타원체로 가르니 볏 대부분이 껍질에 들고 정수리가 장식에 들었다 */
+  const h=gSentinelGeo().h, P=h.attributes.position, I=h.index.array, me=new THREE.Mesh(h,new THREE.MeshBasicMaterial({side:THREE.DoubleSide})), rc=new THREE.Raycaster(),
+    A=new THREE.Vector3(), B=new THREE.Vector3(), C=new THREE.Vector3(), N=new THREE.Vector3(), O=new THREE.Vector3(), thin=new Set();
+  me.updateMatrixWorld(true);
+  for(let t=0;t<I.length;t+=3){ A.fromBufferAttribute(P,I[t]); B.fromBufferAttribute(P,I[t+1]); C.fromBufferAttribute(P,I[t+2]);
+    N.subVectors(B,A).cross(_gv.subVectors(C,A)).normalize(); O.copy(A).add(B).add(C).divideScalar(3);
+    let d=1e9; for(const sg of [1,-1]){ rc.set(O.clone().addScaledVector(N,sg*0.0005),N.clone().multiplyScalar(sg)); rc.far=0.05; const hs=rc.intersectObject(me); if(hs[0]) d=Math.min(d,hs[0].distance); }
+    if(d<0.03 && O.y>1.64) thin.add(t); }
+  /* 얼룩을 고른다 — 변을 나누는 이웃 셋 가운데 둘 이상이 장식이면 장식, 하나도 아니면 껍질(세 번) */
+  const vk=i=>Math.round(P.getX(i)*1e4)+','+Math.round(P.getY(i)*1e4)+','+Math.round(P.getZ(i)*1e4), E=new Map(), nb=new Map();
+  for(let t=0;t<I.length;t+=3) for(let q=0;q<3;q++){ const a=vk(I[t+q]), b=vk(I[t+(q+1)%3]), k=a<b?a+'|'+b:b+'|'+a; (E.get(k)||E.set(k,[]).get(k)).push(t); }
+  for(const L of E.values()) if(L.length===2){ for(const [x,y] of [[L[0],L[1]],[L[1],L[0]]]) (nb.get(x)||nb.set(x,[]).get(x)).push(y); }
+  for(let it=0;it<3;it++){ const nx=new Set(thin); for(const [t,L] of nb){ const c=L.filter(o=>thin.has(o)).length; if(c>=2) nx.add(t); else if(c===0) nx.delete(t); } thin.clear(); for(const t of nx) thin.add(t); }
+  const sub=keep=>{ const g2=h.clone(), k=[]; for(let t=0;t<I.length;t+=3) if(keep(t)) k.push(I[t],I[t+1],I[t+2]); g2.setIndex(k); g2.computeBoundingBox(); return g2; };
+  return _helmPart={shell:sub(t=>!thin.has(t)), orn:sub(t=>thin.has(t))}; }
+function gSentHelm(g,shell,orn){ const P=gHelmParts(), b=gBone(g,'head'); b.add(new THREE.Mesh(P.shell,shell)); b.add(new THREE.Mesh(P.orn,orn)); }
+function gHelmSteel(g){ gSentHelm(g,GMT.steel(),gM('plumeR',0x9e1b1b,0,0.75)); }   // 강철 — 진홍 깃
 
 /* 판금 장갑 — 손등 띠판 · 손가락 마디 · 엄지 · 가죽 손바닥 */
 function gGauntlet(hand,ST,LE){
@@ -11647,8 +11667,13 @@ function gSentArmor(g,mat,cloth,sc,scaleOn,spot){
 const GEAR={ plate_steel:gPlate,
   scale_bronze:g=>gSentArmor(g,gM('scB',0x5a4020,0.8,0.5),gM('scB',0x5a4020,0.8,0.5),{mat:gScaleMat('bronze'),geo:gScaleGeo('drop')},['u','l','c']), scale_iron:g=>gSentArmor(g,gM('scI',0x45423e,0.8,0.5),gM('scI',0x45423e,0.8,0.5),{mat:gScaleMat('iron'),geo:gScaleGeo('drop')},['u','l','c']), scale_ember:g=>gSentArmor(g,gM('scE',0x120e0d,0.6,0.5),gM('scE',0x120e0d,0.6,0.5),{mat:gScaleMat('ember'),geo:gScaleGeo('drop')},['u','l','c']),
   scale_chitin:g=>gSentArmor(g,GMT.chitin(),GMT.leather(0x2a2018,[1,1])), scale_ember_chitin:g=>gSentArmor(g,GMT.chitin(),GMT.leather(0x181312,[1,1]),{mat:gScaleMat('ember'),geo:gScaleGeo('drop')},['us','ls','c'],gEmberSpot),
-  helm_steel:gHelmSteel, helm_bronze:gHelmBronze, helm_chitin:gHelmChitin, helm_ember:g=>gHelmEmber(g,false), helm_ember_chitin:g=>gHelmEmber(g,true),
-  helm_hide:gHelmHide, helm_bone:gHelmBone,
+  helm_steel:gHelmSteel,
+  helm_bronze:g=>gSentHelm(g,GMT.bronze(),gM('plumeH',0xb02a1c,0,0.85)),                 // 청동 — 붉은 말총
+  helm_chitin:g=>gSentHelm(g,GMT.chitin(),GMT.chitinE()),                                // 키틴 — 밝은 초록 키틴 볏
+  helm_ember:g=>gSentHelm(g,gM('scE',0x120e0d,0.6,0.5),GMT.glow()),                      // 잿불 — 검은 껍질 · 달아오른 볏
+  helm_ember_chitin:g=>gSentHelm(g,GMT.chitin(),GMT.glow()),                             // 복합 — 키틴 · 잿불 볏
+  helm_hide:g=>gSentHelm(g,GMT.leather(0x6b4a2e,[1,1]),GMT.fur(0xd9cdb4)),               // 가죽 — 흰 털 장식
+  helm_bone:g=>gSentHelm(g,GMT.bone(),GMT.leather(0x3a2618,[1,1])),                      // 뼈 — 짙은 가죽 끈 장식
   tunic_fiber:gTunic, coat_hide:gHideCoat, cape_grass:gStrawCape, pack_woven:gPackWoven, pack_hide:gPackHide };
 /* 착용품 하나를 몸 좌표로 빚어 돌려준다 — 없으면 null. 머리는 'head' 한 묶음 */
 function gearModel(id){
