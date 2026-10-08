@@ -11194,7 +11194,11 @@ const CHEST_GEM={x:-0.002,y:1.208,off:-0.014,tilt:8,w:0.08,h:0.08,d:0.03,rot:45,
       바닥 은 거울 반사율은 존슨·크리스티 1972 은 n·k 와 보석 굴절률로 센다. 빛이 다 먹혀 가면 러시안 룰렛으로 끝낸다(치우침 없음).
    ④ 형광 — 루비 Cr³⁺ 가 먹은 400~670 nm 빛을 688~700 nm 로 다시 낸다(양자 효율 0.9 — RSC Dalton Trans. 2022 · R 줄 몫 0.6 은 어림).
       빛줄기가 루비 속을 지나는 토막에서 점 하나·방향 하나를 뽑아 그 점으로 실제로 들어오는 빛을 따라가 들뜸을 잰다.
-   ⑤ 빛은 둘레(envMap)에서만 온다 — 장면 조명으로 겉을 칠하지 않는다. 본편은 gEnv, 갑옷 보기 시험장은 보석 자리에서 찍은 HDR 큐브.
+   ⑤ 빛은 둘레(envMap)와 빛나는 바닥에서만 온다 — 장면 조명으로 겉을 칠하지 않는다. 본편은 gEnv, 갑옷 보기 시험장은 보석 자리에서 찍은 HDR 큐브.
+   ⑥ 바닥 은 거울은 제 빛을 낸다(사용자 요청 "보석 뒤 은 거울이 빛나게" · GEM_GLOW · uGlow) — 고르게 퍼지는(램버트) 흰빛이라
+      빛줄기가 거울에 닿으면 그 빛을 받고 되비친다. 세기는 맑은 보석 너머로 보이는 휘도다(둘레 흰빛 = 1 · 보석 속 실제 휘도는 n² 배지만
+      둘레 빛도 같은 단위로 세므로 n² 은 서로 지워진다). 빛은 보석을 한 번만 지나 나오므로(둘레 빛은 들어갔다 거울에서 되돌아 두 번)
+      두꺼운 보석도 빛깔이 산다. 루비 형광의 들뜸도 이 빛을 받는다.
    생김새는 겉 볼록 다면체(uO — 사각뿔 다섯 면)와 속 볼록 다면체(uI — 팔면체 여덟 면, 위 넷은 겉면과 같음 · uIF).
    한계: 둘레 지도는 한 점에서 본 것이라 시차가 없다 · 반사 때 o↔e 바뀜과 e 빛의 걸음 어긋남(walk-off)은 뺐다 · 내포물·긁힘 없음. */
 const GEM_SPEC={lam:[415,445,475,505,535,565,595,625,655,685],
@@ -11203,6 +11207,7 @@ const GEM_SPEC={lam:[415,445,475,505,535,565,595,625,655,685],
   ag:[[0.04896,2.294],[0.04,2.603],[0.05,2.903],[0.05,3.179],[0.05521,3.461],[0.05495,3.723],[0.05385,3.971],[0.05798,4.219],[0.05099,4.45],[0.04417,4.69]]};
 const GEM_FL={qy:0.9,band:0.6};   // 루비 형광 — 양자 효율(RSC 2022) · 688~700 nm(R 줄)에 드는 몫(어림)
 const GEM_SPP=4;                   // 본편(아이콘)은 한 장으로 끝나니 화소마다 빛띠당 네 번 — 시험장은 한 번씩 쌓는다
+const GEM_GLOW=1;                  // 바닥 은 거울이 내는 흰빛(사용자 요청 "보석 뒤 은 거울이 빛나게") — 맑은 보석 너머로 보이는 휘도, 둘레 흰빛 = 1
 const CHEST_GEM_COL={
   plate_steel:{c:0x1f4fd1,ior:1.77,bir:-0.008,disp:0.018,ao:[0.02215,0.2416,0.2701,0.7165,1.326,1.743,1.754,1.454,1.054,0.6934],ae:[0.01792,0.1993,0.01739,0.02017,0.08577,0.2401,0.4893,0.7805,1.026,1.159]},   // 청색 사파이어 · Fe–Ti 8 ppma · Fe³⁺ 1000 ppma
   scale_bronze:{c:0xff7a10,ior:1.77,bir:-0.008,disp:0.018,ao:[12.77,6.755,3.024,2.306,2.743,2.755,1.456,0.4835,0.108,0.01743],ae:[14,6.503,2.665,1.537,1.189,0.7727,0.2927,0.07006,0.01237,0.002131]},   // 주황 사파이어 · Cr 150 ppma · 노랑 색중심 · Fe³⁺ 3000 ppma
@@ -11222,6 +11227,7 @@ uniform vec4 uAb[GK];   /* 빛띠별 흡수 겉 E⊥c·E∥c · 속 E⊥c·E∥c
 uniform vec4 uW[GK];    /* 빛띠 sRGB 무게 · w 은 거울 반사율(겉 보석) */
 uniform vec4 uB[GK];    /* 둘레 RGB → 빛띠 복사휘도 · w 은 거울 반사율(속 보석) */
 uniform vec2 uFl;       /* 형광 세기(양자 효율 × R 줄 몫 / 12 nm) 겉·속 */
+uniform vec3 uGlow;     /* 바닥 거울이 내는 빛(RGB · 램버트) — 맑은 보석 너머로 보이는 휘도 */
 uniform float uFrame; uniform int uSpp; uniform float uTone; uniform float uFlip;
 varying vec3 vGL; varying vec3 vCamL; varying vec3 vNL; varying vec3 vM0; varying vec3 vM1; varying vec3 vM2;
 vec3 gemEnv(vec3 dl,float lod){ vec3 dw=normalize(vM0*dl.x+vM1*dl.y+vM2*dl.z);
@@ -11266,7 +11272,9 @@ float excite(vec3 p,vec3 d,bool m1){
     if(cr){ float n2=nAt(!m1,false,3.3058,d), Fi=frD(dot(d,nC),n2/n);
       if(rnd()<Fi){ d=reflect(d,nC); continue; }
       vec3 dn=refract(d,-nC,n/n2); if(dot(dn,dn)<0.5){ d=reflect(d,nC); continue; } d=dn; n=n2; m1=!m1; continue; }
-    if(isB>0.5){ for(int i=0;i<9;i++) tr[i]*=m1?uB[i].w:uW[i].w; d=reflect(d,nO); continue; }
+    if(isB>0.5){ for(int i=0;i<9;i++){ vec4 ab=uAb[i]; float as=s1?(0.6667*ab.z+0.3333*ab.w):(0.6667*ab.x+0.3333*ab.y);   /* 빛나는 바닥 */
+        acc+=tr[i]*30.0*((415.0+30.0*float(i))/694.0)*as*dot(uB[i].xyz,uGlow); tr[i]*=m1?uB[i].w:uW[i].w; }
+      d=reflect(d,nO); continue; }
     float Fi=frD(dot(d,nO),1.0/n);
     if(Fi<1.0){ vec3 e=gemEnv(refract(d,-nO,n),0.0);
       for(int i=0;i<9;i++){ vec4 ab=uAb[i]; float as=s1?(0.6667*ab.z+0.3333*ab.w):(0.6667*ab.x+0.3333*ab.y);
@@ -11295,15 +11303,15 @@ vec3 gemShade(){
       vec3 nO,nC; float isB; bool cr; float tm=nextHit(p,d,m1,nO,isB,cr,nC);
       float c2=d.z*d.z, ao=m1?ab.z:ab.x, ae=m1?ab.w:ab.y, a=em?ao*c2+ae*(1.0-c2):ao;
       float fl=m1?uFl.y:uFl.x;
-      if(k==GK-1&&fl>0.0&&lam>688.0&&rnd()<0.25){                 /* 형광: 이 토막 위 한 점으로 들어오는 들뜸 빛 */
+      if(k==GK-1&&fl>0.0&&lam>688.0){                             /* 형광: 이 토막 위 한 점으로 들어오는 들뜸 빛 */
         float u=rnd()*tm, z=2.0*rnd()-1.0, ph=6.2831853*rnd(), r=sqrt(max(0.0,1.0-z*z));
-        L+=4.0*tm*t*exp(-a*u)*fl*excite(p+d*u,vec3(r*cos(ph),r*sin(ph),z),m1); }
+        L+=tm*t*exp(-a*u)*fl*excite(p+d*u,vec3(r*cos(ph),r*sin(ph),z),m1); }
       t*=exp(-a*tm); p+=d*tm;
       if(cr){                                                         /* 루비 ↔ 에메랄드 경계 — F 의 확률로 되튐 */
         float n2=nAt(!m1,em,il2,d), Fi=frD(dot(d,nC),n2/n);
         if(rnd()<Fi){ d=reflect(d,nC); n=nAt(m1,em,il2,d); }
         else { vec3 dn=refract(d,-nC,n/n2); if(dot(dn,dn)<0.5){ d=reflect(d,nC); n=nAt(m1,em,il2,d); } else { d=dn; m1=!m1; n=nAt(m1,em,il2,d); } } }
-      else if(isB>0.5){ t*=m1?uB[k].w:uW[k].w; d=reflect(d,nO); n=nAt(m1,em,il2,d); }   /* 은 거울 */
+      else if(isB>0.5){ L+=t*dot(uB[k].xyz,uGlow); t*=m1?uB[k].w:uW[k].w; d=reflect(d,nO); n=nAt(m1,em,il2,d); }   /* 은 거울 — 제 빛을 내고 되비친다 */
       else { float Fi=frD(dot(d,nO),1.0/n);
         if(Fi<1.0) L+=t*(1.0-Fi)*dot(uB[k].xyz,gemEnv(refract(d,-nO,n),0.0));        /* 꺾여 나간 몫 */
         t*=Fi; d=reflect(d,nO); n=nAt(m1,em,il2,d); }                                  /* 되튄 몫 · 전반사 */
@@ -11346,7 +11354,7 @@ function gemUniforms(G,S,sh){
     uNc:{value:V4(c0.Ao,c0.Ae,c1.Ao,c1.Ae)},uNb:{value:new THREE.Vector2(c0.B,c1.B)},
     uAb:{value:lam.map((_,k)=>V4(G.ao[k]*s,G.ae[k]*s,I?I.ao[k]*s:0,I?I.ae[k]*s:0))},
     uW:{value:GEM_SPEC.W.map((w,k)=>V4(w[0],w[1],w[2],m0[k]))},uB:{value:GEM_SPEC.B.map((b,k)=>V4(b[0],b[1],b[2],m1[k]))},
-    uFl:{value:new THREE.Vector2(G.fl?fl:0,I&&I.fl?fl:0)},uFrame:{value:0},uSpp:{value:GEM_SPP},uTone:{value:1},uFlip:{value:-1}}; }
+    uFl:{value:new THREE.Vector2(G.fl?fl:0,I&&I.fl?fl:0)},uGlow:{value:new THREE.Vector3().setScalar(GEM_GLOW)},uFrame:{value:0},uSpp:{value:GEM_SPP},uTone:{value:1},uFlip:{value:-1}}; }
 let _gemZ=null;
 function gChestGem(b,id,root){ const S=CHEST_GEM, G=CHEST_GEM_COL[id], sh=gemShape(G,S);
   if(_gemZ===null){ const rc=new THREE.Raycaster(new THREE.Vector3(S.x,S.y,1),new THREE.Vector3(0,0,-1)), h=rc.intersectObject(new THREE.Mesh(gSentinelGeo().u,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}))); _gemZ=h.length?h[0].point.z:0.15; }
