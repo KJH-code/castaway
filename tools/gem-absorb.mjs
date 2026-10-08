@@ -1,4 +1,4 @@
-// 가슴 보석의 흡수 계수(빨·초·파, cm⁻¹)를 실제 보석의 흡수 띠에서 낸다 — island_world.html 의 CHEST_GEM_COL.sig/foil
+// 가슴 보석의 흡수 계수(빨·초·파, cm⁻¹)를 실제 보석의 흡수 띠에서 낸다 — island_world.html 의 CHEST_GEM_COL.sig
 //   node tools/gem-absorb.mjs [기준 길이 cm, 기본 0.5]
 // 띠마다 파수(cm⁻¹)에서 가우스(봉우리 α cm⁻¹ · 반치폭 — 넷이면 낮은 쪽·높은 쪽 따로) → 지난 빛 스펙트럼 e^(−αL)
 // → CIE 1931 등색함수(와이먼 2013 근사) → 선형 sRGB → 채널마다 T, σ = −ln T / L.
@@ -36,6 +36,5 @@ const L=+process.argv[2]||0.5;
 for(const [k,{name,B}] of Object.entries(GEMS)){ const a=band(B);
   const T=rgb(l=>Math.exp(-a(l)*L)).map((v,i)=>Math.min(1,Math.max(v/W[i],1e-6)));
   const sig=T.map((t,i)=>Math.max(0,t>1e-5?-Math.log(t)/L:Math.min(-Math.log(t)/L,a(LC[i]))));   // 다 먹힌 채널(바닥에 붙은 것)만 그 채널 한가운데 α 로 묶는다
-  const T2=sig.map(s=>Math.exp(-s*L)), mx=Math.max(...T2);
-  console.log(`${k}: sig:[${sig.map(s=>+s.toFixed(2))}], foil:[${T2.map(t=>+(t/mx*0.92).toFixed(3))}]   // ${name}`);
+  console.log(`${k}: sig:[${sig.map(s=>+s.toFixed(2))}]   // ${name}`);
 }

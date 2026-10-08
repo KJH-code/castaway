@@ -11180,27 +11180,28 @@ function gSentinelGeo(){
 const CHEST_GEM={x:-0.002,y:1.208,off:-0.014,tilt:8,w:0.08,h:0.08,d:0.03,rot:45,glow:0.15};
 /* 보석 빛깔은 갑옷마다 다르다(사용자 요청) — 강철 사파이어 · 청동 주황 · 철 비늘 노랑 · 키틴 에메랄드 · 잿불 루비 · 복합 빨강에 가운데 초록 알(core).
    ior 은 실제 굴절률(강옥 — 사파이어·루비·주황 사파이어 1.77 · 황옥 1.62 · 에메랄드 1.58 — 철 비늘의 노랑은 사용자 요청으로 황옥. 노랑 황옥은 Fe³⁺ 전하 옮김 띠의 꼬리가 파랑을 먹는다(RSC Adv. 2025) · 세기는 어림).
-   sig 는 실제 보석의 흡수 계수(빨·초·파, cm⁻¹ — 사용자 요청 "실제 보석과 비슷한 정도로 투명하게") · foil 은 0.5 cm 지난 빛깔(은박).
+   sig 는 실제 보석의 흡수 계수(빨·초·파, cm⁻¹ — 사용자 요청 "실제 보석과 비슷한 정도로 투명하게"). 받침은 은 거울이다(사용자 요청 — 예전 색 은박·마름모 결은 없앴다).
    둘 다 tools/gem-absorb.mjs 가 낸다 — 강옥 발색 이온의 실측 흡수 단면적(GIA Gems & Gemology 2020: Cr³⁺ 1.62e−19 · Fe²⁺–Ti⁴⁺ 1.94e−18 ·
    Fe³⁺ 2.3e−20 cm²)에 보통 보석의 농도(루비 Cr 800 ppma · 사파이어 Fe–Ti 8 ppma · 에메랄드 Cr₂O₃ 0.3 wt%)를 곱해 띠를 세우고
    등색함수로 RGB 에 접었다. c 는 이제 빛남(emissive) 빛깔에만 쓴다. */
 const CHEST_GEM_COL={
-  plate_steel:{c:0x1f4fd1,glow:0.15,ior:1.77,sig:[1.75,1.25,0.13],foil:[0.409,0.527,0.92]},          // 청색 사파이어
-  scale_bronze:{c:0xff7a10,glow:0.2,ior:1.77,sig:[0.67,2.65,6.26],foil:[0.92,0.341,0.056]},            // 주황 사파이어
-  scale_iron:{c:0xf2c81a,glow:0.2,ior:1.62,sig:[0.01,0.06,1.74],foil:[0.92,0.897,0.387]},           // 노랑 황옥(사용자 요청)
-  scale_chitin:{c:0x0f9a55,glow:0.15,ior:1.58,sig:[10.38,3.02,5.64],foil:[0.023,0.92,0.248]},        // 에메랄드
-  scale_ember:{c:0xc0182a,glow:0.25,ior:1.77,sig:[2.58,14.76,6.21],foil:[0.92,0.002,0.15]},          // 루비
-  scale_ember_chitin:{c:0xd0121e,glow:0.2,ior:1.77,sig:[3.25,22.14,8.91],foil:[0.92,0,0.054],core:0x18c050}};  // 짙은 루비 + 초록 알
+  plate_steel:{c:0x1f4fd1,glow:0.15,ior:1.77,sig:[1.75,1.25,0.13]},          // 청색 사파이어
+  scale_bronze:{c:0xff7a10,glow:0.2,ior:1.77,sig:[0.67,2.65,6.26]},            // 주황 사파이어
+  scale_iron:{c:0xf2c81a,glow:0.2,ior:1.62,sig:[0.01,0.06,1.74]},           // 노랑 황옥(사용자 요청)
+  scale_chitin:{c:0x0f9a55,glow:0.15,ior:1.58,sig:[10.38,3.02,5.64]},        // 에메랄드
+  scale_ember:{c:0xc0182a,glow:0.25,ior:1.77,sig:[2.58,14.76,6.21]},          // 루비
+  scale_ember_chitin:{c:0xd0121e,glow:0.2,ior:1.77,sig:[3.25,22.14,8.91],core:0x18c050}};  // 짙은 루비 + 초록 알
 /* 보석 속을 빛줄기로 따라간다(사용자 요청: "더 투명하게, 굴절 법칙 성립하게") — 화소마다 눈에서 온 빛줄기를
-   ① 들어가는 면에서 스넬 법칙으로 꺾고(n = ior) ② 사각뿔 속을 지나 다음 면을 찾아 ③ 바닥이면 보석 빛깔 은박 받침(옛 세공의 색 은박 — 흰 은박은 두께가 0 인 가장자리에서 하얗게 바랬다)에서 튕기고, 옆면이면
-   임계각을 넘을 때 전반사(최대 5번), 못 넘으면 다시 스넬로 꺾여 나가 둘레(gEnv)를 본다 ④ 지나온 길이만큼 비어-램버트로 빛깔을 먹는다
+   ① 들어가는 면에서 스넬 법칙으로 꺾고(n = ior) ② 사각뿔 속을 지나 다음 면을 찾아 ③ 바닥이면 은 거울(GEM_MIRROR — 사용자 요청)에서 되튀어 계속 따라가고, 옆면이면
+   임계각을 넘을 때 전반사(꺾임·튕김 합쳐 최대 8번), 못 넘으면 다시 스넬로 꺾여 나가 둘레(gEnv)를 본다 ④ 지나온 길이만큼 비어-램버트로 빛깔을 먹는다
    (σ = 실제 흡수 계수 sig × GEM_SCALE — 보석이 8 cm 라 실제 반지 보석(8 mm)의 열 배다. GEM_SCALE 1 이면 크기 그대로 센다) ⑤ 겉면 반사는 물리 재질의 프레넬이
    한다(반사율 F0 = ((n−1)/(n+1))² 에 맞춘 reflectivity). 속 알(복합)은 안의 작은 사각뿔이라 굴절된 빛줄기가 닿는 데서 보인다 —
-   비스듬히 보면 실제로 자리가 밀려 보인다. 받침에는 마름모 결을 새겨 굴절로 일그러지는 것이 보이게 했다.
+   비스듬히 보면 실제로 자리가 밀려 보인다. 예전 색 은박·마름모 결은 사용자 요청으로 거울로 바꿨다.
    예전의 반투명 + 따로 깐 받침판·속 알 메시는 없앴다(속이 비쳐 얼룩이 생겼다). */
 const GEM_SCALE=1;     // 크기 보정 없음(사용자 요청) — 그린 보석 길이 그대로(8 cm 보석 = 8 cm 진짜 보석)
 const GEM_GLSL=`
-uniform vec3 uGH; uniform float uIor; uniform vec3 uSig; uniform vec4 uCore; uniform vec3 uCoreCol; uniform vec3 uFoil;
+const vec3 GEM_MIRROR=vec3(0.97,0.96,0.93);   /* 은 거울 반사율(빨 650 · 초 550 · 파 450 nm) */
+uniform vec3 uGH; uniform float uIor; uniform vec3 uSig; uniform vec4 uCore; uniform vec3 uCoreCol;
 varying vec3 vGL; varying vec3 vCamL; varying vec3 vNL; varying vec3 vM0; varying vec3 vM1; varying vec3 vM2;
 vec3 gemEnv(vec3 dl){ vec3 dw=normalize(vM0*dl.x+vM1*dl.y+vM2*dl.z);
 #ifdef ENVMAP_TYPE_CUBE
@@ -11218,7 +11219,7 @@ vec3 gemTrace(){
   float a=uGH.x,b=uGH.y,h=uGH.z; vec3 I=normalize(vGL-vCamL), N=normalize(vNL);
   if(dot(N,I)>0.0) N=-N;
   vec3 d=refract(I,N,1.0/uIor), p=vGL; float L=0.0; vec3 tint=vec3(1.0);
-  for(int k=0;k<6;k++){
+  for(int k=0;k<8;k++){
     /* 속 알 */
     if(uCore.w>0.5){ float tn=0.0,tf=1e3; int hi=-1; for(int i=0;i<5;i++){ vec3 n; float c; gemPlane(i,a*uCore.x,b*uCore.x,h*uCore.y,uCore.z,n,c);
         float dn=dot(n,d), ds=c-dot(n,p); if(abs(dn)<1e-6){ if(ds<0.0) tf=-1.0; } else { float t=ds/dn; if(dn<0.0){ if(t>tn){ tn=t; hi=i; } } else tf=min(tf,t); } }
@@ -11228,9 +11229,8 @@ vec3 gemTrace(){
     /* 다음 면 */
     float tm=1e3; int im=4; for(int i=0;i<5;i++){ vec3 n; float c; gemPlane(i,a,b,h,0.0,n,c); float dn=dot(n,d); if(dn>1e-6){ float t=(c-dot(n,p))/dn; if(t<tm){ tm=t; im=i; } } }
     tm=max(tm,0.0); p+=d*tm; L+=tm;
-    if(im==4){ /* 은박 받침 — 마름모 결 */
-      float r=abs(p.x)/a+abs(p.y)/b, ring=0.9+0.1*smoothstep(0.3,0.5,abs(fract(r*7.0)-0.5)*2.0);
-      return tint*exp(-uSig*2.0*L)*uFoil*ring; }
+    if(im==4){ /* 거울 받침 — 은 반사율(빨·초·파)로 되튀겨 계속 따라간다 */
+      tint*=GEM_MIRROR; d=reflect(d,vec3(0.0,0.0,-1.0)); continue; }
     vec3 n; float c; gemPlane(im,a,b,h,0.0,n,c);
     float ci=dot(d,n), s2=uIor*uIor*(1.0-ci*ci);
     if(s2>=1.0){ d=reflect(d,n); continue; }                       /* 전반사 */
@@ -11248,8 +11248,7 @@ function gChestGem(b,id,root){ const S=CHEST_GEM, G=CHEST_GEM_COL[id];
   const key='gemT_'+id; let mt=_GM[key];
   if(!mt){ const F0=Math.pow((G.ior-1)/(G.ior+1),2);
     const U={uGH:{value:new THREE.Vector3(w,hh,S.d)},uIor:{value:G.ior},uSig:{value:new THREE.Vector3(...G.sig.map(a=>a*100*GEM_SCALE))},
-      uCore:{value:new THREE.Vector4(0.5,0.95,0.002,G.core?1:0)},uCoreCol:{value:new THREE.Color(G.core||0).convertSRGBToLinear()},
-      uFoil:{value:new THREE.Vector3(...G.foil)}};   // 보석 빛깔 은박 — 흰 은박이면 얇은 가장자리가 하얗게 바랬다(사용자 선택: 색 은박)
+      uCore:{value:new THREE.Vector4(0.5,0.95,0.002,G.core?1:0)},uCoreCol:{value:new THREE.Color(G.core||0).convertSRGBToLinear()}};
     mt=_GM[key]=new THREE.MeshPhysicalMaterial({color:0xffffff,metalness:0,roughness:0.04,reflectivity:Math.sqrt(F0/0.16),envMap:gEnv(),flatShading:true,emissive:G.c,emissiveIntensity:G.glow*0.5});
     mt.customProgramCacheKey=()=>'gemTrace';
     mt.onBeforeCompile=sh=>{ Object.assign(sh.uniforms,U);
