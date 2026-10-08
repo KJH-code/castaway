@@ -20,6 +20,7 @@
 //    E⊥c 558·412 nm(22.8·22.5 ×10⁻²⁰) · E∥c 543·398 nm(7.23·38.1 ×10⁻²⁰).
 //  · Fe²⁺–Ti⁴⁺ 의 E∥c 는 700 nm(GIA)에 있으나 세기는 못 구했다 — E⊥c 의 0.65 배로 어림.
 //  · 에메랄드·황옥·노랑 색중심은 다색성 자료가 없어 두 방향을 같게 뒀다.
+// 복굴절 bir = ε−ω(강옥 −0.008 · 녹주석 −0.006 · 황옥은 이축성이라 0 으로 뺌) — 셰이더가 e 빛의 굴절률을 c 축 각으로 센다.
 // 어림(출처 없음): 녹주석 속 Cr³⁺ 단면적은 강옥과 같다고 침 · 노랑 색중심(h•−Fe³⁺) 세기 · 황옥 Fe³⁺ 전하 옮김 꼬리 세기 ·
 //   띠 너비 · 농도는 보통 보석 범위에서 골랐다.
 const g=(l,m,a,b)=>{const s=l<m?a:b;return Math.exp(-0.5*((l-m)/s)**2)};
@@ -44,14 +45,14 @@ const crB=6.4e19*1.62e-19;                          // 에메랄드 Cr₂O₃ 0.
 const emerald=iso([[16400,2400,3400,crB],[23250,3600,5000,crB*1.05],[12200,4000,0.3]]);
 const sum=(...P)=>({o:P.flatMap(p=>p.o),e:P.flatMap(p=>p.e)});
 export const GEMS={
-  plate_steel:  {name:'청색 사파이어 · Fe–Ti 8 ppma · Fe³⁺ 1000 ppma', n:1.770, disp:0.018, A:sum(feti(8),fe3(1000))},
-  scale_bronze: {name:'주황 사파이어 · Cr 150 ppma · 노랑 색중심 · Fe³⁺ 3000 ppma', n:1.770, disp:0.018, A:sum(cr(150),yel(5),fe3(3000))},
-  scale_iron:   {name:'노랑 황옥 · Fe³⁺ 전하 옮김 꼬리', n:1.630, disp:0.014, A:ctFe(1.5)},
-  scale_chitin: {name:'에메랄드 · Cr₂O₃ 0.3 wt%', n:1.580, disp:0.014, A:emerald},
-  scale_ember:  {name:'루비 · Cr 800 ppma', n:1.770, disp:0.018, A:cr(800), fl:true},
+  plate_steel:  {name:'청색 사파이어 · Fe–Ti 8 ppma · Fe³⁺ 1000 ppma', n:1.770, bir:-0.008, disp:0.018, A:sum(feti(8),fe3(1000))},
+  scale_bronze: {name:'주황 사파이어 · Cr 150 ppma · 노랑 색중심 · Fe³⁺ 3000 ppma', n:1.770, bir:-0.008, disp:0.018, A:sum(cr(150),yel(5),fe3(3000))},
+  scale_iron:   {name:'노랑 황옥 · Fe³⁺ 전하 옮김 꼬리 · 이축성이라 복굴절은 뺌', n:1.630, bir:0, disp:0.014, A:ctFe(1.5)},
+  scale_chitin: {name:'에메랄드 · Cr₂O₃ 0.3 wt%', n:1.580, bir:-0.006, disp:0.014, A:emerald},
+  scale_ember:  {name:'루비 · Cr 800 ppma', n:1.770, bir:-0.008, disp:0.018, A:cr(800), fl:true},
   // 복합: 사각뿔을 1:2 로 줄인 것 둘을 밑면끼리 붙인 팔면체는 에메랄드, 그것을 둘러싼 루비가 원래 사각뿔을 채운다(사용자 요청)
-  scale_ember_chitin:{name:'사각뿔 — 둘레 루비 Cr 800 ppma · 가운데 팔면체(반 크기 사각뿔 둘) 에메랄드', n:1.770, disp:0.018, A:cr(800), fl:true,
-    inner:{n:1.580, disp:0.014, A:emerald}},
+  scale_ember_chitin:{name:'사각뿔 — 둘레 루비 Cr 800 ppma · 가운데 팔면체(반 크기 사각뿔 둘) 에메랄드', n:1.770, bir:-0.008, disp:0.018, A:cr(800), fl:true,
+    inner:{n:1.580, bir:-0.006, disp:0.014, A:emerald}},
 };
 // 빛띠
 export const LAM=Array.from({length:10},(_,k)=>415+30*k);
@@ -82,8 +83,8 @@ if(!look){
   console.log('const GEM_SPEC={lam:['+LAM+'],\n  W:'+JSON.stringify(W.map(w=>w.map(r4)))+',\n  B:'+JSON.stringify(Bs.map(b=>b.map(r4)))+',\n  ag:'+JSON.stringify(AGNK.map(v=>v.map(r4)))+'};');
   for(const [k,G] of Object.entries(GEMS)){ const fo=band(G.A.o), fe=band(G.A.e);
     const ao=LAM.map((_,i)=>r4(effA(fo,i))), ae=LAM.map((_,i)=>r4(effA(fe,i)));
-    let s=`  ${k}:{ior:${G.n},disp:${G.disp},ao:[${ao}],ae:[${ae}]`;
-    if(G.inner){ const I=G.inner, co=band(I.A.o), ce=band(I.A.e); s+=`,inner:{ior:${I.n},disp:${I.disp},ao:[${LAM.map((_,i)=>r4(effA(co,i)))}],ae:[${LAM.map((_,i)=>r4(effA(ce,i)))}]}`; }
+    let s=`  ${k}:{ior:${G.n},bir:${G.bir},disp:${G.disp},ao:[${ao}],ae:[${ae}]`;
+    if(G.inner){ const I=G.inner, co=band(I.A.o), ce=band(I.A.e); s+=`,inner:{ior:${I.n},bir:${I.bir},disp:${I.disp},ao:[${LAM.map((_,i)=>r4(effA(co,i)))}],ae:[${LAM.map((_,i)=>r4(effA(ce,i)))}]}`; }
     if(G.fl) s+=',fl:1';
     console.log(s+'},   // '+G.name); }
 } else {
