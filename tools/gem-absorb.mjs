@@ -49,8 +49,8 @@ export const GEMS={
   scale_iron:   {name:'노랑 황옥 · Fe³⁺ 전하 옮김 꼬리', n:1.630, disp:0.014, A:ctFe(1.5)},
   scale_chitin: {name:'에메랄드 · Cr₂O₃ 0.3 wt%', n:1.580, disp:0.014, A:emerald},
   scale_ember:  {name:'루비 · Cr 800 ppma', n:1.770, disp:0.018, A:cr(800), fl:true},
-  // 복합: 정사면체를 모서리 가운데로 잘라 가운데 정팔면체는 에메랄드, 네 귀 정사면체는 루비(사용자 요청)
-  scale_ember_chitin:{name:'정사면체 — 귀 넷 루비 Cr 800 ppma · 가운데 정팔면체 에메랄드', n:1.770, disp:0.018, A:cr(800), fl:true,
+  // 복합: 사각뿔을 1:2 로 줄인 것 둘을 밑면끼리 붙인 팔면체는 에메랄드, 그것을 둘러싼 루비가 원래 사각뿔을 채운다(사용자 요청)
+  scale_ember_chitin:{name:'사각뿔 — 둘레 루비 Cr 800 ppma · 가운데 팔면체(반 크기 사각뿔 둘) 에메랄드', n:1.770, disp:0.018, A:cr(800), fl:true,
     inner:{n:1.580, disp:0.014, A:emerald}},
 };
 // 빛띠
@@ -83,7 +83,7 @@ if(!look){
   for(const [k,G] of Object.entries(GEMS)){ const fo=band(G.A.o), fe=band(G.A.e);
     const ao=LAM.map((_,i)=>r4(effA(fo,i))), ae=LAM.map((_,i)=>r4(effA(fe,i)));
     let s=`  ${k}:{ior:${G.n},disp:${G.disp},ao:[${ao}],ae:[${ae}]`;
-    if(G.inner){ const I=G.inner, co=band(I.A.o), ce=band(I.A.e); s+=`,shape:'tetra',inner:{ior:${I.n},disp:${I.disp},ao:[${LAM.map((_,i)=>r4(effA(co,i)))}],ae:[${LAM.map((_,i)=>r4(effA(ce,i)))}]}`; }
+    if(G.inner){ const I=G.inner, co=band(I.A.o), ce=band(I.A.e); s+=`,inner:{ior:${I.n},disp:${I.disp},ao:[${LAM.map((_,i)=>r4(effA(co,i)))}],ae:[${LAM.map((_,i)=>r4(effA(ce,i)))}]}`; }
     if(G.fl) s+=',fl:1';
     console.log(s+'},   // '+G.name); }
 } else {
