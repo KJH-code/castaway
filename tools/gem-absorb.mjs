@@ -33,7 +33,7 @@ const W=rgb(()=>1), LC=[610,545,465];
 const L=+process.argv[2]||0.5;
 for(const [k,{name,B}] of Object.entries(GEMS)){ const a=band(B);
   const T=rgb(l=>Math.exp(-a(l)*L)).map((v,i)=>Math.min(1,Math.max(v/W[i],1e-6)));
-  const sig=T.map((t,i)=>Math.max(0,Math.min(-Math.log(t)/L,a(LC[i]))));   // 다 먹힌 채널은 그 채널 한가운데 α 를 넘지 않게
+  const sig=T.map((t,i)=>Math.max(0,t>1e-5?-Math.log(t)/L:Math.min(-Math.log(t)/L,a(LC[i]))));   // 다 먹힌 채널(바닥에 붙은 것)만 그 채널 한가운데 α 로 묶는다
   const T2=sig.map(s=>Math.exp(-s*L)), mx=Math.max(...T2);
   console.log(`${k}: sig:[${sig.map(s=>+s.toFixed(2))}], foil:[${T2.map(t=>+(t/mx*0.92).toFixed(3))}]   // ${name}`);
 }
