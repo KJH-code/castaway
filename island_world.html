@@ -11179,40 +11179,48 @@ function gSentinelGeo(){
 /* 가슴 보석 — 납작한 사각뿔 하나(사용자가 보석 맞추기 페이지에서 정한 값 · 갑옷 여섯 모두). 자리는 그 높이에서 앞에서 쏜 광선이 판에 닿는 곳 + off */
 const CHEST_GEM={x:-0.002,y:1.208,off:-0.014,tilt:8,w:0.08,h:0.08,d:0.03,rot:45,glow:0.15};
 /* 보석 빛깔은 갑옷마다 다르다(사용자 요청) — 강철 청색 사파이어 · 청동 주황 사파이어 · 철 비늘 노랑 황옥 · 키틴 에메랄드 · 잿불 루비 ·
-   복합 띠 진 강옥(테 루비 · 가운데 초록 사파이어). c 는 목록 견본 빛깔일 뿐이고 셰이더는 안 쓴다.
+   복합은 정사면체(사용자 요청) — 모서리 가운데로 잘라 가운데 정팔면체는 에메랄드, 네 귀의 작은 정사면체는 루비다. 그래서 면마다
+   가운데 뒤집힌 세모는 에메랄드, 세 귀는 루비로 보인다. c 는 목록 견본 빛깔일 뿐이고 셰이더는 안 쓴다.
    보석은 실제 보석과 같은 물리로 그린다(사용자 요청 "실제 보석과 모든 것이 다 똑같게"):
    ① 빛을 30 nm 빛띠 열 개(400~700 nm · GEM_SPEC)로 나눠 따로 따라간다. 빛띠마다 굴절률이 달라(분산 — 코시 식을 nD 와 B–G 분산에 맞춤:
       강옥 1.770·0.018 · 녹주석 1.580·0.014 · 황옥 1.630·0.014) 빛이 갈라지고, 흡수 ao·ae(cm⁻¹)도 빛띠마다 실제 흡수 띠에서 온다
       (tools/gem-absorb.mjs — GIA 2020 흡수 단면적 · 크로네마이어 1966 루비 편광 흡수 · 보통 보석 농도).
-   ② 면마다 편광 없는 프레넬 정확식 — 들어갈 때 F 는 되비치고, 안에서 면에 닿으면 (1−F) 는 꺾여 나가 둘레를 보고 F 는 되튀어 계속 간다
+   ② 면마다 편광 없는 프레넬 정확식 — 들어갈 때 F 는 되비치고, 안에서 겉면에 닿으면 (1−F) 는 꺾여 나가 둘레를 보고 F 는 되튀어 계속 간다
       (임계각을 넘으면 전반사). 바닥은 은 거울 — 존슨·크리스티 1972 은 n·k 와 그 빛띠의 보석 굴절률로 반사율을 센다(약 0.96~0.99).
-   ③ 다색성 — c 축은 보석 면에 수직(세공사가 루비·사파이어 면을 c 축에 수직으로 깎는다). c 축을 따라 가는 빛은 E⊥c(ao)만,
-      비스듬히 가면 E∥c(ae)가 섞인다: 두 편광을 따로 먹이고 마지막에 반씩 더한다. 복굴절로 빛줄기가 둘로 갈라지는 것(0.008)은 뺐다.
+      두 보석이 맞닿은 면(루비 1.770 ↔ 에메랄드 1.580)에서도 스넬로 꺾여 건너가고(F 는 수직에서 0.3%), 루비에서 에메랄드로 63° 넘게
+      비스듬히 가면 전반사한다. 건너가는 쪽만 따라가고 되비친 몫은 둘레 평균으로 친다.
+   ③ 다색성 — c 축은 보석 바닥에 수직. c 축을 따라 가는 빛은 E⊥c(ao)만, 비스듬히 가면 E∥c(ae)가 섞인다: 두 편광을 따로 먹이고
+      마지막에 반씩 더한다. 복굴절로 빛줄기가 둘로 갈라지는 것(0.008)은 뺐다.
    ④ 빛은 둘레(envMap)에서만 온다 — 장면 조명으로 겉을 칠하지 않는다(예전 가짜 빛남·램버트 칠은 없앴다). 본편은 gEnv,
       갑옷 보기 시험장은 보석 자리에서 찍은 HDR 큐브(조명 전구 포함)를 쓴다.
    ⑤ 형광(fl) — 루비 Cr³⁺ 는 먹은 초록·파랑을 694 nm 붉은빛으로 다시 낸다. 양자 효율 0.9(RSC Dalton Trans. 2022) ·
       빠져나오는 몫 0.5 · 670–700 nm 빛띠에 드는 몫 0.75 는 어림. 들뜸은 둘레 평균 빛 × 실제로 먹힌 몫.
-   ⑥ 복합(core)은 한 결정 안의 성장 띠 — 가운데 c 축 육각 기둥(변심거리 GEM_CORE_R)만 초록 사파이어(Fe³⁺·Fe–Ti)이고 둘레는 루비다.
-   한계: 둘레 지도는 한 점에서 본 것이라 시차가 없다 · 8번 튕긴 뒤 남은 빛은 둘레 평균으로 친다 · 내포물·긁힘은 없다. */
+   생김새는 볼록 다면체 하나(겉 · uO — 사각뿔 다섯 면 · 정사면체 네 면)와 그 안의 볼록 다면체 하나(속 · uI — 정팔면체 여덟 면,
+   그중 넷은 겉면과 겹친다 · uIF)로 적는다. 한계: 둘레 지도는 한 점에서 본 것이라 시차가 없다 · 10번 뒤 남은 빛은 둘레 평균 · 내포물·긁힘 없음. */
 const GEM_SPEC={lam:[415,445,475,505,535,565,595,625,655,685],
   W:[[0.02052,-0.02209,0.1689],[0.0425,-0.05874,0.5651],[-0.05362,0.03643,0.343],[-0.1647,0.2332,0.04857],[-0.1525,0.4315,-0.04115],[0.1735,0.3367,-0.04811],[0.5219,0.09384,-0.02642],[0.4508,-0.03488,-0.007566],[0.1442,-0.0159,-0.001795],[0.01749,-0.00006107,-0.000464]],
   B:[[0.03822,-0.0341,0.9959],[0.03654,-0.01778,0.9812],[0.01362,0.2054,0.781],[-0.05151,0.8432,0.2083],[-0.06473,1.057,0.008202],[0.08447,0.9185,-0.002963],[0.6867,0.3031,0.01017],[0.9842,-0.001227,0.01699],[1.01,-0.02754,0.01758],[1.011,-0.0289,0.01761]],
   ag:[[0.04896,2.294],[0.04,2.603],[0.05,2.903],[0.05,3.179],[0.05521,3.461],[0.05495,3.723],[0.05385,3.971],[0.05798,4.219],[0.05099,4.45],[0.04417,4.69]]};
 const GEM_FL={qy:0.9,esc:0.5,vis:0.75};
-const GEM_CORE_R=0.012;    // 복합 보석 가운데 초록 띠(육각 기둥) 변심거리 m
+const GEM_TET_A=0.07;    // 복합 정사면체 모서리 m — 높이 √(2/3)·a = 5.7 cm
 const CHEST_GEM_COL={
   plate_steel:{c:0x1f4fd1,ior:1.77,disp:0.018,ao:[0.02215,0.2416,0.2701,0.7165,1.326,1.743,1.754,1.454,1.054,0.6934],ae:[0.01792,0.1993,0.01739,0.02017,0.08577,0.2401,0.4893,0.7805,1.026,1.159]},   // 청색 사파이어 · Fe–Ti 8 ppma · Fe³⁺ 1000 ppma
   scale_bronze:{c:0xff7a10,ior:1.77,disp:0.018,ao:[12.77,6.755,3.024,2.306,2.743,2.755,1.456,0.4835,0.108,0.01743],ae:[14,6.503,2.665,1.537,1.189,0.7727,0.2927,0.07006,0.01237,0.002131]},   // 주황 사파이어 · Cr 150 ppma · 노랑 색중심 · Fe³⁺ 3000 ppma
   scale_iron:{c:0xf2c81a,ior:1.63,disp:0.014,ao:[3.325,1.615,0.7385,0.3254,0.142,0.06259,0.02822,0.01308,0.006259,0.003092],ae:[3.325,1.615,0.7385,0.3254,0.142,0.06259,0.02822,0.01308,0.006259,0.003092]},   // 노랑 황옥 · Fe³⁺ 전하 옮김 꼬리
   scale_chitin:{c:0x0f9a55,ior:1.58,disp:0.014,ao:[8.929,7.942,3.06,1.644,2.608,5.937,9.578,8.834,4.717,2.002],ae:[8.929,7.942,3.06,1.644,2.608,5.937,9.578,8.834,4.717,2.002]},   // 에메랄드 · Cr₂O₃ 0.3 wt%
   scale_ember:{c:0xc0182a,ior:1.77,disp:0.018,ao:[14.38,7.121,4.589,5.878,13.05,14.37,6.192,1.999,0.5023,0.08504],ae:[20.96,5.781,2.827,3.151,4.626,3.292,1.217,0.2997,0.04727,0.005319],fl:1},   // 루비 · Cr 800 ppma
-  scale_ember_chitin:{c:0xd0121e,ior:1.77,disp:0.018,ao:[21.57,10.27,6.825,8.49,19.58,21.56,8.856,2.769,0.7113,0.1258],ae:[31.44,8.23,4.161,4.617,6.909,4.733,1.711,0.4335,0.07033,0.007969],core:{ao:[1.201,1.016,0.3998,0.3458,0.4594,0.5581,0.5526,0.4583,0.3325,0.2186],ae:[1.2,1.001,0.3137,0.1185,0.06553,0.08839,0.1584,0.2466,0.3218,0.3623]},fl:1}};   // 띠 진 강옥 — 테 루비 Cr 1200 ppma · 속 초록 사파이어 Fe³⁺ 1500 · Fe–Ti 2.5 ppma
+  scale_ember_chitin:{c:0xd0121e,ior:1.77,disp:0.018,ao:[14.38,7.121,4.589,5.878,13.05,14.37,6.192,1.999,0.5023,0.08504],ae:[20.96,5.781,2.827,3.151,4.626,3.292,1.217,0.2997,0.04727,0.005319],shape:'tetra',inner:{ior:1.58,disp:0.014,ao:[8.929,7.942,3.06,1.644,2.608,5.937,9.578,8.834,4.717,2.002],ae:[8.929,7.942,3.06,1.644,2.608,5.937,9.578,8.834,4.717,2.002]},fl:1}};   // 정사면체 — 귀 넷 루비 Cr 800 ppma · 가운데 정팔면체 에메랄드
 const GEM_SCALE=1;     // 크기 보정 없음(사용자 요청) — 그린 보석 길이 그대로(8 cm 보석 = 8 cm 진짜 보석)
 const GEM_GLSL=`
 #define GK 10
-#define GM 8
-uniform vec3 uGH; uniform float uN[GK]; uniform float uAo[GK]; uniform float uAe[GK]; uniform float uCo[GK]; uniform float uCe[GK];
-uniform float uHex; uniform float uMir[GK]; uniform vec3 uW[GK]; uniform vec3 uB[GK]; uniform float uFx[GK]; uniform float uFe[GK]; uniform float uFlip;
+#define GM 10
+uniform vec4 uO[6]; uniform int uON; uniform int uOB;        /* 겉 다면체 면(바깥 법선·상수) · 면 수 · 거울(바닥) 면 번호 */
+uniform vec4 uI[8]; uniform int uIN; uniform float uIF[8];  /* 속 다면체 면 · 면 수 · 겉면과 겹치는 면 1 */
+uniform vec4 uSp[GK];   /* 빛띠별 굴절률 겉·속 · 은 거울 반사율 겉·속 */
+uniform vec4 uAb[GK];   /* 빛띠별 흡수 겉 E⊥c·E∥c · 속 E⊥c·E∥c (1/m) */
+uniform vec4 uW[GK];    /* sRGB 무게 · w 형광 들뜸 무게 */
+uniform vec4 uB[GK];    /* 둘레 RGB → 빛띠 복사휘도 · w 형광이 드는 몫 */
+uniform float uFlip;
 varying vec3 vGL; varying vec3 vCamL; varying vec3 vNL; varying vec3 vM0; varying vec3 vM1; varying vec3 vM2;
 vec3 gemEnv(vec3 dl,float lod){ vec3 dw=normalize(vM0*dl.x+vM1*dl.y+vM2*dl.z);
 #ifdef ENVMAP_TYPE_CUBE
@@ -11224,84 +11232,115 @@ vec3 gemEnv(vec3 dl,float lod){ vec3 dw=normalize(vM0*dl.x+vM1*dl.y+vM2*dl.z);
 /* 편광 없는 프레넬 정확식 — ci 들어오는 각의 cos · eta = 나가는 쪽 굴절률/들어오는 쪽 */
 float frD(float ci,float eta){ float s2=(1.0-ci*ci)/(eta*eta); if(s2>=1.0) return 1.0; float ct=sqrt(1.0-s2);
   float rs=(ci-eta*ct)/(ci+eta*ct), rp=(eta*ci-ct)/(eta*ci+ct); return 0.5*(rs*rs+rp*rp); }
-/* 사각뿔(바닥 반폭 a·b · 높이 h · 바닥 z0) 의 면 i: 0~3 옆 · 4 바닥 — 바깥 법선과 상수 */
-void gemPlane(int i,float a,float b,float h,float z0,out vec3 n,out float c){
-  if(i==0) n=normalize(vec3(h,0.0,a)); else if(i==1) n=normalize(vec3(-h,0.0,a)); else if(i==2) n=normalize(vec3(0.0,h,b)); else if(i==3) n=normalize(vec3(0.0,-h,b)); else n=vec3(0.0,0.0,-1.0);
-  c=(i==4)?-z0:n.z*(z0+h); }
-/* 토막 [p, p+d·tm] 가운데 c 축 육각 기둥(변심거리 uHex) 안에 든 길이 */
-float coreLen(vec3 p,vec3 d,float tm){ float t0=0.0,t1=tm;
-  for(int i=0;i<3;i++){ float an=float(i)*1.0471976; vec2 u=vec2(cos(an),sin(an)); float pp=dot(p.xy,u), dd=dot(d.xy,u);
-    if(abs(dd)<1e-7){ if(abs(pp)>uHex) return 0.0; } else { float ta=(-uHex-pp)/dd, tb=(uHex-pp)/dd; t0=max(t0,min(ta,tb)); t1=min(t1,max(ta,tb)); } }
-  return max(0.0,t1-t0); }
+/* 겉 다면체를 빠져나가는 거리 · 그 면의 법선 · 거울 면인지 */
+float outExit(vec3 p,vec3 d,out vec3 n,out float isB){ float tm=1e3; n=vec3(0.0,0.0,-1.0); isB=0.0;
+  for(int i=0;i<6;i++){ if(i>=uON) break; vec4 P=uO[i]; float dn=dot(P.xyz,d);
+    if(dn>1e-6){ float t=(P.w-dot(P.xyz,p))/dn; if(t<tm){ tm=t; n=P.xyz; isB=i==uOB?1.0:0.0; } } }
+  return max(tm,0.0); }
+/* 빛줄기가 속 다면체를 지나는 구간 [ta,tb] · 들어가는 면 법선 · 나가는 면 법선 · 그 면이 겉면과 겹치는지 */
+void inSpan(vec3 p,vec3 d,out float ta,out float tb,out vec3 ne,out vec3 nx,out float fx){ ta=-1e3; tb=1e3; ne=vec3(0.0,0.0,1.0); nx=ne; fx=0.0;
+  for(int i=0;i<8;i++){ if(i>=uIN) break; vec4 P=uI[i]; float dn=dot(P.xyz,d), s=P.w-dot(P.xyz,p);
+    if(abs(dn)<1e-7){ if(s<0.0){ ta=1e3; tb=-1e3; } }
+    else { float t=s/dn; if(dn<0.0){ if(t>ta){ ta=t; ne=P.xyz; } } else if(t<tb){ tb=t; nx=P.xyz; fx=uIF[i]; } } } }
 vec3 gemShade(){
-  float a=uGH.x,b=uGH.y,h=uGH.z; vec3 I=normalize(vGL-vCamL), N=normalize(vNL);
+  vec3 I=normalize(vGL-vCamL), N=normalize(vNL);
   if(dot(N,I)>0.0) N=-N;
   float ci=-dot(I,N);
   vec3 eR=gemEnv(reflect(I,N),0.0);
   /* 둘레 평균(앞 반구 다섯 방향 · 흐린 단계) — 다 못 따라간 몫과 형광 들뜸에 쓴다 */
   vec3 eA=(gemEnv(vec3(0.0,0.0,1.0),8.0)+gemEnv(vec3(0.7,0.0,0.7),8.0)+gemEnv(vec3(-0.7,0.0,0.7),8.0)+gemEnv(vec3(0.0,0.7,0.7),8.0)+gemEnv(vec3(0.0,-0.7,0.7),8.0))*0.2;
-  float Lf=0.0; for(int j=0;j<GK;j++) Lf+=uFx[j]*dot(uB[j],eA);
+  float Lf=0.0; for(int j=0;j<GK;j++) Lf+=uW[j].w*dot(uB[j].xyz,eA);
+  /* 닿은 점이 속 다면체 안(겉면과 겹치는 면 위)이면 속 보석으로 들어간다 */
+  bool in1=false;
+  if(uIN>0){ in1=true; for(int i=0;i<8;i++){ if(i>=uIN) break; if(dot(uI[i].xyz,vGL)>uI[i].w+1e-6) in1=false; } }
   vec3 col=vec3(0.0);
   for(int k=0;k<GK;k++){
-    float n=uN[k], F=frD(ci,n);
-    float L=F*dot(uB[k],eR)+(1.0-F)*uFe[k]*Lf;
+    vec4 sp=uSp[k], ab=uAb[k]; bool m1=in1;
+    float n=m1?sp.y:sp.x, F=frD(ci,n);
+    float L=F*dot(uB[k].xyz,eR)+(1.0-F)*uB[k].w*Lf;
     vec3 d=refract(I,N,1.0/n), p=vGL; float to=1.0-F, te=to;
     for(int j=0;j<GM;j++){
-      float tm=1e3; int im=4; vec3 nm=vec3(0.0,0.0,-1.0);
-      for(int i=0;i<5;i++){ vec3 nn; float c; gemPlane(i,a,b,h,0.0,nn,c); float dn=dot(nn,d); if(dn>1e-6){ float t=(c-dot(nn,p))/dn; if(t<tm){ tm=t; im=i; nm=nn; } } }
-      tm=max(tm,0.0);
-      float c2=d.z*d.z, lc=uHex>0.0?coreLen(p,d,tm):0.0, lh=tm-lc;
-      to*=exp(-(uAo[k]*lh+uCo[k]*lc));
-      te*=exp(-((uAo[k]*c2+uAe[k]*(1.0-c2))*lh+(uCo[k]*c2+uCe[k]*(1.0-c2))*lc));
+      vec3 nO; float isB; float tm=outExit(p,d,nO,isB); bool cross=false; vec3 nC=nO;
+      if(uIN>0){ float ta,tb,fx; vec3 ne,nx; inSpan(p,d,ta,tb,ne,nx,fx);
+        if(!m1){ if(ta>1e-6&&ta<tb&&ta<tm){ tm=ta; cross=true; nC=-ne; } }
+        else if(tb<tm-1e-6&&fx<0.5){ tm=tb; cross=true; nC=nx; } }
+      float c2=d.z*d.z, ao=m1?ab.z:ab.x, ae=m1?ab.w:ab.y;
+      to*=exp(-ao*tm); te*=exp(-(ao*c2+ae*(1.0-c2))*tm);
       p+=d*tm;
-      if(im==4){ to*=uMir[k]; te*=uMir[k]; d=reflect(d,nm); continue; }       /* 은 거울 */
-      float Fi=frD(dot(d,nm),1.0/n);
-      if(Fi<1.0) L+=0.5*(to+te)*(1.0-Fi)*dot(uB[k],gemEnv(refract(d,-nm,n),0.0));   /* 꺾여 나간 몫 */
-      to*=Fi; te*=Fi; d=reflect(d,nm); }                                        /* 되튄 몫 · 전반사 */
-    L+=0.5*(to+te)*dot(uB[k],eA);
-    col+=uW[k]*L; }
+      if(cross){                                                    /* 루비 ↔ 에메랄드 경계 */
+        float n2=m1?sp.x:sp.y, Fi=frD(dot(d,nC),n2/n);
+        if(Fi>=1.0){ d=reflect(d,nC); continue; }                   /* 전반사 */
+        L+=0.5*(to+te)*Fi*dot(uB[k].xyz,eA);                       /* 되비친 몫(작다)은 둘레 평균으로 */
+        to*=1.0-Fi; te*=1.0-Fi; d=refract(d,-nC,n/n2); n=n2; m1=!m1; continue; }
+      if(isB>0.5){ float R=m1?sp.w:sp.z; to*=R; te*=R; d=reflect(d,nO); continue; }   /* 은 거울 */
+      float Fi=frD(dot(d,nO),1.0/n);
+      if(Fi<1.0) L+=0.5*(to+te)*(1.0-Fi)*dot(uB[k].xyz,gemEnv(refract(d,-nO,n),0.0));   /* 꺾여 나간 몫 */
+      to*=Fi; te*=Fi; d=reflect(d,nO); }                                                /* 되튄 몫 · 전반사 */
+    L+=0.5*(to+te)*dot(uB[k].xyz,eA);
+    col+=uW[k].xyz*L; }
   col=max(col,vec3(0.0));
   /* 화면이 못 담는 밝기(1 넘는 몫 — 전구가 비친 반짝임)는 세 채널에 고루 나눠 희게 한다. 눈·사진기도 아주 밝은 빛은 희게 본다.
      안 하면 채널마다 따로 잘려 파란 보석의 반짝임이 자홍으로 찍혔다 */
   vec3 ex=max(col-1.0,vec3(0.0)); return min(col,vec3(1.0))+vec3(ex.r+ex.g+ex.b)/3.0; }
 `;
-/* 보석 하나의 셰이더 값 — 빛띠별 굴절률(코시) · 흡수(1/m) · 은 반사율 · 형광 */
-function gemUniforms(G,S){
-  const lam=GEM_SPEC.lam, Bc=G.disp/(1/0.4308**2-1/0.6867**2), Ac=G.ior-Bc/0.5893**2;
-  const n=lam.map(l=>Ac+Bc/(l/1000)**2), s=100*GEM_SCALE, z=lam.map(()=>0);
-  const mir=GEM_SPEC.ag.map(([an,ak],k)=>((an-n[k])**2+ak*ak)/((an+n[k])**2+ak*ak));
-  const Lm=2*S.d*100*GEM_SCALE;   // 들뜸 빛이 안에서 지나는 평균 길이(cm) — 높이의 두 배(거울로 오감)
+/* 보석 생김새 — 바닥 다각형 + 꼭짓점 하나인 뿔(사각뿔 · 정사면체). 겉 면(바깥 법선·상수) · 바닥(거울) 번호 · 삼각형 ·
+   정사면체면 속 정팔면체(모서리 가운데를 이은 것 — 겉 네 면과 겹치는 면 넷 + 네 귀를 잘라 낸 면 넷) */
+function gemShape(G,S){
+  const V3=(x,y,z)=>new THREE.Vector3(x,y,z); let base, apex, rot;
+  if(G.shape==='tetra'){ const a=GEM_TET_A, R=a/Math.sqrt(3);
+    base=[0,1,2].map(i=>{ const t=Math.PI/2+i*2*Math.PI/3; return V3(R*Math.cos(t),R*Math.sin(t),0); }); apex=V3(0,0,a*Math.sqrt(2/3)); rot=0; }
+  else { const w=S.w/2,h=S.h/2; base=[V3(-w,-h,0),V3(w,-h,0),V3(w,h,0),V3(-w,h,0)]; apex=V3(0,0,S.d); rot=S.rot*Math.PI/180; }
+  const nb=base.length, faces=[];
+  for(let i=0;i<nb;i++) faces.push([base[i],base[(i+1)%nb],apex]);
+  faces.push(base.slice().reverse());
+  const cen=base.reduce((s,v)=>s.add(v),V3(0,0,0)).multiplyScalar(1/nb).lerp(apex,0.25);
+  const planes=faces.map(f=>{ const n=V3(0,0,0).subVectors(f[1],f[0]).cross(V3(0,0,0).subVectors(f[2],f[0])).normalize();
+    if(n.dot(V3(0,0,0).subVectors(f[0],cen))<0) n.negate(); return [n,n.dot(f[0])]; });
+  const tri=[]; for(const f of faces) for(let i=1;i<f.length-1;i++) tri.push(...f[0].toArray(),...f[i].toArray(),...f[i+1].toArray());
+  const inner=[];
+  if(G.shape==='tetra'){ const verts=[...base,apex];
+    planes.forEach(([n,c])=>{ const opp=verts.find(v=>Math.abs(n.dot(v)-c)>1e-9), hgt=c-n.dot(opp);
+      inner.push([n.clone(),c,1]); inner.push([n.clone().negate(),-(c-hgt/2),0]); }); }
+  return {base,apex,rot,planes,baseIndex:faces.length-1,tri,inner,center:cen}; }
+/* 보석 하나의 셰이더 값 — 빛띠별 굴절률(코시) · 흡수(1/m) · 은 반사율 · 형광 · 면 */
+function gemUniforms(G,S,sh){
+  const lam=GEM_SPEC.lam, s=100*GEM_SCALE, I=G.inner;
+  const nOf=(ior,disp)=>{ const Bc=disp/(1/0.4308**2-1/0.6867**2), Ac=ior-Bc/0.5893**2; return lam.map(l=>Ac+Bc/(l/1000)**2); };
+  const mir=n=>GEM_SPEC.ag.map(([an,ak],k)=>((an-n[k])**2+ak*ak)/((an+n[k])**2+ak*ak));
+  const n0=nOf(G.ior,G.disp), n1=I?nOf(I.ior,I.disp):n0, m0=mir(n0), m1=mir(n1);
+  const Lm=2*sh.apex.z*100*GEM_SCALE;   // 들뜸 빛이 안에서 지나는 평균 길이(cm) — 높이의 두 배(거울로 오감)
   const fx=lam.map((l,k)=>G.fl?GEM_FL.qy*GEM_FL.esc*(l/694)*0.92*(1-Math.exp(-((2/3)*G.ao[k]+(1/3)*G.ae[k])*Lm)):0);
   const fe=lam.map((l,k)=>G.fl&&k===lam.length-1?GEM_FL.vis:0);
-  const V=a=>a.map(v=>new THREE.Vector3(...v));
-  return {uGH:{value:new THREE.Vector3(S.w/2,S.h/2,S.d)},uN:{value:n},uAo:{value:G.ao.map(v=>v*s)},uAe:{value:G.ae.map(v=>v*s)},
-    uCo:{value:G.core?G.core.ao.map(v=>v*s):z},uCe:{value:G.core?G.core.ae.map(v=>v*s):z},uHex:{value:G.core?GEM_CORE_R:0},
-    uMir:{value:mir},uW:{value:V(GEM_SPEC.W)},uB:{value:V(GEM_SPEC.B)},uFx:{value:fx},uFe:{value:fe},uFlip:{value:-1}}; }
+  const V4=(a,b,c,d)=>new THREE.Vector4(a,b,c,d), pad=(a,n,f)=>{ const r=a.slice(); while(r.length<n) r.push(f()); return r; };
+  return {uO:{value:pad(sh.planes.map(([n,c])=>V4(n.x,n.y,n.z,c)),6,()=>V4(0,0,1,1e3))},uON:{value:sh.planes.length},uOB:{value:sh.baseIndex},
+    uI:{value:pad(sh.inner.map(([n,c])=>V4(n.x,n.y,n.z,c)),8,()=>V4(0,0,1,1e3))},uIN:{value:sh.inner.length},uIF:{value:pad(sh.inner.map(x=>x[2]),8,()=>0)},
+    uSp:{value:lam.map((_,k)=>V4(n0[k],n1[k],m0[k],m1[k]))},
+    uAb:{value:lam.map((_,k)=>V4(G.ao[k]*s,G.ae[k]*s,I?I.ao[k]*s:0,I?I.ae[k]*s:0))},
+    uW:{value:GEM_SPEC.W.map((w,k)=>V4(w[0],w[1],w[2],fx[k]))},uB:{value:GEM_SPEC.B.map((b,k)=>V4(b[0],b[1],b[2],fe[k]))},uFlip:{value:-1}}; }
 let _gemZ=null;
-function gChestGem(b,id,root){ const S=CHEST_GEM, G=CHEST_GEM_COL[id];
+function gChestGem(b,id,root){ const S=CHEST_GEM, G=CHEST_GEM_COL[id], sh=gemShape(G,S);
   if(_gemZ===null){ const rc=new THREE.Raycaster(new THREE.Vector3(S.x,S.y,1),new THREE.Vector3(0,0,-1)), h=rc.intersectObject(new THREE.Mesh(gSentinelGeo().u,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}))); _gemZ=h.length?h[0].point.z:0.15; }
-  const w=S.w/2,hh=S.h/2,P=[[-w,-hh,0],[w,-hh,0],[w,hh,0],[-w,hh,0]],T=[0,0,S.d],v=[];
-  for(let i=0;i<4;i++) v.push(...P[i],...P[(i+1)%4],...T);
-  v.push(...P[0],...P[3],...P[2],...P[0],...P[2],...P[1]);
-  const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.Float32BufferAttribute(v,3)); geo.computeVertexNormals();
+  const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.Float32BufferAttribute(sh.tri,3)); geo.computeVertexNormals();
   const key='gemT_'+id; let mt=_GM[key];
-  if(!mt){ const U=gemUniforms(G,S);
+  if(!mt){ const U=gemUniforms(G,S,sh);
     mt=_GM[key]=new THREE.MeshBasicMaterial({color:0xffffff,envMap:gEnv()}); mt.userData.gemU=U;   // 빛은 둘레에서만 — 장면 조명을 안 받는 바탕 재질
-    mt.customProgramCacheKey=()=>'gemSpec';
-    mt.onBeforeCompile=sh=>{ Object.assign(sh.uniforms,U); U.uFlip.value=mt.envMap&&mt.envMap._needsFlipEnvMap===false?1:-1;
-      sh.vertexShader=sh.vertexShader.replace('void main() {','varying vec3 vGL; varying vec3 vCamL; varying vec3 vNL; varying vec3 vM0; varying vec3 vM1; varying vec3 vM2;\nvoid main() {')
+    mt.customProgramCacheKey=()=>'gemSpec2';
+    mt.onBeforeCompile=sh2=>{ Object.assign(sh2.uniforms,U); U.uFlip.value=mt.envMap&&mt.envMap._needsFlipEnvMap===false?1:-1;
+      sh2.vertexShader=sh2.vertexShader.replace('void main() {','varying vec3 vGL; varying vec3 vCamL; varying vec3 vNL; varying vec3 vM0; varying vec3 vM1; varying vec3 vM2;\nvoid main() {')
         .replace('#include <project_vertex>',`#include <project_vertex>
   vGL=position; vNL=normal; { mat3 R=mat3(modelViewMatrix); vec3 t=modelViewMatrix[3].xyz; float s2=dot(R[0],R[0]); vCamL=-vec3(dot(R[0],t),dot(R[1],t),dot(R[2],t))/s2; }
   vM0=modelMatrix[0].xyz; vM1=modelMatrix[1].xyz; vM2=modelMatrix[2].xyz;`);
-      sh.fragmentShader=sh.fragmentShader.replace('void main() {',GEM_GLSL+'\nvoid main() {').replace('gl_FragColor = vec4( outgoingLight, diffuseColor.a );','gl_FragColor = vec4( gemShade(), 1.0 );'); }; }
-  const m=new THREE.Mesh(geo,mt);
+      sh2.fragmentShader=sh2.fragmentShader.replace('void main() {',GEM_GLSL+'\nvoid main() {').replace('gl_FragColor = vec4( outgoingLight, diffuseColor.a );','gl_FragColor = vec4( gemShade(), 1.0 );'); }; }
+  const m=new THREE.Mesh(geo,mt); m.userData.gemC=sh.center.clone();
   /* 비늘 갑옷은 비늘이 판보다 1~2 cm 바깥이라 판 기준으로 박으면 묻힌다 — 다 지은 갑옷에 앞에서 광선을 쏴 가장 바깥 겉면에 맞춘다 */
   let zo=-1e9; { const rc=new THREE.Raycaster(new THREE.Vector3(S.x,S.y,1),new THREE.Vector3(0,0,-1)); for(const h of rc.intersectObject(root||b,true)) if(h.object.visible!==false){ zo=h.point.z; break; } }
-  m.position.set(S.x,S.y,Math.max(_gemZ+S.off,zo-0.001)); m.rotation.set(-S.tilt*Math.PI/180,0,S.rot*Math.PI/180);
-  /* 바닥 면을 훑어(7×7 점) 보석 쪽으로 솟은 갑옷이 있으면 그만큼 띄운다 — 보석 속으로 판 장식이 들어오면 얼룩이 됐다 */
+  m.position.set(S.x,S.y,Math.max(_gemZ+S.off,zo-0.001)); m.rotation.set(-S.tilt*Math.PI/180,0,sh.rot);
+  /* 바닥 면을 훑어(삼각형마다 28 점) 보석 쪽으로 솟은 갑옷이 있으면 그만큼 띄운다 — 보석 속으로 판 장식이 들어오면 얼룩이 됐다 */
   if(root){ m.updateMatrix(); const nrm=new THREE.Vector3(0,0,1).applyQuaternion(m.quaternion), rc=new THREE.Raycaster(), q=new THREE.Vector3(); let up=0;
-    for(let i=0;i<=6;i++) for(let j=0;j<=6;j++){ const u=(i/6-0.5)*2, v=(j/6-0.5)*2;
-      q.set(u*w,v*hh,0).applyMatrix4(m.matrix); rc.set(q.clone().addScaledVector(nrm,0.5),nrm.clone().negate()); rc.far=0.5;
+    for(let t=1;t<sh.base.length-1;t++) for(let i=0;i<=6;i++) for(let j=0;j<=6-i;j++){
+      const A=sh.base[0],B=sh.base[t],C=sh.base[t+1], u=i/6, v=j/6;
+      q.copy(A).multiplyScalar(1-u-v).addScaledVector(B,u).addScaledVector(C,v).applyMatrix4(m.matrix);
+      rc.set(q.clone().addScaledVector(nrm,0.5),nrm.clone().negate()); rc.far=0.5;
       for(const h of rc.intersectObject(root,true)) if(h.object.visible!==false){ up=Math.max(up,0.5-h.distance); break; } }
     m.position.addScaledVector(nrm,up>0?up+0.001:0); }
   b.add(m); }

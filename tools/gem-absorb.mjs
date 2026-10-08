@@ -1,4 +1,4 @@
-// 가슴 보석의 분광 자료를 낸다 — island_world.html 의 GEM_SPEC · CHEST_GEM_COL[].ao/ae/core
+// 가슴 보석의 분광 자료를 낸다 — island_world.html 의 GEM_SPEC · CHEST_GEM_COL[].ao/ae/inner
 //   node tools/gem-absorb.mjs          보석마다 빛띠별 흡수 계수(cm⁻¹, E⊥c·E∥c)와 GEM_SPEC 를 찍는다
 //   node tools/gem-absorb.mjs --look   c 축을 따라·가로질러 1·3·6 cm 지난 빛깔(sRGB)을 찍어 본다
 //
@@ -49,8 +49,9 @@ export const GEMS={
   scale_iron:   {name:'노랑 황옥 · Fe³⁺ 전하 옮김 꼬리', n:1.630, disp:0.014, A:ctFe(1.5)},
   scale_chitin: {name:'에메랄드 · Cr₂O₃ 0.3 wt%', n:1.580, disp:0.014, A:emerald},
   scale_ember:  {name:'루비 · Cr 800 ppma', n:1.770, disp:0.018, A:cr(800), fl:true},
-  scale_ember_chitin:{name:'띠 진 강옥 — 테 루비 Cr 1200 ppma · 속 초록 사파이어 Fe³⁺ 1500 · Fe–Ti 2.5 ppma', n:1.770, disp:0.018, A:cr(1200), fl:true,
-    core:sum(fe3(1500),yel(0.6),feti(2.5))},
+  // 복합: 정사면체를 모서리 가운데로 잘라 가운데 정팔면체는 에메랄드, 네 귀 정사면체는 루비(사용자 요청)
+  scale_ember_chitin:{name:'정사면체 — 귀 넷 루비 Cr 800 ppma · 가운데 정팔면체 에메랄드', n:1.770, disp:0.018, A:cr(800), fl:true,
+    inner:{n:1.580, disp:0.014, A:emerald}},
 };
 // 빛띠
 export const LAM=Array.from({length:10},(_,k)=>415+30*k);
@@ -82,7 +83,7 @@ if(!look){
   for(const [k,G] of Object.entries(GEMS)){ const fo=band(G.A.o), fe=band(G.A.e);
     const ao=LAM.map((_,i)=>r4(effA(fo,i))), ae=LAM.map((_,i)=>r4(effA(fe,i)));
     let s=`  ${k}:{ior:${G.n},disp:${G.disp},ao:[${ao}],ae:[${ae}]`;
-    if(G.core){ const co=band(G.core.o), ce=band(G.core.e); s+=`,core:{ao:[${LAM.map((_,i)=>r4(effA(co,i)))}],ae:[${LAM.map((_,i)=>r4(effA(ce,i)))}]}`; }
+    if(G.inner){ const I=G.inner, co=band(I.A.o), ce=band(I.A.e); s+=`,shape:'tetra',inner:{ior:${I.n},disp:${I.disp},ao:[${LAM.map((_,i)=>r4(effA(co,i)))}],ae:[${LAM.map((_,i)=>r4(effA(ce,i)))}]}`; }
     if(G.fl) s+=',fl:1';
     console.log(s+'},   // '+G.name); }
 } else {
@@ -93,7 +94,7 @@ if(!look){
     const ao=LAM.map((_,i)=>effA(fo,i)), ae=LAM.map((_,i)=>effA(fe,i));
     const row=[1,3,6].map(L=>'∥c '+show(ao.map(a=>Math.exp(-a*L)))+' / ⊥c '+show(ao.map((a,i)=>0.5*(Math.exp(-a*L)+Math.exp(-ae[i]*L))))+` @${L}cm`);
     console.log(k.padEnd(19),row.join('  |  '));
-    if(G.core){ const co=band(G.core.o); const c2=LAM.map((_,i)=>effA(co,i)); console.log('  └ 속'.padEnd(19),[1,3,6].map(L=>show(c2.map(a=>Math.exp(-a*L)))+` @${L}cm`).join('  |  ')); }
+    if(G.inner){ const co=band(G.inner.A.o); const c2=LAM.map((_,i)=>effA(co,i)); console.log('  └ 속'.padEnd(19),[1,3,6].map(L=>show(c2.map(a=>Math.exp(-a*L)))+` @${L}cm`).join('  |  ')); }
   }
   // 바탕 확인: 흰 둘레 → 평평 · Σ W Bᵀ = I
   const I=[0,1,2].map(c=>[0,1,2].map(d=>W.reduce((s,w,k)=>s+w[c]*Bs[k][d],0)));
