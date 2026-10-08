@@ -19,11 +19,13 @@ const cr=c=>ppma(1.62e-19,c), ft=c=>ppma(1.94e-18,c), fe=c=>ppma(2.3e-20,c);
 const ruby=c=>[[18000,2400,3400,cr(c)],[24700,4200,5000,cr(c)*1.3]];
 const fe3=c=>[[26500,1200,fe(c)],[25770,900,fe(c)*0.55],[22200,700,fe(c)*0.18]];
 const yel=a450=>[[25600,6000,a450/Math.exp(-4*Math.LN2*((25600-22222)/6000)**2)]];
+// 황옥: O²⁻→Fe³⁺ 전하 옮김 띠(자외선 · 330 nm 쯤)의 꼬리가 파랑을 먹는다(RSC Adv. 2025 — 노랑 황옥은 Fe³⁺) · 450 nm 에서 α 로 맞춤(어림)
+const ctFe=a450=>[[30300,9000,a450/Math.exp(-4*Math.LN2*((30300-22222)/9000)**2)]];
 const crB=6.4e19*1.62e-19;                          // 에메랄드 Cr₂O₃ 0.3 wt% → Cr 6.4e19 /cm³ (녹주석 2.71 g/cm³)
 export const GEMS={
   plate_steel:  {name:'청색 사파이어 · Fe–Ti 8 ppma · Fe³⁺ 1000 ppma', B:[[17500,4500,ft(8)*0.75],[14430,4500,ft(8)*0.4],...fe3(1000)]},
   scale_bronze: {name:'주황 사파이어 · Cr 150 ppma · 노랑 색중심 · Fe³⁺ 3000 ppma', B:[...ruby(150),...yel(5),...fe3(3000)]},
-  scale_iron:   {name:'노랑 사파이어 · 노랑 색중심 · Fe³⁺ 3000 ppma', B:[...yel(2),...fe3(3000)]},
+  scale_iron:   {name:'노랑 황옥 · Fe³⁺ 전하 옮김 꼬리(α450 1.5 cm⁻¹ 어림)', B:ctFe(1.5)},
   scale_chitin: {name:'에메랄드 · Cr₂O₃ 0.3 wt%', B:[[16400,2400,3400,crB],[23250,3600,5000,crB*1.05],[12200,4000,0.3]]},
   scale_ember:  {name:'루비 · Cr 800 ppma', B:ruby(800)},
   scale_ember_chitin:{name:'짙은 루비 · Cr 1200 ppma', B:ruby(1200)},
