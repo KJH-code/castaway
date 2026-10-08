@@ -1,5 +1,4 @@
-// 가슴 보석의 흡수 계수(빨·초·파, cm⁻¹)를 실제 보석의 흡수 띠에서 낸다 — island_world.html 의 CHEST_GEM_COL.sig
-// (foil 은 처음 값일 뿐이다 — 본편 foil 은 겉보기를 실제 보석의 잰 빛깔(CIELAB)에 맞춰 다시 잡았다. CHEST_GEM_COL 머리말 참고)
+// 가슴 보석의 흡수 계수(빨·초·파, cm⁻¹)를 실제 보석의 흡수 띠에서 낸다 — island_world.html 의 CHEST_GEM_COL.sig/foil
 //   node tools/gem-absorb.mjs [기준 길이 cm, 기본 0.5]
 // 띠마다 파수(cm⁻¹)에서 가우스(봉우리 α cm⁻¹ · 반치폭 — 넷이면 낮은 쪽·높은 쪽 따로) → 지난 빛 스펙트럼 e^(−αL)
 // → CIE 1931 등색함수(와이먼 2013 근사) → 선형 sRGB → 채널마다 T, σ = −ln T / L.
