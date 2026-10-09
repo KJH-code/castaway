@@ -11198,7 +11198,8 @@ const CHEST_GEM={x:-0.002,y:1.208,off:-0.014,tilt:8,w:0.08,h:0.08,d:0.03,rot:45,
    ⑥ 바닥 은 거울은 제 빛을 낸다(사용자 요청 "보석 뒤 은 거울이 빛나게" · GEM_GLOW · uGlow) — 고르게 퍼지는(램버트) 흰빛이라
       빛줄기가 거울에 닿으면 그 빛을 받고 되비친다. 휘도 단위는 맑은 보석 너머로 보이는 밝기다(둘레 흰빛 = 1 · 보석 속 실제 휘도는
       n² 배지만 둘레 빛도 같은 단위로 세므로 n² 은 서로 지워진다). 세기는 흡수에 따라 보석마다 다르다(gemGlowK — 앞면으로 나오는
-      빛의 평균 밝기가 GEM_GLOW 가 되게). 빛은 보석을 한 번만 지나 나오므로(둘레 빛은 들어갔다 거울에서 되돌아 두 번)
+      빛의 평균 밝기가 GEM_GLOW 가 되게). GEM_GLOW_SPOT(반지름)을 주면 바닥 가운데 원판에서만 빛나고, 세기는 그 점에서 사방으로
+      나간 빛의 평균 투과로 맞춘다(gemGlowSpotK). 빛은 보석을 한 번만 지나 나오므로(둘레 빛은 들어갔다 거울에서 되돌아 두 번)
       두꺼운 보석도 빛깔이 산다. 루비 형광의 들뜸도 이 빛을 받는다.
    생김새는 겉 볼록 다면체(uO — 사각뿔 다섯 면)와 속 볼록 다면체(uI — 팔면체 여덟 면, 위 넷은 겉면과 같음 · uIF).
    한계: 둘레 지도는 한 점에서 본 것이라 시차가 없다 · 반사 때 o↔e 바뀜과 e 빛의 걸음 어긋남(walk-off)은 뺐다 · 내포물·긁힘 없음. */
@@ -11210,6 +11211,7 @@ const GEM_FL={qy:0.9,band:0.6};   // 루비 형광 — 양자 효율(RSC 2022) �
 const GEM_SPP=4;                   // 본편(아이콘)은 한 장으로 끝나니 화소마다 빛띠당 네 번 — 시험장은 한 번씩 쌓는다
 const GEM_GLOW=1;                  // 바닥 은 거울이 내는 흰빛(사용자 요청 "보석 뒤 은 거울이 빛나게") — 보석을 지나 앞면으로 나오는 빛의 평균 밝기(둘레 흰빛 = 1).
                                    // 거울이 내는 세기는 보석마다 흡수에 따라 다르다(gemGlowK — 사용자 요청 "흡수하는 정도에 따라 빛 조절")
+const GEM_GLOW_SPOT=0;             // 0 이면 거울 전체가 빛난다. 반지름(m)을 주면 거울 가운데 그 원판에서만 빛이 난다(사용자 요청 "거울 가운데에서만 나오는 버전" — 시험장은 0.006)
 const CHEST_GEM_COL={
   plate_steel:{c:0x1f4fd1,ior:1.77,bir:-0.008,disp:0.018,ao:[0.02215,0.2416,0.2701,0.7165,1.326,1.743,1.754,1.454,1.054,0.6934],ae:[0.01792,0.1993,0.01739,0.02017,0.08577,0.2401,0.4893,0.7805,1.026,1.159]},   // 청색 사파이어 · Fe–Ti 8 ppma · Fe³⁺ 1000 ppma
   scale_bronze:{c:0xff7a10,ior:1.77,bir:-0.008,disp:0.018,ao:[12.77,6.755,3.024,2.306,2.743,2.755,1.456,0.4835,0.108,0.01743],ae:[14,6.503,2.665,1.537,1.189,0.7727,0.2927,0.07006,0.01237,0.002131]},   // 주황 사파이어 · Cr 150 ppma · 노랑 색중심 · Fe³⁺ 3000 ppma
@@ -11230,6 +11232,7 @@ uniform vec4 uW[GK];    /* 빛띠 sRGB 무게 · w 은 거울 반사율(겉 보�
 uniform vec4 uB[GK];    /* 둘레 RGB → 빛띠 복사휘도 · w 은 거울 반사율(속 보석) */
 uniform vec2 uFl;       /* 형광 세기(양자 효율 × R 줄 몫 / 12 nm) 겉·속 */
 uniform vec3 uGlow;     /* 바닥 거울이 내는 빛(RGB · 램버트) — 맑은 보석 너머로 보이는 휘도 */
+uniform float uGlowR;   /* 0 이면 거울 전체 · 아니면 바닥 가운데 이 반지름(m) 원판에서만 빛난다 */
 uniform float uFrame; uniform int uSpp; uniform float uTone; uniform float uFlip;
 varying vec3 vGL; varying vec3 vCamL; varying vec3 vNL; varying vec3 vM0; varying vec3 vM1; varying vec3 vM2;
 vec3 gemEnv(vec3 dl,float lod){ vec3 dw=normalize(vM0*dl.x+vM1*dl.y+vM2*dl.z);
@@ -11275,7 +11278,7 @@ float excite(vec3 p,vec3 d,bool m1){
       if(rnd()<Fi){ d=reflect(d,nC); continue; }
       vec3 dn=refract(d,-nC,n/n2); if(dot(dn,dn)<0.5){ d=reflect(d,nC); continue; } d=dn; n=n2; m1=!m1; continue; }
     if(isB>0.5){ for(int i=0;i<9;i++){ vec4 ab=uAb[i]; float as=s1?(0.6667*ab.z+0.3333*ab.w):(0.6667*ab.x+0.3333*ab.y);   /* 빛나는 바닥 */
-        acc+=tr[i]*30.0*((415.0+30.0*float(i))/694.0)*as*dot(uB[i].xyz,uGlow); tr[i]*=m1?uB[i].w:uW[i].w; }
+        if(uGlowR<=0.0||dot(p.xy,p.xy)<uGlowR*uGlowR) acc+=tr[i]*30.0*((415.0+30.0*float(i))/694.0)*as*dot(uB[i].xyz,uGlow); tr[i]*=m1?uB[i].w:uW[i].w; }
       d=reflect(d,nO); continue; }
     float Fi=frD(dot(d,nO),1.0/n);
     if(Fi<1.0){ vec3 e=gemEnv(refract(d,-nO,n),0.0);
@@ -11313,7 +11316,7 @@ vec3 gemShade(){
         float n2=nAt(!m1,em,il2,d), Fi=frD(dot(d,nC),n2/n);
         if(rnd()<Fi){ d=reflect(d,nC); n=nAt(m1,em,il2,d); }
         else { vec3 dn=refract(d,-nC,n/n2); if(dot(dn,dn)<0.5){ d=reflect(d,nC); n=nAt(m1,em,il2,d); } else { d=dn; m1=!m1; n=nAt(m1,em,il2,d); } } }
-      else if(isB>0.5){ L+=t*dot(uB[k].xyz,uGlow); t*=m1?uB[k].w:uW[k].w; d=reflect(d,nO); n=nAt(m1,em,il2,d); }   /* 은 거울 — 제 빛을 내고 되비친다 */
+      else if(isB>0.5){ if(uGlowR<=0.0||dot(p.xy,p.xy)<uGlowR*uGlowR) L+=t*dot(uB[k].xyz,uGlow); t*=m1?uB[k].w:uW[k].w; d=reflect(d,nO); n=nAt(m1,em,il2,d); }   /* 은 거울 — 제 빛을 내고 되비친다 */
       else { float Fi=frD(dot(d,nO),1.0/n);
         if(Fi<1.0) L+=t*(1.0-Fi)*dot(uB[k].xyz,gemEnv(refract(d,-nO,n),0.0));        /* 꺾여 나간 몫 */
         t*=Fi; d=reflect(d,nO); n=nAt(m1,em,il2,d); }                                  /* 되튄 몫 · 전반사 */
@@ -11357,6 +11360,19 @@ function gemGlowK(G,S,sh){
     for(let k=0;k<10;k++){ const T=Math.exp(-(G.ao[k]*Lo+(G.inner?G.inner.ao[k]*Li:0))*s); for(let q=0;q<3;q++) c[q]+=GEM_SPEC.W[k][q]*T; }
     sum+=Math.max(c[0],c[1],c[2]); cnt++; }
   return cnt&&sum>0?cnt/sum:1; }
+/* 거울 가운데 원판에서만 빛날 때 — 바닥 한가운데에서 코사인으로 고르게 사방에 나간 빛이 곧은 길로 겉면까지 가는 동안의 투과를
+   같은 식(sRGB 가장 센 칸)으로 80×80 방향 평균한다. 가운데는 보석이 가장 두꺼워 흡수가 센 보석일수록 훨씬 세야 한다 —
+   에메랄드 290 · 복합 58(가운데 위는 에메랄드, 옆은 루비) · 루비 19 · 주황 사파이어 3.9 · 청색 사파이어 1.6 · 황옥 1.0 */
+function gemGlowSpotK(G,S,sh){
+  const s=100*GEM_SCALE, P=sh.planes, I=sh.inner, N=80, d=new THREE.Vector3(); let sum=0;
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++){ const u1=(i+0.5)/N, r=Math.sqrt(u1), ph=2*Math.PI*(j+0.5)/N; d.set(r*Math.cos(ph),r*Math.sin(ph),Math.sqrt(1-u1));
+    let to=1e9; for(const [n,c] of P){ const nd=n.dot(d); if(nd>1e-9) to=Math.min(to,c/nd); }
+    let a=0, b=to;
+    if(I&&I.length) for(const [n,c] of I){ const nd=n.dot(d); if(nd>1e-9) b=Math.min(b,c/nd); else if(nd<-1e-9) a=Math.max(a,c/nd); else if(c<0) b=-1; }
+    const Li=I&&I.length?Math.max(0,Math.min(b,to)-a):0, Lo=to-Li, c=[0,0,0];
+    for(let k=0;k<10;k++){ const T=Math.exp(-(G.ao[k]*Lo+(G.inner?G.inner.ao[k]*Li:0))*s); for(let q=0;q<3;q++) c[q]+=GEM_SPEC.W[k][q]*T; }
+    sum+=Math.max(c[0],c[1],c[2]); }
+  return sum>0?Math.min(N*N/sum,2000):2000; }
 /* 보석 하나의 셰이더 값 — 코시 계수(ω·ε) · 빛띠별 흡수(1/m) · 은 반사율 · 형광 · 면 */
 function gemUniforms(G,S,sh){
   const lam=GEM_SPEC.lam, s=100*GEM_SCALE, I=G.inner, K=1/0.4308**2-1/0.6867**2;
@@ -11371,14 +11387,14 @@ function gemUniforms(G,S,sh){
     uNc:{value:V4(c0.Ao,c0.Ae,c1.Ao,c1.Ae)},uNb:{value:new THREE.Vector2(c0.B,c1.B)},
     uAb:{value:lam.map((_,k)=>V4(G.ao[k]*s,G.ae[k]*s,I?I.ao[k]*s:0,I?I.ae[k]*s:0))},
     uW:{value:GEM_SPEC.W.map((w,k)=>V4(w[0],w[1],w[2],m0[k]))},uB:{value:GEM_SPEC.B.map((b,k)=>V4(b[0],b[1],b[2],m1[k]))},
-    uFl:{value:new THREE.Vector2(G.fl?fl:0,I&&I.fl?fl:0)},uGlow:{value:new THREE.Vector3().setScalar(GEM_GLOW*gemGlowK(G,S,sh))},uFrame:{value:0},uSpp:{value:GEM_SPP},uTone:{value:1},uFlip:{value:-1}}; }
+    uFl:{value:new THREE.Vector2(G.fl?fl:0,I&&I.fl?fl:0)},uGlow:{value:new THREE.Vector3().setScalar(GEM_GLOW*(GEM_GLOW_SPOT>0?gemGlowSpotK(G,S,sh):gemGlowK(G,S,sh)))},uGlowR:{value:GEM_GLOW_SPOT},uFrame:{value:0},uSpp:{value:GEM_SPP},uTone:{value:1},uFlip:{value:-1}}; }
 let _gemZ=null;
 function gChestGem(b,id,root){ const S=CHEST_GEM, G=CHEST_GEM_COL[id], sh=gemShape(G,S);
   if(_gemZ===null){ const rc=new THREE.Raycaster(new THREE.Vector3(S.x,S.y,1),new THREE.Vector3(0,0,-1)), h=rc.intersectObject(new THREE.Mesh(gSentinelGeo().u,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}))); _gemZ=h.length?h[0].point.z:0.15; }
   const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.Float32BufferAttribute(sh.tri,3)); geo.computeVertexNormals();
   const key='gemT_'+id; let mt=_GM[key];
   if(!mt){ const U=gemUniforms(G,S,sh);
-    mt=_GM[key]=new THREE.MeshBasicMaterial({color:0xffffff,envMap:gEnv()}); mt.userData.gemU=U; mt.userData.gemGlowK=gemGlowK(G,S,sh);   // 빛은 둘레에서만 — 장면 조명을 안 받는 바탕 재질
+    mt=_GM[key]=new THREE.MeshBasicMaterial({color:0xffffff,envMap:gEnv()}); mt.userData.gemU=U; mt.userData.gemGlowK=gemGlowK(G,S,sh); mt.userData.gemGlowKS=gemGlowSpotK(G,S,sh);   // 빛은 둘레에서만 — 장면 조명을 안 받는 바탕 재질
     mt.customProgramCacheKey=()=>'gemPath';
     mt.onBeforeCompile=sh2=>{ Object.assign(sh2.uniforms,U); U.uFlip.value=mt.envMap&&mt.envMap._needsFlipEnvMap===false?1:-1;
       sh2.vertexShader=sh2.vertexShader.replace('void main() {','varying vec3 vGL; varying vec3 vCamL; varying vec3 vNL; varying vec3 vM0; varying vec3 vM1; varying vec3 vM2;\nvoid main() {')
