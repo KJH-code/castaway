@@ -2,3 +2,7 @@ node_modules
 .ci-tmp/
 package-lock.json
 package.json
+# 데스크톱 판(desktop/)의 패키지 파일은 담는다 — 위의 package.json 무시는 CI 가 맨 위에 까는 playwright 몫이다
+!desktop/package.json
+!desktop/package-lock.json
+desktop/dist/

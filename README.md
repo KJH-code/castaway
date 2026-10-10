@@ -7,6 +7,13 @@
 island_world.html 을 브라우저로 열면 끝입니다.
 ```
 
+**브라우저 없이 제 창으로 하려면 데스크톱 판**을 받으세요 —
+[Actions → 데스크톱 판](https://github.com/KJH-code/castaway/actions/workflows/desktop.yml) 의 가장 최근 실행에서
+`CASTAWAY-windows`(설치판 `…-setup.exe` · 설치 없이 `…-portable.exe`) · `CASTAWAY-mac`(`.dmg`) · `CASTAWAY-linux`(`.AppImage`).
+게임이 바뀔 때마다 새로 묶입니다. 전체 화면으로 뜨고(F11 · Alt+Enter 로 창 ↔ 전체 화면), 저장은 파일입니다
+(Windows `%APPDATA%\CASTAWAY\saves`). 서명하지 않은 실행 파일이라 처음 켤 때
+Windows 는 "PC 보호" 창에서 **추가 정보 → 실행**, macOS 는 **우클릭 → 열기**를 한 번 눌러야 합니다.
+
 지형은 시드 하나에서 결정론적으로 생성됩니다 — 같은 시드는 언제나 같은 섬이 됩니다.
 768 × 768 셀(셀 한 변 2.5 m, 월드 **1920 m** = 3.69 km², 삼각형 117만)을 만듭니다.
 

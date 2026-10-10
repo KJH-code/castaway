@@ -5,7 +5,8 @@
 ## 스택
 
 - Three.js r128을 레포 안의 `three.min.js`(603KB)에서 `<script src>`로 로드.
-  번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
+  게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
+- **데스크톱 판은 `desktop/`**(Electron 33 · electron-builder) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
 - 게임 전체가 `island_world.html` 한 파일(6,680줄) 안에 있다. 모듈 분할되어 있지 않다
 - 라이선스 GPL-3.0
 
@@ -16,6 +17,31 @@
 ```
 island_world.html
 ```
+
+### 데스크톱 판(`desktop/`)
+
+브라우저를 벗어나 제 창으로 뜨는 게임. **게임 본체는 베끼지 않는다** — 개발 중엔 `../island_world.html` 을,
+묶은 판은 `extraResources` 로 `resources/game/` 에 넣어 둔 것을 연다(`main.js` 의 `GAME`). 그래서 게임을 고치면
+데스크톱 판은 다시 묶기만 하면 된다.
+
+```bash
+cd desktop && npm ci && npm start          # 개발 — 창으로 띄우기(F12 개발자 도구)
+npx electron-builder --linux               # 묶기 — dist/ (--win · --mac 은 그 OS 러너에서)
+```
+
+- **빌드는 GitHub Actions `데스크톱 판`**(`.github/workflows/desktop.yml`) — `island_world.html`·`three.min.js`·`desktop/**` 가
+  바뀐 푸시마다 Windows(NSIS 설치판 + 포터블 .exe) · macOS(universal .dmg) · Linux(.AppImage)를 묶어 Artifacts 에 30일 둔다.
+  `v*` 태그를 밀면 Releases 에도 붙인다. 레포가 공개라 러너 시간은 공짜다. **서명은 없다**(Windows SmartScreen · macOS Gatekeeper 경고).
+- **`main.js` 가 더하는 것**: 전체 화면으로 시작(F11 · Alt+Enter — 상태는 `userData/window.json` 에 기억) · 메뉴 줄 없음(그래서
+  Ctrl+R 새로 고침 같은 브라우저 단축키가 없다 — **F5 는 게임의 저장**이다) · 바깥 주소는 기본 브라우저로 · 한 번만 켜짐 ·
+  GPU 차단 목록 무시(`ignore-gpu-blocklist`) · 외장 GPU 우선 · 창이 가려져도 안 멈춤(`backgroundThrottling:false`).
+- **게임이 아는 것은 `window.DESKTOP` 하나다**(`preload.js` — `saveHas/saveRead/saveWrite/info/openSaves/fullscreen/quit`, 동기 IPC).
+  `island_world.html` 의 `DESK` 가 있으면 **저장 슬롯이 파일**(`userData/saves/slot1.json` · Windows `%APPDATA%\CASTAWAY\saves` —
+  임시 파일에 쓰고 바꿔 끼우며 바로 앞 것은 `.bak`), 없으면 예전처럼 `localStorage`(`slotHas/slotGet/slotPut`). 슬롯 이름은 `[a-z0-9._-]` 만 받는다.
+  일시정지 화면에 **끝내기**(`#bQuit` — 데스크톱 판에서만 보인다 · 상륙 전이면 바로, 상륙했으면 '저장하고 끝내겠습니까?' 뒤 저장하고 닫는다).
+- **시험**: playwright 의 `_electron.launch` 로 xvfb 에서 띄운다(`xvfb-run -a node 시험.cjs`). 소프트웨어 GL 이라 섬 생성이 약 2분이고,
+  `page.screenshot` 은 시간 초과가 난다 — 주 프로세스의 `webContents.capturePage()` 로 찍을 것.
+- 루트 `.gitignore` 가 `package.json` 을 무시한다(CI 가 맨 위에 playwright 를 깐다) — `desktop/` 것만 `!` 로 살려 두었다.
 
 `.glb` 모델을 로드하는 코드를 넣는 순간부터는 `file://`에서 CORS로 막히므로 정적 서버가 필요하다:
 

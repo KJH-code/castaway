@@ -206,6 +206,7 @@
   #ov .k{font-size:11px;line-height:1.95;text-align:left;max-width:320px}
   #ov .k span{display:inline-block;width:96px;color:var(--dim)}
   #ov button{font-size:12px;letter-spacing:.14em;padding:10px 26px;margin-top:20px;color:var(--acc);border-color:var(--acc)}
+  #ov #bQuit{margin-top:10px;color:var(--dim);border-color:var(--dim)}
   #bar{width:220px;height:3px;background:#0f1c1a;margin-top:16px}
   #bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .12s}
   /* 숫돌 창 — 위는 숫돌에서 만드는 것, 아래는 수리 */
@@ -412,6 +413,7 @@
     <div><span>T</span>시간 가속 · Esc 일시정지</div>
   </div>
   <button id="bStart">상륙</button>
+  <button id="bQuit" style="display:none">끝내기</button>
   <div id="bar"><i id="barF"></i></div>
   <div id="ovLoad"></div>
 </div>
@@ -13718,18 +13720,24 @@ window.addEventListener('keydown',e=>{
   else if(e.code==='KeyN'||e.code==='Escape') askClose(false);
 },true);
 
-/* 저장 슬롯 (브라우저 저장소). 파일 저장/열기는 어디서나 동작한다. */
-const SKEY='castaway.save1';
-const hasSave=()=>{ try{ return !!localStorage.getItem(SKEY); }catch(e){ return false; } };
+/* 저장 슬롯. 브라우저에서는 브라우저 저장소(localStorage), 데스크톱 판(desktop/ — Electron)에서는
+   파일이다 — window.DESKTOP 이 있으면 userData/saves/slot1.json(Windows %APPDATA%\CASTAWAY\saves).
+   파일 저장/열기는 어디서나 동작한다. */
+const SKEY='castaway.save1', DESK=window.DESKTOP||null, DSLOT='slot1';
+const slotHas=()=>DESK?DESK.saveHas(DSLOT):!!localStorage.getItem(SKEY);
+const slotGet=()=>DESK?DESK.saveRead(DSLOT):localStorage.getItem(SKEY);
+function slotPut(text){ if(!DESK){ localStorage.setItem(SKEY,text); return; }
+  const r=DESK.saveWrite(DSLOT,text); if(!r||!r.ok) throw new Error((r&&r.error)||'파일에 못 썼습니다'); }
+const hasSave=()=>{ try{ return slotHas(); }catch(e){ return false; } };
 function saveLocal(){
   try{
-    localStorage.setItem(SKEY,JSON.stringify(snapshot()));
-    toast('저장했습니다');
-  }catch(e){ showErr('저장',e); toast('저장 실패 — 파일로 저장을 쓰세요'); }
+    slotPut(JSON.stringify(snapshot()));
+    toast('저장했습니다'); return true;
+  }catch(e){ showErr('저장',e); toast('저장 실패 — 파일로 저장을 쓰세요'); return false; }
 }
 async function loadLocal(){                      // 묻지 않고 바로 — 안쪽 일꾼
   try{
-    const raw=localStorage.getItem(SKEY);
+    const raw=slotGet();
     if(!raw){ toast('저장된 기록이 없습니다'); return; }
     await restore(JSON.parse(raw));
   }catch(e){ showErr('불러오기',e); }
@@ -13969,13 +13977,19 @@ function pause(){
   document.getElementById('bStart').textContent='계속';
   ov.style.display='flex';
 }
+let landed=false;                                  // 한 번이라도 상륙했나 — 끝낼 때 저장할 것이 있나
 function start(){
+  landed=true;
   if(PL.dead) revivePL();
   paused=false; initAudio();
   document.getElementById('ov').style.display='none';
   if(!flyMode&&hasMouse) cv.requestPointerLock();
 }
 document.getElementById('bStart').onclick=start;
+/* 데스크톱 판만 — 끝내기(상륙 전이면 바로, 상륙했으면 저장하고). 브라우저 탭은 스스로 닫을 수 없다 */
+if(DESK){ const bq=document.getElementById('bQuit'); bq.style.display='';
+  bq.onclick=()=>{ if(!landed){ DESK.quit(); return; }
+    ask('저장하고 끝내겠습니까?','슬롯에 저장한 뒤 창을 닫습니다 · Y 예 · N 아니오',()=>{ if(saveLocal()) setTimeout(()=>DESK.quit(),250); }); }; }
 
 /* 터치 조작 */
 let stickId=null,lookId=null,lastL={x:0,y:0},tmv={x:0,y:0};
