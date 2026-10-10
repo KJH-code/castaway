@@ -107,6 +107,22 @@ function mulberry32(a){
 }
 let windDir={x:1,z:0,name:'서풍'};
 let farScale=1.0, ocean=null;
+/* 바람 흔들림 — 본편은 성능 때문에 껐지만(`WIND_ON` 은 하늘 구역 밖에 있다) 시험장은 풀밭 바람을 보려고 켠다.
+   이 줄이 없어 시험장이 `WIND_ON is not defined` 로 통째로 안 떴었다 */
+const WIND_ON=true;
+/* 표류 첫날 눈을 뜬 시각 — 본편(사람 구역)에 있는 값. 하늘 구역의 달 위상이 쓴다 */
+const START_HOUR=8.5;
+/* 인스턴스 행렬 매크로 — 본편(가지·잎 압축 인스턴스 구역)과 같은 것. 하늘 구역의 envPatch 가 쓴다.
+   시험장에는 압축 인스턴스가 없으므로 늘 instanceMatrix 다 */
+const INST_GUARD=`
+#ifndef INST_MAT
+#ifdef INST_C
+#define INST_MAT iMat
+#else
+#define INST_MAT instanceMatrix
+#endif
+#endif
+`;
 /* 시험장 손잡이 */
 let PHASE=null, STR=null, MIST=null, OPMUL=1, FADE=4;
 /* 멈춤 — 시간·구름을 세우고 그리기만 한다. 뜯어볼 때와 사진 찍을 때 쓴다.

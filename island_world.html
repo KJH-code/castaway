@@ -29,6 +29,9 @@
   .bar .f{height:100%;background:var(--acc);transition:width .1s linear}
   #stF{background:#8fb8d8} #oxF{background:#6fa8c9}
 
+  #perf{left:12px;top:158px;display:none;font:10px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#cfe3da;
+    white-space:pre;min-width:250px;padding:7px 9px}
+  #perf canvas{display:block;width:240px;height:48px;margin-top:5px;border:1px solid var(--line)}
   #mapw{right:12px;bottom:12px;padding:7px}
   #map{display:block;width:172px;height:172px;image-rendering:pixelated;border:1px solid var(--line)}
   #map.big{width:min(688px,82vh);height:min(688px,82vh)}   /* M — 4배(화면이 작으면 높이의 82% 까지) */
@@ -285,6 +288,8 @@
     <div><span class="k">시드</span><b id="iSeed">–</b></div>
     <div><span class="k">FPS</span><b id="iFps">–</b></div>
   </div>
+
+  <div class="pnl" id="perf"><div id="perfT"></div><canvas id="perfG" width="240" height="48"></canvas></div>
 
   <div class="pnl" id="vitals">
     <div class="bar"><div class="l"><span>체력</span><span id="hpT">100</span></div><div class="t"><div class="f" id="hpF"></div></div></div>
@@ -1243,8 +1248,100 @@ const LIMB_MIN=0.06;
    잔가지는 꺾임이 안 보이는데 똑같이 48 을 먹었다. 가지 j 가 어느 메시 몇 번인지는 p._lmap
    (≥0 긴 메시 p._lb 의 번호 · <0 이면 −(번호+1) 로 짧은 메시 p._ls). 잎 번호는 그대로 (_lbBase+j)*LPB. */
 const SHORT_LIMB=0.5;
+/* ── 가지·잎 인스턴스 자료 줄이기 ────────────────────────────────────────
+   가지·잎은 섬 전체에 인스턴스가 900만(잎 608만 · 가지 320만)이고, 인스턴스마다 4×4 행렬(16 float = 64 B)을
+   들고 있어 잎만 389 MB · 가지 205 MB 였다(JS 에 다 들고 있고, 다가간 칸은 GPU 에도 올라간다).
+   그런데 가지·잎 행렬은 전부 **자리 · 회전 · 크기(가로 x=z, 세로 y)** 로 짠 것이다(가지는 굵기·길이, 잎은 0.82 비).
+   그래서 **8 float(32 B)** 로 담는다: iA = (자리 x,y,z, 가로 크기) · iB = (회전 사원수 x,y,z, 세로 크기).
+   사원수는 q 와 −q 가 같은 회전이므로 w 를 늘 0 이상으로 맞춰 두고 w = √(1−x²−y²−z²) 로 되살린다.
+   셰이더가 정점마다 행렬을 다시 짠다(`INST_DECL` · `iCompose` — Matrix4.compose 와 같은 식).
+   **Three 의 인스턴싱 조각 셋(defaultnormal·project·worldpos)은 `instanceMatrix` 대신 매크로 `INST_MAT` 를
+   쓰게 고쳐 두었다** — 재질에 `INST_C` 를 정의하면 iMat, 아니면 원래 instanceMatrix 다(다른 재질은 그대로).
+   우리 셰이더(`barkMat`·`envPatch`)도 `INST_MAT` 를 쓴다. Three 는 인스턴스 메시면 instanceMatrix 를 꼭 선언하므로
+   압축 메시는 **한 칸짜리 행렬 버퍼**를 달아 두고(셰이더가 안 쓰니 묶이지도 않는다) `count` 만 진짜로 준다.
+   그림자도 같은 식이어야 한다 — 압축 메시는 깊이·거리 재질(`customDepthMaterial`·`customDistanceMaterial`)을 꼭 단다
+   (없으면 Three 기본 재질이 한 칸짜리 instanceMatrix 를 읽다 넘친다).
+   **가지·잎 행렬은 `getLimbM`/`setLimbM`·`instGetM`/`instSetM` 으로만 읽고 쓸 것** — getMatrixAt/setMatrixAt 은
+   한 칸짜리 빈 버퍼를 건드린다. 먼 나무 복제·임포스터는 예전 그대로의 InstancedMesh 다. */
+const INST_GUARD=`
+#ifndef INST_MAT
+#ifdef INST_C
+#define INST_MAT iMat
+#else
+#define INST_MAT instanceMatrix
+#endif
+#endif
+`;
+for(const k of ['defaultnormal_vertex','project_vertex','worldpos_vertex'])
+  THREE.ShaderChunk[k]=INST_GUARD+THREE.ShaderChunk[k].replace(/instanceMatrix/g,'INST_MAT');
+const INST_DECL=`attribute vec4 iA; attribute vec4 iB; mat4 iMat;
+mat4 iCompose(vec4 a, vec4 b){
+  vec3 q=b.xyz; float w=sqrt(max(0.0,1.0-dot(q,q)));
+  float x2=q.x+q.x, y2=q.y+q.y, z2=q.z+q.z;
+  float xx=q.x*x2, xy=q.x*y2, xz=q.x*z2, yy=q.y*y2, yz=q.y*z2, zz=q.z*z2, wx=w*x2, wy=w*y2, wz=w*z2;
+  float sx=a.w, sy=b.w;
+  return mat4((1.0-(yy+zz))*sx, (xy+wz)*sx, (xz-wy)*sx, 0.0,
+              (xy-wz)*sy, (1.0-(xx+zz))*sy, (yz+wx)*sy, 0.0,
+              (xz+wy)*sx, (yz-wx)*sx, (1.0-(xx+yy))*sx, 0.0,
+              a.x, a.y, a.z, 1.0);
+}
+`;
+/* 재질을 압축 인스턴스용으로 — INST_C 를 정의하고, main 첫머리에서 iMat 을 짠다 */
+function instCompact(m){
+  m.defines=Object.assign({},m.defines||{},{INST_C:''});
+  const prev=m.onBeforeCompile;
+  m.onBeforeCompile=(sh,r)=>{
+    if(prev&&prev!==THREE.Material.prototype.onBeforeCompile) prev(sh,r);
+    sh.vertexShader=sh.vertexShader.replace('void main() {',INST_DECL+'void main() {\n  iMat=iCompose(iA,iB);');
+  };
+  const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
+  m.customProgramCacheKey=()=>'instC'+(pk?'-'+pk.call(m):'');
+  return m;
+}
+/* 압축 인스턴스 메시 — 밑 지오메트리의 정점·인덱스를 나눠 쓰고 iA·iB 만 제 것 */
+function instMesh(base,mat,n,depth,dist){
+  const g=new THREE.BufferGeometry();
+  for(const k in base.attributes) g.setAttribute(k,base.attributes[k]);
+  if(base.index) g.setIndex(base.index);
+  if(!base.boundingSphere) base.computeBoundingSphere();
+  g.boundingSphere=base.boundingSphere;
+  const A=new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1,n)*4),4),
+        B=new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1,n)*4),4);
+  g.setAttribute('iA',A); g.setAttribute('iB',B);
+  const m=new THREE.InstancedMesh(g,mat,1);         // 행렬 버퍼는 한 칸짜리(셰이더가 안 쓴다)
+  m.count=n; m.iA=A; m.iB=B; m.userData.instC=true;
+  m.customDepthMaterial=depth; m.customDistanceMaterial=dist;
+  return m;
+}
+const _iP=new THREE.Vector3(), _iQ=new THREE.Quaternion(), _iS=new THREE.Vector3();
+/* 자리 · 회전 · 가로(x=z) · 세로 크기를 그대로 적는다 — 짓는 동안 */
+function instPut(m,i,P,Q,sx,sy){
+  const a=m.iA.array, b=m.iB.array, o=i*4;
+  a[o]=P.x; a[o+1]=P.y; a[o+2]=P.z; a[o+3]=sx;
+  if(Q.w<0){ b[o]=-Q.x; b[o+1]=-Q.y; b[o+2]=-Q.z; } else { b[o]=Q.x; b[o+1]=Q.y; b[o+2]=Q.z; }
+  b[o+3]=sy;
+}
+function instGetM(m,i,M){
+  const a=m.iA.array, b=m.iB.array, o=i*4, qx=b[o], qy=b[o+1], qz=b[o+2];
+  _iQ.set(qx,qy,qz,Math.sqrt(Math.max(0,1-qx*qx-qy*qy-qz*qz)));
+  _iP.set(a[o],a[o+1],a[o+2]); _iS.set(a[o+3],b[o+3],a[o+3]);
+  return M.compose(_iP,_iQ,_iS);
+}
+/* 행렬을 받아 적는다 — 놀 때(꺾기·벌목). 바뀐 칸만 올리게 구간을 넓히고, 그림자도 다시 그리게 한다 */
+function instSetM(m,i,M){
+  M.decompose(_iP,_iQ,_iS);
+  if(!(Math.abs(_iS.x*_iS.y*_iS.z)>1e-12)){ _iQ.set(0,0,0,1); _iS.set(0,0,0); }
+  instPut(m,i,_iP,_iQ,_iS.x,_iS.y);
+  for(const A of [m.iA,m.iB]){
+    const r=A.updateRange, lo=i*4;
+    if(r.count<0){ r.offset=lo; r.count=4; }
+    else{ const hi=Math.max(r.offset+r.count,lo+4); r.offset=Math.min(r.offset,lo); r.count=hi-r.offset; }
+    A.needsUpdate=true;
+  }
+  if(LIGHT.live&&m.castShadow) LIGHT.dirtyAt(_iP.x,_iP.z,2);
+}
 function limbAt(p,j){ const v=p._lmap[j]; return v>=0?[p._lb,v]:[p._ls,-v-1]; }
-function getLimbM(p,j,M){ const [m,i]=limbAt(p,j); m.getMatrixAt(i,M); return M; }
+function getLimbM(p,j,M){ const [m,i]=limbAt(p,j); return instGetM(m,i,M); }
 /* 가지 위 u(0 밑동 → 1 끝) 자리가 곧은 중심선에서 얼마나 비켜 있나 — 세계 좌표 벡터로 더해 준다.
    가지는 곧은 선이 아니다: 지오메트리가 활(1.25)·S(0.5, 긴 가지만) 로 굽고, 셰이더(barkMat 'limb')가 안쪽
    정점 줄마다 ±1.2 를 민다(전부 굵기 단위 — 인스턴스가 x·z 를 굵기로 늘린다). 곁가지를 곧은 선에 붙였더니
@@ -1263,7 +1360,7 @@ function limbBend(wx,wy,wz,q,len,rad,u,out){
   _lbX.set(1,0,0).applyQuaternion(q); _lbZ.set(0,0,1).applyQuaternion(q);
   return out.copy(_lbX).multiplyScalar(dx).addScaledVector(_lbZ,dz);
 }
-function setLimbM(p,j,M){ const [m,i]=limbAt(p,j); m.setMatrixAt(i,M); m.instanceMatrix.needsUpdate=true; }                 // 곁가지가 가질 수 있는 가장 짧은 길이 (m)
+function setLimbM(p,j,M){ const [m,i]=limbAt(p,j); instSetM(m,i,M); }                 // 곁가지가 가질 수 있는 가장 짧은 길이 (m)
 /* 곁가지 하나가 차지하는 가지 길이(m). 나무마다 다르다(TREE[].space).
    작을수록 촘촘하다 — 0.56/0.505 에서 0.40/0.355 로 내려 가지 수를 두 배로
    올렸다(참나무 345 → 678 · 전나무 329 → 652). 아래 값은 못 찾았을 때의 기본. */
@@ -1402,20 +1499,21 @@ function growOak(p,TR,emit,rnd){
    ② **껍질**(조각 셰이더): 세로로 길게 갈라진 골(늘인 잡음의 능선) + 골 사이 판(가로 금으로 끊긴
       조각) + 판마다 밝기 흔들기 + 골은 짙게. 램버트라 화소 법선을 못 흔드니 골 옆 해 쪽 면을 조금
       밝혀 요철을 흉내 낸다. 좌표는 가지 둘레각 × 길이(m) — 굵기가 달라도 결 간격이 m 단위로 같다. */
-let LIMB_FAR_MAT=null;
+let LIMB_FAR_MAT=null, LIMB_MAT_C=null, LIMB_DEPTH_C=null, LIMB_DIST_C=null;
 function barkMat(col,kind){
   const m=new THREE.MeshLambertMaterial({color:col});
   m.onBeforeCompile=sh=>{
     sh.vertexShader='varying vec3 vBk;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
       float bkLen=1.0, bkR=1.0;
+      ${INST_GUARD}
       #ifdef USE_INSTANCING
-        bkLen=length(instanceMatrix[1].xyz); bkR=length(instanceMatrix[0].xyz);
+        bkLen=length(INST_MAT[1].xyz); bkR=length(INST_MAT[0].xyz);
       #endif
       ${kind==='limb'?`
       #ifdef USE_INSTANCING
       {
         float seg=floor(transformed.y*6.0+0.5);
-        vec3 sd=instanceMatrix[3].xyz;
+        vec3 sd=INST_MAT[3].xyz;
         float h=fract(dot(sd,vec3(0.0371,0.0213,0.0517))+seg*0.3183);   // limbBend() 와 같은 식 — CPU 가 곁가지 자리를 맞춘다
         float k=fract(h*137.13+0.123), k2=fract(h*71.37+0.567);
         float on=step(0.5,seg)*step(seg,5.5);
@@ -1782,25 +1880,75 @@ vec2 grain(vec3 p){
   m.customProgramCacheKey=()=>'rock-'+k;
   return m;
 }
+/* ── 지형 청크 · 거리 단계(LOD) ──────────────────────────────────────────
+   청크(80 m · 32×32 칸)는 **인덱스 지오메트리**다 — 격자점 33×33 = 1,089 정점을 세모들이 나눠 쓴다.
+   예전엔 세모마다 정점 셋을 따로 둬서(6,144 정점) 정점 셰이더(램버트는 조명을 정점에서 센다)가
+   5.6배 더 돌았고 메모리도 청크 576 개에 127 MB 였다(이제 22 MB).
+   **먼 청크는 속 격자를 건너뛴다**(`TERR_LOD` — 2·4·8 칸마다 한 점). 이웃 청크와 맞닿는 테두리 한 줄은
+   어느 단계든 **늘 촘촘한 그대로** 두고, 그 테두리와 성긴 속 격자 사이만 지퍼처럼 세모로 잇는다 —
+   그래서 이웃끼리 단계가 달라도 틈(갈라진 금)이 안 생기고 치마도 필요 없다. 단계마다 세모 수:
+   1칸 2,048 · 2칸 576 · 4칸 224 · 8칸 144. 네 단계의 인덱스를 한 버퍼에 이어 담아 모든 청크가 나눠 쓰고,
+   청크는 `setDrawRange` 로 제 단계 구간만 그린다(버퍼를 갈아 끼우지 않는다).
+   단계는 **화면 오차**로 고른다(`updateTerrainLOD`) — 지을 때 단계마다 '성긴 면이 참 높이에서 벗어나는
+   가장 큰 값'(m)을 재 두고(`lodErr`), 그 오차가 화면에서 `TERR_LOD_PX`(1 화소) 밑이 되는 가장 성긴 단계를 쓴다.
+   평평한 데는 일찍, 험한 데는 늦게 성겨진다. `TERR_LOD_NEAR`(60 m) 안은 늘 촘촘하다.
+   섬 끝 청크는 격자가 31 칸이라 마지막 줄을 되풀이해 32 칸으로 맞춘다(넓이 0 세모 — 안 보인다). */
+const TERR_LOD=[1,2,4,8], TERR_LOD_PX=1.0, TERR_LOD_NEAR=60;
+let TERR_IDX=null;               // {attr, ranges:[[처음,개수]…]} — 모든 청크가 나눠 쓴다
+function terrainLodIndex(n){
+  const nv=n+1, V=(i,j)=>j*nv+i, out=[], ranges=[];
+  const tri=(a,b,c)=>{
+    // 위(+y)를 보게 — 세모 (a,b,c) 의 (b−a)×(c−a) 의 y 성분이 양수여야 앞면이 위다
+    const ax=a%nv, az=(a/nv)|0, bx=b%nv, bz=(b/nv)|0, cx=c%nv, cz=(c/nv)|0;
+    const cy=(bz-az)*(cx-ax)-(bx-ax)*(cz-az);
+    if(cy===0) return; if(cy>0) out.push(a,b,c); else out.push(a,c,b);
+  };
+  for(const st of TERR_LOD){
+    const s0=out.length;
+    if(st===1){
+      for(let j=0;j<n;j++) for(let i=0;i<n;i++){ tri(V(i,j),V(i,j+1),V(i+1,j)); tri(V(i+1,j),V(i,j+1),V(i+1,j+1)); }
+    }else{
+      const M=n/st-2;                     // 속 격자 칸 수(한 변)
+      for(let b=st;b<=n-2*st;b+=st) for(let a=st;a<=n-2*st;a+=st){
+        tri(V(a,b),V(a,b+st),V(a+st,b)); tri(V(a+st,b),V(a,b+st),V(a+st,b+st));
+      }
+      /* 테두리 띠 넷 — 바깥 촘촘한 줄(0..n)과 안쪽 성긴 줄(st..n−st)을 지퍼로 잇는다.
+         side 는 (바깥 점, 안쪽 점) 을 매개 t 로 돌려준다 */
+      const sides=[
+        [k=>V(k,0),   m=>V(st+m*st,st)],
+        [k=>V(n,k),   m=>V(n-st,st+m*st)],
+        [k=>V(n-k,n), m=>V(n-st-m*st,n-st)],
+        [k=>V(0,n-k), m=>V(st,n-st-m*st)]];
+      for(const [O,I] of sides){
+        let o=0, q=0;
+        while(o<n||q<M){
+          if(q>=M||(o<n&&(o+1)/n<=(st+(q+1)*st)/n)){ tri(O(o),O(o+1),I(q)); o++; }
+          else{ tri(O(o),I(q+1),I(q)); q++; }
+        }
+      }
+    }
+    ranges.push([s0,out.length-s0]);
+  }
+  const arr=nv*nv>65535?new Uint32Array(out):new Uint16Array(out);
+  return {attr:new THREE.BufferAttribute(arr,1), ranges};
+}
 function buildChunks(){
   for(const m of chunks){ scene.remove(m); m.geometry.dispose(); }
   chunks.length=0;
   const col=new THREE.Color();
   // 면 단위 각짐을 없앤다 — 법선과 색을 정점마다 따로 주고 부드럽게 보간한다
   const mat=terrainMat();
+  const n=CH, nv=CH+1;
+  if(!TERR_IDX) TERR_IDX=terrainLodIndex(n);
+  const H=new Float32Array(nv*nv);
   for(let cz=0;cz<NC;cz++) for(let cx=0;cx<NC;cx++){
     const x0=cx*CH, z0=cz*CH;
-    const x1=Math.min(N-1,x0+CH), z1=Math.min(N-1,z0+CH);
-    const quads=(x1-x0)*(z1-z0);
-    if(quads<=0) continue;
-    const pos=new Float32Array(quads*18), c=new Float32Array(quads*18),
-          nor=new Float32Array(quads*18);
-    let p=0;
+    const pos=new Float32Array(nv*nv*3), c=new Float32Array(nv*nv*3), nor=new Float32Array(nv*nv*3);
     // 정점마다 높이장의 기울기에서 법선을 직접 구한다.
     // 이웃 청크도 같은 전역 격자를 보므로 경계에서 이음매가 생기지 않는다.
-    const vert=(x,z)=>{
-      const i=IDX(x,z);
-      pos[p]=(x-N/2)*CELL; pos[p+1]=F.elev[i]; pos[p+2]=(z-N/2)*CELL;
+    for(let j=0;j<nv;j++) for(let i=0;i<nv;i++){
+      const x=Math.min(N-1,x0+i), z=Math.min(N-1,z0+j), id=IDX(x,z), p=(j*nv+i)*3;
+      pos[p]=(x-N/2)*CELL; pos[p+1]=F.elev[id]; pos[p+2]=(z-N/2)*CELL; H[j*nv+i]=F.elev[id];
       // ±2 셀 스텐실 — 폭을 넓히면 셀 단위 요철이 조명에 덜 드러난다
       const xm=Math.max(0,x-2), xp=Math.min(N-1,x+2);
       const zm=Math.max(0,z-2), zp=Math.min(N-1,z+2);
@@ -1808,21 +1956,48 @@ function buildChunks(){
       const gz=(F.elev[IDX(x,zp)]-F.elev[IDX(x,zm)])/((zp-zm)*CELL);
       const inv=1/Math.sqrt(gx*gx+1+gz*gz);
       nor[p]=-gx*inv; nor[p+1]=inv; nor[p+2]=-gz*inv;
-      biomeColorAt(i,col);
+      biomeColorAt(id,col);
       c[p]=col.r; c[p+1]=col.g; c[p+2]=col.b;
-      p+=3;
-    };
-    for(let z=z0;z<z1;z++) for(let x=x0;x<x1;x++){
-      vert(x,z);   vert(x,z+1);   vert(x+1,z);
-      vert(x+1,z); vert(x,z+1);   vert(x+1,z+1);
+    }
+    /* 단계마다 오차 — 성긴 칸(st×st) 네 모서리의 쌍선형 면이 그 안 격자점 참 높이에서 벗어나는 가장 큰 값.
+       테두리 띠는 세모가 다르지만 어림으로 같이 잰다 */
+    const err=[0];
+    for(let k=1;k<TERR_LOD.length;k++){
+      const st=TERR_LOD[k]; let e=0;
+      for(let b=0;b<n;b+=st) for(let a=0;a<n;a+=st){
+        const h00=H[b*nv+a], h10=H[b*nv+a+st], h01=H[(b+st)*nv+a], h11=H[(b+st)*nv+a+st];
+        for(let j=0;j<=st;j++) for(let i=0;i<=st;i++){
+          const u=i/st, v=j/st, hb=(h00*(1-u)+h10*u)*(1-v)+(h01*(1-u)+h11*u)*v;
+          const d=Math.abs(H[(b+j)*nv+a+i]-hb); if(d>e) e=d;
+        }
+      }
+      err.push(e);
     }
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.BufferAttribute(pos,3));
     g.setAttribute('color',new THREE.BufferAttribute(c,3));
     g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+    g.setIndex(TERR_IDX.attr);
+    g.setDrawRange(TERR_IDX.ranges[0][0],TERR_IDX.ranges[0][1]);
     g.computeBoundingSphere();
     const m=new THREE.Mesh(g,mat);
+    m.userData.lodErr=err; m.userData.lod=0;
     scene.add(m); chunks.push(m);
+  }
+}
+/* 청크마다 단계를 고른다 — 카메라에서 청크 경계구까지 거리 d, 오차 e 가 화면에서 e·K/d 화소
+   (K = 화면 높이 / (2·tan(화각/2))). 1 화소 밑이 되는 가장 성긴 단계 */
+const TERR_STAT=[0,0,0,0];
+function updateTerrainLOD(){
+  if(!TERR_IDX||!chunks.length) return;
+  const K=renderer.domElement.height/(2*Math.tan(camera.fov*Math.PI/360)), cp=camera.position;
+  TERR_STAT.fill(0);
+  for(const m of chunks){
+    const bs=m.geometry.boundingSphere, d=Math.max(1,cp.distanceTo(bs.center)-bs.radius), E=m.userData.lodErr;
+    let lv=0;
+    if(d>TERR_LOD_NEAR) for(let k=E.length-1;k>0;k--) if(E[k]*K/d<TERR_LOD_PX){ lv=k; break; }
+    if(lv!==m.userData.lod){ m.userData.lod=lv; const r=TERR_IDX.ranges[lv]; m.geometry.setDrawRange(r[0],r[1]); }
+    TERR_STAT[lv]++;
   }
 }
 
@@ -2099,20 +2274,28 @@ function tileSeen(t,d){
 function updateTileVis(){
   const px=PL.pos.x, pz=PL.pos.z;
   camera.updateMatrixWorld(); _tPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _tFr.setFromProjectionMatrix(_tPM);
+  /* 칸이 켜지거나 꺼지면 그 칸이 드리우던 그림자도 바뀐다 — 그림자 지도를 매 프레임 안 그리므로(LIGHT)
+     바뀐 칸 둘레만 다시 그리게 알린다 */
   // 바위 — 칸 가장자리가 200 m 밖이면 통째로 안 그린다
-  for(const t of ROCK_TILES) t.m.visible=Math.hypot(t.cx-px,t.cz-pz)-t.r<=ROCK_DIST;
-  for(const t of PROP_TILES){ const d=Math.hypot(t.cx-px,t.cz-pz)-t.r, v=d<=t.d&&tileSeen(t,d); for(const m of t.ms) m.visible=v; }
+  for(const t of ROCK_TILES){ if(setVis(t.m,Math.hypot(t.cx-px,t.cz-pz)-t.r<=ROCK_DIST)) LIGHT.dirtyAt(t.cx,t.cz,t.r); }
+  for(const t of PROP_TILES){ const d=Math.hypot(t.cx-px,t.cz-pz)-t.r, v=d<=t.d&&tileSeen(t,d);
+    let f=false; for(const m of t.ms) if(setVis(m,v)) f=true;
+    if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r); }
   for(const t of TREE_TILES){
     const d=Math.hypot(t.cx-px,t.cz-pz)-t.r, seen=tileSeen(t,d);
     const near=seen&&d<=NEAR_DIST, mid=seen&&d>NEAR_DIST&&d<=VIEW_DIST;
     const full=near&&(d<=FULL_DIST||!t.cps);     // 25 m 안 칸만 제 나무 그대로
-    t.lm.visible=full; t.ls.visible=full; t.fm.visible=full;
+    let f=false;
+    if(setVis(t.lm,full)) f=true; if(setVis(t.ls,full)) f=true; if(setVis(t.fm,full)) f=true;
     const cp=mid && d<=COPY_DIST;              // 기준 나무 복제 · 150 m 밖은 같은 나무를 찍은 그림
     if(t.cps){ const lv=near&&!full?0:cp?(d>COPY_MID?2:1):-1;   // 25~55 · 55~90 · 90~150 m
-      for(let k=0;k<3;k++) t.cps[2*k].visible=t.cps[2*k+1].visible=lv===k; }
-    if(t.bb) t.bb.visible=mid && !(t.cps&&cp);
+      for(let k=0;k<3;k++){ if(setVis(t.cps[2*k],lv===k)) f=true; if(setVis(t.cps[2*k+1],lv===k)) f=true; } }
+    if(t.bb && setVis(t.bb,mid && !(t.cps&&cp))) f=true;
+    if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r);
   }
 }
+/* 보이기를 바꿨으면 참 — 바뀐 칸만 그림자 지도를 다시 그리게 알린다 */
+function setVis(m,v){ if(m.visible===v) return false; m.visible=v; return true; }
 /* 광물별 생김새 배합.
    amp  혹의 세기 · bump 혹의 잔주름 수(주파수 상한) · nb 혹 개수
    cuts 잘라 낼 평면 수 · deep 평면이 파고드는 깊이(0.72 면 반지름의 0.72 까지 깎는다)
@@ -2161,7 +2344,7 @@ function bakeTreeImpostor(list,kind){
   for(let j=0;j<n;j++){
     getLimbM(p,j,M); M.premultiply(off); lm.setMatrixAt(j,M);
     M.decompose(pt,q,sc); if(sc.y>0){ box.expandByPoint(pt); v.set(0,1,0).applyQuaternion(q).multiplyScalar(sc.y).add(pt); box.expandByPoint(v); }
-    for(let k=0;k<LPB;k++){ fm0.getMatrixAt((p._lbBase+j)*LPB+k,M); M.premultiply(off); fm.setMatrixAt(j*LPB+k,M);
+    for(let k=0;k<LPB;k++){ instGetM(fm0,(p._lbBase+j)*LPB+k,M); M.premultiply(off); fm.setMatrixAt(j*LPB+k,M);
       M.decompose(pt,q,sc); if(sc.x>0) box.expandByScalar(0), box.expandByPoint(pt); }
   }
   if(box.isEmpty()) return null;
@@ -2208,10 +2391,12 @@ const FAR_REF={}, FAR_LOD=[[0.6,0.6],[0.3,0.3],[0.1,0.1]], FULL_DIST=25, COPY_MI
 function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
   const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
   const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
+  /* 인덱스를 지킨다 — 예전엔 toNonIndexed() 로 풀어 굳혀서 가지(3각 3마디) 하나가 정점 16 → 54,
+     잎 판때기가 8 → 12 로 늘어 정점 셰이더가 그만큼 더 돌았다 */
   const merge=(src,idxs,grow)=>{
     const gs=src.userData.lo||src.geometry;           // 가지는 낮은 정점판으로 굳힌다
-    const g0=gs.index?gs.toNonIndexed():gs;
-    const P0=g0.attributes.position, N0=g0.attributes.normal, U0=g0.attributes.uv;
+    const g0=gs;
+    const P0=g0.attributes.position, N0=g0.attributes.normal, U0=g0.attributes.uv, I0=g0.index;
     const keep=[];
     for(const i of idxs){ src.getMatrixAt(i,M); M.decompose(pt,q,sc); if(sc.x*sc.y*sc.z>1e-9) { if(grow&&grow!==1){ M.decompose(pt,q,sc); sc.multiplyScalar(grow); M.compose(pt,q,sc); } keep.push(M.clone().premultiply(off)); } }
     const nv=P0.count, pos=new Float32Array(keep.length*nv*3), nor=new Float32Array(keep.length*nv*3),
@@ -2229,6 +2414,11 @@ function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
     g.setAttribute('position',new THREE.BufferAttribute(pos,3));
     g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
     if(uv) g.setAttribute('uv',new THREE.BufferAttribute(uv,2));
+    if(I0){
+      const ni=I0.count, nvAll=keep.length*nv, ix=nvAll>65535?new Uint32Array(keep.length*ni):new Uint16Array(keep.length*ni);
+      for(let k=0;k<keep.length;k++){ const b=k*nv, o=k*ni; for(let j=0;j<ni;j++) ix[o+j]=b+I0.getX(j); }
+      g.setIndex(new THREE.BufferAttribute(ix,1));
+    }
     g.computeBoundingSphere();
     return g;
   };
@@ -2243,7 +2433,8 @@ function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
     h=(h*1664525+1013904223)>>>0; if(h/4294967296<FAR_LEAF) fi.push((p._lbBase+j)*LPB+k);
   }
   const limbSrc={userData:p._lb.userData, geometry:p._lb.geometry, getMatrixAt:(j,m)=>getLimbM(p,j,m)};
-  return {limb:merge(limbSrc,li), leaf:merge(p._lf,fi,1/Math.sqrt(FAR_LEAF))};
+  const leafSrc={userData:p._lf.userData, geometry:p._lf.geometry, getMatrixAt:(i,m)=>instGetM(p._lf,i,m)};
+  return {limb:merge(limbSrc,li), leaf:merge(leafSrc,fi,1/Math.sqrt(FAR_LEAF))};
 }
 function buildFarTrees(){
   if(!TREE_TILES.length) return;
@@ -2273,8 +2464,9 @@ function buildFarTrees(){
     if(t.cps) for(const m of t.cps){ propGroup.remove(m); m.dispose(); }
     const cps=[];
     for(const g of ref.geos){
-      const a=new THREE.InstancedMesh(g.limb,LIMB_FAR_MAT||t.lm.material,n), b=new THREE.InstancedMesh(g.leaf,t.fm.material,n);
-      if(t.fm.customDepthMaterial) b.customDepthMaterial=t.fm.customDepthMaterial;
+      // 복제는 예전 그대로의 인스턴스 메시 — 재질도 압축용이 아닌 원래 것(칸에 따로 적어 둠)
+      const a=new THREE.InstancedMesh(g.limb,LIMB_FAR_MAT,n), b=new THREE.InstancedMesh(g.leaf,t.leafStd,n);
+      if(t.leafDepthStd) b.customDepthMaterial=t.leafDepthStd;
       a.frustumCulled=b.frustumCulled=false;
       if(cps.length) a.userData.lightRole=b.userData.lightRole='recv';   // 55 m 밖 복제는 그림자를 안 드리운다
       cps.push(a,b);
@@ -2302,7 +2494,7 @@ function buildProps(){
     scene.remove(propGroup);
     propGroup.children.forEach(m=>{ m.geometry.dispose(); m.material.dispose(); });
   }
-  propGroup=new THREE.Group(); scene.add(propGroup);
+  propGroup=new THREE.Group(); propGroup.matrixAutoUpdate=false; scene.add(propGroup);
   propGroup.visible=showProps;
   COLLIDERS.length=0;
 
@@ -2422,19 +2614,21 @@ function buildProps(){
     return tx;
   }
   /* 십자로 겹친 판때기 두 장. 밑동이 원점, +Y 로 뻗는다 */
+  /* 십자 판때기 — **인덱스 지오메트리**(판 하나에 정점 넷 · 세모 둘). 예전엔 세모마다 정점 셋을 따로 둬서
+     정점 셰이더(램버트는 조명을 정점에서 센다)가 판 하나에 여섯 번 돌았다 — 이제 네 번이다. */
   function leafCard(hw,h){
-    const pos=[], uv=[];
+    const pos=[], uv=[], idx=[];
     const quad=(a,b,c2,d)=>{
-      for(const [q,u] of [[a,[0,0]],[b,[1,0]],[c2,[1,1]],
-                          [a,[0,0]],[c2,[1,1]],[d,[0,1]]]){
-        pos.push(q[0],q[1],q[2]); uv.push(u[0],u[1]);
-      }
+      const o=pos.length/3;
+      for(const [q,u] of [[a,[0,0]],[b,[1,0]],[c2,[1,1]],[d,[0,1]]]){ pos.push(q[0],q[1],q[2]); uv.push(u[0],u[1]); }
+      idx.push(o,o+1,o+2, o,o+2,o+3);
     };
     quad([-hw,0,0],[hw,0,0],[hw,h,0],[-hw,h,0]);          // XY 면
     quad([0,0,-hw],[0,0,hw],[0,h,hw],[0,h,-hw]);          // ZY 면
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
     g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+    g.setIndex(idx);
     g.computeVertexNormals();
     return g;
   }
@@ -2739,6 +2933,9 @@ function buildProps(){
   const trunkMat=barkMat(0x4a3d31,'trunk');
   const limbMat =barkMat(0x4f4033,'limb');
   limbMat.userData.wind='limb';                // 바람에 가지 끝이 흔들린다(envPatch)
+  LIMB_MAT_C=instCompact(barkMat(0x4f4033,'limb')); LIMB_MAT_C.userData.wind='limb';   // 칸 가지(압축 인스턴스)
+  LIMB_DEPTH_C=instCompact(new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking}));
+  LIMB_DIST_C=instCompact(new THREE.MeshDistanceMaterial());
   LIMB_FAR_MAT=barkMat(0x4f4033,'far');       // 먼 복제(굳힌 지오메트리) — 꺾기는 이미 굳힌 활 모양만
 
   const byKind={};
@@ -2844,16 +3041,24 @@ function buildProps(){
       const leafDepth=depthOf(leafMat), bbDepth=depthOf(bbMat);
       leafMat.userData.wind='leaf';            // 잎은 통째로 흔들리고 잘게 떤다
       if(leafDepth) leafDepth.userData.wind='leaf';   // 그림자도 같이 흔든다
+      /* 칸의 가지·잎은 압축 인스턴스(위 '가지·잎 인스턴스 자료 줄이기') — 재질도 압축용을 따로 둔다.
+         예전 재질(leafMat · leafDepth · limbMat)은 먼 나무 복제와 임포스터가 그대로 쓴다 */
+      const leafC=instCompact(R.k==='oak'
+        ? new THREE.MeshLambertMaterial({map:leafTexOak, alphaTest:0.5, side:THREE.DoubleSide})
+        : new THREE.MeshLambertMaterial({color:0x2f4a3a, side:THREE.DoubleSide}));
+      leafC.userData.wind='leaf';
+      const leafDC=instCompact(new THREE.MeshDepthMaterial(leafMat.map
+        ? {depthPacking:THREE.RGBADepthPacking, map:leafMat.map, alphaTest:leafMat.alphaTest}
+        : {depthPacking:THREE.RGBADepthPacking}));
+      const leafXC=instCompact(new THREE.MeshDistanceMaterial(leafMat.map?{map:leafMat.map, alphaTest:leafMat.alphaTest}:{}));
       for(const b of bins.values()){
-        const lm=new THREE.InstancedMesh(limbUnit,limbMat,Math.max(1,b.tl));
+        const lm=instMesh(limbUnit,LIMB_MAT_C,b.tl,LIMB_DEPTH_C,LIMB_DIST_C);
         lm.userData.lo=limbLo;
-        const ls=new THREE.InstancedMesh(limbShort,limbMat,Math.max(1,b.ts));
-        ls.count=b.ts; lm.count=b.tl; ls.frustumCulled=false;
-        const fm=new THREE.InstancedMesh(R.k==='oak'?leafUnitOak:leafUnitFir,
-                                         leafMat,b.total*LPB);
+        const ls=instMesh(limbShort,LIMB_MAT_C,b.ts,LIMB_DEPTH_C,LIMB_DIST_C);
+        ls.frustumCulled=false;
+        const fm=instMesh(R.k==='oak'?leafUnitOak:leafUnitFir,leafC,b.total*LPB,leafDC,leafXC);
         const bb=new THREE.InstancedMesh(bbUnit,bbMat,b.ps.length);
         lm.frustumCulled=false; fm.frustumCulled=false; bb.frustumCulled=false;
-        if(leafDepth) fm.customDepthMaterial=leafDepth;
         if(bbDepth)   bb.customDepthMaterial=bbDepth;
         b.ps.forEach((p,i)=>{
           p._lb=lm; p._ls=ls; p._lf=fm; p._bb=bb; p._bbi=i;
@@ -2864,7 +3069,7 @@ function buildProps(){
         });
         bb.instanceMatrix.needsUpdate=true;
         propGroup.add(lm); propGroup.add(ls); propGroup.add(fm); propGroup.add(bb);
-        TREE_TILES.push({lm, ls, fm, bb, ps:b.ps, kind:R.k,
+        TREE_TILES.push({lm, ls, fm, bb, ps:b.ps, kind:R.k, leafStd:leafMat, leafDepthStd:leafDepth,
           cx:(b.gx+0.5)*TILE, cz:(b.gz+0.5)*TILE, r:TILE*0.71+12});
       }
     }
@@ -2900,8 +3105,7 @@ function buildProps(){
         const putLeaf=(slot,base,quat,len,leafS)=>{
           for(let q=0;q<LPB;q++){
             const i=slot*LPB+q;
-            if(leafS<=0){ _lbS.set(0,0,0); M.compose(base,quat,_lbS);
-                          leafMesh.setMatrixAt(i,M); continue; }
+            if(leafS<=0){ instPut(leafMesh,i,base,quat,0,0); continue; }
             _lbD.set(0,1,0).applyQuaternion(quat);
             /* 짧은 잔가지에서는 0.1 m 를 그대로 물리면 다섯 장이 몽땅 밑동으로
                밀려 한자리에 겹친다 — 시작 자리도 가지 길이에 맞춰 줄인다. */
@@ -2914,8 +3118,7 @@ function buildProps(){
               _lbQ.copy(quat).multiply(_lbQ2);
             }else _lbQ.copy(quat);
             const ls=leafS*(LPB>1?0.85+lrnd()*0.35:1);
-            _lbS.set(ls,ls*0.82,ls);
-            M.compose(_lbB,_lbQ,_lbS); leafMesh.setMatrixAt(i,M);
+            instPut(leafMesh,i,_lbB,_lbQ,ls,ls*0.82);
           }
         };
         // Euler(0, az, tilt) 로 세운 가지의 끝 방향은
@@ -2923,8 +3126,7 @@ function buildProps(){
         const put=(j,az,ay,len,tilt,leafS)=>{
           E.set(0,az,tilt); Q.setFromEuler(E);
           V.set(p.x,gy+ay,p.z);
-          S.set((TR.brR||TR.rad)*p.s, len*p.s, (TR.brR||TR.rad)*p.s);
-          M.compose(V,Q,S); p._lmap[j]=p._lbL+nL; limbMesh.setMatrixAt(p._lbL+nL++,M);
+          p._lmap[j]=p._lbL+nL; instPut(limbMesh,p._lbL+nL++,V,Q,(TR.brR||TR.rad)*p.s,len*p.s);
           putLeaf(li+j, V, Q, len*p.s, leafS*p.s);
         };
         // 꺾을 수 있는 아래 가지 — 길고 가장 눕는다. 곁가지를 치지 않는다:
@@ -2941,10 +3143,8 @@ function buildProps(){
         growLimbs(p,TR,(pos,quat,len,rad,leafS)=>{
           // growLimbs 는 나무 밑동을 원점으로 센다 — 여기서 세계 자리로 옮긴다
           _lbV.set(p.x+pos.x, gy+pos.y, p.z+pos.z);
-          _lbS.set(rad,len,rad);
-          M.compose(_lbV,quat,_lbS);
-          if(len<SHORT_LIMB){ p._lmap[k]=-(p._lbS+nS)-1; p._ls.setMatrixAt(p._lbS+nS++,M); }
-          else{ p._lmap[k]=p._lbL+nL; limbMesh.setMatrixAt(p._lbL+nL++,M); }
+          if(len<SHORT_LIMB){ p._lmap[k]=-(p._lbS+nS)-1; instPut(p._ls,p._lbS+nS++,_lbV,quat,rad,len); }
+          else{ p._lmap[k]=p._lbL+nL; instPut(limbMesh,p._lbL+nL++,_lbV,quat,rad,len); }
           putLeaf(li+k, _lbV, quat, len, leafS);
           k++;
         });
@@ -3009,9 +3209,7 @@ function buildProps(){
     }else{
       ms.forEach(m=>{ m.instanceMatrix.needsUpdate=true; m.frustumCulled=false; propGroup.add(m); });
     }
-    if(tree) for(const t of TREE_TILES){
-      t.lm.instanceMatrix.needsUpdate=true; t.ls.instanceMatrix.needsUpdate=true; t.fm.instanceMatrix.needsUpdate=true;
-    }
+    if(tree) for(const t of TREE_TILES) for(const m of [t.lm,t.ls,t.fm]){ m.iA.needsUpdate=true; m.iB.needsUpdate=true; }
     /* 임포스터를 **진짜 나무 한 그루를 찍은 사진**으로 바꾼다 — 그림(`makeTreeTex`)은 55 m 에서
        갈아 끼우는 순간 모양이 딴판이라 티가 났다. 한 그루를 골라 가지·잎을 그대로 옆에서
        한 번 그려 두고(불러올 때 한 번), 모든 나무의 판때기가 그 사진을 쓴다. 돌아가는 비용은
@@ -3364,6 +3562,7 @@ function shipPower(k,dust){
 /* 떠나는 동안만 움직인다. 다 가면 장면에서 지운다. */
 function updateShip(dt){
   if(!shipMesh) return;
+  LIGHT.dirtyAt(shipMesh.position.x,shipMesh.position.z,14);   // 움직이는 배 — 그림자를 매 프레임 다시
   SHIP.t+=dt;
   if(SHIP.navs) SHIP.navs.forEach(n=>n.visible=((SHIP.t*1.2)%1)<0.25);   // 항법등 깜박임
   if(SHIP.st==='away'&&SHIP.dust) SHIP.dust.visible=false;
@@ -3426,6 +3625,8 @@ function updateShip(dt){
 
    품질은 설정의 '그림자' 한 줄이 정한다 — 끄기 · 낮음 · 보통 · 높음.
    ========================================================================== */
+/* 해 그림자 다시 그리기 — 상자 가운데 격자(m) · 해가 이만큼 돌면(0.2°) · 안전망(초). 아래 LIGHT.update 머리말 */
+const SUN_STEP=4, SUN_TURN_COS=Math.cos(0.2*Math.PI/180), SUN_AGE=1.5;
 const LIGHT={
   /* size 해 그림자 지도 한 변 · R 덮는 반경(m) · pts 점광원 그림자 개수 ·
      psize 점광원 지도 한 변 · soft 부드러운 가장자리 */
@@ -3453,7 +3654,9 @@ const LIGHT={
     if(pos) l.position.set(pos[0],pos[1],pos[2]);
     l.userData.wantShadow=!!shadow;
     if(shadow){ l.shadow.bias=0; l.shadow.normalBias=0.03;   // 해와 같은 이유로 0 (뒷면을 그린다)
-                l.shadow.camera.near=0.25; this.locals.push(l); }
+                l.shadow.camera.near=0.25; this.locals.push(l);
+                l.shadow.autoUpdate=false;      // 불은 안 움직인다 — 둘레가 바뀔 때만 다시 그린다(dirty)
+                l.shadow.needsUpdate=true; }
     parent.add(l);
     return l;
   },
@@ -3482,18 +3685,40 @@ const LIGHT={
       return 'none';                        // 스스로 빛나는 것 — 빛을 받지도 드리우지도 않는다
     return 'full';
   },
+  /* 물체 하나에 배역을 준다 — 드리우면 true */
+  apply(o,on){
+    if(!o.isMesh&&!o.isInstancedMesh) return false;
+    let r=on?this.roleOf(o):'none';
+    if(r==='soft') r=(this.q>=2)?'full':'recv';
+    o.castShadow   = (r==='full');
+    o.receiveShadow= (r==='full'||r==='recv');
+    // 구름 그림자 · 바람을 재질에 붙인다(한 번만 — envPatch 가 표시해 둔다)
+    if(Array.isArray(o.material)) o.material.forEach(envPatch); else envPatch(o.material);
+    if(o.customDepthMaterial) envPatch(o.customDepthMaterial);
+    return o.castShadow;
+  },
+  /* 전체 훑기 — 품질을 바꿀 때 · 섬을 다 지은 뒤 한 번. 예전엔 0.7초마다 장면 전체(물체 4,900)를
+     훑었다(한 번 1.4 ms · 쓰레기 180 KB). 이제 평소에는 **새로 붙은 것만** 본다(`pending` · `flush`). */
   refresh(){
     const on=this.QUAL[this.q].size>0;
-    scene.traverse(o=>{
-      if(!o.isMesh&&!o.isInstancedMesh) return;
-      let r=on?this.roleOf(o):'none';
-      if(r==='soft') r=(this.q>=2)?'full':'recv';
-      o.castShadow   = (r==='full');
-      o.receiveShadow= (r==='full'||r==='recv');
-      // 구름 그림자 · 바람을 재질에 붙인다(한 번만 — envPatch 가 표시해 둔다)
-      if(Array.isArray(o.material)) o.material.forEach(envPatch); else envPatch(o.material);
-      if(o.customDepthMaterial) envPatch(o.customDepthMaterial);
-    });
+    scene.traverse(o=>this.apply(o,on));
+    this.pending.length=0;
+    this.dirty();
+  },
+  /* 새로 붙은 물체 — `Object3D.add` 갈고리(아래)가 모은다. 그리기 직전(`loop`)에 한 번 비운다.
+     아이콘·임포스터를 찍는 임시 장면에 붙은 것은 건너뛴다(뿌리가 `scene` 이 아니다).
+     드리우는 것이 새로 생겼으면 그림자를 다시 그린다. */
+  pending:[], live:false,          // live — 섬을 다 지은 뒤(인스턴스 갈고리가 그림자를 다시 그리게 한다)
+  flush(){
+    if(!this.pending.length||!scene) return;
+    const on=this.QUAL[this.q].size>0, list=this.pending; this.pending=[];
+    let cast=false;
+    for(const o of list){
+      let r=o; while(r.parent) r=r.parent;
+      if(r!==scene) continue;
+      o.traverse(c=>{ if(this.apply(c,on)) cast=true; });
+    }
+    if(cast) this.dirty();
   },
 
   setQuality(q){
@@ -3534,31 +3759,68 @@ const LIGHT={
     renderer.shadowMap.needsUpdate=true;
   },
 
-  /* ②③ 매 프레임 — 해 상자를 사람에게 옮기고, 점광원 그림자를 나눠 준다 */
-  _t:9,
+  /* ②③ 매 프레임 — 해 상자를 사람에게 옮기고, 점광원 그림자를 나눠 준다.
+     **그림자 지도는 매 프레임 다시 그리지 않는다**(`shadow.autoUpdate=false` — Three 는 광원마다
+     `needsUpdate` 를 보고 그 지도만 다시 그린다). 그림자를 드리우는 것은 거의 다 서 있다(나무·바위·집 —
+     몹이 아직 없고, 손에 든 것은 받기만 한다). 그래서 다시 그리는 때는 넷이다:
+       · 상자가 옮겨졌을 때 — 상자 가운데를 `SUN_STEP`(4 m) 격자에 끊고, 시선 쪽은 8방향(45°)으로 끊는다
+         (경계에서 떨지 않게 27° 를 넘어야 넘어간다). 예전엔 시선 앞 0.45R 에 텍셀 단위로 붙어 다녀서
+         **고개만 돌려도 매 프레임 다시 그렸다.**
+       · 해(밤엔 달)가 `SUN_TURN`(0.2°) 넘게 돌았을 때 — 10 m 나무 그림자 끝이 한 텍셀쯤 움직이는 각이다
+       · 드리우는 것이 바뀌었을 때(`dirty`/`dirtyAt`) — 캐기·벌목·짓기·문 여닫기·물레방아·칸 켜고 끄기
+       · 안전망 — `SUN_AGE`(1.5초)가 지나면 한 번
+     빛의 **방향**(조명)은 매 프레임 지금 해 쪽으로 맞춘다 — 지도와 그림자 행렬은 마지막에 그린 것이 짝으로 남는다.
+     점광원(불) 그림자도 같은 식이다 — 불은 안 움직이므로 받는 순간 한 번, 둘레가 바뀌면 다시.
+     손전등(집중광)은 카메라에 붙어 움직이므로 예전처럼 매 프레임 그린다. */
+  _sec:0, _cx:NaN, _cz:NaN, _cy:0, _age:0, _sunDirty:true,
+  _dir:new THREE.Vector3(),
+  stats:{sun:0, pts:0},          // 지도를 다시 그린 횟수(성능 창이 초당으로 보인다)
+  /* 드리우는 것이 바뀌었다 — 해 지도와 그림자를 받은 불 지도를 다음 프레임에 다시 그린다 */
+  dirty(){
+    this._sunDirty=true;
+    for(const l of this.locals) if(l.castShadow&&l.shadow.autoUpdate===false) l.shadow.needsUpdate=true;
+  },
+  /* (x,z) 둘레 r m 가 바뀌었다 — 그 자리를 덮는 지도만 */
+  dirtyAt(x,z,r=0){
+    const Q=this.QUAL[this.q];
+    // 상자 밖이라도 해 쪽에 선 큰 것은 그림자를 상자 안으로 드리운다 — 넉넉히 2R
+    if(Math.abs(x-this._cx)<Q.R*2+r&&Math.abs(z-this._cz)<Q.R*2+r) this._sunDirty=true;
+    for(const l of this.locals){
+      if(!l.castShadow||l.shadow.autoUpdate!==false) continue;
+      l.getWorldPosition(this._c);
+      if(Math.hypot(x-this._c.x,z-this._c.z)<(l.distance||30)+r+1) l.shadow.needsUpdate=true;
+    }
+  },
   update(dt){
     const Q=this.QUAL[this.q];
-    /* 새로 세운 집·설비도 자동으로 편입된다 — 만드는 자리마다 배역을 적어 주는
-       대신 가끔 씬을 훑는다. 물체 몇백 개 도는 일이라 값이 없다시피 하다. */
-    this._t+=dt||0;
-    if(this._t>0.7){ this._t=0; this.refresh(); }
+    this.flush();
     if(!Q.size){ return; }
 
     // ── 해: 낮은 각도에서는 그림자가 끝없이 길어져 얼룩만 남으므로 접는다
     const lowSun=sun.intensity<0.12;
-    if(sun.castShadow===lowSun){ sun.castShadow=!lowSun; if(lowSun) this.free(sun); }
+    if(sun.castShadow===lowSun){ sun.castShadow=!lowSun; if(lowSun) this.free(sun); else this._sunDirty=true; }
     if(!lowSun){
-      // 시선 앞쪽을 더 덮는다 — 뒤통수의 그림자는 화면에 없다
-      camera.getWorldDirection(this._f); this._f.y=0;
-      if(this._f.lengthSq()<1e-6) this._f.set(0,0,-1); else this._f.normalize();
-      const cx=PL.pos.x+this._f.x*Q.R*0.45, cz=PL.pos.z+this._f.z*Q.R*0.45;
-      // 텍셀 격자에 맞춰 끊어서 옮긴다 — 그림자 가장자리가 들끓는 것을 막는다
-      const tex=(Q.R*2)/Q.size, snap=v=>Math.round(v/tex)*tex;
-      const sxz=snap(cx), szz=snap(cz), sy=heightAt(cx,cz);
-      // 광원 방향은 updateSky 가 정한 해 위치를 그대로 쓴다(정규화해 거리만 고정)
-      this._w.copy(sun.position).normalize().multiplyScalar(Q.R*2+80);
-      sun.position.set(sxz+this._w.x, sy+this._w.y, szz+this._w.z);
-      sun.target.position.set(sxz,sy,szz);
+      sun.shadow.autoUpdate=false;
+      // 시선 앞쪽을 더 덮는다 — 뒤통수의 그림자는 화면에 없다. 시선은 8방향으로 끊는다
+      camera.getWorldDirection(this._f);
+      const a=Math.atan2(this._f.x,this._f.z), q=Math.PI/4;
+      let d=a-this._sec*q; d=Math.atan2(Math.sin(d),Math.cos(d));
+      if(Math.abs(d)>q*0.6) this._sec=Math.round(a/q);
+      const fx=Math.sin(this._sec*q), fz=Math.cos(this._sec*q);
+      // 가운데는 SUN_STEP 격자에 — 격자 간격을 텍셀의 정수배로 잡아야 다시 그릴 때 그림자가 들끓지 않는다
+      const tex=(Q.R*2)/Q.size, G=Math.max(1,Math.round(SUN_STEP/tex))*tex;
+      const cx=Math.round((PL.pos.x+fx*Q.R*0.45)/G)*G, cz=Math.round((PL.pos.z+fz*Q.R*0.45)/G)*G;
+      // 광원 방향은 updateSky 가 정한 해 위치를 그대로 쓴다(정규화)
+      this._w.copy(sun.position).normalize();
+      this._age+=dt||0;
+      if(cx!==this._cx||cz!==this._cz||this._sunDirty||this._w.dot(this._dir)<SUN_TURN_COS
+         ||this._age>SUN_AGE||!sun.shadow.map){
+        this._cx=cx; this._cz=cz; this._cy=heightAt(cx,cz); this._dir.copy(this._w);
+        sun.shadow.needsUpdate=true; this._sunDirty=false; this._age=0; this.stats.sun++;
+      }
+      const D=Q.R*2+80;
+      sun.position.set(this._cx+this._w.x*D, this._cy+this._w.y*D, this._cz+this._w.z*D);
+      sun.target.position.set(this._cx,this._cy,this._cz);
       sun.target.updateMatrixWorld();
     }
 
@@ -3586,12 +3848,43 @@ const LIGHT={
           l.shadow.mapSize.set(Q.psize,Q.psize);
           l.shadow.camera.far=(l.distance||30)+2;
           if(l.shadow.camera.updateProjectionMatrix) l.shadow.camera.updateProjectionMatrix();
-          l.castShadow=true;
+          l.castShadow=true; l.shadow.needsUpdate=true;
         }
+        // 안전망 — 불 지도도 가끔(SUN_AGE×2) 다시 그린다
+        if(l.shadow.autoUpdate===false){ l.userData.shAge=(l.userData.shAge||0)+(dt||0);
+          if(l.userData.shAge>SUN_AGE*2){ l.userData.shAge=0; l.shadow.needsUpdate=true; } }
+        if(l.shadow.needsUpdate) this.stats.pts++;
       }else if(l.castShadow) this.free(l);
     }
   }
 };
+
+/* 붙이고 떼는 것을 LIGHT 가 안다 — 새로 붙은 물체는 다음 그리기 전에 배역을 받고(`flush`),
+   드리우던 것이 떨어지면 그림자를 다시 그린다. 모든 Object3D 의 add/remove 를 감싼다
+   (Three 의 add 는 인자가 여럿이면 하나씩 다시 add 를 부르므로 하나만 받으면 된다). */
+{
+  const add0=THREE.Object3D.prototype.add, rem0=THREE.Object3D.prototype.remove;
+  THREE.Object3D.prototype.add=function(o){
+    const r=add0.apply(this,arguments);
+    if(arguments.length===1&&o&&o!==this&&o.isObject3D) LIGHT.pending.push(o);
+    return r;
+  };
+  THREE.Object3D.prototype.remove=function(o){
+    const r=rem0.apply(this,arguments);
+    if(arguments.length===1&&o&&o.isObject3D&&scene){
+      let root=this; while(root.parent) root=root.parent;
+      if(root===scene){ let cast=false; o.traverse(c=>{ if(c.castShadow) cast=true; }); if(cast) LIGHT.dirty(); }
+    }
+    return r;
+  };
+  /* 드리우는 인스턴스를 옮기면(캐기 · 벌목 · 다시 자람 · 베리 따기) 그 둘레 그림자를 다시 그린다.
+     섬을 짓는 동안(`LIGHT.live` 거짓)은 수십만 번 불리므로 안 본다 */
+  const sma=THREE.InstancedMesh.prototype.setMatrixAt;
+  THREE.InstancedMesh.prototype.setMatrixAt=function(i,m){
+    sma.call(this,i,m);
+    if(LIGHT.live&&this.castShadow) LIGHT.dirtyAt(m.elements[12],m.elements[14],2);
+  };
+}
 
 /* ---------------- 하늘 · 광원 · 시간 ---------------- */
 /* s = 천정색, z = 지평선색, u = 광원색, a = 환경광, d = 안개, i = 태양광 */
@@ -3609,6 +3902,7 @@ let skyDome=null, skyCol=null, sunDisc=null, stars=null, moonDisc=null;
 /* 하늘 장면 — 해·달·별·하늘 돔·구름. 땅과 따로 그린다(구름 머리말 참고).
    `skyCam` 은 매 프레임 `camera` 의 자리·방향·화각을 그대로 베낀다. */
 const skyScene=new THREE.Scene();
+skyScene.matrixAutoUpdate=false;      // 장면 자체는 움직이지 않는다 — 아래 '정적 물체 행렬 고정' 참고
 skyScene.background=new THREE.Color(0x7d8f9b);
 const skyCam=new THREE.PerspectiveCamera(60,1,20,250000);
 let skyUnder=false;            // 물속이면 하늘 대신 물빛으로 칠한다
@@ -3889,15 +4183,15 @@ const WEA_CYC=120;                 // 저기압 한 바퀴 — 게임시간 평�
 let weaLast=0;
 const WEA_PER=2.6;                 // 마디 하나가 게임시간 몇 시간인가
 let weaSalt=0;
+function weaHash(n,salt){
+  let x=(n^salt)>>>0;
+  x=Math.imul(x^(x>>>15),2246822519)>>>0;
+  x=Math.imul(x^(x>>>13),3266489917)>>>0;
+  return ((x^(x>>>16))>>>8&0xffff)/65535;
+}
 function weaNoise(t,salt){         // 마디 사이를 부드럽게 잇는 값잡음
   const i=Math.floor(t), f=t-i, s=f*f*(3-2*f);
-  const h=n=>{
-    let x=(n^salt)>>>0;
-    x=Math.imul(x^(x>>>15),2246822519)>>>0;
-    x=Math.imul(x^(x>>>13),3266489917)>>>0;
-    return ((x^(x>>>16))>>>8&0xffff)/65535;
-  };
-  return h(i)*(1-s)+h(i+1)*s;
+  return weaHash(i,salt)*(1-s)+weaHash(i+1,salt)*s;
 }
 /* 바퀴마다 세기 — 약 4분의 1 은 약하고(권운만 스친다), 절반은 보통, 4분의 1 은 세다 */
 function cycS(n){
@@ -3936,6 +4230,11 @@ for(const s in WS_PROF){ const P=WS_PROF[s], tot=P.tot/100; delete P.tot;
   for(let it=0;it<40;it++){ const f=(lo+hi)/2; let c=1; for(const k in P) c*=1-Math.min(0.97,P[k]*f); if(1-c<tot) lo=f; else hi=f; }
   Object.defineProperty(P,'_f',{value:(lo+hi)/2,enumerable:false});
 }
+/* 날씨 식의 작은 도우미 — 예전엔 updateWeather 안의 화살 함수라 프레임마다 새로 생겼다 */
+const weaNz=(T,k,sc)=>0.7+0.6*weaNoise(T/sc,weaSalt^k);                   // 갈래마다 제 흔들림
+const weaOn=(T,k,sc,thr)=>clamp((weaNoise(T/sc,weaSalt^k)-thr)/0.22,0,1);  // 문턱을 넘을 때만
+const weaG=(S,a,b)=>{ const u=clamp((S-a)/(b-a),0,1); return u*u*(3-2*u); };
+const _weaW={}, _weaA={};          // 상태 몫 · 갈래 점유율 — 프레임마다 새로 만들지 않고 다시 쓴다
 function updateWeather(){
   const t=gameHours/WEA_PER, T=gameHours;
   /* 위상 — 평균 5일에 한 바퀴. 빠르기를 흔들되 거꾸로 가지는 않게 한다
@@ -3956,37 +4255,33 @@ function updateWeather(){
   const D=clamp(Math.sin(Math.PI*(h-10)/9),0,1);
   // 밤·새벽 쪽 — 바다의 층적운·층운은 밤에 두꺼워지고 오후에 얇아진다
   const N=0.5+0.5*Math.cos(2*Math.PI*(h-5)/24);
-  const nz=(k,sc)=>0.7+0.6*weaNoise(T/sc,weaSalt^k);  // 갈래마다 제 흔들림
-  /* 드문드문 — 잡음이 문턱을 넘을 때만 뜬다. 고기압의 구름은 날마다 있는 게
+  /* 드문드문(`weaOn`) — 잡음이 문턱을 넘을 때만 뜬다. 고기압의 구름은 날마다 있는 게
      아니다(층적운이 늘 깔려 있으면 바다 하늘이 맑은 날이 없다) */
-  const on=(k,sc,thr)=>clamp((weaNoise(T/sc,weaSalt^k)-thr)/0.22,0,1);
-  /* 저기압 세기는 **구름이 오느냐 마느냐**를 정한다 — 얼마나 두꺼우냐가 아니다.
+  /* 저기압 세기(`weaG`)는 **구름이 오느냐 마느냐**를 정한다 — 얼마나 두꺼우냐가 아니다.
      전선의 고층운·난층운은 오면 하늘을 다 덮는다. 세기에 비례해 옅게 했더니
      보통 저기압에서도 하늘이 반쯤만 덮여 흐린 날이 11% 뿐이었다(바다는 25% 안팎). */
-  const g=(a,b)=>{ const u=clamp((S-a)/(b-a),0,1); return u*u*(3-2*u); };
   /* 기상 상태가 섞인 몫 — 전선 쪽 일곱은 위상 창(길이 = 출현 빈도) × 저기압 세기, 나머지는 맑은 쪽(WS6·WS9).
      약한 바퀴는 전선 상태가 안 와서 그 몫이 맑은 쪽으로 간다. */
-  const w={};
-  w[5]=win(phi,0.27,0.29,0.34,0.36)*g(0.05,0.20);
-  w[2]=win(phi,0.34,0.36,0.43,0.45)*g(0.15,0.35);
-  w[1]=win(phi,0.43,0.45,0.51,0.53)*g(0.30,0.50);
-  w[3]=win(phi,0.51,0.53,0.61,0.63)*g(0.30,0.50);
-  w[8]=win(phi,0.61,0.63,0.66,0.68)*g(0.25,0.45);
-  w[7]=win(phi,0.66,0.68,0.73,0.75)*g(0.20,0.40);
-  w[4]=win(phi,0.73,0.75,0.84,0.86)*g(0.20,0.40);
-  let wf=1; for(const s in w) wf-=w[s]; wf=Math.max(0,wf);
+  const w=_weaW;
+  w[5]=win(phi,0.27,0.29,0.34,0.36)*weaG(S,0.05,0.20);
+  w[2]=win(phi,0.34,0.36,0.43,0.45)*weaG(S,0.15,0.35);
+  w[1]=win(phi,0.43,0.45,0.51,0.53)*weaG(S,0.30,0.50);
+  w[3]=win(phi,0.51,0.53,0.61,0.63)*weaG(S,0.30,0.50);
+  w[8]=win(phi,0.61,0.63,0.66,0.68)*weaG(S,0.25,0.45);
+  w[7]=win(phi,0.66,0.68,0.73,0.75)*weaG(S,0.20,0.40);
+  w[4]=win(phi,0.73,0.75,0.84,0.86)*weaG(S,0.20,0.40);
+  let wf=1-w[1]-w[2]-w[3]-w[4]-w[5]-w[7]-w[8]; wf=Math.max(0,wf);
   w[9]=wf*(0.08+0.45*D); w[6]=wf-w[9];              // 얕은 적운은 낮에 는다
-  const A={};
+  const A=_weaA;
   for(const k in CLOUD_KINDS) A[k]=0;
   /* WS6 은 '거의 맑음'의 평균(구름 40%)이라 그대로 쓰면 날마다 똑같이 40% 로 맑은 날이 없다.
      실제로는 맑은 날과 구름 낀 날이 섞인 평균이므로 날마다 0~2.8배로 흔든다(평균 약 1 · 약 3분의 1 은 0 — 맑은 날) */
   const qn=2.8*clamp((weaNoise(T/18,weaSalt^0x61)-0.35)/0.4,0,1);   // 맑은 쪽 두 상태가 함께 오르내린다
-  const q=[0,0,0,0,0,0,qn,0,0,qn];
-  for(const s in w){ const P=WS_PROF[s]; if(!w[s]) continue; const m=w[s]*P._f*(s==6||s==9?q[s]:1);
+  for(let s=1;s<=9;s++){ const P=WS_PROF[s]; if(!w[s]) continue; const m=w[s]*P._f*(s===6||s===9?qn:1);
     for(const k in P) A[k]+=m*P[k]; }
   // 갈래마다 제 흔들림(같은 상태 안에서도 날마다 조금씩 다르다)
-  A.cirrus*=nz(0x12,4); A.altocumulus*=nz(0x15,5); A.stratus*=nz(0x17,4)*(0.7+0.6*N);
-  A.stratocumulus*=nz(0x19,5)*(0.8+0.4*N); A.cumulus*=nz(0x1b,3); A.cirrocumulus*=on(0x13,6,0.3)*1.6;
+  A.cirrus*=weaNz(T,0x12,4); A.altocumulus*=weaNz(T,0x15,5); A.stratus*=weaNz(T,0x17,4)*(0.7+0.6*N);
+  A.stratocumulus*=weaNz(T,0x19,5)*(0.8+0.4*N); A.cumulus*=weaNz(T,0x1b,3); A.cirrocumulus*=weaOn(T,0x13,6,0.3)*1.6;
   WEA.ws=w;
   let clear=1;
   for(const k in CLOUD_KINDS){
@@ -4353,7 +4648,9 @@ function shapePuff(c){
     const t=clamp(c.off[i*3+1]/Math.max(1,ysp*1.3+h*0.3),0,1);
     c.sh[i]=0.72+0.28*Math.pow(t,0.8);
   }
-  litPuff(c);
+  c.litGen=(c.litGen||0)+1;
+  if(LIT.defer) c.litNeed=1;                   // 놀 때는 대기열 맨 앞에 선다(LIT)
+  else litPuff(c);
   for(let i=nt;i<c.cap;i++) c.rad[i]=0;       // 남는 알갱이는 크기 0 으로 접는다
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
   c.yaw=99;                                    // 다음 프레임에 행렬을 다시 짠다
@@ -4370,15 +4667,23 @@ function shapePuff(c){
    알갱이 수의 제곱이라(적운 110 알이면 1만 2천 번) 2초마다만 다시 센다.
    밤에는 `SKYL.dir` 이 달 쪽이라 달빛 쪽이 밝다. */
 const _sd=new THREE.Vector3();
+/* 덩이 하나를 지금 해(밤엔 달) 방향으로 통째로 칠한다 — 섬을 지을 때 · 구름 시험장.
+   놀 때는 대기열(`LIT`)이 몇 알씩 나눠 칠한다. */
 function litPuff(c){
   if(!c.sh) return;
-  _sd.copy(SKYL.dir);                            // 참 해 방향(밤엔 달)
-  const n=c.nb, nB=c.nBody||n, o=c.off, sx=_sd.x, sy=_sd.y, sz=_sd.z;
+  litPuffRange(c,0,c.nb,SKYL.dir);
+  if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
+  (c.litDir||(c.litDir=new THREE.Vector3())).copy(SKYL.dir); c.litNeed=0;
+}
+/* 알갱이 i0..i1 만 dir 쪽 빛으로 칠한다 */
+function litPuffRange(c,i0,i1,dir){
+  if(!c.sh) return;
+  const n=c.nb, nB=c.nBody||n, o=c.off, sx=dir.x, sy=dir.y, sz=dir.z;
   /* **빛이 실제로 지나는 구름 길이**를 잰다 — 해 쪽 빛줄기가 알갱이 j(보이는 반지름
      0.45·rad 의 공)를 지나면 그 현의 길이 2√(re²−p²) × σⱼ 가 광학 두께 τ 에 더해진다.
      가리는 쪽은 많아야 700 알만 표본으로 세고 건너뛴 만큼 곱한다(n² 을 피한다). */
   const st=Math.max(1,Math.ceil(nB/700)), sg=c.sg;
-  for(let i=0;i<n;i++){
+  for(let i=i0;i<i1&&i<n;i++){
     const xi=o[i*3], yi=o[i*3+1], zi=o[i*3+2];
     let ts=0, tu=0, tb=0, td=0;
     for(let j=(i%st);j<nB;j+=st){
@@ -4405,7 +4710,44 @@ function litPuff(c){
     const g=Math.min(1,0.85*2*(A*td+1)/(A*(tu+td)+2)+0.15);
     c.m.setColorAt(i,_pfC.setRGB(r,g,Math.max(ss,0.002)));
   }
-  if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
+}
+/* ── 구름 명암 대기열 ─────────────────────────────────────────────────────
+   `litPuff` 는 알갱이 n 개 × 가리는 알 700 개를 보는 일이라 적운 한 덩이에 4~19 ms, 적란운은 165 ms 다.
+   예전엔 덩이마다 2~6초마다 통째로 다시 칠해서 적운 260 덩이가 초당 0.21초(코어의 21%)를 먹고,
+   여럿이 한 프레임에 몰리면 34 ms 씩 멈칫했다. 시간 배속 20배면 20배로 잦아져 그것만으로 12 fps 였다.
+   이제 ① **해(밤엔 달) 방향이 그 덩이를 칠한 뒤 `LIT_THR0`(1.5°)~`+LIT_THR1`(+4.5°, 멀수록 너그럽게) 넘게
+   돌았을 때만** 다시 칠한다 — 해는 초당 0.25° 움직이므로 가까운 덩이도 6초, 먼 덩이는 24초에 한 번이다.
+   ② 칠할 덩이는 **낡은 정도 순**(화면 밖은 0.3배 · 새로 빚은 덩이가 먼저)으로 줄 세우고, 한 프레임에
+   `LIT_BUDGET`(1.2 ms, 배속이면 √배속배까지 4배) 안에서 `LIT_CHUNK`(16) 알씩 이어 칠한다 — 덩이 하나가
+   여러 프레임에 걸쳐도 칠하는 방향은 처음 잡은 것 하나다. 다 칠하면 그때 한 번에 올린다.
+   ③ 새로 빚은 덩이(되굴림)도 그 자리에서 칠하지 않고 대기열 맨 앞에 선다 — 새 덩이는 옅은 데서
+   25초에 걸쳐 짙어지므로 몇 프레임 늦어도 안 보인다. 섬을 지을 때만 그 자리에서 칠한다(`LIT.defer` 전). */
+const LIT_BUDGET=1.2, LIT_CHUNK=16, LIT_THR0=1.5*Math.PI/180, LIT_THR1=4.5*Math.PI/180, REROLL_BUDGET=2;
+const LIT={job:null, cand:[], defer:false, frame:0, stats:{ms:0, n:0, queue:0},
+  fr:new THREE.Frustum(), pm:new THREE.Matrix4(), sp:new THREE.Sphere()};
+const _litSort=(a,b)=>b.litPri-a.litPri;
+function litQueue(ts){
+  const budget=LIT_BUDGET*Math.min(4,Math.sqrt(Math.max(1,ts))), t0=performance.now(), C=LIT.cand;
+  let job=LIT.job;
+  if(job&&(job.c.dead||job.gen!==job.c.litGen)) job=null;      // 그사이 다시 빚어졌거나 사라졌다
+  if(C.length>1) C.sort(_litSort);
+  let ci=0;
+  while(performance.now()-t0<budget){
+    if(!job){
+      while(ci<C.length&&(C[ci].litDone===LIT.frame||C[ci].dead)) ci++;
+      if(ci>=C.length) break;
+      const c=C[ci++];
+      job={c, i:0, gen:c.litGen, dir:(c._litPend||(c._litPend=new THREE.Vector3())).copy(SKYL.dir)};
+    }
+    const c=job.c, end=Math.min(c.nb,job.i+LIT_CHUNK);
+    litPuffRange(c,job.i,end,job.dir); job.i=end;
+    if(end>=c.nb){
+      if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
+      (c.litDir||(c.litDir=new THREE.Vector3())).copy(job.dir);
+      c.litNeed=0; c.litDone=LIT.frame; LIT.stats.n++; job=null;
+    }
+  }
+  LIT.job=job; LIT.stats.ms=performance.now()-t0; LIT.stats.queue=C.length; C.length=0;
 }
 /* 덩이마다 경계구를 달아 **화면 밖 덩이는 안 그린다.** 알갱이를 여러 판에 흩은
    `InstancedMesh` 는 판 하나(1 m 네모)의 경계구로 거르므로 그대로는 못 쓴다 —
@@ -4861,7 +5203,7 @@ function buildClouds(seed){
   for(const m of cloudMat) m.dispose();
   for(const t of cloudTex_) t.dispose();
   cloudMat.length=0; cloudTex_.length=0; CLOUDS.length=0;
-  cloudGroup=new THREE.Group(); cloudGroup.userData.lightRole='none';
+  cloudGroup=new THREE.Group(); cloudGroup.userData.lightRole='none'; cloudGroup.matrixAutoUpdate=false;
   cloudGroup.renderOrder=-8; skyScene.add(cloudGroup);
   const rnd=mulberry32((seed>>>0)^0x0c10d5a7);
   cloudRnd=rnd;                                  // 되살릴 때도 같은 난수를 쓴다
@@ -4930,10 +5272,12 @@ function buildClouds(seed){
       }
       m.position.set(c.x,c.y,c.z);
       if(K.form==='sheet'){ m.rotation.set(-Math.PI/2, 0, rnd()*6.283); }
+      m.matrixAutoUpdate=false; m.updateMatrix();     // 덩이는 흐를 때만 행렬을 다시 쓴다(updateClouds)
       m.renderOrder=cloudOrder(c.y); m.userData.lightRole='none'; m.visible=false;
       cloudGroup.add(m); CLOUDS.push(c);
     }
   }
+  LIT.defer=true; LIT.job=null;        // 처음 빚은 덩이는 그 자리에서 칠했다 — 이제부터 다시 빚는 것은 대기열로(LIT)
 }
 
 /* 흐르기 · 여닫기 · 색 — 매 프레임. 개체 서른 남짓이라 값이 없다시피 하다. */
@@ -4950,6 +5294,13 @@ function updateClouds(dt){
   /* 시간을 빨리 돌리면(T) 구름도 같이 빨라진다 — 해는 달리는데 구름만 멈춰
      있으면 어색하다. 다만 300배에서는 순간이동처럼 보이므로 20배에서 끊는다. */
   const ts=Math.min(timeScale,20);
+  // 명암 대기열 — 화면 안 덩이를 먼저 칠하려고 하늘 카메라의 시야 절두체를 잡는다
+  LIT.frame++;
+  /* 다시 빚기도 나눠서 — 날씨가 건너뛰면(상륙 · 불러오기 · 배속) 죽어 있던 덩이 수백이 한 프레임에
+     불려 빚어졌다(적운 260 덩이에 0.4초 멈칫). 한 프레임에 `REROLL_BUDGET`(2 ms) 넘게 빚지 않고
+     나머지는 다음 프레임으로 미룬다 — 새 덩이는 25초에 걸쳐 짙어지므로 몇 프레임 늦어도 안 보인다. */
+  const rr0=performance.now(); let nRe=0;
+  LIT.pm.multiplyMatrices(skyCam.projectionMatrix,camera.matrixWorldInverse); LIT.fr.setFromProjectionMatrix(LIT.pm);
   for(const c of CLOUDS){
     const n=(seen[c.key]=(seen[c.key]||0)+1);
     const on=n<=want[c.key];
@@ -4960,6 +5311,8 @@ function updateClouds(dt){
        그래서 **죽은 동안에는 흐르지도 않고**, 부르는 그 자리에서 새로 뽑는다. */
     if(c.dead){
       if(!on){ c.m.visible=false; continue; }
+      if(nRe>0&&performance.now()-rr0>REROLL_BUDGET){ c.m.visible=false; continue; }   // 다음 프레임에
+      nRe++;
       /* **새로 불린 구름은 하늘 아무 데서나 생긴다**(실제 적운도 제자리에서 피어난다 · 25초에 걸쳐 짙어짐).
          예전엔 바람 위쪽 가장자리에만 세워, 날씨가 적운을 부르면 60 덩이가 한 줄로 20 km 밖에
          몰려 섰다가 초속 24 m 로 한꺼번에 하늘을 건넜다(5분 뒤에도 60 이 전부 바람 위쪽) —
@@ -4978,13 +5331,21 @@ function updateClouds(dt){
       rerollCloud(c); c.vis=Math.min(c.vis,0.04);
       dx=c.x-px; dz=c.z-pz;
     }
-    c.m.position.set(c.x,c.y,c.z);
+    c.m.position.set(c.x,c.y,c.z); c.m.updateMatrix();
     // 솟은 구름은 알갱이가 저마다 카메라를 본다(뭉치 자체는 안 돈다)
     if(c.form==='puff'){
       layPuff(c,px,pz);
-      // 먼 덩이일수록 드물게(2~6초) — 멀면 명암이 조금 늦어도 안 보인다
-      const lp=2+4*clamp(Math.hypot(dx,dz)/c.K.R,0,1);
-      if((c.litT=(c.litT||0)+dt*ts)>lp){ c.litT=Math.random()*0.3; litPuff(c); }
+      // 명암이 낡았나 — 칠한 뒤 해(밤엔 달) 방향이 얼마나 돌았나. 먼 덩이일수록 너그럽게(1.5°~6°)
+      let pri=0;
+      if(c.litNeed||!c.litDir) pri=1e6;
+      else{ const thr=LIT_THR0+LIT_THR1*clamp(Math.hypot(dx,dz)/c.K.R,0,1), ca=SKYL.dir.dot(c.litDir);
+        if(ca<Math.cos(thr)) pri=Math.acos(Math.min(1,ca))/thr; }
+      if(pri>0){
+        const bs=c.m.geometry.boundingSphere;
+        if(bs){ LIT.sp.center.copy(bs.center).add(c.m.position); LIT.sp.radius=bs.radius;
+          if(!LIT.fr.intersectsSphere(LIT.sp)) pri*=0.3; }
+        c.litPri=pri; LIT.cand.push(c);
+      }
     }
     // 날씨가 부르면 서서히 짙어지고, 물러나면 옅어진다(한 번 여닫는 데 25초쯤)
     c.vis=clamp(c.vis+(on?1:-1)*dt/25,0,1);
@@ -4999,6 +5360,7 @@ function updateClouds(dt){
       const hk=c.form==='puff'?c.y+c.h*0.6:c.y;
       cloudLight(hk,U.uDirect.value); U.uSkyC.value.copy(SKYL.amb); if(U.uSun){ U.uSun.value.copy(SKYL.dir); U.uSkyS.value.copy(SKYL.ambS); U.uSkyA.value.copy(SKYL.ambA); } }
   }
+  litQueue(ts);
   updateCloudShadow(dt);
 }
 let cloudFade=1;
@@ -5169,8 +5531,9 @@ function envPatch(m){
       sh.vertexShader.replace('#include <project_vertex>',`
       vec4 wpos=vec4(transformed,1.0);
       vec4 wb4=vec4(0.0,0.0,0.0,1.0);
+      ${INST_GUARD}
       #ifdef USE_INSTANCING
-        wpos=instanceMatrix*wpos; wb4=instanceMatrix*wb4;
+        wpos=INST_MAT*wpos; wb4=INST_MAT*wb4;
       #endif
       wpos=modelMatrix*wpos; wb4=modelMatrix*wb4;
       ${W?`float ph=dot(wb4.xz,uWind.xy)*0.06+dot(wb4.xz,vec2(0.031,0.017));
@@ -5239,9 +5602,11 @@ function _atmOD(h,el,turb,od){
   if(disG>=0 && -b-Math.sqrt(disG)>0) return false;
   const cT=r0*r0-ATM.Rt*ATM.Rt, L=-b+Math.sqrt(Math.max(0,b*b-cT));   // 대기 끝까지
   const tT=clamp(-b,0,L);                                            // 접점
-  const segs=tT>0?[[tT,-1,tT],[L-tT,1,tT]]:[[L,1,0]];
   const bM=0.1/ATM.HM*turb/2.6;             // 550 nm 에어로졸 광학 두께 0.1 × 탁도/2.6
-  for(const [len,sgn,base] of segs){
+  /* 접점이 앞에 있으면 두 토막(접점까지 거꾸로 · 접점부터 끝까지), 없으면 한 토막 —
+     토막을 배열로 담아 돌던 것을 숫자로 푼다(부를 때마다 배열 셋이 버려졌다) */
+  for(let sg=tT>0?0:1;sg<2;sg++){
+    const len=tT>0?(sg===0?tT:L-tT):L, sgn=sg===0?-1:1, base=tT>0?tT:0;
     const N=24;
     let prev=0;
     for(let k=1;k<=N;k++){
@@ -5262,8 +5627,8 @@ function atmoTransmit(h,el,turb,out){
   const refr=deg>-2 ? (1.02/Math.tan((deg+10.3/(deg+5.11))/57.29578))/60/57.29578 : 0;
   const e=el+Math.max(0,refr);
   out[0]=out[1]=out[2]=0;
-  for(const o of [-0.00465,0,0.00465])
-    if(_atmOD(h,e+o,turb,_od)) for(let i=0;i<3;i++) out[i]+=Math.exp(-_od[i])/3;
+  for(let j=-1;j<=1;j++)                      // 해 원반 위·가운데·아래(±0.00465 rad)
+    if(_atmOD(h,e+j*0.00465,turb,_od)) for(let i=0;i<3;i++) out[i]+=Math.exp(-_od[i])/3;
   return out;
 }
 /* **색 순응** — 눈(과 사진기의 화이트밸런스)은 둘레 빛에 맞춰 흰색을 다시 잡는다.
@@ -5281,10 +5646,14 @@ function adaptWhite(el,turb){
   return ADAPT;
 }
 /* 구름이 받는 빛 — 제 높이에서 걸어간 투과. 같은 높이대는 한 프레임에 한 번만 센다 */
-const _atmCache=new Map(); let _atmKey='';
+/* 높이대(100 m)마다 한 번 센 빛을 담아 둔다. 예전엔 해 고도를 소수 넷째 자리 글자로 열쇠를 만들어
+   **구름마다** 비교했다 — 해가 거의 매 프레임 그 자리를 넘어 담아 둔 것을 다 버렸고(구름 280 덩이에
+   한 프레임 1~4 ms), 글자를 프레임마다 천 개씩 만들어 버렸다. 이제 열쇠는 숫자(해·달 고도 1 mrad =
+   0.057° · 탁도 0.01 단위)이고 바뀌었을 때만 비운다 — 해가 0.057° 움직이는 데 13 프레임쯤 걸린다. */
+const _atmCache=new Map(); let _atmK0=NaN, _atmK1=NaN, _atmK2=NaN;
 function cloudLight(h,out){
-  const key=SKYL.sunEl.toFixed(4)+'|'+SKYL.moonEl.toFixed(4)+'|'+SKYL.turb.toFixed(2);
-  if(key!==_atmKey){ _atmCache.clear(); _atmKey=key; }
+  const k0=Math.round(SKYL.sunEl*1000), k1=Math.round(SKYL.moonEl*1000), k2=Math.round(SKYL.turb*100);
+  if(k0!==_atmK0||k1!==_atmK1||k2!==_atmK2){ _atmCache.clear(); _atmK0=k0; _atmK1=k1; _atmK2=k2; }
   const hk=Math.round(h/100);
   let v=_atmCache.get(hk);
   if(!v){
@@ -5340,14 +5709,17 @@ const SKYP={turb:2.6, exp:0.44, sun:22, gM:0.76, eye:1, ms:1.0};
    (실제 한낮 지평선은 천정보다 밝다). 하나만 쓰면 지평선이 누런 갈색 띠였다. */
 const SKYC=[0.55,0.75,1.0];
 const _skyIll=y=>Math.pow(clamp((y+0.02)/1.02,0,1),1.2)+0.02*clamp((y+0.1)/0.1,0,1);
+/* 공과 만나는 두 거리를 `_hs` 에 적고 만났는지만 돌려준다 — 예전엔 [가까운, 먼] 배열을 새로 만들어
+   돌려줬는데, 하늘 한 프레임에 400번(산란 17번 × 12걸음 × 2)이라 그대로 쓰레기였다 */
+const _hs=[0,0];
 function _hitS(ox,oy,oz,dx,dy,dz,r){
   const b=ox*dx+oy*dy+oz*dz, c=ox*ox+oy*oy+oz*oz-r*r, h=b*b-c;
-  if(h<0) return null; const q=Math.sqrt(h); return [-b-q,-b+q];
+  if(h<0) return false; const q=Math.sqrt(h); _hs[0]=-b-q; _hs[1]=-b+q; return true;
 }
 function _odSun(px,py,pz,sx,sy,sz,bM,od){
   od[0]=od[1]=od[2]=0;
-  const g=_hitS(px,py,pz,sx,sy,sz,ATM.Re); if(g&&g[0]>0){ od[0]=od[1]=od[2]=60; return; }
-  const t=_hitS(px,py,pz,sx,sy,sz,ATM.Rt); const L=t?t[1]:0, N=6; let prev=0;
+  if(_hitS(px,py,pz,sx,sy,sz,ATM.Re)&&_hs[0]>0){ od[0]=od[1]=od[2]=60; return; }
+  const L=_hitS(px,py,pz,sx,sy,sz,ATM.Rt)?_hs[1]:0, N=6; let prev=0;
   for(let k=1;k<=N;k++){ const u=k/N, tt=L*u*u, ds=tt-prev, tm=(tt+prev)/2; prev=tt;
     const alt=Math.hypot(px+sx*tm,py+sy*tm,pz+sz*tm)-ATM.Re;
     const r=Math.exp(-alt/ATM.HR)*ds, m=Math.exp(-alt/ATM.HM)*ds, o=Math.max(0,1-Math.abs(alt-25000)/15000)*ds;
@@ -5358,7 +5730,7 @@ const _oS=[0,0,0], _oV=[0,0,0];
 function skyScatter(dir,sun,turb,k,out){
   const ox=0, oy=ATM.Re+2, oz=0, dx=dir.x, dy=Math.max(dir.y,0), dz=dir.z;
   const nl=Math.hypot(dx,dy,dz), ux=dx/nl, uy=dy/nl, uz=dz/nl;
-  const tEnd=_hitS(ox,oy,oz,ux,uy,uz,ATM.Rt)[1], bM=0.1/ATM.HM*turb/2.6, N=12;
+  const tEnd=_hitS(ox,oy,oz,ux,uy,uz,ATM.Rt)?_hs[1]:0, bM=0.1/ATM.HM*turb/2.6, N=12;
   _oV[0]=_oV[1]=_oV[2]=0; let sR0=0,sR1=0,sR2=0,sM0=0,sM1=0,sM2=0,aR0=0,aR1=0,aR2=0,aM0=0,aM1=0,aM2=0, prev=0;
   for(let k2=1;k2<=N;k2++){
     const u=k2/N, t=tEnd*u*u, ds=t-prev, tm=(t+prev)/2; prev=t;
@@ -5385,9 +5757,18 @@ function skyTone(v){ v*=SKYP.exp*SKYP.eye; return clamp((v*(2.51*v+0.03))/(v*(2.
 const SKY_VS=`varying vec3 vDir;
 void main(){ vDir=normalize((modelMatrix*vec4(position,1.0)).xyz-cameraPosition);
   vec4 p=projectionMatrix*modelViewMatrix*vec4(position,1.0); gl_Position=p.xyww; }`;
-const SKY_FS=`varying vec3 vDir;
-uniform vec3 uSun, uMoon; uniform float uMoonK, uTurb, uExp, uGrey, uSunI, uGM, uMS;
-uniform vec3 uGreyCol, uNight;
+/* ── 하늘 산란 표(LUT) ───────────────────────────────────────────────────
+   하늘색은 보는 방향과 해·달 자리만으로 정해진다 — 화면의 화소마다 산란을 걸을 까닭이 없다.
+   예전엔 하늘 돔이 화면 전체(1080p 면 200만 화소)에서 화소마다 해·달 두 번 × 10×4 걸음
+   (exp 수백 번)을 걸었다. 이제 **256×96 표(`SKY_LUT`)에 방향마다 한 번 굽고**(2.5만 화소 —
+   1080p 의 1/80), 돔은 그 표를 한 번 읽는다. 표는 매 프레임 다시 굽는다(싸다 — 해가 움직여도 늘 맞다).
+   가로 u = 방위(0.5 가 +z, 한 바퀴 이어 붙임) · 세로 v = √(고도/90°) — 지평선 쪽에 줄을 몰아
+   노을 띠가 뭉개지지 않게 한다(지평선 위 1° 안에 열 줄). 지평선 밑은 지평선 줄을 그대로 쓴다.
+   **해가 4.5° 넘게 떠 있으면 달 몫은 안 센다**(`uMoonOn`) — 달빛 산란이 해의 1/300 이라 8비트에 안 잡힌다.
+   표는 톤 매핑을 마친 0~1 색이라 8비트(RGBA)로 담는다 — 실수 텍스처는 헤드리스가 못 읽는다. */
+const SKY_LUT={W:256, H:96, rt:null, scene:null, cam:null, mat:null};
+const SKY_ATM=`uniform vec3 uSun, uMoon; uniform float uMoonK, uTurb, uExp, uSunI, uGM, uMS, uMoonOn;
+uniform vec3 uNight;
 const float RE=6371e3, RT=6471e3, HR=8000.0, HM=1200.0;
 const vec3 BR=vec3(5.802e-6,13.558e-6,33.1e-6), BO=vec3(0.650e-6,1.881e-6,0.085e-6), ANG=vec3(0.76,1.0,1.34);
 vec2 hitS(vec3 o, vec3 d, float r){ float b=dot(o,d), c=dot(o,o)-r*r, h=b*b-c;
@@ -5417,22 +5798,49 @@ vec3 scat(vec3 dir, vec3 sun, float k){
   return uSunI*k*(sR*BR*pR+sM*bM*ANG*pM)
        + uSunI*k*uMS*0.0795775*ill*vec3(0.55,0.75,1.0)*(aR*BR+aM*bM*ANG);
 }
-vec3 tone(vec3 v){ v*=uExp; return clamp((v*(2.51*v+0.03))/(v*(2.43*v+0.59)+0.14),0.0,1.0); }
+vec3 tone(vec3 v){ v*=uExp; return clamp((v*(2.51*v+0.03))/(v*(2.43*v+0.59)+0.14),0.0,1.0); }`;
+/* 표 굽기 — 화소 자리(가로 방위 · 세로 √고도)에서 방향을 되살려 산란을 건다 */
+const SKY_LUT_FS=SKY_ATM+`
+uniform vec2 uSize;
+void main(){
+  vec2 uv=gl_FragCoord.xy/uSize;
+  float az=(uv.x-0.5)*6.2831853, el=uv.y*uv.y*1.5707963;
+  vec3 dd=vec3(cos(el)*sin(az), sin(el), cos(el)*cos(az));
+  vec3 c=tone(scat(dd,uSun,1.0));
+  if(uMoonOn>0.5) c+=tone(scat(dd,uMoon,uMoonK));
+  gl_FragColor=vec4(c+uNight,1.0);
+}`;
+/* 돔 — 표를 읽고 안개 잿빛만 섞는다 */
+const SKY_FS=`varying vec3 vDir;
+uniform sampler2D uLUT; uniform float uGrey; uniform vec3 uGreyCol;
 void main(){
   vec3 d=normalize(vDir);
   vec3 dd=normalize(vec3(d.x,max(d.y,0.0),d.z));    // 지평선 아래는 지평선 색으로
-  vec3 c=tone(scat(dd,uSun,1.0))+tone(scat(dd,uMoon,uMoonK))+uNight;
+  float u=atan(dd.x,dd.z)*0.15915494+0.5, v=sqrt(asin(clamp(dd.y,0.0,1.0))*0.63661977);
+  vec3 c=texture2D(uLUT,vec2(u,v)).rgb;
   c=mix(c,uGreyCol,uGrey);
   gl_FragColor=vec4(c,1.0);
 }`;
 function initSky(){
+  // 산란 표 — 한 바퀴 이어지도록 가로는 되감기, 세로는 끝에서 멈춤. 밉맵 없이 쌍선형
+  const L=SKY_LUT;
+  L.rt=new THREE.WebGLRenderTarget(L.W,L.H,{format:THREE.RGBAFormat,depthBuffer:false,stencilBuffer:false,
+    minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,generateMipmaps:false});
+  L.rt.texture.wrapS=THREE.RepeatWrapping; L.rt.texture.wrapT=THREE.ClampToEdgeWrapping;
+  L.mat=new THREE.ShaderMaterial({
+    vertexShader:'void main(){ gl_Position=vec4(position.xy,0.0,1.0); }', fragmentShader:SKY_LUT_FS,
+    uniforms:{uSun:{value:new THREE.Vector3(0,1,0)}, uMoon:{value:new THREE.Vector3(0,-1,0)},
+      uMoonK:{value:0}, uTurb:{value:SKYP.turb}, uSunI:{value:SKYP.sun}, uGM:{value:SKYP.gM}, uMS:{value:SKYP.ms},
+      uExp:{value:SKYP.exp}, uMoonOn:{value:1}, uNight:{value:new THREE.Color(0x02040b)},
+      uSize:{value:new THREE.Vector2(L.W,L.H)}},
+    depthTest:false, depthWrite:false});
+  L.scene=new THREE.Scene(); L.scene.matrixAutoUpdate=false;
+  const q=new THREE.Mesh(new THREE.PlaneGeometry(2,2),L.mat); q.frustumCulled=false; L.scene.add(q);
+  L.cam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
   const g=new THREE.SphereGeometry(1500,32,16);
   skyDome=new THREE.Mesh(g,new THREE.ShaderMaterial({
     vertexShader:SKY_VS, fragmentShader:SKY_FS,
-    uniforms:{uSun:{value:new THREE.Vector3(0,1,0)}, uMoon:{value:new THREE.Vector3(0,-1,0)},
-      uMoonK:{value:0}, uTurb:{value:SKYP.turb}, uSunI:{value:SKYP.sun}, uGM:{value:SKYP.gM}, uMS:{value:SKYP.ms},
-      uExp:{value:SKYP.exp}, uGrey:{value:0},
-      uGreyCol:{value:new THREE.Color()}, uNight:{value:new THREE.Color(0x02040b)}},
+    uniforms:{uLUT:{value:L.rt.texture}, uGrey:{value:0}, uGreyCol:{value:new THREE.Color()}},
     side:THREE.BackSide, depthWrite:false, depthTest:false}));
   skyDome.renderOrder=-10; skyScene.add(skyDome);
 
@@ -5490,6 +5898,14 @@ const cA=new THREE.Color(), cB=new THREE.Color(), cSky=new THREE.Color(),
 const _white3=new THREE.Color(1,1,1);
 const _sd3=new THREE.Vector3(), _md3=new THREE.Vector3(), _dv3=new THREE.Vector3(),
       _c3=[0,0,0], _c4=[0,0,0];
+/* 보는 쪽 하늘색(해 + 달, 톤 매핑 뒤) — `updateSky` 가 탁도·달 세기를 먼저 적는다.
+   예전엔 updateSky 안의 화살 함수(프레임마다 새로 생김)였고 결과도 [0,0,0] 을 새로 받았다 */
+const _t3a=[0,0,0], _t3b=[0,0,0]; let _t3turb=2.6, _t3mk=0;
+function tone3(dir,out){
+  skyScatter(dir,_sd3,_t3turb,1,_c3); skyScatter(dir,_md3,_t3turb,_t3mk,_c4);
+  for(let i=0;i<3;i++) out[i]=skyTone(_c3[i])+skyTone(_c4[i]);
+  return out;
+}
 function updateSky(){
   updateWeather();                 // 안개·볕이 날씨를 먼저 받아야 한다
   let k=0; while(k<SKY.length-2 && SKY[k+1].h<=hourOfDay) k++;
@@ -5514,24 +5930,20 @@ function updateSky(){
   /* 하늘색 — 산란식. 탁도는 습도를 따른다(흐릴수록·안개일수록 뿌옇다) */
   const turb=SKYP.turb+WEA.cover*2.2+WEA.mist*5+WEA.rain*2;
   const moonK=0.0035*MOON.bright;
-  const tone3=(dir,out)=>{
-    skyScatter(dir,_sd3,turb,1,_c3); skyScatter(dir,_md3,turb,moonK,_c4);
-    for(let i=0;i<3;i++) out[i]=skyTone(_c3[i])+skyTone(_c4[i]);
-    return out;
-  };
+  _t3turb=turb; _t3mk=moonK;
   /* 눈의 순응(노출) — 해가 지면 하늘이 수십 배 어두워지는데 눈은 그만큼 열린다.
      천정 밝기를 해 60° 일 때의 밝기와 견줘 제곱근만큼(최대 16배) 노출을 올린다 */
   if(!SKYP.Lref){ skyScatter(_dv3.set(0,1,0),new THREE.Vector3(0.5,0.866,0),SKYP.turb,1,_c3);
     SKYP.Lref=_c3[0]*0.3+_c3[1]*0.59+_c3[2]*0.11; }
   skyScatter(_dv3.set(0,1,0),_sd3,turb,1,_c3);
   SKYP.eye=clamp(Math.sqrt(SKYP.Lref/Math.max(1e-9,_c3[0]*0.3+_c3[1]*0.59+_c3[2]*0.11)),1,16);
-  const z=tone3(_dv3.set(0,1,0),[0,0,0]);
+  const z=tone3(_dv3.set(0,1,0),_t3a);
   cSky.setRGB(z[0]+0.008,z[1]+0.016,z[2]+0.043);          // 밤바탕(uNight)을 더한다
   /* 지평선색 — 네 방위의 평균(해 쪽이 붉고 반대쪽이 푸르다). 안개가 이 색이다 */
   let hr=0,hg=0,hb=0;
   for(let q=0;q<4;q++){
     const az=q*Math.PI/2+0.4;
-    const h3=tone3(_dv3.set(Math.cos(az),0.035,Math.sin(az)).normalize(),[0,0,0]);
+    const h3=tone3(_dv3.set(Math.cos(az),0.035,Math.sin(az)).normalize(),_t3a);
     hr+=h3[0]/4; hg+=h3[1]/4; hb+=h3[2]/4;
   }
   cHz.setRGB(hr+0.008,hg+0.016,hb+0.043);
@@ -5568,8 +5980,8 @@ function updateSky(){
        흩어지므로 색을 절반쯤 눅여, 해 쪽 면은 해 쪽 하늘빛을, 반대쪽 면은 반대쪽 하늘빛을
        받게 한다(셰이더 `uSkyS`/`uSkyA`). 그래서 노을 구름의 그늘이 잿빛이 아니라 보랏빛·분홍빛이다. */
     const hs=Math.hypot(_sd3.x,_sd3.z)||1;
-    const S3=tone3(_dv3.set(_sd3.x/hs,0.17,_sd3.z/hs).normalize(),[0,0,0]);
-    const A3=tone3(_dv3.set(-_sd3.x/hs,0.17,-_sd3.z/hs).normalize(),[0,0,0]);
+    const S3=tone3(_dv3.set(_sd3.x/hs,0.17,_sd3.z/hs).normalize(),_t3a);
+    const A3=tone3(_dv3.set(-_sd3.x/hs,0.17,-_sd3.z/hs).normalize(),_t3b);
     const LS=S3[0]*0.3+S3[1]*0.59+S3[2]*0.11, LA=A3[0]*0.3+A3[1]*0.59+A3[2]*0.11;
     SKYL.ambS.setRGB(S3[0]*0.5+LS*0.5,S3[1]*0.5+LS*0.5,S3[2]*0.5+LS*0.5).multiplyScalar(0.35*ad);
     SKYL.ambA.setRGB(A3[0]*0.5+LA*0.5,A3[1]*0.5+LA*0.5,A3[2]*0.5+LA*0.5).multiplyScalar(0.35*ad);
@@ -5594,7 +6006,7 @@ function updateSky(){
   camera.getWorldDirection(_dv3); _dv3.y=0;
   if(_dv3.lengthSq()<1e-6) _dv3.set(1,0,0);
   _dv3.normalize(); _dv3.y=0.035; _dv3.normalize();
-  { const F3=tone3(_dv3,[0,0,0]); scene.fog.color.setRGB(F3[0]+0.008,F3[1]+0.016,F3[2]+0.043).lerp(cTmp,grey); }
+  { const F3=tone3(_dv3,_t3a); scene.fog.color.setRGB(F3[0]+0.008,F3[1]+0.016,F3[2]+0.043).lerp(cTmp,grey); }
   /* 날씨가 안개와 볕을 함께 민다 — 흐리면 뿌옇다.
      **해의 세기는 구름양으로 깎지 않는다** — 구름이 해를 가리는 것은 구름 그림자가
      자리마다 한다(`cloudSh`). 다만 구름 그림자가 꺼지는 밤·노을녘에는 예전처럼
@@ -5635,8 +6047,17 @@ function updateSky(){
   if(skyDome){
     skyDome.position.copy(camera.position);
     const U=skyDome.material.uniforms;
-    U.uSun.value.copy(_sd3); U.uMoon.value.copy(_md3); U.uMoonK.value=moonK;
-    U.uTurb.value=turb; U.uExp.value=SKYP.exp*SKYP.eye; U.uGrey.value=grey; U.uGreyCol.value.copy(cTmp);
+    U.uGrey.value=grey; U.uGreyCol.value.copy(cTmp);
+    // 산란 표를 굽는다(256×96 — 화면 전체의 1/80)
+    const L=SKY_LUT, M=L.mat.uniforms;
+    M.uSun.value.copy(_sd3); M.uMoon.value.copy(_md3); M.uMoonK.value=moonK;
+    M.uTurb.value=turb; M.uExp.value=SKYP.exp*SKYP.eye;
+    M.uMoonOn.value=(_sd3.y<0.08&&_md3.y>-0.2)?1:0;
+    if(renderer&&L.rt){
+      const ot=renderer.getRenderTarget(), oa=renderer.autoClear;
+      renderer.autoClear=true; renderer.setRenderTarget(L.rt); renderer.render(L.scene,L.cam);
+      renderer.setRenderTarget(ot); renderer.autoClear=oa;
+    }
   }
   if(sunDisc){
     const D=1200, px=camera.position.x+_sd3.x*D, py=camera.position.y+_sd3.y*D, pz=camera.position.z+_sd3.z*D;
@@ -6817,9 +7238,7 @@ function hideLimb(p,j){
   setLimbM(p,j,_M);
   /* 잎은 가지 하나에 여러 장 달린다 — 그 가지 몫을 전부 접는다 */
   const LPB=LEAF_PER[p.k]||1;
-  for(let q=0;q<LPB;q++) p._lf.setMatrixAt((p._lbBase+j)*LPB+q,_M);
-  p._lb.instanceMatrix.needsUpdate=true;
-  p._lf.instanceMatrix.needsUpdate=true;
+  for(let q=0;q<LPB;q++) instSetM(p._lf,(p._lbBase+j)*LPB+q,_M);
 }
 function shrinkFoliage(p){
   // 나무는 가지만으로 이뤄져 있다 — 꺾인 가지를 실제로 지운다
@@ -6859,6 +7278,7 @@ function shrinkFoliage(p){
       arr[i+2]=p.z  +(arr[i+2]-p.z )*f;
     }
     a.needsUpdate=true;
+    LIGHT.dirtyAt(p.x,p.z,3);                  // 오므라든 바위 그림자
     return;
   }
   if(!p._fm) return;
@@ -8651,6 +9071,7 @@ function toggleFit(w){
   w.leaf.open=!w.leaf.open;
   w.leaf.mesh.rotation.y=w.leaf.open?-P.open:0;
   rebuildWallCols(w);
+  { const v=w.leaf.mesh.getWorldPosition(new THREE.Vector3()); LIGHT.dirtyAt(v.x,v.z,3); }   // 문짝 그림자
   sfx('bind');
   toast(BKIND_N[w.leaf.kind]+(w.leaf.open?' 열림':' 닫힘'));
 }
@@ -9607,7 +10028,7 @@ let arcT=0;
 function updatePower(dt){
   // 유량이 적은 개울에서도 돌기는 돈다 — 다만 느리다
   const th=WHEEL_REF();
-  for(const w of WHEELS) w.rim.rotation.x+=dt*clamp(w.flow/th,0.35,2.2)*0.9;
+  for(const w of WHEELS){ w.rim.rotation.x+=dt*clamp(w.flow/th,0.35,2.2)*0.9; LIGHT.dirtyAt(w.x,w.z,3); }   // 도는 바퀴 그림자
   const on=powered();
   arcT+=dt;
   for(const a of ARCS){
@@ -12089,7 +12510,9 @@ function throwGrenade(w,W){
   const m=new THREE.Group();
   const body=new THREE.Mesh(new THREE.SphereGeometry(0.06,10,8),WMAT(0x4a5a44)); body.scale.set(1,1.25,1); m.add(body);
   const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.025,0.05,8),WMAT(0x8f959b)); cap.position.y=0.085; m.add(cap);
-  m.position.copy(o).addScaledVector(d,0.5); scene.add(m);
+  m.position.copy(o).addScaledVector(d,0.5);
+  m.userData.lightRole='recv';     // 작고 빨리 난다 — 그림자 지도를 매 프레임 안 그리므로 드리우면 던진 자리에 그림자가 남는다
+  scene.add(m);
   const v=d.clone().multiplyScalar(16); v.y+=3.2;
   GRENADES.push({m,v,t:W.fuse||3.5,dmg:W.dmg,r:W.reach});
   // 손에서 하나를 뗀다 — 남은 수류탄이 있으면 그것을 이어 든다
@@ -12911,6 +13334,7 @@ function drawMap(){
   ctx.lineTo(x-fx*B+fz*W, z-fz*B-fx*W);
   ctx.closePath(); ctx.fill(); ctx.stroke();
 }
+const COMPASS_LBL={0:'N',45:'NE',90:'E',135:'SE',180:'S',225:'SW',270:'W',315:'NW'};
 function drawCompass(){
   const cx=document.getElementById('compassC'), g=cx.getContext('2d');
   g.clearRect(0,0,230,20);
@@ -12918,7 +13342,7 @@ function drawCompass(){
   const PX=230/120;                                   // 화면에 120° 표시
   g.strokeStyle='rgba(160,200,185,.28)'; g.fillStyle='#c2d6ce';
   g.font='9px ui-monospace,monospace'; g.textAlign='center';
-  const LBL={0:'N',45:'NE',90:'E',135:'SE',180:'S',225:'SW',270:'W',315:'NW'};
+  const LBL=COMPASS_LBL;
   for(let a=-60;a<=60;a+=5){
     const t=(deg+a+360)%360, x=115+a*PX;
     const near=Math.round(t/45)*45;
@@ -12930,23 +13354,119 @@ function drawCompass(){
   g.fillStyle='#8fd6b4'; g.fillRect(114.5,0,1.5,16);
 }
 let fpsT=0,fpsN=0,fps=0;
+/* ── 성능 창(F3) ────────────────────────────────────────────────────────
+   어디가 프레임을 먹는지 게임 안에서 본다 — 다른 PC 에서도 잴 수 있게.
+   ① 구간별 CPU ms(`loop` 의 갱신부를 일곱 토막으로 — 켜져 있을 때만 잰다) ② 패스별 그리기 호출 ·
+   삼각형(하늘 · 본 장면 · 그림자 — renderer.render 와 shadowMap.render 를 감싸 잰다. Three 는 그림자를
+   그린 **뒤에** 셈을 비우므로 그림자 몫은 그 안에서 따로 센다) ③ GPU 시간(EXT_disjoint_timer_query_webgl2 —
+   없으면 '못 잼') ④ FPS · 1% low(가장 느린 1% 프레임) · 프레임 시간 그래프(240장, 선은 16.7·33.3 ms)
+   ⑤ 그림자 지도를 다시 그린 횟수/초(LIGHT) · 구름 명암 대기열(LIT) · 지형 단계(TERR_STAT) · 메모리.
+   초당 네 번만 글자를 바꾼다. */
+const PERF={on:false, sec:new Float64Array(7), nf:0, t0:0, show:0, ring:new Float32Array(240), ri:0, rn:0, prev:0,
+  names:['하늘·날씨','구름(명암)','빛·그림자','칸·지형','세상·사람','HUD·지도','그리기 JS'],
+  dc:{sky:[0,0], main:[0,0], shadow:[0,0]}, gpu:{ext:null, q:[], act:false, ms:0, n:0, tried:false},
+  sun0:0, pts0:0, lit0:0, litMs:0, srt:new Float32Array(240),
+  lap(i,t){ const n=performance.now(); this.sec[i]+=n-t; return n; },
+  toggle(){
+    this.on=!this.on;
+    document.getElementById('perf').style.display=this.on?'block':'none';
+    if(this.on){ this.install(); this.reset(performance.now()); }
+  },
+  reset(now){ this.sec.fill(0); this.nf=0; this.t0=now; for(const k in this.dc) this.dc[k][0]=this.dc[k][1]=0;
+    this.gpu.ms=0; this.gpu.n=0; this.sun0=LIGHT.stats.sun; this.pts0=LIGHT.stats.pts;
+    if(typeof LIT!=='undefined'){ this.lit0=LIT.stats.n; } this.litMs=0; },
+  install(){
+    if(this._inst||!renderer) return; this._inst=true;
+    const R=renderer, info=R.info.render, r0=R.render.bind(R), sm=R.shadowMap, s0=sm.render.bind(sm), P=this;
+    R.render=function(sc,cam){
+      if(!P.on) return r0(sc,cam);
+      const c=info.calls, t=info.triangles; P._shc=P._sht=0;
+      r0(sc,cam);
+      /* 끝난 뒤의 셈 = 그 장면의 본 패스(그림자 셈은 Three 가 그림자를 그린 뒤 비운다). 누가 info.autoReset 을
+         꺼 두었으면 비우지 않으므로 앞뒤 차이에서 그림자 몫을 뺀다 */
+      const dc=info.autoReset?info.calls:info.calls-c-P._shc, dt=info.autoReset?info.triangles:info.triangles-t-P._sht;
+      const k=sc===skyScene?'sky':sc===scene?'main':null;
+      if(k){ P.dc[k][0]+=dc; P.dc[k][1]+=dt; }
+    };
+    sm.render=function(L,sc,cam){
+      if(!P.on) return s0(L,sc,cam);
+      const c=info.calls, t=info.triangles; s0(L,sc,cam);
+      const dc=info.calls-c, dt=info.triangles-t;
+      P._shc=(P._shc||0)+dc; P._sht=(P._sht||0)+dt;
+      P.dc.shadow[0]+=dc; P.dc.shadow[1]+=dt;
+    };
+    const gl=R.getContext(); this.gpu.ext=gl.getExtension&&gl.getExtension('EXT_disjoint_timer_query_webgl2'); this.gpu.gl=gl;
+  },
+  gpuBegin(){ const G=this.gpu, gl=G.gl; if(!G.ext||G.act||G.q.length>4) return;
+    const q=gl.createQuery(); gl.beginQuery(G.ext.TIME_ELAPSED_EXT,q); G.q.push(q); G.act=true; },
+  gpuEnd(){ const G=this.gpu, gl=G.gl; if(!G.ext||!G.act) return; gl.endQuery(G.ext.TIME_ELAPSED_EXT); G.act=false;
+    while(G.q.length&&!(G.act&&G.q.length===1)){
+      const q=G.q[0]; if(!gl.getQueryParameter(q,gl.QUERY_RESULT_AVAILABLE)) break;
+      if(!gl.getParameter(G.ext.GPU_DISJOINT_EXT)){ G.ms+=gl.getQueryParameter(q,gl.QUERY_RESULT)/1e6; G.n++; }
+      gl.deleteQuery(q); G.q.shift();
+    } },
+  frame(now){
+    if(this.prev){ this.ring[this.ri]=now-this.prev; this.ri=(this.ri+1)%this.ring.length; if(this.rn<this.ring.length) this.rn++; }
+    this.prev=now; this.nf++;
+    if(typeof LIT!=='undefined') this.litMs+=LIT.stats.ms;
+    if(now-this.show<250) return;
+    this.show=now;
+    const el=now-this.t0, n=Math.max(1,this.nf), f=v=>v.toFixed(2).padStart(6);
+    // 1% low — 지난 240장 중 가장 느린 1%(=2~3장)의 평균 프레임 시간
+    const m=this.rn; let low='–';
+    if(m>20){ const a=this.srt; for(let i=0;i<m;i++) a[i]=this.ring[i]; const sub=a.subarray(0,m); sub.sort();
+      const k=Math.max(1,Math.round(m*0.01)); let sm=0; for(let i=m-k;i<m;i++) sm+=sub[i]; low=(1000/(sm/k)).toFixed(0); }
+    let tot=0, L=[];
+    L.push('FPS '+(this.nf*1000/el).toFixed(1)+'  · 1% low '+low+'  · '+renderer.domElement.width+'×'+renderer.domElement.height);
+    for(let i=0;i<7;i++){ tot+=this.sec[i]; L.push(this.names[i].padEnd(8,'　')+f(this.sec[i]/n)+' ms'); }
+    L.push('CPU 합'.padEnd(8,'　')+f(tot/n)+' ms'+(this.gpu.n?'   GPU '+(this.gpu.ms/this.gpu.n).toFixed(2)+' ms':(this.gpu.ext?'   GPU …':'   GPU 못 잼')));
+    const dc=k=>(this.dc[k][0]/n).toFixed(0).padStart(4)+'회 '+(this.dc[k][1]/n/1e3).toFixed(0).padStart(5)+'k△';
+    L.push('하늘   '+dc('sky')); L.push('본장면 '+dc('main')); L.push('그림자 '+dc('shadow'));
+    const ps=1000/el;
+    L.push('그림자 지도 다시 — 해 '+((LIGHT.stats.sun-this.sun0)*ps).toFixed(1)+'/초 · 불 '+((LIGHT.stats.pts-this.pts0)*ps).toFixed(1)+'/초');
+    if(typeof LIT!=='undefined') L.push('구름 명암 '+(this.litMs/n).toFixed(2)+' ms · '+((LIT.stats.n-this.lit0)*ps).toFixed(1)+'덩이/초 · 대기 '+LIT.stats.queue);
+    if(typeof TERR_STAT!=='undefined') L.push('지형 단계 1·2·4·8칸 '+TERR_STAT.join('·'));
+    const mi=renderer.info.memory, pm=performance.memory;
+    L.push('지오메트리 '+mi.geometries+' · 텍스처 '+mi.textures+' · 셰이더 '+renderer.info.programs.length+(pm?' · JS '+(pm.usedJSHeapSize/1048576).toFixed(0)+' MB':''));
+    // 진단(예전 F3 상자) — 멈춤·잠금·입력 상태
+    L.push('진단 paused='+paused+' busy='+busy+' fly='+flyMode+' mouse='+hasMouse+' touch='+touchOnly
+      +' lock='+(document.pointerLockElement===cv)+' · 청크 '+chunks.length+' · 소품 '+PROPS.length
+      +' · '+dayNo()+'일 '+hourOfDay.toFixed(2)+'시 · 전력 '+powerBudget(dayNo()));
+    document.getElementById('perfT').textContent=L.join('\n');
+    this.graph();
+    this.reset(now);
+  },
+  graph(){
+    const c=document.getElementById('perfG'), g=c.getContext('2d'), W=c.width, H=c.height, m=this.rn, R=this.ring;
+    g.clearRect(0,0,W,H); g.fillStyle='rgba(0,0,0,.35)'; g.fillRect(0,0,W,H);
+    for(let i=0;i<m;i++){
+      const v=R[(this.ri-m+i+R.length)%R.length], h=Math.min(H,v/50*H);
+      g.fillStyle=v>33.4?'#d8724a':v>16.8?'#d8c46a':'#8fd6b4'; g.fillRect(W-m+i,H-h,1,h);
+    }
+    g.fillStyle='rgba(255,255,255,.35)'; g.fillRect(0,H-16.7/50*H,W,1); g.fillRect(0,H-33.3/50*H,W,1);
+  }
+};
 // 받는 피해는 갑옷만큼 줄어든다 (실험체가 붙으면 그대로 적용된다)
 const mitigate=(dmg)=>Math.max(1,dmg*armorMul());
+/* HUD 글은 **바뀔 때만** 쓴다 — 같은 글을 프레임마다 다시 넣으면(특히 innerHTML) 노드를 새로 만들어
+   버리고 화면 배치를 다시 잰다. 글과 HTML 을 같은 칸(`_hv`)에 적어 두어 둘을 번갈아 써도 어긋나지 않는다 */
+function hudT(el,s){ s=''+s; if(el&&el._hv!=='t'+s){ el._hv='t'+s; el.textContent=s; } }
+function hudH(el,s){ s=''+s; if(el&&el._hv!=='h'+s){ el._hv='h'+s; el.innerHTML=s; } }
 function updateHUD(dt){
   fpsT+=dt; fpsN++;
   if(fpsT>0.5){ fps=Math.round(fpsN/fpsT); fpsT=0; fpsN=0; }
   const s=sampleAt(PL.pos.x,PL.pos.z);
   const H=Math.floor(hourOfDay), M=Math.floor((hourOfDay%1)*60);
-  document.getElementById('iTime').textContent=String(H).padStart(2,'0')+':'+String(M).padStart(2,'0');
-  document.getElementById('iPos').textContent=Math.round(PL.pos.x)+', '+Math.round(PL.pos.z);
-  document.getElementById('iAlt').textContent=(PL.swim?'수중 ':'')+Math.round(PL.pos.y)+' m';
-  document.getElementById('iBio').textContent=BIOME_INFO[s.biome].n;
-  document.getElementById('iFps').textContent=fps;
+  hudT(document.getElementById('iTime'),String(H).padStart(2,'0')+':'+String(M).padStart(2,'0'));
+  hudT(document.getElementById('iPos'),Math.round(PL.pos.x)+', '+Math.round(PL.pos.z));
+  hudT(document.getElementById('iAlt'),(PL.swim?'수중 ':'')+Math.round(PL.pos.y)+' m');
+  hudT(document.getElementById('iBio'),BIOME_INFO[s.biome].n);
+  hudT(document.getElementById('iFps'),fps);
   const hpF=document.getElementById('hpF'), hpT=document.getElementById('hpT');
   if(hpF){
     hpF.style.width=clamp(PL.hp,0,HPMAX)+'%';
     hpF.style.background=PL.hp<25?'#c9453a':(PL.hp<55?'#d8724a':'#c96a6a');
-    hpT.textContent=Math.max(0,Math.round(PL.hp));
+    hudT(hpT,Math.max(0,Math.round(PL.hp)));
   }
   // 맞으면 화면 가장자리가 붉어진다
   if(hurtFlash>0){
@@ -12955,26 +13475,26 @@ function updateHUD(dt){
     if(hv){ hv.style.opacity=hurtFlash*0.55; hv.style.display=hurtFlash>0.01?'block':'none'; }
   }
   document.getElementById('stF').style.width=PL.stam+'%';
-  document.getElementById('stT').textContent=Math.round(PL.stam);
+  hudT(document.getElementById('stT'),Math.round(PL.stam));
   const fdF=document.getElementById('fdF'), fdT=document.getElementById('fdT');
   if(fdF){
     fdF.style.width=PL.food+'%';
     // 배가 꺼질수록 붉어진다. 날것을 먹고 앓는 동안에는 따로 표시한다
     fdF.style.background=PL.food<=0?'#c9453a':(PL.food<30?'#d8724a':'#c9a86a');
-    fdT.textContent=Math.round(PL.food)+(PL.ill>0?' · 탈':'');
+    hudT(fdT,Math.round(PL.food)+(PL.ill>0?' · 탈':''));
   }
   const wtF=document.getElementById('wtF'), wtT=document.getElementById('wtT');
   if(wtF){
     wtF.style.width=PL.water+'%';
     wtF.style.background=PL.water<=0?'#c9453a':(PL.water<30?'#d8724a':'#6f9ec9');
-    wtT.textContent=Math.round(PL.water);
+    hudT(wtT,Math.round(PL.water));
   }
   const ow=document.getElementById('oxWrap');
   ow.style.display=PL.oxy<99.5?'block':'none';
   document.getElementById('oxF').style.width=PL.oxy+'%';
-  document.getElementById('oxT').textContent=Math.round(PL.oxy);
-  document.getElementById('mDist').textContent=
-    Math.round(Math.hypot(PL.pos.x-podPos.x,PL.pos.z-podPos.z))+' m';
+  hudT(document.getElementById('oxT'),Math.round(PL.oxy));
+  hudT(document.getElementById('mDist'),
+    Math.round(Math.hypot(PL.pos.x-podPos.x,PL.pos.z-podPos.z))+' m');
 
   // 용기가 열려 있으면 안에서 굽고 녹는 것이 눈앞에서 진행된다
   if(boxOpen){ boxT+=dt; if(boxDirty||boxT>0.25){ boxT=0; boxDirty=false; drawBox(); } }
@@ -12985,34 +13505,34 @@ function updateHUD(dt){
   if(toastT>0){
     toastT-=dt;
     look.style.display='block'; lb.style.display='none';
-    lt.textContent=lt.dataset.toast||'';
+    hudT(lt,lt.dataset.toast||'');
   }else if(HARV.fit){
     const w=HARV.fit;
     look.style.display='block'; lb.style.display='none';
-    lt.innerHTML='[좌클릭] '+BKIND_N[w.leaf.kind]+(w.leaf.open?' 닫기':' 열기');
+    hudH(lt,'[좌클릭] '+BKIND_N[w.leaf.kind]+(w.leaf.open?' 닫기':' 열기'));
   }else if(HARV.cont){
     const c=HARV.cont, e=equippedTool();
     const isTorch=e&&(ITEMS[e.id].tool||{}).torch;
     look.style.display='block'; lb.style.display='none';
     if(c.kind==='grind'){
       look.style.display='block'; lb.style.display='none';
-      lt.innerHTML='[좌클릭] 숫돌 — 갈아 만들기와 수리<em>'
-        +'수리는 처음 재료의 절반(내림)이 든다</em>';
+      hudH(lt,'[좌클릭] 숫돌 — 갈아 만들기와 수리<em>'
+        +'수리는 처음 재료의 절반(내림)이 든다</em>');
       return;
     }
     if(c.kind==='power'){
       look.style.display='block'; lb.style.display='none';
-      lt.innerHTML='[좌클릭] 발전기 — 축전지와 전등 채우기<em>'
-        +(powered()?'물레방아가 돌고 있다':'물레방아가 서 있다 — 채울 수 없다')+'</em>';
+      hudH(lt,'[좌클릭] 발전기 — 축전지와 전등 채우기<em>'
+        +(powered()?'물레방아가 돌고 있다':'물레방아가 서 있다 — 채울 수 없다')+'</em>');
       return;
     }
     const head='[좌클릭] '+c.cname+' 열기';
     // 화덕은 좌클릭을 계속 누르면 불을 다루는 쪽으로 넘어간다
     if(isHearth(c) && !c.lit && isTorch && e.lit && e.fuel>0.12 && contFuel(c)){
-      lt.innerHTML=head+'<em>길게 누르면 횃불로 불 옮기기</em>';
+      hudH(lt,head+'<em>길게 누르면 횃불로 불 옮기기</em>');
       if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/1.5*100)+'%'; }
     }else if(isHearth(c) && c.lit && isTorch && !e.lit && e.fuel>0){
-      lt.innerHTML=head+'<em>길게 누르면 횃불에 불 붙이기 · 연료 '+fmtFuel(e.fuel)+'</em>';
+      hudH(lt,head+'<em>길게 누르면 횃불에 불 붙이기 · 연료 '+fmtFuel(e.fuel)+'</em>');
       if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/1.0*100)+'%'; }
     }else if(isHearth(c) && !c.lit){
       const canFire=e&&(ITEMS[e.id].tool||{}).fire;
@@ -13029,11 +13549,11 @@ function updateHUD(dt){
       else why=!tin?'불꽃을 떨어뜨리는 중'
                    :(IGNITE.t/dur<0.6)?'비비는 중 — 톱밥에 열이 오른다'
                                       :'불씨를 부싯깃에 옮겨 불어넣는 중';
-      lt.innerHTML=head+'<em>'+why+'</em>';
+      hudH(lt,head+'<em>'+why+'</em>');
       if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/dur*100)+'%'; }
     }else{
-      lt.innerHTML=head+'<em>'+contStatus(c)+' · '
-        +contWeight(c).toFixed(1)+' / '+c.cap+' kg</em>';
+      hudH(lt,head+'<em>'+contStatus(c)+' · '
+        +contWeight(c).toFixed(1)+' / '+c.cap+' kg</em>');
       /* 안에서 여럿이 함께 익으므로 막대는 가장 먼저 끝날 것을 보여 준다 */
       if(c.lit){
         const fr=(c.kind==='fire')
@@ -13049,12 +13569,12 @@ function updateHUD(dt){
       look.style.display='block';
       if(M){
         const left=M.field==='logs'?('통나무 '+t.logs):('남은 '+t.br+'회');
-        lt.innerHTML='[좌클릭] '+M.H.label+'<em>'+R.n+' · '+left+'</em>';
+        hudH(lt,'[좌클릭] '+M.H.label+'<em>'+R.n+' · '+left+'</em>');
         lb.style.display=HARV.t>0?'block':'none';
         lf.style.width=(HARV.t/(M.dur||M.H.dur)*100)+'%';
       }else{
         const why=blockReason(t);
-        lt.innerHTML=R.n+'<em>'+(why||(t.felled?'그루터기만 남았다':'더 얻을 게 없다'))+'</em>';
+        hudH(lt,R.n+'<em>'+(why||(t.felled?'그루터기만 남았다':'더 얻을 게 없다'))+'</em>');
         lb.style.display='none';
       }
     }else{
@@ -13068,7 +13588,7 @@ function updateHUD(dt){
       if(best){
         const R=RESOURCES.find(r=>r.k===best.k);
         look.style.display='block'; lb.style.display='none';
-        lt.innerHTML=R.n+'<em>'+R.use+' · 도구 필요</em>';
+        hudH(lt,R.n+'<em>'+R.use+' · 도구 필요</em>');
       }else look.style.display='none';
     }
   }
@@ -13080,26 +13600,26 @@ function updateHUD(dt){
     tp.style.display='block';
     const T=ITEMS[e.id];
     if(e.fuel!==undefined){                       // 횃불 — 내구 대신 남은 연소 시간
-      document.getElementById('toolN').textContent=T.n+(e.lit?' (타는 중)':' (꺼짐)');
+      hudT(document.getElementById('toolN'),T.n+(e.lit?' (타는 중)':' (꺼짐)'));
       const bar=document.getElementById('toolD');
       bar.style.width=(e.fuel/T.burn*100)+'%';
       bar.style.background=e.lit?'#e08a3a':'#5d7a71';
     }else if(T.tool&&T.tool.gun){               // 총 — 내구 대신 탄창을 보여 준다
       const ak=(e.mag&&e.ammoId)?'  ['+ITEMS[e.ammoId].n
         +(ammoMul(e)!==1?' ×'+(+ammoMul(e).toFixed(2)):'')+']':'';
-      document.getElementById('toolN').textContent=T.n+'  '+(e.mag|0)+' / '+T.tool.mag+ak
+      hudT(document.getElementById('toolN'),T.n+'  '+(e.mag|0)+' / '+T.tool.mag+ak
         +(RELOAD.t>0?'  (재장전 '+RELOAD.t.toFixed(1)+'초)':'  [X] 재장전')
-        +'  · 남은 탄 '+gunAmmo(e);
+        +'  · 남은 탄 '+gunAmmo(e));
       const bar=document.getElementById('toolD');
       bar.style.width=((e.mag|0)/T.tool.mag*100)+'%';
       bar.style.background=RELOAD.t>0?'#8fb8d8':(e.mag?'#d8724a':'#5d5a52');
     }else if(!T.tool){                          // 먹을 것·마실 것·붕대 — 개수(모금)와 좌클릭
-      document.getElementById('toolN').textContent=T.n+'  ×'+e.n
-        +(e.sip?'  ('+e.sip+'모금)':'')+'  [좌클릭] '+useVerb(T);
+      hudT(document.getElementById('toolN'),T.n+'  ×'+e.n
+        +(e.sip?'  ('+e.sip+'모금)':'')+'  [좌클릭] '+useVerb(T));
       const bar=document.getElementById('toolD');
       bar.style.width=(T.drink?((e.sip||1)/(T.sips||1)):1)*100+'%'; bar.style.background='#7fb07a';
     }else{
-      document.getElementById('toolN').textContent=T.n;
+      hudT(document.getElementById('toolN'),T.n);
       const bar=document.getElementById('toolD');
       bar.style.width=(e.dur/T.durMax*100)+'%'; bar.style.background='#d8c96a';
     }
@@ -13112,12 +13632,12 @@ function updateHUD(dt){
     cp.style.display='block';
     document.getElementById('crfF').style.width=(pct*100)+'%';
     cb.style.display='block';
-    document.getElementById('cbN').textContent=R.n;
-    document.getElementById('cbP').textContent=Math.floor(pct*100)+'%';
+    hudT(document.getElementById('cbN'),R.n);
+    hudT(document.getElementById('cbP'),Math.floor(pct*100)+'%');
     document.getElementById('cbF').style.width=(pct*100)+'%';
-    document.getElementById('cbS').textContent=
+    hudT(document.getElementById('cbS'),
       Math.ceil(R.time-CRAFT.t)+'초 남음'+(R.station?' · '+STATION[R.station].n+' 곁':'')
-      +' · 기력 '+Math.round(PL.stam);
+      +' · 기력 '+Math.round(PL.stam));
   }else{ cp.style.display='none'; cb.style.display='none'; }
 
   if(invDirty){ invDirty=false; drawInv(); craftDirty=true; }
@@ -13145,6 +13665,7 @@ function initThree(){
   renderer.shadowMap.enabled=true;
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   scene=new THREE.Scene();
+  scene.matrixAutoUpdate=false;        // 장면 자체는 안 움직인다(정적 물체 행렬 고정 — freezeStatics)
   scene.background=null;          // 하늘은 skyScene 이 먼저 칠한다(renderFrame)
   /* 안개 — 나무가 150 m 에서 사라지므로 그 앞에서 잠기도록 짙게 잡는다.
      0.009 면 150 m 에서 87% 가 안개색이라 꺼지는 순간이 눈에 안 띈다. */
@@ -13182,6 +13703,20 @@ const phase=(t,p)=>new Promise(r=>{
   requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(r,0)));
 });
 let busy=false;
+/* ── 정적 물체 행렬 고정 ─────────────────────────────────────────────────
+   Three 는 그릴 때마다 장면 전체를 훑어 물체마다 자리·회전·크기로 행렬을 다시 짜고(updateMatrix)
+   부모 행렬을 곱한다. 장면 자체(`scene`)가 matrixAutoUpdate 면 그 아래 **모든** 물체의 세계 행렬이
+   매 프레임 다시 곱해진다 — 칸 메시·지형 청크·구름까지 물체 4,900 개에 1.1 ms 였다.
+   움직이지 않는 것(장면 · 하늘 장면 · propGroup 과 그 칸 메시 · 지형 청크 · 하천 판 · 구름 무리)은
+   행렬을 한 번 짜 두고 끈다. 움직이는 것(카메라 · 바다 판 · 하늘 돔 · 해·달 · 새로 세운 집과 설비)은
+   그대로 matrixAutoUpdate 다. 구름 덩이는 흐를 때 `updateClouds` 가 손수 updateMatrix 를 부른다.
+   **이걸 건 물체를 옮기려면 `updateMatrix()` 를 직접 부를 것** — 안 부르면 그 자리에 그대로 그려진다. */
+function freezeStatics(){
+  const fr=o=>{ o.matrixAutoUpdate=false; o.updateMatrix(); };
+  if(propGroup) for(const o of propGroup.children) fr(o);
+  for(const m of chunks) fr(m);
+  if(riverMesh) fr(riverMesh);
+}
 async function generateWorld(){
   if(busy) return; busy=true;
   landed=false; autoT=0;                // 새 섬 · 불러오기 — 상륙할 때까지는 자동 저장할 것이 없다
@@ -13205,7 +13740,8 @@ async function generateWorld(){
   await phase('광상 탐사',82);      placeResources(seed);
   await phase('지형 메시',90);      buildBioTex(); buildChunks(); buildWater();
   await phase('자원 배치',96);      placeProps_(seed);
-  await phase('상륙 준비',99);      cacheMap(); spawnPlayer(); buildFarTrees();
+  await phase('상륙 준비',99);      cacheMap(); spawnPlayer(); buildFarTrees(); freezeStatics();
+                                    LIGHT.refresh(); LIGHT.live=true;   // 다 지은 섬에 배역을 한 번에 · 이제부터 바뀌면 그림자를 다시
                                     INV.slots.length=0; INV.sel=0; invDirty=true;
                                     for(const k in WEAR) WEAR[k]=null; INV.max=INV.base;
                                     invAdd('codex',1);        // 사전은 처음부터 지닌다
@@ -13608,15 +14144,8 @@ addEventListener('keydown',e=>{
     else document.getElementById('crfS').blur();
     craftDirty=true; syncLock();
   }
-  if(e.code==='F3'){
-    e.preventDefault(); ERRN=0;
-    showErr('진단','paused='+paused+' busy='+busy+' flyMode='+flyMode
-      +' hasMouse='+hasMouse+' touchOnly='+touchOnly
-      +' lock='+(document.pointerLockElement===cv)
-      +' chunks='+chunks.length+' props='+PROPS.length
-      +' hour='+hourOfDay.toFixed(2)+' fps='+fps
-      +' day='+dayNo()+' power='+powerBudget(dayNo()));
-  }
+  /* F3 — 성능 창(예전의 '진단' 상자는 성능 창 맨 아래 줄로 옮겼다) */
+  if(e.code==='F3'){ e.preventDefault(); PERF.toggle(); }
   if(e.code==='F5'){ e.preventDefault(); saveLocal(); }
   if(e.code==='F9'){ e.preventDefault(); askLoad(); }
   if(e.code==='KeyB'){ toggleDex(); }
@@ -13955,17 +14484,23 @@ function loop(){
   lastDraw=now;
   const dt=Math.min(0.05,(now-last)/1000); last=now;
 
+  const PO=PERF.on;                // 성능 창이 켜져 있을 때만 토막마다 잰다
   if(!paused&&!busy) try{
+    let tp=PO?performance.now():0;
     const dh=dt*timeScale/60;                  // 실시간 1분 = 게임 1시간 (하루 24분)
     gameHours+=dh; hourOfDay=(hourOfDay+dh)%24;
     updateShip(dt);                            // 보급선이 내려놓고 떠난다
     updateTorch(dt,dh); updateLamp(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh);
     updateWeapon(dt); updatePower(dt);
     updateOcean(now*0.001);
+    if(PO) tp=PERF.lap(4,tp);
     updateSky();
+    if(PO) tp=PERF.lap(0,tp);
     updateClouds(dt);
     updateRain(dt);
+    if(PO) tp=PERF.lap(1,tp);
     LIGHT.update(dt);           // 해 그림자 상자를 사람에게 옮기고 불빛에 그림자를 나눈다
+    if(PO) tp=PERF.lap(2,tp);
     if(flyMode){
       const sp=Math.sin(fly.ph),cp=Math.cos(fly.ph);
       fly.tx=PL.pos.x; fly.tz=PL.pos.z; fly.ty=PL.pos.y;
@@ -13987,13 +14522,20 @@ function loop(){
       updateRegrow();
       updatePlayer(dt);
     }
+    if(PO) tp=PERF.lap(4,tp);
     updateTileVis();            // 150 m 밖의 나무 칸을 끈다
+    updateTerrainLOD();         // 먼 지형 청크는 성긴 격자로
+    if(PO) tp=PERF.lap(3,tp);
     if(landed&&!PL.dead){ autoT+=dt; if(autoT>=AUTO_EVERY) autoSave('놀이 5분'); }
     updateHUD(dt);
     drawCompass();
     mapT+=dt; if(mapT>0.12){ mapT=0; drawMap(); }
+    if(PO) tp=PERF.lap(5,tp);
   }catch(e){ showErr('프레임',e); }     // 한 프레임이 죽어도 화면은 계속 그린다
-  try{ renderFrame(); }catch(e){ showErr('렌더',e); }
+  const tr=PO?performance.now():0;
+  if(PO) PERF.gpuBegin();
+  try{ LIGHT.flush(); renderFrame(); }catch(e){ showErr('렌더',e); }   // 새로 붙은 물체는 그리기 전에 배역을 받는다
+  if(PO){ PERF.gpuEnd(); PERF.lap(6,tr); PERF.frame(now); }
 }
 
 initThree();
