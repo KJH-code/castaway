@@ -30,7 +30,7 @@ function log(level, msg) {
     fs.mkdirSync(LOGS(), { recursive: true });
     const f = path.join(LOGS(), 'castaway.log');
     try { if (fs.statSync(f).size > (1 << 20)) fs.renameSync(f, path.join(LOGS(), 'castaway.old.log')); } catch (e) {}
-    fs.appendFileSync(f, new Date().toISOString() + ' ' + level + ' ' + String(msg).slice(0, 4000) + '\n');
+    fs.appendFileSync(f, new Date().toISOString() + ' ' + level + ' ' + String(msg).replace(/\s*\n\s*/g, ' ⏎ ').slice(0, 4000) + '\n');   // 한 줄에 한 건
   } catch (e) {}
 }
 process.on('uncaughtException', e => log('main', e && e.stack || e));
