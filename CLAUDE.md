@@ -44,7 +44,7 @@ npx electron-builder --linux               # 묶기 — dist/ (--win · --mac �
   **새 판 알림** — 묶은 판만, 켜고 8초 뒤 GitHub `releases/latest` 를 보고 지금보다 높으면 시작 화면에 '받기' 고리(`#ovUpd`). 오프라인이면 조용히 넘어간다.
   서명이 없어 자동 설치는 안 한다(macOS 는 서명 없이 자동 갱신이 안 된다). 개발판에서 시험하려면 `CASTAWAY_UPDATE=1`.
   NSIS: 바탕 화면·시작 메뉴 바로가기 · 설치 끝나면 실행 · **지워도 저장(userData)은 남긴다**.
-- **게임이 아는 것은 `window.DESKTOP` 하나다**(`preload.js` — `saveHas/saveRead/saveWrite/info/openSaves/fullscreen/quit/onBeforeClose/closeReady/onUpdate`, 저장은 동기 IPC).
+- **게임이 아는 것은 `window.DESKTOP` 하나다**(`preload.js` — `saveHas/saveRead/saveWrite/info/openSaves/fullscreen/quit/onBeforeClose/closeReady/onVisible/onUpdate`, 저장은 동기 IPC).
   `island_world.html` 의 `DESK` 가 있으면 **저장 칸이 파일**(`userData/saves/slot1~3.json` · `auto.json` · Windows `%APPDATA%\CASTAWAY\saves` —
   임시 파일에 쓰고 바꿔 끼우며 바로 앞 것은 `.bak`), 없으면 `localStorage`(`castaway.save1~3` · `castaway.auto` — 슬롯 1 은 예전 키 그대로). 슬롯 이름은 `[a-z0-9._-]` 만 받는다.
   데스크톱 판에서만 보이는 것: 일시정지 화면의 **끝내기**(`#bQuit` — 상륙 전이면 바로, 상륙했으면 묻고 닫기 길(자동 저장)을 탄다) · 설정 창의 '전체 화면'·'저장·기록 폴더'(`#deskG` — userData 를 연다) ·
@@ -71,6 +71,8 @@ npx electron-builder --linux               # 묶기 — dist/ (--win · --mac �
 - **설정 창은 시작·일시정지 화면 위에도 뜬다**(`#cfg` z-index 12 · `#ov` 10 · 묻는 상자 60) — 화면의 '설정' 단추(`#bOpt`) · Tab · 창의 '닫기'(`toggleCfg`).
 - **멈춤 중엔 아낀다** — 일시정지·시작 화면이면 초당 10번만 그리고(덮개가 94% 가린다), 창을 내리면(`document.hidden`) 아예 안 그린다(`loop` 맨 앞).
   소리도 일시정지·창 내림 때 멈추고(`audioPause` — `AudioContext.suspend`) 계속하면 다시 낸다.
+  **데스크톱 판은 `document.hidden` 이 늘 false 다** — `backgroundThrottling:false` 가 Page Visibility 까지 끈다(Electron 문서). 그래서 주 프로세스가
+  `minimize`/`restore`(·`hide`/`show`) 때 `app:visible` 을 보내고 게임이 `winHidden` 으로 받는다(`DESK.onVisible`). 내린 동안은 게임 시간도 멈춘다.
 - **그래픽이 끊기면**(`webglcontextlost` — 드라이버 재시작·GPU 메모리) 자동 저장해 두고 다시 불러오기를 묻는다.
 
 `.glb` 모델을 로드하는 코드를 넣는 순간부터는 `file://`에서 CORS로 막히므로 정적 서버가 필요하다:

@@ -74,6 +74,10 @@ function createWindow() {
   };
   win.on('leave-full-screen', remember);
   win.on('enter-full-screen', remember);
+  /* 창을 내리면 게임에 알린다 — backgroundThrottling 을 껐더니 Page Visibility 도 늘 '보임'이라 게임이 스스로 알 수 없다 */
+  const vis = v => () => { if (!win.isDestroyed()) win.webContents.send('app:visible', v); };
+  win.on('minimize', vis(false)); win.on('hide', vis(false));
+  win.on('restore', vis(true)); win.on('show', vis(true));
 
   /* 창 닫기(X · Alt+F4 · Cmd+Q · 게임의 '끝내기') — 바로 닫지 않고 게임에 자동 저장을 시킨 뒤 닫는다.
      게임이 섬을 만드는 중이라 답을 못 하면 3초 뒤 그냥 닫는다(그때는 저장할 것도 없다) */

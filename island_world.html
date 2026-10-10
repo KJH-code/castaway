@@ -14025,7 +14025,8 @@ document.getElementById('bOpt').onclick=()=>toggleCfg(true);
 document.getElementById('bCfgX').onclick=()=>toggleCfg(false);
 /* 소리 — 일시정지 · 창을 내리면 멈추고, 계속하면 다시 낸다 */
 function audioPause(on){ if(!A.ctx) return; try{ on?A.ctx.suspend():A.ctx.resume(); }catch(e){} }
-document.addEventListener('visibilitychange',()=>{ if(document.hidden) audioPause(true); else if(!paused) audioPause(false); });
+let winHidden=false;           // 데스크톱 판에서 창을 내렸나(브라우저는 document.hidden 이 알려 준다)
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) audioPause(true); else if(!paused&&!winHidden) audioPause(false); });
 /* 그래픽이 끊기면(드라이버 재시작 · GPU 메모리) 화면이 멈춘다 — 자동 저장해 두고 다시 불러오기를 권한다 */
 cv.addEventListener('webglcontextlost',e=>{
   e.preventDefault();
@@ -14039,6 +14040,7 @@ if(DESK){
   const bq=document.getElementById('bQuit'); bq.style.display='';
   bq.onclick=()=>{ if(!landed){ DESK.quit(); return; }
     ask('끝내겠습니까?','지금까지 한 것은 자동 저장에 남습니다 · Y 예 · N 아니오',()=>DESK.quit()); };
+  if(DESK.onVisible) DESK.onVisible(v=>{ winHidden=!v; if(!v) audioPause(true); else if(!paused&&!document.hidden) audioPause(false); });
   if(DESK.onBeforeClose) DESK.onBeforeClose(()=>{ try{ autoSave(''); }catch(e){} DESK.closeReady(); });
   document.getElementById('deskG').style.display='';
   document.getElementById('bFull').onclick=()=>DESK.fullscreen();
@@ -14206,7 +14208,7 @@ function loop(){
   requestAnimationFrame(loop);
   const now=performance.now();
   /* 창을 내렸으면 그리지 않고, 멈춤 화면 뒤는 초당 10번만 그린다(덮개가 94% 가려 보이지 않는다) — GPU·전기를 아낀다 */
-  if(document.hidden||(paused&&now-lastDraw<100)){ last=now; return; }
+  if(document.hidden||winHidden||(paused&&now-lastDraw<100)){ last=now; return; }
   lastDraw=now;
   const dt=Math.min(0.05,(now-last)/1000); last=now;
 
