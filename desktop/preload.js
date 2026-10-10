@@ -10,4 +10,9 @@ contextBridge.exposeInMainWorld('DESKTOP', {
   openSaves: () => ipcRenderer.send('app:openSaves'),
   fullscreen: () => ipcRenderer.sendSync('app:fullscreen'),
   quit: () => ipcRenderer.send('app:quit'),
+  /* 창을 닫기 직전 — 게임이 자동 저장을 하고 closeReady 로 답한다(3초 안에 안 오면 그냥 닫힌다) */
+  onBeforeClose: fn => { ipcRenderer.on('app:beforeClose', () => fn()); },
+  closeReady: () => ipcRenderer.send('app:closeReady'),
+  /* 새 판이 나왔을 때 — {version, url} */
+  onUpdate: fn => { ipcRenderer.on('app:update', (e, u) => fn({ version: String(u.version), url: String(u.url) })); },
 });

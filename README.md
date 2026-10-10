@@ -11,7 +11,8 @@ island_world.html 을 브라우저로 열면 끝입니다.
 [Actions → 데스크톱 판](https://github.com/KJH-code/castaway/actions/workflows/desktop.yml) 의 가장 최근 실행에서
 `CASTAWAY-windows`(설치판 `…-setup.exe` · 설치 없이 `…-portable.exe`) · `CASTAWAY-mac`(`.dmg`) · `CASTAWAY-linux`(`.AppImage`).
 게임이 바뀔 때마다 새로 묶입니다. 전체 화면으로 뜨고(F11 · Alt+Enter 로 창 ↔ 전체 화면), 저장은 파일입니다
-(Windows `%APPDATA%\CASTAWAY\saves`). 서명하지 않은 실행 파일이라 처음 켤 때
+(Windows `%APPDATA%\CASTAWAY\saves` — 슬롯 셋 + 자동 저장 · 놀이 5분마다와 창을 닫을 때 자동 저장).
+설정(그래픽·음량·마우스 감도)은 다음에 켤 때도 그대로이고, 새 판이 나오면 시작 화면에 알림이 뜹니다. 서명하지 않은 실행 파일이라 처음 켤 때
 Windows 는 "PC 보호" 창에서 **추가 정보 → 실행**, macOS 는 **우클릭 → 열기**를 한 번 눌러야 합니다.
 
 지형은 시드 하나에서 결정론적으로 생성됩니다 — 같은 시드는 언제나 같은 섬이 됩니다.

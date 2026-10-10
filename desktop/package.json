@@ -1,7 +1,7 @@
 {
   "name": "castaway",
   "productName": "CASTAWAY",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "무인도 생존 게임",
   "license": "GPL-3.0",
   "author": "KJH-code",
@@ -19,8 +19,8 @@
     "dist:linux": "electron-builder --linux --publish never"
   },
   "devDependencies": {
-    "electron": "33.2.1",
-    "electron-builder": "25.1.8"
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
   },
   "build": {
     "appId": "io.github.kjhcode.castaway",
@@ -67,7 +67,11 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "shortcutName": "CASTAWAY",
-      "artifactName": "CASTAWAY-${version}-setup.${ext}"
+      "artifactName": "CASTAWAY-${version}-setup.${ext}",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     },
     "portable": {
       "artifactName": "CASTAWAY-${version}-portable.${ext}"

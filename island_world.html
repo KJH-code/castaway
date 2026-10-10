@@ -206,7 +206,14 @@
   #ov .k{font-size:11px;line-height:1.95;text-align:left;max-width:320px}
   #ov .k span{display:inline-block;width:96px;color:var(--dim)}
   #ov button{font-size:12px;letter-spacing:.14em;padding:10px 26px;margin-top:20px;color:var(--acc);border-color:var(--acc)}
-  #ov #bQuit{margin-top:10px;color:var(--dim);border-color:var(--dim)}
+  #ov #bQuit,#ov #bOpt{margin-top:10px;color:var(--dim);border-color:var(--dim)}
+  #ovVer{position:absolute;right:14px;bottom:10px;font-size:10px;color:var(--dim);letter-spacing:.08em}
+  #ovUpd{margin-top:14px;font-size:11px;color:var(--acc);letter-spacing:.06em}
+  /* 설정 창은 일시정지·시작 화면(#ov) 위에도 뜬다 — 상륙 전에 그래픽을 맞출 수 있게 */
+  #cfg{z-index:12;max-height:calc(100vh - 24px);overflow:auto}
+  #cfg .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:var(--ink);font-size:11px;letter-spacing:.12em}
+  #cfg select{width:100%;margin-bottom:5px;background:#0b1314;border:1px solid var(--line);color:var(--ink);font:inherit;font-size:10px;padding:4px}
+  #cfg button:disabled{opacity:.35;cursor:default}
   #bar{width:220px;height:3px;background:#0f1c1a;margin-top:16px}
   #bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .12s}
   /* 숫돌 창 — 위는 숫돌에서 만드는 것, 아래는 수리 */
@@ -353,6 +360,7 @@
 </div>
 
 <div class="pnl" id="cfg">
+  <div class="ch"><b>설정</b><button id="bCfgX">닫기 · Tab</button></div>
   <div class="r"><label>시드</label><input type="text" id="pSeed" value="castaway"></div>
   <div class="r"><label>섬 크기</label><input type="range" id="pSize" min="0.45" max="0.95" step="0.01" value="0.7"><span class="v" id="vSize"></span></div>
   <div class="r"><label>산맥</label><input type="range" id="pRidge" min="0" max="1.4" step="0.02" value="0.85"><span class="v" id="vRidge"></span></div>
@@ -363,6 +371,8 @@
   <div class="r"><label>시야</label><input type="range" id="pFar" min="0.4" max="2.5" step="0.05" value="1"><span class="v" id="vFar"></span></div>
   <div class="r"><label>가지 밀도</label><input type="range" id="pLimb" min="0.25" max="1.6" step="0.05" value="0.8"><span class="v" id="vLimb"></span></div>
   <div class="r"><label>그림자</label><input type="range" id="pShadow" min="0" max="3" step="1" value="2"><span class="v" id="vShadow"></span></div>
+  <div class="r"><label>음량</label><input type="range" id="pVol" min="0" max="1" step="0.05" value="0.9"><span class="v" id="vVol"></span></div>
+  <div class="r"><label>마우스 감도</label><input type="range" id="pSens" min="0.3" max="3" step="0.05" value="1"><span class="v" id="vSens"></span></div>
   <div class="g">
     <button class="p" id="bGen">새 섬</button>
     <button id="bSeed">시드 무작위</button>
@@ -372,11 +382,16 @@
     <button id="bTouch">터치 UI</button>
   </div>
   <div class="g">
+    <select id="pSlot" aria-label="저장 칸"></select>
     <button class="p" id="bSave">저장</button>
     <button id="bLoad">불러오기</button>
     <button id="bSaveF">파일로</button>
     <button id="bLoadF">파일 열기</button>
     <input type="file" id="loadIn" accept="application/json,.json" style="display:none">
+  </div>
+  <div class="g" id="deskG" style="display:none">
+    <button id="bFull">전체 화면 · F11</button>
+    <button id="bDir">저장·기록 폴더</button>
   </div>
 </div>
 
@@ -408,14 +423,18 @@
     <div><span>그물</span>무릎 위까지 잠기는 물에 들어가 좌클릭</div>
     <div><span>1 ~ 5</span>빠른 칸 — 손의 것과 맞바꾼다</div>
     <div><span>Z</span>집 짓기 — 1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽 좌우</div>
-    <div><span>Tab</span>생성 설정 · R 새 섬(짓기 중엔 방향) · F3 진단</div>
-    <div><span>F5 / F9</span>저장 · 불러오기 (F9 은 묻고 나서 불러온다)</div>
+    <div><span>Tab</span>설정 — 그래픽·음량·마우스 감도·저장 칸·섬 생성 · F3 진단</div>
+    <div><span>R</span>새 섬(묻고 나서 · 짓기 중엔 방향)</div>
+    <div><span>F5 / F9</span>고른 칸에 저장 · 불러오기 (F9 은 묻고 나서) · 놀이 5분마다 자동 저장</div>
     <div><span>T</span>시간 가속 · Esc 일시정지</div>
   </div>
   <button id="bStart">상륙</button>
+  <button id="bOpt">설정</button>
   <button id="bQuit" style="display:none">끝내기</button>
   <div id="bar"><i id="barF"></i></div>
   <div id="ovLoad"></div>
+  <a id="ovUpd" target="_blank" rel="noopener" style="display:none"></a>
+  <div id="ovVer"></div>
 </div>
 
 <div class="pnl" id="gws">
@@ -12915,6 +12934,7 @@ function updatePlayer(dt){
    매번 주파수와 시작 위치를 흔들어 같은 소리가 두 번 나지 않게 한다.
    ========================================================================== */
 const A={ctx:null, noise:null, master:null};
+let VOL=0.9, SENS=1;            // 음량 · 마우스 감도 — 설정 창(applySettings)이 채운다
 function initAudio(){
   if(A.ctx) return;
   try{
@@ -12924,7 +12944,7 @@ function initAudio(){
     const d=A.noise.getChannelData(0);
     for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
     A.master=A.ctx.createGain();
-    A.master.gain.value=0.9;
+    A.master.gain.value=VOL;
     A.master.connect(A.ctx.destination);
   }catch(e){}
 }
@@ -13421,6 +13441,7 @@ const phase=(t,p)=>new Promise(r=>{
 let busy=false;
 async function generateWorld(){
   if(busy) return; busy=true;
+  landed=false; autoT=0;                // 새 섬 · 불러오기 — 상륙할 때까지는 자동 저장할 것이 없다
   try{
   document.getElementById('ov').style.display='flex';
   document.getElementById('bStart').style.display='none';
@@ -13662,9 +13683,9 @@ async function restore(d){
    불러오기는 지금 하던 판을 덮어쓴다. 되돌릴 수 없으므로 한 번 묻는다.
    Y·Enter 가 예, N·Esc 가 아니오다. 상자가 떠 있는 동안에는 다른 키가 게임에
    닿지 않도록 캡처 단계에서 가로챈다. */
-let askOpen=false, askYes=null;
-function ask(title,sub,onYes){
-  askOpen=true; askYes=onYes;
+let askOpen=false, askYes=null, askNo=null;
+function ask(title,sub,onYes,onNo){
+  askOpen=true; askYes=onYes; askNo=onNo||null;
   for(const k of Object.keys(keys)) keys[k]=false;   // 눌린 채로 멈추지 않게
   document.getElementById('askT').textContent=title;
   document.getElementById('askS').textContent=sub||'';
@@ -13675,8 +13696,8 @@ function askClose(yes){
   if(!askOpen) return;
   askOpen=false;
   document.getElementById('ask').style.display='none';
-  const fn=askYes; askYes=null;
-  if(yes&&fn) fn();
+  const fn=yes?askYes:askNo; askYes=askNo=null;
+  if(fn) fn();
 }
 window.addEventListener('keydown',e=>{
   if(!askOpen) return;
@@ -13685,45 +13706,94 @@ window.addEventListener('keydown',e=>{
   else if(e.code==='KeyN'||e.code==='Escape') askClose(false);
 },true);
 
-/* 저장 슬롯. 브라우저에서는 브라우저 저장소(localStorage), 데스크톱 판(desktop/ — Electron)에서는
-   파일이다 — window.DESKTOP 이 있으면 userData/saves/slot1.json(Windows %APPDATA%\CASTAWAY\saves).
+/* 저장 칸 — 슬롯 1~3 은 사람이 고른다(설정 창 · F5 저장 · F9 불러오기). 자동 저장(auto)은 게임이 쓴다 — 놀이 5분마다 ·
+   새 섬을 만들기 전 · 그래픽이 끊겼을 때 · 데스크톱 판은 창을 닫을 때도. 불러오기는 넷 다 된다.
+   브라우저에서는 브라우저 저장소(localStorage — 슬롯 1 은 예전 키 castaway.save1 그대로), 데스크톱 판(desktop/ — Electron)에서는
+   파일이다 — window.DESKTOP 이 있으면 userData/saves/slot1~3.json · auto.json(Windows %APPDATA%\CASTAWAY\saves).
    파일 저장/열기는 어디서나 동작한다. */
-const SKEY='castaway.save1', DESK=window.DESKTOP||null, DSLOT='slot1';
-const slotHas=()=>DESK?DESK.saveHas(DSLOT):!!localStorage.getItem(SKEY);
-const slotGet=()=>DESK?DESK.saveRead(DSLOT):localStorage.getItem(SKEY);
-function slotPut(text){ if(!DESK){ localStorage.setItem(SKEY,text); return; }
-  const r=DESK.saveWrite(DSLOT,text); if(!r||!r.ok) throw new Error((r&&r.error)||'파일에 못 썼습니다'); }
-const hasSave=()=>{ try{ return slotHas(); }catch(e){ return false; } };
+const DESK=window.DESKTOP||null;
+const SLOTS=['1','2','3','auto'];
+const slotKey=s=>s==='auto'?'castaway.auto':'castaway.save'+s;      // 브라우저 저장소 키
+const slotFile=s=>s==='auto'?'auto':'slot'+s;                        // 데스크톱 판 파일 이름
+const slotName=s=>s==='auto'?'자동 저장':'슬롯 '+s;
+let curSlot='1', landed=false, autoT=0;            // 고른 칸 · 한 번이라도 상륙했나(저장할 것이 있나) · 자동 저장까지 센 시간
+const AUTO_EVERY=300;                              // 놀이 5분마다(멈춘 동안은 안 센다)
+function slotHas(s){ try{ return DESK?!!DESK.saveHas(slotFile(s)):!!localStorage.getItem(slotKey(s)); }catch(e){ return false; } }
+function slotGet(s){ return DESK?DESK.saveRead(slotFile(s)):localStorage.getItem(slotKey(s)); }
+function slotPut(s,text){
+  if(!DESK) localStorage.setItem(slotKey(s),text);
+  else { const r=DESK.saveWrite(slotFile(s),text); if(!r||!r.ok) throw new Error((r&&r.error)||'파일에 못 썼습니다'); }
+  delete SLOT_META[s]; drawSlots();
+}
+/* 칸마다 언제 · 며칠째 — 고르는 목록과 '불러오겠습니까' 물음에 쓴다. 한 번 읽으면 그 칸에 다시 쓸 때까지 기억한다.
+   저장의 at 은 UTC 라(toISOString) Z 를 붙여 읽고 이 컴퓨터 시각으로 보인다 */
+const SLOT_META={};
+function slotMeta(s){
+  if(s in SLOT_META) return SLOT_META[s];
+  let m=null;
+  try{ const raw=slotGet(s); if(raw){ const d=JSON.parse(raw);
+    m={ms:Date.parse(String(d.at||'').replace(' ','T')+'Z')||0, day:Math.floor(((d.t&&d.t.gh)||0)/24)+1, at:d.at||''}; } }catch(e){ m=null; }
+  return SLOT_META[s]=m;
+}
+function slotLabel(s){
+  const m=slotMeta(s); if(!m) return slotName(s)+' — 비어 있음';
+  const t=m.ms?new Date(m.ms):null, two=n=>String(n).padStart(2,'0');
+  return slotName(s)+' — '+m.day+'일째 · '+(t?(t.getMonth()+1)+'/'+t.getDate()+' '+two(t.getHours())+':'+two(t.getMinutes()):m.at);
+}
+function drawSlots(){
+  const el=document.getElementById('pSlot'); if(!el) return;
+  el.innerHTML=SLOTS.map(s=>'<option value="'+s+'">'+slotLabel(s)+(s==='auto'?' (불러오기만)':'')+'</option>').join('');
+  el.value=curSlot;
+  document.getElementById('bSave').disabled=curSlot==='auto';
+}
 function saveLocal(){
+  if(curSlot==='auto'){ toast('자동 저장 칸에는 직접 저장하지 않습니다 — 슬롯 1~3 을 고르세요'); return false; }
   try{
-    slotPut(JSON.stringify(snapshot()));
-    toast('저장했습니다'); return true;
+    slotPut(curSlot,JSON.stringify(snapshot()));
+    toast(slotName(curSlot)+'에 저장했습니다'); return true;
   }catch(e){ showErr('저장',e); toast('저장 실패 — 파일로 저장을 쓰세요'); return false; }
 }
-async function loadLocal(){                      // 묻지 않고 바로 — 안쪽 일꾼
+/* 자동 저장 — 상륙해서 노는 동안만(섬을 만드는 중 · 죽은 채로는 안 한다). why 가 있으면 잠깐 알린다 */
+function autoSave(why){
+  autoT=0;
+  if(!landed||busy||PL.dead) return false;
+  try{ slotPut('auto',JSON.stringify(snapshot())); if(why) toast('자동 저장 — '+why); return true; }
+  catch(e){ console.error('[자동 저장]',e); return false; }
+}
+async function loadSlot(s){                      // 묻지 않고 바로 — 안쪽 일꾼
   try{
-    const raw=slotGet();
-    if(!raw){ toast('저장된 기록이 없습니다'); return; }
+    const raw=slotGet(s);
+    if(!raw){ toast('저장된 기록이 없습니다 — '+slotName(s)); return; }
     await restore(JSON.parse(raw));
   }catch(e){ showErr('불러오기',e); }
 }
 /* 사람이 부르는 쪽 — 한 번 묻고 나서 불러온다. */
-function askLoad(){
+function askLoad(s){
+  s=s||curSlot;
   if(askOpen) return;
-  if(!hasSave()){ toast('저장된 기록이 없습니다'); return; }
-  ask('이전에 저장된 데이터를 불러오겠습니까?',
-      '지금 하던 것은 사라집니다 · Y 예 · N 아니오',
-      ()=>{ loadLocal(); });
+  if(!slotHas(s)){ toast('저장된 기록이 없습니다 — '+slotName(s)); return; }
+  ask('이 저장을 불러오겠습니까?', slotLabel(s)+' · 지금 하던 것은 사라집니다 · Y 예 · N 아니오',
+      ()=>{ loadSlot(s); });
 }
-/* 섬이 다 만들어진 뒤 한 번만 — 저장된 것이 있으면 먼저 물어본다.
-   아니오를 고르면 다시 묻지 않는다. 그때부터는 F9 이 불러오는 길이다. */
+/* 섬이 다 만들어진 뒤 한 번만 — 가장 최근 저장(자동 저장 포함)을 불러오겠냐고 먼저 물어본다.
+   아니오를 고르면 다시 묻지 않는다. 그때부터는 F9 · 설정 창이 불러오는 길이다. */
 let askedOnce=false;
 function offerLoadOnStart(){
-  if(askedOnce||!hasSave()) return;
+  if(askedOnce) return;
+  let best=null;
+  for(const s of SLOTS){ const m=slotMeta(s); if(m&&(!best||m.ms>best.m.ms)) best={s,m}; }
+  if(!best) return;
   askedOnce=true;
   ask('이전에 저장된 데이터를 불러오겠습니까?',
-      '아니오를 고르면 새로 시작합니다 · 나중에 F9 으로 불러올 수 있습니다',
-      ()=>{ loadLocal(); });
+      slotLabel(best.s)+' · 아니오를 고르면 새로 시작합니다 · 나중에 F9 으로 불러올 수 있습니다',
+      ()=>{ if(best.s!=='auto'){ curSlot=best.s; SET.slot=curSlot; saveSettings(); drawSlots(); } loadSlot(best.s); });
+}
+/* 새 섬은 지금 섬을 버린다 — 상륙했으면 한 번 묻고 자동 저장에 남긴 뒤 만든다(예전엔 R 한 번에 그냥 사라졌다) */
+function newIsland(go,cancel){
+  if(busy||askOpen){ if(cancel) cancel(); return; }
+  if(!landed){ go(); return; }
+  ask('새 섬을 만들겠습니까?','지금 섬은 자동 저장에 남깁니다(다음 자동 저장이 덮어씁니다) · Y 예 · N 아니오',
+      ()=>{ autoSave('새 섬을 만들기 전'); go(); }, cancel);
 }
 function saveFile(){
   try{
@@ -13842,7 +13912,7 @@ addEventListener('keydown',e=>{
     toast('시간 '+timeScale+'배 — 하루가 '+(24*60/timeScale).toFixed(0)+'초');
   }
   if(e.code==='KeyR'&&BUILD.on){ buildRotate(1); return; }   // 짓기 중엔 방향 돌리기
-  if(e.code==='KeyR'){ generateWorld(); }
+  if(e.code==='KeyR'){ newIsland(generateWorld); }
   if(e.code==='KeyZ'){                         // 짓기 모드
     if(BUILD.on){ exitBuild(); toast('짓기 끝'); }
     else enterBuild(null);
@@ -13851,16 +13921,7 @@ addEventListener('keydown',e=>{
     const w=equippedWeapon(), W=w&&ITEMS[w.id].tool;
     if(w&&W.gun&&RELOAD.t<=0) startReload(w,W);
   }
-  if(e.code==='Tab'){
-    e.preventDefault();
-    cfgOpen=!cfgOpen;
-    document.getElementById('cfg').style.display=cfgOpen?'block':'none';
-    if(cfgOpen){ invOpen=craftOpen=dexOpen=false;
-      document.getElementById('inv').style.display='none';
-      document.getElementById('crf').style.display='none';
-      document.getElementById('dex').style.display='none'; }
-    syncLock();
-  }
+  if(e.code==='Tab'){ e.preventDefault(); toggleCfg(); }
 });
 addEventListener('keyup',e=>{ keys[e.code]=false; });   // E 는 이제 열린 창 닫기만 — 여는 것은 좌클릭(releaseE)
 /* 좌클릭을 짧게 눌렀다 떼면 눈앞의 용기·문짝·숫돌·발전기를 다룬다(사용자 요청 — 예전엔 E). 길게 누른 것은 화덕을 다룬 것이므로
@@ -13889,7 +13950,7 @@ addEventListener('mousemove',e=>{
     return;
   }
   if(document.pointerLockElement!==cv) return;
-  const ms=0.0022*(PL.aimMul||1);                // 조준경을 들여다보면 둔해진다
+  const ms=0.0022*SENS*(PL.aimMul||1);           // 감도(설정) · 조준경을 들여다보면 둔해진다
   PL.yaw-=e.movementX*ms;
   PL.pitch=clamp(PL.pitch-e.movementY*ms,-1.5,1.5);
 });
@@ -13935,26 +13996,57 @@ function syncLock(){
   }
 }
 function pause(){
-  paused=true;
+  paused=true; audioPause(true);
   const ov=document.getElementById('ov');
   ov.querySelector('h1').textContent='일시정지';
   ov.querySelector('.s').textContent='시드 '+P.seed+' · '+BIOME_INFO[sampleAt(PL.pos.x,PL.pos.z).biome].n;
   document.getElementById('bStart').textContent='계속';
   ov.style.display='flex';
 }
-let landed=false;                                  // 한 번이라도 상륙했나 — 끝낼 때 저장할 것이 있나
 function start(){
   landed=true;
   if(PL.dead) revivePL();
-  paused=false; initAudio();
+  paused=false; initAudio(); audioPause(false);
   document.getElementById('ov').style.display='none';
   if(!flyMode&&hasMouse) cv.requestPointerLock();
 }
 document.getElementById('bStart').onclick=start;
-/* 데스크톱 판만 — 끝내기(상륙 전이면 바로, 상륙했으면 저장하고). 브라우저 탭은 스스로 닫을 수 없다 */
-if(DESK){ const bq=document.getElementById('bQuit'); bq.style.display='';
+/* 설정 창 — Tab · 시작/일시정지 화면의 '설정' · 창의 '닫기'. 시작 화면 위에도 떠서 상륙 전에 그래픽을 맞출 수 있다 */
+function toggleCfg(on){
+  cfgOpen=on===undefined?!cfgOpen:!!on;
+  document.getElementById('cfg').style.display=cfgOpen?'block':'none';
+  if(cfgOpen){ invOpen=craftOpen=dexOpen=false;
+    document.getElementById('inv').style.display='none';
+    document.getElementById('crf').style.display='none';
+    document.getElementById('dex').style.display='none'; drawSlots(); }
+  syncLock();
+}
+document.getElementById('bOpt').onclick=()=>toggleCfg(true);
+document.getElementById('bCfgX').onclick=()=>toggleCfg(false);
+/* 소리 — 일시정지 · 창을 내리면 멈추고, 계속하면 다시 낸다 */
+function audioPause(on){ if(!A.ctx) return; try{ on?A.ctx.suspend():A.ctx.resume(); }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) audioPause(true); else if(!paused) audioPause(false); });
+/* 그래픽이 끊기면(드라이버 재시작 · GPU 메모리) 화면이 멈춘다 — 자동 저장해 두고 다시 불러오기를 권한다 */
+cv.addEventListener('webglcontextlost',e=>{
+  e.preventDefault();
+  const ok=autoSave('');
+  ask('그래픽이 끊겼습니다',(ok?'자동 저장해 두었습니다 — ':'')+'다시 불러오면 시작 화면에서 이어서 할 수 있습니다 · Y 다시 불러오기 · N 그대로',
+      ()=>location.reload());
+});
+/* 데스크톱 판만 — 끝내기 · 창 닫기(X · Alt+F4 · Cmd+Q) 때 자동 저장 · 전체 화면 · 저장 폴더 · 판 번호 · 새 판 알림.
+   브라우저 탭은 스스로 닫을 수 없어 끝내기가 없다 */
+if(DESK){
+  const bq=document.getElementById('bQuit'); bq.style.display='';
   bq.onclick=()=>{ if(!landed){ DESK.quit(); return; }
-    ask('저장하고 끝내겠습니까?','슬롯에 저장한 뒤 창을 닫습니다 · Y 예 · N 아니오',()=>{ if(saveLocal()) setTimeout(()=>DESK.quit(),250); }); }; }
+    ask('끝내겠습니까?','지금까지 한 것은 자동 저장에 남습니다 · Y 예 · N 아니오',()=>DESK.quit()); };
+  if(DESK.onBeforeClose) DESK.onBeforeClose(()=>{ try{ autoSave(''); }catch(e){} DESK.closeReady(); });
+  document.getElementById('deskG').style.display='';
+  document.getElementById('bFull').onclick=()=>DESK.fullscreen();
+  document.getElementById('bDir').onclick=()=>DESK.openSaves();
+  try{ document.getElementById('ovVer').textContent='v'+DESK.info().version; }catch(e){}
+  if(DESK.onUpdate) DESK.onUpdate(u=>{ const a=document.getElementById('ovUpd');
+    a.href=u.url; a.textContent='새 판 v'+u.version+' 이 나왔습니다 — 받기'; a.style.display=''; });
+}
 
 /* 터치 조작 */
 let stickId=null,lookId=null,lastL={x:0,y:0},tmv={x:0,y:0};
@@ -14042,16 +14134,44 @@ document.getElementById('pLimb').addEventListener('input',e=>{
   document.getElementById('vLimb').textContent=P.limb.toFixed(2);
 });
 document.getElementById('vLimb').textContent=P.limb.toFixed(2);
+document.getElementById('pVol').addEventListener('input',e=>{
+  VOL=parseFloat(e.target.value); if(A.master) A.master.gain.value=VOL;
+  document.getElementById('vVol').textContent=Math.round(VOL*100)+'%';
+});
+document.getElementById('vVol').textContent=Math.round(VOL*100)+'%';
+document.getElementById('pSens').addEventListener('input',e=>{
+  SENS=parseFloat(e.target.value); document.getElementById('vSens').textContent=SENS.toFixed(2);
+});
+document.getElementById('vSens').textContent=SENS.toFixed(2);
+document.getElementById('pSlot').addEventListener('change',e=>{
+  curSlot=e.target.value; document.getElementById('bSave').disabled=curSlot==='auto';
+  if(curSlot!=='auto'){ SET.slot=curSlot; saveSettings(); }
+});
+/* 설정은 다음에 켤 때도 그대로 — 그래픽(해상도·시야·그림자·가지 밀도) · 음량 · 마우스 감도 · 고른 저장 칸.
+   브라우저 저장소에 둔다(데스크톱 판도 같은 저장소가 userData 에 남는다). 섬 모양(시드·크기…)은 저장 파일이 가진다.
+   손으로 바꿀 때(change)만 적는다 — 불러올 때 맞추는 input 은 다시 적지 않는다 */
+const SET_KEY='castaway.settings';
+const SET={res:1, far:1, shadow:2, limb:0.8, vol:0.9, sens:1, slot:'1'};
+function saveSettings(){ try{ localStorage.setItem(SET_KEY,JSON.stringify(SET)); }catch(e){} }
+for(const [id,k] of [['pRes','res'],['pFar','far'],['pShadow','shadow'],['pLimb','limb'],['pVol','vol'],['pSens','sens']])
+  document.getElementById(id).addEventListener('change',e=>{ SET[k]=parseFloat(e.target.value); saveSettings(); });
+function applySettings(){
+  try{ const o=JSON.parse(localStorage.getItem(SET_KEY)||'{}'); for(const k in SET) if(k in o) SET[k]=o[k]; }catch(e){}
+  const put=(id,v)=>{ const el=document.getElementById(id); if(!el||typeof v!=='number'||!isFinite(v)) return;
+    el.value=v; el.dispatchEvent(new Event('input')); };
+  put('pRes',SET.res); put('pFar',SET.far); put('pShadow',SET.shadow); put('pLimb',SET.limb); put('pVol',SET.vol); put('pSens',SET.sens);
+  curSlot=(SET.slot==='2'||SET.slot==='3')?SET.slot:'1'; drawSlots();
+}
 document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.value);
 /* 검색칸 — 글자를 칠 때마다 목록을 다시 그린다 */
 document.getElementById('crfS').addEventListener('input',e=>{
   craftQuery=e.target.value; craftDirty=true; drawCraft();
 });
-document.getElementById('bGen').onclick=generateWorld;
+document.getElementById('bGen').onclick=()=>newIsland(generateWorld);
 document.getElementById('bSeed').onclick=()=>{
   const w=['tide','ashen','vireo','kelp','marrow','glass','hollow','ember','driftwood','saltgrave'];
   const s=w[(Math.random()*w.length)|0]+'-'+((Math.random()*9000+1000)|0);
-  document.getElementById('pSeed').value=s; P.seed=s; generateWorld();
+  newIsland(()=>{ document.getElementById('pSeed').value=s; P.seed=s; generateWorld(); });
 };
 const tgl=(id,fn)=>{ const b=document.getElementById(id);
   b.onclick=()=>{ b.classList.toggle('on'); fn(b.classList.contains('on')); }; };
@@ -14062,7 +14182,7 @@ document.getElementById('dexM').onclick=()=>{ dexTab='mineral';
   document.getElementById('dexM').classList.add('on');
   document.getElementById('dexI').classList.remove('on'); drawDex(); };
 tgl('bProps',v=>{ showProps=v; if(propGroup) propGroup.visible=v; });
-tgl('bGuar',v=>{ GUARANTEE=v; generateWorld(); });
+tgl('bGuar',v=>{ newIsland(()=>{ GUARANTEE=v; generateWorld(); },()=>document.getElementById('bGuar').classList.toggle('on',!v)); });
 tgl('bFly',v=>{ flyMode=v; if(v&&document.pointerLockElement) document.exitPointerLock(); });
 tgl('bTouch',v=>setTouchUI(v));
 document.getElementById('bSave').onclick=saveLocal;
@@ -14081,10 +14201,13 @@ document.getElementById('loadIn').addEventListener('change',e=>{
 if(touchOnly) document.getElementById('bTouch').classList.add('on');
 
 /* ---------------- 메인 루프 ---------------- */
-let last=performance.now(), mapT=0;
+let last=performance.now(), mapT=0, lastDraw=0;
 function loop(){
   requestAnimationFrame(loop);
   const now=performance.now();
+  /* 창을 내렸으면 그리지 않고, 멈춤 화면 뒤는 초당 10번만 그린다(덮개가 94% 가려 보이지 않는다) — GPU·전기를 아낀다 */
+  if(document.hidden||(paused&&now-lastDraw<100)){ last=now; return; }
+  lastDraw=now;
   const dt=Math.min(0.05,(now-last)/1000); last=now;
 
   if(!paused&&!busy) try{
@@ -14120,6 +14243,7 @@ function loop(){
       updatePlayer(dt);
     }
     updateTileVis();            // 150 m 밖의 나무 칸을 끈다
+    if(landed&&!PL.dead){ autoT+=dt; if(autoT>=AUTO_EVERY) autoSave('놀이 5분'); }
     updateHUD(dt);
     drawCompass();
     mapT+=dt; if(mapT>0.12){ mapT=0; drawMap(); }
@@ -14128,6 +14252,7 @@ function loop(){
 }
 
 initThree();
+applySettings();
 generateWorld();
 loop();
 </script>

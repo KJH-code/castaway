@@ -6,7 +6,7 @@
 
 - Three.js r128을 레포 안의 `three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
-- **데스크톱 판은 `desktop/`**(Electron 33 · electron-builder) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
+- **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
 - 게임 전체가 `island_world.html` 한 파일(6,680줄) 안에 있다. 모듈 분할되어 있지 않다
 - 라이선스 GPL-3.0
 
@@ -34,14 +34,44 @@ npx electron-builder --linux               # 묶기 — dist/ (--win · --mac �
   `v*` 태그를 밀면 Releases 에도 붙인다. 레포가 공개라 러너 시간은 공짜다. **서명은 없다**(Windows SmartScreen · macOS Gatekeeper 경고).
 - **`main.js` 가 더하는 것**: 전체 화면으로 시작(F11 · Alt+Enter — 상태는 `userData/window.json` 에 기억) · 메뉴 줄 없음(그래서
   Ctrl+R 새로 고침 같은 브라우저 단축키가 없다 — **F5 는 게임의 저장**이다) · 바깥 주소는 기본 브라우저로 · 한 번만 켜짐 ·
-  GPU 차단 목록 무시(`ignore-gpu-blocklist`) · 외장 GPU 우선 · 창이 가려져도 안 멈춤(`backgroundThrottling:false`).
-- **게임이 아는 것은 `window.DESKTOP` 하나다**(`preload.js` — `saveHas/saveRead/saveWrite/info/openSaves/fullscreen/quit`, 동기 IPC).
-  `island_world.html` 의 `DESK` 가 있으면 **저장 슬롯이 파일**(`userData/saves/slot1.json` · Windows `%APPDATA%\CASTAWAY\saves` —
-  임시 파일에 쓰고 바꿔 끼우며 바로 앞 것은 `.bak`), 없으면 예전처럼 `localStorage`(`slotHas/slotGet/slotPut`). 슬롯 이름은 `[a-z0-9._-]` 만 받는다.
-  일시정지 화면에 **끝내기**(`#bQuit` — 데스크톱 판에서만 보인다 · 상륙 전이면 바로, 상륙했으면 '저장하고 끝내겠습니까?' 뒤 저장하고 닫는다).
+  GPU 차단 목록 무시(`ignore-gpu-blocklist`) · 외장 GPU 우선 · 창이 가려져도 안 멈춤(`backgroundThrottling:false` — 대신 게임이 멈춤·내림 때 스스로 아낀다) ·
+  창 제목은 늘 'CASTAWAY'(`page-title-updated` 막음).
+  **창 닫기 보호** — X · Alt+F4 · Cmd+Q · 게임의 '끝내기' 모두 `close` 를 한 번 막고 게임에 `app:beforeClose` 를 보낸다. 게임이 자동 저장한 뒤
+  `app:closeReady` 로 답하면 닫는다(3초 안에 답이 없으면 그냥 닫는다 — 섬을 만드는 중이면 저장할 것도 없다).
+  **화면 프로세스가 죽으면**(`render-process-gone`) '다시 켜기/끝내기' 를 묻고 다시 불러온다 — 시작 화면이 마지막 자동 저장을 불러오겠냐고 묻는다.
+  **기록** — `userData/logs/castaway.log`(1 MB 넘으면 `.old.log`): 시작 판·GPU 상태 · 게임 화면의 경고·오류(`console-message` — Electron 35 부터 인자가 이벤트 하나다) ·
+  죽음·응답 없음 · 저장 실패. **권한은 포인터 잠금·전체 화면만**(`setPermissionRequestHandler`/`CheckHandler`) · webview 막음.
+  **새 판 알림** — 묶은 판만, 켜고 8초 뒤 GitHub `releases/latest` 를 보고 지금보다 높으면 시작 화면에 '받기' 고리(`#ovUpd`). 오프라인이면 조용히 넘어간다.
+  서명이 없어 자동 설치는 안 한다(macOS 는 서명 없이 자동 갱신이 안 된다). 개발판에서 시험하려면 `CASTAWAY_UPDATE=1`.
+  NSIS: 바탕 화면·시작 메뉴 바로가기 · 설치 끝나면 실행 · **지워도 저장(userData)은 남긴다**.
+- **게임이 아는 것은 `window.DESKTOP` 하나다**(`preload.js` — `saveHas/saveRead/saveWrite/info/openSaves/fullscreen/quit/onBeforeClose/closeReady/onUpdate`, 저장은 동기 IPC).
+  `island_world.html` 의 `DESK` 가 있으면 **저장 칸이 파일**(`userData/saves/slot1~3.json` · `auto.json` · Windows `%APPDATA%\CASTAWAY\saves` —
+  임시 파일에 쓰고 바꿔 끼우며 바로 앞 것은 `.bak`), 없으면 `localStorage`(`castaway.save1~3` · `castaway.auto` — 슬롯 1 은 예전 키 그대로). 슬롯 이름은 `[a-z0-9._-]` 만 받는다.
+  데스크톱 판에서만 보이는 것: 일시정지 화면의 **끝내기**(`#bQuit` — 상륙 전이면 바로, 상륙했으면 묻고 닫기 길(자동 저장)을 탄다) · 설정 창의 '전체 화면'·'저장·기록 폴더'(`#deskG` — userData 를 연다) ·
+  시작 화면 오른쪽 아래 판 번호(`#ovVer`).
 - **시험**: playwright 의 `_electron.launch` 로 xvfb 에서 띄운다(`xvfb-run -a node 시험.cjs`). 소프트웨어 GL 이라 섬 생성이 약 2분이고,
   `page.screenshot` 은 시간 초과가 난다 — 주 프로세스의 `webContents.capturePage()` 로 찍을 것.
 - 루트 `.gitignore` 가 `package.json` 을 무시한다(CI 가 맨 위에 playwright 를 깐다) — `desktop/` 것만 `!` 로 살려 두었다.
+- **Electron 36 쯤부터 `npm install` 이 바이너리를 바로 받지 않는다** — `node_modules/electron/dist` 가 없으면 `node node_modules/electron/install.js`.
+  묶기(electron-builder)는 제 캐시로 따로 받으므로 CI 는 상관없다. 엔진 조건 node ≥ 22.12.
+
+### 저장 · 설정 · 멈춤(브라우저 판과 데스크톱 판 공통)
+
+- **저장 칸 넷** — 슬롯 1~3(사람이 고름 · 설정 창 `#pSlot` · F5 저장 · F9 불러오기) + **자동 저장**(`auto` · 불러오기만 — 고르면 '저장' 단추가 꺼진다).
+  `slotHas/slotGet/slotPut(칸, 글)` · 이름표는 `slotLabel` — '슬롯 1 — 3일째 · 10/10 14:22'(저장의 `at` 은 UTC 라 Z 를 붙여 읽는다 · 칸마다 `SLOT_META` 에 기억, 쓰면 지운다).
+  **자동 저장(`autoSave(why)`)** — 상륙해서 노는 동안 5분마다(`AUTO_EVERY` 300 · 멈춘 동안은 안 셈 · `autoT`) · 새 섬을 만들기 전 · 그래픽이 끊겼을 때 · 데스크톱 판 창 닫기.
+  상륙 전(`landed` — `generateWorld` 가 false 로 되돌린다) · 섬을 만드는 중(`busy`) · 죽은 채로는 안 한다.
+  **시작할 때 가장 최근 저장**(네 칸 중 `at` 이 가장 늦은 것 · 자동 저장 포함)을 불러오겠냐고 묻는다(`offerLoadOnStart`).
+- **새 섬은 묻고 나서**(`newIsland(go,cancel)`) — R · '새 섬' · '시드 무작위' · '자원 보장' 모두. 상륙했으면 '새 섬을 만들겠습니까?' 뒤 자동 저장에 남기고 만든다.
+  **예전엔 R 한 번에 하던 섬이 저장도 없이 사라졌다.** 묻는 상자 `ask(제목, 설명, 예, 아니오)` 는 이제 '아니오' 갈래도 받는다.
+- **설정은 다음에 켤 때도 그대로**(`SET` · `castaway.settings` — 해상도·시야·그림자·가지 밀도·음량·마우스 감도·고른 칸). `applySettings()` 를
+  `initThree()` 와 `generateWorld()` 사이에서 부른다 — 가지 밀도(`P.limb`)는 섬을 만들 때 쓰이므로 먼저 맞춰야 한다. 슬라이더에 값을 넣고 `input` 을
+  쏴서 원래 처리기를 그대로 탄다. 적는 것은 손으로 바꾼 `change` 때뿐이다. **섬 모양(시드·크기…)은 설정이 아니라 저장 파일이 가진다.**
+  음량 `VOL`(마스터 이득) · 마우스 감도 `SENS`(시점 회전에 곱함).
+- **설정 창은 시작·일시정지 화면 위에도 뜬다**(`#cfg` z-index 12 · `#ov` 10 · 묻는 상자 60) — 화면의 '설정' 단추(`#bOpt`) · Tab · 창의 '닫기'(`toggleCfg`).
+- **멈춤 중엔 아낀다** — 일시정지·시작 화면이면 초당 10번만 그리고(덮개가 94% 가린다), 창을 내리면(`document.hidden`) 아예 안 그린다(`loop` 맨 앞).
+  소리도 일시정지·창 내림 때 멈추고(`audioPause` — `AudioContext.suspend`) 계속하면 다시 낸다.
+- **그래픽이 끊기면**(`webglcontextlost` — 드라이버 재시작·GPU 메모리) 자동 저장해 두고 다시 불러오기를 묻는다.
 
 `.glb` 모델을 로드하는 코드를 넣는 순간부터는 `file://`에서 CORS로 막히므로 정적 서버가 필요하다:
 
