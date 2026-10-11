@@ -11821,7 +11821,7 @@ function gScaleGeo(kind){                // 폭 1 · 머리 y 0 → 끝 y -1 · 
   const lam=kind==='lam', hw=gScaleHW(kind==='dropL'?'drop':kind), blade=kind==='blade', lo=kind==='dropL';
   let geo;
   if(blade){ geo=new THREE.BoxGeometry(1,1,0.22,1,3,1); geo.translate(0,-0.5,0); }
-  else geo=gSurf(lo?3:5,lo?4:7,(u,v,o)=>{ const xn=(u-0.5)*2, w=hw(v); let y=-v; if(lam) y+=0.1*xn*xn*smoothstep(0.75,1,v);
+  else geo=gSurf(lo?2:5,lo?3:7,(u,v,o)=>{ const xn=(u-0.5)*2, w=hw(v); let y=-v; if(lam) y+=0.1*xn*xn*smoothstep(0.75,1,v);
     const z=(lam?0.16:0.12)*(1-xn*xn)*smoothstep(-0.05,0.4,v)+(lam?0.035:0.03)*Math.exp(-Math.pow(xn/0.18,2))*smoothstep(0.1,0.6,v)+0.05*v*v;
     return o.set(xn*w,y,z); });
   geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count*3).fill(1),3));
@@ -11986,6 +11986,7 @@ function gSentPiece(grp,name,mat,scale){
 }
 /* 곡면 식이 없는 모형 겉에 비늘을 단다 — 넓이에 비례해 점을 뽑고(서로 d 안이면 버림), 바깥을 향한 면에만
    면 법선으로 세운다. 위쪽은 세계 +y(눕힌 면이면 바깥쪽)로 잡아 끝이 아래로 늘어지게 한다 */
+const SCALE_FILL_R=0.7;
 function gScalesOnMesh(G,mat,sgeo,d,seed){
   const P=G.attributes.position, I=G.index.array, rn=mulberry32(seed), A=new THREE.Vector3(), B=new THREE.Vector3(), C=new THREE.Vector3(), N=new THREE.Vector3();
   const cen=G.boundingBox.getCenter(new THREE.Vector3()), tri=[], cum=[]; let tot=0;
@@ -12023,26 +12024,34 @@ function gScalesOnMesh(G,mat,sgeo,d,seed){
     const out=new THREE.Vector3(Math.sin(th),0,Math.cos(th)), N=out.multiplyScalar(0.75).addScaledVector(Nn,0.25).normalize(); return [q.addScaledVector(N,0.006),N]; });
   /* 구멍 메우기 — 겉을 촘촘히 훑어, 둘레 0.85d 안에 비늘이 없는 점마다 비늘을 하나 더 세운다(줄 칸이 못 잡은 겹친 겉·오목한 데·손).
      이 점 자리에 세운 비늘도 다음 점을 덮으므로 빈자리가 남지 않을 때까지 한 번에 메워진다 */
-  { const hd=d*0.35, H=new Map(), hk=(x,y,z)=>x+','+y+','+z, ins=p=>{ const k=hk(Math.floor(p.x/hd),Math.floor(p.y/hd),Math.floor(p.z/hd)); (H.get(k)||H.set(k,[]).get(k)).push(p); };
+  /* 메우는 반경 — 넓이로 훑을 때와 열린 가장자리는 SCALE_FILL_R·d(0.7d), 마지막 삼각형 짚기는 0.55d. 비늘 한 장이 2.3d×2.8d 라
+     0.7d 안은 대개 덮여 있다. 예전엔 어디서나 0.35d(4.6 mm)라 덮인 자리에도 4.6 mm 마다 비늘을 또 세워 메우기가 한 벌 20만 장
+     (전체의 89%)이었다. 반경을 넓히는 대신 **같은 쪽(법선 45° 안)을 보는 비늘만** 덮었다고 친다 — 넓은 반경에선 바깥 비늘이 1.2 cm
+     안쪽 면 점이나 꺾인 옆면까지 덮은 셈이 되어 망토 안·가랑이·겨드랑이가 빈다. 반경을 0.9d 로 하면 구멍이 남았고(512 화소), 비늘 꼴로
+     덮임을 재 보기도 했으나 젖혀진 끝 밑이 아래에서 비쳐 반경 방식보다 무거웠다. 마지막 짚기를 좁게(0.55d) 두는 것은 꺾인 자리의 작은
+     삼각형이 0.7d 안 남의 비늘에 '덮인 셈' 이 되어 한두 화소 구멍이 남기 때문이다(0.7d 5 화소 · 0.5d 1 화소 · 0.55d 0 화소 — 48방향) */
+  { const hd=d*SCALE_FILL_R, H=new Map(), hk=(x,y,z)=>x+','+y+','+z, ins=p=>{ const k=hk(Math.floor(p.x/hd),Math.floor(p.y/hd),Math.floor(p.z/hd)); (H.get(k)||H.set(k,[]).get(k)).push(p); };
+    let nr=hd;
     const near=(p,n)=>{ const x=Math.floor(p.x/hd), y=Math.floor(p.y/hd), z=Math.floor(p.z/hd);
-      for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++) for(let c=-1;c<=1;c++){ const L=H.get(hk(x+a,y+b,z+c)); if(L) for(const q of L) if(q.distanceToSquared(p)<(p.y<0.2?d*d*0.04:hd*hd)&&(!n||!q.n||q.n.dot(n)>0.2)) return true; } return false; };
+      for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++) for(let c=-1;c<=1;c++){ const L=H.get(hk(x+a,y+b,z+c)); if(L) for(const q of L) if(q.distanceToSquared(p)<(p.y<0.2?Math.min(nr*nr,d*d*0.04):nr*nr)&&(!n||!q.n||q.n.dot(n)>0.7)) return true; } return false; };
     for(const [q,qn] of pts){ q.n=qn; ins(q); }
-    const m2=Math.round(tot/(d*d)*140);
+    const m2=Math.round(tot/(d*d)*60);
     for(let t=0;t<m2;t++){ const r=rn()*tot; let lo=0,hi=cum.length-1; while(lo<hi){ const mid=(lo+hi)>>1; if(cum[mid]<r) lo=mid+1; else hi=mid; }
       const [k,Nn]=tri[lo]; let a=rn(), b=rn(); if(a+b>1){ a=1-a; b=1-b; }
       A.fromBufferAttribute(P,I[k]); B.fromBufferAttribute(P,I[k+1]); C.fromBufferAttribute(P,I[k+2]);
       const p0=A.clone().multiplyScalar(1-a-b).addScaledVector(B,a).addScaledVector(C,b);
       /* 겉의 앞뒤를 몸 가운데로만 가리므로 손바닥·안쪽 팔은 틀린 쪽에 설 수 있다 — 메우는 비늘은 양쪽에 다 세운다(속에 든 쪽은 안 보일 뿐이다) */
-      for(const sg of [1,-1]){ const p=p0.clone().addScaledVector(Nn,0.006*sg); if(near(p)) continue; ins(p); pts.push([p,Nn.clone().multiplyScalar(sg),1]); } }
+      for(const sg of [1,-1]){ const p=p0.clone().addScaledVector(Nn,0.006*sg), pn=Nn.clone().multiplyScalar(sg); if(near(p,pn)) continue; p.n=pn; ins(p); pts.push([p,pn,1]); } }
     /* 열린 가장자리(삼각형 하나만 쓰는 변 — 투구를 떼어 낸 목둘레·발끝)를 따라 hd 마다 짚는다 — 바탕이 모로 드러나는 자리다 */
     { const E=new Map(), ek=(i,j)=>{ const a=Math.round(P.getX(i)*1e4)+','+Math.round(P.getY(i)*1e4)+','+Math.round(P.getZ(i)*1e4), b=Math.round(P.getX(j)*1e4)+','+Math.round(P.getY(j)*1e4)+','+Math.round(P.getZ(j)*1e4); return a<b?a+'|'+b:b+'|'+a; };
       for(const [k,Nn] of tri) for(let e=0;e<3;e++){ const i=I[k+e], j=I[k+(e+1)%3], key=ek(i,j), o=E.get(key); if(o) o.n++; else E.set(key,{n:1,i,j,Nn}); }
       for(const {n,i,j,Nn} of E.values()) if(n===1){ A.fromBufferAttribute(P,i); B.fromBufferAttribute(P,j); const m=Math.max(1,Math.ceil(A.distanceTo(B)/(hd*0.5)));
         for(let t=0;t<=m;t++){ const p0=A.clone().lerp(B,t/m); for(const sg of [1,-1]){ const p=p0.clone().addScaledVector(Nn,0.006*sg), pn=Nn.clone().multiplyScalar(sg); if(near(p,pn)) continue; p.n=pn; ins(p); pts.push([p,pn]); } } } }
     /* 끝으로 삼각형마다 가운데와 세 꼭짓점을 빠짐없이 짚는다 — 아주 작거나 가는 삼각형은 넓이 비례로 뽑으면 거의 안 걸려 한두 화소 구멍이 남았다 */
+    nr=d*0.55;
     for(const [k,Nn] of tri){ A.fromBufferAttribute(P,I[k]); B.fromBufferAttribute(P,I[k+1]); C.fromBufferAttribute(P,I[k+2]);
       for(const p0 of [A.clone().add(B).add(C).divideScalar(3),A.clone(),B.clone(),C.clone()])
-        for(const sg of [1,-1]){ const p=p0.clone().addScaledVector(Nn,0.006*sg); if(near(p)) continue; ins(p); pts.push([p,Nn.clone().multiplyScalar(sg),1]); } } }
+        for(const sg of [1,-1]){ const p=p0.clone().addScaledVector(Nn,0.006*sg), pn=Nn.clone().multiplyScalar(sg); if(near(p,pn)) continue; p.n=pn; ins(p); pts.push([p,pn,1]); } } }
   const im=new THREE.InstancedMesh(sgeo,mat,pts.length), m4=new THREE.Matrix4(), col=new THREE.Color(), Y=new THREE.Vector3(), X=new THREE.Vector3();
   pts.forEach(([p,Nn,fc],i)=>{ Y.set(0,1,0).addScaledVector(Nn,-Nn.y); if(Y.lengthSq()<0.09) Y.copy(_gv.copy(p).sub(cen).setY(0)).addScaledVector(Nn,-Nn.dot(_gv)); Y.normalize();
     const a=0.22, Y2=Y.clone().multiplyScalar(Math.cos(a)).addScaledVector(Nn,-Math.sin(a)), Z2=Nn.clone().multiplyScalar(Math.cos(a)).addScaledVector(Y,Math.sin(a));
