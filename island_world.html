@@ -3611,12 +3611,14 @@ function updateShip(dt){
         'none'  빛 계산에서 뺀다        — 하늘 · 해 · 불꽃 · 예광탄 (MeshBasicMaterial 은 자동)
       `userData.lightRole` 로 적어 두면 그대로 따르고, **아래 것들이 물려받는다** —
       무리 하나에 적으면 그 밑이 다 따른다. 없으면 재질로 정한다.
-      새로 만든 물체는 `LIGHT.refresh()` 한 번이면 편입된다.
+      새로 붙인 물체는 저절로 편입된다 — `Object3D.add` 갈고리가 `LIGHT.pending` 에 모으고 그리기 직전
+      `LIGHT.flush()` 가 배역을 준다. 장면 전체를 훑는 `refresh()` 는 섬을 다 지었을 때·품질을 바꿀 때만.
 
    ② 해 그림자 — 섬이 1920 m 라 전체를 한 장에 담을 수 없다. 사람 주위
       `R` m 만 덮는 평행투영 상자를 **사람을 따라 옮긴다**. 그냥 옮기면 상자가
       반 텍셀씩 밀릴 때마다 그림자 가장자리가 들끓으므로(shadow swimming)
-      **중심을 텍셀 격자에 맞춰 끊어서** 옮긴다.
+      **중심을 텍셀의 정수배인 4 m 격자에 맞춰 끊어서** 옮긴다. 그림자 지도는
+      **바뀔 때만 다시 그린다**(아래 `update` 머리말 — 드리우는 것을 움직이면 `dirtyAt`).
 
    ③ 그림자 예산 — 점광원 그림자는 한 광원이 정육면체 여섯 면이라 비싸다.
       등록된 광원 중 **지금 화면에서 가장 값이 나가는 것 K개**에만 그림자를 준다
@@ -3773,7 +3775,7 @@ const LIGHT={
      점광원(불) 그림자도 같은 식이다 — 불은 안 움직이므로 받는 순간 한 번, 둘레가 바뀌면 다시.
      손전등(집중광)은 카메라에 붙어 움직이므로 예전처럼 매 프레임 그린다. */
   _sec:0, _cx:NaN, _cz:NaN, _cy:0, _age:0, _sunDirty:true,
-  _dir:new THREE.Vector3(),
+  _dir:new THREE.Vector3(), _lp:new THREE.Vector3(NaN,NaN,NaN),
   stats:{sun:0, pts:0},          // 지도를 다시 그린 횟수(성능 창이 초당으로 보인다)
   /* 드리우는 것이 바뀌었다 — 해 지도와 그림자를 받은 불 지도를 다음 프레임에 다시 그린다 */
   dirty(){
@@ -3810,8 +3812,10 @@ const LIGHT={
       // 가운데는 SUN_STEP 격자에 — 격자 간격을 텍셀의 정수배로 잡아야 다시 그릴 때 그림자가 들끓지 않는다
       const tex=(Q.R*2)/Q.size, G=Math.max(1,Math.round(SUN_STEP/tex))*tex;
       const cx=Math.round((PL.pos.x+fx*Q.R*0.45)/G)*G, cz=Math.round((PL.pos.z+fz*Q.R*0.45)/G)*G;
-      // 광원 방향은 updateSky 가 정한 해 위치를 그대로 쓴다(정규화)
-      this._w.copy(sun.position).normalize();
+      /* 광원 방향은 updateSky 가 정한 해 위치를 그대로 쓴다(정규화). 그런데 아래에서 이 함수가 sun.position 을
+         상자 쪽으로 옮겨 놓으므로, updateSky 없이 다시 불리면(멈춤 · 시험) 옮겨 둔 자리를 방향으로 읽어 매번
+         '해가 돌았다'고 다시 그렸다 — 지난번에 써 둔 자리 그대로면 지난 방향을 쓴다 */
+      if(!sun.position.equals(this._lp)) this._w.copy(sun.position).normalize();
       this._age+=dt||0;
       if(cx!==this._cx||cz!==this._cz||this._sunDirty||this._w.dot(this._dir)<SUN_TURN_COS
          ||this._age>SUN_AGE||!sun.shadow.map){
@@ -3819,7 +3823,7 @@ const LIGHT={
         sun.shadow.needsUpdate=true; this._sunDirty=false; this._age=0; this.stats.sun++;
       }
       const D=Q.R*2+80;
-      sun.position.set(this._cx+this._w.x*D, this._cy+this._w.y*D, this._cz+this._w.z*D);
+      sun.position.set(this._cx+this._w.x*D, this._cy+this._w.y*D, this._cz+this._w.z*D); this._lp.copy(sun.position);
       sun.target.position.set(this._cx,this._cy,this._cz);
       sun.target.updateMatrixWorld();
     }
@@ -5328,6 +5332,11 @@ function updateClouds(dt){
        옅은 데서 시작하므로 멀리서 스며들듯 나타난다. */
     let dx=c.x-px, dz=c.z-pz;
     if(Math.hypot(dx,dz)>c.K.R*1.25){
+      /* 이 길도 같은 예산(`REROLL_BUDGET`) 안에서 — 사람이 순간이동하면(불러오기 · 되살아나기 · 상륙)
+         하늘의 덩이가 한꺼번에 반경 밖이 되어, 한 프레임에 수십 덩이를 빚었다(5 km 이동에 27 ms).
+         넘치면 이번엔 숨겨 두고 다음 프레임에 빚는다 — 반경 밖이라 어차피 안 보인다 */
+      if(nRe>0&&performance.now()-rr0>REROLL_BUDGET){ c.m.visible=false; continue; }
+      nRe++;
       rerollCloud(c); c.vis=Math.min(c.vis,0.04);
       dx=c.x-px; dz=c.z-pz;
     }

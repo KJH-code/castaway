@@ -1612,6 +1612,11 @@ function updateClouds(dt){
        옅은 데서 시작하므로 멀리서 스며들듯 나타난다. */
     let dx=c.x-px, dz=c.z-pz;
     if(Math.hypot(dx,dz)>c.K.R*1.25){
+      /* 이 길도 같은 예산(`REROLL_BUDGET`) 안에서 — 사람이 순간이동하면(불러오기 · 되살아나기 · 상륙)
+         하늘의 덩이가 한꺼번에 반경 밖이 되어, 한 프레임에 수십 덩이를 빚었다(5 km 이동에 27 ms).
+         넘치면 이번엔 숨겨 두고 다음 프레임에 빚는다 — 반경 밖이라 어차피 안 보인다 */
+      if(nRe>0&&performance.now()-rr0>REROLL_BUDGET){ c.m.visible=false; continue; }
+      nRe++;
       rerollCloud(c); c.vis=Math.min(c.vis,0.04);
       dx=c.x-px; dz=c.z-pz;
     }
