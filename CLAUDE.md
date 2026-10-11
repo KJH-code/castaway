@@ -86,7 +86,7 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` | 메인 게임. 아이템 167종 · 레시피 160개 · 제련 10종 |
+| `island_world.html` | 메인 게임. 아이템 170종 · 레시피 163개 · 제련 10종 |
 | `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `wyvern_arena.html` | **애쉬스케일 시험장**(4.1MB). 상공 20 m 선회 → 5초 노려봄 →
@@ -180,7 +180,7 @@ python -m http.server 5173
 `sed -n '시작,끝p'` 로 그 구역만 뜰 것.** 파일이 2.1MB(약 60만 토큰)라 통독은
 컨텍스트를 통째로 태운다. 구역 하나는 보통 2~5천 토큰이면 충분하다.
 
-### 구역 지도 — `island_world.html` (15,210줄)
+### 구역 지도 — `island_world.html` (15,274줄)
 
 | 줄 | 구역 | 무엇이 있나 |
 |---|---|---|
@@ -195,24 +195,24 @@ python -m http.server 5173
 | 1189 | 샘플링 API | 지형 조회 창구 |
 | 1213 | 9) 3D 월드 렌더링 | 압축 인스턴스 `instCompact` 1294 · 지형 `buildChunks` 1945 / LOD `updateTerrainLOD` 2003 · 칸 보이기 `updateTileVis` 2291 · 먼 나무 `buildFarTrees` 2514 · `buildProps` 2566 |
 | 3677 | 빛 · 하늘 · 날씨 · 구름 | **`LIGHT` 3717** · `SKY` 3989 · `updateWeather` 4336 · 구름 명암 `litQueue` 4884 · `updateClouds` 5455 · 하늘 표 `SKY_LUT` 5945 · `updateSky` 6085 |
-| 6305 | 10) 아이템 · 인벤토리 | **`ITEMS` 6312** · `INV` 6817 · 드래그 `dragPut` 6935 / `wireDrag` 6971 |
-| 7004 | 11) 맨손 채집 | `HARVEST` 7010 · `MINE` 7032 |
-| 7502 | 12) 제작 | **`RECIPES` 7509** · `startCraft` 8427 · `drawCraft` 8489 |
-| 8540 | 12-b) 불 | `FIRING` 8550 · `SMELT` 8580 |
-| 8903 | 집 짓기 | `BUILD` 8970 · `floorAt` 9015 · `BUILD_MESH` 9219 |
-| 10386 | 사전 | `GEO`/`MINERALS` · `obtainOf` — 표를 역으로 훑어 획득 경로를 만든다.
+| 6305 | 10) 아이템 · 인벤토리 | **`ITEMS` 6312** · `INV` 6833 · 드래그 `dragPut` 6951 / `wireDrag` 6987 |
+| 7020 | 11) 맨손 채집 | `HARVEST` 7026 · `MINE` 7048 |
+| 7518 | 12) 제작 | **`RECIPES` 7525** · `startCraft` 8460 · `drawCraft` 8522 |
+| 8573 | 12-b) 불 | `FIRING` 8583 · `SMELT` 8613 |
+| 8936 | 집 짓기 | `BUILD` 9003 · `floorAt` 9048 · `BUILD_MESH` 9252 |
+| 10419 | 사전 | `GEO`/`MINERALS` · `obtainOf` — 표를 역으로 훑어 획득 경로를 만든다.
   **`MINERALS` 에 넣은 것은 `GEO` 에도 있어야 한다** — 하나만 있으면 광물 탭이 통째로
   안 그려진다(`sand` 가 그랬다). `obtainOf` 는 `RECIPES`·`HARVEST`·`CHOP`·`MINE`·
   `FIRING`·`SMELT`·`MOBS[].drop` 을 다 훑는다 |
-| 10901 | 근접 공격 | `CREATURES` 10907 (비어 있음) |
-| 10910 | 손에 든 무기 | **`WEAPON_FX` 11015** — 손에 드는 것의 생김새를 id로 키잉한 조립 함수 |
-| 12655~ | 전투 진입점 | `equippedWeapon` 12655 · `shoot` 12742 · `castNet` 12927 · `attack` 12985 |
-| 13105 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
-| 13200 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
-| 13415 | 음향 | 물리 모델 합성 |
-| 13598 | HUD | `drawMap` 13621 · `drawCompass` 13661 · 성능 창 `PERF` 13690 · `updateHUD` 13862 |
-| 14054 | 초기화 · 루프 | `initThree` 14152 · `freezeStatics` 14205 · 셰이더 미리 짜기 `PRECOMP` 14231 · `start` 14917 · `loop` 15138 |
-| 14421 | 저장 / 불러오기 | `snapshot` 14454 · `saveLocal` 14666 · `loadFile` 14725 |
+| 10934 | 근접 공격 | `CREATURES` 10940 (비어 있음) |
+| 10943 | 손에 든 무기 | **`WEAPON_FX` 11123** — 손에 드는 것의 생김새를 id로 키잉한 조립 함수 |
+| 12719~ | 전투 진입점 | `equippedWeapon` 12719 · `shoot` 12806 · `castNet` 12991 · `attack` 13049 |
+| 13169 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
+| 13264 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
+| 13479 | 음향 | 물리 모델 합성 |
+| 13662 | HUD | `drawMap` 13685 · `drawCompass` 13725 · 성능 창 `PERF` 13754 · `updateHUD` 13926 |
+| 14118 | 초기화 · 루프 | `initThree` 14216 · `freezeStatics` 14269 · 셰이더 미리 짜기 `PRECOMP` 14295 · `start` 14981 · `loop` 15202 |
+| 14485 | 저장 / 불러오기 | `snapshot` 14518 · `saveLocal` 14730 · `loadFile` 14789 |
 
 배너의 번호는 믿지 말 것 — 11)과 12-d)가 두 번씩 나오고 12-c)가 12-d) 뒤에 온다.
 **줄 번호가 정본이다.** 큰 삽입·삭제 뒤에는 이 표의 줄 번호도 같이 고칠 것:
@@ -965,10 +965,16 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   `obtainOf` 도 읽는다 · 섬 생성은 안 건드린다) → 탄산리튬(불 · 황산 · 잿물) → 흑연(아크로 · 숯 · 전극) · 인산철리튬(아크로 ·
   탄산리튬 · 물고기(뼈의 인) · 연철 · 황산 · 숯) → 리튬이온 전지(선반 · 강철 통 · 구리선 · 알코올 전해액). 뼈는 본편에서 아직
   못 얻으므로(몹이 안 나온다) 인은 물고기에서 얻는다.
-- **화상은 무기 필드 `tool.burn:{t,every,dmg}` 다**(지금은 잿불 검 `sword_ember` 하나 — 강철 검 + 잿불 비늘 3 · 모루 · 0.5초 동안 0.1초마다 5).
+- **화상은 무기 필드 `tool.burn:{t,every,dmg}` 다** — 잿불 무기 넷(`sword_ember` · `spear_ember` · `axe_ember_war` · `hammer_ember`)이 단다.
+  강철 무기 넷과 성능이 같고(해머는 기절도) 0.5초 동안 0.1초마다 5 를 더한다. 모루 · 그 강철 무기 1 + 잿불 비늘(검 4 · 창 2 · 도끼 4 · 해머 5) + 참숯 1 + 노끈 2.
   근접 명중이 `setBurn(c,B)` 로 `c.burn` 을 달고 `updateWeapon` 이 `burnTick` 으로 흐른 시간만큼 틱을 센다(프레임과 무관 — dt 1초 한 번에도 25).
   **겹치지 않는다** — 타는 동안 또 맞으면 남은 시간만 처음 길이로 되돌리고 틱 시계는 그대로 둔다(빠르기 그대로). `c.fireproof` 면 안 탄다
   (애쉬스케일을 본편에 들이면 달 것). 피해는 갑옷을 안 거친다(근접 피해도 `hit.hp-=` 그대로다). 본편엔 아직 몹이 없어 `CREATURES` 가 비어 있다.
+  **생김새는 `emberClad(강철 생김새, skip)`** — 강철 무기를 그대로 빚고 쇠 재질(`WMAT` 0x6b7077·0xc8ced4·0x74797f) 메시를 검은 바탕으로 바꾼 뒤
+  비늘을 단다(자루·노끈은 나무·끈 재질이라 저절로 빠진다 · **검은 날만** — 코등이·폼멜은 `skip` 으로 맨쇠, 사용자 요청). 비늘은 **줄을 맞춘다**:
+  겉을 촘촘히 훑은 점을 끊은 법선(1/3 칸)마다 그 면의 가로·세로 격자(`EMB` — 칸 2.7 cm · 줄 2.5 cm · 홀수 줄 반 칸)에 넣고 칸마다 가운데에 가장
+  가까운 점 하나에 세운다. 처음엔 1.1 cm 비늘을 무작위로 솎아 5~7천 장을 뿌렸더니 주황 털처럼 보였다. 끝은 손잡이 쪽(−y)으로, 조금 젖혀 윗줄이 아랫줄을
+  덮는다. 비늘 · 달아오른 테(조금 큰 같은 꼴, 자체 발광) 인스턴스 둘 — 한 자루 850~1,900 장.
 - **전동 드릴(`tool.drill`)은 내구가 곧 충전량이다** — 0 이 되면 부서지지 않고 멈추며, 지닌 납축전지에서
   `drawFromBattery` 로 옮겨 담는다. 발전기 곁 충전(`chargeAtDynamo`)도 받는다. 곡괭이 등급 3 · 빠르기 8.5.
 - **수류탄(`tool.throw`)** — `attack()` 이 `throwGrenade` 로 넘긴다. 포물선(16 m/s · 중력 9.8) → 튀며 구름 →

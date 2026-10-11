@@ -6705,15 +6705,31 @@ const ITEMS={
                tool:{weapon:1, dmg:70, reach:2.1, rate:1.08, stam:17, swing:'smash',
                      stun:0.28},
                durMax:2000},
-  /* 잿불 검 — 강철 검 날 밑동에 애쉬스케일의 잿불 비늘을 겹쳐 감았다. 비늘은 불에 타지 않고
-     열을 머금고 있다가 벤 자리를 지진다. 날은 강철 검 그대로라 피해·빠르기도 같고,
-     맞은 것은 **0.5초 동안 0.1초마다 5**(모두 25)를 더 입는다(`tool.burn`).
-     **화상은 겹치지 않는다** — 타는 동안 또 베면 남은 시간만 0.5초로 되돌린다. */
-  sword_ember:{n:'잿불 검',    kg:2.0,  c:0x5a3328,
-               use:'베기 — 강철 검에 잿불 비늘을 감았다. 벤 자리를 0.5초 동안 지진다(겹치지 않음)',
+  /* 잿불 무기 넷 — 강철 무기 넷의 쇠붙이(검은 날만 · 창은 날과 투겁 · 도끼·해머는 머리)를 **손잡이만 빼고** 애쉬스케일의
+     잿불 비늘로 빈틈없이 감쌌다. 비늘은 불에 타지 않고 열을 머금고 있다가 맞은 자리를 지진다.
+     성능은 밑바탕 강철 무기 그대로(해머는 기절도 그대로)에, 맞은 것이 **0.5초 동안 0.1초마다 5**
+     (모두 25)를 더 입는다(`tool.burn`). **화상은 겹치지 않는다** — 타는 동안 또 맞으면 남은
+     시간만 0.5초로 되돌린다. 비늘 무게만큼 조금 무겁다. */
+  sword_ember:{n:'잿불 검',    kg:2.2,  c:0x2a1a14,
+               use:'베기 — 강철 검의 날만 잿불 비늘로 감쌌다. 벤 자리를 0.5초 동안 지진다(겹치지 않음)',
                tool:{weapon:1, dmg:38, reach:1.5, rate:0.36, stam:5, swing:'slash',
                      burn:{t:0.5, every:0.1, dmg:5}},
                durMax:1500},
+  spear_ember:{n:'잿불 창',    kg:2.5,  c:0x2a1a14,
+               use:'찌르기 — 강철 창의 날과 투겁을 잿불 비늘로 감쌌다. 찌른 자리를 0.5초 동안 지진다(겹치지 않음)',
+               tool:{weapon:1, dmg:50, reach:2.6, rate:0.90, stam:8, swing:'thrust',
+                     burn:{t:0.5, every:0.1, dmg:5}},
+               durMax:1400},
+  axe_ember_war:{n:'잿불 전투도끼', kg:3.3, c:0x2a1a14,
+               use:'내리찍기 — 강철 전투도끼 머리를 잿불 비늘로 감쌌다. 찍은 자리를 0.5초 동안 지진다(겹치지 않음)',
+               tool:{weapon:1, dmg:100, reach:2.1, rate:1.44, stam:15, swing:'slash',
+                     burn:{t:0.5, every:0.1, dmg:5}},
+               durMax:1700},
+  hammer_ember:{n:'잿불 해머',  kg:4.5,  c:0x2a1a14,
+               use:'후려치기 — 강철 해머 머리를 잿불 비늘로 감쌌다. 0.28초 기절에 0.5초 화상(겹치지 않음)',
+               tool:{weapon:1, dmg:70, reach:2.1, rate:1.08, stam:17, swing:'smash',
+                     stun:0.28, burn:{t:0.5, every:0.1, dmg:5}},
+               durMax:2000},
   /* 사냥물 무기 — 철보다 **약하고 빨리 닳는 대신, 훨씬 가볍고 조금 빠르다**.
      피해는 철의 3/4, 쿨타임은 9/10, 무게는 55~60%, 내구는 45% 쯤이 기준이다.
      짐 무게가 곧 이동 속도인 이 게임에서, 가벼움은 그 자체로 값이다. */
@@ -8327,9 +8343,26 @@ const RECIPES=[
 
   {id:'sword_ember', tier:'강철', n:'잿불 검', out:{id:'sword_ember',n:1},
    time:40, stam:24, station:'anvil',
-   note:'강철 검을 달궈 날 밑동에 잿불 비늘을 겹쳐 대고 두드려 물린 뒤 끈으로 감아 맨다. '
-       +'애쉬스케일 한 마리분에서 갑옷·투구를 꿰고 남는 비늘 셋이면 된다.',
-   in:[{id:'sword_steel',n:1},{id:'ember_scale',n:3},{id:'charcoal',n:1},{id:'cord',n:2}],
+   note:'강철 검을 달궈 날에만 잿불 비늘을 겹쳐 대고 두드려 물린다. 코등이와 손잡이는 맨쇠로 둔다.',
+   in:[{id:'sword_steel',n:1},{id:'ember_scale',n:4},{id:'charcoal',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'spear_ember', tier:'강철', n:'잿불 창', out:{id:'spear_ember',n:1},
+   time:40, stam:24, station:'anvil',
+   note:'강철 창의 날과 투겁에 잿불 비늘을 겹쳐 물린다. 자루는 그대로 둔다.',
+   in:[{id:'spear_steel',n:1},{id:'ember_scale',n:2},{id:'charcoal',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'axe_ember_war', tier:'강철', n:'잿불 전투도끼', out:{id:'axe_ember_war',n:1},
+   time:40, stam:24, station:'anvil',
+   note:'강철 전투도끼 머리 — 수염날·쐐기까지 — 를 잿불 비늘로 빈틈없이 덮어 물린다.',
+   in:[{id:'axe_steel_war',n:1},{id:'ember_scale',n:4},{id:'charcoal',n:1},{id:'cord',n:2}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'hammer_ember', tier:'강철', n:'잿불 해머', out:{id:'hammer_ember',n:1},
+   time:40, stam:24, station:'anvil',
+   note:'강철 해머 여덟모 머리와 때리는 면을 잿불 비늘로 감싸 물린다. 때리는 면도 비늘이 받는다.',
+   in:[{id:'hammer_steel',n:1},{id:'ember_scale',n:5},{id:'charcoal',n:1},{id:'cord',n:2}],
    need:[{id:'hammer_stone',n:1}]},
 
   {id:'spear_steel', tier:'강철', n:'강철 창', out:{id:'spear_steel',n:1},
@@ -10991,6 +11024,81 @@ function netMesh(col){
   b2.position.set(0.07,0.30,0.02); g.add(b2);
   return {mesh:g, grip:0.12, rest:{rx:-0.35, rz:0.30}};
 }
+/* 잿불 비늘 감싸기 — 강철 무기 r(WEAPON_FX 결과)의 쇠 재질 메시를 비늘로 덮는다(skip(m) 이 참이면 둔다).
+   ① 덮을 메시는 검은 바탕 재질로 바꾼다 — 비늘 사이로 쇳빛이 비치지 않게.
+   ② **비늘은 줄을 맞춰 단다** — 겉을 넓이에 비례해 촘촘히 훑은 점을 면 방향(법선을 끊은 것)마다 모아, 그 면의
+      (가로, 세로) 좌표 격자(칸 `EMB.cw` × 줄 `EMB.rh` · 홀수 줄은 반 칸 밀림)에 넣고 칸마다 칸 가운데에 가장
+      가까운 점 하나에 세운다. 처음엔 점을 무작위로 솎아 1.1 cm 비늘 수천 장을 뿌렸더니 주황 털처럼 보였다.
+   ③ 비늘은 면 법선으로 눕히고 뾰족한 끝이 손잡이 쪽(−y)을 보게 세운 뒤 끝을 조금 젖힌다 — 물고기 비늘처럼
+      윗줄이 아랫줄 머리를 덮는다(비늘 키가 줄 간격의 1.7배). 법선이 y 와 나란한 면(머리 윗면)은 x 쪽을 아래로 친다.
+   ④ 같은 꼴을 조금 크게 바로 뒤에 깐 테(달아오른 주황)가 비늘 가장자리에만 가늘게 보인다 — 자체 발광이라 광원이 안 는다.
+   비늘은 인스턴스 둘(비늘 · 테)이라 그리기 호출은 둘뿐이다. 자리는 고정 씨앗 난수라 늘 같은 생김새다. */
+const EMB={w:0.0165, h:0.044, cw:0.027, rh:0.025};
+function emberClad(r,skip){
+  const g=r.mesh;
+  const steel=new Set([0x6b7077,0xc8ced4,0x74797f].map(c=>WMAT(c)));
+  const base=_WM.emberBase||(_WM.emberBase=new THREE.MeshPhongMaterial({color:0x140e0c,shininess:8,specular:0x111111}));
+  const scM=_WM.emberScale||(_WM.emberScale=new THREE.MeshPhongMaterial({color:0x1c1512,
+    specular:0x4a3528, shininess:40, emissive:0x160502, side:THREE.DoubleSide}));
+  const rimM=_WM.emberRim||(_WM.emberRim=new THREE.MeshBasicMaterial({color:0xff5414, side:THREE.DoubleSide}));
+  let rnd=0x9e3779b9; const rand=()=>((rnd=(rnd*1664525+1013904223)>>>0)/4294967296);
+  const basis=(z,X,Y)=>{                                   // 면 법선 z → 가로 X · 세로 Y(손잡이 반대쪽이 +)
+    Y.set(0,1,0).addScaledVector(z,-z.y);
+    if(Y.lengthSq()<0.04) Y.set(1,0,0).addScaledVector(z,-z.x);
+    Y.normalize(); X.crossVectors(Y,z);
+  };
+  const cells=new Map();                                   // 열쇠 → {d 칸 가운데까지 거리², p, n}
+  const a=new THREE.Vector3(), b=new THREE.Vector3(), c=new THREE.Vector3(), e1=new THREE.Vector3(), e2=new THREE.Vector3(),
+        n=new THREE.Vector3(), q=new THREE.Vector3(), X=new THREE.Vector3(), Y=new THREE.Vector3(), p=new THREE.Vector3();
+  const per=24/(EMB.cw*EMB.rh);                            // 칸마다 후보 점 24개쯤
+  for(const m of g.children.slice()){
+    if(!m.isMesh||!steel.has(m.material)||(skip&&skip(m))) continue;
+    m.material=base; m.updateMatrix();
+    const geo=m.geometry.index?m.geometry.toNonIndexed():m.geometry.clone();
+    geo.applyMatrix4(m.matrix);
+    const pa=geo.attributes.position;
+    for(let t=0;t<pa.count;t+=3){
+      a.fromBufferAttribute(pa,t); b.fromBufferAttribute(pa,t+1); c.fromBufferAttribute(pa,t+2);
+      e1.subVectors(b,a); e2.subVectors(c,a); n.crossVectors(e1,e2);
+      const A=n.length()/2; if(A<1e-9) continue; n.normalize();
+      // 면 방향 — 법선을 끊어(1/3 칸) 같은 쪽을 보는 면끼리 한 격자를 쓴다
+      const qx=Math.round(n.x*3), qy=Math.round(n.y*3), qz=Math.round(n.z*3);
+      q.set(qx,qy,qz).normalize(); basis(q,X,Y);
+      const k=A*per, cnt=Math.max(1,Math.floor(k)+(rand()<k%1?1:0));
+      for(let s=0;s<cnt;s++){ let u=rand(), v=rand(); if(u+v>1){ u=1-u; v=1-v; }
+        p.copy(a).addScaledVector(e1,u).addScaledVector(e2,v);
+        const cu=p.dot(X), cv=p.dot(Y), row=Math.round(cv/EMB.rh), sh=(row&1)*0.5;
+        const col=Math.round(cu/EMB.cw-sh), du=cu-(col+sh)*EMB.cw, dv=cv-row*EMB.rh, dd=du*du+dv*dv;
+        const key=qx+','+qy+','+qz+':'+row+','+col, o=cells.get(key);
+        if(!o) cells.set(key,{d:dd, p:p.toArray(), n:n.toArray()});
+        else if(dd<o.d){ o.d=dd; o.p=p.toArray(); o.n=n.toArray(); }
+      }
+    }
+    geo.dispose();
+  }
+  // 비늘 한 장 — 둥근 머리가 +y, 뾰족한 끝이 −y, 앞이 +z
+  const w=EMB.w, h=EMB.h, sh=new THREE.Shape();
+  sh.moveTo(0,-h*0.5);
+  sh.quadraticCurveTo(w*1.05,-h*0.15, w,h*0.22);
+  sh.quadraticCurveTo(w*0.8,h*0.5, 0,h*0.5);
+  sh.quadraticCurveTo(-w*0.8,h*0.5, -w,h*0.22);
+  sh.quadraticCurveTo(-w*1.05,-h*0.15, 0,-h*0.5);
+  const scG=new THREE.ShapeGeometry(sh,4);
+  const rimG=new THREE.ShapeGeometry(sh,4); rimG.scale(1.09,1.06,1); rimG.translate(0,-h*0.02,-0.0008);
+  const L=[...cells.values()];
+  const sc=new THREE.InstancedMesh(scG,scM,L.length), rim=new THREE.InstancedMesh(rimG,rimM,L.length);
+  const M=new THREE.Matrix4(), Z=new THREE.Vector3(), T=new THREE.Matrix4();
+  L.forEach((o,i)=>{
+    Z.fromArray(o.n); basis(Z,X,Y);
+    M.makeBasis(X,Y,Z);
+    M.multiply(T.makeRotationX(0.16+rand()*0.06));        // 끝(−y)을 바깥(+z)으로 젖힌다
+    M.multiply(T.makeRotationZ((rand()-0.5)*0.08));
+    M.setPosition(o.p[0]+Z.x*0.002, o.p[1]+Z.y*0.002, o.p[2]+Z.z*0.002);
+    sc.setMatrixAt(i,M); rim.setMatrixAt(i,M);
+  });
+  g.add(rim); g.add(sc);
+  return r;
+}
 function wbindC(y,r,col){ const m=wbind(y,r); m.material=WMAT(col||W_CORD); return m; }
 function bowMesh(col,plate){
   /* 활대 — 반지름 R 원의 A 라디안 원호. 가운데(손잡이)가 앞(+Y)으로 불룩하고 두 끝은 뒤로 온다 */
@@ -11426,55 +11534,11 @@ const WEAPON_FX={
     pt.scale.set(1,1,0.34); g.add(pt);
     return {mesh:g, grip:0.16};
   },
-  /* 잿불 검 — 강철 검 날 밑동 40% 를 잿불 비늘로 겹쳐 감쌌다. 비늘은 검고(갑옷과 같은 빛)
-     테만 달아오른다 — 달아오름은 자체 발광(emissive)이라 광원을 늘리지 않는다
-     (광원 수가 바뀌면 모든 재질의 셰이더를 다시 짠다). 날 두 변에도 달군 빛이 가늘게 선다. */
-  sword_ember(){
-    const g=WEAPON_FX.sword_steel().mesh, H=0.26, B2=0.96, y0=H+0.07;
-    const scM=_WM.emberScale||(_WM.emberScale=new THREE.MeshPhongMaterial({color:0x1c1512,
-      specular:0x3a2a22, shininess:30, emissive:0x1a0602}));
-    const rimM=_WM.emberRim||(_WM.emberRim=new THREE.MeshBasicMaterial({color:0xff5a14}));
-    const edgeM=_WM.emberEdge||(_WM.emberEdge=new THREE.MeshBasicMaterial({color:0xd8481a}));
-    /* 비늘 한 장 = 끝이 뾰족한 방패꼴(갑옷 비늘 `drop` 과 같은 꼴) — 둥근 머리는 칼끝 쪽,
-       뾰족한 끝은 손잡이 쪽을 본다. 같은 꼴을 조금 크게 뒤에 깔아 그 테만 달아오르게 보인다. */
-    const sh=new THREE.Shape(), w=0.019, h=0.046;
-    sh.moveTo(0,-h*0.5);
-    sh.quadraticCurveTo(w*1.05,-h*0.15, w,h*0.22);
-    sh.quadraticCurveTo(w*0.8,h*0.5, 0,h*0.5);
-    sh.quadraticCurveTo(-w*0.8,h*0.5, -w,h*0.22);
-    sh.quadraticCurveTo(-w*1.05,-h*0.15, 0,-h*0.5);
-    const sc=new THREE.ExtrudeGeometry(sh,{depth:0.004, bevelEnabled:false, curveSegments:4});
-    const rim=new THREE.ShapeGeometry(sh,4);
-    const ROWS=11, rowH=0.031;
-    for(let i=0;i<ROWS;i++){
-      const y=y0+0.02+i*rowH, n=i%2?3:2;                     // 줄마다 반 칸 어긋나게
-      for(let side=-1;side<=1;side+=2) for(let k=0;k<n;k++){
-        const x=(k-(n-1)/2)*0.03;
-        const m=new THREE.Mesh(sc,scM);
-        // 윗줄(칼끝 쪽)이 바깥에 서고 뾰족한 끝이 아랫줄 머리를 덮는다 — 끝을 바깥으로 젖힌다
-        m.position.set(x,y,side*(0.013+i*0.0004));
-        m.rotation.set(-side*0.22, side<0?Math.PI:0, 0);
-        g.add(m);
-        const r=new THREE.Mesh(rim,rimM);                     // 달아오른 테 — 비늘보다 12% 큰 판을 바로 뒤에
-        r.scale.set(1.14,1.10,1);
-        r.position.set(x,y-0.001,side*(0.0125+i*0.0004));
-        r.rotation.copy(m.rotation);
-        g.add(r);
-      }
-    }
-    // 비늘을 붙든 끈 — 위아래 두 감기
-    for(const y of [y0-0.006,y0+ROWS*rowH+0.03]){
-      const c=new THREE.Mesh(new THREE.BoxGeometry(0.104,0.016,0.05),WMAT(0x3a2418));
-      c.position.y=y; g.add(c);
-    }
-    // 날 두 변의 달군 빛 — 비늘 위로 날끝까지
-    const yA=y0+ROWS*rowH+0.04, yB=H+0.05+B2;
-    for(const sx of [-1,1]){
-      const e=new THREE.Mesh(new THREE.BoxGeometry(0.005,yB-yA,0.008),edgeM);
-      e.position.set(sx*0.0425,(yA+yB)/2,0); g.add(e);
-    }
-    return {mesh:g, grip:0.16};
-  },
+  /* 잿불 무기 넷 — 강철 무기를 그대로 빚고 손잡이(자루·노끈)를 뺀 쇠붙이를 잿불 비늘로 덮는다(`emberClad`). 검은 날만 덮는다. */
+  sword_ember(){ return emberClad(WEAPON_FX.sword_steel(), m=>m.position.y<0.3); },   // 검은 날만 — 폼멜·코등이는 맨쇠
+  spear_ember(){ return emberClad(WEAPON_FX.spear_steel()); },
+  axe_ember_war(){ return emberClad(WEAPON_FX.axe_steel_war()); },
+  hammer_ember(){ return emberClad(WEAPON_FX.hammer_steel()); },
   spear_steel(){                             // 강철 창 — 버들잎꼴 날
     const g=new THREE.Group(), L=2.05;
     g.add(haft(L,0.022,0.028,0x4a3a29));
