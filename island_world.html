@@ -11083,8 +11083,8 @@ function emberClad(r,skip){
   sh.quadraticCurveTo(w*0.8,h*0.5, 0,h*0.5);
   sh.quadraticCurveTo(-w*0.8,h*0.5, -w,h*0.22);
   sh.quadraticCurveTo(-w*1.05,-h*0.15, 0,-h*0.5);
-  const scG=new THREE.ShapeGeometry(sh,4);
-  const rimG=new THREE.ShapeGeometry(sh,4); rimG.scale(1.09,1.06,1); rimG.translate(0,-h*0.02,-0.0008);
+  const scG=new THREE.ShapeGeometry(sh,2);
+  const rimG=new THREE.ShapeGeometry(sh,2); rimG.scale(1.09,1.06,1); rimG.translate(0,-h*0.02,-0.0008);
   const L=[...cells.values()];
   const sc=new THREE.InstancedMesh(scG,scM,L.length), rim=new THREE.InstancedMesh(rimG,rimM,L.length);
   const M=new THREE.Matrix4(), Z=new THREE.Vector3(), T=new THREE.Matrix4();
