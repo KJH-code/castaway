@@ -10967,11 +10967,12 @@ const WEAPON_FX={
     body.position.set(0,0.19,0.035); g.add(body);
     for(const y of [0.13,0.17,0.21]){ const v=new THREE.Mesh(new THREE.TorusGeometry(0.046,0.006,4,12),WMAT(0x33363a));
       v.rotation.x=Math.PI/2; v.position.set(0,y,0.035); g.add(v); }                    // 통풍 테
+    const spin=new THREE.Group(); spin.name='spin'; spin.position.set(0,0,0.035); g.add(spin);   // 척·날은 캐는 동안 돈다(updateWeapon)
     const chuck=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.03,0.05,10),WMAT(0xc3c7cb));
-    chuck.position.set(0,0.315,0.035); g.add(chuck);
+    chuck.position.y=0.315; spin.add(chuck);
     const bit=new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.009,0.14,6),WMAT(0xb4b9be));
-    bit.position.set(0,0.41,0.035); g.add(bit);
-    const tipc=new THREE.Mesh(new THREE.ConeGeometry(0.009,0.02,6),WMAT(0xb4b9be)); tipc.position.set(0,0.49,0.035); g.add(tipc);
+    bit.position.y=0.41; spin.add(bit);
+    const tipc=new THREE.Mesh(new THREE.ConeGeometry(0.009,0.02,6),WMAT(0xb4b9be)); tipc.position.y=0.49; spin.add(tipc);
     const trg=new THREE.Mesh(new THREE.BoxGeometry(0.012,0.03,0.015),WMAT(0xc0762a)); trg.position.set(0,0.10,-0.035); g.add(trg);
     return {mesh:g, grip:0.06};
   },
@@ -11448,6 +11449,7 @@ function setWeaponFx(id){
   weaponFx.userData.muzzle=(muzzle||0)-grip;      // 총구까지의 국소 높이
   weaponFx.userData.flash=mesh.getObjectByName('flash')||null;
   weaponFx.userData.tip=mesh.getObjectByName('tip')||null;
+  weaponFx.userData.spin=mesh.getObjectByName('spin')||null;
   weaponFx.userData.rest=rest||null; weaponFx.userData.tipScale=tipScale||1;
   weaponFx.rotation.set(-Math.PI/2+0.20,0,0.12);
   weaponFx.position.copy(WEAPON_HOME);
@@ -12841,7 +12843,7 @@ function castNet(w,T){
    · 도끼·곡괭이·드릴로 캘 것을 보고 있으면 → 누르고 있는 동안 캔다(updateHarvest 가 useDown 을 본다 · 빈손 채집도 같다)
    · 무기·그물·수류탄 → 공격   · 빈손 → 물가에서 마신다
    우클릭은 조준경과, 축전지로 채우는 물건(전등·드릴)의 충전(chargeHeld)만 한다. 짓기 중엔 좌클릭이 조각 놓기. */
-const USE_DUR=0.45; let USE_T=0;
+const USE_DUR=0.45; let USE_T=0, DRILL_K=0;
 /* 좌클릭이 캐기가 되는 때 — 캘 것을 보고 있고, 빈손이거나 손의 것이 그 캐기 도구일 때.
    칼을 들고 덤불을 보면 캐지 않고 휘두른다. */
 function harvestByUse(){ return !!HARV.mode && (!equippedTool() || !!HARV.mode.tool); }
@@ -12858,7 +12860,8 @@ function useHeld(){
   if(W.lamp){ toggleLamp(); return; }
   if(W.weapon||W.net||W.throw){ attack(); return; }
   if(W.drill && e.dur<=0){ toast('전기가 없다 — 우클릭으로 축전지에서 채운다'); return; }
-  if(W.axe||W.pick) toast(T.n+' — 나무나 광석을 보고 좌클릭을 누르고 있는다');
+  if(W.axe) toast(T.n+' — 나무 줄기를 보고 좌클릭을 누르고 있으면 벤다(가지를 꺾으려면 손을 비울 것)');
+  else if(W.pick) toast(T.n+' — 광석·암석을 보고 좌클릭을 누르고 있으면 캔다');
 }
 /* 우클릭 — 축전지로 채우는 물건(전등·드릴)을 지닌 축전지에서 채운다 */
 const chargeable=T=>!!(T&&T.tool&&(T.tool.lamp||T.tool.drill));
@@ -12940,11 +12943,19 @@ function updateWeapon(dt){
   let p=ATK.swing>0 ? 1-ATK.swing/dur : 0;
   if(ATK.swing>0) ATK.swing=Math.max(0,ATK.swing-dt);
   let style=W.swing;
-  if(!W.weapon){                                // 도끼·곡괭이는 캐는 동안 내리친다
+  const drilling=!!W.drill&&HARV.active;
+  if(!W.weapon){                                // 도끼·곡괭이는 캐는 동안 내리친다 — 드릴은 아래에서 따로
     style='smash';
-    if(HARV.active&&(W.axe||W.pick)){ HOLD_T+=dt; p=(HOLD_T*1.3)%1; } else { HOLD_T=0; p=0; }
+    if(HARV.active&&(W.axe||W.pick)&&!W.drill){ HOLD_T+=dt; p=(HOLD_T*1.3)%1; } else { HOLD_T=0; p=0; }
   }
   const H=WEAPON_HOME, o=swingPose(style,p);
+  /* 드릴 — 휘두르지 않는다. 0.25초에 걸쳐 앞으로 밀어 대고(DRILL_K), 대는 동안 잘게 떨며 날이 돈다 */
+  DRILL_K=clamp(DRILL_K+(drilling?dt:-dt)/0.25,0,1);
+  if(DRILL_K>0){ const k=wease(DRILL_K), t=performance.now()*0.001;
+    o.pz-=0.16*k; o.py+=0.03*k; o.rx-=0.12*k;
+    if(drilling){ o.px+=Math.sin(t*97)*0.003; o.py+=Math.sin(t*131+1.3)*0.003; } }
+  const sp=weaponFx.userData.spin;
+  if(sp&&drilling) sp.rotation.y=(sp.rotation.y+dt*60)%(Math.PI*2);
   const rs=weaponFx.userData.rest;
   if(rs){ o.rx+=rs.rx-WRX; o.rz+=rs.rz-WRZ; }    // 세워 드는 것(횃불·등잔·그물·먹을 것)
   if(USE_T>0){                                 // 먹고 마시기 — 입으로 가져간다

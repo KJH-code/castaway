@@ -180,7 +180,7 @@ python -m http.server 5173
 `sed -n '시작,끝p'` 로 그 구역만 뜰 것.** 파일이 2.1MB(약 60만 토큰)라 통독은
 컨텍스트를 통째로 태운다. 구역 하나는 보통 2~5천 토큰이면 충분하다.
 
-### 구역 지도 — `island_world.html` (15,069줄)
+### 구역 지도 — `island_world.html` (15,080줄)
 
 | 줄 | 구역 | 무엇이 있나 |
 |---|---|---|
@@ -206,13 +206,13 @@ python -m http.server 5173
   `FIRING`·`SMELT`·`MOBS[].drop` 을 다 훑는다 |
 | 10841 | 근접 공격 | `CREATURES` 10847 (비어 있음) |
 | 10850 | 손에 든 무기 | **`WEAPON_FX` 10955** — 손에 드는 것의 생김새를 id로 키잉한 조립 함수 |
-| 12542~ | 전투 진입점 | `equippedWeapon` 12542 · `shoot` 12629 · `castNet` 12814 · `attack` 12871 |
-| 12964 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
-| 13059 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
-| 13274 | 음향 | 물리 모델 합성 |
-| 13457 | HUD | `drawMap` 13480 · `drawCompass` 13520 · 성능 창 `PERF` 13549 · `updateHUD` 13721 |
-| 13913 | 초기화 · 루프 | `initThree` 14011 · `freezeStatics` 14064 · 셰이더 미리 짜기 `PRECOMP` 14090 · `start` 14776 · `loop` 14997 |
-| 14280 | 저장 / 불러오기 | `snapshot` 14313 · `saveLocal` 14525 · `loadFile` 14584 |
+| 12544~ | 전투 진입점 | `equippedWeapon` 12544 · `shoot` 12631 · `castNet` 12816 · `attack` 12874 |
+| 12975 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
+| 13070 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
+| 13285 | 음향 | 물리 모델 합성 |
+| 13468 | HUD | `drawMap` 13491 · `drawCompass` 13531 · 성능 창 `PERF` 13560 · `updateHUD` 13732 |
+| 13924 | 초기화 · 루프 | `initThree` 14022 · `freezeStatics` 14075 · 셰이더 미리 짜기 `PRECOMP` 14101 · `start` 14787 · `loop` 15008 |
+| 14291 | 저장 / 불러오기 | `snapshot` 14324 · `saveLocal` 14536 · `loadFile` 14595 |
 
 배너의 번호는 믿지 말 것 — 11)과 12-d)가 두 번씩 나오고 12-c)가 12-d) 뒤에 온다.
 **줄 번호가 정본이다.** 큰 삽입·삭제 뒤에는 이 표의 줄 번호도 같이 고칠 것:
@@ -235,7 +235,9 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
    안 쓰면 `setWeaponFx` 가 조용히 `return` 하고 손이 빈다. 더하면 이 짝부터 맞춰 볼 것:
    `node tools/probe.mjs island_world.html "Object.entries(ITEMS).filter(([k,v])=>v.tool).length" "Object.keys(WEAPON_FX).length"`
    무기가 아닌 것은 `rest:{rx,rz}` 로 세워 들고(횃불·그물), 도끼·곡괭이는 캐는 동안(`HARV.active`)
-   내리친다. `tip`(이름 붙인 Object3D)이 있으면 횃불 불꽃이 그 자리에 앉는다(`updateTorch`).
+   내리친다. **드릴(`tool.drill`)은 안 휘두른다** — 앞으로 밀어 대고(`DRILL_K`, 0.25초) 잘게 떨며 날끝 무리(`spin` —
+   `userData.spin`)가 돈다. 곡괭이 등급을 달고 있어 예전엔 곡괭이처럼 내리쳤다. 손에 든 도구로 할 수 없는 것을 보고
+   좌클릭하면 도구마다 안내가 다르다(도끼 — 나무 줄기 · 곡괭이·드릴 — 광석·암석). `tip`(이름 붙인 Object3D)이 있으면 횃불 불꽃이 그 자리에 앉는다(`updateTorch`).
    재질은 `WMAT` — 퐁, 무채색일수록(쇠·뼈) 반들거린다. 같은 색은 한 재질을 나눠 쓴다(`_WM`).
 2. **id가 직접 박힌 자리가 여남은 곳 있다** — `tinder`(발화) · `codex` ·
    `ring_platinum` · `stone_block`. `grep -n "id==='"` 로 확인할 것.
