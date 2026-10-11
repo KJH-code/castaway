@@ -6705,6 +6705,15 @@ const ITEMS={
                tool:{weapon:1, dmg:70, reach:2.1, rate:1.08, stam:17, swing:'smash',
                      stun:0.28},
                durMax:2000},
+  /* 잿불 검 — 강철 검 날 밑동에 애쉬스케일의 잿불 비늘을 겹쳐 감았다. 비늘은 불에 타지 않고
+     열을 머금고 있다가 벤 자리를 지진다. 날은 강철 검 그대로라 피해·빠르기도 같고,
+     맞은 것은 **0.5초 동안 0.1초마다 5**(모두 25)를 더 입는다(`tool.burn`).
+     **화상은 겹치지 않는다** — 타는 동안 또 베면 남은 시간만 0.5초로 되돌린다. */
+  sword_ember:{n:'잿불 검',    kg:2.0,  c:0x5a3328,
+               use:'베기 — 강철 검에 잿불 비늘을 감았다. 벤 자리를 0.5초 동안 지진다(겹치지 않음)',
+               tool:{weapon:1, dmg:38, reach:1.5, rate:0.36, stam:5, swing:'slash',
+                     burn:{t:0.5, every:0.1, dmg:5}},
+               durMax:1500},
   /* 사냥물 무기 — 철보다 **약하고 빨리 닳는 대신, 훨씬 가볍고 조금 빠르다**.
      피해는 철의 3/4, 쿨타임은 9/10, 무게는 55~60%, 내구는 45% 쯤이 기준이다.
      짐 무게가 곧 이동 속도인 이 게임에서, 가벼움은 그 자체로 값이다. */
@@ -8314,6 +8323,13 @@ const RECIPES=[
    note:'날을 길게 뽑아 가운데 혈조를 파고 물에 담가 굳힌다. 홈이 무게를 덜면서도 '
        +'휨에는 오히려 강해진다.',
    in:[{id:'ingot_steel',n:2},{id:'charcoal',n:2},{id:'cord',n:2},{id:'hide',n:1}],
+   need:[{id:'hammer_stone',n:1}]},
+
+  {id:'sword_ember', tier:'강철', n:'잿불 검', out:{id:'sword_ember',n:1},
+   time:40, stam:24, station:'anvil',
+   note:'강철 검을 달궈 날 밑동에 잿불 비늘을 겹쳐 대고 두드려 물린 뒤 끈으로 감아 맨다. '
+       +'애쉬스케일 한 마리분에서 갑옷·투구를 꿰고 남는 비늘 셋이면 된다.',
+   in:[{id:'sword_steel',n:1},{id:'ember_scale',n:3},{id:'charcoal',n:1},{id:'cord',n:2}],
    need:[{id:'hammer_stone',n:1}]},
 
   {id:'spear_steel', tier:'강철', n:'강철 창', out:{id:'spear_steel',n:1},
@@ -10613,6 +10629,8 @@ function toolSpec(t,it){
     p.push('피해 '+t.dmg+' · 사거리 '+t.reach+' m · '+(1/t.rate).toFixed(2)+'회/초');
     p.push('초당 피해 '+Math.round(t.dmg/t.rate));
     if(t.stun) p.push('기절 '+t.stun+'초');
+    if(t.burn) p.push('화상 '+t.burn.t+'초 · '+t.burn.every+'초마다 '+t.burn.dmg
+      +'(모두 '+Math.round(t.burn.t/t.burn.every)*t.burn.dmg+') · 겹치지 않음');
     if(t.gun) p.push((t.bore==='arrow'?'한 대씩 메김 · 메기는 데 '+t.reload+'초 · 쓰는 화살 '
                                       :'탄창 '+t.mag+'발 · 재장전 '+t.reload+'초 · 쓰는 탄 ')
       +Object.keys(ITEMS).filter(k=>isAmmo(k)&&boreOf(k)===(t.bore||'rifle'))   // 구경이 맞는 것만
@@ -11406,6 +11424,55 @@ const WEAPON_FX={
     const pt=new THREE.Mesh(new THREE.ConeGeometry(0.058,0.18,4),WMAT(0xc8ced4));
     pt.position.y=H+0.05+B2+0.08; pt.rotation.y=Math.PI/4;
     pt.scale.set(1,1,0.34); g.add(pt);
+    return {mesh:g, grip:0.16};
+  },
+  /* 잿불 검 — 강철 검 날 밑동 40% 를 잿불 비늘로 겹쳐 감쌌다. 비늘은 검고(갑옷과 같은 빛)
+     테만 달아오른다 — 달아오름은 자체 발광(emissive)이라 광원을 늘리지 않는다
+     (광원 수가 바뀌면 모든 재질의 셰이더를 다시 짠다). 날 두 변에도 달군 빛이 가늘게 선다. */
+  sword_ember(){
+    const g=WEAPON_FX.sword_steel().mesh, H=0.26, B2=0.96, y0=H+0.07;
+    const scM=_WM.emberScale||(_WM.emberScale=new THREE.MeshPhongMaterial({color:0x1c1512,
+      specular:0x3a2a22, shininess:30, emissive:0x1a0602}));
+    const rimM=_WM.emberRim||(_WM.emberRim=new THREE.MeshBasicMaterial({color:0xff5a14}));
+    const edgeM=_WM.emberEdge||(_WM.emberEdge=new THREE.MeshBasicMaterial({color:0xd8481a}));
+    /* 비늘 한 장 = 끝이 뾰족한 방패꼴(갑옷 비늘 `drop` 과 같은 꼴) — 둥근 머리는 칼끝 쪽,
+       뾰족한 끝은 손잡이 쪽을 본다. 같은 꼴을 조금 크게 뒤에 깔아 그 테만 달아오르게 보인다. */
+    const sh=new THREE.Shape(), w=0.019, h=0.046;
+    sh.moveTo(0,-h*0.5);
+    sh.quadraticCurveTo(w*1.05,-h*0.15, w,h*0.22);
+    sh.quadraticCurveTo(w*0.8,h*0.5, 0,h*0.5);
+    sh.quadraticCurveTo(-w*0.8,h*0.5, -w,h*0.22);
+    sh.quadraticCurveTo(-w*1.05,-h*0.15, 0,-h*0.5);
+    const sc=new THREE.ExtrudeGeometry(sh,{depth:0.004, bevelEnabled:false, curveSegments:4});
+    const rim=new THREE.ShapeGeometry(sh,4);
+    const ROWS=11, rowH=0.031;
+    for(let i=0;i<ROWS;i++){
+      const y=y0+0.02+i*rowH, n=i%2?3:2;                     // 줄마다 반 칸 어긋나게
+      for(let side=-1;side<=1;side+=2) for(let k=0;k<n;k++){
+        const x=(k-(n-1)/2)*0.03;
+        const m=new THREE.Mesh(sc,scM);
+        // 윗줄(칼끝 쪽)이 바깥에 서고 뾰족한 끝이 아랫줄 머리를 덮는다 — 끝을 바깥으로 젖힌다
+        m.position.set(x,y,side*(0.013+i*0.0004));
+        m.rotation.set(-side*0.22, side<0?Math.PI:0, 0);
+        g.add(m);
+        const r=new THREE.Mesh(rim,rimM);                     // 달아오른 테 — 비늘보다 12% 큰 판을 바로 뒤에
+        r.scale.set(1.14,1.10,1);
+        r.position.set(x,y-0.001,side*(0.0125+i*0.0004));
+        r.rotation.copy(m.rotation);
+        g.add(r);
+      }
+    }
+    // 비늘을 붙든 끈 — 위아래 두 감기
+    for(const y of [y0-0.006,y0+ROWS*rowH+0.03]){
+      const c=new THREE.Mesh(new THREE.BoxGeometry(0.104,0.016,0.05),WMAT(0x3a2418));
+      c.position.y=y; g.add(c);
+    }
+    // 날 두 변의 달군 빛 — 비늘 위로 날끝까지
+    const yA=y0+ROWS*rowH+0.04, yB=H+0.05+B2;
+    for(const sx of [-1,1]){
+      const e=new THREE.Mesh(new THREE.BoxGeometry(0.005,yB-yA,0.008),edgeM);
+      e.position.set(sx*0.0425,(yA+yB)/2,0); g.add(e);
+    }
     return {mesh:g, grip:0.16};
   },
   spear_steel(){                             // 강철 창 — 버들잎꼴 날
@@ -12947,12 +13014,30 @@ function attack(){
        개체의 경직도 여기에 넣는다 — 둘이 같은 시계를 쓰고 서로 더해진다.
        개체 AI 는 c.stun>0 이면 움직이지도 모션을 진행하지도 않으면 된다. */
     if(W.stun) hit.stun=(hit.stun||0)+W.stun;
+    if(W.burn && hit.hp>0) setBurn(hit,W.burn);
     w.dur-=1;
     if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
-    toast(hit.hp<=0?'쓰러뜨렸다':(W.stun?'명중 — 기절':'명중'));
+    toast(hit.hp<=0?'쓰러뜨렸다':(W.stun?'명중 — 기절':(hit.burn?'명중 — 화상':'명중')));
     sfx('thrust');
   }else{ toast('허공을 갈랐다'); sfx('thrust'); }
   invDirty=true;
+}
+/* 화상 — c.burn = {t 남은 시간, acc 지난 틱 뒤 흐른 시간, every, dmg}. **겹치지 않는다**:
+   타는 동안 또 맞으면 남은 시간만 처음 길이로 되돌리고 틱 시계(acc)는 그대로 둔다 —
+   그래서 0.1초에 5 라는 빠르기는 몇 번을 베어도 안 바뀐다. 틱은 흐른 시간으로 센다
+   (프레임이 길어도 같은 수가 든다). 불에 타지 않는 것(`fireproof` — 애쉬스케일)은 안 탄다. */
+function setBurn(c,B){
+  if(c.fireproof) return;
+  if(c.burn) c.burn.t=B.t;
+  else c.burn={t:B.t, acc:0, every:B.every, dmg:B.dmg};
+}
+function burnTick(c,dt){
+  const b=c.burn;
+  if(c.hp<=0){ c.burn=null; return; }
+  const s=Math.min(dt,b.t);
+  b.t-=s; b.acc+=s;
+  while(b.acc>=b.every-1e-6 && c.hp>0){ b.acc-=b.every; c.hp-=b.dmg; }
+  if(b.t<=1e-6) c.burn=null;
 }
 /* 휘두르는 결 — 창은 찌르고, 검·도끼는 베고, 해머는 내리친다 */
 function updateWeapon(dt){
@@ -12978,6 +13063,7 @@ function updateWeapon(dt){
   }
   // 맞은 개체의 기절도 여기서 푼다
   for(const c of CREATURES) if(c.stun>0) c.stun=Math.max(0,c.stun-dt);
+  if(!paused) for(const c of CREATURES) if(c.burn) burnTick(c,dt);
   // 무기뿐 아니라 손에 든 도구는 다 보인다
   const w=equippedTool();
   setWeaponFx(w?w.id:null);
