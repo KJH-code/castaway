@@ -13610,7 +13610,7 @@ const PERF={on:false, sec:new Float64Array(7), nf:0, t0:0, show:0, ring:new Floa
     if(typeof LIT!=='undefined') L.push('구름 명암 '+(this.litMs/n).toFixed(2)+' ms · '+((LIT.stats.n-this.lit0)*ps).toFixed(1)+'덩이/초 · 대기 '+LIT.stats.queue);
     if(typeof TERR_STAT!=='undefined') L.push('지형 단계 1·2·4·8칸 '+TERR_STAT.join('·'));
     const mi=renderer.info.memory, pm=performance.memory;
-    L.push('지오메트리 '+mi.geometries+' · 텍스처 '+mi.textures+' · 셰이더 '+renderer.info.programs.length+(pm?' · JS '+(pm.usedJSHeapSize/1048576).toFixed(0)+' MB':''));
+    L.push('지오메트리 '+mi.geometries+' · 텍스처 '+mi.textures+' · 셰이더 '+renderer.info.programs.length+(PRECOMP.n?'(미리 '+PRECOMP.n+')':'')+(pm?' · JS '+(pm.usedJSHeapSize/1048576).toFixed(0)+' MB':''));
     // 진단(예전 F3 상자) — 멈춤·잠금·입력 상태
     L.push('진단 paused='+paused+' busy='+busy+' fly='+flyMode+' mouse='+hasMouse+' touch='+touchOnly
       +' lock='+(document.pointerLockElement===cv)+' · 청크 '+chunks.length+' · 소품 '+PROPS.length
@@ -13995,6 +13995,145 @@ function freezeStatics(){
   if(propGroup) for(const o of propGroup.children) fr(o);
   for(const m of chunks) fr(m);
   if(riverMesh) fr(riverMesh);
+}
+/* ── 셰이더 미리 짜기(E2) ─────────────────────────────────────────────────
+   Three(r128)는 광원 수 — 평행광·점광원·집중광과 그 그림자 수 — 가 바뀌면 빛을 받는 재질의 셰이더를 새로 짠다
+   (빛을 안 받는 재질도 처음 그릴 때의 광원 수가 열쇠에 들어간다). 첫 모닥불을 켜면 24개, 손전등을 처음 켜면 17개,
+   상륙해 처음 보는 칸 재질 4개를 한꺼번에 짜느라 멈칫했다(Windows 의 ANGLE 은 한 개에 수십 ms). 한 번 짠 셰이더는
+   재질마다 열쇠별로 기억해 되쓰므로(r128 `materialProperties.programs`), 나올 조합을 **시작 화면·일시정지 동안** —
+   덮개 뒤라 멈칫이 안 보인다 — 프레임마다 몇 ms 씩 미리 짜 둔다. 화면은 그대로다(짜기만 하고 그리지 않는다).
+   조합(지금 광원 상태 기준): ⓪ 그대로(아직 안 그려 본 재질 — 꺼진 칸·복제 나무·총구 불 — 와 그림자용 재질)
+   ① 점광원 +1(등잔 · 그림자를 받기 전 불 · 그림자 품질 '낮음'의 불) ② 점광원 +1 과 그 그림자 +1(모닥불·화로)
+   ③ 집중광 그림자 +1(손전등) ④ 불 + 손전등 — 그림자 수는 예산(`QUAL.pts`)을 흉내 내 정한다(손전등이 먼저 자리를 갖고,
+   자리가 차 있으면 불의 그림자를 빼앗는다). ③④는 전등을 지녔을 때만. 기준은 둘 — 지금 광원 그대로, 그리고 놓인 불·화로·등잔을
+   다 끈 바탕(불을 켠 채 멈췄다가 그 불이 꺼진 뒤 손전등만 켜는 때). 셰이더 열쇠는 광원의 **수**만 보므로 빈 장면에 같은 수의 가짜 광원을
+   세우고, 재질마다 대역 메시를 하나씩 넣어 `renderer.compile` 한다. 대역은 인스턴스 여부 · 인스턴스 색 유무를 맞추고
+   **지오메트리는 진짜 것을 쓴다** — 정점 색 재질은 지오메트리의 색 칸 크기(`vertexAlphas`)가 열쇠에 든다(땅이 그랬다).
+   빛을 안 받는 재질은 ⓪①②만 — 불꽃처럼 점광원과 한 무리에 든 것만 ①②까지(불을 켤 때 처음 그려진다).
+   **그림자 지도용 재질은 앞 프레임의 광원 수로 짜인다** — r128 은 그림자 지도를 그린 **뒤에** 이번 프레임 광원을 세운다
+   (`shadowMap.render` → `setupLights`). 그래서 불이 처음 그림자를 드리우는 프레임의 거리 재질 열쇠는 '켜기 전' 상태다 —
+   거리 재질은 ⓪①③④(점광원 그림자가 생기기 바로 앞 상태들)로, 깊이 재질(해·손전등)은 ⓪으로 짠다. 그림자 패스는
+   **안개 없는 빈 장면**으로 그리므로 안개 없는 장면에서, 그림자에 그릴 면(앞면 재질은 뒷면 — `SHADOW_SIDE`)으로 짠다.
+   내장 깊이·거리 재질은 렌더러 안에 숨어 있지만 같은 매개변수의 재질로 짜 두면 열쇠가 같아 셰이더를 나눠 쓴다.
+   불을 켠 채 멈추면 그 상태에서 '하나 더' 를 다시 짠다 — 이미 짠 것은 표에서 찾기만 한다(재질 하나에 0.05 ms 쯤). */
+const PRECOMP={jobs:null, k:0, i:0, sig:'', t:0, n:0, ms:0, ic:null, g0:null, mf:null, dm:{}, xm:{}, force:false};
+const SHADOW_SIDE={0:1,1:0,2:2};      // r128 — 그림자 지도엔 앞면 재질의 뒷면을 그린다(양면은 양면)
+function lightCensus(){
+  const c={d:0,ds:0,p:0,ps:0,s:0,ss:0,h:0};
+  scene.traverseVisible(o=>{
+    if(!o.isLight||!o.layers.test(camera.layers)) return;
+    if(o.isDirectionalLight){ c.d++; if(o.castShadow) c.ds++; }
+    else if(o.isPointLight){ c.p++; if(o.castShadow) c.ps++; }
+    else if(o.isSpotLight){ c.s++; if(o.castShadow) c.ss++; }
+    else if(o.isHemisphereLight) c.h++;
+  });
+  return c;
+}
+/* 가짜 광원만 선 빈 장면 — Object3D.add 갈고리(LIGHT.pending)를 안 타게 손으로 붙인다 */
+function precompScene(c,fog){
+  const sc=new THREE.Scene(); sc.fog=fog?scene.fog:null;
+  const put=(mk,n,ns)=>{ for(let i=0;i<n;i++){ const l=mk(); l.castShadow=i<ns; l.parent=sc; sc.children.push(l); } };
+  put(()=>new THREE.DirectionalLight(),c.d,c.ds); put(()=>new THREE.PointLight(),c.p,c.ps);
+  put(()=>new THREE.SpotLight(),c.s,c.ss);       put(()=>new THREE.HemisphereLight(),c.h,0);
+  return sc;
+}
+/* 지금 장면에서 짤 것 — 빛 받는 재질 · 안 받는 재질(불꽃 무리 따로) · 해·손전등 그림자 깊이 재질 · 점광원 그림자 거리 재질.
+   바뀌었는지는 sig 로 본다 */
+function precompPlan(){
+  const P=PRECOMP, c=lightCensus(), Q=LIGHT.QUAL[LIGHT.q], sh=renderer.shadowMap.enabled;
+  const lit=new Map(), unl=new Map(), fx=new Map(), dep=new Map(), dis=new Map(), lamp=new Set();
+  const own=(tbl,side,mk)=>tbl[side]||(tbl[side]=Object.assign(mk(),{side}));
+  scene.traverse(o=>{ if(o.isPointLight&&o.parent&&o.parent!==camera) lamp.add(o.parent); });
+  scene.traverse(o=>{
+    if(!o.material||o.isSkinnedMesh||!(o.isMesh||o.isPoints||o.isLine||o.isSprite)) return;
+    const g=o.geometry, inst=!!o.isInstancedMesh, ic=inst&&!!o.instanceColor;
+    const near=lamp.has(o.parent)||(o.parent&&lamp.has(o.parent.parent))||(o.parent&&o.parent.parent&&lamp.has(o.parent.parent.parent));
+    for(const m of (Array.isArray(o.material)?o.material:[o.material])){
+      if(m.isRawShaderMaterial) continue;                 // 광원 수가 열쇠에 안 든다 — 처음 그릴 때 한 번이면 된다
+      const va=m.vertexColors===true&&g&&g.attributes.color?g.attributes.color.itemSize:0;   // r128 vertexAlphas
+      const it={m,inst,ic,g}, key=m.id+'|'+inst+'|'+ic+'|'+va;
+      if(m.isMeshLambertMaterial||m.isMeshPhongMaterial||m.isMeshStandardMaterial||m.isMeshToonMaterial||(m.isShaderMaterial&&m.lights)) lit.set(key,it);
+      else (near?fx:unl).set(key,it);
+      if(!sh||!o.castShadow||!o.isMesh) continue;
+      const side=m.shadowSide!=null?m.shadowSide:SHADOW_SIDE[m.side];
+      const dm=o.customDepthMaterial||own(P.dm,side,()=>new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking}));
+      const xm=o.customDistanceMaterial||own(P.xm,side,()=>new THREE.MeshDistanceMaterial());
+      dep.set(dm.id+'|'+side+'|'+inst+'|'+ic,{m:dm,side,inst,ic,g});
+      dis.set(xm.id+'|'+side+'|'+inst+'|'+ic,{m:xm,side,inst,ic,g});
+    }
+  });
+  /* 아직 장면에 없을 수 있는 것 — 모든 불이 나눠 쓰는 불꽃 재질(fireMats)과 총구 불. 첫 불·첫 발에 짜이던 것이다 */
+  if(!P.g0) P.g0=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));
+  const FM=fireMats();
+  for(const m of [...FM.flame,FM.glow,FM.smoke,FM.sparks]) fx.set(m.id+'|false|false|0',{m,inst:false,ic:false,g:P.g0});
+  if(!P.mf) P.mf=muzzleFlash(0.1).children[0].material;
+  unl.set(P.mf.id+'|false|false|0',{m:P.mf,inst:false,ic:false,g:P.g0});
+  /* 손전등 조합(③④)은 전등을 지녔을 때만 — 새 섬엔 없어서 시작 화면 일이 70개쯤 준다(지니게 된 뒤 멈추면 그때 짠다) */
+  const lamp1=INV.slots.some(x=>{ const T=x&&ITEMS[x.id]; return !!(T&&T.tool&&T.tool.lamp); });
+  const sig=[c.d,c.ds,c.p,c.ps,c.s,c.ss,c.h,LIGHT.q,sh,!!scene.fog,lamp1,lit.size,unl.size,fx.size,dep.size,dis.size].join(',');
+  if(sig===P.sig) return;
+  const L=[...lit.values()], U=[...unl.values()], F=[...fx.values()], D=[...dep.values()], X=[...dis.values()];
+  /* 그림자 예산(LIGHT.update)을 흉내 낸다 — 자리 K 개를 손전등이 먼저(카메라에 붙어 늘 점수가 가장 높다), 남은 자리를
+     점광원이 갖는다. 새 불은 가까이서 켜니 지금 그림자를 가진 불과 겨뤄 이긴다고 친다(자리가 차 있으면 수는 그대로) */
+  const K=sh?Q.pts:0, fit=(b,np,nps,fl)=>{ const ss=Math.min(fl?1:b.ss,K);
+    return {p:b.p+np, ps:Math.min(b.ps+nps,Math.max(0,K-ss)), ss}; };
+  const jobs=[], seen=new Set(), LF=L.concat(F);
+  const job=(d,tag,list,fog)=>{ const cc=Object.assign({},c,d), k=cc.p+'/'+cc.ps+'/'+cc.ss+'/'+tag;   // 같은 조합 · 같은 목록은 한 번
+    if(!list.length||seen.has(k)) return; seen.add(k); jobs.push({sc:precompScene(cc,fog),list}); };
+  /* 기준은 둘 — 지금 광원 그대로, 그리고 놓인 불·화로·등잔을 다 끈 바탕(불을 켠 채 멈췄다가 그 불이 꺼진 뒤 손전등만 켜는 때).
+     카메라의 횃불 · 보급선 광원 · 폭발 불빛은 늘 장면에 있다(세기로 끈다) */
+  let dyn=0;
+  scene.traverseVisible(o=>{ if(o.isPointLight&&o.layers.test(camera.layers)&&o.parent!==camera
+                               &&o!==BLAST_LIGHT&&o!==SHIP.light&&o!==SHIP.parked) dyn++; });
+  const bases=[c]; if(dyn||c.ps||c.ss) bases.push({p:c.p-dyn, ps:0, ss:0});
+  job({},'DX',D.concat(X),false);                      // 그림자용 — 점광원 그림자가 처음 생길 때도 지금 상태(앞 프레임)다
+  for(const b of bases){
+    const flash=lamp1&&c.s>0&&!b.ss;
+    job(b,'LUF',L.concat(U,F),true);                   // ⓪ 그대로
+    job(fit(b,1,1,false),'LF',LF,true);                // ② 불(그림자)
+    const c1=fit(b,1,0,false); job(c1,'LF',LF,true); job(c1,'X',X,false);   // ① 불(그림자 없이) · 등잔 — 그다음 불이 그림자를 받으면 이 상태로
+    if(b!==c) job(b,'X',X,false);
+    if(flash){ const c3=fit(b,0,0,true), c4=fit(b,1,1,true);
+      job(c3,'L',L,true); job(c3,'X',X,false);         // ③ 손전등(자리가 차 있으면 불의 그림자를 빼앗는다)
+      job(c4,'LF',LF,true); job(c4,'X',X,false); }     // ④ 불 + 손전등
+  }
+  P.sig=sig; P.jobs=jobs; P.k=0; P.i=0;
+}
+/* 대역 메시 — 짤 때 지오메트리는 정점 색 칸만 읽는다(올리지 않는다) */
+function precompProxy(it){
+  const P=PRECOMP;
+  if(!P.ic) P.ic=new THREE.InstancedBufferAttribute(new Float32Array(3),3);
+  const o=it.inst?new THREE.InstancedMesh(it.g,it.m,1):new THREE.Mesh(it.g,it.m);
+  if(it.ic) o.instanceColor=P.ic;
+  return o;
+}
+function precompStep(budget){
+  const P=PRECOMP, t0=performance.now();
+  while(P.jobs&&P.k<P.jobs.length){
+    const J=P.jobs[P.k];
+    if(P.i>=J.list.length){ P.k++; P.i=0; continue; }
+    const it=J.list[P.i++], o=precompProxy(it), s0=it.m.side, n0=renderer.info.programs.length;
+    if(it.side!==undefined) it.m.side=it.side;
+    o.parent=J.sc; J.sc.children.push(o);
+    try{ renderer.compile(J.sc,camera); }catch(e){ console.warn('[셰이더 미리 짜기]',e); }
+    J.sc.children.pop(); o.parent=null; it.m.side=s0;
+    P.n+=renderer.info.programs.length-n0;
+    if(performance.now()-t0>budget) break;
+  }
+  P.ms+=performance.now()-t0;
+  if(P.jobs&&P.k>=P.jobs.length) P.jobs=null;
+}
+/* 멈춘 동안 프레임마다 — 할 일이 있으면 8 ms 씩 짜고, 없으면 1.5초마다 장면이 바뀌었나 본다.
+   **소프트웨어 렌더(GPU_SOFT)에선 안 한다** — 스위프트셰이더는 셰이더 하나에 수 초(파이프라인을 CPU 코드로 짠다)라
+   127개를 짜는 동안 시작 화면 뒤에서 6분을 붙잡았다(헤드리스 시험이 다 느려진다). 시험에서 켜려면 `PRECOMP.force=true` */
+const PRECOMP_MAX=400;          // 셰이더가 이만큼 쌓이면 더 미리 짜지 않는다 — 불을 켠 채 자주 멈추면 조합이 늘어난다
+function precompTick(now){
+  const P=PRECOMP;
+  if(GPU_SOFT&&!P.force) return;
+  if(renderer.info.programs.length>=PRECOMP_MAX){ P.jobs=null; return; }
+  if(P.jobs){ precompStep(8); return; }
+  if(now-P.t<1500) return;
+  P.t=now; precompPlan();
 }
 async function generateWorld(){
   if(busy) return; busy=true;
@@ -14788,6 +14927,7 @@ function loop(){
   requestAnimationFrame(loop);
   const now=performance.now();
   if(BENCH.on){ benchFrame(now); return; }     // 벤치마크 — 정해 둔 길을 따로 돈다
+  if(paused&&!busy&&!document.hidden&&!winHidden) precompTick(now);   // 멈춘 동안 나올 셰이더를 미리 짠다(E2)
   /* 창을 내렸으면 그리지 않고, 멈춤 화면 뒤는 초당 10번만 그린다(덮개가 94% 가려 보이지 않는다) — GPU·전기를 아낀다 */
   if(document.hidden||winHidden||(paused&&now-lastDraw<100)){ last=now; return; }
   /* 프레임 제한(설정) — 정한 간격이 안 됐으면 이번 화면 주기는 건너뛴다. last 는 그대로 두어 dt 가 쉰 시간을 안는다 */
