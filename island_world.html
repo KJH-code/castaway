@@ -13751,6 +13751,7 @@ async function generateWorld(){
   await phase('자원 배치',96);      placeProps_(seed);
   await phase('상륙 준비',99);      cacheMap(); spawnPlayer(); buildFarTrees(); freezeStatics();
                                     LIGHT.refresh(); LIGHT.live=true;   // 다 지은 섬에 배역을 한 번에 · 이제부터 바뀌면 그림자를 다시
+                                    updateSky();   // 하늘 표(SKY_LUT)를 한 번 굽는다 — 시작 화면처럼 갱신이 멈춘 동안에도 하늘이 비지 않게
                                     INV.slots.length=0; INV.sel=0; invDirty=true;
                                     for(const k in WEAR) WEAR[k]=null; INV.max=INV.base;
                                     invAdd('codex',1);        // 사전은 처음부터 지닌다
