@@ -14,7 +14,7 @@ import {resolve} from 'node:path';
 
    mimic_arena.html 은 21MB 라 여기 없다. probe 로는 이름을 직접 대면 열린다. */
 export const PAGES = [
-  {f: 'island_world.html',  ready: 'busy === false',                      ms: 300000},
+  {f: 'island_world.html',  ready: 'busy === false',                      ms: 1200000},   // 섬 생성 — 헤드리스 7~14분
   {f: 'build_sandbox.html', ready: 'busy === false',                      ms: 300000},
   {f: 'cloud_arena.html',   ready: 'CLOUDS.length > 0 && !!skyDome',      ms: 120000},
   {f: 'bear_arena.html',    ready: '!!bMesh',                             ms: 180000},
@@ -46,9 +46,17 @@ export async function open(browser, f, {ready, ms} = pageInfo(f)) {
   page.on('console', m => {
     if (m.type() === 'error') errs.push('CONSOLE: ' + m.text().slice(0, 200));
   });
-  await page.goto(pathToFileURL(resolve(f)).href, {timeout: ms, waitUntil: 'load'});
-  await page.waitForFunction(
-    `(() => { try { return ${ready}; } catch (e) { return false; } })()`,
-    null, {timeout: ms, polling: 500});
+  /* 못 뜨면 페이지를 닫고 던진다 — 안 닫으면 그 페이지가 (섬을 계속 지으며) 브라우저를 붙잡아
+     다음 대상까지 시간 초과로 떨어졌다. 그때까지 잡힌 페이지 오류도 같이 알린다 */
+  try {
+    await page.goto(pathToFileURL(resolve(f)).href, {timeout: ms, waitUntil: 'load'});
+    await page.waitForFunction(
+      `(() => { try { return ${ready}; } catch (e) { return false; } })()`,
+      null, {timeout: ms, polling: 500});
+  } catch (e) {
+    await page.close().catch(() => {});
+    if (errs.length) e.message += '\n' + errs.slice(0, 5).join('\n');
+    throw e;
+  }
   return {page, errs};
 }
