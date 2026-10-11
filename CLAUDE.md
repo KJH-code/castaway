@@ -44,10 +44,11 @@ npx electron-builder --linux               # 묶기 — dist/ (--win · --mac �
   **새 판 알림** — 묶은 판만, 켜고 8초 뒤 GitHub `releases/latest` 를 보고 지금보다 높으면 시작 화면에 '받기' 고리(`#ovUpd`). 오프라인이면 조용히 넘어간다.
   서명이 없어 자동 설치는 안 한다(macOS 는 서명 없이 자동 갱신이 안 된다). 개발판에서 시험하려면 `CASTAWAY_UPDATE=1`.
   NSIS: 바탕 화면·시작 메뉴 바로가기 · 설치 끝나면 실행 · **지워도 저장(userData)은 남긴다**.
-- **게임이 아는 것은 `window.DESKTOP` 하나다**(`preload.js` — `saveHas/saveRead/saveWrite/info/openSaves/fullscreen/quit/onBeforeClose/closeReady/onVisible/onUpdate`, 저장은 동기 IPC).
+- **게임이 아는 것은 `window.DESKTOP` 하나다**(`preload.js` — `saveHas/saveRead/saveWrite/info/openSaves/fullscreen/quit/gpu/setGpu/onBeforeClose/closeReady/onVisible/onUpdate`, 저장은 동기 IPC).
+  `gpu()`/`setGpu(v)` 는 그래픽 백엔드(ANGLE) 고르기 — `userData/gpu.json` 에 적고 **다음에 켤 때** `use-angle` 로 넘긴다(Windows d3d11·d3d9·gl·vulkan · macOS metal·gl · Linux gl·vulkan).
   `island_world.html` 의 `DESK` 가 있으면 **저장 칸이 파일**(`userData/saves/slot1~3.json` · `auto.json` · Windows `%APPDATA%\CASTAWAY\saves` —
   임시 파일에 쓰고 바꿔 끼우며 바로 앞 것은 `.bak`), 없으면 `localStorage`(`castaway.save1~3` · `castaway.auto` — 슬롯 1 은 예전 키 그대로). 슬롯 이름은 `[a-z0-9._-]` 만 받는다.
-  데스크톱 판에서만 보이는 것: 일시정지 화면의 **끝내기**(`#bQuit` — 상륙 전이면 바로, 상륙했으면 묻고 닫기 길(자동 저장)을 탄다) · 설정 창의 '전체 화면'·'저장·기록 폴더'(`#deskG` — userData 를 연다) ·
+  데스크톱 판에서만 보이는 것: 일시정지 화면의 **끝내기**(`#bQuit` — 상륙 전이면 바로, 상륙했으면 묻고 닫기 길(자동 저장)을 탄다) · 설정 창의 '전체 화면'·'저장·기록 폴더'(`#deskG` — userData 를 연다)·그래픽 백엔드 고르기(`#pAngle`) ·
   시작 화면 오른쪽 아래 판 번호(`#ovVer`).
 - **시험**: playwright 의 `_electron.launch` 로 xvfb 에서 띄운다(`xvfb-run -a node 시험.cjs`). 소프트웨어 GL 이라 섬 생성이 약 2분이고,
   `page.screenshot` 은 시간 초과가 난다 — 주 프로세스의 `webContents.capturePage()` 로 찍을 것.
@@ -179,39 +180,39 @@ python -m http.server 5173
 `sed -n '시작,끝p'` 로 그 구역만 뜰 것.** 파일이 2.1MB(약 60만 토큰)라 통독은
 컨텍스트를 통째로 태운다. 구역 하나는 보통 2~5천 토큰이면 충분하다.
 
-### 구역 지도 — `island_world.html` (14,557줄)
+### 구역 지도 — `island_world.html` (14,858줄)
 
 | 줄 | 구역 | 무엇이 있나 |
 |---|---|---|
-| 614 | 1) 기반 지형 | 시드 PRNG · 높이맵 · **`N`=768 · `CELL`=2.5 · `WORLD`=1920 m** (529) |
-| 655 | 2) 열적 침식 | 안식각 초과분 이동 |
-| 678 | 3) 수적 침식 | 물방울 시뮬레이션 |
-| 764 | 4) 수문 | D8 흐름 누적 → 하천 |
-| 851 | 5) 경사 · 거리장 | |
-| 880 | 6) 기후 | 탁월풍 지형성 강수 |
-| 969 | 7) 바이옴 분류 | |
-| 1016 | 8) 자원 배치 | 지질 규칙 · 광물 분포 |
-| 1185 | 샘플링 API | 지형 조회 창구 |
-| 1209 | 9) 3D 월드 렌더링 | 압축 인스턴스 `instCompact` 1290 · 지형 `buildChunks` 1935 / LOD `updateTerrainLOD` 1991 · 칸 보이기 `updateTileVis` 2274 · 먼 나무 `buildFarTrees` 2439 · `buildProps` 2490 |
-| 3594 | 빛 · 하늘 · 날씨 · 구름 | **`LIGHT` 3632** · `SKY` 3895 · `updateWeather` 4242 · 구름 명암 `litQueue` 4733 · `updateClouds` 5288 · 하늘 표 `SKY_LUT` 5778 · `updateSky` 5918 |
-| 6138 | 10) 아이템 · 인벤토리 | **`ITEMS` 6145** · `INV` 6631 · 드래그 `dragPut` 6749 / `wireDrag` 6785 |
-| 6818 | 11) 맨손 채집 | `HARVEST` 6824 · `MINE` 6846 |
-| 7310 | 12) 제작 | **`RECIPES` 7317** · `startCraft` 8201 · `drawCraft` 8263 |
-| 8314 | 12-b) 불 | `FIRING` 8324 · `SMELT` 8354 |
-| 8677 | 집 짓기 | `BUILD` 8744 · `floorAt` 8789 · `BUILD_MESH` 8993 |
-| 10158 | 사전 | `GEO`/`MINERALS` · `obtainOf` — 표를 역으로 훑어 획득 경로를 만든다.
+| 618 | 1) 기반 지형 | 시드 PRNG · 높이맵 · **`N`=768 · `CELL`=2.5 · `WORLD`=1920 m** (533) |
+| 659 | 2) 열적 침식 | 안식각 초과분 이동 |
+| 682 | 3) 수적 침식 | 물방울 시뮬레이션 |
+| 768 | 4) 수문 | D8 흐름 누적 → 하천 |
+| 855 | 5) 경사 · 거리장 | |
+| 884 | 6) 기후 | 탁월풍 지형성 강수 |
+| 973 | 7) 바이옴 분류 | |
+| 1020 | 8) 자원 배치 | 지질 규칙 · 광물 분포 |
+| 1189 | 샘플링 API | 지형 조회 창구 |
+| 1213 | 9) 3D 월드 렌더링 | 압축 인스턴스 `instCompact` 1294 · 지형 `buildChunks` 1945 / LOD `updateTerrainLOD` 2003 · 칸 보이기 `updateTileVis` 2291 · 먼 나무 `buildFarTrees` 2514 · `buildProps` 2566 |
+| 3677 | 빛 · 하늘 · 날씨 · 구름 | **`LIGHT` 3717** · `SKY` 3989 · `updateWeather` 4336 · 구름 명암 `litQueue` 4884 · `updateClouds` 5455 · 하늘 표 `SKY_LUT` 5945 · `updateSky` 6085 |
+| 6305 | 10) 아이템 · 인벤토리 | **`ITEMS` 6312** · `INV` 6798 · 드래그 `dragPut` 6916 / `wireDrag` 6952 |
+| 6985 | 11) 맨손 채집 | `HARVEST` 6991 · `MINE` 7013 |
+| 7477 | 12) 제작 | **`RECIPES` 7484** · `startCraft` 8368 · `drawCraft` 8430 |
+| 8481 | 12-b) 불 | `FIRING` 8491 · `SMELT` 8521 |
+| 8844 | 집 짓기 | `BUILD` 8911 · `floorAt` 8956 · `BUILD_MESH` 9160 |
+| 10327 | 사전 | `GEO`/`MINERALS` · `obtainOf` — 표를 역으로 훑어 획득 경로를 만든다.
   **`MINERALS` 에 넣은 것은 `GEO` 에도 있어야 한다** — 하나만 있으면 광물 탭이 통째로
   안 그려진다(`sand` 가 그랬다). `obtainOf` 는 `RECIPES`·`HARVEST`·`CHOP`·`MINE`·
   `FIRING`·`SMELT`·`MOBS[].drop` 을 다 훑는다 |
-| 10669 | 근접 공격 | `CREATURES` 10675 (비어 있음) |
-| 10678 | 손에 든 무기 | **`WEAPON_FX` 10783** — 손에 드는 것의 생김새를 id로 키잉한 조립 함수 |
-| 12370~ | 전투 진입점 | `equippedWeapon` 12370 · `shoot` 12457 · `castNet` 12642 · `attack` 12699 |
-| 12792 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
-| 12887 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
-| 13102 | 음향 | 물리 모델 합성 |
-| 13285 | HUD | `drawMap` 13308 · `drawCompass` 13347 · 성능 창 `PERF` 13374 · `updateHUD` 13464 |
-| 13656 | 초기화 · 루프 | `initThree` 13671 · `freezeStatics` 13723 · `start` 14288 · `loop` 14489 |
-| 13793 | 저장 / 불러오기 | `snapshot` 13826 · `saveLocal` 14038 · `loadFile` 14097 |
+| 10838 | 근접 공격 | `CREATURES` 10844 (비어 있음) |
+| 10847 | 손에 든 무기 | **`WEAPON_FX` 10952** — 손에 드는 것의 생김새를 id로 키잉한 조립 함수 |
+| 12539~ | 전투 진입점 | `equippedWeapon` 12539 · `shoot` 12626 · `castNet` 12811 · `attack` 12868 |
+| 12961 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
+| 13056 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
+| 13271 | 음향 | 물리 모델 합성 |
+| 13454 | HUD | `drawMap` 13477 · `drawCompass` 13517 · 성능 창 `PERF` 13546 · `updateHUD` 13718 |
+| 13910 | 초기화 · 루프 | `initThree` 13940 · `freezeStatics` 13993 · `start` 14566 · `loop` 14787 |
+| 14070 | 저장 / 불러오기 | `snapshot` 14103 · `saveLocal` 14315 · `loadFile` 14374 |
 
 배너의 번호는 믿지 말 것 — 11)과 12-d)가 두 번씩 나오고 12-c)가 12-d) 뒤에 온다.
 **줄 번호가 정본이다.** 큰 삽입·삭제 뒤에는 이 표의 줄 번호도 같이 고칠 것:
@@ -294,7 +295,8 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - **사진(`--shot`)은 눈으로 봐야 할 때만.** 한 장이 1,500토큰쯤 된다. 수치로 확인되는
   건 수치로 확인한다.
 - `mimic_arena.html` 은 21MB 라 `smoke.mjs` 기본 목록에서 빠져 있다. 이름을 대면 검사한다.
-- **본편은 헤드리스 섬 생성이 7~14분이다**(이 컨테이너 · 다른 브라우저를 같이 띄우면 더 느리다) — `pages.mjs` 의 대기 한도를
+- **본편은 헤드리스 섬 생성이 약 30초다**(예전 7~14분 — 짓는 동안·시작 화면에서 섬 전체 나무를 가까운 단계로 그리던 것을 막았다,
+  아래 '성능 정리 3' ⑩) — `pages.mjs` 의 대기 한도를
   20분으로 잡았다(예전 5분이라 늘 시간 초과였다). 못 뜬 페이지는 `open` 이 닫고 던진다 — 예전엔 안 닫혀서 그 페이지가 섬을
   계속 지으며 브라우저를 붙잡아 다음 대상(구름 시험장)까지 시간 초과로 떨어졌다.
 
@@ -370,7 +372,9 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   ② **해 그림자** — 섬이 1920 m 라 한 장에 못 담는다. 사람 주위 `R` m 만 덮는
     평행투영 상자를 따라 옮기되 **중심을 `SUN_STEP`(4 m, 텍셀의 정수배) 격자에 끊고 시선 쪽
     치우침(0.45R)은 8방향으로 끊어서** 옮긴다(텍셀 격자에 안 맞추면 그림자 가장자리가 들끓는다).
-    해가 낮으면(세기 0.12 미만) 접는다.
+    해가 낮으면(세기 0.12 미만) 접는다 — **castShadow 를 끄지 않고 그림자 행렬을 '모든 점 → 지도 밖'으로 돌려 둔다**
+    (`SUN_PARK` · `LIGHT._sunPark`). 끄면 그림자 광원 수가 바뀌어 모든 재질(100여 개)의 셰이더를 다시 짜느라 새벽·저녁·
+    달이 뜨고 질 때마다 멈칫했다. Three 의 그림자 셈은 지도 밖이면 1(볕)이라 화면은 끈 것과 같다(PCF 표본도 안 읽는다).
     **그림자 지도는 매 프레임 다시 그리지 않는다**(`shadow.autoUpdate=false` — Three 는 광원마다
     `needsUpdate` 를 보고 그 지도만 다시 그린다). 다시 그리는 때는 넷 — 상자가 옮겨졌을 때 · 해(밤엔 달)가
     0.2° 넘게 돌았을 때(`SUN_TURN_COS`) · 드리우는 것이 바뀌었을 때(`LIGHT.dirty()`/`dirtyAt(x,z,r)`) ·
@@ -395,6 +399,13 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
     `score = 세기 × 사거리 ÷ 거리` 로 **카메라 기준** 상위 K개에만 준다.
     밀려난 광원은 `LIGHT.free` 로 지도를 반납한다 — 안 그러면 지나친 모닥불
     수만큼 GPU 메모리가 쌓인다.
+  **광원 수(보이는 광원 · 그림자 광원)를 바꾸면 모든 재질의 셰이더를 다시 짠다(멈칫)** — 끌 때는 `visible` 대신 세기 0 으로
+  끌 것(횃불 `torchLight` · 손전등 `flash`). 보급선 광원은 떠나도 세기 0 으로 장면에 남는다(`SHIP.parked` — 다음 `makeShip` 이 치운다).
+  불·화로·등잔은 아직 `visible` 로 켜고 끈다 — 켜 둔 채 두면 놓인 불마다 모든 정점 셰이더에 광원이 하나씩 늘어 멈칫과 맞바꿀 값이 아니다.
+  **알려진 문제(r128)**: 램버트는 점광원 그림자를 **모든 직사광**에 곱하고(`getShadowMask`), 그림자 거리(사거리+2 m) 밖은 0(그늘)으로
+  센다 — 낮에 불이 그림자를 받으면 불에서 그 거리 밖 땅이 햇빛을 잃는다(잰 값: 한낮 모닥불 장면에서 화면의 16.8% 가 20 단계 넘게
+  어두워진다 · 평균 밝기 138.7 → 126.3). 고치는 길은 `shadowmap_pars_fragment` 의
+  `getPointShadow` 가 거리 밖이면 1 을 돌려주게 덧대는 것(뒤 판 Three 가 그렇게 바꿨다) — 화면이 바뀌므로 사용자에게 묻고 할 것.
   **광원은 `LIGHT.addPoint`/`addSpot` 으로 만들 것** — `new THREE.PointLight` 를
   직접 쓰면 예산에 안 잡히고 감쇠도 옛 기본값으로 선다.
   **거리 감쇠는 `decay`=2 다** — 세기 × (1−거리/사거리)². Three 기본값 1 은 사거리까지
@@ -604,6 +615,11 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   갓 빚은 덩이(`shapePuff`)는 `litNeed` 로 맨 앞에 선다. **다시 굴리기(`rerollCloud`)도 프레임마다 2 ms
   (`REROLL_BUDGET`)** 까지만 — 날씨가 건너뛸 때 한 프레임에 덩이 수십 개를 빚어 1.7초가 멈췄다. 반경 밖으로 멀어진
   덩이를 되굴리는 길도 같은 예산이다(넘치면 그 프레임엔 숨겨 둔다) — 순간이동(불러오기·되살아나기·상륙) 첫 프레임 31 → 6 ms.
+  **칠하는 일은 Web Worker 가 한다**(`litWorker` · `litShapeSend` · `litDone`) — 계산 핵심 `litCore` 를 본 스레드와 워커가 같이
+  쓴다(워커는 `litCore.toString()` 을 그대로 가져간다 — **`litCore` 안에서 바깥 이름을 부르지 말 것**, 인자로 받는다).
+  덩이를 빚을 때(`shapePuff`) 알갱이 자리·반지름·소광(Float32Array 그대로)을 보내고, 대기열이 일을 맡기면(동시 `LIT_INFLIGHT` 3)
+  색만 받아 `instanceColor` 에 올린다. 세대(`litGen`)가 바뀌었거나 사라진 덩이의 결과는 버린다. 워커를 못 만들면 예전처럼
+  본 스레드에서 1.2 ms 씩 나눠 칠한다(섬을 지을 때도 본 스레드 — `LIT.defer` 전).
   `cloudLight` 의 담아 두기 열쇠는 숫자다(해·달 고도 1 mrad · 탁도 0.01) — 예전 글자 열쇠는 거의 매
   프레임 바뀌어 담아 둔 것을 다 버렸다. 잰 값(시험장 240프레임): 합 3,563 → 1,110 ms · 가장 긴 프레임 1,733 → 15 ms.
   **같은 갈래 안에서도 개체마다 다르게 생겼다** — 갈래마다 밑그림을 `CLOUD_VARIANTS`
@@ -1035,6 +1051,46 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   3.1%(11.2만 / 362만)라 얻는 게 1% 안팎인데, 다가갈 때 포기가 돋는 깜빡임을 감추려면 칸마다 배율 유니폼이 들고,
   `count` 를 자주 바꾸면 그림자 지도를 다시 그려야 해서(A3) 그림자 상자(46 m) 밖에서만 단계로 끊어야 한다.
   사용자 PC 에서 성능 창으로 GPU 가 정점에 묶였는지 먼저 볼 것.
+- **성능 정리 3 — 화면이 한 화소도 안 바뀌는 것만**(사용자 요청: 'A~J 중 비주얼에 영향을 아예 안 주는 것').
+  ① **칸 메시 경계구(A2)** — `boundTiles()`(`generateWorld` 가 `buildFarTrees` 바로 뒤에 한 번). r128 의 InstancedMesh 는 거르기를
+  끈 채 태어나고, 켜도 밑 지오메트리 한 개의 경계구로 잰다 — 그래서 칸 메시가 시야·해 그림자·불 그림자(정육면체 여섯 면)에 늘 통째로
+  그려졌다. 인스턴스 자리·크기로 넉넉한 구('자리 + (밑 구 중심까지+반지름)×가장 큰 크기' + 2 m)를 달고 `frustumCulled` 를 켠다.
+  일반 인스턴스 메시는 늘 감싸개(속성·인덱스는 그대로 나눠 씀)를 씌워 구를 단다 — 밑 지오메트리는 칸끼리(또는 다른 물체와) 나눠 쓰므로
+  건드리지 않는다(압축 메시는 지오메트리가 칸마다 제 것이라 구만 새로). 인스턴스는 그 뒤로 줄기만
+  하므로(캐기·벌목·다시 자람) 처음 구가 늘 넉넉하다 — **칸 메시를 새로 만들거나 인스턴스를 처음보다 크게·멀리 옮기면 다시 부를 것.**
+  잰 값: 낮 모닥불 장면의 그림자 패스 삼각형 1,130만 → 591만 · 호출 645 → 425(그림은 한 화소도 안 다르다) · 사진 일곱 방향
+  (성능 정리 2 의 뒤 값 → 지금, 그림자 패스 포함) 북 154회·162만 → 129·119만 · 동 217·167만 → 183·80만 · 남 544·407만 → 518·308만 ·
+  서 442·453만 → 415·403만 · 하늘 133·177만 → 94·59만 · 노을 352·418만 → 314·331만 · 높이 118·134만 → 75·38만. 일곱 장 모두
+  앞 묶음과 화소까지 같다(노을 장의 79 화소는 별 자리 — 별은 켤 때마다 `Math.random` 으로 흩는다).
+  ② **구름 명암 워커(C3)** — 위 구름 대기열 참고. 워커가 칠한 색이 본 스레드 것과 비트까지 같다(본편 덩이 6 · 1만 4,763 값 · 시험장 1만 9,296 값).
+  ③ **같은 입력이면 건너뛰기(D4·D5)** — `updateTileVis`(사람 자리 · 투영×보기 행렬이 지난번과 같으면) · `updateTerrainLOD`(카메라
+  자리 · 화면 배율) · `drawCompass`(방위) · HUD 스타일(`hudS(el,속성,값)` — 요소마다 마지막 값을 적어 둔다. **HUD 요소의 스타일을
+  HUD 밖에서 바꾸면 어긋나니 거기도 `hudS` 로 쓸 것**). 칸·청크를 새로 지으면 `_tvForce`/`_tlK` 로 다시 센다. 잰 값: 같은 자리면
+  `updateTileVis` 0.8 → 0 ms · `updateTerrainLOD`·나침반 0 ms · `updateHUD` 0.016 ms.
+  ④ **셰이더 다시 짜기 줄이기(E1)** — 위 `LIGHT` ②의 해 그림자 주차 · 광원 수 규칙(횃불 · 보급선). 잰 값: 새벽(해 접힘) → 한낮 → 밤 →
+  한낮 → 새벽 · 횃불 넣고 빼기 · 보급선 떠남 동안 셰이더 수 92 그대로(예전엔 고비마다 빛 받는 재질 전부를 다시 짰다).
+  ⑤ **땅·물 셰이더(F2·F4)** — 땅: 120 m 밖에서 `nearK` 가 정확히 0 인 잔 얼룩·잔 요철은 심플렉스 여섯 번을 아예 안 센다
+  (`mix(1,x,0)=1` · `1−x·0=1` 이라 값이 그대로). 물: 다 걷어 낸 물결(`fade`=0)은 cos 를 안 센다.
+  ⑥ **프레임 제한(H3)** — 설정 '프레임 제한' 끔·30·60·120(`FPS_CAP` · `SET.cap`, 기본 끔). 정한 간격이 안 됐으면 그 화면 주기를
+  건너뛰고 `last` 는 그대로 둬 dt 가 쉰 시간을 안는다.
+  ⑦ **그리는 장치 이름 · 소프트웨어 렌더 경고(I2)** — `detectGpu()`(`WEBGL_debug_renderer_info`) → `GPU_NAME`/`GPU_SOFT`. SwiftShader ·
+  llvmpipe · Microsoft Basic Render 면 시작 화면에 경고(`#ovGpu`). 성능 창 둘째 줄에 장치 이름. **헤드리스 시험에서는 늘 뜬다**(SwiftShader).
+  ⑧ **벤치마크(J2)** — 설정 창 '벤치마크'(`benchStart`/`benchFrame`/`benchEnd` · `BENCH`): 착륙 캡슐 둘레 반지름 60 m 원을 눈높이로
+  40초에 한 바퀴(앞 3초 데우기) · 그날 11시로 맞춤 · 놀이 멈춤(배고픔·불·제작 안 흐름) · 끝나면 사람 자리·시각 복원 · 결과 상자
+  (평균 FPS · 1% low · 가장 느린 프레임 · CPU · GPU · 지난번) · `castaway.bench` 에 10개 · Esc 로 멈춤. 성능 창을 같이 켠다.
+  ⑨ **데스크톱 그래픽 백엔드(I1)** — 데스크톱 판 설정 칸의 고르기(`#pAngle`): 자동 · Direct3D 11 · Direct3D 9 · OpenGL · Vulkan(Windows) /
+  Metal · OpenGL(macOS) / OpenGL · Vulkan(Linux) → `userData/gpu.json` → 다음에 켤 때 `use-angle` 스위치(`main.js` 가 앱 준비 전에 읽는다).
+  ⑩ **섬 생성 — 짓는 동안·시작 화면에선 소품을 안 그린다**. 칸을 켜고 끄는 `updateTileVis` 는 멈춘 동안(짓는 중·시작 화면 — `paused`)
+  안 돌아서, 갓 지은 칸 메시가 **전부 켜진 채**(섬 전체 나무의 가지·잎이 가까운 단계로, 거르기도 없이) 덮개 뒤에서 그려졌다 —
+  헤드리스에선 그 한 프레임이 수십~백 초였고, 실제 GPU 도 시작 화면에서 내내 그걸 그렸다. 이제 `generateWorld` 가 `placeProps_` 뒤
+  `propGroup` 을 숨겼다가 다 지은 뒤 켜고 `updateTileVis()`·`updateTerrainLOD()` 를 한 번 부른다. 잰 값(헤드리스, 로딩 글이 바뀌는 때로 단계를 잼):
+  준비까지 408~501초 → **28초**(자원 배치 134.6 → 12.5 · 상륙 준비 237.1 → 8.4 · 시작 화면 첫 응답까지 120.6 → 5.4초).
+  앞서 G2(압축 인스턴스 셰이더가 정점마다 조금 더 셈)가 이 헛그림을 더 무겁게 해 891초까지 갔던 것도 같이 풀렸다.
+  또 D3 에서 붙는 물체에 배역을 바로 주게 했더니 짓는 동안 해 그림자 지도에 짓던 섬이 통째로 그려졌다(408 → 856초) — 짓는 동안
+  (`LIGHT.live` 거짓 — `generateWorld` 첫머리)은 `flush` 를 건너뛴다. **짓는 동안 그리는 프레임에 무거운 것을 켜 두지 말 것.**
+  빼 둔 것(화면이 바뀐다): A1 · A4 · A5(따로 — 해가 낮을 때 먼 판때기 그림자가 상자에 닿을 수 있다. 안전한 몫은 A2 가 한다) · A6 · A7 ·
+  B2~B5 · C4 · C6 · C8 · C9(알갱이 방향 0.23° 계단이 사라진다) · C10 · D2 · F1 · H1 · H2 · I3 · I4. G1(먼 칸 GPU 버퍼 내리기)은
+  r128 에서 칸끼리 나눠 쓰는 밑 버퍼까지 지워져 다른 칸의 VAO 가 끊기므로 뺐다.
 - **구름은 새로 불리면 하늘 아무 데서나 피어난다**(`rerollCloud(c,true)`) — 바람 위쪽 가장자리에만 세웠더니 적운 60 덩이가
   한 줄로 몰려 한꺼번에 건넜다(한쪽 하늘에만 구름). 바람 위에서 들이는 것은 멀어져 되돌아오는 구름뿐이다.
 - **바이옴 색은 텍스처다**(`bioTex` · `buildBioTex` · 셰이더 `uBio`) — 정점 색은 삼각형 안에서 직선으로 섞여 경계가 톱니였다.

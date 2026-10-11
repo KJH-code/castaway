@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('DESKTOP', {
   openSaves: () => ipcRenderer.send('app:openSaves'),
   fullscreen: () => ipcRenderer.sendSync('app:fullscreen'),
   quit: () => ipcRenderer.send('app:quit'),
+  /* 그래픽 백엔드(ANGLE) — {angle, choices, active} · 고르면 다시 켤 때 적용 */
+  gpu: () => ipcRenderer.sendSync('app:gpu'),
+  setGpu: v => ipcRenderer.sendSync('app:setGpu', String(v)),
   /* 창을 닫기 직전 — 게임이 자동 저장을 하고 closeReady 로 답한다(3초 안에 안 오면 그냥 닫힌다) */
   onBeforeClose: fn => { ipcRenderer.on('app:beforeClose', () => fn()); },
   closeReady: () => ipcRenderer.send('app:closeReady'),

@@ -935,6 +935,7 @@ function shapePuff(c){
   if(LIT.defer) c.litNeed=1;                   // 놀 때는 대기열 맨 앞에 선다(LIT)
   else litPuff(c);
   for(let i=nt;i<c.cap;i++) c.rad[i]=0;       // 남는 알갱이는 크기 0 으로 접는다
+  litShapeSend(c);                             // 명암 워커에 새 알갱이 자료(LIT)
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
   c.yaw=99;                                    // 다음 프레임에 행렬을 다시 짠다
   cloudBounds(c);
@@ -958,21 +959,21 @@ function litPuff(c){
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
   (c.litDir||(c.litDir=new THREE.Vector3())).copy(SKYL.dir); c.litNeed=0;
 }
-/* 알갱이 i0..i1 만 dir 쪽 빛으로 칠한다 */
-function litPuffRange(c,i0,i1,dir){
-  if(!c.sh) return;
-  const n=c.nb, nB=c.nBody||n, o=c.off, sx=dir.x, sy=dir.y, sz=dir.z;
+/* 알갱이 i0..i1 의 밝기(r 해 · g 하늘빛 · b 곧장 온 빛)를 out[i*3..] 에 적는다 — 순수 계산이다.
+   **구름 명암 워커(`LIT`)가 이 함수의 글자를 그대로 가져다 쓴다**(`litCore.toString()`) — 그래서 바깥 이름을
+   부르지 말 것(G 같은 것은 인자로 받는다). 고치면 본 스레드와 워커가 함께 바뀐다. */
+function litCore(n,nB,o,rad,sg,G,sx,sy,sz,i0,i1,out){
   /* **빛이 실제로 지나는 구름 길이**를 잰다 — 해 쪽 빛줄기가 알갱이 j(보이는 반지름
      0.45·rad 의 공)를 지나면 그 현의 길이 2√(re²−p²) × σⱼ 가 광학 두께 τ 에 더해진다.
      가리는 쪽은 많아야 700 알만 표본으로 세고 건너뛴 만큼 곱한다(n² 을 피한다). */
-  const st=Math.max(1,Math.ceil(nB/700)), sg=c.sg;
+  const st=Math.max(1,Math.ceil(nB/700));
   for(let i=i0;i<i1&&i<n;i++){
     const xi=o[i*3], yi=o[i*3+1], zi=o[i*3+2];
     let ts=0, tu=0, tb=0, td=0;
     for(let j=(i%st);j<nB;j+=st){
       if(j===i) continue;
       const dx=o[j*3]-xi, dy=o[j*3+1]-yi, dz=o[j*3+2]-zi;
-      const re=c.rad[j]*0.45, re2=re*re, d2=dx*dx+dy*dy+dz*dz, k=sg[j]*st*2;
+      const re=rad[j]*0.45, re2=re*re, d2=dx*dx+dy*dy+dz*dz, k=sg[j]*st*2;
       const t=dx*sx+dy*sy+dz*sz;                      // 해 쪽 빛줄기가 j 를 지나나
       { const p2=d2-t*t; if(p2<re2){ const L=k*Math.sqrt(re2-p2); if(t>0) ts+=L; else tb+=L; } }  // 해 쪽 · 반대쪽
       { const p2=dx*dx+dz*dz; if(p2<re2){ const L=k*Math.sqrt(re2-p2); if(dy>0) tu+=L; else td+=L; } } // 위 · 아래
@@ -987,12 +988,18 @@ function litPuffRange(c,i0,i1,dir){
        얇으면(τ→0) ½ 이라 2 를 곱해 1 로 맞춘다. 적운(τ≈75) 해 쪽 겉은 1, 한가운데 1,
        반대쪽 겉 0.19 — 해를 받는 쪽은 희고 그늘진 쪽만 잿빛이다.
        (한 방향 감쇠 1/(1+aτ) 만 썼더니 덩이 속이 다 까매 먹구름이 됐다.) */
-    const A=0.75*(1-CLOUD_G);
+    const A=0.75*(1-G);
     const r=Math.min(1,2*(A*tb+1)/(A*(ts+tb)+2));
     const ss=Math.exp(-ts);
     const g=Math.min(1,0.85*2*(A*td+1)/(A*(tu+td)+2)+0.15);
-    c.m.setColorAt(i,_pfC.setRGB(r,g,Math.max(ss,0.002)));
+    out[i*3]=r; out[i*3+1]=g; out[i*3+2]=Math.max(ss,0.002);
   }
+}
+/* 알갱이 i0..i1 만 dir 쪽 빛으로 칠한다(본 스레드 — 섬을 지을 때 · 워커가 없을 때) */
+function litPuffRange(c,i0,i1,dir){
+  if(!c.sh) return;
+  if(!c.m.instanceColor) c.m.setColorAt(0,_pfC.setRGB(1,1,1));
+  litCore(c.nb,c.nBody||c.nb,c.off,c.rad,c.sg,CLOUD_G,dir.x,dir.y,dir.z,i0,i1,c.m.instanceColor.array);
 }
 /* ── 구름 명암 대기열 ─────────────────────────────────────────────────────
    `litPuff` 는 알갱이 n 개 × 가리는 알 700 개를 보는 일이라 적운 한 덩이에 4~19 ms, 적란운은 165 ms 다.
@@ -1006,10 +1013,75 @@ function litPuffRange(c,i0,i1,dir){
    ③ 새로 빚은 덩이(되굴림)도 그 자리에서 칠하지 않고 대기열 맨 앞에 선다 — 새 덩이는 옅은 데서
    25초에 걸쳐 짙어지므로 몇 프레임 늦어도 안 보인다. 섬을 지을 때만 그 자리에서 칠한다(`LIT.defer` 전). */
 const LIT_BUDGET=1.2, LIT_CHUNK=16, LIT_THR0=1.5*Math.PI/180, LIT_THR1=4.5*Math.PI/180, REROLL_BUDGET=2;
-const LIT={job:null, cand:[], defer:false, frame:0, stats:{ms:0, n:0, queue:0},
-  fr:new THREE.Frustum(), pm:new THREE.Matrix4(), sp:new THREE.Sphere()};
+const LIT={job:null, cand:[], defer:false, frame:0, stats:{ms:0, n:0, queue:0, wk:0},
+  fr:new THREE.Frustum(), pm:new THREE.Matrix4(), sp:new THREE.Sphere(),
+  wk:null, wkFail:false, inflight:0, byId:new Map(), uid:0};
 const _litSort=(a,b)=>b.litPri-a.litPri;
+/* ── 구름 명암 워커 ───────────────────────────────────────────────────────
+   명암 계산(`litCore`)을 **Web Worker** 로 넘긴다 — 본 스레드는 일을 맡기고 결과(알갱이 색)만 받아 올린다.
+   대기열·우선순위·문턱(위)은 그대로고, 1.2 ms 예산 안에서 한 덩이씩 쪼개 칠하던 일이 통째로 본 스레드 밖으로 나간다.
+   워커는 `litCore` 의 글자를 그대로 가져다 쓰고(같은 식 · 같은 배정밀도), 알갱이 자리·반지름·소광은 덩이를
+   빚을 때마다(`shapePuff`) 한 번 보낸다(Float32Array 그대로 — 값이 한 비트도 안 바뀐다). 결과 색은 본 스레드에서
+   칠할 때와 같다. 한 번에 맡기는 일은 `LIT_INFLIGHT` 개까지 — 덩이를 다시 빚었거나(세대 `litGen`) 사라졌으면 버린다.
+   워커를 못 만들면(오래된 브라우저 · 막힌 환경) 예전처럼 본 스레드에서 나눠 칠한다. */
+const LIT_INFLIGHT=3;
+function litWorker(){
+  if(LIT.wk||LIT.wkFail) return LIT.wk;
+  try{
+    const src=litCore.toString()+`
+const C=new Map();
+onmessage=e=>{ const d=e.data;
+  if(d.t==='reset'){ C.clear(); return; }
+  if(d.t==='shape'){ C.set(d.id,d); return; }
+  if(d.t==='lit'){ const c=C.get(d.id);
+    if(!c||c.gen!==d.gen){ postMessage({t:'lit',id:d.id,gen:d.gen,miss:1}); return; }
+    const col=new Float32Array(c.n*3);
+    litCore(c.n,c.nB,c.off,c.rad,c.sg,${CLOUD_G},d.dx,d.dy,d.dz,0,c.n,col);
+    postMessage({t:'lit',id:d.id,gen:d.gen,col,dx:d.dx,dy:d.dy,dz:d.dz},[col.buffer]); } };`;
+    const w=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+    w.onmessage=litDone;
+    w.onerror=()=>{ LIT.wkFail=true; LIT.wk=null; LIT.inflight=0; for(const c of CLOUDS) c.litBusy=0; };
+    LIT.wk=w;
+    for(const c of CLOUDS) if(c.sh) litShapeSend(c);   // 이미 빚은 덩이를 알린다
+  }catch(e){ LIT.wkFail=true; LIT.wk=null; }
+  return LIT.wk;
+}
+/* 덩이를 (다시) 빚었다 — 워커에 알갱이 자료를 보낸다 */
+function litShapeSend(c){
+  if(!LIT.wk||!c.sh) return;
+  if(c.uid===undefined){ c.uid=++LIT.uid; }
+  LIT.byId.set(c.uid,c);
+  const n=c.nb, nB=c.nBody||n;
+  LIT.wk.postMessage({t:'shape', id:c.uid, gen:c.litGen, n, nB,
+    off:c.off.slice(0,n*3), rad:c.rad.slice(0,nB), sg:c.sg.slice(0,nB)});
+}
+/* 워커가 칠해 온 색 — 그사이 다시 빚었거나 사라졌으면 버린다(다음 대기열에서 다시 맡긴다) */
+function litDone(e){
+  const d=e.data; if(d.t!=='lit') return;
+  LIT.inflight=Math.max(0,LIT.inflight-1);
+  const c=LIT.byId.get(d.id); if(!c) return;
+  c.litBusy=0;
+  if(d.miss||c.dead||c.litGen!==d.gen||!c.m.instanceColor) return;
+  const ic=c.m.instanceColor; ic.array.set(d.col); ic.needsUpdate=true;
+  (c.litDir||(c.litDir=new THREE.Vector3())).set(d.dx,d.dy,d.dz);
+  c.litNeed=0; c.litDone=LIT.frame; LIT.stats.n++; LIT.stats.wk++;
+}
 function litQueue(ts){
+  const W=LIT.defer?litWorker():null;
+  if(W){
+    const t0=performance.now(), C=LIT.cand;
+    if(C.length>1) C.sort(_litSort);
+    for(let ci=0;ci<C.length&&LIT.inflight<LIT_INFLIGHT;ci++){
+      const c=C[ci];
+      if(c.dead||c.litBusy||c.litDone===LIT.frame||!c.sh) continue;
+      if(c.uid===undefined||LIT.byId.get(c.uid)!==c) litShapeSend(c);
+      c.litBusy=1; LIT.inflight++;
+      const d=SKYL.dir;
+      W.postMessage({t:'lit', id:c.uid, gen:c.litGen, dx:d.x, dy:d.y, dz:d.z});
+    }
+    LIT.stats.ms=performance.now()-t0; LIT.stats.queue=C.length; C.length=0;
+    return;
+  }
   const budget=LIT_BUDGET*Math.min(4,Math.sqrt(Math.max(1,ts))), t0=performance.now(), C=LIT.cand;
   let job=LIT.job;
   if(job&&(job.c.dead||job.gen!==job.c.litGen)) job=null;      // 그사이 다시 빚어졌거나 사라졌다
@@ -1483,6 +1555,7 @@ function cloudTex(draw,seed){
 
 function buildClouds(seed){
   if(cloudGroup){ scene.remove(cloudGroup); }
+  if(LIT.wk){ LIT.wk.postMessage({t:'reset'}); } LIT.byId.clear(); LIT.inflight=0;   // 명암 워커의 지난 하늘 자료를 비운다
   for(const m of cloudMat) m.dispose();
   for(const t of cloudTex_) t.dispose();
   cloudMat.length=0; cloudTex_.length=0; CLOUDS.length=0;

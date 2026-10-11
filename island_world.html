@@ -378,6 +378,7 @@
   <div class="r"><label>그림자</label><input type="range" id="pShadow" min="0" max="3" step="1" value="2"><span class="v" id="vShadow"></span></div>
   <div class="r"><label>음량</label><input type="range" id="pVol" min="0" max="1" step="0.05" value="0.9"><span class="v" id="vVol"></span></div>
   <div class="r"><label>마우스 감도</label><input type="range" id="pSens" min="0.3" max="3" step="0.05" value="1"><span class="v" id="vSens"></span></div>
+  <div class="r"><label>프레임 제한</label><input type="range" id="pCap" min="0" max="3" step="1" value="0"><span class="v" id="vCap"></span></div>
   <div class="g">
     <button class="p" id="bGen">새 섬</button>
     <button id="bSeed">시드 무작위</button>
@@ -385,6 +386,7 @@
     <button class="on" id="bGuar">자원 보장</button>
     <button id="bFly">자유 카메라</button>
     <button id="bTouch">터치 UI</button>
+    <button id="bBench">벤치마크</button>
   </div>
   <div class="g">
     <select id="pSlot" aria-label="저장 칸"></select>
@@ -397,6 +399,7 @@
   <div class="g" id="deskG" style="display:none">
     <button id="bFull">전체 화면 · F11</button>
     <button id="bDir">저장·기록 폴더</button>
+    <select id="pAngle" aria-label="그래픽 백엔드" title="그래픽 백엔드 — 다시 켜면 적용" style="display:none"></select>
   </div>
 </div>
 
@@ -411,6 +414,7 @@
 
 <div id="ov">
   <h1>CASTAWAY</h1>
+  <div id="ovGpu" style="display:none;color:#e8a06a;font-size:11px;letter-spacing:.06em;margin:-6px 0 10px;max-width:560px;text-align:center;line-height:1.6"></div>
   <div class="s">보급선은 좌표만 남기고 떠났다. 섬은 시드 하나로 만들어진다 —
     융기, 침식, 하천, 기후, 식생, 광상이 그 순서대로 결정된다.</div>
   <div class="k">
@@ -1690,7 +1694,11 @@ vec2 th2(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.
         diffuseColor.rgb=bc/8.0;
         /* 얼룩은 비튼 좌표에서 읽는다 — 곧은 잡음은 둥근 얼룩이 고르게 늘어서 무늬로 읽혔다 */
         vec2 pw=p+vec2(snoise(p/23.0+1.7),snoise(p/23.0+8.2))*9.0;
-        float big=vn(pw/40.0)*0.65+vn(pw/17.0+4.4)*0.35, mid=vn(pw/6.0+7.3)*0.7+vn(pw/2.6+1.9)*0.3, fine=vn(p/0.8+3.1)*0.6+vn(p/0.3+9.7)*0.4;
+        float big=vn(pw/40.0)*0.65+vn(pw/17.0+4.4)*0.35, mid=vn(pw/6.0+7.3)*0.7+vn(pw/2.6+1.9)*0.3;
+        /* 잔 얼룩·잔 요철은 120 m 밖에서 nearK 가 정확히 0 이라 곱해도 1 이다 — 그 밖에선 심플렉스 여섯 번을
+           아예 안 센다(먼 땅이 화면의 대부분이다). 값은 그대로다: mix(1,x,0)=1 · 1−x·0=1 */
+        float fine=0.5;
+        if(nearK>0.0) fine=vn(p/0.8+3.1)*0.6+vn(p/0.3+9.7)*0.4;
         vec3 c=diffuseColor.rgb;
         // 큰 얼룩은 밝기와 색조를 함께 흔든다(마른 데는 누렇게, 젖은 데는 푸르게)
         // 대비는 옅게 — 두 겹 평균이라 값이 가운데로 몰리므로 (v−0.5) 로 흔든다
@@ -1704,10 +1712,12 @@ vec2 th2(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.
         vec3 rock=vec3(0.36,0.34,0.31)*(0.78+0.3*strata)*(0.9+0.2*mid);
         c=mix(c,rock,steep*0.85);
         // 잔 요철 명암 — 잔 얼룩의 기울기 · 해 방향
-        vec2 e=vec2(0.25,0.0);
-        vec2 gr=vec2(vn((p+e.xy)/0.8+3.1)-vn((p-e.xy)/0.8+3.1), vn((p+e.yx)/0.8+3.1)-vn((p-e.yx)/0.8+3.1));
-        float lowSun=1.0-clamp(uSunDir.y,0.0,1.0);
-        c*=1.0-dot(gr,normalize(uSunDir.xz+1e-4))*(0.18+0.32*lowSun)*nearK*(0.5+steep);
+        if(nearK>0.0){
+          vec2 e=vec2(0.25,0.0);
+          vec2 gr=vec2(vn((p+e.xy)/0.8+3.1)-vn((p-e.xy)/0.8+3.1), vn((p+e.yx)/0.8+3.1)-vn((p-e.yx)/0.8+3.1));
+          float lowSun=1.0-clamp(uSunDir.y,0.0,1.0);
+          c*=1.0-dot(gr,normalize(uSunDir.xz+1e-4))*(0.18+0.32*lowSun)*nearK*(0.5+steep);
+        }
         /* ── 발밑 결(30 m 안) — 가까이서 보면 물감 칠한 언덕처럼 매끈하던 것 ──────────
            ① 흙 알갱이(3·8 cm 두 겹) ② 잔돌 — 22 cm 보로노이 칸의 일부만 돌이 되고, 돌마다
            해 쪽 면은 밝고 반대쪽·밑동은 그늘(오목한 테두리) ③ 풀빛 땅엔 한 방향으로 늘인
@@ -1933,6 +1943,7 @@ function terrainLodIndex(n){
   return {attr:new THREE.BufferAttribute(arr,1), ranges};
 }
 function buildChunks(){
+  _tlK=NaN;                                  // 새 청크 — 다음 updateTerrainLOD 가 단계를 다시 고른다
   for(const m of chunks){ scene.remove(m); m.geometry.dispose(); }
   chunks.length=0;
   const col=new THREE.Color();
@@ -1988,9 +1999,12 @@ function buildChunks(){
 /* 청크마다 단계를 고른다 — 카메라에서 청크 경계구까지 거리 d, 오차 e 가 화면에서 e·K/d 화소
    (K = 화면 높이 / (2·tan(화각/2))). 1 화소 밑이 되는 가장 성긴 단계 */
 const TERR_STAT=[0,0,0,0];
+let _tlX=NaN, _tlY=NaN, _tlZ=NaN, _tlK=NaN;     // 지난번 카메라 자리·화면 배율 — 같으면 단계도 같다
 function updateTerrainLOD(){
   if(!TERR_IDX||!chunks.length) return;
   const K=renderer.domElement.height/(2*Math.tan(camera.fov*Math.PI/360)), cp=camera.position;
+  if(cp.x===_tlX&&cp.y===_tlY&&cp.z===_tlZ&&K===_tlK) return;
+  _tlX=cp.x; _tlY=cp.y; _tlZ=cp.z; _tlK=K;
   TERR_STAT.fill(0);
   for(const m of chunks){
     const bs=m.geometry.boundingSphere, d=Math.max(1,cp.distanceTo(bs.center)-bs.radius), E=m.userData.lodErr;
@@ -2089,7 +2103,7 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       for(int i=0;i<8;i++){ vec3 w=wv(i); vec2 d=vec2(cos(w.x),sin(w.x)); float k=6.2832/w.y;
         float fade=clamp(w.y/(foot*4.0)-1.0,0.0,1.0);
         float sl=w.z*k*ampK;                                   // 이 물결의 기울기 진폭
-        grad+=d*(sl*cos(k*dot(d,vWW.xz)-sqrt(G*k)*uWT))*fade;
+        if(fade>0.0) grad+=d*(sl*cos(k*dot(d,vWW.xz)-sqrt(G*k)*uWT))*fade;   // 다 걷어 낸 물결(먼 물)은 cos 를 안 센다 — 0 을 더하던 것
         lost+=0.5*sl*sl*(1.0-fade*fade); }
       vec3 Nw=normalize(vec3(-grad.x,1.0,-grad.y));
       if(V.y<0.0){ Nw=vec3(0.0,1.0,0.0); }
@@ -2271,9 +2285,18 @@ function tileSeen(t,d){
   _tSp.center.set(t.cx,t._cy,t.cz); _tSp.radius=t.r+30;
   return _tFr.intersectsSphere(_tSp);
 }
+/* 사람 자리·시야(투영×보기 행렬)가 지난번과 **똑같으면** 결과도 똑같다 — 멈춰 서 있거나 창을 열어 둔 동안
+   칸 1,400개를 다시 볼 까닭이 없다. 칸이 새로 생기면(buildProps · buildFarTrees) `_tvForce` 로 다시 본다 */
+const _tvLast=new Float64Array(18); let _tvForce=true;
 function updateTileVis(){
   const px=PL.pos.x, pz=PL.pos.z;
-  camera.updateMatrixWorld(); _tPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _tFr.setFromProjectionMatrix(_tPM);
+  camera.updateMatrixWorld(); _tPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
+  { const e=_tPM.elements; let same=!_tvForce&&_tvLast[16]===px&&_tvLast[17]===pz;
+    for(let i=0;same&&i<16;i++) if(_tvLast[i]!==e[i]) same=false;
+    if(same) return;
+    for(let i=0;i<16;i++) _tvLast[i]=e[i];
+    _tvLast[16]=px; _tvLast[17]=pz; _tvForce=false; }
+  _tFr.setFromProjectionMatrix(_tPM);
   /* 칸이 켜지거나 꺼지면 그 칸이 드리우던 그림자도 바뀐다 — 그림자 지도를 매 프레임 안 그리므로(LIGHT)
      바뀐 칸 둘레만 다시 그리게 알린다 */
   // 바위 — 칸 가장자리가 200 m 밖이면 통째로 안 그린다
@@ -2436,7 +2459,60 @@ function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
   const leafSrc={userData:p._lf.userData, geometry:p._lf.geometry, getMatrixAt:(i,m)=>instGetM(p._lf,i,m)};
   return {limb:merge(limbSrc,li), leaf:merge(leafSrc,fi,1/Math.sqrt(FAR_LEAF))};
 }
+/* ── 칸 메시의 경계구 ────────────────────────────────────────────────────
+   r128 의 InstancedMesh 는 거르기(frustumCulled)를 끈 채 태어나고, 켜도 **밑 지오메트리 한 개**의 경계구로 잰다
+   (인스턴스가 흩어진 넓이를 모른다). 그래서 칸 메시(나무 가지·잎·복제·판때기 · 풀·갈대·자갈·베리…)는 늘 통째로
+   그려졌다 — 화면 밖이어도, 그림자 지도에도. 불 그림자(정육면체 여섯 면 · 사거리 24 m)를 한 번 그릴 때마다
+   보이는 칸 전부(706만 삼각형)를 여섯 번 그렸다.
+   섬을 다 지은 뒤(`generateWorld` 가 `buildFarTrees` 바로 뒤에) 칸 메시마다 **인스턴스로 실제 경계구**를 재서 달고 거르기를 켠다.
+   시야 · 해 그림자 상자 · 불 사거리 밖에 **통째로** 있는 칸만 빠지므로 화면은 그대로다.
+   구는 넉넉하게 — 인스턴스마다 '자리 + (밑 구 중심까지 + 반지름) × 가장 큰 크기' 에 셰이더가 미는 몫 2 m 를 더한다.
+   일반 인스턴스 메시는 늘 감싸개(속성·인덱스는 그대로 나눠 씀)를 씌워 구를 단다 — 밑 지오메트리는 칸끼리(또는 다른 물체와)
+   나눠 쓰므로 건드리지 않는다. 압축 메시(`instMesh`)는 지오메트리가 칸마다 제 것이라 구만 새로 단다.
+   인스턴스는 그 뒤로 줄기만 한다(캐기 · 벌목 · 다시 자람은 처음 크기까지) — 처음 구가 늘 넉넉하다.
+   **칸 메시를 새로 만들거나 인스턴스를 처음보다 크게·멀리 옮기면 `boundTiles()` 를 다시 부를 것.** */
+const BOUND_PAD=2;
+function boundTiles(){
+  if(!propGroup) return;
+  let nb=0;
+  for(const m of propGroup.children){
+    if(!m.isInstancedMesh||m.userData.noCull) continue;
+    const n=m.count; if(!n) continue;
+    let g=m.geometry;
+    if(!g.boundingSphere) g.computeBoundingSphere();
+    const s0=g.boundingSphere, k0=s0.center.length()+s0.radius;
+    const A=m.iA?m.iA.array:null, B=m.iB?m.iB.array:null, E=A?null:m.instanceMatrix.array;
+    let x0=Infinity,y0=Infinity,z0=Infinity,x1=-Infinity,y1=-Infinity,z1=-Infinity;
+    const at=new Float64Array(4);
+    const get=i=>{
+      if(A){ const o=i*4; at[0]=A[o]; at[1]=A[o+1]; at[2]=A[o+2]; at[3]=k0*Math.max(Math.abs(A[o+3]),Math.abs(B[o+3])); }
+      else{ const o=i*16;
+        const sx=Math.hypot(E[o],E[o+1],E[o+2]), sy=Math.hypot(E[o+4],E[o+5],E[o+6]), sz=Math.hypot(E[o+8],E[o+9],E[o+10]);
+        at[0]=E[o+12]; at[1]=E[o+13]; at[2]=E[o+14]; at[3]=k0*Math.max(sx,sy,sz); }
+      return at;
+    };
+    for(let i=0;i<n;i++){ const v=get(i), r=v[3];
+      if(v[0]-r<x0) x0=v[0]-r; if(v[0]+r>x1) x1=v[0]+r;
+      if(v[1]-r<y0) y0=v[1]-r; if(v[1]+r>y1) y1=v[1]+r;
+      if(v[2]-r<z0) z0=v[2]-r; if(v[2]+r>z1) z1=v[2]+r; }
+    if(!(x1>=x0)) continue;
+    const cx=(x0+x1)/2, cy=(y0+y1)/2, cz=(z0+z1)/2; let R=0;
+    for(let i=0;i<n;i++){ const v=get(i); const d=Math.hypot(v[0]-cx,v[1]-cy,v[2]-cz)+v[3]; if(d>R) R=d; }
+    if(!m.iA&&!g.userData._bnd){                   // 감싸개 — 밑 지오메트리는 칸끼리(또는 다른 물체와) 나눠 쓰므로 건드리지 않는다
+      const w=new THREE.BufferGeometry(); w.userData._bnd=1;
+      for(const k in g.attributes) w.setAttribute(k,g.attributes[k]);
+      if(g.index) w.setIndex(g.index);
+      for(const gr of g.groups) w.addGroup(gr.start,gr.count,gr.materialIndex);
+      w.drawRange.start=g.drawRange.start; w.drawRange.count=g.drawRange.count;
+      m.geometry=g=w;
+    }
+    g.boundingSphere=new THREE.Sphere(new THREE.Vector3(cx,cy,cz),R+BOUND_PAD);   // 새 구(압축 메시는 밑 구를 나눠 썼다)
+    m.frustumCulled=true; nb++;
+  }
+  return nb;
+}
 function buildFarTrees(){
+  _tvForce=true;                             // 칸에 복제가 새로 붙는다 — 보이기를 다시 센다
   if(!TREE_TILES.length) return;
   const px=PL.pos.x, pz=PL.pos.z;
   for(const kind of ['oak','fir']){
@@ -2488,6 +2564,7 @@ function buildFarTrees(){
   }
 }
 function buildProps(){
+  _tvForce=true;
   TREE_TILES.length=0; ROCK_TILES.length=0; PROP_TILES.length=0;
   for(const k in ROCK_MAT) delete ROCK_MAT[k];
   if(propGroup){
@@ -3451,6 +3528,7 @@ function placePod(seed){
 let shipMesh=null, SHIP={st:'wait', t:0, from:new THREE.Vector3(), dir:new THREE.Vector3()};
 function makeShip(){
   if(shipMesh){ scene.remove(shipMesh); shipMesh=null; }
+  if(SHIP.parked){ scene.remove(SHIP.parked); SHIP.parked=null; }   // 지난 배가 남긴 광원(세기 0) — 새 배가 하나를 더하니 수는 그대로
   /* 수직 이착륙 수송선 — 앞이 −z. 둥근 동체(돌림체) · 유리 조종석 · 뒤로 젖힌 날개 끝에
      엔진 통 둘 · 꼬리 엔진 · 기운 수직 꼬리 둘 · 세 발 착륙 다리 · 뒤쪽 화물 경사판.
      판금 이음을 짙은 띠로 끊고, 날개 끝에 빨강·초록 항법등을 깜박인다.
@@ -3588,7 +3666,12 @@ function updateShip(dt){
   shipMesh.position.x+=SHIP.dir.x*sp*dt;
   shipMesh.position.z+=SHIP.dir.z*sp*dt;
   shipMesh.position.y+=(14+SHIP.t*6)*dt;
-  if(SHIP.t>12){ scene.remove(shipMesh); shipMesh=null; }
+  if(SHIP.t>12){
+    /* 광원은 장면에 세기 0 으로 남긴다 — 배와 같이 빼면 점광원 수가 바뀌어 모든 재질의 셰이더를 다시 짜느라
+       상륙 12초 뒤에 멈칫했다. 세기 0 이라 화면은 뺀 것과 같다. 다음 섬의 배(makeShip)가 치운다 */
+    const li=SHIP.light; if(li){ li.intensity=0; scene.attach(li); SHIP.parked=li; }
+    scene.remove(shipMesh); shipMesh=null;
+  }
 }
 
 /* ============================================================================
@@ -3629,6 +3712,8 @@ function updateShip(dt){
    ========================================================================== */
 /* 해 그림자 다시 그리기 — 상자 가운데 격자(m) · 해가 이만큼 돌면(0.2°) · 안전망(초). 아래 LIGHT.update 머리말 */
 const SUN_STEP=4, SUN_TURN_COS=Math.cos(0.2*Math.PI/180), SUN_AGE=1.5;
+/* 해가 낮을 때의 그림자 행렬 — 어느 점이든 (2,2,2) 로 보낸다(지도 [0,1] 밖 → 그림자 없음) */
+const SUN_PARK=new THREE.Matrix4().set(0,0,0,2, 0,0,0,2, 0,0,0,2, 0,0,0,1);
 const LIGHT={
   /* size 해 그림자 지도 한 변 · R 덮는 반경(m) · pts 점광원 그림자 개수 ·
      psize 점광원 지도 한 변 · soft 부드러운 가장자리 */
@@ -3712,7 +3797,10 @@ const LIGHT={
      드리우는 것이 새로 생겼으면 그림자를 다시 그린다. */
   pending:[], live:false,          // live — 섬을 다 지은 뒤(인스턴스 갈고리가 그림자를 다시 그리게 한다)
   flush(){
-    if(!this.pending.length||!scene) return;
+    /* **섬을 짓는 동안(`live` 거짓)은 건너뛴다** — 짓는 동안에도 단계마다 프레임을 그리는데, 붙는 칸마다
+       배역(그림자 드리우기)을 주면 해 그림자 지도(아직 매 프레임 갱신)에 짓던 섬이 통째로 그려져
+       섬 생성이 408 → 856초로 두 배가 됐다(헤드리스). 다 지으면 generateWorld 가 refresh 로 한 번에 준다 */
+    if(!this.live||!this.pending.length||!scene) return;
     const on=this.QUAL[this.q].size>0, list=this.pending; this.pending=[];
     let cast=false;
     for(const o of list){
@@ -3774,7 +3862,7 @@ const LIGHT={
      빛의 **방향**(조명)은 매 프레임 지금 해 쪽으로 맞춘다 — 지도와 그림자 행렬은 마지막에 그린 것이 짝으로 남는다.
      점광원(불) 그림자도 같은 식이다 — 불은 안 움직이므로 받는 순간 한 번, 둘레가 바뀌면 다시.
      손전등(집중광)은 카메라에 붙어 움직이므로 예전처럼 매 프레임 그린다. */
-  _sec:0, _cx:NaN, _cz:NaN, _cy:0, _age:0, _sunDirty:true,
+  _sec:0, _cx:NaN, _cz:NaN, _cy:0, _age:0, _sunDirty:true, _sunPark:false,
   _dir:new THREE.Vector3(), _lp:new THREE.Vector3(NaN,NaN,NaN),
   stats:{sun:0, pts:0},          // 지도를 다시 그린 횟수(성능 창이 초당으로 보인다)
   /* 드리우는 것이 바뀌었다 — 해 지도와 그림자를 받은 불 지도를 다음 프레임에 다시 그린다 */
@@ -3798,10 +3886,16 @@ const LIGHT={
     this.flush();
     if(!Q.size){ return; }
 
-    // ── 해: 낮은 각도에서는 그림자가 끝없이 길어져 얼룩만 남으므로 접는다
+    /* ── 해: 낮은 각도에서는 그림자가 끝없이 길어져 얼룩만 남으므로 접는다.
+       **castShadow 를 끄지 않고 그림자 행렬을 '모든 점 → 지도 밖'으로 돌려 둔다**(`SUN_PARK`). 끄면 그림자 광원
+       수가 바뀌어 모든 재질(100여 개)의 셰이더를 다시 짜느라 새벽·저녁·달이 뜨고 질 때마다 멈칫했다.
+       Three 의 그림자 셈은 지도 밖이면 1(볕)을 돌려주므로 화면은 끈 것과 같다(PCF 표본도 안 읽는다).
+       다시 해가 오르면 지도를 새로 그린다(그사이 낡았다). */
     const lowSun=sun.intensity<0.12;
-    if(sun.castShadow===lowSun){ sun.castShadow=!lowSun; if(lowSun) this.free(sun); else this._sunDirty=true; }
-    if(!lowSun){
+    if(!sun.castShadow){ sun.castShadow=true; this._sunDirty=true; }
+    if(lowSun!==this._sunPark){ this._sunPark=lowSun; if(!lowSun) this._sunDirty=true; }
+    if(lowSun){ sun.shadow.autoUpdate=false; sun.shadow.needsUpdate=false; sun.shadow.matrix.copy(SUN_PARK); }
+    else{
       sun.shadow.autoUpdate=false;
       // 시선 앞쪽을 더 덮는다 — 뒤통수의 그림자는 화면에 없다. 시선은 8방향으로 끊는다
       camera.getWorldDirection(this._f);
@@ -4656,6 +4750,7 @@ function shapePuff(c){
   if(LIT.defer) c.litNeed=1;                   // 놀 때는 대기열 맨 앞에 선다(LIT)
   else litPuff(c);
   for(let i=nt;i<c.cap;i++) c.rad[i]=0;       // 남는 알갱이는 크기 0 으로 접는다
+  litShapeSend(c);                             // 명암 워커에 새 알갱이 자료(LIT)
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
   c.yaw=99;                                    // 다음 프레임에 행렬을 다시 짠다
   cloudBounds(c);
@@ -4679,21 +4774,21 @@ function litPuff(c){
   if(c.m.instanceColor) c.m.instanceColor.needsUpdate=true;
   (c.litDir||(c.litDir=new THREE.Vector3())).copy(SKYL.dir); c.litNeed=0;
 }
-/* 알갱이 i0..i1 만 dir 쪽 빛으로 칠한다 */
-function litPuffRange(c,i0,i1,dir){
-  if(!c.sh) return;
-  const n=c.nb, nB=c.nBody||n, o=c.off, sx=dir.x, sy=dir.y, sz=dir.z;
+/* 알갱이 i0..i1 의 밝기(r 해 · g 하늘빛 · b 곧장 온 빛)를 out[i*3..] 에 적는다 — 순수 계산이다.
+   **구름 명암 워커(`LIT`)가 이 함수의 글자를 그대로 가져다 쓴다**(`litCore.toString()`) — 그래서 바깥 이름을
+   부르지 말 것(G 같은 것은 인자로 받는다). 고치면 본 스레드와 워커가 함께 바뀐다. */
+function litCore(n,nB,o,rad,sg,G,sx,sy,sz,i0,i1,out){
   /* **빛이 실제로 지나는 구름 길이**를 잰다 — 해 쪽 빛줄기가 알갱이 j(보이는 반지름
      0.45·rad 의 공)를 지나면 그 현의 길이 2√(re²−p²) × σⱼ 가 광학 두께 τ 에 더해진다.
      가리는 쪽은 많아야 700 알만 표본으로 세고 건너뛴 만큼 곱한다(n² 을 피한다). */
-  const st=Math.max(1,Math.ceil(nB/700)), sg=c.sg;
+  const st=Math.max(1,Math.ceil(nB/700));
   for(let i=i0;i<i1&&i<n;i++){
     const xi=o[i*3], yi=o[i*3+1], zi=o[i*3+2];
     let ts=0, tu=0, tb=0, td=0;
     for(let j=(i%st);j<nB;j+=st){
       if(j===i) continue;
       const dx=o[j*3]-xi, dy=o[j*3+1]-yi, dz=o[j*3+2]-zi;
-      const re=c.rad[j]*0.45, re2=re*re, d2=dx*dx+dy*dy+dz*dz, k=sg[j]*st*2;
+      const re=rad[j]*0.45, re2=re*re, d2=dx*dx+dy*dy+dz*dz, k=sg[j]*st*2;
       const t=dx*sx+dy*sy+dz*sz;                      // 해 쪽 빛줄기가 j 를 지나나
       { const p2=d2-t*t; if(p2<re2){ const L=k*Math.sqrt(re2-p2); if(t>0) ts+=L; else tb+=L; } }  // 해 쪽 · 반대쪽
       { const p2=dx*dx+dz*dz; if(p2<re2){ const L=k*Math.sqrt(re2-p2); if(dy>0) tu+=L; else td+=L; } } // 위 · 아래
@@ -4708,12 +4803,18 @@ function litPuffRange(c,i0,i1,dir){
        얇으면(τ→0) ½ 이라 2 를 곱해 1 로 맞춘다. 적운(τ≈75) 해 쪽 겉은 1, 한가운데 1,
        반대쪽 겉 0.19 — 해를 받는 쪽은 희고 그늘진 쪽만 잿빛이다.
        (한 방향 감쇠 1/(1+aτ) 만 썼더니 덩이 속이 다 까매 먹구름이 됐다.) */
-    const A=0.75*(1-CLOUD_G);
+    const A=0.75*(1-G);
     const r=Math.min(1,2*(A*tb+1)/(A*(ts+tb)+2));
     const ss=Math.exp(-ts);
     const g=Math.min(1,0.85*2*(A*td+1)/(A*(tu+td)+2)+0.15);
-    c.m.setColorAt(i,_pfC.setRGB(r,g,Math.max(ss,0.002)));
+    out[i*3]=r; out[i*3+1]=g; out[i*3+2]=Math.max(ss,0.002);
   }
+}
+/* 알갱이 i0..i1 만 dir 쪽 빛으로 칠한다(본 스레드 — 섬을 지을 때 · 워커가 없을 때) */
+function litPuffRange(c,i0,i1,dir){
+  if(!c.sh) return;
+  if(!c.m.instanceColor) c.m.setColorAt(0,_pfC.setRGB(1,1,1));
+  litCore(c.nb,c.nBody||c.nb,c.off,c.rad,c.sg,CLOUD_G,dir.x,dir.y,dir.z,i0,i1,c.m.instanceColor.array);
 }
 /* ── 구름 명암 대기열 ─────────────────────────────────────────────────────
    `litPuff` 는 알갱이 n 개 × 가리는 알 700 개를 보는 일이라 적운 한 덩이에 4~19 ms, 적란운은 165 ms 다.
@@ -4727,10 +4828,75 @@ function litPuffRange(c,i0,i1,dir){
    ③ 새로 빚은 덩이(되굴림)도 그 자리에서 칠하지 않고 대기열 맨 앞에 선다 — 새 덩이는 옅은 데서
    25초에 걸쳐 짙어지므로 몇 프레임 늦어도 안 보인다. 섬을 지을 때만 그 자리에서 칠한다(`LIT.defer` 전). */
 const LIT_BUDGET=1.2, LIT_CHUNK=16, LIT_THR0=1.5*Math.PI/180, LIT_THR1=4.5*Math.PI/180, REROLL_BUDGET=2;
-const LIT={job:null, cand:[], defer:false, frame:0, stats:{ms:0, n:0, queue:0},
-  fr:new THREE.Frustum(), pm:new THREE.Matrix4(), sp:new THREE.Sphere()};
+const LIT={job:null, cand:[], defer:false, frame:0, stats:{ms:0, n:0, queue:0, wk:0},
+  fr:new THREE.Frustum(), pm:new THREE.Matrix4(), sp:new THREE.Sphere(),
+  wk:null, wkFail:false, inflight:0, byId:new Map(), uid:0};
 const _litSort=(a,b)=>b.litPri-a.litPri;
+/* ── 구름 명암 워커 ───────────────────────────────────────────────────────
+   명암 계산(`litCore`)을 **Web Worker** 로 넘긴다 — 본 스레드는 일을 맡기고 결과(알갱이 색)만 받아 올린다.
+   대기열·우선순위·문턱(위)은 그대로고, 1.2 ms 예산 안에서 한 덩이씩 쪼개 칠하던 일이 통째로 본 스레드 밖으로 나간다.
+   워커는 `litCore` 의 글자를 그대로 가져다 쓰고(같은 식 · 같은 배정밀도), 알갱이 자리·반지름·소광은 덩이를
+   빚을 때마다(`shapePuff`) 한 번 보낸다(Float32Array 그대로 — 값이 한 비트도 안 바뀐다). 결과 색은 본 스레드에서
+   칠할 때와 같다. 한 번에 맡기는 일은 `LIT_INFLIGHT` 개까지 — 덩이를 다시 빚었거나(세대 `litGen`) 사라졌으면 버린다.
+   워커를 못 만들면(오래된 브라우저 · 막힌 환경) 예전처럼 본 스레드에서 나눠 칠한다. */
+const LIT_INFLIGHT=3;
+function litWorker(){
+  if(LIT.wk||LIT.wkFail) return LIT.wk;
+  try{
+    const src=litCore.toString()+`
+const C=new Map();
+onmessage=e=>{ const d=e.data;
+  if(d.t==='reset'){ C.clear(); return; }
+  if(d.t==='shape'){ C.set(d.id,d); return; }
+  if(d.t==='lit'){ const c=C.get(d.id);
+    if(!c||c.gen!==d.gen){ postMessage({t:'lit',id:d.id,gen:d.gen,miss:1}); return; }
+    const col=new Float32Array(c.n*3);
+    litCore(c.n,c.nB,c.off,c.rad,c.sg,${CLOUD_G},d.dx,d.dy,d.dz,0,c.n,col);
+    postMessage({t:'lit',id:d.id,gen:d.gen,col,dx:d.dx,dy:d.dy,dz:d.dz},[col.buffer]); } };`;
+    const w=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+    w.onmessage=litDone;
+    w.onerror=()=>{ LIT.wkFail=true; LIT.wk=null; LIT.inflight=0; for(const c of CLOUDS) c.litBusy=0; };
+    LIT.wk=w;
+    for(const c of CLOUDS) if(c.sh) litShapeSend(c);   // 이미 빚은 덩이를 알린다
+  }catch(e){ LIT.wkFail=true; LIT.wk=null; }
+  return LIT.wk;
+}
+/* 덩이를 (다시) 빚었다 — 워커에 알갱이 자료를 보낸다 */
+function litShapeSend(c){
+  if(!LIT.wk||!c.sh) return;
+  if(c.uid===undefined){ c.uid=++LIT.uid; }
+  LIT.byId.set(c.uid,c);
+  const n=c.nb, nB=c.nBody||n;
+  LIT.wk.postMessage({t:'shape', id:c.uid, gen:c.litGen, n, nB,
+    off:c.off.slice(0,n*3), rad:c.rad.slice(0,nB), sg:c.sg.slice(0,nB)});
+}
+/* 워커가 칠해 온 색 — 그사이 다시 빚었거나 사라졌으면 버린다(다음 대기열에서 다시 맡긴다) */
+function litDone(e){
+  const d=e.data; if(d.t!=='lit') return;
+  LIT.inflight=Math.max(0,LIT.inflight-1);
+  const c=LIT.byId.get(d.id); if(!c) return;
+  c.litBusy=0;
+  if(d.miss||c.dead||c.litGen!==d.gen||!c.m.instanceColor) return;
+  const ic=c.m.instanceColor; ic.array.set(d.col); ic.needsUpdate=true;
+  (c.litDir||(c.litDir=new THREE.Vector3())).set(d.dx,d.dy,d.dz);
+  c.litNeed=0; c.litDone=LIT.frame; LIT.stats.n++; LIT.stats.wk++;
+}
 function litQueue(ts){
+  const W=LIT.defer?litWorker():null;
+  if(W){
+    const t0=performance.now(), C=LIT.cand;
+    if(C.length>1) C.sort(_litSort);
+    for(let ci=0;ci<C.length&&LIT.inflight<LIT_INFLIGHT;ci++){
+      const c=C[ci];
+      if(c.dead||c.litBusy||c.litDone===LIT.frame||!c.sh) continue;
+      if(c.uid===undefined||LIT.byId.get(c.uid)!==c) litShapeSend(c);
+      c.litBusy=1; LIT.inflight++;
+      const d=SKYL.dir;
+      W.postMessage({t:'lit', id:c.uid, gen:c.litGen, dx:d.x, dy:d.y, dz:d.z});
+    }
+    LIT.stats.ms=performance.now()-t0; LIT.stats.queue=C.length; C.length=0;
+    return;
+  }
   const budget=LIT_BUDGET*Math.min(4,Math.sqrt(Math.max(1,ts))), t0=performance.now(), C=LIT.cand;
   let job=LIT.job;
   if(job&&(job.c.dead||job.gen!==job.c.litGen)) job=null;      // 그사이 다시 빚어졌거나 사라졌다
@@ -5204,6 +5370,7 @@ function cloudTex(draw,seed){
 
 function buildClouds(seed){
   if(cloudGroup){ scene.remove(cloudGroup); }
+  if(LIT.wk){ LIT.wk.postMessage({t:'reset'}); } LIT.byId.clear(); LIT.inflight=0;   // 명암 워커의 지난 하늘 자료를 비운다
   for(const m of cloudMat) m.dispose();
   for(const t of cloudTex_) t.dispose();
   cloudMat.length=0; cloudTex_.length=0; CLOUDS.length=0;
@@ -9989,7 +10156,8 @@ function initTorchFx(){
   /* 횃불은 카메라에 붙어 있다 — 광원과 눈이 같은 자리라 제 그림자가 화면에
      나타나지 않는다. 여섯 면을 그려 봐야 버리는 셈이라 예산에 안 넣는다. */
   torchLight=LIGHT.addPoint(camera,{color:0xff9040,intensity:0,dist:26,pos:[0.42,-0.28,-0.5]});
-  torchLight.visible=false;
+  /* 늘 켜 두고 세기로 끈다 — visible 을 껐다 켜면 점광원 수가 바뀌어 횃불을 들고 놓을 때마다 모든 재질의
+     셰이더를 다시 짰다(멈칫). 세기 0 이면 화면은 끈 것과 같다 */
   torchFlame=new THREE.Group();
   const c1=makeFire(0.20,{smoke:false,glow:false});        // 화덕과 같은 불 — 작게
   c1.position.y=-0.02;
@@ -10014,7 +10182,8 @@ function updateTorch(dt,dh){
   }
   const show=!!litTorch();
   torchT+=dt;
-  torchLight.visible=show; torchFlame.visible=show;
+  if(!show) torchLight.intensity=0;                // 끌 때는 세기로(위 initTorchFx)
+  torchFlame.visible=show;
   // 불꽃은 손에 든 횃불·등잔 끝(tip)에 앉는다 — 제 막대는 숨긴다(손의 것이 보인다)
   const tip=weaponFx&&weaponFx.userData.tip;
   torchFlame.children[2].visible=!tip;          // [2] 는 막대(손의 횃불이 없을 때만)
@@ -13344,10 +13513,13 @@ function drawMap(){
   ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 const COMPASS_LBL={0:'N',45:'NE',90:'E',135:'SE',180:'S',225:'SW',270:'W',315:'NW'};
+let _compDeg=NaN;
 function drawCompass(){
+  const deg=(-PL.yaw*180/Math.PI%360+360)%360;
+  if(deg===_compDeg) return;                          // 방위가 그대로면 그림도 그대로다 — 다시 안 그린다
+  _compDeg=deg;
   const cx=document.getElementById('compassC'), g=cx.getContext('2d');
   g.clearRect(0,0,230,20);
-  const deg=(-PL.yaw*180/Math.PI%360+360)%360;
   const PX=230/120;                                   // 화면에 120° 표시
   g.strokeStyle='rgba(160,200,185,.28)'; g.fillStyle='#c2d6ce';
   g.font='9px ui-monospace,monospace'; g.textAlign='center';
@@ -13373,7 +13545,7 @@ let fpsT=0,fpsN=0,fps=0;
    초당 네 번만 글자를 바꾼다. */
 const PERF={on:false, sec:new Float64Array(7), nf:0, t0:0, show:0, ring:new Float32Array(240), ri:0, rn:0, prev:0,
   names:['하늘·날씨','구름(명암)','빛·그림자','칸·지형','세상·사람','HUD·지도','그리기 JS'],
-  dc:{sky:[0,0], main:[0,0], shadow:[0,0]}, gpu:{ext:null, q:[], act:false, ms:0, n:0, tried:false},
+  dc:{sky:[0,0], main:[0,0], shadow:[0,0]}, gpu:{ext:null, q:[], act:false, ms:0, n:0, tot:0, totN:0, tried:false},
   sun0:0, pts0:0, lit0:0, litMs:0, srt:new Float32Array(240),
   lap(i,t){ const n=performance.now(); this.sec[i]+=n-t; return n; },
   toggle(){
@@ -13411,7 +13583,7 @@ const PERF={on:false, sec:new Float64Array(7), nf:0, t0:0, show:0, ring:new Floa
   gpuEnd(){ const G=this.gpu, gl=G.gl; if(!G.ext||!G.act) return; gl.endQuery(G.ext.TIME_ELAPSED_EXT); G.act=false;
     while(G.q.length&&!(G.act&&G.q.length===1)){
       const q=G.q[0]; if(!gl.getQueryParameter(q,gl.QUERY_RESULT_AVAILABLE)) break;
-      if(!gl.getParameter(G.ext.GPU_DISJOINT_EXT)){ G.ms+=gl.getQueryParameter(q,gl.QUERY_RESULT)/1e6; G.n++; }
+      if(!gl.getParameter(G.ext.GPU_DISJOINT_EXT)){ const v=gl.getQueryParameter(q,gl.QUERY_RESULT)/1e6; G.ms+=v; G.n++; G.tot+=v; G.totN++; }
       gl.deleteQuery(q); G.q.shift();
     } },
   frame(now){
@@ -13426,7 +13598,9 @@ const PERF={on:false, sec:new Float64Array(7), nf:0, t0:0, show:0, ring:new Floa
     if(m>20){ const a=this.srt; for(let i=0;i<m;i++) a[i]=this.ring[i]; const sub=a.subarray(0,m); sub.sort();
       const k=Math.max(1,Math.round(m*0.01)); let sm=0; for(let i=m-k;i<m;i++) sm+=sub[i]; low=(1000/(sm/k)).toFixed(0); }
     let tot=0, L=[];
-    L.push('FPS '+(this.nf*1000/el).toFixed(1)+'  · 1% low '+low+'  · '+renderer.domElement.width+'×'+renderer.domElement.height);
+    L.push('FPS '+(this.nf*1000/el).toFixed(1)+'  · 1% low '+low+'  · '+renderer.domElement.width+'×'+renderer.domElement.height
+      +(FPS_CAP?'  · 제한 '+FPS_CAP:''));
+    L.push((GPU_SOFT?'⚠ 소프트웨어 렌더 — ':'')+(GPU_NAME||'장치 이름 모름').slice(0,58));
     for(let i=0;i<7;i++){ tot+=this.sec[i]; L.push(this.names[i].padEnd(8,'　')+f(this.sec[i]/n)+' ms'); }
     L.push('CPU 합'.padEnd(8,'　')+f(tot/n)+' ms'+(this.gpu.n?'   GPU '+(this.gpu.ms/this.gpu.n).toFixed(2)+' ms':(this.gpu.ext?'   GPU …':'   GPU 못 잼')));
     const dc=k=>(this.dc[k][0]/n).toFixed(0).padStart(4)+'회 '+(this.dc[k][1]/n/1e3).toFixed(0).padStart(5)+'k△';
@@ -13455,12 +13629,92 @@ const PERF={on:false, sec:new Float64Array(7), nf:0, t0:0, show:0, ring:new Floa
     g.fillStyle='rgba(255,255,255,.35)'; g.fillRect(0,H-16.7/50*H,W,1); g.fillRect(0,H-33.3/50*H,W,1);
   }
 };
+/* ── 벤치마크(설정 창 '벤치마크') ─────────────────────────────────────────
+   **정해 둔 길을 돌며 평균 FPS · 1% low · 가장 느린 프레임을 잰다** — 설정을 바꾸기 전후, 다른 PC 끼리 견주려고.
+   길: 착륙 캡슐(`podPos`) 둘레 반지름 `R` m 원을 눈높이로 한 바퀴(앞으로 보며) · 앞 3초는 데우기(안 셈) · 40초.
+   시각은 그날 11시로 맞춰 두고(같은 섬 · 같은 날이면 날씨도 같다) 끝나면 사람 자리·시각을 되돌린다.
+   잴 동안 놀이는 멈춘다(배고픔·불·제작이 안 흐른다 — 갱신은 하늘·구름·빛·칸·HUD·그리기만).
+   Esc 로 멈춘다. 지난 결과 10개는 `castaway.bench` 에 남겨 다음 결과 옆에 보인다. */
+const BENCH={on:false, R:60, warm:3, dur:40, t0:0, prev:0, ft:[], save:null, sec:new Float64Array(7), gpu0:0, gpuN0:0};
+function benchStart(){
+  if(BENCH.on) return;
+  if(busy||!landed||PL.dead){ toast('벤치마크는 섬에 내린 뒤에 돌릴 수 있다'); return; }
+  const B=BENCH;
+  B.save={x:PL.pos.x, y:PL.pos.y, z:PL.pos.z, yaw:PL.yaw, pitch:PL.pitch, gh:gameHours, hd:hourOfDay,
+          paused, perf:PERF.on, ov:document.getElementById('ov').style.display};
+  paused=true; audioPause(true);                 // 놀이 쪽 입력·갱신은 멈춘다 — 벤치는 따로 돈다
+  toggleCfg(false); document.getElementById('ov').style.display='none';
+  if(document.pointerLockElement) document.exitPointerLock();
+  gameHours=Math.floor(gameHours/24)*24+11; hourOfDay=11; weaLast=0;
+  B.cx=podPos.x; B.cz=podPos.z; B.ft.length=0; B.sec.fill(0); B.n=0;
+  if(!PERF.on) PERF.toggle();                    // 구간별 시간도 같이 잰다
+  B.gpu0=PERF.gpu.tot; B.gpuN0=PERF.gpu.totN;
+  B.on=true; B.t0=B.prev=performance.now(); last=B.t0;
+}
+function benchPose(t){
+  const B=BENCH, a=t/B.dur*Math.PI*2, x=B.cx+Math.cos(a)*B.R, z=B.cz+Math.sin(a)*B.R;
+  const y=Math.max(heightAt(x,z),waterLevelAt(x,z))+0.1;     // 물 위로(바다·강)
+  PL.pos.set(x,y,z); PL.vel.set(0,0,0);
+  PL.yaw=Math.atan2(Math.sin(a),-Math.cos(a)); PL.pitch=-0.06;   // 원을 따라 앞으로(앞 = (−sin yaw, −cos yaw))
+  camera.position.set(x,y+1.7,z); camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
+}
+function benchFrame(now){
+  const B=BENCH;
+  if(document.hidden||winHidden){ benchEnd(true); return; }
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  const t=(now-B.t0)/1000-B.warm;                // 데우기 동안은 음수
+  if(t>=B.dur){ benchEnd(false); return; }
+  if(t>=0){ B.ft.push(now-B.prev); }
+  B.prev=now;
+  benchPose(Math.max(0,t));
+  /* 구간 시간은 성능 창(PERF — 0.25초마다 비운다)과 벤치 합계(B.sec) 양쪽에 적는다 */
+  let tp=performance.now();
+  const lap=i=>{ const q=PERF.lap(i,tp); if(t>=0) B.sec[i]+=q-tp; tp=q; };
+  updateSky(); lap(0);
+  updateClouds(dt); updateRain(dt); lap(1);
+  LIGHT.update(dt); lap(2);
+  updateTorch(dt,0); updateLamp(dt,0); updateFires(dt,0); updateFurnaces(dt,0); updateOcean(now*0.001); lap(4);
+  updateTileVis(); updateTerrainLOD(); lap(3);
+  updateHUD(dt); drawCompass(); mapT+=dt; if(mapT>0.12){ mapT=0; drawMap(); } lap(5);
+  PERF.gpuBegin();
+  try{ LIGHT.flush(); renderFrame(); }catch(e){ showErr('벤치마크',e); benchEnd(true); return; }
+  PERF.gpuEnd(); lap(6);
+  if(t>=0) B.n++;
+  PERF.frame(now);
+}
+function benchEnd(abort){
+  const B=BENCH; if(!B.on) return; B.on=false;
+  const S=B.save;
+  PL.pos.set(S.x,S.y,S.z); PL.vel.set(0,0,0); PL.yaw=S.yaw; PL.pitch=S.pitch; PL.camY=undefined;
+  gameHours=S.gh; hourOfDay=S.hd; weaLast=0;
+  if(!S.perf&&PERF.on) PERF.toggle();
+  pause();                                       // 일시정지 화면으로 — '계속'으로 이어 한다
+  if(abort||B.ft.length<30){ toast('벤치마크를 멈췄다'); return; }
+  const ft=B.ft.slice().sort((a,b)=>a-b), n=ft.length, tot=B.ft.reduce((a,b)=>a+b,0);
+  const k=Math.max(1,Math.round(n*0.01)); let worst=0; for(let i=n-k;i<n;i++) worst+=ft[i];
+  const R={at:Date.now(), fps:+(n*1000/tot).toFixed(1), low:+(1000/(worst/k)).toFixed(1), max:+ft[n-1].toFixed(1),
+    cpu:+(B.sec.reduce((a,b)=>a+b,0)/Math.max(1,B.n)).toFixed(2),
+    gpu:PERF.gpu.totN>B.gpuN0?+((PERF.gpu.tot-B.gpu0)/(PERF.gpu.totN-B.gpuN0)).toFixed(2):null,
+    res:SET.res, far:SET.far, shadow:SET.shadow, limb:SET.limb, w:renderer.domElement.width, h:renderer.domElement.height,
+    gpuName:GPU_NAME.slice(0,60)};
+  let hist=[]; try{ hist=JSON.parse(localStorage.getItem('castaway.bench')||'[]'); }catch(e){}
+  const prev=hist[hist.length-1];
+  hist.push(R); try{ localStorage.setItem('castaway.bench',JSON.stringify(hist.slice(-10))); }catch(e){}
+  console.log('[벤치마크]',JSON.stringify(R));
+  ask('벤치마크 — 평균 '+R.fps+' fps · 1% low '+R.low+' fps',
+      '가장 느린 프레임 '+R.max+' ms · CPU '+R.cpu+' ms'+(R.gpu!=null?' · GPU '+R.gpu+' ms':'')+' · '+R.w+'×'+R.h
+      +(prev?' · 지난번 '+prev.fps+' fps(1% low '+prev.low+')':'')+' — 다시 돌릴까요?',
+      ()=>benchStart());
+}
 // 받는 피해는 갑옷만큼 줄어든다 (실험체가 붙으면 그대로 적용된다)
 const mitigate=(dmg)=>Math.max(1,dmg*armorMul());
 /* HUD 글은 **바뀔 때만** 쓴다 — 같은 글을 프레임마다 다시 넣으면(특히 innerHTML) 노드를 새로 만들어
    버리고 화면 배치를 다시 잰다. 글과 HTML 을 같은 칸(`_hv`)에 적어 두어 둘을 번갈아 써도 어긋나지 않는다 */
 function hudT(el,s){ s=''+s; if(el&&el._hv!=='t'+s){ el._hv='t'+s; el.textContent=s; } }
 function hudH(el,s){ s=''+s; if(el&&el._hv!=='h'+s){ el._hv='h'+s; el.innerHTML=s; } }
+/* 스타일도 바뀔 때만 — 막대 폭·색·보이기를 프레임마다 다시 넣고 있었다. 요소마다 마지막 값을 적어 둔다
+   (이 요소들의 스타일을 HUD 밖에서 바꾸는 곳은 없다 — 생기면 거기도 hudS 로 쓸 것) */
+function hudS(el,k,v){ if(!el) return; v=''+v; const c=el._hs||(el._hs={}); if(c[k]!==v){ c[k]=v; el.style[k]=v; } }
 function updateHUD(dt){
   fpsT+=dt; fpsN++;
   if(fpsT>0.5){ fps=Math.round(fpsN/fpsT); fpsT=0; fpsN=0; }
@@ -13473,34 +13727,34 @@ function updateHUD(dt){
   hudT(document.getElementById('iFps'),fps);
   const hpF=document.getElementById('hpF'), hpT=document.getElementById('hpT');
   if(hpF){
-    hpF.style.width=clamp(PL.hp,0,HPMAX)+'%';
-    hpF.style.background=PL.hp<25?'#c9453a':(PL.hp<55?'#d8724a':'#c96a6a');
+    hudS(hpF,'width',clamp(PL.hp,0,HPMAX)+'%');
+    hudS(hpF,'background',PL.hp<25?'#c9453a':(PL.hp<55?'#d8724a':'#c96a6a'));
     hudT(hpT,Math.max(0,Math.round(PL.hp)));
   }
   // 맞으면 화면 가장자리가 붉어진다
   if(hurtFlash>0){
     hurtFlash=Math.max(0,hurtFlash-dt*1.6);
     const hv=document.getElementById('hurt');
-    if(hv){ hv.style.opacity=hurtFlash*0.55; hv.style.display=hurtFlash>0.01?'block':'none'; }
+    if(hv){ hudS(hv,'opacity',hurtFlash*0.55); hudS(hv,'display',hurtFlash>0.01?'block':'none'); }
   }
-  document.getElementById('stF').style.width=PL.stam+'%';
+  hudS(document.getElementById('stF'),'width',PL.stam+'%');
   hudT(document.getElementById('stT'),Math.round(PL.stam));
   const fdF=document.getElementById('fdF'), fdT=document.getElementById('fdT');
   if(fdF){
-    fdF.style.width=PL.food+'%';
+    hudS(fdF,'width',PL.food+'%');
     // 배가 꺼질수록 붉어진다. 날것을 먹고 앓는 동안에는 따로 표시한다
-    fdF.style.background=PL.food<=0?'#c9453a':(PL.food<30?'#d8724a':'#c9a86a');
+    hudS(fdF,'background',PL.food<=0?'#c9453a':(PL.food<30?'#d8724a':'#c9a86a'));
     hudT(fdT,Math.round(PL.food)+(PL.ill>0?' · 탈':''));
   }
   const wtF=document.getElementById('wtF'), wtT=document.getElementById('wtT');
   if(wtF){
-    wtF.style.width=PL.water+'%';
-    wtF.style.background=PL.water<=0?'#c9453a':(PL.water<30?'#d8724a':'#6f9ec9');
+    hudS(wtF,'width',PL.water+'%');
+    hudS(wtF,'background',PL.water<=0?'#c9453a':(PL.water<30?'#d8724a':'#6f9ec9'));
     hudT(wtT,Math.round(PL.water));
   }
   const ow=document.getElementById('oxWrap');
-  ow.style.display=PL.oxy<99.5?'block':'none';
-  document.getElementById('oxF').style.width=PL.oxy+'%';
+  hudS(ow,'display',PL.oxy<99.5?'block':'none');
+  hudS(document.getElementById('oxF'),'width',PL.oxy+'%');
   hudT(document.getElementById('oxT'),Math.round(PL.oxy));
   hudT(document.getElementById('mDist'),
     Math.round(Math.hypot(PL.pos.x-podPos.x,PL.pos.z-podPos.z))+' m');
@@ -13513,24 +13767,24 @@ function updateHUD(dt){
         lb=document.getElementById('lookB'), lf=document.getElementById('lookF');
   if(toastT>0){
     toastT-=dt;
-    look.style.display='block'; lb.style.display='none';
+    hudS(look,'display','block'); hudS(lb,'display','none');
     hudT(lt,lt.dataset.toast||'');
   }else if(HARV.fit){
     const w=HARV.fit;
-    look.style.display='block'; lb.style.display='none';
+    hudS(look,'display','block'); hudS(lb,'display','none');
     hudH(lt,'[좌클릭] '+BKIND_N[w.leaf.kind]+(w.leaf.open?' 닫기':' 열기'));
   }else if(HARV.cont){
     const c=HARV.cont, e=equippedTool();
     const isTorch=e&&(ITEMS[e.id].tool||{}).torch;
-    look.style.display='block'; lb.style.display='none';
+    hudS(look,'display','block'); hudS(lb,'display','none');
     if(c.kind==='grind'){
-      look.style.display='block'; lb.style.display='none';
+      hudS(look,'display','block'); hudS(lb,'display','none');
       hudH(lt,'[좌클릭] 숫돌 — 갈아 만들기와 수리<em>'
         +'수리는 처음 재료의 절반(내림)이 든다</em>');
       return;
     }
     if(c.kind==='power'){
-      look.style.display='block'; lb.style.display='none';
+      hudS(look,'display','block'); hudS(lb,'display','none');
       hudH(lt,'[좌클릭] 발전기 — 축전지와 전등 채우기<em>'
         +(powered()?'물레방아가 돌고 있다':'물레방아가 서 있다 — 채울 수 없다')+'</em>');
       return;
@@ -13539,10 +13793,10 @@ function updateHUD(dt){
     // 화덕은 좌클릭을 계속 누르면 불을 다루는 쪽으로 넘어간다
     if(isHearth(c) && !c.lit && isTorch && e.lit && e.fuel>0.12 && contFuel(c)){
       hudH(lt,head+'<em>길게 누르면 횃불로 불 옮기기</em>');
-      if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/1.5*100)+'%'; }
+      if(IGNITE.t>0){ hudS(lb,'display','block'); hudS(lf,'width',(IGNITE.t/1.5*100)+'%'); }
     }else if(isHearth(c) && c.lit && isTorch && !e.lit && e.fuel>0){
       hudH(lt,head+'<em>길게 누르면 횃불에 불 붙이기 · 연료 '+fmtFuel(e.fuel)+'</em>');
-      if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/1.0*100)+'%'; }
+      if(IGNITE.t>0){ hudS(lb,'display','block'); hudS(lf,'width',(IGNITE.t/1.0*100)+'%'); }
     }else if(isHearth(c) && !c.lit){
       const canFire=e&&(ITEMS[e.id].tool||{}).fire;
       const tin=needsTinder(e), dur=igniteDur(e);
@@ -13559,7 +13813,7 @@ function updateHUD(dt){
                    :(IGNITE.t/dur<0.6)?'비비는 중 — 톱밥에 열이 오른다'
                                       :'불씨를 부싯깃에 옮겨 불어넣는 중';
       hudH(lt,head+'<em>'+why+'</em>');
-      if(IGNITE.t>0){ lb.style.display='block'; lf.style.width=(IGNITE.t/dur*100)+'%'; }
+      if(IGNITE.t>0){ hudS(lb,'display','block'); hudS(lf,'width',(IGNITE.t/dur*100)+'%'); }
     }else{
       hudH(lt,head+'<em>'+contStatus(c)+' · '
         +contWeight(c).toFixed(1)+' / '+c.cap+' kg</em>');
@@ -13568,23 +13822,23 @@ function updateHUD(dt){
         const fr=(c.kind==='fire')
           ? fireJobs(c).map(j=>clamp((c.cook&&c.cook[j]||0)/FIRING[j].hours,0,1))
           : furnaceJobs(c).map(R=>clamp((c.jobs&&c.jobs[R.id]||0)/R.hours,0,1));
-        if(fr.length){ lb.style.display='block'; lf.style.width=(Math.max(...fr)*100)+'%'; }
+        if(fr.length){ hudS(lb,'display','block'); hudS(lf,'width',(Math.max(...fr)*100)+'%'); }
       }
     }
   }else{
     const t=HARV.near;
     if(t){
       const R=RESOURCES.find(r=>r.k===t.k), M=HARV.mode;
-      look.style.display='block';
+      hudS(look,'display','block');
       if(M){
         const left=M.field==='logs'?('통나무 '+t.logs):('남은 '+t.br+'회');
         hudH(lt,'[좌클릭] '+M.H.label+'<em>'+R.n+' · '+left+'</em>');
-        lb.style.display=HARV.t>0?'block':'none';
-        lf.style.width=(HARV.t/(M.dur||M.H.dur)*100)+'%';
+        hudS(lb,'display',HARV.t>0?'block':'none');
+        hudS(lf,'width',(HARV.t/(M.dur||M.H.dur)*100)+'%');
       }else{
         const why=blockReason(t);
         hudH(lt,R.n+'<em>'+(why||(t.felled?'그루터기만 남았다':'더 얻을 게 없다'))+'</em>');
-        lb.style.display='none';
+        hudS(lb,'display','none');
       }
     }else{
       // 그 밖의 자원은 이름만 알려준다 (아직 맨손으로는 채집 불가)
@@ -13596,23 +13850,23 @@ function updateHUD(dt){
       });
       if(best){
         const R=RESOURCES.find(r=>r.k===best.k);
-        look.style.display='block'; lb.style.display='none';
+        hudS(look,'display','block'); hudS(lb,'display','none');
         hudH(lt,R.n+'<em>'+R.use+' · 도구 필요</em>');
-      }else look.style.display='none';
+      }else hudS(look,'display','none');
     }
   }
   if(quickDirty){ quickDirty=false; drawQuick(); }
-  document.getElementById('quick').style.display=uiOpen()?'none':'flex';
+  hudS(document.getElementById('quick'),'display',uiOpen()?'none':'flex');
   // 장착 도구 표시
   const e=equippedTool(), tp=document.getElementById('tool');
   if(e){
-    tp.style.display='block';
+    hudS(tp,'display','block');
     const T=ITEMS[e.id];
     if(e.fuel!==undefined){                       // 횃불 — 내구 대신 남은 연소 시간
       hudT(document.getElementById('toolN'),T.n+(e.lit?' (타는 중)':' (꺼짐)'));
       const bar=document.getElementById('toolD');
-      bar.style.width=(e.fuel/T.burn*100)+'%';
-      bar.style.background=e.lit?'#e08a3a':'#5d7a71';
+      hudS(bar,'width',(e.fuel/T.burn*100)+'%');
+      hudS(bar,'background',e.lit?'#e08a3a':'#5d7a71');
     }else if(T.tool&&T.tool.gun){               // 총 — 내구 대신 탄창을 보여 준다
       const ak=(e.mag&&e.ammoId)?'  ['+ITEMS[e.ammoId].n
         +(ammoMul(e)!==1?' ×'+(+ammoMul(e).toFixed(2)):'')+']':'';
@@ -13620,34 +13874,34 @@ function updateHUD(dt){
         +(RELOAD.t>0?'  (재장전 '+RELOAD.t.toFixed(1)+'초)':'  [X] 재장전')
         +'  · 남은 탄 '+gunAmmo(e));
       const bar=document.getElementById('toolD');
-      bar.style.width=((e.mag|0)/T.tool.mag*100)+'%';
-      bar.style.background=RELOAD.t>0?'#8fb8d8':(e.mag?'#d8724a':'#5d5a52');
+      hudS(bar,'width',((e.mag|0)/T.tool.mag*100)+'%');
+      hudS(bar,'background',RELOAD.t>0?'#8fb8d8':(e.mag?'#d8724a':'#5d5a52'));
     }else if(!T.tool){                          // 먹을 것·마실 것·붕대 — 개수(모금)와 좌클릭
       hudT(document.getElementById('toolN'),T.n+'  ×'+e.n
         +(e.sip?'  ('+e.sip+'모금)':'')+'  [좌클릭] '+useVerb(T));
       const bar=document.getElementById('toolD');
-      bar.style.width=(T.drink?((e.sip||1)/(T.sips||1)):1)*100+'%'; bar.style.background='#7fb07a';
+      hudS(bar,'width',(T.drink?((e.sip||1)/(T.sips||1)):1)*100+'%'); hudS(bar,'background','#7fb07a');
     }else{
       hudT(document.getElementById('toolN'),T.n);
       const bar=document.getElementById('toolD');
-      bar.style.width=(e.dur/T.durMax*100)+'%'; bar.style.background='#d8c96a';
+      hudS(bar,'width',(e.dur/T.durMax*100)+'%'); hudS(bar,'background','#d8c96a');
     }
-  }else tp.style.display='none';
+  }else hudS(tp,'display','none');
 
   // 제작 진행 — 제작창을 닫아도 화면 가운데 게이지로 보인다
   const cp=document.getElementById('crfP'), cb=document.getElementById('cbar');
   if(CRAFT.recipe){
     const R=CRAFT.recipe, pct=clamp(CRAFT.t/R.time,0,1);
-    cp.style.display='block';
-    document.getElementById('crfF').style.width=(pct*100)+'%';
-    cb.style.display='block';
+    hudS(cp,'display','block');
+    hudS(document.getElementById('crfF'),'width',(pct*100)+'%');
+    hudS(cb,'display','block');
     hudT(document.getElementById('cbN'),R.n);
     hudT(document.getElementById('cbP'),Math.floor(pct*100)+'%');
-    document.getElementById('cbF').style.width=(pct*100)+'%';
+    hudS(document.getElementById('cbF'),'width',(pct*100)+'%');
     hudT(document.getElementById('cbS'),
       Math.ceil(R.time-CRAFT.t)+'초 남음'+(R.station?' · '+STATION[R.station].n+' 곁':'')
       +' · 기력 '+Math.round(PL.stam));
-  }else{ cp.style.display='none'; cb.style.display='none'; }
+  }else{ hudS(cp,'display','none'); hudS(cb,'display','none'); }
 
   if(invDirty){ invDirty=false; drawInv(); craftDirty=true; }
   if(craftDirty){ craftDirty=false; drawCraft(); }
@@ -13668,9 +13922,25 @@ THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
   vec3 fogT = exp( - fogDensity * fogDepth * vec3( 0.93, 1.0, 1.12 ) );
   gl_FragColor.rgb = gl_FragColor.rgb * fogT + fogColor * ( 1.0 - fogT );
 #endif`;
+/* 그리는 장치 이름(WEBGL_debug_renderer_info) — 성능 창에 보이고, **소프트웨어 렌더**(SwiftShader · llvmpipe ·
+   Microsoft Basic Render — 그래픽 카드를 못 쓰고 CPU 가 그린다)면 시작 화면에 경고를 띄운다. 드라이버가 없거나
+   하드웨어 가속이 꺼졌거나 GPU 차단 목록에 걸린 때다 — 그대로면 몇 fps 도 안 나온다 */
+let GPU_NAME='', GPU_SOFT=false;
+function detectGpu(){
+  try{ const gl=renderer.getContext(), ext=gl.getExtension('WEBGL_debug_renderer_info');
+    GPU_NAME=String((ext&&gl.getParameter(ext.UNMASKED_RENDERER_WEBGL))||gl.getParameter(gl.RENDERER)||''); }catch(e){}
+  GPU_SOFT=/swiftshader|llvmpipe|softpipe|software|basic render/i.test(GPU_NAME);
+  const el=document.getElementById('ovGpu');
+  if(el&&GPU_SOFT){
+    el.textContent='그래픽 카드를 쓰지 못하고 CPU 로 그리는 중입니다('+GPU_NAME.slice(0,60)+') — 매우 느립니다. '
+      +'그래픽 드라이버를 깔거나, 브라우저의 하드웨어 가속을 켜 주세요.';
+    el.style.display='block';
+  }
+}
 function initThree(){
   renderer=new THREE.WebGLRenderer({canvas:cv,antialias:false,powerPreference:'high-performance'});
   renderer.setPixelRatio(1);
+  detectGpu();
   renderer.shadowMap.enabled=true;
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   scene=new THREE.Scene();
@@ -13729,6 +13999,7 @@ function freezeStatics(){
 async function generateWorld(){
   if(busy) return; busy=true;
   landed=false; autoT=0;                // 새 섬 · 불러오기 — 상륙할 때까지는 자동 저장할 것이 없다
+  LIGHT.live=false;                     // 짓는 동안은 배역을 안 준다(LIGHT.flush) — 다 지은 뒤 refresh 한 번
   try{
   document.getElementById('ov').style.display='flex';
   document.getElementById('bStart').style.display='none';
@@ -13749,9 +14020,15 @@ async function generateWorld(){
   await phase('광상 탐사',82);      placeResources(seed);
   await phase('지형 메시',90);      buildBioTex(); buildChunks(); buildWater();
   await phase('자원 배치',96);      placeProps_(seed);
-  await phase('상륙 준비',99);      cacheMap(); spawnPlayer(); buildFarTrees(); freezeStatics();
+                                    /* 다 지을 때까지 소품·나무는 안 그린다 — 칸을 켜고 끄는 updateTileVis 는 멈춘 동안(짓는 중·
+                                       시작 화면) 안 돌아서, 갓 지은 칸 메시가 전부 켜진 채(섬 전체 나무가 가까운 단계로) 그려졌다.
+                                       덮개(94%) 뒤라 안 보이는데 헤드리스에선 그 한 프레임이 수십 초였다 */
+                                    propGroup.visible=false;
+  await phase('상륙 준비',99);      cacheMap(); spawnPlayer(); buildFarTrees(); boundTiles(); freezeStatics();
                                     LIGHT.refresh(); LIGHT.live=true;   // 다 지은 섬에 배역을 한 번에 · 이제부터 바뀌면 그림자를 다시
                                     updateSky();   // 하늘 표(SKY_LUT)를 한 번 굽는다 — 시작 화면처럼 갱신이 멈춘 동안에도 하늘이 비지 않게
+                                    propGroup.visible=showProps;           // 칸은 사람 자리로 한 번 골라 켠다(시작 화면도 가벼이)
+                                    _tvForce=true; updateTileVis(); updateTerrainLOD();
                                     INV.slots.length=0; INV.sel=0; invDirty=true;
                                     for(const k in WEAR) WEAR[k]=null; INV.max=INV.base;
                                     invAdd('codex',1);        // 사전은 처음부터 지닌다
@@ -14114,6 +14391,7 @@ function setTouchUI(on){
   if(on&&document.pointerLockElement) document.exitPointerLock();
 }
 addEventListener('keydown',e=>{
+  if(BENCH.on){ e.preventDefault(); if(e.code==='Escape') benchEnd(true); return; }   // 벤치마크 중 — Esc 로 멈추기만
   /* 예/아니오를 묻는 상자가 떠 있으면 게임은 아무 키도 받지 않는다.
      상자 쪽 처리는 위에서 캡처로 끝냈다 — 여기서는 그냥 물러선다. */
   if(askOpen) return;
@@ -14327,6 +14605,16 @@ if(DESK){
   document.getElementById('deskG').style.display='';
   document.getElementById('bFull').onclick=()=>DESK.fullscreen();
   document.getElementById('bDir').onclick=()=>DESK.openSaves();
+  /* 그래픽 백엔드(ANGLE) — 어떤 PC 는 D3D11 보다 OpenGL·Vulkan 이(또는 반대로) 빠르다. 다시 켜면 적용 · 기본 '자동' */
+  if(DESK.gpu&&DESK.setGpu) try{
+    const G=DESK.gpu(), sel=document.getElementById('pAngle');
+    const NM={default:'그래픽: 자동', d3d11:'그래픽: Direct3D 11', d3d9:'그래픽: Direct3D 9', gl:'그래픽: OpenGL', vulkan:'그래픽: Vulkan', metal:'그래픽: Metal'};
+    if(G&&G.choices&&G.choices.length){
+      for(const v of ['default',...G.choices]){ const o=document.createElement('option'); o.value=v; o.textContent=NM[v]||v; sel.appendChild(o); }
+      sel.value=G.angle||'default'; sel.style.display='';
+      sel.onchange=()=>{ if(DESK.setGpu(sel.value)) toast('그래픽 백엔드를 바꿨다 — 다시 켜면 적용된다'); };
+    }
+  }catch(e){}
   try{ document.getElementById('ovVer').textContent='v'+DESK.info().version; }catch(e){}
   if(DESK.onUpdate) DESK.onUpdate(u=>{ const a=document.getElementById('ovUpd');
     a.href=u.url; a.textContent='새 판 v'+u.version+' 이 나왔습니다 — 받기'; a.style.display=''; });
@@ -14427,6 +14715,15 @@ document.getElementById('pSens').addEventListener('input',e=>{
   SENS=parseFloat(e.target.value); document.getElementById('vSens').textContent=SENS.toFixed(2);
 });
 document.getElementById('vSens').textContent=SENS.toFixed(2);
+/* 프레임 제한 — 끔(화면 주사율까지) · 30 · 60 · 120. 노트북 발열·배터리를 아낀다. 기본은 끔이라 화면은 그대로다 */
+const CAP_STEPS=[0,30,60,120];
+let FPS_CAP=0;
+document.getElementById('pCap').addEventListener('input',e=>{
+  FPS_CAP=CAP_STEPS[parseInt(e.target.value,10)]||0;
+  document.getElementById('vCap').textContent=FPS_CAP?FPS_CAP+' fps':'끔';
+});
+document.getElementById('vCap').textContent='끔';
+document.getElementById('bBench').onclick=()=>benchStart();
 document.getElementById('pSlot').addEventListener('change',e=>{
   curSlot=e.target.value; document.getElementById('bSave').disabled=curSlot==='auto';
   if(curSlot!=='auto'){ SET.slot=curSlot; saveSettings(); }
@@ -14435,15 +14732,16 @@ document.getElementById('pSlot').addEventListener('change',e=>{
    브라우저 저장소에 둔다(데스크톱 판도 같은 저장소가 userData 에 남는다). 섬 모양(시드·크기…)은 저장 파일이 가진다.
    손으로 바꿀 때(change)만 적는다 — 불러올 때 맞추는 input 은 다시 적지 않는다 */
 const SET_KEY='castaway.settings';
-const SET={res:1, far:1, shadow:2, limb:0.8, vol:0.9, sens:1, slot:'1'};
+const SET={res:1, far:1, shadow:2, limb:0.8, vol:0.9, sens:1, slot:'1', cap:0};
 function saveSettings(){ try{ localStorage.setItem(SET_KEY,JSON.stringify(SET)); }catch(e){} }
-for(const [id,k] of [['pRes','res'],['pFar','far'],['pShadow','shadow'],['pLimb','limb'],['pVol','vol'],['pSens','sens']])
+for(const [id,k] of [['pRes','res'],['pFar','far'],['pShadow','shadow'],['pLimb','limb'],['pVol','vol'],['pSens','sens'],['pCap','cap']])
   document.getElementById(id).addEventListener('change',e=>{ SET[k]=parseFloat(e.target.value); saveSettings(); });
 function applySettings(){
   try{ const o=JSON.parse(localStorage.getItem(SET_KEY)||'{}'); for(const k in SET) if(k in o) SET[k]=o[k]; }catch(e){}
   const put=(id,v)=>{ const el=document.getElementById(id); if(!el||typeof v!=='number'||!isFinite(v)) return;
     el.value=v; el.dispatchEvent(new Event('input')); };
   put('pRes',SET.res); put('pFar',SET.far); put('pShadow',SET.shadow); put('pLimb',SET.limb); put('pVol',SET.vol); put('pSens',SET.sens);
+  put('pCap',SET.cap);
   curSlot=(SET.slot==='2'||SET.slot==='3')?SET.slot:'1'; drawSlots();
 }
 document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.value);
@@ -14489,8 +14787,11 @@ let last=performance.now(), mapT=0, lastDraw=0;
 function loop(){
   requestAnimationFrame(loop);
   const now=performance.now();
+  if(BENCH.on){ benchFrame(now); return; }     // 벤치마크 — 정해 둔 길을 따로 돈다
   /* 창을 내렸으면 그리지 않고, 멈춤 화면 뒤는 초당 10번만 그린다(덮개가 94% 가려 보이지 않는다) — GPU·전기를 아낀다 */
   if(document.hidden||winHidden||(paused&&now-lastDraw<100)){ last=now; return; }
+  /* 프레임 제한(설정) — 정한 간격이 안 됐으면 이번 화면 주기는 건너뛴다. last 는 그대로 두어 dt 가 쉰 시간을 안는다 */
+  if(FPS_CAP>0&&now-lastDraw<1000/FPS_CAP-1.5) return;
   lastDraw=now;
   const dt=Math.min(0.05,(now-last)/1000); last=now;
 

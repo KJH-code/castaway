@@ -20,6 +20,11 @@ const USER = () => app.getPath('userData');                      // Windows %APP
 const SAVES = () => path.join(USER(), 'saves');
 const LOGS = () => path.join(USER(), 'logs');
 const WINCFG = () => path.join(USER(), 'window.json');
+const GPUCFG = () => path.join(USER(), 'gpu.json');
+/* 그래픽 백엔드(ANGLE) — 게임 설정 창에서 고른다(gpu.json · 다시 켤 때 적용). 고르지 않았으면 Chromium 이 고르는 대로.
+   어떤 PC 는 드라이버에 따라 D3D11 보다 OpenGL·Vulkan 이(또는 반대로) 빠르거나 안정적이다 */
+const ANGLE_OK = ({ win32: ['d3d11', 'd3d9', 'gl', 'vulkan'], darwin: ['metal', 'gl'], linux: ['gl', 'vulkan'] })[process.platform] || [];
+{ const g = readJSON(GPUCFG(), {}); if (ANGLE_OK.includes(g.angle)) app.commandLine.appendSwitch('use-angle', g.angle); }
 const REPO = 'KJH-code/castaway';                                 // 새 판 알림은 이 레포의 Releases 를 본다
 
 if (!app.requestSingleInstanceLock()) app.quit();                 // 두 번 켜면 먼저 뜬 창을 앞으로
@@ -173,6 +178,13 @@ ipcMain.on('app:info', e => { e.returnValue = { version: app.getVersion(), saves
 ipcMain.on('app:openSaves', () => { fs.mkdirSync(SAVES(), { recursive: true }); shell.openPath(USER()); });   // saves · logs 가 같이 보이는 자리
 ipcMain.on('app:fullscreen', e => { if (win) win.setFullScreen(!win.isFullScreen()); e.returnValue = !!(win && win.isFullScreen()); });
 ipcMain.on('app:quit', () => { if (win) win.close(); else app.quit(); });   // 닫기 길(자동 저장)을 그대로 탄다
+ipcMain.on('app:gpu', e => { e.returnValue = { angle: readJSON(GPUCFG(), {}).angle || 'default', choices: ANGLE_OK,
+  active: app.commandLine.getSwitchValue('use-angle') || 'default' }; });
+ipcMain.on('app:setGpu', (e, v) => {
+  const ok = v === 'default' || ANGLE_OK.includes(v);
+  if (ok) try { fs.mkdirSync(USER(), { recursive: true }); writeAtomic(GPUCFG(), JSON.stringify({ angle: v })); log('gpu', 'ANGLE → ' + v + ' (다시 켜면)'); } catch (err) { log('gpu', err && err.stack || err); }
+  e.returnValue = ok;
+});
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 /* 게임 밖 웹 내용(webview)은 붙이지 못하게 */
