@@ -6592,7 +6592,17 @@ const ITEMS={
                use:'유리 안에 탄소 실을 걸었다 — 공기를 뺐으니 타지 않고 달아오른다'},
   battery:    {n:'납축전지',   kg:8.2,  c:0x4a4f56,
                use:'납 극판과 황산 — 발전기에서 채워 들고 다닌다. 우클릭으로 전등에 옮긴다',
-               durMax:100},
+               durMax:100, cell:1},
+  /* 리튬이온 전지 — 흑연 음극 · 인산철리튬(LiFePO4) 양극. 리튬은 화강암을 떼어 낼 때 가끔 딸려 나오는
+     리튬휘석(페그마타이트 맥)에서 뽑는다. 무게당 담는 양이 납축전지의 다섯 배쯤(실제 4~5배).
+     `cell` 을 단 것이 축전지다 — 발전기가 채우고(비어서 나온다), 전등·드릴이 여기서 옮겨 담는다. */
+  battery_li: {n:'리튬이온 전지', kg:3.2, c:0x3a6f9a,
+               use:'흑연 음극 · 인산철리튬 양극을 강철 통에 말았다 — 납축전지보다 두 배를 담고 훨씬 가볍다. 우클릭으로 전등·드릴에 옮긴다',
+               durMax:200, cell:1},
+  spodumene:  {n:'리튬휘석',   kg:1.1,  c:0xb7c7ae, use:'화강암 속 페그마타이트 맥에 박힌 연녹색 기둥 결정 — 리튬이 든다'},
+  li_carbonate:{n:'탄산리튬',  kg:0.4,  c:0xf2f2ee, use:'리튬휘석을 구워 황산에 우리고 잿물로 앉힌 흰 가루 — 리튬 전지의 바탕'},
+  graphite:   {n:'흑연',       kg:0.4,  c:0x3c3f43, use:'숯을 아크로 달궈 탄소 층을 가지런히 세웠다 — 리튬이 층 사이를 드나드는 음극'},
+  cathode_lfp:{n:'인산철리튬', kg:0.6,  c:0x474a46, use:'생선 뼈의 인 · 철 · 리튬을 숯과 함께 아크로 구운 양극 가루'},
   lamp_electric:{n:'전등',     kg:0.9,  c:0xd8d2b8,
                use:'L 로 켜고 끈다 — 전기가 닳으면 축전지에서 옮겨 담는다',
                tool:{lamp:1}, durMax:40},
@@ -6841,7 +6851,7 @@ function invAdd(id,n){
       const sl={id,n:1};
       if(T.sips) sl.sip=T.sips;                                 // 남은 모금
       else if(T.burn!==undefined){ sl.fuel=T.burn; sl.lit=false; }   // 횃불
-      else sl.dur=(id==='battery')?0:T.durMax;   // 축전지는 비어서 나온다
+      else sl.dur=T.cell?0:T.durMax;   // 축전지(cell)는 비어서 나온다
       if(T.tool&&T.tool.gun) sl.mag=0;                          // 총은 빈 탄창으로 나온다
       INV.slots.push(sl);
     }
@@ -7022,7 +7032,8 @@ const MINE={
   cinnabar:{item:'cinnabar', label:'진사 긁기', dur:4.2, stam:9, tier:1, uses:[2,4]},
   // 화강암은 불에 달궈 균열이 생긴 뒤에야(tier 3 → 2) 떼어낼 수 있다
   granite:{item:'stone_block',label:'화강암 떼기', dur:6.0, stam:11, tier:3, uses:[3,6],
-           fireset:0.35}   // 게임시간 21분 — 횃불이면 35분
+           fireset:0.35,   // 게임시간 21분 — 횃불이면 35분
+           extra:{id:'spodumene', p:0.25}}   // 페그마타이트 맥 — 네 번에 한 번꼴 리튬휘석이 딸려 나온다
 };
 const CHOP={
   oak:{item:'log', label:'나무 베기', dur:5.0, stam:10, yield:[1,1], logs:[2,3]},
@@ -7368,6 +7379,8 @@ function updateHarvest(dt){
   if(field==='br' && t.berry>0 && Math.random()<0.55){
     if(invAdd('berry',1)){ t.berry--; msg+=' · 베리 +1'; refreshBerry(t); }
   }
+  // 캐는 것에 딸려 나오는 것(MINE[].extra — 화강암의 리튬휘석)
+  if(field==='ore' && H.extra && Math.random()<H.extra.p && invAdd(H.extra.id,1)) msg+=' · '+ITEMS[H.extra.id].n+' +1';
   t[field]--;
 
   if(HARV.mode.tool){                                // 도구 마모
@@ -8087,6 +8100,33 @@ const RECIPES=[
        {id:'pot',n:1}],
    need:[{id:'hammer_stone',n:1}]},
 
+  /* 리튬이온 전지 — 리튬휘석 → 탄산리튬 → (흑연 음극 · 인산철리튬 양극) → 강철 통에 말기 */
+  {id:'li_carbonate', tier:'화학', n:'탄산리튬 앉히기', out:{id:'li_carbonate',n:1},
+   time:60, stam:24, station:'fire',
+   note:'리튬휘석을 불에 달궈 부풀리고 황산에 우려 리튬을 녹여 낸다. 웃물에 잿물을 부으면 '
+       +'흰 탄산리튬이 바닥에 앉는다.',
+   in:[{id:'spodumene',n:3},{id:'acid_sulfuric',n:1},{id:'lye',n:1}]},
+
+  {id:'graphite', tier:'화학', n:'흑연 굽기', out:{id:'graphite',n:2},
+   time:45, stam:16, station:'arc',
+   note:'곱게 빻은 숯을 아크로 오래 달구면 탄소가 층층이 가지런해진다. 전극이 닳는다.',
+   in:[{id:'charcoal',n:4},{id:'electrode',n:1}]},
+
+  {id:'cathode_lfp', tier:'화학', n:'인산철리튬 굽기', out:{id:'cathode_lfp',n:2},
+   time:55, stam:20, station:'arc',
+   note:'생선을 태운 뼈 재를 황산에 녹여 인을 얻고, 철가루 · 탄산리튬 · 숯가루와 이겨 '
+       +'공기를 막고 굽는다. 숯이 알갱이에 얇게 입혀져야 전기가 통한다.',
+   in:[{id:'li_carbonate',n:1},{id:'fish',n:3},{id:'iron_wrought',n:1},
+       {id:'acid_sulfuric',n:1},{id:'charcoal',n:1}]},
+
+  {id:'battery_li', tier:'화학', n:'리튬이온 전지 말기', out:{id:'battery_li',n:1},
+   time:80, stam:30, station:'lathe',
+   note:'구리 박에 흑연을, 다른 박에 인산철리튬을 바르고 사이에 얇은 막을 끼워 감는다. '
+       +'탄산리튬을 알코올에 녹인 전해액을 붓고 선반으로 깎은 강철 통에 봉한다. '
+       +'비어서 나온다 — 발전기 곁에서 좌클릭으로 채운다.',
+   in:[{id:'cathode_lfp',n:2},{id:'graphite',n:2},{id:'li_carbonate',n:1},{id:'alcohol',n:1},
+       {id:'ingot_steel',n:1},{id:'wire_copper',n:2}]},
+
   {id:'lamp_electric', tier:'화학', n:'전등 만들기', out:{id:'lamp_electric',n:1},
    time:40, stam:26,
    note:'황동 통에 전구를 물리고 유리로 앞을 막는다. 불씨가 필요 없고 '
@@ -8753,7 +8793,7 @@ function contAdd(c,id,n){                          // 산출물은 상한을 넘
     for(let k=0;k<n;k++)
       stackInto(c.slots,id,1, T.sips?{sip:T.sips}
                             : (T.burn!==undefined)?{fuel:T.burn,lit:false}
-                            : {dur:(id==='battery')?0:T.durMax});
+                            : {dur:T.cell?0:T.durMax});
   }else stackInto(c.slots,id,n);
   boxDirty=true;
 }
@@ -10110,7 +10150,7 @@ function toggleLamp(){
 function drawFromBattery(e){
   const T=ITEMS[e.id], want=T.durMax-e.dur;
   if(want<=0) return false;
-  const bs=INV.slots.filter(x=>x.id==='battery'&&x.dur>0)
+  const bs=INV.slots.filter(x=>ITEMS[x.id]&&ITEMS[x.id].cell&&x.dur>0)
                     .sort((a,b)=>b.dur-a.dur);
   if(!bs.length) return false;
   let got=0;
@@ -10130,7 +10170,7 @@ function chargeAtDynamo(){
   for(const sl of INV.slots){
     const T=ITEMS[sl.id];
     if(!T||!T.durMax) continue;
-    if(sl.id!=='battery' && !(T.tool&&(T.tool.lamp||T.tool.drill))) continue;
+    if(!T.cell && !(T.tool&&(T.tool.lamp||T.tool.drill))) continue;
     if(sl.dur>=T.durMax) continue;
     sl.dur=T.durMax; n++;
   }
@@ -10541,6 +10581,8 @@ function obtainOf(id){
     if(ks.length) out.push(verb+' — '+ks.map(k=>RESOURCES.find(r=>r.k===k).n).join(', '));
   };
   from(HARVEST,'채집'); from(CHOP,'벌목'); from(MINE,'채굴');
+  for(const k in MINE){ const X=MINE[k].extra;
+    if(X&&X.id===id) out.push('채굴 — '+RESOURCES.find(r=>r.k===k).n+' (떼어 낼 때 '+Math.round(X.p*100)+'% 로 딸려 나온다)'); }
   // 표에서 뽑히지 않는 부수 산출물
   if(id==='berry') out.push('채집 — 풀숲 (열매가 달린 덤불에서 가끔 딸려 나온다)');
   if(id==='ring_platinum') out.push('처음부터 지님 — 표류 전부터 끼고 있었다');
@@ -12345,6 +12387,8 @@ function _icoShape(id){
   else if(id==='electrode'||id==='barrel_rifled'||id==='pipe_copper'||id==='blowpipe'){ const L=id==='electrode'?0.5:0.8, r=id==='electrode'?0.04:0.05;
     add(cyl(r,r,L),M,0,0,0); if(id!=='electrode') add(cyl(r*0.6,r*0.6,L+0.01),WMAT(0x111111),0,0,0); }
   else if(id==='bulb'){ add(sph(0.16,16,12),new THREE.MeshPhongMaterial({color:0xfff6c8,transparent:true,opacity:0.7,emissive:0x444020}),0,0.08,0); add(cyl(0.07,0.07,0.12),WMAT(0xb0b0b0),0,-0.12,0); }
+  else if(id==='battery_li'){ for(let i=0;i<3;i++){ add(cyl(0.07,0.07,0.36),M,(i-1)*0.15,0,0); add(cyl(0.03,0.03,0.03),WMAT(0xc8ccd0),(i-1)*0.15,0.195,0); } }
+  else if(id==='spodumene'){ for(let i=0;i<3;i++) add(cyl(0.06,0.07,0.34-i*0.06,6),M,(i-1)*0.08,0,(i%2)*0.05,0,0,(i-1)*0.25); }
   else if(id==='battery'){ add(box(0.4,0.26,0.24),WMAT(0x2a2e30),0,0,0); add(cyl(0.03,0.03,0.05),WMAT(0xb03a2a),-0.12,0.15,0); add(cyl(0.03,0.03,0.05),WMAT(0x333333),0.12,0.15,0); }
   else if(id==='drawplate'){ add(box(0.4,0.08,0.22),M,0,0,0); for(let i=0;i<5;i++) add(cyl(0.012+i*0.006,0.012+i*0.006,0.09,10),WMAT(0x111111),-0.14+i*0.07,0,0); }
   else if(id==='blade_polished'||id==='point'){ add(new THREE.ConeGeometry(0.12,0.42,4),M,0,0,0,0,0,0,1,1,0.3); }
@@ -12352,7 +12396,7 @@ function _icoShape(id){
   else if(/^(lye|nitric|acid_sulfuric|alcohol)$/.test(id)) bottle(T.c);
   else if(id==='mercury') bottle(0xc8ccd0);
   else if(id==='bottle_empty') bottle(null);
-  else if(/^(ash|saltpeter|gunpowder|fulminate|guncotton|powder_smokeless)$/.test(id)) pile(T.c);
+  else if(/^(ash|saltpeter|gunpowder|fulminate|guncotton|powder_smokeless|li_carbonate|cathode_lfp)$/.test(id)) pile(T.c);
   else if(id==='primer'){ for(let i=0;i<4;i++) add(cyl(0.05,0.05,0.04),WMAT(0xc8a050),(i%2-0.5)*0.12,0,(i>>1)*0.12-0.06); }
   else if(/^(pot|pot_raw|pot_sand|crucible|crucible_raw)$/.test(id)){ const c=/raw/.test(id)?0x8a7a66:0xa8724a;
     if(/crucible/.test(id)) add(cyl(0.16,0.11,0.3,14),WMAT(c),0,0,0);

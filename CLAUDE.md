@@ -86,7 +86,7 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` | 메인 게임. 아이템 157종 · 레시피 151개 · 제련 10종 |
+| `island_world.html` | 메인 게임. 아이템 166종 · 레시피 159개 · 제련 10종 |
 | `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `wyvern_arena.html` | **애쉬스케일 시험장**(4.1MB). 상공 20 m 선회 → 5초 노려봄 →
@@ -180,7 +180,7 @@ python -m http.server 5173
 `sed -n '시작,끝p'` 로 그 구역만 뜰 것.** 파일이 2.1MB(약 60만 토큰)라 통독은
 컨텍스트를 통째로 태운다. 구역 하나는 보통 2~5천 토큰이면 충분하다.
 
-### 구역 지도 — `island_world.html` (15,080줄)
+### 구역 지도 — `island_world.html` (15,124줄)
 
 | 줄 | 구역 | 무엇이 있나 |
 |---|---|---|
@@ -195,24 +195,24 @@ python -m http.server 5173
 | 1189 | 샘플링 API | 지형 조회 창구 |
 | 1213 | 9) 3D 월드 렌더링 | 압축 인스턴스 `instCompact` 1294 · 지형 `buildChunks` 1945 / LOD `updateTerrainLOD` 2003 · 칸 보이기 `updateTileVis` 2291 · 먼 나무 `buildFarTrees` 2514 · `buildProps` 2566 |
 | 3677 | 빛 · 하늘 · 날씨 · 구름 | **`LIGHT` 3717** · `SKY` 3989 · `updateWeather` 4336 · 구름 명암 `litQueue` 4884 · `updateClouds` 5455 · 하늘 표 `SKY_LUT` 5945 · `updateSky` 6085 |
-| 6305 | 10) 아이템 · 인벤토리 | **`ITEMS` 6312** · `INV` 6798 · 드래그 `dragPut` 6916 / `wireDrag` 6952 |
-| 6985 | 11) 맨손 채집 | `HARVEST` 6991 · `MINE` 7013 |
-| 7480 | 12) 제작 | **`RECIPES` 7487** · `startCraft` 8371 · `drawCraft` 8433 |
-| 8484 | 12-b) 불 | `FIRING` 8494 · `SMELT` 8524 |
-| 8847 | 집 짓기 | `BUILD` 8914 · `floorAt` 8959 · `BUILD_MESH` 9163 |
-| 10330 | 사전 | `GEO`/`MINERALS` · `obtainOf` — 표를 역으로 훑어 획득 경로를 만든다.
+| 6305 | 10) 아이템 · 인벤토리 | **`ITEMS` 6312** · `INV` 6808 · 드래그 `dragPut` 6926 / `wireDrag` 6962 |
+| 6995 | 11) 맨손 채집 | `HARVEST` 7001 · `MINE` 7023 |
+| 7493 | 12) 제작 | **`RECIPES` 7500** · `startCraft` 8411 · `drawCraft` 8473 |
+| 8524 | 12-b) 불 | `FIRING` 8534 · `SMELT` 8564 |
+| 8887 | 집 짓기 | `BUILD` 8954 · `floorAt` 8999 · `BUILD_MESH` 9203 |
+| 10370 | 사전 | `GEO`/`MINERALS` · `obtainOf` — 표를 역으로 훑어 획득 경로를 만든다.
   **`MINERALS` 에 넣은 것은 `GEO` 에도 있어야 한다** — 하나만 있으면 광물 탭이 통째로
   안 그려진다(`sand` 가 그랬다). `obtainOf` 는 `RECIPES`·`HARVEST`·`CHOP`·`MINE`·
   `FIRING`·`SMELT`·`MOBS[].drop` 을 다 훑는다 |
-| 10841 | 근접 공격 | `CREATURES` 10847 (비어 있음) |
-| 10850 | 손에 든 무기 | **`WEAPON_FX` 10955** — 손에 드는 것의 생김새를 id로 키잉한 조립 함수 |
-| 12544~ | 전투 진입점 | `equippedWeapon` 12544 · `shoot` 12631 · `castNet` 12816 · `attack` 12874 |
-| 12975 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
-| 13070 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
-| 13285 | 음향 | 물리 모델 합성 |
-| 13468 | HUD | `drawMap` 13491 · `drawCompass` 13531 · 성능 창 `PERF` 13560 · `updateHUD` 13732 |
-| 13924 | 초기화 · 루프 | `initThree` 14022 · `freezeStatics` 14075 · 셰이더 미리 짜기 `PRECOMP` 14101 · `start` 14787 · `loop` 15008 |
-| 14291 | 저장 / 불러오기 | `snapshot` 14324 · `saveLocal` 14536 · `loadFile` 14595 |
+| 10883 | 근접 공격 | `CREATURES` 10889 (비어 있음) |
+| 10892 | 손에 든 무기 | **`WEAPON_FX` 10997** — 손에 드는 것의 생김새를 id로 키잉한 조립 함수 |
+| 12588~ | 전투 진입점 | `equippedWeapon` 12588 · `shoot` 12675 · `castNet` 12860 · `attack` 12918 |
+| 13019 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
+| 13114 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
+| 13329 | 음향 | 물리 모델 합성 |
+| 13512 | HUD | `drawMap` 13535 · `drawCompass` 13575 · 성능 창 `PERF` 13604 · `updateHUD` 13776 |
+| 13968 | 초기화 · 루프 | `initThree` 14066 · `freezeStatics` 14119 · 셰이더 미리 짜기 `PRECOMP` 14145 · `start` 14831 · `loop` 15052 |
+| 14335 | 저장 / 불러오기 | `snapshot` 14368 · `saveLocal` 14580 · `loadFile` 14639 |
 
 배너의 번호는 믿지 말 것 — 11)과 12-d)가 두 번씩 나오고 12-c)가 12-d) 뒤에 온다.
 **줄 번호가 정본이다.** 큰 삽입·삭제 뒤에는 이 표의 줄 번호도 같이 고칠 것:
@@ -958,6 +958,13 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   땔감 넣기·불 붙이기·꺼짐·저장이 화덕 규칙 그대로다(저장은 `fires[].st`). 불이 붙어 땔감이 남은 동안
   7 m 안의 발전기를 돌린다 — **`powered()` 는 이제 `turnsDynamo(d)`(물레방아 **또는** 불 땐 증기기관)**.
   발전기도 증기기관 곁에 놓을 수 있다.
+- **축전지는 `cell` 필드를 단 것이다**(납축전지 100 · 8.2 kg · 리튬이온 전지 200 · 3.2 kg) — 비어서 나오고(`invAdd`·`contAdd`),
+  발전기 곁 좌클릭(`chargeAtDynamo`)이 지닌 것을 한꺼번에 가득 채우며, 전등·드릴은 우클릭으로 가장 많이 남은 축전지부터
+  옮겨 담는다(`drawFromBattery`). 새 축전지는 `ITEMS` 한 줄에 `cell:1` 이면 된다(예전엔 `id==='battery'` 가 세 군데 박혀 있었다).
+  **리튬이온 전지 사슬**: 화강암을 떼어 낼 때 25% 로 리튬휘석(`MINE.granite.extra` — 캐는 것에 딸려 나오는 것은 `extra:{id,p}`,
+  `obtainOf` 도 읽는다 · 섬 생성은 안 건드린다) → 탄산리튬(불 · 황산 · 잿물) → 흑연(아크로 · 숯 · 전극) · 인산철리튬(아크로 ·
+  탄산리튬 · 물고기(뼈의 인) · 연철 · 황산 · 숯) → 리튬이온 전지(선반 · 강철 통 · 구리선 · 알코올 전해액). 뼈는 본편에서 아직
+  못 얻으므로(몹이 안 나온다) 인은 물고기에서 얻는다.
 - **전동 드릴(`tool.drill`)은 내구가 곧 충전량이다** — 0 이 되면 부서지지 않고 멈추며, 지닌 납축전지에서
   `drawFromBattery` 로 옮겨 담는다. 발전기 곁 충전(`chargeAtDynamo`)도 받는다. 곡괭이 등급 3 · 빠르기 8.5.
 - **수류탄(`tool.throw`)** — `attack()` 이 `throwGrenade` 로 넘긴다. 포물선(16 m/s · 중력 9.8) → 튀며 구름 →
