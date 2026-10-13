@@ -27,11 +27,14 @@
    ⑥ **그루마다 생김새가 다르다** — 종류마다 씨앗만 바꿔 여러 벌을 지어 두고(`floraShapes` · 벌 수 `FLORA_VARS` — 나무 8 · 덤불·고사리 6 ·
       꽃·마른 덤불·버섯 4) 칸 번호의 해시로 그루마다 한 벌을 고른다. 짜임(줄기·가지 치는 법·잎 그림)은 그대로고 가지·잎·줄기 수는
       원래 값의 ±1~2, 키는 ±10% 안에서만 흔든다. 벌마다 인스턴스 메시가 하나라 `FLORA.m[종류]` 는 배열이다.
+      **제 생김새는 가까이서만** — 나무는 25 m(`FULL_DIST` · 참나무·전나무가 제 나무를 그리는 거리), 덤불·고사리는 12 m(층의 `own`)
+      밖이면 종류마다 **사람에게서 가장 가까운 그루의 벌 하나**(`FLORA.ref` — 섬마다 그 종류가 처음 깔릴 때 정한다)로 모두 찍는다.
+      참나무·전나무의 기준 나무(`FAR_REF`)와 같은 방식이다. 벌이 여덟이면 그리기 호출이 여덟이던 것이, 먼 쪽은 하나로 모인다.
    노거수(뿌리가 땅이 되는 큰 나무)는 95-giants.js 가 '노거수 숲' 군락에 세운다.
    ========================================================================== */
-const FLORA={seed:0, m:null, mat:null, depth:null, tex:null, patch:84, taken:new Map(), look:null,
-  far :{cx:1e9,cz:1e9,R:110,cell:6,  step:12,fade:14,salt:3,cols:[],picks:[],n:{},kinds:['jungle','mangrove','bamboo','palm','birch','pine','sapling','banana','treefern','acacia']},
-  near:{cx:1e9,cz:1e9,R:46, cell:2.4,step:6, fade:7, salt:1,cols:[],picks:[],n:{},kinds:['fern','bush','flower','dry','shroom']}};
+const FLORA={seed:0, m:null, mat:null, depth:null, tex:null, patch:84, taken:new Map(), look:null, ref:{}, pend:[], pendN:0,
+  far :{cx:1e9,cz:1e9,R:110,cell:6,  step:12,fade:14,salt:3,own:FULL_DIST,cols:[],picks:[],n:{},kinds:['jungle','mangrove','bamboo','palm','birch','pine','sapling','banana','treefern','acacia']},
+  near:{cx:1e9,cz:1e9,R:46, cell:2.4,step:6, fade:7, salt:1,own:12,cols:[],picks:[],n:{},kinds:['fern','bush','flower','dry','shroom']}};
 /* 그림 묶음의 칸 */
 const FC={BARK:0,RING:1,LEAF:2,BIG:3,FERN:4,PALM:5,BAMBOO:6,NEEDLE:7,FLOWER:8,TWIG:9,MANG:10,VINE:11,BIRCH:12,PLAIN:13,STEM:14,CAP:15};
 /* 종류마다 — r 몸이 막히는 반지름(크기 1 일 때 · 없으면 지나간다) · pick 얻는 것 · cap 한 번에 서는 수 */
@@ -468,7 +471,7 @@ function floraBuild(){
   FLORA.depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:FLORA.tex,alphaTest:0.4});
   FLORA.m={};
   for(const L of [FLORA.far,FLORA.near]) for(const k of L.kinds){
-    const nv=FLORA_VARS[k]||1, cap=Math.ceil(FLORA_KIND[k].cap*2.5/nv)+8;   // 벌마다 몫 — 고르게 나뉘므로 평균의 2.5배면 넉넉하다
+    const nv=FLORA_VARS[k]||1, cap=Math.ceil(FLORA_KIND[k].cap*2.5)+8;   // 벌마다 몫 — 기준 벌(`FLORA.ref`)이 먼 그루를 다 받으므로 예전 종류 전체 몫(평균의 2.5배)
     FLORA.m[k]=[]; L.n[k]=new Int32Array(nv);
     for(let v=0;v<nv;v++){
       const im=new THREE.InstancedMesh(SH[v][k],FLORA.mat,cap);
@@ -490,6 +493,7 @@ function floraLayer(L,which){
   const U=FLORA, px=PL.pos.x, pz=PL.pos.z, C=L.cell, R=L.R, n=L.n, far=which==='far';
   L.cx=px; L.cz=pz; L.cols.length=0; L.picks.length=0;
   for(const k of L.kinds) n[k].fill(0);
+  const near0={}, nearV={}; U.pendN=0;
   const x0=Math.floor((px-R)/C), x1=Math.floor((px+R)/C), z0=Math.floor((pz-R)/C), z1=Math.floor((pz+R)/C);
   for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){
     const h=floraHash(gx,gz,L.salt);
@@ -511,8 +515,7 @@ function floraLayer(L,which){
       for(const t of cm[which]){ const pr=t[1]*dens; if(u<pr){ pick=t; break; } u-=pr; }
     }
     if(!pick) continue;
-    const kind=pick[0], ms=U.m[kind], vi=floraHash(gx,gz,L.salt+7)%ms.length, im=ms[vi], K=FLORA_KIND[kind], nk=n[kind];
-    if(nk[vi]>=im.instanceMatrix.count) continue;
+    const kind=pick[0], ms=U.m[kind], vi=floraHash(gx,gz,L.salt+7)%ms.length, K=FLORA_KIND[kind], nk=n[kind];
     // 큰 나무·바위·설비·벽이 선 자리, 지은 바닥 위는 비운다
     const pad=(K.r||0)+0.5, cgx=Math.floor(wx/CG), cgz=Math.floor(wz/CG); let hit=false;
     for(let az=-1;az<=1&&!hit;az++) for(let ax=-1;ax<=1&&!hit;ax++){
@@ -529,13 +532,20 @@ function floraLayer(L,which){
     const tl=far?0.05:0.16;
     _flE.set(((h2>>>10)&31)/31*tl-tl/2,((h2>>>15)&1023)/1023*6.283,((h2>>>25)&31)/31*tl-tl/2); _flQ.setFromEuler(_flE);
     _flV.set(wx,gy-0.03,wz); _flS.set(sc,sc*(0.9+0.2*((h>>>28)&15)/15),sc);
-    _flM.compose(_flV,_flQ,_flS); im.setMatrixAt(nk[vi],_flM);
+    _flM.compose(_flV,_flQ,_flS);
     if(kind==='flower'){ const t=FLOWER_TINT[patch%FLOWER_TINT.length]; _flC.setRGB(t[0],t[1],t[2]); }   // 꽃밭은 얼룩마다 한 빛깔
     else{ const g=0.86+0.26*((h2>>>3)&15)/15, w=((h2>>>7)&15)/15; _flC.setRGB(g*(0.94+0.14*w),g,g*(0.92+0.08*(1-w))); }
-    im.setColorAt(nk[vi]++,_flC);
+    if(d<=L.own){ const im=ms[vi]; if(nk[vi]>=im.instanceMatrix.count) continue;      // 가까우면 제 벌
+      im.setMatrixAt(nk[vi],_flM); im.setColorAt(nk[vi]++,_flC); }
+    else{ const q=U.pend[U.pendN]||(U.pend[U.pendN]={k:'',m:new Float32Array(16),c:new Float32Array(3)}); U.pendN++;   // 멀면 기준 벌로(아래에서)
+      q.k=kind; q.m.set(_flM.elements); q.c[0]=_flC.r; q.c[1]=_flC.g; q.c[2]=_flC.b; }
+    if(U.ref[kind]===undefined&&d<(near0[kind]??1e9)){ near0[kind]=d; nearV[kind]=vi; }   // 기준 벌을 아직 안 정한 종류 — 가장 가까운 그루
     if(K.r) L.cols.push({x:wx,z:wz,r:K.r*sc});
     if(P) L.picks.push({kind:K.pick,x:wx,y:gy,z:wz,key,r:(K.r||0.12)*sc,tree:!P.hide});
   }
+  for(const k in nearV) U.ref[k]=nearV[k];
+  for(let i=0;i<U.pendN;i++){ const q=U.pend[i], v=U.ref[q.k], im=U.m[q.k][v], nk=n[q.k]; if(nk[v]>=im.instanceMatrix.count) continue;
+    _flM.fromArray(q.m); im.setMatrixAt(nk[v],_flM); _flC.setRGB(q.c[0],q.c[1],q.c[2]); im.setColorAt(nk[v]++,_flC); }
   for(const k of L.kinds) U.m[k].forEach((im,v)=>{ im.count=n[k][v]; im.visible=im.count>0;
     im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true; });
   if(far) LIGHT.dirtyAt(px,pz,R);                      // 나무가 바뀌었다 — 그림자 지도를 다시 그린다
@@ -561,7 +571,7 @@ function floraCollide(p,radius){
 function floraReset(seed){
   FLORA.seed=seed|0; FLORA.far.cx=FLORA.far.cz=FLORA.near.cx=FLORA.near.cz=1e9;
   FLORA.far.cols.length=FLORA.near.cols.length=0; FLORA.far.picks.length=FLORA.near.picks.length=0;
-  FLORA.taken.clear(); FLORA.look=null;
+  FLORA.taken.clear(); FLORA.look=null; FLORA.ref={};   // 기준 벌은 섬마다 새로(그 종류가 처음 깔릴 때 가장 가까운 그루)
 }
 
 /* ── 얻기 ────────────────────────────────────────────────────────────────── */
