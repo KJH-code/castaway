@@ -153,8 +153,7 @@ function diePL(why){
 /* 깨어나기 — 짐은 그대로 두고 표류물 곁으로 돌려보낸다. 죽음이 가벼우면
    높이도 물도 무섭지 않으니, 배를 절반으로 깎아 대가를 남긴다. */
 function revivePL(){
-  const a=Math.random()*6.28;
-  PL.pos.set(podPos.x+Math.cos(a)*3, podPos.y+1, podPos.z+Math.sin(a)*3);
+  PL.pos.set(LANDING.sx, podPos.y+1, LANDING.sz);              // 늘 같은 자리(착륙 자리 — 30-props.js placePod)
   PL.pos.y=Math.max(0.2,heightAt(PL.pos.x,PL.pos.z))+0.2;
   PL.vel.set(0,0,0); PL.camY=undefined;
   PL.hp=HPMAX; PL.stam=60; PL.oxy=100; PL.ill=0; PL.water=Math.min(PL.water,50);
@@ -163,13 +162,12 @@ function revivePL(){
   toast('깨어났다');
 }
 function spawnPlayer(){
-  const a=Math.random()*6.28;
-  PL.pos.set(podPos.x+Math.cos(a)*3, podPos.y+1, podPos.z+Math.sin(a)*3);
+  PL.pos.set(LANDING.sx, podPos.y+1, LANDING.sz);              // 늘 배 뒤 같은 자리에서 배를 보며 깬다(30-props.js placePod)
   PL.pos.y=Math.max(0.2,heightAt(PL.pos.x,PL.pos.z))+0.2;
   for(let i=0;i<4;i++){ shipCollide(PL.pos,PRAD+0.3,PL.eye+0.15,PL.pos.y); PL.pos.y=Math.max(0.2,heightAt(PL.pos.x,PL.pos.z))+0.2; }   // 배 몸 속에서 깨지 않게
   PL.vel.set(0,0,0); PL.hp=HPMAX; PL.stam=100; PL.oxy=100; PL.food=100; PL.water=100; PL.ill=0;
   PL.dead=false; hurtFlash=0;
-  PL.yaw=Math.atan2(podPos.x-PL.pos.x, podPos.z-PL.pos.z)+Math.PI;
+  PL.yaw=Math.atan2(LANDING.x-PL.pos.x, LANDING.z-PL.pos.z)+Math.PI;   // 배 가운데를 본다
   PL.pitch=-0.05;
 }
 

@@ -388,4 +388,4 @@ async function generateWorld(){
   }
   busy=false;                           // 실패해도 잠기지 않게 반드시 해제
 }
-function placeProps_(seed){ buildProps(); placePod(seed); buildClouds(seed); }
+function placeProps_(seed){ placePod(seed); buildProps(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다

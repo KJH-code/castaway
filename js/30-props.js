@@ -1461,7 +1461,31 @@ function placePod(seed){
      그림자 광원이라, **시작 지점에서 밤낮없이 두 번째 그림자를 드리우고 있었다**
      (허허벌판 아침에 그림자가 둘 보이던 것이 이것이다).
      `podPos` 는 남긴다 — 시작 자리 · 지도 표시 · '캡슐에서 몇 m' 안내가 쓴다. */
-  makeShip();
+  /* 착륙 자리(`LANDING`) — 배는 캡슐에서 바다 쪽으로 9 m · 머리를 바다로. 사람은 **늘 배 뒤 같은 자리**에서 깬다
+     (예전엔 캡슐 둘레 3 m 의 무작위 각도라 켤 때마다 배가 화면의 다른 데 있었고, 배 꼬리 엔진 속에서 깨기도 했다).
+     배 로컬(앞 −z · 꼬리 +z)로 왼쪽 뒤 (−4.5, 13.5) 에서 배 가운데를 비스듬히 본다 — 거기가 물·급사면이면 정해 둔
+     차례대로 다음 후보. 자원 배치가 끝난 뒤 buildProps 전에 불러 배 · 깨는 자리의 자원을 뺀다(clearLanding) */
+  const away=new THREE.Vector3(podPos.x,0,podPos.z).normalize();
+  if(!isFinite(away.x)||away.lengthSq()<1e-6) away.set(0,0,1);
+  const sx=podPos.x+away.x*9, sz=podPos.z+away.z*9, th=Math.atan2(away.x,away.z)+Math.PI, c=Math.cos(th), sn=Math.sin(th);
+  const W=(lx,lz)=>[sx+lx*c+lz*sn, sz-lx*sn+lz*c];
+  let spot=null;
+  for(const [lx,lz] of [[-4.5,13.5],[4.5,13.5],[0,15],[-9,11],[9,11],[-12,4],[12,4],[0,19],[-6,18],[6,18]]){
+    const [x,z]=W(lx,lz), gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2);
+    if(gx<2||gz<2||gx>N-3||gz>N-3) continue;
+    const i=IDX(gx,gz); if(F.elev[i]<0.4||F.slope[i]>0.6||F.river[i]) continue;
+    spot=[x,z]; break;
+  }
+  if(!spot) spot=W(0,13.5);
+  LANDING={x:sx,z:sz,th,away,sx:spot[0],sz:spot[1]};
+  clearLanding(LANDING);
+}
+let LANDING=null;
+/* 착륙 자리 안인가 — 배 네모(배 로컬 |x|<9.2 · −8.6<z<9)나 깨는 자리 3 m 안. pad 만큼 넓혀 본다(군락 나무 · 노거수가 피한다) */
+function inLanding(x,z,pad){
+  const L=LANDING; if(!L) return false; pad=pad||0;
+  const c=Math.cos(L.th), s=Math.sin(L.th), dx=x-L.x, dz=z-L.z, lx=dx*c-dz*s, lz=dx*s+dz*c;
+  return (Math.abs(lx)<9.2+pad&&lz>-8.6-pad&&lz<9+pad)||Math.hypot(x-L.sx,z-L.sz)<3+pad;
 }
 
 /* ── 보급선 ───────────────────────────────────────────────────────────────
@@ -1566,14 +1590,12 @@ function makeShip(){
   SHIP.box=shipBoxes(Y,prof.map(v=>[v.x,v.y]));
   const li=LIGHT.addPoint(g,{color:0x9fd8ff,intensity:0,dist:40,pos:[0,1.0,2.0]});
   SHIP.light=li;
-  /* 캡슐 옆에 내려앉는다 — 바다 쪽으로 머리를 두게 놓는다 */
-  const away=new THREE.Vector3(podPos.x,0,podPos.z).normalize();
-  if(!isFinite(away.x)||away.lengthSq()<1e-6) away.set(0,0,1);
-  SHIP.dir.copy(away);
-  const px=podPos.x+away.x*9, pz=podPos.z+away.z*9;
-  SHIP.from.set(px,Math.max(0.3,heightAt(px,pz)),pz);
+  /* 캡슐 옆에 내려앉는다 — 바다 쪽으로 머리를 두게 놓는다(자리는 placePod 가 정한 LANDING) */
+  const L=LANDING;
+  SHIP.dir.copy(L.away);
+  SHIP.from.set(L.x,Math.max(0.3,heightAt(L.x,L.z)),L.z);
   g.position.copy(SHIP.from);
-  g.rotation.y=Math.atan2(away.x,away.z)+Math.PI;
+  g.rotation.y=L.th;
   scene.add(g); shipMesh=g;
   SHIP.st='wait'; SHIP.t=0;
 }
