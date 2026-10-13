@@ -91,7 +91,7 @@ function _icoShape(id){
   return g;
 }
 const iconTag=(id,t)=>{ const u=itemIcon(id);
-  return u?'<img class="sw ico" src="'+u+'" alt="">':'<i class="sw" style="background:#'+t.c.toString(16).padStart(6,'0')+'"></i>'; };
+  return u?'<img class="sw ico" decoding="sync" src="'+u+'" alt="">':'<i class="sw" style="background:#'+t.c.toString(16).padStart(6,'0')+'"></i>'; };
 function itemIcon(id){
   if(ITEM_ICON[id]) return ITEM_ICON[id];
   const T=ITEMS[id]; if(!T) return '';

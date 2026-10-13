@@ -15,7 +15,7 @@
   <div id="cross"></div>
   <div id="scope"></div>
   <div id="camcVF"><i></i><i></i><i></i><i></i></div>
-  <div id="camc"><span class="rec">● REC</span><span class="bt"><i id="camcB"></i></span><b id="camcP">100%</b><em id="camcM"></em></div>
+  <div id="camc"><div class="r1"><span class="rec">● REC</span><span class="bt"><i id="camcB"></i></span><b id="camcP">100%</b></div><div class="r2" id="camcD">표류 1일째</div><em id="camcM"></em></div>
   <div class="pnl" id="compass"><canvas id="compassC" width="230" height="20"></canvas></div>
 
   <div class="pnl" id="info">
@@ -69,6 +69,7 @@
   <div id="holdTag">⏸ 멈춤 — 창을 닫으면 시간이 다시 흐른다</div>
   <div id="hint">화면을 클릭하면 시점 조작이 시작됩니다</div>
 </div>
+<div id="toast"></div>
 
 <div class="pnl" id="inv">
   <div class="ih"><span>소지품</span><b id="invW">0.0 / 70 kg</b></div>
@@ -99,12 +100,12 @@
 </div>
 
 <div class="pnl" id="crf">
-  <div class="ih">제작 — 맨손</div>
+  <div class="ih">제작 — 단계별</div>
   <div id="crfQ"><input id="crfS" type="text" placeholder="이름으로 찾기 — 예: 철, 도끼, 참숯"
-    autocomplete="off" spellcheck="false"><span id="crfN"></span></div>
+    autocomplete="off" spellcheck="false"><span id="crfN"></span><button id="crfOnly" title="지금 만들 수 있는 것만 보기">가능만</button></div>
   <div id="crfL"></div>
   <div id="crfP"><i id="crfF"></i></div>
-  <div class="if" style="color:var(--dim);font-size:9px;margin-top:8px">항목을 눌러 제작 · Esc 검색 지우기</div>
+  <div class="if" style="color:var(--dim);font-size:9px;margin-top:8px">항목을 눌러 제작 · 단계 제목을 눌러 접고 펴기 · 위 단계 줄을 눌러 그 단계로 · Esc 검색 지우기</div>
 </div>
 
 <div class="pnl" id="cfg">

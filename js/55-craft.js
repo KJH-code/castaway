@@ -1059,58 +1059,108 @@ function craftMatch(R){
              ...(R.need||[]).map(r=>matName(r))].join(' ');
   return hay.indexOf(q)>=0;
 }
+/* ── 제작 목록 — 단계(트리)별로 묶어 접고 편다 ─────────────────────────────
+   예전엔 제작법 표의 차례대로 늘어놓아 같은 단계가 여기저기 끊겨 나오고(단계 제목이 여러 번), 174 개가 재료·도구·설명을
+   다 펼친 채 한 줄로 길었다(사용자: '스킬 트리 정리가 안 되어 있음'). 이제
+   ① 단계를 오르는 차례(`CRAFT_TIERS`)로 묶고 번호를 단다 · 맨 위에 단계 요약 줄(누르면 그 단계로)
+   ② 단계는 접고 편다 — 사람이 정한 것(`CRAFT_OPEN`)이 없으면 지금 만들 수 있는 것이 있는 단계와 찾는 중인 단계만 펼친다
+   ③ 단계 안에서는 지금 만들 수 있는 것 → 모자란 재료가 적은 것 차례
+   ④ 줄마다 결과물 아이콘 · 재료 칩(가진 것/드는 것) · 도구는 가진 것 하나(없으면 첫 후보 + 외 몇) · 설명은 한 줄(전문은 마우스를 올리면)
+   ⑤ '가능만' — 지금 만들 수 있는 것만 */
+const CRAFT_TIERS=['맨손','풀과 돌','불','옷','나무와 점토','간석기','금속','철기','강철','화학','뼈와 키틴','바다와 살림'];
+const CRAFT_OPEN={};
+let craftOnly=false;
+const _cEsc=t=>String(t).replace(/[<>&"]/g,'');
+/* 아이콘은 이미 찍어 둔 것만 바로 — 나머지는 프레임마다 하나씩 찍는다(처음 열 때 174 개를 한꺼번에 찍으면 멈춘다).
+   입는 것(갑옷 — 수십만 삼각형)은 가진 뒤 소지품에서 찍힌 것만 쓴다 */
+const _icoQ=[];
+function iconSoon(id){
+  if(ITEM_ICON[id]) return ITEM_ICON[id];
+  const T=ITEMS[id]; if(!T||T.wear) return '';
+  if(_icoQ.indexOf(id)<0) _icoQ.push(id);
+  return '';
+}
+function iconPump(){
+  if(!_icoQ.length) return false;
+  const t0=performance.now(); let made=false;
+  while(_icoQ.length&&performance.now()-t0<6){ itemIcon(_icoQ.shift()); made=true; }
+  return made;
+}
+function craftMissing(R){                          // 모자란 재료 수(가까운 것부터 보이려고)
+  let m=0; for(const r of R.in) m+=Math.max(0,r.n-countMat(r));
+  for(const r of (R.need||[])) if(countMat(r)<r.n) m+=1;
+  if(R.station&&!stationOK(R)) m+=1;
+  return m;
+}
 function drawCraft(){
   if(!craftOpen) return;
-  let lastTier=null;
-  const hit=RECIPES.filter(craftMatch);
+  if(iconPump()) craftDirty=true;                  // 아이콘이 새로 찍혔으면 한 번 더 그린다
+  const q=craftQuery.trim();
+  let hit=RECIPES.filter(craftMatch);
   const nEl=document.getElementById('crfN');
-  if(nEl) nEl.textContent=craftQuery.trim()
-    ? hit.length+' / '+RECIPES.length : RECIPES.length+'개';
+  if(nEl) nEl.textContent=q ? hit.length+' / '+RECIPES.length : RECIPES.length+'개';
+  const L0=document.getElementById('crfL');
   if(!hit.length){
-    const L0=document.getElementById('crfL');
     L0.innerHTML='<div style="color:var(--dim);font-size:10px;padding:10px 2px">'
-      +'\''+craftQuery.trim()+'\' 에 걸리는 제작법이 없다</div>';
+      +'\''+_cEsc(q)+'\' 에 걸리는 제작법이 없다</div>';
     L0._html=null;
     return;
   }
-  const crfHtml=hit.map(R=>{
-    const i=RECIPES.indexOf(R);
-    let head='';
-    if(R.tier!==lastTier){
-      lastTier=R.tier;
-      const grp=RECIPES.filter(x=>x.tier===R.tier);
-      const ready=grp.filter(canCraft).length;
-      head='<div class="ch">'+R.tier+'<span>'+ready+' / '+grp.length+'</span></div>';
+  const okOf=new Map(); for(const R of RECIPES) okOf.set(R,canCraft(R));
+  if(craftOnly) hit=hit.filter(R=>okOf.get(R));
+  const tiers=CRAFT_TIERS.slice(); for(const R of RECIPES) if(tiers.indexOf(R.tier)<0) tiers.push(R.tier);
+  // 단계 요약 줄
+  let sum='<div class="ctree">';
+  tiers.forEach((t,k)=>{
+    const grp=RECIPES.filter(R=>R.tier===t); if(!grp.length) return;
+    const ready=grp.filter(R=>okOf.get(R)).length;
+    sum+='<b data-t="'+_cEsc(t)+'" class="'+(ready?'r':'')+'"><em>'+(k+1)+'</em>'+_cEsc(t)+'<span>'+ready+'/'+grp.length+'</span></b>';
+  });
+  sum+='</div>';
+  let body='';
+  tiers.forEach((t,k)=>{
+    const all=RECIPES.filter(R=>R.tier===t); if(!all.length) return;
+    const grp=hit.filter(R=>R.tier===t); if(!grp.length) return;
+    const ready=all.filter(R=>okOf.get(R)).length;
+    const open=CRAFT_OPEN[t]!==undefined?CRAFT_OPEN[t]:(!!q||craftOnly||ready>0);
+    body+='<div class="ch'+(open?' open':'')+'" data-t="'+_cEsc(t)+'"><i>'+(open?'▾':'▸')+'</i><em>'+(k+1)+'단계</em>'+_cEsc(t)
+      +'<span>'+ready+' / '+all.length+'</span><u><s style="width:'+Math.round(ready/all.length*100)+'%"></s></u></div>';
+    if(!open) return;
+    grp.sort((a,b)=>(okOf.get(b)?1:0)-(okOf.get(a)?1:0)||craftMissing(a)-craftMissing(b)||RECIPES.indexOf(a)-RECIPES.indexOf(b));
+    for(const R of grp){
+      const i=RECIPES.indexOf(R), ok=okOf.get(R);
+      const ico=R.out?iconSoon(R.out.id):'', col=R.out?'#'+ITEMS[R.out.id].c.toString(16).padStart(6,'0'):'#5d7a71';
+      const mats=R.in.map(r=>{ const h=countMat(r);
+        return '<span class="c '+(h>=r.n?'g':'b')+'">'+_cEsc(matName(r))+' <small>'+Math.min(h,99)+'/'+r.n+'</small></span>'; }).join('');
+      const tools=(R.need||[]).map(r=>{
+        if(r.id) return '<span class="c t '+(haveId(r.id)>=r.n?'g':'b')+'">'+_cEsc(ITEMS[r.id].n)+'</span>';
+        const cand=tagItems(r.tag), own=cand.find(k=>haveId(k)>0);
+        return own?'<span class="c t g">'+_cEsc(ITEMS[own].n)+'</span>'
+                  :'<span class="c t b">'+_cEsc(cand.length?ITEMS[cand[0]].n:r.tag)+(cand.length>1?' 외 '+(cand.length-1):'')+'</span>';
+      }).join('');
+      const st=R.station?'<span class="c s '+(stationOK(R)?'g':'b')+'">'+_cEsc(STATION[R.station].n)+' 곁</span>':'';
+      body+='<div class="cr'+(ok?' ok':' no')+'" data-i="'+i+'" title="'+_cEsc(R.note||'')+'">'
+        +(ico?'<img class="ci" decoding="sync" src="'+ico+'" alt="">':'<i class="ci" style="background:'+col+'"></i>')
+        +'<div class="cb"><div class="cn">'+_cEsc(R.n)+(R.out&&R.out.n>1?' <small>×'+R.out.n+'</small>':'')
+        +'<span class="ck">'+(R.out?ITEMS[R.out.id].kg+' kg':'설치')+'</span></div>'
+        +'<div class="cm">'+mats+tools+st+'</div>'
+        +(R.note?'<div class="cd">'+_cEsc(R.note)+'</div>':'')+'</div></div>';
     }
-    const ok=canCraft(R);
-    const mats=R.in.map(r=>{
-      const h=countMat(r);
-      return '<span class="'+(h>=r.n?'g':'b')+'">'+matName(r)+' '+h+'/'+r.n+'</span>';
-    }).join(' · ');
-    // 필요 도구는 후보 아이템을 하나씩 나열하고, 가진 것만 초록으로
-    const needs=(R.need||[]).map(r=>{
-      if(r.id) return '<span class="'+(haveId(r.id)>=r.n?'g':'b')+'">'+ITEMS[r.id].n+'</span>';
-      return tagItems(r.tag)
-        .map(k=>'<span class="'+(haveId(k)>0?'g':'b')+'">'+ITEMS[k].n+'</span>')
-        .join('<span style="color:var(--dim)"> 또는 </span>');
-    }).join(' · ');
-    const st=R.station
-      ? '<div class="cm"><span class="'+(stationOK(R)?'g':'b')+'">'
-        +STATION[R.station].n+' 곁에서 작업</span></div>' : '';
-    const pct='';
-    return head+'<div class="cr'+(ok?'':' no')+'" data-i="'+i+'">'
-      +'<div class="cn">'+R.n+'<span class="ck">'
-        +(R.out?ITEMS[R.out.id].kg+' kg':'설치')+'</span></div>'
-      +'<div class="cm">'+mats+(needs?'<div class="cm" style="margin-top:3px">'
-        +'<span style="color:var(--dim)">도구(소모 안 됨) </span>'+needs+'</div>':'')
-      +(pct?' · '+pct:'')+'</div>'+st
-      +'<div class="cd">'+R.note+'</div></div>';
-  }).join('');
-  const crfL=document.getElementById('crfL');
-  if(crfL._html!==crfHtml){ const sc=crfL.scrollTop; crfL.innerHTML=crfHtml; crfL._html=crfHtml; crfL.scrollTop=sc; }
+  });
+  const crfHtml=sum+body;
+  if(L0._html!==crfHtml){ const sc=L0.scrollTop; L0.innerHTML=crfHtml; L0._html=crfHtml; L0.scrollTop=sc; }
 }
-/* 제작법 누르기 — 목록 바탕에서 한 번에 받는다 */
+/* 제작법 누르기 — 목록 바탕에서 한 번에 받는다. 단계 제목은 접고 펴고, 요약 줄의 단계는 그 단계를 펴서 보여 준다 */
 document.getElementById('crfL').addEventListener('click',ev=>{
-  const el=ev.target&&ev.target.closest?ev.target.closest('.cr'):null;
+  const t=ev.target&&ev.target.closest?ev.target:null; if(!t) return;
+  const h=t.closest('.ch');
+  if(h){ const k=h.dataset.t; CRAFT_OPEN[k]=!h.classList.contains('open'); craftDirty=true; return; }
+  const c=t.closest('.ctree b');
+  if(c){ const k=c.dataset.t; CRAFT_OPEN[k]=true; craftDirty=true; drawCraft();
+    const L=document.getElementById('crfL'), e=L.querySelector('.ch[data-t="'+k+'"]'); if(e) L.scrollTop=e.offsetTop-L.offsetTop-4; return; }
+  const el=t.closest('.cr');
   if(el) startCraft(RECIPES[+el.dataset.i]);
+});
+document.getElementById('crfOnly').addEventListener('click',ev=>{
+  craftOnly=!craftOnly; ev.currentTarget.classList.toggle('on',craftOnly); craftDirty=true;
 });
