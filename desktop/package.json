@@ -44,6 +44,14 @@
       {
         "from": "../three.min.js",
         "to": "game/three.min.js"
+      },
+      {
+        "from": "../css",
+        "to": "game/css"
+      },
+      {
+        "from": "../js",
+        "to": "game/js"
       }
     ],
     "win": {

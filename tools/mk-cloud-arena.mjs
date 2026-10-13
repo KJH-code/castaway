@@ -4,7 +4,10 @@
    시험장 손잡이 다섯만 낸다. 껍데기(조작판·조종·무대)는 tools/cloud-arena.tpl 이다.
    본편 구름 코드를 고쳤으면 이걸 다시 돌릴 것:  node tools/mk-cloud-arena.mjs */
 import {readFileSync, writeFileSync} from 'node:fs';
-const src = readFileSync('island_world.html', 'utf8').split('\n');
+// 본편은 js/ 로 나뉘었다 — island_world.html 이 불러오는 js/*.js 를 차례대로 이어 붙여 찾는다
+const html = readFileSync('island_world.html', 'utf8');
+const src = [html, ...[...html.matchAll(/<script src="(js\/[^"]+)"><\/script>/g)]
+  .map(m => readFileSync(m[1], 'utf8'))].join('\n').split('\n');
 const s = src.findIndex(l => l.includes('하늘 · 광원 · 시간'));
 const u = src.findIndex((l, i) => i > s && l.startsWith('function updateSky()'));
 const e = src.findIndex((l, i) => i > u && l === '}');

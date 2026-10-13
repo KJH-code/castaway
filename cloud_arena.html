@@ -167,6 +167,8 @@ scene.add(amb,hemi,sun);
     scene.add(p);
   }
 }
+// 시험장: 본편의 캠코더(js/46-camcorder.js)는 안 옮긴다 — renderFrame 이 부르는 두 함수만 빈 것으로
+function camcBegin(){ return false; } function camcEnd(){}
 /* ---------------- 하늘 · 광원 · 시간 ---------------- */
 /* s = 천정색, z = 지평선색, u = 광원색, a = 환경광, d = 안개, i = 태양광 */
 const SKY=[
@@ -193,11 +195,13 @@ function renderFrame(){
   if(skyCam.fov!==camera.fov||skyCam.aspect!==camera.aspect){
     skyCam.fov=camera.fov; skyCam.aspect=camera.aspect; skyCam.updateProjectionMatrix();
   }
+  const tape=camcBegin();               // 캠코더가 켜져 있으면 낮은 해상도 그림판에 찍는다(46-camcorder.js)
   renderer.autoClear=false;
-  renderer.setClearColor(skyUnder?0x0b2430:skyScene.background,1);
+  renderer.setClearColor(skyUnder?scene.fog.color:skyScene.background,1);   // 물속이면 하늘 대신 물빛(updatePlayer 가 정한 안개색)
   renderer.clear();
   if(!skyUnder){ renderer.render(skyScene,skyCam); renderer.clearDepth(); }
   renderer.render(scene,camera);
+  if(tape) camcEnd(skyUnder);           // 그림판을 화면에 테이프 화질로 옮긴다
   renderer.autoClear=true; skyUnder=false;
 }
 
@@ -1933,7 +1937,8 @@ float cloudSh(){
    해가 그 구름의 지평선 밑으로 0.9° 넘게 가면 지구 그림자 속이라 직사광이 없다.
    밝기는 투과한 양의 제곱근으로 눅인다 — 눈이 노을빛에 익으므로 그대로 쓰면
    노을 구름이 실제보다 너무 어둡다. 밤에는 달빛을 같은 식으로 받는다. */
-const SKYL={dir:new THREE.Vector3(0,1,0), sunEl:0.5, moonEl:-1, illum:0,
+const SKYL={grade:{low:0,moon:0,night:0},   // 색조(노을·달밤) — updateSky 가 적고 후처리가 읽는다
+  dir:new THREE.Vector3(0,1,0), sunEl:0.5, moonEl:-1, illum:0,
             turb:2.6, tz:1, amb:new THREE.Color(0.4,0.45,0.5),
             ambS:new THREE.Color(0,0,0), ambA:new THREE.Color(0,0,0)};
 const _cl=[0,0,0];
@@ -2405,6 +2410,23 @@ function updateSky(){
   }
   amb.intensity*=lerp(1,1.5*perc,nightK);
   hemi.intensity=lerp(0.18,0.18*perc,nightK)+amb.intensity*0.5;
+  /* **빛의 색조**(사용자 요청) — 산란식이 내는 색은 눈의 순응을 거쳐 거의 흰빛으로 눅는다. 그 위에 한 겹 더 물들인다.
+       · 노을·새벽(해가 지평선에서 17° 안) — 볕이 닿는 데는 **주황**, 그늘을 채우는 하늘빛·환경광은 **보라**.
+       · 달이 뜬 밤 — 달빛도 그늘도 **푸른빛**. 달이 밝을수록(차고 높을수록) 그늘을 푸른 빛으로 조금 더 채운다.
+     화면 전체의 색조(밝은 데·어두운 데를 따로 물들이기)는 캠코더 후처리(46-camcorder.js)가 `SKYL.grade` 를 받아 한 번 더 한다 */
+  {
+    const low=clamp(1-sy/0.30,0,1)*clamp((sy+0.16)/0.14,0,1);            // 노을·새벽 1 · 한낮·한밤 0
+    const moonUp=nightK*clamp(mmy*5+0.15,0,1);                           // 달이 뜬 밤 1
+    /* 물들이되 어두워지지는 않게 — 보라·푸른빛은 밝기(휘도)가 1 에 가깝도록 파랑을 1 넘게 준다 */
+    sun.color.lerp(cTmp.setRGB(1.25,0.62,0.24),low*0.80);
+    hemi.color.lerp(cTmp.setRGB(1.0,0.70,1.65),low*0.80); amb.color.lerp(cTmp,low*0.70);
+    if(moonUp>0){
+      sun.color.lerp(cTmp.setRGB(0.55,0.80,1.45),moonUp*0.85);
+      hemi.color.lerp(cTmp.setRGB(0.45,0.72,1.60),moonUp*0.85); amb.color.lerp(cTmp,moonUp*0.80);
+      hemi.intensity+=0.10*moonUp*Math.sqrt(MOON.illum);
+    }
+    SKYL.grade.low=low; SKYL.grade.moon=moonUp*Math.sqrt(MOON.illum); SKYL.grade.night=nightK;
+  }
 
   if(skyDome){
     skyDome.position.copy(camera.position);

@@ -10,6 +10,15 @@ mkdirSync('.ci-tmp', {recursive: true});
 let bad = 0;
 
 for (const f of files) {
+  if (f.endsWith('.js')) {            // 나뉜 본편(js/*.js)은 파일째로 검사한다
+    try { execFileSync(process.execPath, ['--check', f], {stdio: 'pipe'}); }
+    catch (e) {
+      bad++;
+      console.error(`✗ ${f} — 문법 오류`);
+      console.error(String(e.stderr || e.message).split('\n').slice(0, 12).join('\n'));
+    }
+    continue;
+  }
   const html = readFileSync(f, 'utf8');
   // <script> … </script> 중 src 가 없는 것들. 그중 가장 긴 것이 본문이다.
   const blocks = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
@@ -34,4 +43,4 @@ for (const f of files) {
 
 rmSync('.ci-tmp', {recursive: true, force: true});
 if (bad) { console.error(`\n문법 오류 ${bad}건`); process.exit(1); }
-console.log('\n문법 검사 통과');
+console.log(`\n문법 검사 통과 (js ${files.filter(f => f.endsWith('.js')).length}개 포함)`);
