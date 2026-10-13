@@ -98,7 +98,7 @@ function bugGeo(kind){
   g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));
   g.setAttribute('aW',new THREE.Float32BufferAttribute(W,1)); g.computeVertexNormals(); return g;
 }
-const BUG_FLAP={fly:[9.0,1.05,0.25],drag:[28.0,0.35,0.0],bee:[45.0,0.6,0.1],glow:[20.0,0.7,0.2]};   // 빠르기(Hz) · 폭(rad) · 쉼 각
+const BUG_FLAP={fly:[10.0,1.05,0.25],drag:[30.0,0.35,0.0],bee:[200.0,0.5,0.1],glow:[60.0,0.7,0.2]};   // 실제 날갯짓 — 나비 5~12 Hz · 잠자리 30 Hz · 꿀벌 200 Hz(흐릿하게 보인다) · 반딧불이 60 Hz   // 빠르기(Hz) · 폭(rad) · 쉼 각
 function bugMeshes(){
   WILD.bugIM={};
   for(const k of ['fly','drag','bee','glow']){
@@ -224,7 +224,10 @@ function wildBugs(dt){
     const kd=BUG_KIND[s.k];
     if(kd){ const im=WILD.bugIM[kd], j=cntB[kd]|0;
       const mx=s.x-s.px, mz=s.z-s.pz; if(mx*mx+mz*mz>1e-8){ let d=Math.atan2(mx,mz)-s.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); s.yaw+=d*Math.min(1,dt*8); }
-      if(j<im.instanceMatrix.count){ const sc=kd==='fly'?1.25:kd==='drag'?1.15:1.4;
+      if(j<im.instanceMatrix.count){
+        /* 실제 크기(사용자 요청) — 모형은 나비 날개폭 10 cm · 잠자리 날개폭 10 cm·몸 7.6 cm · 벌 1.6 cm · 반딧불이 1.6 cm 로 빚었다.
+           나비 날개폭 5~9 cm(평균 7) · 잠자리 날개폭 8.5~10 cm(몸 6.5~7.5) · 꿀벌 1.2~1.4 cm · 반딧불이 1.1~1.3 cm. 개체마다 ph 로 흔든다 */
+        const v=0.5+0.5*Math.sin(s.ph*12.9898), sc=kd==='fly'?0.5+0.4*v:kd==='drag'?0.85+0.15*v:kd==='bee'?0.75+0.12*v:0.69+0.12*v;
         _wE.set(kd==='fly'?Math.sin(t*3+s.ph)*0.25:0,s.yaw,Math.sin(t*2+s.ph)*0.15); _wQ.setFromEuler(_wE); _wV.set(s.x,s.y,s.z); _wS.set(sc,sc,sc);
         _wM.compose(_wV,_wQ,_wS); im.setMatrixAt(j,_wM);
         const c0=BUG_C[s.k]; _bgC.setRGB(kd==='fly'?c0[0]:1,kd==='fly'?c0[1]:1,kd==='fly'?c0[2]:1); im.setColorAt(j,_bgC); cntB[kd]=j+1; }
