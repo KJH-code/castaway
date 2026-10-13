@@ -270,6 +270,15 @@ const WEAPON_FX={
     const tip=new THREE.Object3D(); tip.name='tip'; tip.position.set(0.02,0.075,0); g.add(tip);
     return {mesh:g, grip:0.02, rest:{rx:-0.02, rz:0.05}, tipScale:0.45};
   },
+  slingshot(){                               // 새총 — 두 갈래 가지에 건 줄
+    const g=new THREE.Group();
+    g.add(haft(0.16,0.016,0.014,W_WOOD));
+    for(const s of [-1,1]){ const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.010,0.013,0.13,6),WMAT(W_WOOD));
+      arm.position.set(s*0.035,0.215,0); arm.rotation.z=-s*0.5; g.add(arm); }
+    const band=new THREE.Mesh(new THREE.TorusGeometry(0.07,0.004,4,10,Math.PI),WMAT(0x4f6a30));
+    band.position.set(0,0.265,-0.01); band.rotation.x=Math.PI/2; g.add(band);
+    return {mesh:g, grip:0.05, rest:{rx:-0.75, rz:0.12}};
+  },
   hand_charger(){                            // 손 충전기 — 검은 몸통 옆에 접이식 손잡이
     const g=new THREE.Group();
     const body=new THREE.Mesh(new THREE.BoxGeometry(0.075,0.13,0.045),WMAT(0x33363a)); body.position.y=0.085; g.add(body);

@@ -349,6 +349,7 @@ async function generateWorld(){
                                     RUBBLE.seed=seed|0; updateRubble(true);     // 자갈밭의 돌을 사람 둘레에 깐다
                                     floraReset(seed); giantsBuild();             // 노거수 — 뿌리가 땅이 되는 큰 나무(군락이 정한 자리)
                                     updateFlora(true);                           // 군락의 나무·덤불을 사람 둘레에 깐다
+                                    wildReset();                                 // 새·둥지·벌집·벌레(97-wildlife.js)
                                     seaReset(seed);                              // 바다 — 주운 자리·물고기를 비우고 새 섬의 산호밭을 깐다
                                     LIGHT.refresh(); LIGHT.live=true;   // 다 지은 섬에 배역을 한 번에 · 이제부터 바뀌면 그림자를 다시
                                     updateSky();   // 하늘 표(SKY_LUT)를 한 번 굽는다 — 시작 화면처럼 갱신이 멈춘 동안에도 하늘이 비지 않게

@@ -195,6 +195,7 @@ function walkable(x,z,fromH){
 const NO_KEYS={};
 function updatePlayer(dt){
   if(PL.dead) return;                              // 쓰러져 있는 동안에는 아무것도 안 한다
+  if(climbTick(dt)) return;                        // 나무를 오르는 중 — 몸은 줄기에 붙어 있다(97-wildlife.js)
   const p=PL.pos;
   /* 가방(소지품·제작)을 연 동안에는 세상은 흐르지만 몸은 선다 — 누르고 있던 걷기·뛰기 키를 안 받는다 */
   const K=(invOpen||craftOpen)?NO_KEYS:keys;

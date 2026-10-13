@@ -367,6 +367,7 @@ function shoot(w,W){
   if(!w.mag) w.ammoId=null;
   const o=new THREE.Vector3(), d=new THREE.Vector3();
   camera.getWorldPosition(o); camera.getWorldDirection(d);
+  if(!W.rocket) wildShot(Math.min(W.reach||40,90));    // 나는 새도 맞는다(97-wildlife.js)
   const dmg=W.dmg*ammoMul(w);            // 황동 탄피는 더 센 장약을 견딘다
   if(W.rocket){ launchRocket(o,d,dmg,W); sfx('boom');
     if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
@@ -590,6 +591,7 @@ function useHeld(){
     return;
   }
   const W=T.tool||{};
+  if(W.sling){ slingShot(e,W); return; }           // 새총 — 지닌 돌멩이를 쏜다(97-wildlife.js)
   if(W.charger) return;                            // 손 충전기 — 누르고 있는 동안 updateCamcorder 가 돌린다
   if(W.lamp){ toggleLamp(); return; }
   if(W.torch){ toggleTorch(e); return; }

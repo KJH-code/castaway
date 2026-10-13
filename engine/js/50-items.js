@@ -34,6 +34,16 @@ const ITEMS={
   bamboo_flask:{n:'빈 대나무 물통', kg:0.25, c:0x9ab05a, use:'마디 하나를 잘라 만든 물통 — 하천에서 채운다'},
   bamboo_water:{n:'대나무 물통', kg:0.95, c:0x6a9a5a, use:'두 모금 든 물통 — 다 마시면 빈 통이 남는다',
                sips:2, drink:{n:35, empty:'bamboo_flask'}},
+  /* ── 새 · 벌(97-wildlife.js) ── */
+  slingshot:  {n:'새총',       kg:0.3,  c:0x7a5a36, use:'지닌 돌멩이를 쏜다 — 나는 새를 잡는다(들고 좌클릭)',
+               tool:{sling:1, reach:34, rate:0.8, stam:4}, durMax:60},
+  feather:    {n:'깃털',       kg:0.01, c:0xd8d8e0, use:'화살 깃 — 화살이 더 많이 나온다'},
+  bird_raw:   {n:'새고기',     kg:0.4,  c:0xb86a5a, use:'날로 먹으면 탈이 난다 — 굽는다', food:6, raw:true},
+  bird_cooked:{n:'구운 새고기', kg:0.3, c:0x9a6a3a, use:'기름지다(허기 26)', food:26},
+  egg:        {n:'새알',       kg:0.06, c:0xe8e0d0, use:'날로 먹으면 탈이 난다 — 굽는다', food:5, raw:true},
+  egg_cooked: {n:'구운 알',    kg:0.06, c:0xe8d8a0, use:'든든하다(허기 13)', food:13},
+  honey:      {n:'꿀단지',     kg:1.6,  c:0xd8a020, use:'토기에 받은 꿀 — 먹으면 허기와 기력이 찬다. 빈 토기가 남는다',
+               food:22, water:4, empty:'pot'},
   /* ── 바다에서 얻는 것(96-sea.js) ── */
   seaweed:    {n:'바닷말',     kg:0.2,  c:0x4a5a2a, use:'그냥 먹는다(허기 5) · 화덕에 태우면 재가 된다', food:5},
   coral:      {n:'산호 조각',  kg:0.3,  c:0xe0a090, use:'화덕에 구우면 석회가 된다'},

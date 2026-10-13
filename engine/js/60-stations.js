@@ -24,6 +24,8 @@ const FIRING={
   fish:        {out:'fish_cooked', hours:0.15, count:1},
   mushroom:    {out:'mushroom_cooked', hours:0.08, count:1},   // 숲의 버섯 — 구워야 탈이 없다
   fern:        {out:'fern_cooked', hours:0.06, count:1},
+  bird_raw:    {out:'bird_cooked', hours:0.18, count:1},
+  egg:         {out:'egg_cooked', hours:0.06, count:1},
   seaweed:     {out:'ash',  hours:0.20, count:1},              // 바닷말을 태운 재(소다회) — 잿물·유리로 이어진다
   coral:       {out:'lime', hours:0.50, count:1},              // 산호·불가사리는 석회질이다 — 구우면 석회
   starfish:    {out:'lime', hours:0.40, count:1},

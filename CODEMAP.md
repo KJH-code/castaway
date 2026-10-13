@@ -57,6 +57,7 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/95-flora.js` | Plants that grow in **groves**: each ~80 m patch of a biome gets one community (jungle, bamboo grove, birch stand, pine wood, mangrove swamp, palm grove, flower field …). Ten tree types with trunks you collide with, five kinds of undergrowth, and what you can pick from them (vines, bamboo, coconuts, bananas, mushrooms) |
 | `engine/js/95-giants.js` | Old-growth giants (30–40 m) whose buttress roots are walkable ground (`giantRootAt`, used by `floorAt`) |
 | `engine/js/96-sea.js` | Coral reefs (7 forms), anemones, kelp, starfish, seabed boulders, clams/oysters/urchins, fish schools (harpoon + net), and the **far-from-shore panic** |
+| `engine/js/97-wildlife.js` | Bird flocks, nests with eggs, beehives with honey, the slingshot, tree climbing, and ambient insects (butterflies, fireflies, dragonflies, bees) |
 | `engine/js/98-bag.js` | The full-screen **bag screen**: inventory + selected-item panel (actions, what it can make) + crafting, side by side |
 | `engine/js/99-main.js` | The frame loop (`loop()`), and the five calls at the very end that start the game |
 

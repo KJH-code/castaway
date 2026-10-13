@@ -404,7 +404,10 @@ function updateHUD(dt){
     const D=FLORA_PICK[FLORA.look.kind], left=floraWait(FLORA.look);
     hudS(look,'display','block'); hudS(lb,'display','none');
     hudH(lt,left>0?(D.n+'<em>아직 다시 나지 않았다 — 약 '+Math.ceil(left)+'시간 뒤</em>')
-                  :('[좌클릭] '+D.n+' '+D.verb+'<em>'+(D.need?'날붙이를 지녀야 벤다':ITEMS[D.item].use)+'</em>'));
+                  :('[좌클릭] '+D.n+' '+D.verb+'<em>'+(D.need?'날붙이를 지녀야 벤다':D.take?ITEMS[D.take].n+'에 담는다 · 횃불 연기가 없으면 쏘인다':ITEMS[D.item].use)+'</em>'));
+  }else if(CLIMB.on){                             // 나무 위(97-wildlife.js)
+    hudS(look,'display','block'); hudS(lb,'display','none');
+    hudH(lt,'나무 위<em>W·S 오르내리기 · A·D 줄기 돌기 · Space 뛰어내리기 · 기력 '+Math.round(PL.stam)+'</em>');
   }else if(FISH.look){
     const S=FISH.look.sp;
     hudS(look,'display','block'); hudS(lb,'display','none');

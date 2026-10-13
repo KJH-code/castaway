@@ -61,7 +61,10 @@ const FLORA_PICK={
   drytwig :{item:'tinder',  n:'마른 덤불', verb:'뜯기',       regrow:30, cnt:[1,1], hide:1},
   stone   :{item:'pebble',  n:'돌',       verb:'줍기',        regrow:72, cnt:[1,1], hide:1},      // 자갈밭의 잔돌(30-props.js RUBBLE)
   gbark   :{item:'bark',    n:'노거수 껍질', verb:'벗기기',   regrow:24, cnt:[2,3], need:'sharp'}, // 95-giants.js
-  gresin  :{item:'resin',   n:'삼나무 송진', verb:'긁어내기', regrow:24, cnt:[2,3], need:'sharp'}
+  gresin  :{item:'resin',   n:'삼나무 송진', verb:'긁어내기', regrow:24, cnt:[2,3], need:'sharp'},
+  /* 둥지의 알 · 벌집의 꿀(97-wildlife.js) — take: 담을 그릇을 하나 쓴다 · sting: 불 붙인 횃불 없이 건드리면 쏘인다 */
+  egg     :{item:'egg',     n:'새 둥지',  verb:'알 꺼내기',   regrow:48, cnt:[1,2]},
+  honey   :{item:'honey',   n:'벌집',     verb:'꿀 따기',     regrow:72, cnt:[1,1], take:'pot', sting:7}
 };
 /* 바이옴마다의 군락 — w 얼룩이 그 군락이 될 몫 · far 나무 겹 · near 덤불 겹: [종류, 칸마다 설 확률, 크기 아래, 위]
    giant: 노거수가 서는 군락(1 활엽 · 2 침엽 — 95-giants.js) · low: 표고가 이보다 높으면 그 바이옴의 둘째 군락으로 바꾼다
@@ -615,7 +618,7 @@ function floraFindLook(){
   const ex=camera.position.x, ey=camera.position.y, ez=camera.position.z, cp=Math.cos(PL.pitch);
   const fx=-Math.sin(PL.yaw)*cp, fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*cp, hx=-Math.sin(PL.yaw), hz=-Math.cos(PL.yaw);
   let bd=1e9;
-  for(const list of [FLORA.far.picks,FLORA.near.picks,RUBBLE.picks]) for(const p of list){
+  for(const list of [FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,WILD.picks]) for(const p of list){
     const dx=p.x-ex, dz=p.z-ez;
     if(p.tree){
       const d=Math.sqrt(dx*dx+dz*dz); if(d>p.r+1.7||d<1e-3) continue;
@@ -637,7 +640,7 @@ function floraFindLook(){
 /* 손이 비었거나 든 것이 무기·도끼·곡괭이·그물이 아닐 때만 딴다 — 싸우거나 캐는 중에 좌클릭을 가로채지 않는다 */
 function floraHandOK(){
   const e=equippedTool(), W=e&&ITEMS[e.id].tool;
-  return !(W&&(W.weapon||W.gun||W.net||W.axe||W.pick||W.throw||W.harpoon));
+  return !(W&&(W.weapon||W.gun||W.net||W.axe||W.pick||W.throw||W.harpoon||W.sling));
 }
 /* 아직 다시 안 났으면 남은 시간(게임 시간), 딸 수 있으면 0 */
 function floraWait(p){
@@ -653,10 +656,13 @@ function floraPick(){
   if(left>0){ toast(D.n+' — 아직 다시 나지 않았다(약 '+Math.ceil(left)+'시간 뒤)'); return true; }
   if(D.need==='sharp'&&!INV.slots.some(s=>{ const t=ITEMS[s.id]; return (t.tags&&t.tags.indexOf('sharp')>=0)||(t.tool&&(t.tool.weapon||t.tool.axe)); })){
     toast(D.n+' — 맨손으로는 못 벤다. 날붙이(주먹도끼·칼·도끼)를 지녀야 한다'); return true; }
+  if(D.take&&countId(D.take)<1){ toast(D.n+' — 담을 '+ITEMS[D.take].n+'가 있어야 한다'); return true; }
   const hh=floraHash(Math.round(p.x*3),Math.round(p.z*3),(gameHours|0)+9), n=D.cnt[0]+hh%(D.cnt[1]-D.cnt[0]+1);
   let got=0; for(let i=0;i<n;i++) if(invAdd(D.item,1)) got++;
   if(!got){ toast('무거워서 더 못 든다'); return true; }
   FLORA.taken.set(p.key,gameHours); FLORA.look=null;
+  if(D.take){ const i=INV.slots.findIndex(sl=>sl.id===D.take&&sl.dur===undefined); if(i>=0) invRemove(i,1); }        // 그릇 하나에 담았다
+  if(D.sting){ const e=equippedTool(); if(!(e&&e.lit)){ hurtPL(D.sting,'벌에 쏘였다'); toast('벌에 쏘였다 — 불 붙인 횃불을 들고 따면 연기에 벌이 물러난다'); } }
   if(D.hide){ FLORA.near.cx=1e9; RUBBLE.cx=1e9; }      // 버섯·꽃·돌은 그 자리가 빈다 — 다음 프레임에 다시 깐다
   toast(D.n+' +'+got); sfx('bind'); invDirty=true;
   return true;
