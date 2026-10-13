@@ -475,14 +475,85 @@ float snoise(vec2 v){
   vec3 g; g.x=a0.x*x0.x+h.x*x0.y; g.yz=a0.yz*x12.xz+h.yz*x12.yw;
   return 130.0*dot(m,g);
 }`;
-function terrainMat(){
-  const m=new THREE.MeshLambertMaterial({vertexColors:true});
+/* ── 사람 둘레의 덧판 ───────────────────────────────────────────────────────
+   땅 메시는 격자 칸마다 정점 하나다(6배 섬에서 15 m) — 그 안은 세모 두 장이라 발밑에 굴곡이 없고, 물체가 앉는 면
+   (`heightAt` — 쌍선형)과도 어긋나 험한 칸에서는 돌이 한 뼘씩 뜨거나 묻혔다. 사람 둘레 46 m 는 **촘촘한 판(0.75 m 격자)**
+   으로 갈아 그린다:
+     · 판의 정점은 셰이더가 놓는다 — 표고 텍스처(`uElev`)의 쌍선형 높이 + 잔 기복(10-worldgen.js `RELIEF` 와 같은 식:
+       `uRel` 의 31 m 배율 × 가림막 `uTL`.a × 0.70 m). `heightAt` 과 같은 면이다(사람·물체가 이 면에 선다).
+     · 판은 카메라를 따라 0.75 m 씩 미끄러진다(가운데 `uPC`). 정점이 세계 격자에 붙어 있어 움직여도 땅이 일렁이지 않는다.
+     · 본 땅은 그 원(`uPR`) 안의 화소를 버리고 덧판은 원 밖을 버린다 — 겹치는 데가 없다. 원 가장자리로 가면서 기복이 잦아들고
+       (0.74~0.89 R) 높이가 본 땅의 세모 면으로 옮겨 가(0.89~0.985 R) 이음매에서 두 면이 만난다.
+     · 그림자도 같아야 한다 — 깊이·거리 재질에 같은 정점 식과 같은 버림을 넣는다(`terrDepthMat`).
+   조각 셰이더는 본 땅과 같다(바이옴·사진 결·화소 빛). 사진 결을 못 쓰는 장치(WebGL1)에서는 덧판을 끈다(`uPR` 0) */
+const TPATCH={m:null, R:46, S:0.75, G:128, on:true};
+TERR_U.uPC={value:new THREE.Vector2(1e9,1e9)}; TERR_U.uPR={value:0};
+const TPATCH_GLSL=()=>`uniform sampler2D uElev; uniform vec2 uGrid; uniform sampler2D uTL; uniform sampler2D uRel; uniform vec2 uPC; uniform float uPR;
+vec3 patchPos; vec3 patchNor;
+float pE(ivec2 g){ vec4 t=texelFetch(uElev,clamp(g,ivec2(0),ivec2(int(uGrid.x)-1)),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*1200.0-100.0; }
+float pB(vec2 g){ g=clamp(g,vec2(0.0),vec2(uGrid.x-1.001)); ivec2 i=ivec2(floor(g)); vec2 f=g-vec2(i);
+  return mix(mix(pE(i),pE(i+ivec2(1,0)),f.x),mix(pE(i+ivec2(0,1)),pE(i+ivec2(1,1)),f.x),f.y); }
+void patchCalc(vec3 pos){
+  vec2 w=pos.xz+uPC, g=clamp(w/uGrid.y+uGrid.x*0.5,vec2(0.0),vec2(uGrid.x-1.001));
+  ivec2 i=ivec2(floor(g)); vec2 f=g-vec2(i);
+  float h00=pE(i), h10=pE(i+ivec2(1,0)), h01=pE(i+ivec2(0,1)), h11=pE(i+ivec2(1,1));
+  float hb=mix(mix(h00,h10,f.x),mix(h01,h11,f.x),f.y);                                           // heightAt 의 면(쌍선형)
+  float ht=(f.x+f.y<=1.0)?h00+(h10-h00)*f.x+(h01-h00)*f.y:h11+(h01-h11)*(1.0-f.x)+(h10-h11)*(1.0-f.y);   // 본 땅의 세모 면(빗금은 10–01)
+  float d=length(pos.xz);
+  float m=textureLod(uTL,(g+0.5)/uGrid.x,0.0).a;
+  float rel=(textureLod(uRel,(mat2(0.8253,-0.5646,0.5646,0.8253)*w+vec2(17.0,3.0))/31.0,0.0).r-0.5)*${RELIEF.amp.toFixed(3)}*m*(1.0-smoothstep(uPR*0.74,uPR*0.89,d));
+  patchPos=vec3(w.x,mix(hb+rel,ht,smoothstep(uPR*0.89,uPR*0.985,d)),w.y);
+  float sw=uGrid.y>=7.5?1.0:2.0;                                                                  // 본 땅의 정점 법선과 같은 폭(buildChunks)
+  patchNor=normalize(vec3(-(pB(g+vec2(sw,0.0))-pB(g-vec2(sw,0.0))),2.0*sw*uGrid.y,-(pB(g+vec2(0.0,sw))-pB(g-vec2(0.0,sw)))));
+}
+`;
+const TERR_HOLE=(sh,v,patch)=>sh.replace(/void main\s*\(\)\s*\{/,'uniform vec2 uPC; uniform float uPR;\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;');
+/* 그림자에 찍히는 땅 — 본 땅은 원 안을 버리고, 덧판은 제 정점 식으로 서서 원 밖을 버린다 */
+function terrDepthMat(dist,patch){
+  const m=dist?new THREE.MeshDistanceMaterial():new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
+  m.onBeforeCompile=sh=>{
+    sh.uniforms.uPC=TERR_U.uPC; sh.uniforms.uPR=TERR_U.uPR;
+    if(patch){ sh.uniforms.uElev=WATER_U.uElev; sh.uniforms.uGrid=WATER_U.uGrid; sh.uniforms.uTL=TERR_U.uTL; sh.uniforms.uRel=TERR_U.uRel;
+      sh.vertexShader='varying vec2 vHXZ;\n'+TPATCH_GLSL().replace('uniform vec2 uPC; uniform float uPR;','uniform vec2 uPC; uniform float uPR;')
+        +sh.vertexShader.replace('#include <begin_vertex>','patchCalc(position);\nvec3 transformed=patchPos;\nvHXZ=transformed.xz;'); }
+    else sh.vertexShader='varying vec2 vHXZ;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvHXZ=(modelMatrix*vec4(transformed,1.0)).xz;');
+    sh.fragmentShader='varying vec2 vHXZ;\n'+TERR_HOLE(sh.fragmentShader,'vHXZ',patch);
+  };
+  m.customProgramCacheKey=()=>'terr-'+(dist?'dist':'depth')+(patch?'P':'B');
+  return m;
+}
+let TERR_SHADOW=null;                   // 본 땅의 깊이·거리 재질(묶음이 다 같이 쓴다)
+/* 덧판 메시 — 한 번 만들어 둔다(정점은 가운데에서의 자리만 가진다. 높이는 셰이더가 준다) */
+function terrainPatch(){
+  if(TPATCH.m) return;
+  const G=TPATCH.G, S=TPATCH.S, nv=G+1, P=new Float32Array(nv*nv*3), I=new Uint16Array(G*G*6);
+  for(let j=0;j<nv;j++) for(let i=0;i<nv;i++){ const o=(j*nv+i)*3; P[o]=(i-G/2)*S; P[o+2]=(j-G/2)*S; }
+  let q=0; for(let j=0;j<G;j++) for(let i=0;i<G;i++){ const a=j*nv+i, b=a+1, c=a+nv, d=c+1; I[q++]=a; I[q++]=c; I[q++]=b; I[q++]=b; I[q++]=c; I[q++]=d; }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(P,3)); g.setIndex(new THREE.BufferAttribute(I,1));
+  const m=new THREE.Mesh(g,terrainMat(true)); m.frustumCulled=false; m.matrixAutoUpdate=false; m.updateMatrix(); m.visible=false;
+  m.customDepthMaterial=terrDepthMat(false,true); m.customDistanceMaterial=terrDepthMat(true,true);
+  scene.add(m); TPATCH.m=m;
+}
+/* 프레임마다 — 덧판을 카메라 밑에 놓는다(격자 간격으로 끊어) */
+function updateTerrainPatch(){
+  const T=TPATCH; if(!T.m) return;
+  const on=T.on&&GND_OK();
+  T.m.visible=on; TERR_U.uPR.value=on?T.R:0;
+  if(on) TERR_U.uPC.value.set(Math.round(camera.position.x/T.S)*T.S,Math.round(camera.position.z/T.S)*T.S);
+}
+function terrainMat(patch){
+  const m=new THREE.MeshLambertMaterial({vertexColors:!patch});
   m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,TERR_U);
+    if(patch){ sh.uniforms.uElev=WATER_U.uElev; sh.uniforms.uGrid=WATER_U.uGrid;
+      sh.vertexShader='varying vec3 vTW;\nvarying vec3 vTN;\nvarying float vTD;\n'+TPATCH_GLSL()
+        +sh.vertexShader.replace('#include <beginnormal_vertex>','patchCalc(position);\nvec3 objectNormal=patchNor;')
+          .replace('#include <begin_vertex>','vec3 transformed=patchPos;\nvTW=transformed;\nvTN=patchNor;\nvTD=length((modelViewMatrix*vec4(transformed,1.0)).xyz);'); }
+    else
     sh.vertexShader='varying vec3 vTW;\nvarying vec3 vTN;\nvarying float vTD;\n'+sh.vertexShader.replace('#include <begin_vertex>',
       '#include <begin_vertex>\nvTW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvTN=normal;\nvTD=length((modelViewMatrix*vec4(transformed,1.0)).xyz);');
     /* 사진 결(22-ground-textures.js)을 쓸 수 있으면 조각 쪽은 그쪽 것을 쓴다 — 훨씬 가볍다. 아래 수식 판은 WebGL1 용으로 남긴다 */
-    if(GND_OK()){ sh.fragmentShader=gndTerrainFrag(sh.fragmentShader); return; }
+    if(GND_OK()){ sh.fragmentShader=TERR_HOLE(gndTerrainFrag(sh.fragmentShader),'vTW.xz',patch); return; }
     sh.fragmentShader=`uniform vec3 uSunDir;
 uniform sampler2D uBio; uniform sampler2D uBio2; uniform float uBioN, uCell;
 varying vec3 vTW;
@@ -651,7 +722,7 @@ vec2 th2(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.
         diffuseColor.rgb=c;
       }`);
   };
-  m.customProgramCacheKey=()=>'terrain'+(GND_OK()?'-photo':'');
+  m.customProgramCacheKey=()=>'terrain'+(patch?'P':'')+(GND_OK()?'-photo':'');
   return m;
 }
 /* ── 암석 재질 ──────────────────────────────────────────────────────────
@@ -926,8 +997,11 @@ function buildChunks(){
     ix.setUsage(THREE.DynamicDrawUsage); g.setIndex(ix); g.setDrawRange(0,0);
     g.computeBoundingSphere();
     B.m=new THREE.Mesh(g,mat); B.m.matrixAutoUpdate=false; B.m.updateMatrix();
+    if(!TERR_SHADOW) TERR_SHADOW=[terrDepthMat(false,false),terrDepthMat(true,false)];
+    B.m.customDepthMaterial=TERR_SHADOW[0]; B.m.customDistanceMaterial=TERR_SHADOW[1];        // 덧판 자리는 그림자에서도 비운다
     scene.add(B.m); TERR_BLK.push(B);
   }
+  terrainPatch();
   terrainJoin(true);
 }
 /* 단계가 바뀐 청크가 있는 묶음의 인덱스를 다시 잇는다 — 청크 k 의 단계 구간을 k·1089 만큼 밀어 차례로 */
@@ -946,6 +1020,7 @@ function terrainJoin(all){
 const TERR_STAT=[0,0,0,0];
 let _tlX=NaN, _tlY=NaN, _tlZ=NaN, _tlK=NaN;     // 지난번 카메라 자리·화면 배율 — 같으면 단계도 같다
 function updateTerrainLOD(){
+  updateTerrainPatch();
   if(!TERR_IDX||!chunks.length) return;
   const K=renderer.domElement.height/(2*Math.tan(camera.fov*Math.PI/360)), cp=camera.position;
   if(cp.x===_tlX&&cp.y===_tlY&&cp.z===_tlZ&&K===_tlK) return;

@@ -44,7 +44,7 @@ function gndNoiseTex(){
 /* 땅의 잔 기복 — 높이와 그 기울기를 한 장에(R 높이 · G·B 기울기 ∂/∂u·∂/∂v · A 다른 잡음). 되풀이되는 256² 한 장을
    세 배율(190 m · 31 m · 4.2 m 에 한 장)로 읽어 둔덕·골·잔 울퉁불퉁을 만든다. 기울기를 같이 담아 두면 화소에서 한 번 읽어
    법선을 바로 기울일 수 있다(이웃을 두 번 더 읽지 않는다). 가운데 한 겹은 접힌 잡음(능선·골의 금)이다.
-   `GND.relH`(높이 · 0~1) · `GND.relK`(기울기 눈금)는 CPU 쪽 셈에도 쓴다 */
+   `GND.relQ`(높이 · 0~1 · 텍스처의 8비트 값) · `GND.relK`(기울기 눈금)는 CPU 쪽 셈에도 쓴다(10-worldgen.js `reliefT`) */
 function gndReliefTex(){
   const S=256, H=new Float32Array(S*S), d=new Uint8Array(S*S*4), rnd=mulberry32(0x51f15e);
   const lat=n=>({n,g:Float32Array.from({length:n*n},()=>rnd())});
@@ -63,7 +63,7 @@ function gndReliefTex(){
     G[i*2]=gx; G[i*2+1]=gy; K=Math.max(K,Math.abs(gx),Math.abs(gy)); }
   for(let y=0;y<S;y++) for(let x=0;x<S;x++){ const i=y*S+x;
     d[i*4]=Math.round(H[i]*255); d[i*4+1]=Math.round(127.5+127.5*G[i*2]/K); d[i*4+2]=Math.round(127.5+127.5*G[i*2+1]/K); d[i*4+3]=Math.round(smp(E,x,y)*255); }
-  GND.relH=H; GND.relK=K;
+  GND.relQ=Float32Array.from(H,v=>Math.round(v*255)/255); GND.relK=K;      // CPU 가 읽는 높이 — 텍스처에 든 8비트 값 그대로(heightAt 과 덧판 셰이더가 같은 값을 본다)
   const t=new THREE.DataTexture(d,S,S,THREE.RGBAFormat);
   t.wrapS=t.wrapT=THREE.RepeatWrapping; t.minFilter=THREE.LinearMipmapLinearFilter; t.magFilter=THREE.LinearFilter;
   t.generateMipmaps=true; t.needsUpdate=true;

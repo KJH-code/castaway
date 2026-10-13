@@ -319,6 +319,7 @@ async function generateWorld(){
   GAME_ID=newGameId(); _propGrid=null;  // 새 판 번호(불러오기는 restore 가 저장의 번호로 되돌린다)
   paused=true;                          // 덮개('상륙')가 떠 있는 동안 세상이 뒤에서 흘러가지 않게 — 놀다가 불러와도(F9) 상륙을 눌러야 시간이 간다
   LIGHT.live=false;                     // 짓는 동안은 배역을 안 준다(LIGHT.flush) — 다 지은 뒤 refresh 한 번
+  RELIEF.on=false;                      // 잔 기복은 섬을 키운 뒤에 켠다(reliefMask — 10-worldgen.js)
   try{
   document.getElementById('ov').style.display='flex';
   document.getElementById('bStart').style.display='none';
@@ -345,6 +346,7 @@ async function generateWorld(){
   await phase('광상 탐사',82);      worldRescale(P.ws);     // 섬 배율 — 통째로 키운다(1 이면 그대로 · 00-core.js)
                                     camera.far=Math.max(3000,WORLD*1.15); camera.updateProjectionMatrix();
                                     document.getElementById('mSpan').textContent=Math.round(WORLD)+' m';
+                                    reliefMask();           // 잔 기복의 가림막(지형 판 3) — 이 뒤로 heightAt 이 둔덕·골을 안다
                                     placeResources(seed);
                                     shapeSeabed(seed);      // 바다 바닥의 기복 — 뭍·자원을 다 정한 **뒤에**(같은 시드의 섬은 그대로다)
   await phase('지형 메시',90);      buildBioTex(); buildChunks(); buildWater();

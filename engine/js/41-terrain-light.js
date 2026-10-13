@@ -14,6 +14,7 @@
        달이 뜨면 달빛으로 훑는다(`TERR_U.uSunDir` 이 지금 비추는 빛이다).
      G **하늘 트임** — 칸마다 여덟 방위의 지평선 높이를 재어 하늘이 얼마나 보이는지(0~1). 간접광(하늘빛)에 곱한다:
        골짜기 바닥·벼랑 밑·피오르는 어둑하고 능선은 밝다. 벽에서 되비치는 빛을 셈해 바닥은 0.45 를 남긴다. 섬을 지을 때 한 번.
+     A 잔 기복의 가림막(10-worldgen.js `RELIEF.M` 을 그대로 — 사람 둘레의 덧판이 읽는다).
      B **숲 덮임** — 나무(소품 참나무·전나무 · 군락의 나무 · 노거수)의 수관이 그 칸을 덮는 비율. 그림자 지도 밖의 땅에서
        햇빛을 깎고(해 쪽으로 나무 키만큼 밀어 읽는다 — 그늘이 해 반대쪽으로 눕는다), 하늘빛도 조금 깎는다.
    R·G 는 빛을 받는 모든 재질이 읽는다(envPatch — 45-sky.js: 구름 그림자 자리에 같이 곱한다). B 는 땅 셰이더만(22-ground-textures.js).
@@ -52,6 +53,7 @@ function tlitBuild(){
   for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=z*N+x;                              // 한 번 흐린다(칸 가장자리가 계단지지 않게)
     const c=(cov[i]*4+cov[i-1]+cov[i+1]+cov[i-N]+cov[i+N])/8; px[i*4+2]=Math.round(255*(1-Math.exp(-1.35*c))); }
   for(let i=0;i<n;i++) if(h[i]<=0) px[i*4+2]=0;
+  { const M=RELIEF.M; for(let i=0;i<n;i++) px[i*4+3]=M?M[i]:0; }        // A 잔 기복의 가림막 — 덧판 셰이더가 읽는다(20-terrain.js)
   /* R 산 그림자 — 지금 빛으로 */
   TLIT.job=null; TLIT.dir.set(0,-1,0);
   const J=tlitSweepStart(); if(J){ tlitSweepStep(J,N); TLIT.dir.copy(J.dir); }

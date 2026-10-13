@@ -841,11 +841,43 @@ function shapeSeabed(seed){
 /* ============================================================================
    샘플링 API
    ========================================================================== */
+/* ── 잔 기복(지형 판 3) ─────────────────────────────────────────────────────
+   격자 한 칸은 15 m(6배 섬)다 — 그 안은 판판한 쌍선형 면이라 발밑이 운동장 같았다. 칸 안에 **둔덕과 골**을 더한다:
+   되풀이되는 높이 텍스처(22-ground-textures.js `gndReliefTex` · 31 m 에 한 장 — 8 m·4 m 둔덕, 2 m 골, 1 m 잔 굴곡)를
+   ±0.35 m 로 얹는다. 물가·하천·바다 밑은 뺀다(`RELIEF.M` — 가림막 0~255 · 물에서 한 칸 반까지 0).
+   · **`heightAt` 이 이 높이를 돌려준다** — 사람이 걷는 땅 · 나무·바위·풀이 앉는 자리 · 짓는 자리가 다 이 면이다.
+   · 그리는 쪽은 사람 둘레의 촘촘한 **덧판**(20-terrain.js `terrainPatch` — 0.75 m 격자)이 같은 식으로 그린다.
+     먼 땅(칸마다 정점 하나)에는 안 보인다 — 46 m 밖의 30 cm 는 두 화소가 안 된다.
+   · 표고장(`F.elev`)은 그대로다. 그래서 하천·물·그림자·지도는 안 바뀐다.
+   · 지형 판 3 부터(`P.tv`). 그 전 판의 섬은 기복이 없다(물체의 높이가 저장과 달라지지 않게) */
+const RELIEF={on:false, amp:0.70, M:null};
+/* 높이 텍스처를 그 자리에서 읽는다(0~1) — 덧판 셰이더의 textureLod(uRel,(M2·p+(17,3))/31).r 과 같은 값(쌍선형 · 되풀이) */
+function reliefT(wx,wz){
+  const Q=GND.relQ, u=(0.8253*wx+0.5646*wz+17)/31*256-0.5, v=(-0.5646*wx+0.8253*wz+3)/31*256-0.5;
+  const ix=Math.floor(u), iy=Math.floor(v), fx=u-ix, fy=v-iy, x0=ix&255, x1=(ix+1)&255, y0=(iy&255)<<8, y1=((iy+1)&255)<<8;
+  return (Q[y0+x0]*(1-fx)+Q[y0+x1]*fx)*(1-fy)+(Q[y1+x0]*(1-fx)+Q[y1+x1]*fx)*fy;
+}
+/* 가림막 — 물(바다·하천)에서 한 칸은 0 · 그다음 칸은 절반 · 그 밖은 1. 낮은 뭍(0.6~2.6 m)에서 차츰 선다 */
+function reliefMask(){
+  const M=RELIEF.M||(RELIEF.M=new Uint8Array(N*N)), h=F.elev, W=new Uint8Array(N*N);
+  M.fill(0); RELIEF.on=false;
+  if((P.tv|0)<3||typeof GND==='undefined'||!GND.relQ) return;
+  for(let i=0;i<N*N;i++) W[i]=(h[i]<=0.3||F.river[i])?2:0;
+  for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=z*N+x; if(W[i]) continue;
+    if(W[i-1]===2||W[i+1]===2||W[i-N]===2||W[i+N]===2||W[i-N-1]===2||W[i-N+1]===2||W[i+N-1]===2||W[i+N+1]===2) W[i]=1; }
+  for(let z=2;z<N-2;z++) for(let x=2;x<N-2;x++){ const i=z*N+x; if(W[i]) continue;
+    const near=W[i-1]===1||W[i+1]===1||W[i-N]===1||W[i+N]===1;
+    M[i]=Math.round(255*(near?0.5:1)*smoothstep(0.6,2.6,h[i])); }
+  RELIEF.on=true;
+}
 function heightAt(wx,wz){
   const gx=clamp(wx/CELL+N/2,0,N-1.001), gz=clamp(wz/CELL+N/2,0,N-1.001);
   const x=gx|0, z=gz|0, fx=gx-x, fz=gz-z, i=IDX(x,z);
-  const h=F.elev;
-  return h[i]*(1-fx)*(1-fz)+h[i+1]*fx*(1-fz)+h[i+N]*(1-fx)*fz+h[i+N+1]*fx*fz;
+  const h=F.elev, a=(1-fx)*(1-fz), b=fx*(1-fz), c=(1-fx)*fz, d=fx*fz;
+  const y=h[i]*a+h[i+1]*b+h[i+N]*c+h[i+N+1]*d;
+  if(!RELIEF.on) return y;
+  const M=RELIEF.M, m=M[i]*a+M[i+1]*b+M[i+N]*c+M[i+N+1]*d;
+  return m>0?y+m*(RELIEF.amp/255)*(reliefT(wx,wz)-0.5):y;
 }
 // 하도 수면 표고 (이중선형)
 function waterLevelAt(wx,wz){
