@@ -36,17 +36,32 @@ const FLORA={seed:0, m:null, mat:null, depth:null, tex:null, patch:84, taken:new
 const FC={BARK:0,RING:1,LEAF:2,BIG:3,FERN:4,PALM:5,BAMBOO:6,NEEDLE:7,FLOWER:8,TWIG:9,MANG:10,VINE:11,BIRCH:12,PLAIN:13,STEM:14,CAP:15};
 /* 종류마다 — r 몸이 막히는 반지름(크기 1 일 때 · 없으면 지나간다) · pick 얻는 것 · cap 한 번에 서는 수 */
 const FLORA_KIND={
-  jungle:{r:0.44,pick:'vine',cap:900}, mangrove:{r:1.5,cap:420}, bamboo:{r:0.75,pick:'bamboo',cap:520}, palm:{r:0.22,pick:'coconut',cap:260},
-  birch:{r:0.16,cap:520}, pine:{r:0.14,cap:700}, sapling:{r:0.10,cap:520}, banana:{r:0.16,pick:'banana',cap:380},
-  treefern:{r:0.16,cap:380}, acacia:{r:0.18,cap:220},
-  fern:{cap:2600}, bush:{r:0.30,cap:1800}, flower:{cap:900}, dry:{cap:520}, shroom:{pick:'mushroom',cap:160} };
-/* 얻는 것 — regrow 다시 나기까지(게임 시간) · cnt [아래, 위] · need 'sharp' 날붙이를 지녀야 · hide 따면 그 자리가 빈다 */
+  jungle:{r:0.44,pick:'vine',cap:900}, mangrove:{r:1.5,pick:'bark_m',cap:420}, bamboo:{r:0.75,pick:'bamboo',cap:520}, palm:{r:0.22,pick:'coconut',cap:260},
+  birch:{r:0.16,pick:'bark_b',cap:520}, pine:{r:0.14,pick:'resin',cap:700}, sapling:{r:0.10,pick:'twig',cap:520}, banana:{r:0.16,pick:'banana',cap:380},
+  treefern:{r:0.16,pick:'frond',cap:380}, acacia:{r:0.18,pick:'bark_a',cap:220},
+  fern:{pick:'fern',cap:2600}, bush:{r:0.30,pick:'bushtwig',cap:1800}, flower:{pick:'flower',cap:900}, dry:{pick:'drytwig',cap:520}, shroom:{pick:'mushroom',cap:160} };
+/* 얻는 것 — regrow 다시 나기까지(게임 시간) · cnt [아래, 위] · need 'sharp' 날붙이를 지녀야 · hide 따면 그 자리가 빈다
+   low: 발밑의 낮은 것 — 줄기가 아니라 그 포기를 내려다봐야 잡힌다(숲을 걷는 내내 고사리가 잡히지 않게) */
 const FLORA_PICK={
   vine    :{item:'vine',    n:'덩굴',     verb:'끊기',        regrow:30, cnt:[1,2]},
   bamboo  :{item:'bamboo',  n:'대나무',   verb:'베기',        regrow:60, cnt:[2,3], need:'sharp'},
   coconut :{item:'coconut', n:'야자열매', verb:'흔들어 따기', regrow:48, cnt:[1,2]},
   banana  :{item:'banana',  n:'바나나',   verb:'따기',        regrow:48, cnt:[2,3]},
-  mushroom:{item:'mushroom',n:'버섯',     verb:'따기',        regrow:36, cnt:[1,1], hide:1}
+  mushroom:{item:'mushroom',n:'버섯',     verb:'따기',        regrow:36, cnt:[1,1], hide:1},
+  /* **세상에 선 것은 전부 무엇인가를 준다**(사용자 요청: 손댈 수 없는 것이 없게) — 아래는 그래서 더한 것들이다 */
+  bark_m  :{item:'bark',    n:'맹그로브 껍질', verb:'벗기기', regrow:48, cnt:[1,2], need:'sharp'},
+  bark_b  :{item:'bark',    n:'자작 껍질',     verb:'벗기기', regrow:36, cnt:[1,2]},
+  bark_a  :{item:'bark',    n:'아카시아 껍질', verb:'벗기기', regrow:48, cnt:[1,1], need:'sharp'},
+  resin   :{item:'resin',   n:'송진',     verb:'긁어내기',    regrow:36, cnt:[1,1], need:'sharp'},
+  twig    :{item:'branch',  n:'어린 나무', verb:'가지 꺾기',  regrow:24, cnt:[1,1]},
+  frond   :{item:'fern',    n:'나무고사리', verb:'잎 뜯기',   regrow:24, cnt:[2,3]},
+  fern    :{item:'fern',    n:'고사리',   verb:'뜯기',        regrow:24, cnt:[1,1], low:1},
+  bushtwig:{item:'branch',  n:'덤불',     verb:'가지 꺾기',   regrow:24, cnt:[1,1], low:1},
+  flower  :{item:'flower',  n:'들꽃',     verb:'꺾기',        regrow:30, cnt:[1,2], hide:1},
+  drytwig :{item:'tinder',  n:'마른 덤불', verb:'뜯기',       regrow:30, cnt:[1,1], hide:1},
+  stone   :{item:'pebble',  n:'돌',       verb:'줍기',        regrow:72, cnt:[1,1], hide:1},      // 자갈밭의 잔돌(30-props.js RUBBLE)
+  gbark   :{item:'bark',    n:'노거수 껍질', verb:'벗기기',   regrow:24, cnt:[2,3], need:'sharp'}, // 95-giants.js
+  gresin  :{item:'resin',   n:'삼나무 송진', verb:'긁어내기', regrow:24, cnt:[2,3], need:'sharp'}
 };
 /* 바이옴마다의 군락 — w 얼룩이 그 군락이 될 몫 · far 나무 겹 · near 덤불 겹: [종류, 칸마다 설 확률, 크기 아래, 위]
    giant: 노거수가 서는 군락(1 활엽 · 2 침엽 — 95-giants.js) · low: 표고가 이보다 높으면 그 바이옴의 둘째 군락으로 바꾼다
@@ -561,7 +576,7 @@ function floraLayer(L,which){
     else{ const g=0.86+0.26*((h2>>>3)&15)/15, w=((h2>>>7)&15)/15; _flC.setRGB(g*(0.94+0.14*w),g,g*(0.92+0.08*(1-w))); }
     im.setColorAt(nk[vi]++,_flC);
     if(K.r) L.cols.push({x:wx,z:wz,r:K.r*sc});
-    if(P) L.picks.push({kind:K.pick,x:wx,y:gy,z:wz,key,r:(K.r||0.12)*sc,tree:!P.hide});
+    if(P) L.picks.push({kind:K.pick,x:wx,y:gy+(P.low?0.3*sc:0),z:wz,key,r:(K.r||0.12)*sc,tree:!(P.hide||P.low)});
     lx=wx; lz=wz;
    }
   }
@@ -596,22 +611,33 @@ function floraReset(seed){
 /* 눈앞의 딸 것 — 나무는 줄기에서 1.7 m 안에서 그쪽을 보고 있을 때, 버섯은 눈에서 2.2 m 안 */
 function floraFindLook(){
   FLORA.look=null;
-  if(uiOpen()||PL.dead||PL.swim) return;
+  if(uiOpen()||PL.dead||PL.swim||!floraHandOK()) return;
   const ex=camera.position.x, ey=camera.position.y, ez=camera.position.z, cp=Math.cos(PL.pitch);
   const fx=-Math.sin(PL.yaw)*cp, fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*cp, hx=-Math.sin(PL.yaw), hz=-Math.cos(PL.yaw);
   let bd=1e9;
-  for(const L of [FLORA.far,FLORA.near]) for(const p of L.picks){
+  for(const list of [FLORA.far.picks,FLORA.near.picks,RUBBLE.picks]) for(const p of list){
     const dx=p.x-ex, dz=p.z-ez;
     if(p.tree){
       const d=Math.sqrt(dx*dx+dz*dz); if(d>p.r+1.7||d<1e-3) continue;
       if((dx*hx+dz*hz)/d<0.75) continue;
       if(d<bd){ bd=d; FLORA.look=p; }
-    }else{
-      const dy=p.y+0.06-ey, d=Math.sqrt(dx*dx+dy*dy+dz*dz); if(d>2.2||d<0.05) continue;
-      if((dx*fx+dy*fy+dz*fz)/d<0.6) continue;
+    }else{                                             // 낮은 것(고사리·꽃·버섯·돌) — 그 포기를 똑바로 내려다봐야 한다
+      const dy=p.y+0.06-ey, d=Math.sqrt(dx*dx+dy*dy+dz*dz); if(d>2.3||d<0.05) continue;
+      if((dx*fx+dy*fy+dz*fz)/d<0.90) continue;
       if(d<bd){ bd=d; FLORA.look=p; }
     }
   }
+  /* 노거수 — 줄기 곁에 서서 줄기를 볼 때(더 가까운 것이 없으면) */
+  if(!FLORA.look){ const g=giantNear(ex,ez,9);
+    if(g){ const dx=g.x-ex, dz=g.z-ez, d=Math.sqrt(dx*dx+dz*dz);
+      if(d<g.col.r+1.9&&(dx*hx+dz*hz)/d>0.75){
+        if(!g._pick) g._pick={kind:g.v===2?'gresin':'gbark',x:g.x,y:g.y,z:g.z,key:'G'+g.gx+','+g.gz,r:g.col.r,tree:true};
+        FLORA.look=g._pick; } } }
+}
+/* 손이 비었거나 든 것이 무기·도끼·곡괭이·그물이 아닐 때만 딴다 — 싸우거나 캐는 중에 좌클릭을 가로채지 않는다 */
+function floraHandOK(){
+  const e=equippedTool(), W=e&&ITEMS[e.id].tool;
+  return !(W&&(W.weapon||W.gun||W.net||W.axe||W.pick||W.throw||W.harpoon));
 }
 /* 아직 다시 안 났으면 남은 시간(게임 시간), 딸 수 있으면 0 */
 function floraWait(p){
@@ -631,7 +657,7 @@ function floraPick(){
   let got=0; for(let i=0;i<n;i++) if(invAdd(D.item,1)) got++;
   if(!got){ toast('무거워서 더 못 든다'); return true; }
   FLORA.taken.set(p.key,gameHours); FLORA.look=null;
-  if(D.hide) FLORA.near.cx=1e9;                        // 버섯은 그 자리가 빈다 — 다음 프레임에 다시 깐다
+  if(D.hide){ FLORA.near.cx=1e9; RUBBLE.cx=1e9; }      // 버섯·꽃·돌은 그 자리가 빈다 — 다음 프레임에 다시 깐다
   toast(D.n+' +'+got); sfx('bind'); invDirty=true;
   return true;
 }

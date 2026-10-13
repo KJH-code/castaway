@@ -399,8 +399,8 @@ function updateHUD(dt){
   }else if(SEA.look){
     const D=SEA_PICK[SEA.look.kind];
     hudS(look,'display','block'); hudS(lb,'display','none');
-    hudH(lt,'[좌클릭] '+D.n+' '+D.verb+'<em>'+(D.need?'날붙이를 지녀야 뗀다':D.prick?'맨손이면 가시에 찔린다':ITEMS[D.item].use)+'</em>');
-  }else if(FLORA.look){                           // 덩굴·대나무·야자열매·바나나·버섯(95-flora.js)
+    hudH(lt,'[좌클릭] '+D.n+' '+D.verb+'<em>'+(D.need?'날붙이를 지녀야 뗀다':D.prick?'맨손이면 가시에 찔린다':D.sting?'촉수에 쏘인다':ITEMS[D.item].use)+'</em>');
+  }else if(FLORA.look){                           // 나무·덤불·꽃·버섯·돌 — 세상에 선 것은 다 무엇인가를 준다(95-flora.js)
     const D=FLORA_PICK[FLORA.look.kind], left=floraWait(FLORA.look);
     hudS(look,'display','block'); hudS(lb,'display','none');
     hudH(lt,left>0?(D.n+'<em>아직 다시 나지 않았다 — 약 '+Math.ceil(left)+'시간 뒤</em>')

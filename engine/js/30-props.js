@@ -1188,7 +1188,7 @@ function buildProps(){
    · 칸의 자갈밭 정도(`gravelAt`)가 높을수록 돌이 선다. 크기는 주먹~수박, 20개에 하나는 무릎 높이 바위.
    · 7 m 넘게 걸으면 그 둘레로 다시 깐다(칸 3,800개를 훑는 일 — 1 ms 안팎).
    · 줍거나 캐는 것이 아니다(그건 자갈 'pebble'·화강암이 한다) — 몸도 막지 않는다. 그림자는 받기만 한다. */
-const RUBBLE={mesh:null, cap:2200, cx:1e9, cz:1e9, R:40, cell:1.3, seed:0};
+const RUBBLE={mesh:null, cap:2200, cx:1e9, cz:1e9, R:40, cell:1.3, seed:0, picks:[]};
 function rubbleInit(){
   /* 물에 닳은 둥근 돌 — 예전엔 각진 20면체(면 20장)라 가까이서 사면체 조각처럼 보였다. 혹 진 공(면 64장)에 법선을 이어
      빛이 둥글게 넘어간다 */
@@ -1221,7 +1221,7 @@ function updateRubble(force){
   U.cx=px; U.cz=pz;
   const C=U.cell, R=U.R, im=U.mesh;
   const x0=Math.floor((px-R)/C), x1=Math.floor((px+R)/C), z0=Math.floor((pz-R)/C), z1=Math.floor((pz+R)/C);
-  let n=0;
+  let n=0; U.picks.length=0;
   for(let gz=z0;gz<=z1&&n<U.cap;gz++) for(let gx=x0;gx<=x1&&n<U.cap;gx++){
     let h=(Math.imul(gx,374761393)+Math.imul(gz,668265263)+U.seed)|0;
     h=Math.imul(h^(h>>>13),1274126177); h=(h^(h>>>16))>>>0;
@@ -1235,6 +1235,9 @@ function updateRubble(force){
     let r=0.09+0.22*u*u;                               // 주먹 ~ 수박
     let h2=Math.imul(h^0x9e3779b9,2246822519)>>>0;
     if((h2&15)===0) r=0.36+0.34*((h2>>>5)&15)/15;      // 열여섯에 하나는 무릎~허리 높이 바위
+    /* 주먹~수박만 한 돌은 주울 수 있다(95-flora.js 의 `floraPick` — 얻는 것은 돌멩이). 주운 자리는 사흘 뒤 다시 찬다 */
+    const pk=r<0.34, key='S'+gx+','+gz;
+    if(pk){ const tk=FLORA.taken.get(key); if(tk!==undefined){ if(gameHours-tk<72) continue; FLORA.taken.delete(key); } }
     r*=clamp((R-d)/8,0.2,1);                            // 가장자리에서 갑자기 생기지 않게 작게 시작
     const sy=0.5+0.35*((h2>>>9)&15)/15;
     _rbE.set(((h2>>>13)&63)/63*0.7-0.35,((h2>>>19)&255)/255*6.283,((h2>>>27)&31)/31*0.7-0.35);
@@ -1242,6 +1245,7 @@ function updateRubble(force){
     _rbV.set(wx,heightAt(wx,wz)+r*sy*0.42,wz);
     _rbS.set(r*(0.85+0.4*((h>>>4)&15)/15),r*sy,r);
     _rbM.compose(_rbV,_rbQ,_rbS); im.setMatrixAt(n,_rbM);
+    if(pk&&d<16) U.picks.push({kind:'stone',x:wx,y:_rbV.y,z:wz,key,r,tree:false});
     const pc=RUB_PAL[(h2>>>3)%RUB_PAL.length], tv=0.86+0.28*((h>>>12)&15)/15;
     im.setColorAt(n,_rbC.setRGB(pc[0]*tv,pc[1]*tv,pc[2]*tv));
     n++;

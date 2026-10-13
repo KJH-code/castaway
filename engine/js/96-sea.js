@@ -24,7 +24,14 @@ const SEA_REGROW=48;                               // 주운 자리가 다시 �
 const SEA_PICK={
   clam  :{item:'clam',   n:'조개', verb:'줍기'},
   oyster:{item:'oyster', n:'굴',   verb:'떼어 내기', need:'sharp'},
-  urchin:{item:'urchin', n:'성게', verb:'따기', prick:5}
+  urchin:{item:'urchin', n:'성게', verb:'따기', prick:5},
+  /* 바다에 선 것도 전부 무엇인가를 준다(사용자 요청). keep — 떼어도 그 자리에 남는다(다시 뗄 수 있기까지 regrow 시간) */
+  coral   :{item:'coral',   n:'산호',     verb:'조각 떼기', need:'sharp', keep:1, regrow:48},
+  weed    :{item:'seaweed', n:'바닷말',   verb:'뜯기',      keep:1, regrow:24},
+  kelp    :{item:'seaweed', n:'다시마',   verb:'뜯기',      keep:1, regrow:24, cnt:2},
+  rock    :{item:'pebble',  n:'물밑 바위', verb:'돌 떼기',  keep:1, regrow:48},
+  anem    :{n:'말미잘',     verb:'건드리기', keep:1, sting:3},
+  starfish:{item:'starfish',n:'불가사리', verb:'줍기'}
 };
 const SEA_U={uSeaT:{value:0}};
 function seaHash(gx,gz,salt){
@@ -194,6 +201,7 @@ function seaScatter(){
     const edge=clamp((R-d)/7,0.2,1);                  // 가장자리에서 갑자기 생기지 않게 작게 시작
     const reef=seaIsReef(wx,wz,dep);
     const key=gx+','+gz;
+    const kp=(kind,hy)=>{ if(d<20) S.picks.push({kind,x:wx,y:y+hy,z:wz,key:key+kind[0],keep:1}); };   // 그 자리에 남는 것(산호·바닷말·바위)
     const pick=(kind,im,cnt,sc,col)=>{
       const t=S.taken.get(key);
       if(t!==undefined){ if(gameHours-t<SEA_REGROW) return cnt; S.taken.delete(key); }
@@ -210,30 +218,31 @@ function seaScatter(){
           const big=((h2>>>22)&15)===0?2.4:(((h2>>>22)&3)===1?0.55:1);
           const sc=Math.min((0.7+1.5*v*v)*edge*(ty===1?1.25:1)*big,(dep-0.35)/SEA_CORAL_H[ty]/1.15);   // 물 밖으로 솟지 않게
           put(im,n[k]++,wx,y,wz,sc,sc*(0.85+0.3*((h2>>>16)&7)/7),yaw,0.12,SEA_CORAL_C[(h2>>>19)%SEA_CORAL_C.length],tv);
+          kp('coral',SEA_CORAL_H[ty]*sc*0.4);
         }
       }else if(u<0.60) n.urchin=pick('urchin',M.urchin,n.urchin,0.9+0.6*v,[0.22,0.15,0.28]);
-      else if(u<0.74&&n.weed<M.weed.instanceMatrix.count)
-        put(M.weed,n.weed++,wx,y,wz,(0.8+0.8*v)*edge,Math.min((0.9+1.3*v)*edge,(dep-0.3)/1.3),yaw,0.05,SEA_WEED_C[(h2>>>19)&3],tv);
-      else if(u<0.82&&n.anem<M.anem.instanceMatrix.count)        // 말미잘
-        put(M.anem,n.anem++,wx,y,wz,(0.8+0.9*v)*edge,(0.8+0.9*v)*edge,yaw,0.05,SEA_CORAL_C[(h2>>>19)%SEA_CORAL_C.length],tv);
+      else if(u<0.74&&n.weed<M.weed.instanceMatrix.count){
+        put(M.weed,n.weed++,wx,y,wz,(0.8+0.8*v)*edge,Math.min((0.9+1.3*v)*edge,(dep-0.3)/1.3),yaw,0.05,SEA_WEED_C[(h2>>>19)&3],tv); kp('weed',0.4); }
+      else if(u<0.82&&n.anem<M.anem.instanceMatrix.count){       // 말미잘
+        put(M.anem,n.anem++,wx,y,wz,(0.8+0.9*v)*edge,(0.8+0.9*v)*edge,yaw,0.05,SEA_CORAL_C[(h2>>>19)%SEA_CORAL_C.length],tv); kp('anem',0.2); }
     }else{
       const slope=slopeAt2(wx,wz);
       if(slope>0.42&&u<0.40&&n.rock<M.rock.instanceMatrix.count){         // 등성이·골 벽의 바위
         const sc=(0.35+1.5*v*v)*edge;
-        put(M.rock,n.rock++,wx,y+sc*0.2,wz,sc,sc*(0.7+0.4*((h2>>>16)&7)/7),yaw,0.3,[0.44,0.45,0.44],tv);
+        put(M.rock,n.rock++,wx,y+sc*0.2,wz,sc,sc*(0.7+0.4*((h2>>>16)&7)/7),yaw,0.3,[0.44,0.45,0.44],tv); kp('rock',sc*0.5);
       }
-      else if(dep>4&&dep<16&&seaVal(wx,wz,21,17)>0.60&&u<0.55&&n.kelp<M.kelp.instanceMatrix.count)   // 다시마 숲 — 키가 수심의 여덟 할
-        put(M.kelp,n.kelp++,wx,y,wz,(0.9+0.9*v)*edge,Math.min(dep*0.8,7.5)*(0.6+0.4*v)*edge,yaw,0.03,SEA_WEED_C[(h2>>>19)&3],tv*0.9);
-      else if(dep<9&&slope<0.25&&u>0.972&&n.star<M.star.instanceMatrix.count)                          // 모래 위의 불가사리
-        put(M.star,n.star++,wx,y+0.01,wz,(0.8+0.9*v)*edge,(0.8+0.9*v)*edge,yaw,0.0,[[0.86,0.36,0.22],[0.90,0.62,0.24],[0.62,0.30,0.52]][(h2>>>19)%3],tv);
+      else if(dep>4&&dep<16&&seaVal(wx,wz,21,17)>0.60&&u<0.55&&n.kelp<M.kelp.instanceMatrix.count){  // 다시마 숲 — 키가 수심의 여덟 할
+        put(M.kelp,n.kelp++,wx,y,wz,(0.9+0.9*v)*edge,Math.min(dep*0.8,7.5)*(0.6+0.4*v)*edge,yaw,0.03,SEA_WEED_C[(h2>>>19)&3],tv*0.9); kp('kelp',1.2); }
+      else if(dep<9&&slope<0.25&&u>0.972)                                                              // 모래 위의 불가사리(주울 수 있다)
+        n.star=pick('starfish',M.star,n.star,(0.8+0.9*v)*edge,[[0.86,0.36,0.22],[0.90,0.62,0.24],[0.62,0.30,0.52]][(h2>>>19)%3]);
       else if(dep<3.5&&slope>0.30&&u<0.22) n.oyster=pick('oyster',M.oyster,n.oyster,0.9+0.7*v,[0.62,0.61,0.56]);
       else if(dep<5&&slope<0.30&&u<0.05) n.clam=pick('clam',M.clam,n.clam,0.85+0.6*v,[0.90,0.84,0.74]);
-      else if(dep>0.8&&dep<9&&seaVal(wx,wz,9,13)>0.60&&u<0.62&&n.weed<M.weed.instanceMatrix.count)   // 바닷말 숲 — 잎 끝이 수면 밑 한 뼘에서 멎는다
-        put(M.weed,n.weed++,wx,y,wz,(0.8+0.9*v)*edge,Math.min((1.0+1.6*v)*edge,(dep-0.3)/1.3),yaw,0.05,SEA_WEED_C[(h2>>>19)&3],tv);
+      else if(dep>0.8&&dep<9&&seaVal(wx,wz,9,13)>0.60&&u<0.62&&n.weed<M.weed.instanceMatrix.count){  // 바닷말 숲 — 잎 끝이 수면 밑 한 뼘에서 멎는다
+        put(M.weed,n.weed++,wx,y,wz,(0.8+0.9*v)*edge,Math.min((1.0+1.6*v)*edge,(dep-0.3)/1.3),yaw,0.05,SEA_WEED_C[(h2>>>19)&3],tv); kp('weed',0.4); }
       else if(dep>1.5&&dep<10&&u>0.988){              // 산호밭 밖의 외톨이 산호
         const ty=((h2>>>14)&7)%NC, im=M.coral[ty], k='c'+ty;
         const sc=Math.min((0.8+v)*edge,(dep-0.35)/SEA_CORAL_H[ty]/1.15);
-        if(n[k]<im.instanceMatrix.count) put(im,n[k]++,wx,y,wz,sc,sc,yaw,0.12,SEA_CORAL_C[(h2>>>19)%SEA_CORAL_C.length],tv);
+        if(n[k]<im.instanceMatrix.count){ put(im,n[k]++,wx,y,wz,sc,sc,yaw,0.12,SEA_CORAL_C[(h2>>>19)%SEA_CORAL_C.length],tv); kp('coral',SEA_CORAL_H[ty]*sc*0.4); }
       }
     }
   }
@@ -247,11 +256,14 @@ function seaFindLook(){
   if(!SEA.picks.length||uiOpen()||PL.dead) return;
   const ex=camera.position.x, ey=camera.position.y, ez=camera.position.z, cp=Math.cos(PL.pitch);
   const fx=-Math.sin(PL.yaw)*cp, fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*cp;
-  let bd=2.4;
+  let bd=2.4; const e=equippedTool(), W=e&&ITEMS[e.id].tool, armed=!!(W&&(W.weapon||W.harpoon||W.net||W.gun));
   for(const p of SEA.picks){
-    const dx=p.x-ex, dy=p.y+0.08-ey, dz=p.z-ez, d=Math.hypot(dx,dy,dz);
+    const dx=p.x-ex, dy=p.y+0.08-ey, dz=p.z-ez, d=Math.sqrt(dx*dx+dy*dy+dz*dz);
     if(d>bd||d<0.05) continue;
-    if((dx*fx+dy*fy+dz*fz)/d<0.5) continue;
+    /* 산호·바닷말·바위(그 자리에 남는 것)는 똑바로 겨눠야 잡히고, 작살·무기·그물을 들었으면 안 잡힌다 — 물고기를 찌르려는
+       좌클릭을 가로채지 않게 */
+    if(p.keep&&armed) continue;
+    if((dx*fx+dy*fy+dz*fz)/d<(p.keep?0.85:0.5)) continue;
     bd=d; SEA.look=p;
   }
 }
@@ -260,9 +272,15 @@ function seaPick(){
   const p=SEA.look; if(!p) return false;
   const D=SEA_PICK[p.kind];
   const sharp=INV.slots.some(s=>{ const t=ITEMS[s.id]; return (t.tags&&t.tags.indexOf('sharp')>=0)||(t.tool&&(t.tool.harpoon||t.tool.weapon)); });
-  if(D.need==='sharp'&&!sharp){ toast(D.n+' — 바위에 단단히 붙었다. 날붙이(주먹도끼·작살 따위)를 지녀야 뗀다'); return true; }
-  if(!invAdd(D.item,1)){ toast('무거워서 더 못 든다'); return true; }
-  SEA.taken.set(p.key,gameHours); SEA.dirty=true; SEA.look=null;
+  if(D.sting){ hurtPL(D.sting,'말미잘에 쏘였다'); toast('말미잘 — 촉수에 쏘였다. 흰동가리나 드나드는 곳이다'); return true; }
+  if(D.keep){ const t=SEA.taken.get(p.key);
+    if(t!==undefined&&gameHours-t<(D.regrow||SEA_REGROW)){ toast(D.n+' — 방금 뗀 자리다. 다른 것을 찾아라'); return true; } }
+  if(D.need==='sharp'&&!sharp){ toast(D.n+' — 단단히 붙었다. 날붙이(주먹도끼·작살 따위)를 지녀야 뗀다'); return true; }
+  let got=0; for(let i=0;i<(D.cnt||1);i++) if(invAdd(D.item,1)) got++;
+  if(!got){ toast('무거워서 더 못 든다'); return true; }
+  SEA.taken.set(p.key,gameHours); SEA.look=null;
+  if(!D.keep) SEA.dirty=true;                        // 주워서 없어지는 것만 다시 깐다
+  if(D.keep){ toast(D.n+' — '+ITEMS[D.item].n+' +'+got); sfx('bind'); invDirty=true; return true; }
   if(D.prick&&!equippedTool()){ hurtPL(D.prick,'성게 가시에 찔렸다'); toast(D.n+' +1 — 맨손이라 가시에 찔렸다(손에 무엇이든 들고 따면 안 찔린다)'); }
   else toast(D.n+' +1');
   sfx('bind'); invDirty=true;

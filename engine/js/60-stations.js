@@ -23,6 +23,10 @@ const FIRING={
   meat_bear:   {out:'meat_cooked', hours:0.25, count:1},   // 게임 15분
   fish:        {out:'fish_cooked', hours:0.15, count:1},
   mushroom:    {out:'mushroom_cooked', hours:0.08, count:1},   // 숲의 버섯 — 구워야 탈이 없다
+  fern:        {out:'fern_cooked', hours:0.06, count:1},
+  seaweed:     {out:'ash',  hours:0.20, count:1},              // 바닷말을 태운 재(소다회) — 잿물·유리로 이어진다
+  coral:       {out:'lime', hours:0.50, count:1},              // 산호·불가사리는 석회질이다 — 구우면 석회
+  starfish:    {out:'lime', hours:0.40, count:1},
   // 바다 것 — 종류마다 굽는 시간이 조금씩 다르다(살이 두꺼울수록 오래)
   clownfish:   {out:'clownfish_cooked', hours:0.10, count:1},
   angelfish:   {out:'angelfish_cooked', hours:0.10, count:1},
@@ -75,6 +79,11 @@ const SMELT=[
        +'모래를 쏟아 넣고 나면 빈 토기가 그대로 남는다.',
    in:[{id:'pot_sand',n:2},{id:'charcoal',n:4}],
    back:[{id:'pot',n:2}],                          // 비운 그릇은 돌려받는다
+   need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]},
+  {id:'melt_glass_lime', n:'유리 굽기(석회)', hours:1.0, out:{id:'glass',n:3},
+   note:'모래에 재만 넣은 유리는 물에 녹는다. 석회를 같이 넣어야 단단한 유리가 되고, 같은 모래에서 더 많이 나온다.',
+   in:[{id:'pot_sand',n:2},{id:'lime',n:1},{id:'charcoal',n:3}],
+   back:[{id:'pot',n:2}],
    need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]},
   {id:'smelt_iron', n:'괴련철 제련', hours:1.4, out:{id:'bloom_iron',n:1},
    note:'철은 녹지 않는다. 노 바닥에 쇠똥과 뒤엉킨 해면철 덩이로 남는다.',

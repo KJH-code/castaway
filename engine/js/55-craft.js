@@ -32,6 +32,12 @@ const RECIPES=[
        +'물고기가 걸린다. 코가 굵어 작은 것은 빠져나간다.',
    in:[{id:'cord',n:8},{id:'branch',n:2}]},
 
+  {id:'tinder_bark', tier:'풀과 돌', n:'부싯깃(나무껍질)', out:{id:'tinder',n:2}, time:3, stam:3,
+   note:'마른 나무껍질 안쪽을 손으로 비벼 솜처럼 풀어 낸다. 풀잎보다 잘 붙는다.',
+   in:[{id:'bark',n:1}]},
+  {id:'fiber_bark', tier:'풀과 돌', n:'섬유 (나무껍질)', out:{id:'fiber',n:2}, time:3.2, stam:5,
+   note:'나무껍질 안쪽의 질긴 속껍질을 길게 찢어 낸다.',
+   in:[{id:'bark',n:2}], need:[{tag:'sharp',n:1}]},
   {id:'tinder', tier:'풀과 돌', n:'부싯깃', out:{id:'tinder',n:1}, time:3, stam:3,
    note:'풀잎을 비벼 부수고 뭉쳐 불씨가 옮겨 붙을 둥지를 만든다.',
    in:[{id:'grass_blade',n:5}]},
@@ -76,6 +82,9 @@ const RECIPES=[
   {id:'fish_dried', tier:'불', n:'말린 생선', out:{id:'fish_dried',n:2}, time:24, stam:4, station:'fire',
    note:'물고기 배를 갈라 펴서 불가에 말린다.',
    in:[{id:'fish',n:2}], need:[{tag:'sharp',n:1}]},
+  {id:'herb_tea_flower', tier:'불', n:'약초 달이기(들꽃)', out:{id:'herb_tea',n:1}, time:12, stam:3, station:'fire',
+   note:'물 담은 토기에 들꽃을 한 줌 넣고 달인다. 풀과 베리로 달인 것과 같은 약초 물이다.',
+   in:[{id:'pot_water',n:1},{id:'flower',n:4}]},
   {id:'herb_tea', tier:'불', n:'약초 달이기', out:{id:'herb_tea',n:1}, time:12, stam:3, station:'fire',
    note:'물 담은 토기에 쓴 풀과 베리를 넣고 달인다. 날것을 먹고 탈 난 속을 가라앉힌다.',
    in:[{id:'pot_water',n:1},{id:'grass_blade',n:6},{id:'berry',n:2}]},
@@ -479,6 +488,13 @@ const RECIPES=[
      가야 물을 담을 수 있으면 그릇이 그릇 노릇을 못 한다. */
   /* 물병은 처음부터 지니고 내린 것이라 만들 수는 없고, 채우기만 된다.
      그래서 제일 앞 단계에 둔다 — 첫날부터 물가에서 다시 채울 수 있어야 한다. */
+  {id:'bamboo_flask', tier:'바다와 살림', n:'대나무 물통', out:{id:'bamboo_flask',n:2}, time:6, stam:5,
+   note:'대나무는 마디마다 막혀 있다. 마디 바로 밑을 잘라 내면 그대로 통이다. 한 대에서 둘이 나온다.',
+   in:[{id:'bamboo',n:1}], need:[{tag:'sharp',n:1}]},
+  {id:'bamboo_water', tier:'맨손', n:'대나무 물통 채우기', out:{id:'bamboo_water',n:1},
+   time:3, stam:2, station:'water',
+   note:'하천이나 분기공 온천에서 채운다. 바닷물은 쓸 수 없다.',
+   in:[{id:'bamboo_flask',n:1}]},
   {id:'bottle_water', tier:'맨손', n:'물병 채우기', out:{id:'bottle_water',n:1},
    time:4, stam:2, station:'water',
    note:'보급선이 쥐여 준 물병을 하천이나 분기공 온천에서 다시 채운다. '
@@ -908,6 +924,9 @@ const RECIPES=[
   {id:'harpoon_bamboo', tier:'바다와 살림', n:'나무 작살(대나무)', out:{id:'harpoon_wood',n:1}, time:8, stam:8,
    note:'곧고 가벼운 대나무 끝을 비스듬히 쳐서 날을 낸다. 나뭇가지로 깎은 작살과 같은 것이다.',
    in:[{id:'bamboo',n:1}], need:[{tag:'sharp',n:1}]},
+  {id:'glue_resin', tier:'바다와 살림', n:'송진 풀', out:{id:'glue',n:2}, time:10, stam:3, station:'fire',
+   note:'송진을 불 곁에서 녹여 숯가루를 조금 섞는다. 식으면 단단히 굳는 풀이다 — 풀죽보다 물에 강하다.',
+   in:[{id:'resin',n:2},{id:'charcoal',n:1}]},
   {id:'glue', tier:'바다와 살림', n:'풀 쑤기(풀죽)', out:{id:'glue',n:3}, time:16, stam:4, station:'fire',
    note:'물 담은 토기에 풀잎을 넣고 걸쭉해질 때까지 고아 짠다. 식으면 끈끈한 풀이 된다. 토기는 돌려받는다.',
    in:[{id:'grass_blade',n:12},{id:'pot_water',n:1}], ret:[{id:'pot',n:1}]},
