@@ -1022,6 +1022,8 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   단추·칸·창은 `box-shadow`, 그림은 `drop-shadow` 로 빨강·파랑을 양옆으로 어긋나게 + 주사선. **창 전체에 `filter:drop-shadow` 를 걸면 안 된다** —
   불투명한 창의 바깥 테만 번지고 안의 글은 그대로였다. 테이프 셰이더의 색수차도 1.7 → 2.4 화소. 캠코더 OSD 는 REC·배터리를 키우고
   둘째 줄에 '표류 N일째 오전/오후 h:mm'(`#camcD`).
+  **한때(water-view 가지) 속도·읽기 때문에 큰 창 테두리에만 남겼다가 사용자 요청으로 되살렸다**(글자·단추·HUD·아이콘 색 번짐 · 세기 0.62/0.58).
+  움직이는 주사선(`tapeRoll`)과 깜빡임(`osdFlick`)은 빠진 채다 — 화면 전체를 프레임마다 다시 합성하게 해 46 → 60 fps 의 대부분이 그 몫이었다.
 - **식생·바닷가 따기는 누르고 있는 동안 막대가 찬다**(`GATHER` · `updateGather` · `gatherLook` — 95-flora.js) — `FLORA_PICK`/`SEA_PICK` 의
   `dur`(초)·`stam`(초당 기력) · 얻는 수는 `cnt` 안에서 무작위 · `extra` 는 딸려 나오는 것. 누른 순간(`floraPick`/`seaPick`)은 막힌 까닭만 알린다.
   **덤불(`twig`)·마른 덤불(`drytwig`)에서 나뭇가지**(+부싯깃·베리 가끔). 덤불·버섯은 겨눈 쪽으로 고른다(`ay` · 거리 × (2 − cos)).

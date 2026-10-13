@@ -508,12 +508,19 @@
      색 번짐(빨강은 왼쪽 · 청록은 오른쪽으로 어긋난다 — 3D 화면의 테이프 셰이더와 같은 쪽) · 주사선 · 글자 번짐 빛.
      큰 창은 통째로 번지게(filter — 글자·테두리·단추·아이콘이 다 같이), 늘 바뀌는 HUD 는 글자·테두리 그림자로만(값이 싸다).
      `body.camc` 는 캠코더가 켜져 있을 때만 붙는다(46-camcorder.js) */
-  body.camc{--caR:rgba(255,46,86,.26);--caB:rgba(36,214,255,.24);--scan:repeating-linear-gradient(180deg,rgba(0,0,0,.30) 0,rgba(0,0,0,.30) 1px,transparent 1px,transparent 3px)}
+  body.camc{--caR:rgba(255,46,86,.62);--caB:rgba(36,214,255,.58);--scan:repeating-linear-gradient(180deg,rgba(0,0,0,.30) 0,rgba(0,0,0,.30) 1px,transparent 1px,transparent 3px)}
   /* 글자 — 그림자로 빨강·청록 두 벌을 어긋나게 겹친다(물려받으므로 창 하나에 걸면 그 안의 글자가 다). 창 통째로 filter 를 걸면
-     불투명한 바탕 사각형 모양으로만 번져 글자는 깨끗하게 남았다 — 그래서 글자 · 테두리 · 아이콘에 따로 건다 */
-  /* 색 번짐은 **큰 창의 테두리에만** 한 줄 — 글자·HUD·단추·아이콘에는 걸지 않는다(느리고, 글자가 번져 보였다) */
-  body.camc #bag .pnl,body.camc #dex,body.camc #box,body.camc #cfg,body.camc #gws,body.camc #ask .box{box-shadow:-1px 0 0 var(--caR),1px 0 0 var(--caB)}
-  body.camc #camc{text-shadow:0 0 3px rgba(0,0,0,.9),0 1px 2px rgba(0,0,0,.8)}
+     불투명한 바탕 사각형 모양으로만 번져 글자는 깨끗하게 남았다 — 그래서 글자 · 테두리 · 아이콘에 따로 건다.
+     **사용자 요청으로 되살렸다** — 한때 속도(46 → 60 fps · 대부분은 움직이는 주사선 · 깜빡임 몫)와 읽기 때문에 창 테두리에만 남겼었다.
+     움직이는 주사선(tapeRoll)과 깜빡임(osdFlick)은 빠진 채로 둔다(화면 전체를 프레임마다 다시 겹쳐 그리게 하던 것) */
+  body.camc #bag,body.camc #dex,body.camc #box,body.camc #cfg,body.camc #gws,body.camc #ask,body.camc #ov,body.camc #hud,body.camc #toast{
+    text-shadow:-1.5px 0 var(--caR),1.5px 0 var(--caB),0 0 4px rgba(170,255,225,.3)}
+  body.camc button,body.camc input,body.camc select,body.camc .ws,body.camc #bag .pnl,body.camc #dex,body.camc #box,body.camc #cfg,
+  body.camc #gws,body.camc #ask .box,body.camc #crfP,body.camc #sel .sG,body.camc #ctree{box-shadow:-1.6px 0 0 var(--caR),1.6px 0 0 var(--caB)}
+  body.camc img,body.camc #inv .sw,body.camc #box .sw{filter:drop-shadow(-1.5px 0 0 var(--caR)) drop-shadow(1.5px 0 0 var(--caB))}
+  body.camc #camc{text-shadow:-1.6px 0 var(--caR),1.6px 0 var(--caB),0 0 3px rgba(0,0,0,.9),0 1px 2px rgba(0,0,0,.8)}
+  body.camc #hud .pnl,body.camc #look,body.camc #toast div,body.camc #quick .q{box-shadow:-1.6px 0 0 var(--caR),1.6px 0 0 var(--caB)}
+  body.camc #hud .bar .t,body.camc #camc .bt{box-shadow:-1.3px 0 0 var(--caR),1.3px 0 0 var(--caB)}
   /* 주사선 — 판의 바탕에 깔고(굴러가는 창은 이것만), 굴러가지 않는 판은 글자 위로도 한 겹 */
   body.camc .pnl,body.camc #look,body.camc #toast div,body.camc #ask .box,body.camc #quick .q{background-image:var(--scan)}
   body.camc #bag,body.camc #ov,body.camc #ask{background-image:var(--scan)}
