@@ -969,7 +969,7 @@ function placeAnvilAt(px,py,pz){
   }
   grp.rotation.y=Math.random()*6.283;
   grp.position.set(px,py,pz); scene.add(grp);
-  ANVILS.push({x:px,y:py,z:pz,mesh:grp});
+  ANVILS.push({x:px,y:py,z:pz,mesh:grp,cname:'모루'});
   COLLIDERS.push({x:px,z:pz,y0:py-0.1,y1:py+1.8,r:0.7}); buildColliderGrid();
 }
 
