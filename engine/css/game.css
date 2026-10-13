@@ -450,6 +450,7 @@
   #ov.title #ovArt{display:block;margin:0 0 2px}
   #ov.title h1,#ov.title #ovCrawl{display:none}
   #ov.title button{margin-top:10px}
+  #ov.title.tland #bStart{display:none!important}      /* 여는 글 · '착륙' 차례에는 단추를 캔버스가 그린다 */
   #ov button{font-size:15px;letter-spacing:.14em;padding:10px 26px;margin-top:20px;color:var(--acc);border-color:var(--acc)}
   #ov #bQuit,#ov #bOpt{margin-top:10px;color:var(--dim);border-color:var(--dim)}
   #ovVer{position:absolute;right:14px;bottom:10px;font-size:12px;color:var(--dim);letter-spacing:.08em}

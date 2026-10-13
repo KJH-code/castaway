@@ -161,8 +161,8 @@ function drawSel(){
     }
     // ── 넣어 두면 되는 것
     const put=[];
-    if(FIRING[id]) put.push('타는 화덕에 넣어 두면 → <b>'+ITEMS[FIRING[id].out].n+'</b>'+(FIRING[id].count>1?' ×'+FIRING[id].count:''));
-    if(FUEL[id]) put.push('땔감 — 화덕·제련로에 넣으면 '+fmtFuel(FUEL[id])+' 동안 탄다');
+    if(FIRING[id]) put.push('타는 모닥불에 넣어 두면 → <b>'+ITEMS[FIRING[id].out].n+'</b>'+(FIRING[id].count>1?' ×'+FIRING[id].count:''));
+    if(FUEL[id]) put.push('땔감 — 모닥불·제련로에 넣으면 '+fmtFuel(FUEL[id])+' 동안 탄다');
     for(const S of SMELT) if(S.in.some(r=>r.id===id)||(S.need||[]).some(r=>r.id===id))
       put.push('제련로 — '+S.n+' → <b>'+ITEMS[S.out.id].n+'</b>'+(S.out.n>1?' ×'+S.out.n:''));
     if(put.length) h+='<div class="sS">넣어 두면</div><div class="sP">'+put.slice(0,6).map(p=>'<div>'+p+'</div>').join('')+'</div>';
@@ -197,7 +197,7 @@ function selRecipe(){
     +'<div><b>'+R.n+'</b>'+(R.out?' <span class="qo">×'+R.out.n+'</span>':'')
     +'<div class="sK">'+TIER_LABEL[R.tier]+' · '+(R.time||0)+'초 · 기력 '+(R.stam||0)+(out?' · '+(out.kg*R.out.n).toFixed(1)+' kg':' · 설치')+'</div></div></div>'
     +'<div class="sU">'+R.note+'</div>'
-    +'<div class="sA"><button data-act="rcraft" class="go'+(ok?'':' off')+'">'+(R.proc?(R.proc==='furnace'?'제련로에 넣어 두는 일':'화덕·가마에 넣어 두는 일'):busy?'만드는 중…':ok?'만들기':'아직 못 만든다')+'</button></div>';
+    +'<div class="sA"><button data-act="rcraft" class="go'+(ok?'':' off')+'">'+(R.proc?(R.proc==='furnace'?'제련로에 넣어 두는 일':'모닥불·가마에 넣어 두는 일'):busy?'만드는 중…':ok?'만들기':'아직 못 만든다')+'</button></div>';
   h+='<div class="sS">재료</div><div class="sP">'+R.in.map(r=>{ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];
       return '<div class="'+(hv>=r.n?'g':'b')+'">'+matName(r)+' <span class="cn"><b>'+hv+'</b> / '+r.n+'</span>'+(hv<r.n&&mk.length?' '+link(mk[0]):'')+'</div>'; }).join('')+'</div>';
   if(R.need&&R.need.length) h+='<div class="sS">도구(닳지 않는다)</div><div class="sP">'+R.need.map(r=>{ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];

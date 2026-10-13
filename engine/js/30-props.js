@@ -1346,8 +1346,10 @@ function updateRubble(force){
     _rbV.set(wx,heightAt(wx,wz)+r*sy*0.42,wz);
     _rbS.set(r*(0.85+0.4*((h>>>4)&15)/15),r*sy,r);
     _rbM.compose(_rbV,_rbQ,_rbS); im.setMatrixAt(n,_rbM);
-    if(pk&&d<16) U.picks.push({kind:'stone',x:wx,y:_rbV.y,z:wz,key,r,tree:false});
-    const pc=RUB_PAL[(h2>>>3)%RUB_PAL.length], tv=0.86+0.28*((h>>>12)&15)/15;
+    /* 주울 돌 여섯에 하나는 **석회석**(희다) — 구우면 석회, 시멘트의 바탕(사용자 요청). 자리의 해시로 정하니 섬의 생김새는 그대로다 */
+    const lime=pk&&((h2>>>22)%6)===0;
+    if(pk&&d<16) U.picks.push({kind:lime?'limerock':'stone',x:wx,y:_rbV.y,z:wz,key,r,tree:false});
+    const pc=lime?[0.92,0.90,0.84]:RUB_PAL[(h2>>>3)%RUB_PAL.length], tv=0.86+0.28*((h>>>12)&15)/15;
     im.setColorAt(n,_rbC.setRGB(pc[0]*tv,pc[1]*tv,pc[2]*tv));
     n++;
   }

@@ -60,6 +60,7 @@ const BKIND_N={found:'토대', wall:'벽', door:'문틀', leaf:'문짝',
    문짝은 좌클릭으로 여닫고, 닫으면 뚫려 있던 충돌체가 되살아난다. */
 const FITS={leaf:'door', pane:'window'};
 const WALLV=['wall','door','window'];               // 벽 자리에 들어가는 세 가지
+const PADS=new Map();        // "gx,gz"     → {gx,gz,x,z,y,lo,mesh}  시멘트로 다진 터 — 토대는 이 위에만 선다(아래 '터 다지기')
 const FOUNDS=new Map();      // "gx,gz"     → {gx,gz,x,z,y,tier,hp,mesh}
 const WALLS =new Map();      // "gx,gz,L,s" → {gx,gz,L,s,v,tier,hp,mesh,cols}  v = 벽/문/창문
 const ROOFS =new Map();      // "gx,gz,L"   → {gx,gz,L,tier,hp,mesh}
@@ -102,8 +103,8 @@ function slopeSurface(sl,f,x,z){
 /* ---- 바닥 높이 — 토대 윗면과 밟고 다닐 수 있는 지붕까지 친다 ---- */
 function builtFloorAt(x,z){
   const gx=Math.round(x/CELL_B), gz=Math.round(z/CELL_B);
-  const f=FOUNDS.get(fkey(gx,gz));
-  if(!f) return -1e9;
+  const f=FOUNDS.get(fkey(gx,gz)), pd=PADS.get(fkey(gx,gz));
+  if(!f) return pd?pd.y:-1e9;                         // 다진 터도 바닥이다
   if(Math.abs(x-f.x)>CELL_B/2||Math.abs(z-f.z)>CELL_B/2) return -1e9;
   let best=f.y;
   for(let L=0;L<8;L++){                              // 밟고 선 층보다 낮은 지붕 중 가장 높은 것
@@ -116,8 +117,9 @@ function builtFloorAt(x,z){
 }
 /* 발밑 — 지금 서 있는 높이보다 위에 있는 지붕은 천장이지 바닥이 아니다 */
 function floorAt(x,z,fromY){
-  const t=heightAt(x,z)+giantRootAt(x,z);       // 노거수의 뿌리는 땅이다(95-giants.js)
+  let t=heightAt(x,z)+giantRootAt(x,z);         // 노거수의 뿌리는 땅이다(95-giants.js)
   const gx=Math.round(x/CELL_B), gz=Math.round(z/CELL_B);
+  { const pd=PADS.get(fkey(gx,gz)); if(pd&&pd.y>t&&(fromY===undefined||pd.y<=fromY+0.6)) t=pd.y; }   // 다진 터 — 발이 닿는 높이면 그 위를 딛는다
   const f=FOUNDS.get(fkey(gx,gz));
   if(!f||Math.abs(x-f.x)>CELL_B/2||Math.abs(z-f.z)>CELL_B/2) return t;
   const y=(fromY===undefined)?1e9:fromY+0.6;
@@ -357,6 +359,7 @@ function addWallCols(w){
 }
 /* 이웃 토대가 있으면 그 높이에 맞춘다 — 아크처럼 바닥 한 장이 평평하게 이어진다 */
 function foundHeight(gx,gz){
+  const pd=PADS.get(fkey(gx,gz)); if(pd) return {y:pd.y+0.12, snapped:false};   // 다진 터 위에 바로 앉는다(터가 이웃끼리 높이를 맞춘다)
   for(const [ox,oz] of SIDE){
     const n=FOUNDS.get(fkey(gx+ox,gz+oz));
     if(n) return {y:n.y, snapped:true};
@@ -470,6 +473,7 @@ function dropBuild(o,map,k){
   map.delete(k);
 }
 function clearBuilds(){
+  for(const o of PADS.values()){ scene.remove(o.mesh); o.mesh.geometry.dispose(); } PADS.clear();
   for(const m of [FOUNDS,WALLS,ROOFS,SLOPES,GABLES]){
     for(const o of m.values()){
       scene.remove(o.mesh);
@@ -478,6 +482,76 @@ function clearBuilds(){
     m.clear();
   }
   buildColliderGrid();
+}
+
+/* ---- 터 다지기 — 시멘트 ──────────────────────────────────────────────────
+   집을 지으려면 먼저 땅을 고른다(사용자 요청). **시멘트를 손에 들고** 땅을 보면 그 칸(3 m)에 다져질 터가 비쳐 보이고, 좌클릭하면
+   굳는다. 터의 윗면은 그 칸에서 가장 높은 땅 바로 위 — 낮은 쪽은 시멘트로 메워진다(그래서 비탈일수록 많이 든다).
+   곁에 이미 다진 터가 있으면 그 높이에 맞춘다(바닥이 한 장으로 이어진다 · 1 m 까지).
+   드는 양은 **이어지는 값**이다: 평평한 칸 30% + 메울 깊이 1 m 마다 42%(통 하나 = 100%). 손에 든 통부터 줄고, 빈 통은 토기로 돌아온다.
+   가진 양은 통을 다 더해 퍼센트로 적는다 — 통 다섯에 0.3 통이면 530%. */
+const LEVEL={on:false, tgt:null, ok:false, why:'', ghost:null};
+let _padMat=null;
+const pct=v=>Math.round(v*100)+'%';
+const cementTotal=()=>INV.slots.reduce((a,sl)=>a+(sl.id==='cement'?(sl.amt===undefined?1:sl.amt):0),0);
+function cementUse(need){
+  const order=INV.slots.filter(sl=>sl.id==='cement').sort((a,b)=>(a===EQUIP?-1:b===EQUIP?1:0)||((a.amt??1)-(b.amt??1)));   // 손에 든 통 → 덜 찬 통
+  for(const sl of order){ if(need<=1e-6) break;
+    const have=sl.amt===undefined?1:sl.amt, u=Math.min(have,need); sl.amt=have-u; need-=u;
+    if(sl.amt<=1e-4){ const i=INV.slots.indexOf(sl); if(sl===EQUIP) EQUIP=null; if(i>=0) invRemove(i,1); invAdd('pot',1); } }   // 빈 통은 토기로 돌아온다
+  invDirty=true;
+}
+function padGround(gx,gz){
+  let lo=1e9, hi=-1e9; const x=gx*CELL_B, z=gz*CELL_B, h=CELL_B/2;
+  for(const ox of [-h,0,h]) for(const oz of [-h,0,h]){ const y=heightAt(x+ox,z+oz); if(y<lo) lo=y; if(y>hi) hi=y; }
+  return {lo,hi};
+}
+function padPlan(gx,gz){
+  const G=padGround(gx,gz); let y=G.hi+0.06, snap=false;
+  for(const [ox,oz] of SIDE){ const n=PADS.get(fkey(gx+ox,gz+oz)); if(n&&n.y>=G.hi-0.02&&n.y-G.hi<=1.0){ y=n.y; snap=true; break; } }
+  return {gx,gz,y,lo:G.lo,hi:G.hi,snap,need:0.30+0.42*Math.max(0,y-G.lo)};
+}
+function levelCheck(t){
+  const x=t.gx*CELL_B, z=t.gz*CELL_B;
+  if(Math.abs(x)>HALF-8||Math.abs(z)>HALF-8) return '섬 밖이다';
+  if(PADS.has(fkey(t.gx,t.gz))) return '이미 다진 터다 — 토대를 놓을 수 있다';
+  if(FOUNDS.has(fkey(t.gx,t.gz))) return '이미 토대가 있다';
+  if(t.lo<0.5) return '물가는 다질 수 없다';
+  if(t.hi-t.lo>2.2) return '너무 가파르다 — 높이 차 '+(t.hi-t.lo).toFixed(1)+' m(2.2 m 까지)';
+  if(Math.hypot(x-PL.pos.x,z-PL.pos.z)<0.9) return '발밑이다 — 한 걸음 물러서라';
+  for(const c of COLLIDERS) if(c.r>=0.5&&Math.abs(c.x-x)<CELL_B/2-0.1&&Math.abs(c.z-z)<CELL_B/2-0.1&&!(c.y1!==undefined&&c.y1<t.lo)) return '그 칸에 나무·바위·설비가 서 있다';   // 가운데가 칸 안에 든 큰 것만
+  if(cementTotal()<t.need-1e-6) return '시멘트가 모자란다 — '+pct(t.need)+' 든다';
+  return '';
+}
+function placePad(gx,gz,y,lo){
+  if(!_padMat) _padMat=new THREE.MeshLambertMaterial({color:0xa6a7a1});
+  const h=Math.max(0.3,y-lo+0.4), g=new THREE.BoxGeometry(CELL_B,h,CELL_B); g.translate(0,-h/2,0);
+  const m=new THREE.Mesh(g,_padMat); m.position.set(gx*CELL_B,y,gz*CELL_B); m.matrixAutoUpdate=false; m.updateMatrix(); scene.add(m);
+  const o={gx,gz,x:gx*CELL_B,z:gz*CELL_B,y,lo,mesh:m}; PADS.set(fkey(gx,gz),o);
+  if(typeof LIGHT!=='undefined'&&LIGHT.live) LIGHT.dirtyAt(o.x,o.z,4);
+  return o;
+}
+function updateLevel(){
+  const e=equippedTool(), on=!!(e&&e.id==='cement')&&!BUILD.on&&!MOVE.t&&!uiOpen()&&!PL.dead&&!paused&&!flyMode;
+  LEVEL.on=on;
+  if(!on){ if(LEVEL.ghost) LEVEL.ghost.visible=false; LEVEL.tgt=null; return; }
+  const o=camera.position, cp=Math.cos(PL.pitch), dx=-Math.sin(PL.yaw)*cp, dy=Math.sin(PL.pitch), dz=-Math.cos(PL.yaw)*cp;
+  let hx=o.x+dx*4, hz=o.z+dz*4;
+  for(let t=0.8;t<=8;t+=0.12){ const x=o.x+dx*t, y=o.y+dy*t, z=o.z+dz*t; if(y<=floorAt(x,z,PL.pos.y)+0.05){ hx=x; hz=z; break; } }
+  const t=padPlan(Math.round(hx/CELL_B),Math.round(hz/CELL_B));
+  LEVEL.tgt=t; LEVEL.why=levelCheck(t); LEVEL.ok=!LEVEL.why;
+  if(!LEVEL.ghost){ const g=new THREE.BoxGeometry(CELL_B,1,CELL_B); g.translate(0,-0.5,0);
+    LEVEL.ghost=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x8fd6b4,transparent:true,opacity:0.38,depthWrite:false}));
+    LEVEL.ghost.userData.lightRole='none'; LEVEL.ghost.renderOrder=5; scene.add(LEVEL.ghost); }
+  const g=LEVEL.ghost; g.visible=true; g.position.set(t.gx*CELL_B,t.y+0.01,t.gz*CELL_B); g.scale.set(1,Math.max(0.3,t.y-t.lo+0.4),1);
+  g.material.color.setHex(LEVEL.ok?0x8fd6b4:0xd8724a);
+}
+function doLevel(){
+  const t=LEVEL.tgt; if(!LEVEL.on||!t) return;
+  if(!LEVEL.ok){ toast(LEVEL.why); return; }
+  cementUse(t.need); placePad(t.gx,t.gz,t.y,t.lo);
+  toast('터를 다졌다 — 시멘트 '+pct(t.need)+' · 남은 '+pct(cementTotal())+(t.snap?' · 옆 터에 높이를 맞췄다':''));
+  sfx('dig'); craftDirty=true;
 }
 
 /* ---- 어디에 놓을지 ---- */
@@ -519,15 +593,9 @@ function buildCheck(t){
   if(Math.abs(x)>HALF-8||Math.abs(z)>HALF-8) return {ok:false, why:'섬 밖이다'};
   if(kind==='found'){
     if(FOUNDS.has(fkey(gx,gz))) return {ok:false, why:'이미 토대가 있다'};
-    if(heightAt(x,z)<0.5) return {ok:false, why:'물가에는 놓을 수 없다'};
-    const H=foundHeight(gx,gz);
-    if(H.snapped) return {ok:true, why:'', snapped:true};   // 이웃에 붙으면 지형을 안 따진다
-    let lo=1e9, hi=-1e9;
-    for(const sx of [-1,1]) for(const sz of [-1,1]){
-      const h=heightAt(x+sx*CELL_B/2, z+sz*CELL_B/2);
-      lo=Math.min(lo,h); hi=Math.max(hi,h);
-    }
-    if(hi-lo>1.2) return {ok:false, why:'땅이 너무 고르지 않다 ('+(hi-lo).toFixed(1)+' m) — 옆에 붙여 놓으면 높이가 맞는다'};
+    /* **터를 먼저 다져야 한다**(사용자 요청) — 예전엔 토대가 땅 위 30 cm 에 그냥 떠서, 비탈에서는 한쪽이 허공에 걸렸다.
+       시멘트로 다진 터(PADS)가 그 칸에 있어야 하고, 토대는 그 위에 앉는다 */
+    if(!PADS.has(fkey(gx,gz))) return {ok:false, why:'터를 먼저 다져야 한다 — 시멘트를 들고 땅을 보며 좌클릭(토대가 허공에 뜨지 않게)'};
     return {ok:true, why:''};
   }
   if(!FOUNDS.has(fkey(gx,gz))) return {ok:false, why:'토대 위에만 세울 수 있다'};
@@ -786,8 +854,8 @@ function placeWheelAt(px,py,pz){
   return obj;
 }
 
-/* 증기기관 — 화덕과 같은 '불 용기'다(kind:'fire', FIRES 에 든다). 그래서 땔감 넣기·불 붙이기·
-   꺼짐이 화덕 규칙 그대로이고, 저장도 화덕 목록에 steam 표시로 같이 담긴다.
+/* 증기기관 — 모닥불과 같은 '불 용기'다(kind:'fire', FIRES 에 든다). 그래서 땔감 넣기·불 붙이기·
+   꺼짐이 모닥불 규칙 그대로이고, 저장도 모닥불 목록에 steam 표시로 같이 담긴다.
    불이 붙어 땔감이 남아 있는 동안 7 m 안의 발전기를 돌린다(`turnsDynamo`).
    생김새: 벽돌 화실 위에 누운 보일러 · 굴뚝 · 실린더와 피스톤 막대 · 크랭크로 도는 무거운 바퀴. */
 function placeSteam(){
@@ -973,7 +1041,7 @@ function placeAnvilAt(px,py,pz){
   COLLIDERS.push({x:px,z:pz,y0:py-0.1,y1:py+1.8,r:0.7}); buildColliderGrid();
 }
 
-/* 숫돌 — 마제 석기를 갈기 위한 작업대. 화덕과 같은 방식으로 설치한다. */
+/* 숫돌 — 마제 석기를 갈기 위한 작업대. 모닥불과 같은 방식으로 설치한다. */
 const GRINDS=[];
 const nearGrind=()=>GRINDS.some(g=>Math.hypot(g.x-PL.pos.x,g.z-PL.pos.z)<3.2);
 function placeGrindstone(){
@@ -1006,7 +1074,7 @@ function placeGrindstoneAt(px,py,pz){
   COLLIDERS.push({x:spot.x,z:spot.z,y0:spot.y-0.1,y1:spot.y+1.8,r:0.85}); buildColliderGrid();
 }
 
-// 화덕 둘레 돌 하나 — 암석과 같은 방식으로 매번 새 형상을 만든다
+// 모닥불 둘레 돌 하나 — 암석과 같은 방식으로 매번 새 형상을 만든다
 function hearthStone(r){
   const g=new THREE.IcosahedronGeometry(r,1);
   const pos=g.attributes.position, V=new THREE.Vector3();
@@ -1033,11 +1101,32 @@ function hearthStone(r){
   }
   return g;
 }
-/* ── 가마 — 화덕을 구운 벽돌로 둘러 돔을 얹은 것(사용자 요청). 같은 불 용기(FIRES)인 채로 두 배 넓고 두 배 빨리 굽는다 ── */
+/* ── 가마 — 모닥불을 구운 벽돌로 둘러 돔을 얹은 것(사용자 요청). 같은 불 용기(FIRES)인 채로 두 배 넓고 두 배 빨리 굽는다 ── */
+/* ── 화덕 — 모닥불 둘레에 돌을 쌓아 올린 것(사용자 요청: 예전의 '화덕'은 모닥불이 되고, 화덕은 그 위에 짓는다) ──
+   안이 두 배(40 → 80 kg · 10 → 20 칸) · 두 배 빨리 익는다 · 땔감도 두 배로 먹는다(60-stations.js). 가마는 화덕이든 모닥불이든 곁에서 짓는다 */
+function hearthTarget(){ let best=null, bd=3.5;
+  for(const f of FIRES){ if(f.steam||f.kilnU||f.hearthU) continue; const d=Math.hypot(f.x-PL.pos.x,f.z-PL.pos.z); if(d<bd){ bd=d; best=f; } }
+  return best; }
+function hearthSpot(){ return hearthTarget()?{ok:true}:{ok:false,why:'모닥불 곁에서 짓는다 — 화덕은 모닥불에 돌을 쌓아 올린 것이다'}; }
+function hearthify(f){
+  if(f.hearthU) return; f.hearthU=true; f.cname='화덕'; f.cap=Math.max(f.cap,80); f.slotCap=Math.max(f.slotCap,20);
+  const HM=hearthMats(), g=new THREE.Group(), gap=1.0, th0=Math.PI/2+gap/2;          // 앞(+z)이 트인 돌 벽
+  const wall=new THREE.Mesh(new THREE.CylinderGeometry(0.84,0.92,0.58,22,1,true,th0,Math.PI*2-gap),HM.stone); wall.material=HM.stone.clone(); wall.material.side=THREE.DoubleSide; wall.position.y=0.29; g.add(wall);
+  for(let i=0;i<11;i++){ const a=th0+(i+0.5)/11*(Math.PI*2-gap);                     // 윗단의 돌 — 하나하나 다른 모양
+    const st=new THREE.Mesh(SHP.blob(0.17,(i*7919+13)|0,{w:8,h:5,amp:0.26,sy:0.7}),HM.stone);
+    st.position.set(Math.sin(a)*0.88,0.60,Math.cos(a)*0.88); st.rotation.y=a*1.7; g.add(st); }
+  f.mesh.add(g); f.hearthM=g;
+  const col=COLLIDERS.find(o=>o.x===f.x&&o.z===f.z); if(col) col.r=Math.max(col.r,0.98);
+  if(typeof LIGHT!=='undefined'&&LIGHT.live) LIGHT.dirtyAt(f.x,f.z,4);
+}
+function placeHearth(){
+  const f=hearthTarget(); if(!f){ toast('모닥불 곁에서 짓는다'); return false; }
+  hearthify(f); toast('화덕을 올렸다 — 모닥불보다 두 배 넓고 두 배 빨리 익힌다(땔감도 두 배)'); boxDirty=true; return true;
+}
 function kilnTarget(){ let best=null, bd=3.5;
   for(const f of FIRES){ if(f.steam||f.kilnU) continue; const d=Math.hypot(f.x-PL.pos.x,f.z-PL.pos.z); if(d<bd){ bd=d; best=f; } }
   return best; }
-function kilnSpot(){ return kilnTarget()?{ok:true}:{ok:false,why:'화덕 곁에서 짓는다 — 가마는 화덕을 벽돌로 두른 것이다'}; }
+function kilnSpot(){ return kilnTarget()?{ok:true}:{ok:false,why:'모닥불 곁에서 짓는다 — 가마는 모닥불을 벽돌로 두른 것이다'}; }
 let _brickTex=null;
 function brickTex(){
   if(_brickTex) return _brickTex;
@@ -1049,7 +1138,7 @@ function brickTex(){
   _brickTex=new THREE.CanvasTexture(c); _brickTex.wrapS=_brickTex.wrapT=THREE.RepeatWrapping; return _brickTex;
 }
 function kilnify(f){
-  if(f.kilnU) return; f.kilnU=true; f.cname='가마'; f.cap=80; f.slotCap=20;
+  if(f.kilnU) return; f.kilnU=true; f.cname='가마'; f.cap=Math.max(f.cap,80); f.slotCap=Math.max(f.slotCap,20);
   const tx=brickTex(), mat=new THREE.MeshLambertMaterial({map:tx,side:THREE.DoubleSide}), g=new THREE.Group();
   const gap=1.1, th0=Math.PI/2+gap/2;                                // 앞(+z)에 아궁이 — 땔감을 넣는 구멍
   const wall=new THREE.Mesh(new THREE.CylinderGeometry(0.92,1.0,0.75,24,1,true,th0,Math.PI*2-gap),mat); wall.position.y=0.375; g.add(wall);
@@ -1063,14 +1152,15 @@ function kilnify(f){
   LIGHT.dirtyAt(f.x,f.z,4);
 }
 function placeKiln(){
-  const f=kilnTarget(); if(!f){ toast('화덕 곁에서 짓는다'); return false; }
-  kilnify(f); toast('가마를 지었다 — 화덕보다 두 배 넓고 두 배 빨리 굽는다'); boxDirty=true; return true;
+  const f=kilnTarget(); if(!f){ toast('모닥불 곁에서 짓는다'); return false; }
+  kilnify(f); toast('가마를 지었다 — 모닥불보다 두 배 넓고 두 배 빨리 굽는다'); boxDirty=true; return true;
 }
 function placeCampfire(){
   const spot=campfireSpot();
   if(!spot.ok){ toast(spot.why); return false; }
+  if(spot.onF){ toast(FIRE_ON_FOUND); return false; }
   placeCampfireAt(spot.x,spot.y,spot.z);
-  toast('화덕을 지었다');
+  toast('모닥불을 지었다');
   return true;
 }
 /* ── 불꽃 ─────────────────────────────────────────────────────────────────
@@ -1212,7 +1302,7 @@ void main(){
   g.userData.pow=pow; g.userData.lightRole='none';
   return g;
 }
-/* s — 크기(화덕 1 · 횃불 0.25). smoke/sparks 는 끌 수 있다 */
+/* s — 크기(모닥불 1 · 횃불 0.25). smoke/sparks 는 끌 수 있다 */
 /* 불꽃 셰이더 미리 짜기 — 불꽃·번짐·연기·불티는 ShaderMaterial 이라 광원 수와 상관없이 한 번만 짜면 된다.
    예전엔 처음 불을 켜는 순간(보이게 되는 순간) 다섯 개를 짜느라 멈칫했다(PRECOMP 는 소프트웨어 렌더에서 꺼져 있어 못 막았다) */
 let _fireWarm=false;
@@ -1256,8 +1346,8 @@ function makeFire(s,opt){
   return g;
 }
 // 좌표를 직접 받는 형태 — 저장 복원에서 그대로 쓴다
-/* 화덕의 재질 — 예전엔 돌도 땔감도 민무늬 한 색이었다(사용자 지적: 화덕 텍스처가 없다).
-   돌은 바위 사진의 결(땅 사진 4번 층), 땔감은 캔버스에 그린 나무껍질과 나이테, 바닥은 잿빛 재. 한 번 만들어 모든 화덕이 나눠 쓴다 */
+/* 모닥불의 재질 — 예전엔 돌도 땔감도 민무늬 한 색이었다(사용자 지적: 모닥불 텍스처가 없다).
+   돌은 바위 사진의 결(땅 사진 4번 층), 땔감은 캔버스에 그린 나무껍질과 나이테, 바닥은 잿빛 재. 한 번 만들어 모든 모닥불이 나눠 쓴다 */
 let _hearthM=null;
 function hearthMats(){
   if(_hearthM) return _hearthM;
@@ -1303,7 +1393,7 @@ function placeCampfireAt(x,y,z){
   light.visible=false;
 
   g.position.set(x,y,z); scene.add(g);
-  const fire={kind:'fire', cname:'화덕', cap:40, slotCap:10, slots:[],
+  const fire={kind:'fire', cname:'모닥불', cap:40, slotCap:10, slots:[],
     x,y,z,lit:false,fuel:0,cook:{},mesh:g,flame,light,t:Math.random()*10};
   FIRES.push(fire);
   COLLIDERS.push({x,z,y0:y-0.1,y1:y+1.8,r:0.75}); buildColliderGrid();
@@ -1311,9 +1401,9 @@ function placeCampfireAt(x,y,z){
 }
 
 /* 횃불·등잔을 손에서 켜고 끈다(들고 좌클릭).
-   예전엔 **타는 화덕을 보고 길게 눌러야만** 불이 붙었다 — 만들어 들어도 아무 일도 없고 좌클릭해도
+   예전엔 **타는 모닥불을 보고 길게 눌러야만** 불이 붙었다 — 만들어 들어도 아무 일도 없고 좌클릭해도
    반응이 없어, 횃불이 고장 난 것으로 보였다. 이제 손에서 바로 붙인다. 불씨는 이 순서로 찾는다:
-   ① 3.5 m 안의 타는 화덕·제련로(값 없이) ② 긴 라이터(내구 1) ③ 활비비 + 부싯깃(부싯깃 1 · 내구 1 · 기력 12).
+   ① 3.5 m 안의 타는 모닥불·제련로(값 없이) ② 긴 라이터(내구 1) ③ 활비비 + 부싯깃(부싯깃 1 · 내구 1 · 기력 12).
    타는 것을 다시 누르면 끈다 — 남은 연료는 그대로 남는다. */
 function toggleTorch(e){
   const T=ITEMS[e.id];
@@ -1336,7 +1426,7 @@ function toggleTorch(e){
     invRemove(ti,1); use(drill);
     light('활비비로 불씨를 내어 '+T.n+'에 불을 붙였다'); return;
   }
-  toast('불씨가 없다 — 활비비+부싯깃이나 긴 라이터를 지니거나, 타는 화덕 곁에서 좌클릭한다');
+  toast('불씨가 없다 — 활비비+부싯깃이나 긴 라이터를 지니거나, 타는 모닥불 곁에서 좌클릭한다');
 }
 // 들고 있는 횃불이 타는 중인가
 function litTorch(){
@@ -1422,7 +1512,7 @@ function initTorchFx(){
   /* 늘 켜 두고 세기로 끈다 — visible 을 껐다 켜면 점광원 수가 바뀌어 횃불을 들고 놓을 때마다 모든 재질의
      셰이더를 다시 짰다(멈칫). 세기 0 이면 화면은 끈 것과 같다 */
   torchFlame=new THREE.Group();
-  const c1=makeFire(0.20,{smoke:false,glow:false});        // 화덕과 같은 불 — 작게
+  const c1=makeFire(0.20,{smoke:false,glow:false});        // 모닥불과 같은 불 — 작게
   c1.position.y=-0.02;
   const c2=new THREE.Object3D();
   const stick=new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.02,0.42,4),
@@ -1485,7 +1575,7 @@ function updatePower(dt){
   }
 }
 
-/* 화덕 안에 든 것 중 구울 수 있는 첫 항목 */
+/* 모닥불 안에 든 것 중 구울 수 있는 첫 항목 */
 /* 안에 든 것 중 구울 수 있는 것을 전부 모은다 — 한 가지씩 차례로가 아니라
    들어 있는 것이 저마다 제 속도로 함께 익는다. */
 function fireJobs(f){
@@ -1507,7 +1597,7 @@ function updateFurnaces(dt,dh){
   for(const g of FURNACES){
     if(!g.jobs) g.jobs={};
     /* 불이 붙어 있는 동안에만 녹는다. 꺼지면 제자리에 멈춰 서고,
-       다시 붙이면 녹던 데서 이어진다 — 화덕의 굽기와 같은 규칙이다. */
+       다시 붙이면 녹던 데서 이어진다 — 모닥불의 굽기와 같은 규칙이다. */
     if(g.lit && dh>0 && burnFuel(g,dh)){
       const live=furnaceJobs(g);
       for(const R of live){
@@ -1545,7 +1635,7 @@ function updateFires(dt,dh){
     if(f.lit && dh>0){
       for(const job of jobs){
         const R=FIRING[job];
-        f.cook[job]=(f.cook[job]||0)+dh*(f.kilnU?2:1);   // 가마는 두 배 빠르다
+        f.cook[job]=(f.cook[job]||0)+dh*((f.kilnU||f.hearthU)?2:1);   // 화덕·가마는 두 배 빠르다
         while(f.cook[job]>=R.hours && contCount(f,job)>0){
           f.cook[job]-=R.hours;
           contTake(f,job,1);
@@ -1568,7 +1658,7 @@ function updateFires(dt,dh){
     f.flame.scale.set(0.8+0.2*low,flick*low,0.8+0.2*low);
     if(f.steam){ f.wheel.rotation.z-=dt*4.2; f.rod.position.x=1.3+Math.sin(f.wheel.rotation.z)*0.12; }
   }
-  // 화입법 — 화덕 4 m 안의 화강암 노두가 달궈진다
+  // 화입법 — 모닥불 4 m 안의 화강암 노두가 달궈진다
   if(dh<=0) return;
   const heat=(p,amt)=>{
     if(p.k!=='granite'||p.cracked||p.ore<=0) return;
@@ -1584,7 +1674,7 @@ function updateFires(dt,dh){
       if(Math.hypot(p.x-f.x,p.z-f.z)<=4) heat(p,dh);
     });
   }
-  // 들고 있는 횃불로도 달굴 수 있다. 화력이 약해 화덕의 60% 속도.
+  // 들고 있는 횃불로도 달굴 수 있다. 화력이 약해 모닥불의 60% 속도.
   if(litTorch()){
     eachNearProp(PL.pos.x,PL.pos.z,p=>{
       if(Math.hypot(p.x-PL.pos.x,p.z-PL.pos.z)<=3) heat(p,dh*0.6);

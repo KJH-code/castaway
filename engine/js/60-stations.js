@@ -1,5 +1,5 @@
 /* 60-stations.js — CASTAWAY
-   설비 — 화덕·제련로·숫돌·모루·물레방아·발전기 · 보관함(바구니·상자·쓰레기통)과 이름표 · 용기 공통(넣고 빼기)
+   설비 — 모닥불·제련로·숫돌·모루·물레방아·발전기 · 보관함(바구니·상자·쓰레기통)과 이름표 · 용기 공통(넣고 빼기)
    (island_world (6).html 이 이 차례로 읽는다 — 차례와 묶음은 README.md 의 「코드 지도」에 있다) */
 "use strict";
 
@@ -8,11 +8,11 @@
    ----------------------------------------------------------------------------
    · 점화는 활비비(마찰) + 부싯깃. 힘이 많이 들고 자주 실패한다.
    · 연료는 게임시간 단위로 탄다. 나뭇가지는 금방, 통나무와 석탄은 오래.
-   · 화덕 옆 화강암은 열을 받아 균열이 간다(화입법). 균열이 가면 등급이 3→2로
+   · 모닥불 옆 화강암은 열을 받아 균열이 간다(화입법). 균열이 가면 등급이 3→2로
      내려가 돌 곡괭이로 떼어낼 수 있다.
    ========================================================================== */
 const FUEL={branch:0.15, log:1.2, charcoal:2.0, coal_lump:2.5};   // 게임시간(h)
-/* 화덕 소성 — 넣어두고 자리를 떠도 된다. 불이 붙어 있는 동안만 익는다. */
+/* 모닥불 소성 — 넣어두고 자리를 떠도 된다. 불이 붙어 있는 동안만 익는다. */
 const FIRING={
   pot_raw:     {out:'pot',      hours:0.6, count:1},   // 게임 36분
   crucible_raw:{out:'crucible', hours:0.9, count:1},   // 게임 54분 — 두꺼워 오래 걸린다
@@ -20,7 +20,7 @@ const FIRING={
   // 숯가마: 흙을 덮어 산소를 막고 태우면 타 없어지지 않고 숯이 된다.
   // 통나무를 그대로 넣으면 연료로 쓸지 구울지 구분이 안 되므로 재료를 따로 둔다.
   charcoal_pile:{out:'charcoal', hours:1.5, count:4},
-  // 고기와 물고기는 화덕에 넣어두면 익는다 — 날로 먹으면 탈이 난다
+  // 고기와 물고기는 모닥불에 넣어두면 익는다 — 날로 먹으면 탈이 난다
   meat_bear:   {out:'meat_cooked', hours:0.25, count:1},   // 게임 15분
   fish:        {out:'fish_cooked', hours:0.15, count:1},
   mushroom:    {out:'mushroom_cooked', hours:0.08, count:1},   // 숲의 버섯 — 구워야 탈이 없다
@@ -62,11 +62,17 @@ function campfireSpot(){
   }else if(Math.abs(floorAt(x+0.45,z,y+0.1)-y)>0.05||Math.abs(floorAt(x-0.45,z,y+0.1)-y)>0.05
          ||Math.abs(floorAt(x,z+0.45,y+0.1)-y)>0.05||Math.abs(floorAt(x,z-0.45,y+0.1)-y)>0.05)
     return {ok:false, why:'판 가장자리라 걸치지 않는다 — 조금 더 안쪽에'};
-  for(const f of FIRES) if(Math.hypot(f.x-x,f.z-z)<3&&Math.abs(f.y-y)<1.5) return {ok:false, why:'이미 화덕이 있다'};
-  return {ok:true,x,y,z,onB};
+  for(const f of FIRES) if(Math.hypot(f.x-x,f.z-z)<3&&Math.abs(f.y-y)<1.5) return {ok:false, why:'이미 모닥불이 있다'};
+  return {ok:true,x,y,z,onB,onF:onB&&onFound(x,z,y)};
 }
+/* 그 자리가 집 바닥(토대나 그 위 지붕)인가 — 다진 터(시멘트)는 집 바닥이 아니다 */
+function onFound(x,z,y){
+  const f=FOUNDS.get(fkey(Math.round(x/CELL_B),Math.round(z/CELL_B)));
+  return !!f&&y>=f.y-0.05;
+}
+const FIRE_ON_FOUND='불을 쓰는 설비는 집 바닥(토대) 위에 못 놓는다 — 맨땅이나 시멘트로 다진 터에 놓는다';
 /* 제련로 — 돌과 점토로 쌓은 노. 송풍관으로 바람을 넣어야 광석이 녹는 온도가 된다.
-   화덕과 마찬가지로 '안에 넣어두는' 설비다. 광석과 참숯을 넣고 도가니·송풍관을
+   모닥불과 마찬가지로 '안에 넣어두는' 설비다. 광석과 참숯을 넣고 도가니·송풍관을
    같이 넣어두면(이 둘은 닳지 않고 그대로 남는다) 알아서 제련이 돌아간다.
    참숯이 연료이자 환원제이므로 따로 땔감을 먹이지 않는다. */
 const SMELT=[
@@ -100,7 +106,7 @@ const SMELT=[
 
   /* 아연은 끓는점(907 ℃)이 녹는점보다 낮다 — 환원되는 족족 증기로 날아가므로
      도가니를 엎어 덮고 식은 벽에 응결시켜 긁어낸다. 그래서 수율이 나쁘다. */
-  /* 납은 다루기 쉬운 금속이다 — 327 ℃ 면 녹아 흘러 화덕 불로도 닿는다.
+  /* 납은 다루기 쉬운 금속이다 — 327 ℃ 면 녹아 흘러 모닥불 불로도 닿는다.
      방연석은 황화물이라 먼저 구워 황을 날린 뒤 숯과 환원한다. */
   {id:'smelt_lead', n:'납 제련', hours:0.9, out:{id:'ingot_lead',n:1},
    note:'방연석을 구워 황을 날리고 숯과 함께 환원한다. 납은 낮은 열에 녹아 '
@@ -137,7 +143,7 @@ const SMELT=[
    need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]}
 ];
 /* ── 기술 나무에 설비 공정도 세운다(사용자 요청 — 도가니로 주석을 녹이는 것 같은 일이 나무에 없었다) ──
-   제련로(SMELT)와 화덕·가마 굽기(FIRING)를 제작법 꼴(`proc`)로 RECIPES 끝에 붙인다 — 맨 끝이라 예전 번호(고른 제작법 등)는 그대로다.
+   제련로(SMELT)와 모닥불·가마 굽기(FIRING)를 제작법 꼴(`proc`)로 RECIPES 끝에 붙인다 — 맨 끝이라 예전 번호(고른 제작법 등)는 그대로다.
    직접 만드는 것이 아니므로 `canCraft` 는 늘 거짓이고, 누르면 어디에 무엇을 넣으면 되는지 알린다(`procHow`).
    그래서 재료 쪽에서 '이것을 만드는 법' 이 제련·굽기로 이어진다(주석 → 주석 제련 → 석석·참숯·도가니·송풍관). */
 const PROC_TIER=id=>/steel/.test(id)?'강철':/iron|bloom/.test(id)?'철기':/ingot_|mercury|bronze|brass/.test(id)?'금속':/glass/.test(id)?'금속':null;
@@ -145,15 +151,16 @@ for(const S of SMELT) RECIPES.push({id:'proc_'+S.id, proc:'furnace', tier:PROC_T
   station:'furnace', time:Math.round(S.hours*60), stam:0, note:'제련로에 재료'+(S.need?'와 '+S.need.map(r=>ITEMS[r.id].n).join('·'):'')+'를 넣고 불을 붙여 두면 저절로 된다(게임 '+Math.round(S.hours*60)+'분). '+(S.note||'')});
 for(const k in FIRING){ const F=FIRING[k]; if(!ITEMS[k]||!ITEMS[F.out]) continue;
   RECIPES.push({id:'proc_fire_'+k, proc:'fire', tier:'불', n:ITEMS[F.out].n+' 굽기', out:{id:F.out,n:F.count||1}, in:[{id:k,n:1}],
-    station:'fire', time:Math.round(F.hours*60), stam:0, note:'타는 화덕·가마에 '+ITEMS[k].n+'을 넣어 두면 '+ITEMS[F.out].n+'이 된다(게임 '+Math.round(F.hours*60)+'분 · 가마는 두 배 빠르다).'}); }
+    station:'fire', time:Math.round(F.hours*60), stam:0, note:'타는 모닥불·가마에 '+ITEMS[k].n+'을 넣어 두면 '+ITEMS[F.out].n+'이 된다(게임 '+Math.round(F.hours*60)+'분 · 가마는 두 배 빠르다).'}); }
 function procHow(R){ toast(R.proc==='furnace'?R.n+' — 제련로에 넣어 두는 일이다: '+R.in.concat(R.need||[]).map(r=>ITEMS[r.id].n+' '+r.n).join(' · ')
-                                            :R.n+' — 타는 화덕이나 가마에 '+ITEMS[R.in[0].id].n+'을 넣어 둔다'); }
+                                            :R.n+' — 타는 모닥불이나 가마에 '+ITEMS[R.in[0].id].n+'을 넣어 둔다'); }
 
 const FURNACES=[];
 const nearFurnace=()=>FURNACES.some(g=>Math.hypot(g.x-PL.pos.x,g.z-PL.pos.z)<3.4);
 function placeFurnace(){
   const spot=campfireSpot();
   if(!spot.ok){ toast(spot.why); return false; }
+  if(spot.onF){ toast(FIRE_ON_FOUND); return false; }
   for(const g of FURNACES) if(Math.hypot(g.x-spot.x,g.z-spot.z)<3){
     toast('이미 제련로가 있다'); return false; }
   placeFurnaceAt(spot.x,spot.y,spot.z);
@@ -382,7 +389,7 @@ function placeStoreAt(kind,px,py,pz,slots,label,ry){
 /* ── 밀기 ──────────────────────────────────────────────────────────────
    설비는 만든 자리(발 앞 1.4 m)에 박혀 옮길 길이 없었다 — 조금만 어긋나게 놓아도 그대로 써야 했다(사용자 요청).
    이제 **F 를 누른 채** 설비를 보고 있으면 내 반대쪽으로 밀린다. 걸어서 따라가며 계속 밀고, 돌아가서 밀면 방향이 바뀐다.
-   · 밀리는 것: 바구니 · 상자 · 쓰레기통 · 화덕 · 제련로 · 숫돌 · 모루. 물레방아·발전기·아크로·선반·증기기관은
+   · 밀리는 것: 바구니 · 상자 · 쓰레기통 · 모닥불 · 제련로 · 숫돌 · 모루. 물레방아·발전기·아크로·선반·증기기관은
      물길·전선에 매여 있어 못 민다.
    · 무거울수록 느리고 힘이 든다(바구니 1.6 m/s … 제련로 0.7 m/s). 안에 든 것·불·이름표는 그대로 따라온다.
    · 물가·가파른 비탈·나무·바위·벽·다른 설비에 닿으면 멎는다. 저장하면 옮긴 자리가 남는다. */
@@ -423,6 +430,11 @@ function moveStart(){
   if(MOVE.t) return;
   const c=findPushTarget(); if(!c) return false;
   if(!pushKind(c)){ toast(c.cname+' — 옮길 수 없다'); return false; }
+  return moveBegin(c);
+}
+/* 그 설비를 집어 든다 — F 로 고른 것(moveStart)이든, 방금 지은 것(55-craft.js)이든 */
+function moveBegin(c){
+  if(MOVE.t||!c) return false;
   MOVE.t=c; MOVE.ox=c.x; MOVE.oy=c.y; MOVE.oz=c.z; MOVE.ory=MOVE.ry=c.mesh.rotation.y;
   MOVE.col=pushCollider(c); MOVE.cr=MOVE.col?MOVE.col.r:0.5; if(MOVE.col) MOVE.col.r=0;
   if(!MOVE.ring){ MOVE.ring=new THREE.Mesh(new THREE.RingGeometry(0.85,1,40).rotateX(-Math.PI/2),
@@ -452,6 +464,8 @@ function moveCheck(c,x,y,z){
     for(const o of a){ if(o===MOVE.col||o.r<=0) continue;
       if(o.y0!==undefined&&(y>o.y1||y+1.2<o.y0)) continue;
       if(Math.hypot(x-o.x,z-o.z)<o.r+r) return '무엇인가에 걸린다'; } }
+  /* 불을 쓰는 것은 **집 바닥(토대·지붕) 위에 못 놓는다**(사용자 요청) — 맨땅이나 시멘트로 다진 터에. 상자·바구니는 된다 */
+  if(onB&&(c.kind==='fire'||c.kind==='furnace'||c.kind==='arc')&&onFound(x,z,y)) return '불을 쓰는 설비는 집 바닥에 못 놓는다 — 맨땅이나 다진 터에';
   if(c.kind==='fire'&&!c.steam) for(const f of FIRES) if(f!==c&&Math.hypot(f.x-x,f.z-z)<2.4&&Math.abs(f.y-y)<1.5) return '다른 불과 너무 가깝다';
   return '';
 }
@@ -482,8 +496,8 @@ function moveCancel(){
 }
 function updatePush(dt){ updateMove(dt); }
 /* ── 용기 공통 ───────────────────────────────────────────────────────────────
-   상자·화덕·제련로는 모두 "안에 물건을 넣고 빼는 곳"이다. 넣고 빼는 규칙은
-   한 벌만 두고, 화덕과 제련로는 그 안에 든 것을 스스로 태우고 굽고 녹일 뿐이다.
+   상자·모닥불·제련로는 모두 "안에 물건을 넣고 빼는 곳"이다. 넣고 빼는 규칙은
+   한 벌만 두고, 모닥불과 제련로는 그 안에 든 것을 스스로 태우고 굽고 녹일 뿐이다.
    ─ 각 개체는 {kind, cname, cap, slots} 를 갖는다. */
 const contWeight=c=>c.slots.reduce((a,s)=>a+ITEMS[s.id].kg*s.n,0);
 const storeWeight=contWeight;                      // 옛 이름
@@ -503,7 +517,7 @@ function contAdd(c,id,n){                          // 산출물은 상한을 넘
   const T=ITEMS[id];
   if(indiv(T)){
     for(let k=0;k<n;k++)
-      stackInto(c.slots,id,1, T.sips?{sip:T.sips}
+      stackInto(c.slots,id,1, T.frac?{amt:1} : T.sips?{sip:T.sips}
                             : (T.burn!==undefined)?{fuel:T.burn,lit:false}
                             : {dur:T.cell?0:T.durMax});
   }else stackInto(c.slots,id,n);
@@ -521,9 +535,9 @@ function contFuel(c){
   return null;
 }
 /* 불붙은 설비의 땔감을 축낸다. 다 타면 안에 든 다음 땔감을 스스로 끌어다 문다.
-   화덕과 제련로가 같은 규칙을 쓴다. 꺼졌으면 false 를 돌려준다. */
+   모닥불과 제련로가 같은 규칙을 쓴다. 꺼졌으면 false 를 돌려준다. */
 function burnFuel(f,dh){
-  f.fuel-=dh;
+  f.fuel-=dh*(f.hearthU?2:1);                          // 화덕은 두 배 빨리 익히는 만큼 땔감도 두 배로 먹는다
   while(f.fuel<=0){
     const id=contFuel(f);
     if(!id) break;
@@ -537,7 +551,7 @@ function burnFuel(f,dh){
   boxDirty=true;
   return false;
 }
-// 시선 앞의 용기 — 상자든 화덕이든 제련로든 가장 가까운 하나
+// 시선 앞의 용기 — 상자든 모닥불이든 제련로든 가장 가까운 하나
 function findContainer(){
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
   let best=null,bd=1e9;
@@ -567,7 +581,7 @@ function toStore(i,all){
   const T=ITEMS[sl.id];
   const room=Math.floor((st.cap-contWeight(st))/T.kg+1e-9);
   if(room<1){ toast(st.cname+'가 가득 찼다'); return; }
-  /* 화덕과 제련로는 칸 수도 제한된다. 안에 든 것이 저마다 함께 익으므로
+  /* 모닥불과 제련로는 칸 수도 제한된다. 안에 든 것이 저마다 함께 익으므로
      칸을 무제한으로 두면 설비 하나가 온갖 것을 동시에 처리해 버린다.
      이미 쌓여 있는 칸에 더 얹는 것은 칸이 늘지 않으니 막지 않는다. */
   if(st.slotCap && st.slots.length>=st.slotCap

@@ -342,6 +342,9 @@ function updateHUD(dt){
   if(MOVE.t){                                     // 옮기는 중(60-stations.js)
     hudS(look,'display','block'); hudS(lb,'display','none');
     hudH(lt,MOVE.t.cname+' 옮기는 중 — [좌클릭] 놓기 · [휠·R] 돌리기 · [F·우클릭] 그만두기'+(MOVE.ok?'':'<em>'+MOVE.why+'</em>'));
+  }else if(LEVEL.on&&LEVEL.tgt){                  // 시멘트를 들었다 — 터 다지기(62-build.js)
+    hudS(look,'display','block'); hudS(lb,'display','none');
+    hudH(lt,'[좌클릭] 터 다지기 — 시멘트 '+pct(LEVEL.tgt.need)+' · 가진 것 '+pct(cementTotal())+(LEVEL.ok?'':'<em>'+LEVEL.why+'</em>'));
   }else if(HARV.fit){
     const w=HARV.fit;
     hudS(look,'display','block'); hudS(lb,'display','none');
@@ -363,7 +366,7 @@ function updateHUD(dt){
       return;
     }
     const head='[좌클릭] '+c.cname+' 열기'+(pushKind(c)?' · [F] 옮기기':'');
-    // 화덕은 좌클릭을 계속 누르면 불을 다루는 쪽으로 넘어간다
+    // 모닥불은 좌클릭을 계속 누르면 불을 다루는 쪽으로 넘어간다
     if(isHearth(c) && !c.lit && isTorch && e.lit && e.fuel>0.12 && contFuel(c)){
       hudH(lt,head+'<em>길게 누르면 횃불로 불 옮기기</em>');
       if(IGNITE.t>0){ hudS(lb,'display','block'); hudS(lf,'width',Math.min(100,IGNITE.t/1.5*100).toFixed(1)+'%'); }
@@ -427,8 +430,7 @@ function updateHUD(dt){
       const R=RESOURCES.find(r=>r.k===t.k)||{n:t.n||t.k}, M=HARV.mode;     // 노거수(95-giants.js)는 자원 표에 없다 — 제 이름(t.n)
       hudS(look,'display','block');
       if(M){
-        const left=M.field==='logs'?('통나무 '+t.logs):('남은 '+t[M.field]+'회');   // 캐기는 ore · 채집은 br — 예전엔 늘 br 을 보여 바위는 '남은 0회' 였다
-        hudH(lt,'[좌클릭] '+M.H.label+'<em>'+R.n+' · '+left+'</em>');
+        hudH(lt,'[좌클릭] '+M.H.label+'<em>'+R.n+'</em>');          // 남은 횟수는 적지 않는다(사용자 요청)
         hudS(lb,'display',HARV.t>0?'block':'none');
         hudS(lf,'width',Math.min(100,HARV.t/(M.dur||M.H.dur)*100).toFixed(1)+'%');
       }else{
@@ -482,6 +484,10 @@ function updateHUD(dt){
         +(e.sip?'  ('+e.sip+'모금)':'')+'  [좌클릭] '+useVerb(T));
       const bar=document.getElementById('toolD');
       hudS(bar,'width',(T.drink?((e.sip||1)/(T.sips||1)):1)*100+'%'); hudS(bar,'background','#7fb07a');
+    }else if(e.amt!==undefined){                // 시멘트 — 가진 것을 다 더해 퍼센트로(통 다섯에 0.3 통이면 530%)
+      hudT(document.getElementById('toolN'),T.n+'  '+pct(cementTotal())+'  [좌클릭] 터 다지기');
+      const bar=document.getElementById('toolD');
+      hudS(bar,'width',(e.amt*100)+'%'); hudS(bar,'background','#b8b8b0');
     }else{
       hudT(document.getElementById('toolN'),T.n);
       const bar=document.getElementById('toolD');

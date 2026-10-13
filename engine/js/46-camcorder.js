@@ -19,6 +19,7 @@
    ========================================================================== */
 const CAMC={on:true, lines:480, rt:null, scene:null, cam:null, mat:null,
             bat:100, DRAIN:100/(14*60), CRANK:6.5, crank:0, under:0, warned:false, el:null,
+            health:1, li:false, hsaid:0,           // 전지의 늙음(1 새것 → 채울수록 준다) · 리튬이온으로 갈았나
             noise:1};                              // 화면 잡음(0 끔 · 1 보통 · 2 짙게) — 설정 · 프리셋
 const CAMC_LINES=[0,360,480,720];                   // 설정 칸의 0~3 → 줄 수(0 = 끄기)
 function camcInit(){
@@ -119,16 +120,25 @@ function updateCamcorder(dt){
   if(cranking){
     if(CAMC.bat>=100){ if(CAMC.crank<=0) toast('캠코더 배터리 — 가득 찼다'); CAMC.crank=1.5; }
     else{
+      const b0=CAMC.bat;
       CAMC.bat=Math.min(100,CAMC.bat+CAMC.CRANK*dt);   // 손잡이 돌리기는 기력을 안 쓴다(사용자 요청 — 예전엔 초당 3.5씩 깎였다)
+      /* **채울수록 전지가 늙는다**(사용자 요청) — 가득 한 번 채울 때마다 쓸 수 있는 시간이 같은 비율(×0.946)로 준다.
+         켜 둔 채 지내면 열흘째에 한 시간(처음 14시간의 1/14)을 못 넘긴다: 14·rⁿ = 1 · 그동안 쓴 시간 13/(1−r) = 240시간 → r = 0.946.
+         그때가 리튬이온 전지 팩으로 갈아 끼울 때다 — 갈면 새것이 되고, 리튬이온은 한 번에 0.4%만 준다(×0.996) */
+      CAMC.health=Math.max(0.04,CAMC.health*Math.pow(CAMC.li?0.996:0.946,(CAMC.bat-b0)/100));
       CAMC.crank-=dt; if(CAMC.crank<=0){ CAMC.crank=0.22; sfx('bind'); }       // 손잡이 돌아가는 소리
       if(typeof weaponFx!=='undefined'&&weaponFx&&weaponFx.userData.spin) weaponFx.userData.spin.rotation.z-=dt*10;
     }
   }else{
     CAMC.crank=Math.max(0,CAMC.crank-dt);
-    if(CAMC.on&&CAMC.lines) CAMC.bat=Math.max(0,CAMC.bat-CAMC.DRAIN*dt);
+    if(CAMC.on&&CAMC.lines) CAMC.bat=Math.max(0,CAMC.bat-CAMC.DRAIN/CAMC.health*dt);   // 늙은 전지는 그만큼 빨리 닳는다
   }
   if(CAMC.bat<15&&!CAMC.warned){ CAMC.warned=true; toast('캠코더 배터리가 얼마 없다 — 손 충전기를 들고 좌클릭을 누르고 있으면 찬다'); }
   if(CAMC.bat>30) CAMC.warned=false;
+  { const hrs=14*CAMC.health, step=hrs<1.2?3:hrs<3.5?2:hrs<7?1:0;       // 전지가 늙어 가는 것을 세 번 알린다(7 · 3.5 · 1.2시간)
+    if(step>CAMC.hsaid){ CAMC.hsaid=step;
+      toast(step===3?'캠코더 전지가 다 됐다 — 가득 채워도 한 시간 남짓이다. 리튬이온 전지로 전지 팩을 짜서 갈아 끼워야 한다(선반)'
+           :'캠코더 전지가 늙어 간다 — 가득 채워도 '+hrs.toFixed(1)+'시간쯤이다'); } }
   // 화면 위의 표시
   const L=CAMC.el, show=CAMC.on&&CAMC.lines>0;
   camcBody(show);
