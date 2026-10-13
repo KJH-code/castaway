@@ -139,7 +139,7 @@ function slingShot(e,W){
   if(e.dur<=0){ toast(ITEMS[e.id].n+' 파손'); invRemove(INV.slots.indexOf(e),1); EQUIP=null; }
 }
 /* 벌레 — 낮의 풀밭엔 나비, 밤의 숲·늪엔 반딧불이, 물가엔 잠자리, 벌집 둘레엔 벌 */
-const BUG_C=[[0,0,0],[1.0,0.86,0.30],[0.75,1.0,0.35],[0.45,0.80,1.0],[0.95,0.75,0.15],[1.0,0.55,0.75],[0.92,0.92,0.98]];
+const BUG_C=[[0,0,0],[1.0,0.86,0.30],[0.75,1.0,0.35],[0.38,0.62,0.78],[0.95,0.75,0.15],[1.0,0.55,0.75],[0.92,0.92,0.98]];
 function wildBugs(dt){
   const B_=WILD.bugs, P=B_.pts.geometry.attributes.position, C=B_.pts.geometry.attributes.color, px=PL.pos.x, pz=PL.pos.z;
   const night=hourOfDay<5.2||hourOfDay>19.6, t=WILD.t;
@@ -152,7 +152,7 @@ function wildBugs(dt){
       else{ const a=Math.random()*6.283, d=3+Math.random()*24, x=px+Math.cos(a)*d, z=pz+Math.sin(a)*d, sm=sampleAt(x,z);
         if(sm.elev>0.3){ const g=heightAt(x,z), wet=sm.river||sm.biome===B.MARSH||floraNearRiver(IDX(clamp(Math.round(x/CELL+N/2),1,N-2),clamp(Math.round(z/CELL+N/2),1,N-2)));   // 민물 가(바닷가는 아니다)
           if(night){ if(sm.biome===B.BROADLEAF||sm.biome===B.CONIFER||sm.biome===B.MARSH||sm.biome===B.MEADOW){ s.k=2; s.y=g+0.4+Math.random()*2.2; } }
-          else if(wet){ s.k=3; s.y=g+0.6+Math.random()*1.2; }
+          else if(wet){ if(Math.random()<0.3){ s.k=3; s.y=g+0.6+Math.random()*1.2; } }   // 잠자리(파란 점)는 드물게(사용자 요청 — 너무 많았다)
           else if(sm.biome===B.MEADOW||sm.biome===B.BROADLEAF||sm.biome===B.SCRUB){ s.k=Math.random()<0.5?1:(Math.random()<0.5?5:6); s.y=g+0.4+Math.random()*1.3; }
           if(s.k){ s.x=x; s.z=z; s.life=8+Math.random()*14; s.gy=g; } } }
     }
@@ -167,6 +167,38 @@ function wildBugs(dt){
     C.array[i*3]=c[0]*k; C.array[i*3+1]=c[1]*k; C.array[i*3+2]=c[2]*k;
   }
   P.needsUpdate=true; C.needsUpdate=true;
+}
+
+/* 잠자리채 — 겨눈 쪽 3 m 안의 벌레를 떠서 유리병에 담는다. 한 번 휘두르면 겨눈 것 둘레 1 m 의 벌레가 **몇 마리 같이** 걸린다
+   (무작위 — 하나가 대부분, 가끔 둘·셋). 병 하나에 한 마리. 벌을 뜨면 쏘인다. 놓친 벌레는 다른 데서 다시 난다 */
+const BUG_JAR={1:'jar_butterfly',5:'jar_butterfly',6:'jar_butterfly',2:'jar_firefly',3:'jar_dragonfly'};
+function bugNetSwing(e,W){
+  if(ATK.cd>0) return;
+  ATK.cd=W.rate||0.55; ATK.swing=0.3; ATK.swingMax=0.3; PL.stam=clamp(PL.stam-(W.stam||3),0,100); sfx('bind');
+  const B_=WILD.bugs; if(!B_) return;
+  const o=camera.position, cp=Math.cos(PL.pitch), dx=-Math.sin(PL.yaw)*cp, dy=Math.sin(PL.pitch), dz=-Math.cos(PL.yaw)*cp;
+  let best=null, bt=W.reach||3.2;
+  for(const s of B_.st){ if(!s.k) continue;
+    const vx=s.x-o.x, vy=s.y-o.y, vz=s.z-o.z, t=vx*dx+vy*dy+vz*dz; if(t<0.3||t>bt) continue;
+    const ex=vx-dx*t, ey=vy-dy*t, ez=vz-dz*t; if(ex*ex+ey*ey+ez*ez<0.55*0.55){ bt=t; best=s; } }
+  e.dur-=1;
+  if(e.dur<=0){ toast(ITEMS[e.id].n+' 찢어졌다'); invRemove(INV.slots.indexOf(e),1); EQUIP=null; }
+  if(!best){ toast('헛손질 — 벌레를 겨누고 휘두른다'); return; }
+  if(best.k===4){ hurtPL(3,'벌에 쏘였다'); toast('벌을 건드렸다 — 쏘였다'); best.life=0; return; }
+  const near=B_.st.filter(s=>s!==best&&s.k&&s.k!==4&&Math.hypot(s.x-best.x,s.y-best.y,s.z-best.z)<1.0);
+  const want=1+(Math.random()<0.35?1:0)+(Math.random()<0.12?1:0);
+  const caught=[best,...near].slice(0,want);
+  const got={}; let lost=0;
+  for(const s of caught){
+    const id=BUG_JAR[s.k]; s.life=0;
+    const j=INV.slots.findIndex(x=>x.id==='jar');
+    if(j<0||!id){ lost++; continue; }
+    invRemove(j,1); if(invAdd(id,1)) got[id]=(got[id]||0)+1; else{ invAdd('jar',1); lost++; }
+  }
+  invDirty=true;
+  const txt=Object.keys(got).map(k=>ITEMS[k].n+' '+got[k]).join(' · ');
+  if(txt) toast('떠냈다 — '+txt+(lost?' · 병이 모자라 '+lost+'마리는 놓아 줬다':''));
+  else toast(caught.length+'마리를 떴지만 담을 유리병이 없어 놓아 줬다');
 }
 
 /* ── 나무 오르기 ─────────────────────────────────────────────────────────── */

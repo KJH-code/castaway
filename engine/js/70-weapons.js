@@ -247,6 +247,13 @@ const WEAPON_FX={
   pick_steel(){ return pickMesh(0.80,'metal',0xb4b9be,0x5f4c3a); },
   net_cord(){ return netMesh(0xa89a68); },
   net_silk(){ return netMesh(0xe0dcd0); },
+  bug_net(){                                 // 잠자리채 — 긴 자루 끝에 둥근 테와 늘어진 자루
+    const g=new THREE.Group(); g.add(haft(0.62,0.011,0.013,0x8a6a44));
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(0.12,0.006,5,18),WMAT(0x6a5a3a)); ring.position.set(0,0.74,0); ring.rotation.y=Math.PI/2; g.add(ring);
+    const bag=new THREE.Mesh(new THREE.ConeGeometry(0.115,0.22,12,1,true),new THREE.MeshLambertMaterial({color:0xe8e2cc,wireframe:true}));
+    bag.position.set(0.10,0.74,0); bag.rotation.z=Math.PI/2; g.add(bag);
+    return {mesh:g, grip:0.10, rest:{rx:-0.25, rz:0.22}};
+  },
   torch(){                                   // 횃불 — 가지 끝에 섬유를 두툼히 감았다
     const g=new THREE.Group(), L=0.46;
     g.add(haft(L,0.017,0.021,0x4a3a29));

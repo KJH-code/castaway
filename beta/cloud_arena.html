@@ -167,7 +167,7 @@ scene.add(amb,hemi,sun);
     scene.add(p);
   }
 }
-// 시험장: 본편의 캠코더(js/46-camcorder.js)는 안 옮긴다 — renderFrame 이 부르는 두 함수만 빈 것으로
+// 시험장: 본편의 캠코더(engine/js/46-camcorder.js)는 안 옮긴다 — renderFrame 이 부르는 두 함수만 빈 것으로
 function camcBegin(){ return false; } function camcEnd(){}
 /* ---------------- 하늘 · 광원 · 시간 ---------------- */
 /* s = 천정색, z = 지평선색, u = 광원색, a = 환경광, d = 안개, i = 태양광 */
@@ -562,7 +562,9 @@ function updateWeather(){
   for(const k in CLOUD_KINDS) A[k]=0;
   /* WS6 은 '거의 맑음'의 평균(구름 40%)이라 그대로 쓰면 날마다 똑같이 40% 로 맑은 날이 없다.
      실제로는 맑은 날과 구름 낀 날이 섞인 평균이므로 날마다 0~2.8배로 흔든다(평균 약 1 · 약 3분의 1 은 0 — 맑은 날) */
-  const qn=2.8*clamp((weaNoise(T/18,weaSalt^0x61)-0.35)/0.4,0,1);   // 맑은 쪽 두 상태가 함께 오르내린다
+  /* 바닥을 0.28 로 — 0 이면 '맑은 날' 내내(castaway 시드는 첫 24시간) 하늘에 구름이 한 점도 없어 구름이 사라진 버그로 보였다
+     (사용자 지적). 맑은 날에도 뭉게구름 몇 점은 뜬다(구름양 약 10%) */
+  const qn=Math.max(0.28,2.8*clamp((weaNoise(T/18,weaSalt^0x61)-0.35)/0.4,0,1));   // 맑은 쪽 두 상태가 함께 오르내린다
   for(let s=1;s<=9;s++){ const P=WS_PROF[s]; if(!w[s]) continue; const m=w[s]*P._f*(s===6||s===9?qn:1);
     for(const k in P) A[k]+=m*P[k]; }
   // 갈래마다 제 흔들림(같은 상태 안에서도 날마다 조금씩 다르다)
@@ -1116,7 +1118,7 @@ function litQueue(ts){
 function cloudBounds(c){
   let x0=1e9,y0=1e9,z0=1e9,x1=-1e9,y1=-1e9,z1=-1e9,pad=0;
   for(let i=0;i<c.nb;i++){
-    const r=(c.rad[i]||0)*0.5; pad=Math.max(pad,r);
+    const r=(c.rad[i]||0)*0.75; pad=Math.max(pad,r);   // 판의 모서리(반지름의 0.71배)까지 — 0.5 였을 땐 화면 가장자리에서 덩이가 툭 잘려 사라지고 나타났다
     x0=Math.min(x0,c.off[i*3]);   x1=Math.max(x1,c.off[i*3]);
     y0=Math.min(y0,c.off[i*3+1]); y1=Math.max(y1,c.off[i*3+1]);
     z0=Math.min(z0,c.off[i*3+2]); z1=Math.max(z1,c.off[i*3+2]);
@@ -1879,9 +1881,21 @@ const WIND_GLSL={
                        cos(uTime*6.3+ph*4.0+transformed.z*9.0))*0.03*uWind.z;
          wpos.y +=sin(uTime*8.3+ph*6.0)*0.02*uWind.z;`
 };
+/* ── 땅에 녹아들기 ──────────────────────────────────────────────────────────
+   바위·줄기·뿌리가 땅에 '올려놓은' 것처럼 보이던 것(밑동에 칼로 자른 금)을 없앤다(사용자 요청: 바탕 그림과 제 그림을 섞어
+   물체가 바탕에 녹아들게 · 만나는 금은 들쭉날쭉하게 · 모서리는 둥글게). 재질에 `userData.melt = 높이(m)` 를 적어 두면:
+     ① 정점 셰이더가 **땅에서 얼마나 떠 있나**(vMeltH)를 센다 — 인스턴스는 제 밑동(인스턴스 원점)에서, 통짜 메시는 표고 텍스처
+        (물 셰이더가 쓰는 `uElev` — 네 점을 직접 섞는다)에서. 지오메트리에 `aMelt`(정점마다의 녹는 높이 — 바위는 제 크기의 0.4배)가
+        있으면 `userData.meltAttr` 로 그것을 쓴다.
+     ② **모서리를 둥글린다** — 그 높이 안의 법선을 땅의 법선(위) 쪽으로 눕혀 밑동의 명암이 땅과 이어지게 하고, 밑동의 정점을
+        바깥으로 살짝 벌려 턱을 만든다(땅에 묻힌 듯).
+     ③ 조각 셰이더가 그 높이 안을 **그 자리의 땅 그림**으로 덮는다 — 땅 셰이더가 읽는 바이옴 색(`uBio`)에 땅의 얼룩(잡음 `uNz`)을
+        곱한 것. 덮이는 금은 굵은 잡음이 혀처럼 올라오고 잔 잡음이 톱니를 내서 **들쭉날쭉**하다.
+   값: 정점마다 덧셈 몇 번(통짜 메시는 텍스처 네 번) · 화소는 그 높이 안팎에서 텍스처 두 번(+ 덮이는 데서 두 번). 미리 구운 그림은 없다 */
 function envPatch(m){
   if(!m||m.userData._env) return;
   const lam=!!m.isMeshLambertMaterial, dep=!!m.isMeshDepthMaterial;
+  const melt=lam&&m.userData.melt>0?+m.userData.melt:0, meltA=!!m.userData.meltAttr, meltT=!!m.userData.meltTex;
   /* 바람 흔들림은 껐다(`WIND_ON`) — 풀·잎·베리·가지 정점마다 사인파를 셌는데, 정점이 한 프레임에
      수백만 개라 가장 비싼 축에 들었다. 켜려면 true 로(코드는 그대로 남아 있다). */
   const wind=WIND_ON&&m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';
@@ -1892,8 +1906,15 @@ function envPatch(m){
     if(prev&&prev!==THREE.Material.prototype.onBeforeCompile) prev(sh,r);
     Object.assign(sh.uniforms,{csFine:CSH.fine, csCoarse:CSH.coarse, csC:CSH.ctr,
       csS:CSH.size, csOn:CSH.on, uTime:CSH.time, uWind:CSH.wind});
+    if(melt){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
+      for(const k in MU) if(MU[k]&&!sh.uniforms[k]) sh.uniforms[k]=MU[k]; }
+    const has=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.vertexShader+sh.fragmentShader);   // 제 셰이더가 이미 선언했으면 다시 안 한다
+    const MV=melt?(has('uElev')?'':'uniform sampler2D uElev;\n')+(has('uGrid')?'':'uniform vec2 uGrid;\n')+(meltA?'attribute float aMelt;\n':'')+`varying float vMeltH;
+varying float vMeltT;
+float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.x-1.0))),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*300.0-100.0; }
+`:'';
     const W=WIND_GLSL[wind]||'';
-    sh.vertexShader='uniform float uTime;\nuniform vec3 uWind;\nvarying vec2 vCsXZ;\n'+
+    sh.vertexShader='uniform float uTime;\nuniform vec3 uWind;\nvarying vec2 vCsXZ;\n'+MV+
       sh.vertexShader.replace('#include <project_vertex>',`
       vec4 wpos=vec4(transformed,1.0);
       vec4 wb4=vec4(0.0,0.0,0.0,1.0);
@@ -1905,6 +1926,21 @@ function envPatch(m){
       ${W?`float ph=dot(wb4.xz,uWind.xy)*0.06+dot(wb4.xz,vec2(0.031,0.017));
       float sw=uWind.z*(sin(uTime*1.7-ph)*0.6+sin(uTime*3.1-ph*1.9)*0.25+0.55);
       ${W}`:''}
+      ${melt?`{
+        float mT=${meltA?'aMelt':melt.toFixed(3)}, mH;
+        ${meltT?'':`#ifdef USE_INSTANCING
+          mH=wpos.y-wb4.y;
+        #else`}
+          { vec2 mg=wpos.xz/uGrid.y+uGrid.x*0.5, mf=fract(mg); mg=floor(mg);
+            mH=wpos.y-mix(mix(meltE(mg),meltE(mg+vec2(1.0,0.0)),mf.x),mix(meltE(mg+vec2(0.0,1.0)),meltE(mg+vec2(1.0,1.0)),mf.x),mf.y); }
+        ${meltT?'':'#endif'}
+        float mK=1.0-smoothstep(0.0,mT,mH);
+        vec3 mWN=normalize((vec4(transformedNormal,0.0)*viewMatrix).xyz);                 // 세계 좌표의 법선
+        float mHL=length(mWN.xz);
+        if(mHL>0.001) wpos.xz+=mWN.xz/mHL*(mK*mK*mT*0.20*mHL);                             // 밑동을 벌린다(둥근 턱)
+        transformedNormal=normalize(mix(transformedNormal,normalize((viewMatrix*vec4(0.0,1.0,0.0,0.0)).xyz),mK*0.78));   // 법선을 땅 쪽으로 눕힌다
+        vMeltH=mH; vMeltT=mT;
+      }`:''}
       vCsXZ=wpos.xz;
       vec4 mvPosition=viewMatrix*wpos;
       gl_Position=projectionMatrix*mvPosition;`);
@@ -1921,11 +1957,26 @@ float cloudSh(){
   return mix(1.0,exp(-t),csOn*e.x*e.y);
 }
 `+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();');
+    if(melt){
+      const fh=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.fragmentShader);
+      sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')
+        +(fh('uNz')?'':'uniform sampler2D uNz;\n')+'varying float vMeltH;\nvarying float vMeltT;\n'
+        +sh.fragmentShader.replace('#include <alphatest_fragment>',`#include <alphatest_fragment>
+      if(vMeltH<vMeltT*1.5){
+        /* 덮이는 금 — 굵은 잡음(1.9 m)이 혀처럼 올라오고 잔 잡음(0.4 m)이 톱니를 낸다. 금 자체는 좁게(그 높이의 45%) 넘어간다 */
+        float mN=texture2D(uNz,vCsXZ/1.9).r, mF=texture2D(uNz,vCsXZ/0.41+0.31).g;
+        float mE=vMeltT*(0.30+0.95*mN*mN+0.38*(mF-0.5));
+        float mk=1.0-smoothstep(mE*0.55,mE,vMeltH);
+        if(mk>0.004){
+          vec3 mg=texture2D(uBio,(vCsXZ/uCell+uBioN*0.5+0.5)/uBioN).rgb;
+          float md=0.84+0.42*(texture2D(uNz,vCsXZ/0.93+0.17).b-0.5)+0.26*(mF-0.5);          // 땅의 얼룩
+          diffuseColor.rgb=mix(diffuseColor.rgb,mg*md,mk*0.94); } }`);
+    }
   };
   /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
      다른 램버트 재질과 같은 프로그램으로 묶여 제 코드가 통째로 빠졌다 */
   const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
-  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(pk?'-'+pk.call(m):'');
+  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(melt?'m'+melt+(meltA?'a':'')+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
   m.needsUpdate=true;
 }
 
@@ -2399,31 +2450,37 @@ function updateSky(){
   const luxS=0.002*(1-clamp(WEA.cover,0,1)*0.6);
   const perc=(luxM+luxS)/0.26, percM=luxM/0.26;     // 조도 그대로(눈 순응 보정 없음 — 사용자 요청)
   MOON.lux=luxM+luxS; MOON.perc=perc;
-  if(sy<-0.05 && mmy>-0.02){
-    /* 밤에는 달이 광원이다(해가 지평선 밑이면 땅 밑에서 비추게 된다) */
-    sun.position.set(Math.cos(mAng)*400, mmy*380+60, 150);
-    sun.intensity=lerp(sun.intensity, 0.16*percM, nightK);
+  /* **해에서 달로 넘어가기** — 예전엔 해가 지평선 밑 3° 에 닿는 순간 빛의 방향을 달 쪽으로(달이 없으면 머리 위로) 홱 돌렸는데,
+     그때 세기는 아직 낮의 절반이었다. 그래서 노을 한가운데서 빛과 그림자가 한 프레임에 뒤집혔다(사용자 지적: 해가 갑자기
+     없어진다). 이제 ① 햇빛은 해가 +4.6° 에서 −3.4° 로 가라앉는 동안 0 까지 사그라지고(방향은 끝까지 해 쪽)
+     ② 그 뒤에야 달빛이 0 에서 올라온다. 방향이 바뀌는 순간의 세기는 0 이다.
+     **달빛**(사용자 요청) — 해와 같은 평행광이고 그림자도 드리운다. 해보다 훨씬 어둡고(보름 천정 0.42 · 해 1.08)
+     은은한 푸른빛이다. 달이 차고 높이 뜰수록 밝다. 그늘은 채우지 않는다 — 달그림자 속은 깜깜하다 */
+  const sunFade=clamp((sy+0.06)/0.14,0,1);
+  const moonFade=clamp((-sy-0.06)/0.10,0,1)*clamp(mmy*6+0.1,0,1);
+  if(moonFade>0){
+    sun.position.set(Math.cos(mAng)*400, Math.max(mmy,0.04)*380+60, 150);
+    sun.intensity=0.42*moonFade*(0.25+0.75*MOON.illum)*clamp(mEl*2.5,0.2,1)*cloudCut;
   }else{
-    sun.position.set(sx*400, sy*380+60, 150);
-    // 해도 달도 진 깜깜한 밤 — 남은 희미한 빛이라도 위에서 와야 한다
-    if(sy<-0.05){ sun.position.y=90; sun.intensity=lerp(sun.intensity,0,nightK); }
+    sun.position.set(sx*400, Math.max(sy,0.02)*380+60, 150);
+    sun.intensity*=sunFade;
   }
-  amb.intensity*=lerp(1,1.5*perc,nightK);
-  hemi.intensity=lerp(0.18,0.18*perc,nightK)+amb.intensity*0.5;
+  /* 밤의 그늘은 거의 0 이다(사용자 요청: 달그림자는 광도 0) — 하늘빛·환경광을 달빛만큼 올리지 않고 별빛 수준에 묶는다 */
+  amb.intensity*=lerp(1,0.5*perc,nightK);
+  hemi.intensity=lerp(0.18,0.012+0.02*perc,nightK)+amb.intensity*0.5;
   /* **빛의 색조**(사용자 요청) — 산란식이 내는 색은 눈의 순응을 거쳐 거의 흰빛으로 눅는다. 그 위에 한 겹 더 물들인다.
        · 노을·새벽(해가 지평선에서 17° 안) — 볕이 닿는 데는 **주황**, 그늘을 채우는 하늘빛·환경광은 **보라**.
-       · 달이 뜬 밤 — 달빛도 그늘도 **푸른빛**. 달이 밝을수록(차고 높을수록) 그늘을 푸른 빛으로 조금 더 채운다.
+       · 달이 뜬 밤 — 달빛이 **은은한 푸른빛**이다.
      화면 전체의 색조(밝은 데·어두운 데를 따로 물들이기)는 캠코더 후처리(46-camcorder.js)가 `SKYL.grade` 를 받아 한 번 더 한다 */
   {
     const low=clamp(1-sy/0.30,0,1)*clamp((sy+0.16)/0.14,0,1);            // 노을·새벽 1 · 한낮·한밤 0
-    const moonUp=nightK*clamp(mmy*5+0.15,0,1);                           // 달이 뜬 밤 1
+    const moonUp=moonFade;                                               // 달이 뜬 밤 1
     /* 물들이되 어두워지지는 않게 — 보라·푸른빛은 밝기(휘도)가 1 에 가깝도록 파랑을 1 넘게 준다 */
     sun.color.lerp(cTmp.setRGB(1.25,0.62,0.24),low*0.80);
     hemi.color.lerp(cTmp.setRGB(1.0,0.70,1.65),low*0.80); amb.color.lerp(cTmp,low*0.70);
-    if(moonUp>0){
-      sun.color.lerp(cTmp.setRGB(0.55,0.80,1.45),moonUp*0.85);
-      hemi.color.lerp(cTmp.setRGB(0.45,0.72,1.60),moonUp*0.85); amb.color.lerp(cTmp,moonUp*0.80);
-      hemi.intensity+=0.10*moonUp*Math.sqrt(MOON.illum);
+    if(moonUp>0){                                                        // 은은한 푸른빛 — 그늘은 채우지 않는다(달그림자는 깜깜하다)
+      sun.color.lerp(cTmp.setRGB(0.72,0.84,1.10),moonUp);
+      hemi.color.lerp(cTmp.setRGB(0.60,0.78,1.25),moonUp*0.7); amb.color.lerp(cTmp,moonUp*0.6);
     }
     SKYL.grade.low=low; SKYL.grade.moon=moonUp*Math.sqrt(MOON.illum); SKYL.grade.night=nightK;
   }
@@ -2452,12 +2509,14 @@ function updateSky(){
     const U=sunDisc.material.uniforms, G=sunGlow.material.uniforms;
     U.uCol.value.copy(cSun).lerp(_white3,clamp(_sd3.y*3,0,0.75));
     const vis=(1-WEA.mist*0.85)*(1-clamp((WEA.cover-0.75)*3,0,0.9));
-    U.uOp.value=clamp((_sd3.y+0.012)/0.02,0,1)*vis;
+    /* 해 원판은 **지평선 밑으로 다 내려갈 때까지** 그린다(땅과 바다가 가린다). 예전엔 해가 아직 지평선에 걸려 있을 때
+       0.7° 사이에 지워 버려, 노을 한가운데서 해가 갑자기 사라졌다 */
+    U.uOp.value=clamp((_sd3.y+0.085)/0.03,0,1)*vis;
     U.uK.value=lerp(1.15,4,clamp(_sd3.y*5,0,1));     // 지평선의 해는 똑바로 볼 수 있을 만큼 어둡다
     G.uCol.value.copy(cSun).lerp(_white3,clamp(_sd3.y*2,0,0.5));
-    G.uOp.value=clamp((_sd3.y+0.05)/0.06,0,1)*vis*(0.55+0.45*clamp(1-_sd3.y*2,0,1));
+    G.uOp.value=clamp((_sd3.y+0.13)/0.12,0,1)*vis*(0.55+0.45*clamp(1-_sd3.y*2,0,1));
     G.uW.value=clamp(11-turb*0.9-WEA.mist*4,3,11);
-    sunDisc.visible=sunGlow.visible=_sd3.y>-0.03;
+    sunDisc.visible=_sd3.y>-0.09; sunGlow.visible=_sd3.y>-0.13;
   }
   if(moonDisc){
     const D=1200;
@@ -2491,22 +2550,23 @@ function updateSky(){
        주황·분홍으로 빛난다. 광원색 쪽으로 더 끌고, 어둡게 누르는 몫을 줄였다 */
     cloudTint.copy(cHz).lerp(cSun,0.55).multiplyScalar(0.72+day*0.58);
     if(sy>0.15) cloudTint.lerp(cTmp.setRGB(1,1,1),clamp((sy-0.15)*1.6,0,0.7));
-    cloudFade=(0.35+day*0.65)*(1-WEA.mist*0.9);
+    cloudFade=(0.82+day*0.18)*(1-WEA.mist*0.9);   // 밤에도 구름은 그대로 있다(사용자 요청 — 예전 0.35 라 밤하늘이 텅 비었다) · 별을 가린다
   }
   if(stars){
     stars.position.copy(camera.position);
     stars.material.opacity=clamp(-sy*1.9-0.10,0,1)*(1-WEA.mist);
   }
-  if(ocean) ocean.position.set(camera.position.x,0,camera.position.z);
+  if(ocean) ocean.position.set(Math.round(camera.position.x/4)*4,0,Math.round(camera.position.z/4)*4);   // 4 m 눈금 — 촘촘한 가운데가 사람을 따라온다(20-terrain.js)
   /* 물이 받는 빛 — 해(색×세기)와 하늘빛, 비칠 하늘(천정·지평선).
      구름 시험장에는 물이 없다(하늘 구역만 베껴 간다) */
   if(typeof WATER_U!=='undefined'){
-  WATER_U.uSunDir.value.copy(_sd3);
-  WATER_U.uSunCol.value.copy(sun.color).multiplyScalar(sy>-0.05?sun.intensity:0);
+  /* 물에 비치는 것 — 낮에는 해, 달이 뜬 밤에는 달(달빛 윤슬) */
+  WATER_U.uSunDir.value.copy(moonFade>0?_md3:_sd3);
+  WATER_U.uSunCol.value.copy(sun.color).multiplyScalar(sun.intensity);
   WATER_U.uAmb.value.copy(hemi.color).multiplyScalar(hemi.intensity*0.6)
     .add(cTmp.copy(amb.color).multiplyScalar(amb.intensity*0.6));
   WATER_U.uSkyZ.value.copy(cSky); WATER_U.uSkyH.value.copy(cHz);
-  TERR_U.uSunDir.value.copy(_sd3);
+  TERR_U.uSunDir.value.copy(moonFade>0?_md3:_sd3);
   }
 }
 
