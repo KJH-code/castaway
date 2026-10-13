@@ -7,7 +7,7 @@
 - Three.js r128을 레포 안의 `engine/three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 본편은 `island_world.html`(뼈대) + `engine/css/game.css` + `engine/js/*.js` 29개로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 211종 · 레시피 174개
+- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 31개로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 222종 · 레시피 181개
 - 라이선스 GPL-3.0
 
 ## 폴더
@@ -329,6 +329,32 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   합치기 전에 문법 검사·구동 검사(`check-syntax` · `smoke`)는 통과시켜 둘 것.
 
 ## 규칙
+
+- **섬 배율(`P.ws`)** — 섬은 늘 칸 2.5 m(`GCELL`) · 1,920 m 로 만든 뒤 `worldRescale` 이 통째로(가로·세로·높이) ws 배로 키운다.
+  새 섬은 2(3,840 m) · 설정 '섬 넓이' 로 1·2·3. **`CELL` · `WORLD` · `HALF` 는 변수다**(`setWorldScale`) — 불러오는 순간 도는 코드에서
+  이 셋으로 다른 상수를 만들어 두지 말 것(함수 안에서 읽는다). 지형 생성·침식·유량은 `GCELL` 로 센다. 배율이 없는 옛 저장은 1 로 읽는다.
+  배율 1 의 섬은 자원 배치의 난수 차례가 예전과 같아야 한다(`placeResources` 의 `WS===1` 갈래를 건드리지 말 것).
+- **C 로 짠 침식(`engine/native/erosion.c` → `engine/js/data-native-wasm.js`)은 JS 판과 한 비트도 달라선 안 된다.**
+  `thermal` · `hydraulic` · `smoothTerrain` 한쪽을 고치면 다른 쪽도 고치고 `nativeVerify()` 가 전부 same 인지 볼 것
+  (`sh env/setup-zig.sh` → `sh engine/native/build.sh` → `node tools/probe.mjs island_world.html "nativeVerify()"`).
+- **프레임은 삼각형 수가 정한다**(성능 창 F3 — '본장면 △'). 놀이 로직은 프레임당 0.4 ms 라 언어를 바꿔도 프레임은 안 는다.
+  나무의 '제 가지 그대로' 는 사람이 선 칸과 테두리 10 m 안 이웃뿐(`FULL_EDGE` · 이웃은 성긴 가지 `limbLod`), 복제 단계는 `FAR_LOD` · `LOD0_EDGE`.
+  **자동 품질 `QUAL.k`**(0.45~1)가 이 거리들과 풀·덤불 반경에 곱해진다 — 프레임을 잴 때는 `QUAL.on=false` 로 끄고 잴 것.
+  바위 칸(`ROCK_TILES`)·나무 칸의 가지는 **가까워질 때 빚고 멀어지면 버린다** — `t.m` · `p._batch` · `p._lb` 가 null 일 수 있다.
+- **화면 위에 `mix-blend-mode` 나 움직이는 전체 화면 DOM 겹을 얹지 말 것** — 브라우저가 프레임마다 화면을 따로 합성해 프레임이 크게 떨어진다.
+  화면 효과(잡음·주사선·색조)는 캠코더 셰이더(`46-camcorder.js`) 안에서 한다. 창의 잡음 무늬는 움직이지 않는 바탕 그림이다(`--tvn`).
+- **가방은 I 하나로 연다**(C 는 앉기만). 가방을 열어도 시간은 흐르고 몸만 선다(`updatePlayer` 의 `NO_KEYS`) — 사전만 멈춘다(`uiHold`).
+  가방은 두 탭이다(`bagTab` — 소지품 · 제작). 소지품은 갈래(`itemCat`)와 내 칸(`INV.pockets` · 슬롯의 `pk`)으로 묶고,
+  제작은 기술 나무(`drawCraft` — 탭 `craftCat` · 단 `TIER_ORDER` · 줄 `craftEdges`)다. 마디를 누르면 고르고(`CRAFT.sel`) 다시 누르면 만든다.
+  **새 제작법은 `tier` 가 `TIER_ORDER` 에 있어야 나무에 선다.**
+- **세상에 선 것은 전부 무엇인가를 준다**(보급선만 빼고) — 식생은 `FLORA_KIND[].pick` → `FLORA_PICK`, 바다는 `SEA_PICK`, 자갈밭의 잔돌은
+  `RUBBLE.picks`, 노거수는 `gbark`·`gresin`. 새로 세우는 것에도 얻을 것을 달 것. 낮은 것(`low`·`hide`)은 똑바로 내려다봐야 잡히고,
+  무기·도끼·곡괭이·그물을 들었으면 안 잡힌다(`floraHandOK`) — 좌클릭을 가로채지 않게.
+- **r128 은 재질 하나에 셰이더가 하나다** — `InstancedMesh` 와 보통 `Mesh` 가 재질을 나눠 쓰면 안 되고, 재질을 나눠 쓰는 인스턴스 메시는
+  전부 인스턴스 색(`setColorAt`)이 있어야 한다(없으면 그릴 때 죽는다 — 노거수 뿌리가 `GIANT.rootMat` 을 따로 쓰는 까닭).
+- **베타 빌드** — `sh beta/build-mac.sh` 가 `beta/builds/` 에 `CASTAWAY.app` 과 `.dmg` 를 만든다(레포에 안 담는다 · 200 MB 넘음).
+  npm 캐시는 `env/.cache/npm`(홈의 캐시 권한이 꼬인 기계가 있다). 학습 자료는 `tools/ai/data/` 에 **담는다**(계획은 `tools/ai/README.md`).
+- **조사한 그래픽 엔진·기법과 측정값은 `docs/graphics-engines.md`** — 확인한 것만 적었다. 새 기법을 넣으면 거기 표에 잰 값을 더할 것.
 
 - **바다 밑은 1.6배 깊다**(`genBase` — 해안 완만화 뒤 `e<0` 이면 ×1.6. 해안선은 그대로).
   **하폭은 4~19 m**(`rM` 2.2~9.5 — 예전 1.6~7 의 1.35배). **헤엄은 수심 2.2 m(하천 2.6 m) 넘고 발이 1 m 넘게

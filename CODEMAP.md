@@ -60,6 +60,17 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/98-bag.js` | The full-screen **bag screen**: inventory + selected-item panel (actions, what it can make) + crafting, side by side |
 | `engine/js/99-main.js` | The frame loop (`loop()`), and the five calls at the very end that start the game |
 
+## Things added on 2026-10-13 (short map)
+
+- **World scale** — `GCELL` / `setWorldScale` in `00-core.js`, `worldRescale` in `10-worldgen.js`. Islands are generated at 1.92 km
+  and scaled uniformly; `CELL`, `WORLD`, `HALF` are variables now.
+- **Level of detail and automatic quality** — `updateTileVis`, `limbLod`, `QUAL` in `30-props.js`.
+- **Bag screen** — `98-bag.js` (two tabs, tooltips, recipe detail), `drawInv` / `invChip` in `50-items.js` (categories, pockets),
+  `drawCraft` / `craftEdges` in `55-craft.js` (skill tree).
+- **Everything is interactable** — `FLORA_PICK` (`95-flora.js`), `SEA_PICK` (`96-sea.js`), `RUBBLE.picks` (`30-props.js`).
+- **Presets** — `presets/presets.js` (graphics and island presets shown in the settings panel).
+- **Research and measurements** — `docs/graphics-engines.md`.
+
 ## Rules of thumb when editing
 
 - **Load order matters.** A file may *call* functions from any other file at run time,

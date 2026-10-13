@@ -12,6 +12,7 @@ __pycache__/
 env/zig/
 env/py/
 env/.cache/
-# 학습 자료와 학습된 모델 가중치(크다) — 내보낸 결과만 presets/random_textures/ 에 담는다
-tools/ai/data/
+# 학습 자료(tools/ai/data/)는 **레포에 담는다** — 학습 중간 산출물만 뺀다
 tools/ai/runs/
+# 베타 빌드(.app · .dmg — 200 MB 를 넘는다)는 담지 않는다: sh beta/build-mac.sh 가 다시 만든다
+beta/builds/
