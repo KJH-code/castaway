@@ -10,6 +10,7 @@
      칸 번호의 해시로 정하므로 같은 섬에는 늘 같은 자리에 선다. 섬 생성(자원 배치)·저장과 무관하다.
      큰 나무·바위와 줄기가 겹치면 자리를 조금 옮겨 보고, 안 되면 그 칸은 비운다.
    · 생김새 셋 — 0 판근이 높은 케이폭(우산 같은 수관) · 1 가지에서 공기뿌리가 늘어지는 반얀 · 2 붉은 껍질의 삼나무.
+     종류마다 네 벌(`GIANT_VARS`) — 키 ±10% · 큰 가지 수 · 공기뿌리 수 · 가지 층이 벌마다 다르고 판근 짜임은 같다(충돌 테두리가 따른다).
      줄기·수관은 종류마다 한 벌을 지어 인스턴스로 세우고(128 m 칸마다 묶어 화면 밖 칸을 거른다),
      **뿌리는 나무마다 그 자리의 땅을 따라 따로 짓는다**.
    · 뿌리가 땅이다 — `giantRootAt(x,z)` 가 그 자리의 뿌리 높이를 돌려주고, 설 자리(`floorAt`)가 그만큼 높아진다.
@@ -22,8 +23,14 @@ const GIANT_KIND=[
   {n:'반얀',   r:1.9, nb:7, rootL:7.5, rootH:1.1},
   {n:'삼나무', r:1.7, nb:5, rootL:6.5, rootH:1.0}
 ];
+/* 종류마다 생김새 벌 수 — 줄기(판근 수·굵기)는 종류마다 같고(충돌 테두리가 이걸 따른다) 높이·가지·공기뿌리·가지 층이 벌마다 다르다 */
+const GIANT_VARS=4;
 function giantGeos(){
-  const rnd=mulberry32(0x61a47), K=floraKit(rnd), {unit,face,card,grow,fin}=K;
+  GIANT.geo=[[],[],[]];
+  for(let w=0;w<GIANT_VARS;w++){ const G=giantShapes(mulberry32((0x61a47+w*0x9e3779b1)>>>0)); G.forEach((g,v)=>GIANT.geo[v].push(g)); }
+}
+function giantShapes(rnd){
+  const K=floraKit(rnd), {unit,face,card,grow,fin}=K, rf=(a,b)=>a+(b-a)*rnd(), ri=(a,b)=>a+Math.floor(rnd()*(b-a+1));
   /* 줄기 — 밑동에서 판근이 날개처럼 벌어진다. 판근 방향은 뿌리(`giantRoots`)와 같은 각이다 */
   const bole=(H,r0,r1,nb,but,c,c2,sway)=>({g:SHP.grid(22,11,(u,v)=>{
       const th=u*6.2832, y=-0.8+(H+0.8)*Math.pow(v,1.7), t=clamp(y/H,0,1);
@@ -33,28 +40,28 @@ function giantGeos(){
     },true),cell:FC.BARK,c,c2});
   const G=[];
   { // 0 케이폭 — 줄기가 16 m 까지 매끈하고 그 위로 큰 가지 일곱이 우산처럼 퍼진다(키 30 m · 수관 지름 24 m)
-    const parts=[bole(19,1.5,0.9,6,1.7,[0.46,0.40,0.34],[0.62,0.56,0.48],1)];
+    const hk=rf(0.9,1.1), parts=[bole(19*hk,1.5,0.9,6,1.7,[0.46,0.40,0.34],[0.62,0.56,0.48],rf(0.5,1.5))];
     const S={taper:0.66,split:[2,3],spread:1.4,up:0.5,lift:0.30,shrink:0.70,bend:0.06,leafN:5,leafW:4.2,leafH:3.6,leafCell:FC.LEAF,leafTilt:0.9,leafC:[0.84,1,0.84],vine:0.25,vineH:4,bark:[0.46,0.40,0.34],bark2:[0.62,0.56,0.48]};
-    for(let i=0;i<7;i++){ const a=i/7*6.283+rnd()*0.5;
-      grow(parts,[Math.cos(a)*0.5,16.5+rnd()*2.5,Math.sin(a)*0.5],unit(Math.cos(a),0.55,Math.sin(a)),7.5+rnd()*2.5,0.55,2,S); }
+    for(let i=0,nb=ri(6,8);i<nb;i++){ const a=i/nb*6.283+rnd()*0.5;
+      grow(parts,[Math.cos(a)*0.5,(16.5+rnd()*2.5)*hk,Math.sin(a)*0.5],unit(Math.cos(a),0.55,Math.sin(a)),7.5+rnd()*2.5,0.55,2,S); }
     G.push(fin(parts)); }
   { // 1 반얀 — 굵고 낮은 줄기, 넓게 누운 가지에서 공기뿌리가 땅까지 늘어진다(키 22 m · 수관 지름 28 m)
-    const BB=[0.42,0.36,0.30], BB2=[0.58,0.50,0.42], parts=[bole(11,1.9,1.3,7,1.2,BB,BB2,0.5)];
+    const BB=[0.42,0.36,0.30], BB2=[0.58,0.50,0.42], hk=rf(0.9,1.12), parts=[bole(11*hk,1.9,1.3,7,1.2,BB,BB2,rf(0.2,0.8))];
     const S={taper:0.68,split:[2,3],spread:1.5,up:0.4,lift:0.28,shrink:0.72,bend:0.03,leafN:5,leafW:3.8,leafH:3.2,leafCell:FC.MANG,leafTilt:1.0,leafC:[0.86,1,0.88],bark:BB,bark2:BB2};
-    for(let i=0;i<8;i++){ const a=i/8*6.283+rnd()*0.5, y0=8.5+rnd()*2.5, L=8+rnd()*3, d=unit(Math.cos(a),0.38,Math.sin(a));
+    for(let i=0,nb=ri(7,9);i<nb;i++){ const a=i/nb*6.283+rnd()*0.5, y0=(8.5+rnd()*2.5)*hk, L=8+rnd()*3, d=unit(Math.cos(a),0.38,Math.sin(a));
       grow(parts,[Math.cos(a)*0.8,y0,Math.sin(a)*0.8],d,L,0.6,2,S);
-      for(let k=0;k<2;k++){ const t=0.45+k*0.35+rnd()*0.1, x=Math.cos(a)*0.8+d[0]*L*t, z=Math.sin(a)*0.8+d[2]*L*t, y=y0+d[1]*L*t;   // 공기뿌리
+      for(let k=0,na=ri(1,3);k<na;k++){ const t=0.45+k*0.7/na+rnd()*0.1, x=Math.cos(a)*0.8+d[0]*L*t, z=Math.sin(a)*0.8+d[2]*L*t, y=y0+d[1]*L*t;   // 공기뿌리
         parts.push({g:SHP.tube([[x,y,z],[x+0.1,y*0.55,z-0.08],[x,y*0.15,z+0.05],[x,-0.8,z]],[0.10,0.08,0.09,0.13],5,0),cell:FC.BARK,c:BB,c2:BB2}); } }
     G.push(fin(parts)); }
   { // 2 삼나무 — 붉은 껍질의 곧은 줄기, 위로 갈수록 짧아지는 가지 층(키 40 m)
-    const RB=[0.52,0.33,0.24], RB2=[0.66,0.44,0.32], parts=[bole(38,1.7,0.25,5,1.0,RB,RB2,0.3)], NC=[0.86,1,0.92];
-    for(let j=0;j<11;j++){ const y=13+j*2.3, L=7.5*(1-j/13);
-      for(let i=0;i<5;i++){ const a=i/5*6.283+j*0.9+rnd()*0.3, d=unit(Math.cos(a),-0.12,Math.sin(a));
+    const RB=[0.52,0.33,0.24], RB2=[0.66,0.44,0.32], hk=rf(0.9,1.1), parts=[bole(38*hk,1.7,0.25,5,1.0,RB,RB2,rf(0.1,0.5))], NC=[0.86,1,0.92], nl=ri(10,12);
+    for(let j=0;j<nl;j++){ const y=(13+j*25.3/nl)*hk, L=7.5*rf(0.9,1.1)*(1-j/(nl+2));
+      for(let i=0,nk=ri(4,6);i<nk;i++){ const a=i/nk*6.283+j*0.9+rnd()*0.3, d=unit(Math.cos(a),-0.12,Math.sin(a));
         parts.push({g:SHP.limb([Math.cos(a)*0.4,y,Math.sin(a)*0.4],d,L*0.9,0.20*(1-j/14),0.05,2,5,-0.03,0.6),cell:FC.BARK,c:RB,c2:RB2});
         for(let k=0;k<3;k++){ const t=0.35+k*0.3; parts.push(card([Math.cos(a)*0.4+d[0]*L*0.9*t,y+d[1]*L*0.9*t-0.6,Math.sin(a)*0.4+d[2]*L*0.9*t],L*0.55,L*0.55,FC.NEEDLE,a+(k-1)*0.5,1.3,NC)); } } }
-    parts.push(card([0,36.5,0],2.5,4.5,FC.NEEDLE,0,0,NC));
+    parts.push(card([0,36.5*hk,0],2.5,4.5,FC.NEEDLE,0,0,NC));
     G.push(fin(parts)); }
-  GIANT.geo=G;
+  return G;
 }
 /* 한 그루의 뿌리 모양 — 뿌리 k 의 방향 · 길이 · 높이 · 구불거림(나무의 해시로 정한다) */
 function giantRoots(g){
@@ -97,7 +104,7 @@ function giantsBuild(){
         for(const o of a){ const ox=wx-o.x, oz=wz-o.z, q=o.r+rr; if(ox*ox+oz*oz<q*q){ hit=true; break; } }
       }
       if(hit) continue;
-      placed={gx,gz,x:wx,z:wz,y:heightAt(wx,wz),s,v,yaw:((h>>>12)&1023)/1023*6.283};
+      placed={gx,gz,x:wx,z:wz,y:heightAt(wx,wz),s,v,w:floraHash(gx,gz,96)%GIANT_VARS,yaw:((h>>>12)&1023)/1023*6.283};
     }
     if(!placed) continue;
     placed.roots=giantRoots(placed);
@@ -121,9 +128,9 @@ function giantsBuild(){
   if(!GIANT.rootMat) GIANT.rootMat=FLORA.mat.clone();
   const tint=new THREE.Color();
   for(const b of bins.values()){
-    for(let v=0;v<GIANT.geo.length;v++){
-      const ls=b.filter(g=>g.v===v); if(!ls.length) continue;
-      const im=new THREE.InstancedMesh(GIANT.geo[v],FLORA.mat,ls.length);
+    for(let v=0;v<GIANT.geo.length;v++) for(let w=0;w<GIANT.geo[v].length;w++){
+      const ls=b.filter(g=>g.v===v&&g.w===w); if(!ls.length) continue;
+      const im=new THREE.InstancedMesh(GIANT.geo[v][w],FLORA.mat,ls.length);
       ls.forEach((g,i)=>{ E.set(0,-g.yaw,0); Q.setFromEuler(E); V.set(g.x,g.y,g.z); Sc.set(g.s,g.s,g.s); M.compose(V,Q,Sc); im.setMatrixAt(i,M);
         const k=0.88+0.2*((floraHash(g.gx,g.gz,94)&255)/255); im.setColorAt(i,tint.setRGB(k,k,k*0.96)); });   // 그루마다 살짝 다른 톤(인스턴스 색 칸이 꼭 있어야 한다)
       im.instanceMatrix.needsUpdate=true; im.instanceColor.needsUpdate=true; im.customDepthMaterial=FLORA.depth; add(im,false); boundMesh(im);

@@ -24,6 +24,9 @@
       딴 자리는 하루 이틀 뒤 다시 난다(`FLORA.taken` — 저장된다).
    ⑤ 두 겹으로 깐다 — 나무는 6 m 칸 · 사람 둘레 110 m, 덤불·고사리는 2.4 m 칸 · 46 m. 자리는 전부 칸 번호의 해시라
       같은 섬 같은 자리에 늘 같은 것이 선다. 섬 생성(자원 배치)과 무관하다.
+   ⑥ **그루마다 생김새가 다르다** — 종류마다 씨앗만 바꿔 여러 벌을 지어 두고(`floraShapes` · 벌 수 `FLORA_VARS` — 나무 8 · 덤불·고사리 6 ·
+      꽃·마른 덤불·버섯 4) 칸 번호의 해시로 그루마다 한 벌을 고른다. 짜임(줄기·가지 치는 법·잎 그림)은 그대로고 가지·잎·줄기 수는
+      원래 값의 ±1~2, 키는 ±10% 안에서만 흔든다. 벌마다 인스턴스 메시가 하나라 `FLORA.m[종류]` 는 배열이다.
    노거수(뿌리가 땅이 되는 큰 나무)는 95-giants.js 가 '노거수 숲' 군락에 세운다.
    ========================================================================== */
 const FLORA={seed:0, m:null, mat:null, depth:null, tex:null, patch:84, taken:new Map(), look:null,
@@ -252,32 +255,35 @@ function floraKit(rnd){
     return SHP.merge(parts,true); };
   return {W,BARK,BARK2,unit,face,card,trunk,grow,fin};
 }
-function floraBuild(){
-  const rnd=mulberry32(0xf10a), {W,BARK,BARK2,unit,face,card,trunk,grow,fin}=floraKit(rnd);
+/* 생김새 한 벌 — 씨앗(rnd)만 바꾸면 같은 짜임에 가지 각도·길이·수가 다른 다른 그루가 나온다.
+   수(가지·잎·줄기)는 원래 값의 ±1~2 안에서만 흔든다 — 종류마다 생김새의 틀은 그대로다 */
+function floraShapes(rnd){
+  const {W,BARK,BARK2,unit,face,card,trunk,grow,fin}=floraKit(rnd);
+  const ri=(a,b)=>a+Math.floor(rnd()*(b-a+1)), rf=(a,b)=>a+(b-a)*rnd();
   const G={};
   /* 밀림 나무 — 굵은 밑동, 다섯 갈래 큰 가지가 두 번씩 더 갈라져 스무 개의 끝가지. 덩굴이 늘어진다(키 9~11 m) */
-  G.jungle=(()=>{ const parts=[], at=trunk(parts,7.0,0.40,0.20,{flare:1.0,sway:0.25,sides:8});
+  G.jungle=(()=>{ const parts=[], at=trunk(parts,7.0*rf(0.88,1.12),0.40,0.20,{flare:1.0,sway:rf(0.18,0.34),sides:8}), nb=ri(4,6);
     const S={taper:0.66,split:[2,3],spread:1.5,up:0.6,lift:0.35,shrink:0.72,bend:0.10,leafN:3,leafW:2.1,leafH:1.9,leafCell:FC.LEAF,leafTilt:0.6,leafC:[0.86,1.0,0.86],vine:0.3};
-    for(let i=0;i<5;i++){ const a=i/5*6.283+rnd()*0.9;
-      grow(parts,at(0.60+i*0.10),unit(Math.cos(a)*0.9,0.75,Math.sin(a)*0.9),2.8+rnd()*0.9,0.15,2,S); }
-    for(let i=0;i<3;i++){ const p=at(0.28+i*0.12), a=rnd()*6.283;            // 줄기에 붙어 사는 큰 잎
+    for(let i=0;i<nb;i++){ const a=i/nb*6.283+rnd()*0.9;
+      grow(parts,at(0.60+i*0.5/nb),unit(Math.cos(a)*0.9,0.75,Math.sin(a)*0.9),2.8+rnd()*0.9,0.15,2,S); }
+    for(let i=0,ne=ri(2,4);i<ne;i++){ const p=at(0.28+i*0.12), a=rnd()*6.283;            // 줄기에 붙어 사는 큰 잎
       parts.push({g:SHP.frond(0.9,0.38,{segs:4,curl:1.0,cup:0.2,tip:0.5}),x:p[0],y:p[1],z:p[2],q:face(a,0.5),cell:FC.BIG,c:[0.9,1,0.9]}); }
     return fin(parts); })();
   /* 맹그로브 — 줄기가 물 위 1.2 m 에서 시작하고, 버팀뿌리 열 가닥이 활처럼 휘어 내려 넓게 박힌다(뿌리 지름 4 m · 키 5 m) */
   G.mangrove=(()=>{ const parts=[], RB=[0.40,0.33,0.28], RB2=[0.55,0.47,0.38];
     parts.push({g:SHP.tube([[0,1.15,0],[0.05,1.9,0.03],[0.14,2.6,0.02],[0.20,3.2,-0.05]],[0.17,0.15,0.13,0.11],7,0.5),cell:FC.BARK,c:RB,c2:RB2});
-    for(let i=0;i<10;i++){ const a=i/10*6.283+rnd()*0.5, R=1.0+rnd()*1.1, h=1.0+rnd()*0.9, cx=Math.cos(a), cz=Math.sin(a);
+    const nr=ri(9,12); for(let i=0;i<nr;i++){ const a=i/nr*6.283+rnd()*0.5, R=1.0+rnd()*1.1, h=1.0+rnd()*0.9, cx=Math.cos(a), cz=Math.sin(a);
       parts.push({g:SHP.tube([[cx*0.08,h,cz*0.08],[cx*R*0.45,h+0.15,cz*R*0.45],[cx*R*0.85,h*0.45,cz*R*0.85],[cx*R,-0.2,cz*R],[cx*R*1.05,-1.2,cz*R*1.05]],
         [0.075,0.068,0.060,0.052,0.040],5,0),cell:FC.BARK,c:RB,c2:RB2});
       if(i%3===0){ const a2=a+0.55, R2=R*0.95;                              // 뿌리에서 또 갈라져 내리는 곁뿌리
         parts.push({g:SHP.tube([[cx*R*0.6,h*0.9,cz*R*0.6],[Math.cos(a2)*R2*0.9,h*0.4,Math.sin(a2)*R2*0.9],[Math.cos(a2)*R2,-1.1,Math.sin(a2)*R2]],[0.045,0.040,0.030],4,0),cell:FC.BARK,c:RB,c2:RB2}); } }
     const S={taper:0.68,split:[2,3],spread:1.6,up:0.35,lift:0.2,shrink:0.7,bend:0.05,leafN:3,leafW:1.15,leafH:1.0,leafCell:FC.MANG,leafTilt:0.9,leafC:[0.85,1,0.9],bark:RB,bark2:RB2};
-    for(let i=0;i<5;i++){ const a=i/5*6.283+rnd()*0.8;
+    const nb=ri(4,6); for(let i=0;i<nb;i++){ const a=i/nb*6.283+rnd()*0.8;
       grow(parts,[0.14+Math.cos(a)*0.05,2.4+rnd()*0.7,Math.sin(a)*0.05],unit(Math.cos(a),0.45,Math.sin(a)),1.5+rnd()*0.6,0.085,2,S); }
     return fin(parts); })();
   /* 대나무 — 곧게 선 마디 줄기 열두 대. 끝만 살짝 바깥으로 휜다. 위쪽 절반에 댓잎(키 5.5~9.5 m) */
   G.bamboo=(()=>{ const parts=[];
-    for(let i=0;i<12;i++){ const a=rnd()*6.283, rr=Math.sqrt(rnd())*0.6, bx=Math.cos(a)*rr, bz=Math.sin(a)*rr, H=5.5+rnd()*4, r=0.035+rnd()*0.02,
+    for(let i=0,nc=ri(10,14);i<nc;i++){ const a=rnd()*6.283, rr=Math.sqrt(rnd())*0.6, bx=Math.cos(a)*rr, bz=Math.sin(a)*rr, H=5.5+rnd()*4, r=0.035+rnd()*0.02,
           da=a+(rnd()-0.5)*1.2, pts=[], rad=[], n=5;
       for(let k=0;k<=n;k++){ const t=k/n, o=H*(0.012*t+0.085*t*t*t*t);
         pts.push([bx+Math.cos(da)*o,-0.2+(H+0.2)*t,bz+Math.sin(da)*o]); rad.push(r*(1-0.55*t)); }
@@ -287,75 +293,84 @@ function floraBuild(){
         parts.push(card(p,1.0+rnd()*0.4,0.9+rnd()*0.3,FC.BAMBOO,rnd()*6.283,0.9+rnd()*0.5,[0.95,1.05,0.8])); } }
     return fin(parts); })();
   /* 야자 — 휘어 오른 마디 줄기, 꼭대기에서 사방으로 늘어지는 잎 열세 장, 열매 넷(키 6.4 m) */
-  G.palm=(()=>{ const parts=[], pts=[], rad=[], n=7;
-    for(let k=0;k<=n;k++){ const t=k/n; pts.push([0.9*t*t+0.15*Math.sin(t*3),-0.2+6.4*t,0.1*Math.sin(t*4)]); rad.push(0.17-0.06*t+0.06*Math.exp(-t*8)); }
+  G.palm=(()=>{ const parts=[], pts=[], rad=[], n=7, lean=rf(0.45,1.35), H=6.4*rf(0.88,1.12), wob=rf(-0.15,0.15);
+    for(let k=0;k<=n;k++){ const t=k/n; pts.push([lean*t*t+0.15*Math.sin(t*3),-0.2+H*t,(0.1+wob)*Math.sin(t*4)]); rad.push(0.17-0.06*t+0.06*Math.exp(-t*8)); }
     parts.push({g:SHP.tube(pts,rad,7,0.6),cell:FC.RING,c:[0.50,0.42,0.33],c2:[0.66,0.57,0.45]});
     const top=pts[n];
-    for(let i=0;i<13;i++){ const a=i/13*6.283+rnd()*0.3, up=i%3===0?0.25:(i%3===1?0.75:1.15);
+    for(let i=0,nf=ri(11,15);i<nf;i++){ const a=i/nf*6.283+rnd()*0.3, up=i%3===0?0.25:(i%3===1?0.75:1.15);
       parts.push({g:SHP.frond(2.7+rnd()*0.5,1.0,{segs:6,curl:1.0+rnd()*0.5,cup:0.22,p:0.3,tip:0.6}),x:top[0],y:top[1]-0.05,z:top[2],q:face(a,up),cell:FC.PALM,c:[0.95,1,0.9]}); }
     for(let i=0;i<4;i++){ const a=i/4*6.283+0.4;
       parts.push({g:new THREE.SphereGeometry(0.13,8,6),x:top[0]+Math.cos(a)*0.16,y:top[1]-0.28,z:top[2]+Math.sin(a)*0.16,cell:FC.PLAIN,c:[0.36,0.27,0.15],c2:[0.50,0.40,0.22]}); }
     return fin(parts); })();
   /* 자작 — 흰 줄기에 가로 무늬, 가는 가지 여덟이 위로 뻗고 잎이 성기다(키 7.5 m) */
-  G.birch=(()=>{ const parts=[], at=trunk(parts,7.5,0.12,0.035,{flare:0.25,sway:0.18,cell:FC.RING,c:[1.12,1.10,1.04],c2:[1.2,1.18,1.12],sides:6,segs:7});
+  G.birch=(()=>{ const parts=[], at=trunk(parts,7.5*rf(0.88,1.12),0.12,0.035,{flare:0.25,sway:0.18,cell:FC.RING,c:[1.12,1.10,1.04],c2:[1.2,1.18,1.12],sides:6,segs:7});
     const S={taper:0.6,split:[2],spread:0.9,up:1.0,lift:0.25,shrink:0.7,bend:-0.04,leafN:3,leafW:0.95,leafH:1.0,leafCell:FC.LEAF,leafTilt:1.0,leafC:[1.1,1.25,0.72],bark:[0.75,0.72,0.66],bark2:[0.9,0.88,0.82]};
-    for(let i=0;i<8;i++){ const a=i*2.4+rnd()*0.5;
-      grow(parts,at(Math.min(0.98,0.42+i*0.07)),unit(Math.cos(a),0.9,Math.sin(a)),1.5-i*0.08+rnd()*0.3,0.035,1,S); }
+    for(let i=0,nb=ri(7,9);i<nb;i++){ const a=i*2.4+rnd()*0.5;
+      grow(parts,at(Math.min(0.98,0.42+i*0.56/nb)),unit(Math.cos(a),0.9,Math.sin(a)),1.5-i*0.64/nb+rnd()*0.3,0.035,1,S); }
     parts.push(card(at(1),0.9,1.0,FC.LEAF,0,0,[1.1,1.25,0.72]));
     return fin(parts); })();
   /* 어린 전나무 — 층층이 처진 솔가지 여덟 층(키 5.6 m) */
-  G.pine=(()=>{ const parts=[], at=trunk(parts,5.6,0.10,0.02,{flare:0.4,sway:0.05,sides:6,segs:5}), NC=[0.9,1,0.95];
+  G.pine=(()=>{ const parts=[], at=trunk(parts,5.6*rf(0.88,1.12),0.10,0.02,{flare:0.4,sway:0.05,sides:6,segs:5}), NC=[0.9,1,0.95];
     for(let j=0;j<8;j++){ const t=0.14+j*0.105, L=1.75*(1-t*0.8), p=at(t);
-      for(let i=0;i<5;i++) parts.push(card(p,L*0.85,L,FC.NEEDLE,i/5*6.283+j*0.7+rnd()*0.3,1.25+rnd()*0.2,NC)); }
+      for(let i=0,nk=ri(4,6);i<nk;i++) parts.push(card(p,L*0.85,L,FC.NEEDLE,i/nk*6.283+j*0.7+rnd()*0.3,1.25+rnd()*0.2,NC)); }
     parts.push(card(at(0.93),0.5,0.75,FC.NEEDLE,0,0,NC));
     return fin(parts); })();
   /* 어린 활엽수 — 가는 줄기에 가지 넷(키 3~4 m) */
-  G.sapling=(()=>{ const parts=[], at=trunk(parts,3.0,0.07,0.03,{flare:0.3,sway:0.15,sides:5,segs:4});
+  G.sapling=(()=>{ const parts=[], at=trunk(parts,3.0*rf(0.85,1.15),0.07,0.03,{flare:0.3,sway:0.15,sides:5,segs:4});
     const S={taper:0.62,split:[2],spread:1.3,up:0.8,lift:0.3,shrink:0.7,leafN:3,leafW:1.0,leafH:1.05,leafCell:FC.LEAF,leafTilt:0.8,leafC:[1,1.08,0.9]};
-    for(let i=0;i<4;i++){ const a=i/4*6.283+rnd(); grow(parts,at(0.55+i*0.13),unit(Math.cos(a),0.8,Math.sin(a)),0.9+rnd()*0.4,0.03,1,S); }
+    for(let i=0,nb=ri(3,5);i<nb;i++){ const a=i/nb*6.283+rnd(); grow(parts,at(0.55+i*0.39/(nb-1)),unit(Math.cos(a),0.8,Math.sin(a)),0.9+rnd()*0.4,0.03,1,S); }
     return fin(parts); })();
   /* 바나나 — 풀빛 줄기에 크고 넓은 잎 여덟 장, 노란 송이(키 3 m) */
   G.banana=(()=>{ const parts=[{g:SHP.tube([[0,-0.2,0],[0.02,0.8,0],[0.05,1.7,0.02]],[0.11,0.09,0.06],7,0.5),cell:FC.PLAIN,c:[0.38,0.5,0.24],c2:[0.5,0.62,0.3]}];
-    for(let i=0;i<8;i++){ const a=i*2.4+rnd()*0.4;
-      parts.push({g:SHP.frond(1.7+rnd()*0.5,0.62,{segs:5,curl:0.7+rnd()*0.6,cup:0.2,p:0.4,tip:0.55}),x:0.05,y:1.55,z:0.02,q:face(a,0.15+i/8),cell:FC.BIG,c:[0.92,1,0.88]}); }
+    for(let i=0,nl=ri(7,9);i<nl;i++){ const a=i*2.4+rnd()*0.4;
+      parts.push({g:SHP.frond(1.7+rnd()*0.5,0.62,{segs:5,curl:0.7+rnd()*0.6,cup:0.2,p:0.4,tip:0.55}),x:0.05,y:1.55,z:0.02,q:face(a,0.15+i/nl),cell:FC.BIG,c:[0.92,1,0.88]}); }
     for(let i=0;i<7;i++){ const a=i/7*6.283;
       parts.push({g:SHP.limb([0.16+Math.cos(a)*0.04,1.28,0.1+Math.sin(a)*0.04],unit(Math.cos(a)*0.5,-0.6,Math.sin(a)*0.5),0.16,0.022,0.016,2,5,0.5,1),cell:FC.PLAIN,c:[0.85,0.72,0.2],c2:[0.95,0.85,0.3]}); }
     return fin(parts); })();
   /* 나무고사리 — 짙은 줄기 끝에 고사리 잎이 우산처럼(키 3 m) */
-  G.treefern=(()=>{ const parts=[], at=trunk(parts,2.3,0.12,0.09,{flare:0.2,sway:0.1,c:[0.26,0.2,0.15],c2:[0.36,0.28,0.2],sides:6,segs:3}), top=at(1);
-    for(let i=0;i<11;i++){ const a=i/11*6.283+rnd()*0.3;
+  G.treefern=(()=>{ const parts=[], at=trunk(parts,2.3*rf(0.85,1.2),0.12,0.09,{flare:0.2,sway:0.1,c:[0.26,0.2,0.15],c2:[0.36,0.28,0.2],sides:6,segs:3}), top=at(1);
+    for(let i=0,nf=ri(10,13);i<nf;i++){ const a=i/nf*6.283+rnd()*0.3;
       parts.push({g:SHP.frond(1.6+rnd()*0.4,0.6,{segs:5,curl:1.1+rnd()*0.4,cup:0.15,p:0.35,tip:0.5}),x:top[0],y:top[1],z:top[2],q:face(a,0.5+rnd()*0.4),cell:FC.FERN,c:W}); }
     return fin(parts); })();
   /* 아카시아 — 낮은 줄기가 넓게 갈라져 납작한 우산 꼴(키 4 m) */
   G.acacia=(()=>{ const AB=[0.36,0.30,0.25], AB2=[0.50,0.43,0.35], parts=[], at=trunk(parts,2.4,0.14,0.10,{flare:0.4,sway:0.3,sides:6,segs:4,c:AB,c2:AB2});
     const S={taper:0.66,split:[2,2],spread:1.5,up:0.25,lift:0.22,shrink:0.75,bend:0.02,leafN:3,leafW:1.5,leafH:1.0,leafCell:FC.LEAF,leafTilt:1.25,leafC:[1.05,1.05,0.62],bark:AB,bark2:AB2};
-    for(let i=0;i<4;i++){ const a=i/4*6.283+rnd(); grow(parts,at(0.95),unit(Math.cos(a),0.55,Math.sin(a)),1.6+rnd()*0.5,0.075,2,S); }
+    for(let i=0,nb=ri(3,5);i<nb;i++){ const a=i/nb*6.283+rnd(); grow(parts,at(0.95),unit(Math.cos(a),0.55,Math.sin(a)),1.6+rnd()*0.5,0.075,2,S); }
     return fin(parts); })();
   /* 고사리 — 바깥으로 휘어 눕는 잎 여덟 장 */
   G.fern=(()=>{ const parts=[];
-    for(let i=0;i<8;i++){ const a=i/8*6.283+rnd()*0.4;
+    for(let i=0,nf=ri(7,10);i<nf;i++){ const a=i/nf*6.283+rnd()*0.4;
       parts.push({g:SHP.frond(0.7+rnd()*0.3,0.30,{segs:5,curl:0.9+rnd()*0.5,cup:0.15,p:0.35,tip:0.5}),y:0.02,q:face(a,0.45+rnd()*0.4),cell:FC.FERN,c:W}); }
     return fin(parts); })();
   /* 덤불 — 잔가지 다섯에 잎 판때기 열한 장 */
   G.bush=(()=>{ const parts=[];
-    for(let i=0;i<5;i++){ const a=i/5*6.283+rnd(); parts.push({g:SHP.limb([0,-0.05,0],unit(Math.cos(a)*0.7,1,Math.sin(a)*0.7),0.55+rnd()*0.25,0.025,0.012,1,4,0,0),cell:FC.BARK,c:BARK}); }
-    for(let i=0;i<11;i++){ const a=rnd()*6.283, rr=rnd()*0.35;
+    for(let i=0,nb=ri(4,6);i<nb;i++){ const a=i/nb*6.283+rnd(); parts.push({g:SHP.limb([0,-0.05,0],unit(Math.cos(a)*0.7,1,Math.sin(a)*0.7),0.55+rnd()*0.25,0.025,0.012,1,4,0,0),cell:FC.BARK,c:BARK}); }
+    for(let i=0,nc=ri(9,13);i<nc;i++){ const a=rnd()*6.283, rr=rnd()*0.35;
       parts.push(card([Math.cos(a)*rr,0.05+rnd()*0.45,Math.sin(a)*rr],0.75+rnd()*0.3,0.7+rnd()*0.3,FC.LEAF,a,0.3+rnd()*0.8,[0.95,1.05,0.9])); }
     return fin(parts); })();
   /* 들꽃 — 꽃 그림 판때기 세 겹 */
   G.flower=(()=>{ const parts=[];
-    for(let i=0;i<3;i++){ const a=i*2.1+rnd()*0.5, rr=i?0.12:0; parts.push({g:SHP.card(0.55,0.55),x:Math.cos(a)*rr,z:Math.sin(a)*rr,ry:a,cell:FC.FLOWER,c:W}); }
+    for(let i=0,nf=ri(3,4);i<nf;i++){ const a=i*2.1+rnd()*0.5, rr=i?0.08+rnd()*0.08:0; parts.push({g:SHP.card(0.55,0.55),x:Math.cos(a)*rr,z:Math.sin(a)*rr,ry:a,cell:FC.FLOWER,c:W}); }
     return fin(parts); })();
   /* 마른 덤불 — 잔가지 그림 판때기 넷 */
   G.dry=(()=>{ const parts=[];
-    for(let i=0;i<4;i++){ const a=i/4*6.283+rnd(); parts.push(card([Math.cos(a)*0.08,0,Math.sin(a)*0.08],0.8+rnd()*0.3,0.75+rnd()*0.3,FC.TWIG,a,0.25+rnd()*0.5,W)); }
+    for(let i=0,nd=ri(3,5);i<nd;i++){ const a=i/nd*6.283+rnd(); parts.push(card([Math.cos(a)*0.08,0,Math.sin(a)*0.08],0.8+rnd()*0.3,0.75+rnd()*0.3,FC.TWIG,a,0.25+rnd()*0.5,W)); }
     return fin(parts); })();
   /* 버섯 — 갓 넷이 모여 난다 */
   G.shroom=(()=>{ const parts=[];
-    for(let i=0;i<4;i++){ const a=i*1.9, rr=i?0.09+rnd()*0.06:0, h=0.07+rnd()*0.07, r=0.035+rnd()*0.025, x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+    for(let i=0,ns=ri(3,5);i<ns;i++){ const a=i*1.9, rr=i?0.09+rnd()*0.06:0, h=0.07+rnd()*0.07, r=0.035+rnd()*0.025, x=Math.cos(a)*rr, z=Math.sin(a)*rr;
       parts.push({g:SHP.limb([x,-0.02,z],[0,1,0],h,r*0.30,r*0.25,1,5,0,0),cell:FC.PLAIN,c:[0.86,0.82,0.72]});
       parts.push({g:SHP.lathe([[r*0.3,0],[r,-0.012],[r*0.92,0.012],[r*0.55,0.030],[0.001,0.038]],8),x,y:h-0.02,z,cell:FC.PLAIN,c:[0.62,0.36,0.20],c2:[0.78,0.50,0.28]}); }
     return fin(parts); })();
+  return G;
+}
+/* 종류마다 생김새 벌 수 — 칸 번호의 해시로 그루마다 하나를 고른다(같은 자리엔 늘 같은 그루). 벌마다 인스턴스 메시 하나라
+   그리기 호출이 벌 수만큼 는다 — 다만 그 반경에 하나도 안 선 벌은 감춘다 */
+const FLORA_VARS={jungle:8,mangrove:8,bamboo:8,palm:8,birch:8,pine:8,sapling:8,banana:8,treefern:8,acacia:8,
+                  fern:6,bush:6,flower:4,dry:4,shroom:4};
+function floraBuild(){
+  const V=Math.max(...Object.values(FLORA_VARS)), SH=[];
+  for(let v=0;v<V;v++) SH.push(floraShapes(mulberry32(v?(0xf10a+v*0x9e3779b1)>>>0:0xf10a)));
 
   FLORA.tex=floraAtlas();
   FLORA.mat=new THREE.MeshLambertMaterial({map:FLORA.tex,alphaTest:0.4,vertexColors:true,side:THREE.DoubleSide});
@@ -363,14 +378,19 @@ function floraBuild(){
   FLORA.depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:FLORA.tex,alphaTest:0.4});
   FLORA.m={};
   for(const L of [FLORA.far,FLORA.near]) for(const k of L.kinds){
-    const im=new THREE.InstancedMesh(G[k],FLORA.mat,FLORA_KIND[k].cap);
-    im.setColorAt(0,new THREE.Color(1,1,1));          // 색 버퍼는 count 가 가득일 때 만든다
-    im.count=0; im.frustumCulled=false;
-    if(L===FLORA.far) im.customDepthMaterial=FLORA.depth;   // 나무는 그림자를 드리운다
-    else im.userData.lightRole='recv';                      // 덤불·고사리는 받기만
-    im.matrixAutoUpdate=false; im.updateMatrix(); scene.add(im);
-    FLORA.m[k]=im; L.n[k]=0;
+    const nv=FLORA_VARS[k]||1, cap=Math.ceil(FLORA_KIND[k].cap*2.5/nv)+8;   // 벌마다 몫 — 고르게 나뉘므로 평균의 2.5배면 넉넉하다
+    FLORA.m[k]=[]; L.n[k]=new Int32Array(nv);
+    for(let v=0;v<nv;v++){
+      const im=new THREE.InstancedMesh(SH[v][k],FLORA.mat,cap);
+      im.setColorAt(0,new THREE.Color(1,1,1));          // 색 버퍼는 count 가 가득일 때 만든다
+      im.count=0; im.visible=false; im.frustumCulled=false;
+      if(L===FLORA.far) im.customDepthMaterial=FLORA.depth;   // 나무는 그림자를 드리운다
+      else im.userData.lightRole='recv';                      // 덤불·고사리는 받기만
+      im.matrixAutoUpdate=false; im.updateMatrix(); scene.add(im);
+      FLORA.m[k].push(im);
+    }
   }
+  for(let v=0;v<V;v++) for(const k in SH[v]) if(v>=(FLORA_VARS[k]||1)) SH[v][k].dispose();   // 안 쓰는 벌
 }
 
 /* ── 깔기 ────────────────────────────────────────────────────────────────── */
@@ -379,7 +399,7 @@ const _flM=new THREE.Matrix4(), _flQ=new THREE.Quaternion(), _flE=new THREE.Eule
 function floraLayer(L,which){
   const U=FLORA, px=PL.pos.x, pz=PL.pos.z, C=L.cell, R=L.R, n=L.n, far=which==='far';
   L.cx=px; L.cz=pz; L.cols.length=0; L.picks.length=0;
-  for(const k of L.kinds) n[k]=0;
+  for(const k of L.kinds) n[k].fill(0);
   const x0=Math.floor((px-R)/C), x1=Math.floor((px+R)/C), z0=Math.floor((pz-R)/C), z1=Math.floor((pz+R)/C);
   for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){
     const h=floraHash(gx,gz,L.salt);
@@ -401,7 +421,8 @@ function floraLayer(L,which){
       for(const t of cm[which]){ const pr=t[1]*dens; if(u<pr){ pick=t; break; } u-=pr; }
     }
     if(!pick) continue;
-    const kind=pick[0], im=U.m[kind], K=FLORA_KIND[kind]; if(n[kind]>=im.instanceMatrix.count) continue;
+    const kind=pick[0], ms=U.m[kind], vi=floraHash(gx,gz,L.salt+7)%ms.length, im=ms[vi], K=FLORA_KIND[kind], nk=n[kind];
+    if(nk[vi]>=im.instanceMatrix.count) continue;
     // 큰 나무·바위·설비·벽이 선 자리, 지은 바닥 위는 비운다
     const pad=(K.r||0)+0.5, cgx=Math.floor(wx/CG), cgz=Math.floor(wz/CG); let hit=false;
     for(let az=-1;az<=1&&!hit;az++) for(let ax=-1;ax<=1&&!hit;ax++){
@@ -418,14 +439,15 @@ function floraLayer(L,which){
     const tl=far?0.05:0.16;
     _flE.set(((h2>>>10)&31)/31*tl-tl/2,((h2>>>15)&1023)/1023*6.283,((h2>>>25)&31)/31*tl-tl/2); _flQ.setFromEuler(_flE);
     _flV.set(wx,gy-0.03,wz); _flS.set(sc,sc*(0.9+0.2*((h>>>28)&15)/15),sc);
-    _flM.compose(_flV,_flQ,_flS); im.setMatrixAt(n[kind],_flM);
+    _flM.compose(_flV,_flQ,_flS); im.setMatrixAt(nk[vi],_flM);
     if(kind==='flower'){ const t=FLOWER_TINT[patch%FLOWER_TINT.length]; _flC.setRGB(t[0],t[1],t[2]); }   // 꽃밭은 얼룩마다 한 빛깔
     else{ const g=0.86+0.26*((h2>>>3)&15)/15, w=((h2>>>7)&15)/15; _flC.setRGB(g*(0.94+0.14*w),g,g*(0.92+0.08*(1-w))); }
-    im.setColorAt(n[kind]++,_flC);
+    im.setColorAt(nk[vi]++,_flC);
     if(K.r) L.cols.push({x:wx,z:wz,r:K.r*sc});
     if(P) L.picks.push({kind:K.pick,x:wx,y:gy,z:wz,key,r:(K.r||0.12)*sc,tree:!P.hide});
   }
-  for(const k of L.kinds){ const im=U.m[k]; im.count=n[k]; im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true; }
+  for(const k of L.kinds) U.m[k].forEach((im,v)=>{ im.count=n[k][v]; im.visible=im.count>0;
+    im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true; });
   if(far) LIGHT.dirtyAt(px,pz,R);                      // 나무가 바뀌었다 — 그림자 지도를 다시 그린다
 }
 function updateFlora(force){
