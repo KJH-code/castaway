@@ -519,7 +519,7 @@ function floraLayer(L,which){
       const a=CGRID.get(cgKey(cgx+ax,cgz+az)); if(!a) continue;
       for(const o of a){ const ox=wx-o.x, oz=wz-o.z, rr=o.r+pad; if(ox*ox+oz*oz<rr*rr){ hit=true; break; } }
     }
-    if(hit) continue;
+    if(hit||inLanding(wx,wz,pad)) continue;           // 보급선이 앉는 자리 · 깨는 자리는 비운다
     const gy=heightAt(wx,wz);
     if(floorAt(wx,wz)>gy+0.05) continue;
     const key=(far?'F':'N')+gx+','+gz, P=K.pick?FLORA_PICK[K.pick]:null;

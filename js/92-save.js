@@ -46,21 +46,23 @@ function propDiff(){
    안 맞으면 0.5 m 칸 표에서 같은 종류·같은 자리를 찾는다. 옛 저장(번호뿐)은 번호를 그대로 믿는다. */
 let _propGrid=null;
 function findSavedProp(r){
+  /* 번호만 적힌 옛 저장은 **겹침 고치기 전 차례**(PROP_ORIG — 10-worldgen.js resolveOverlaps)로 찾는다. 뺀 자원이면 없음 */
+  if(r.length<11){ const o=PROP_ORIG[r[0]]; return o&&!o.gone?o:null; }
   const p=PROPS[r[0]];
-  if(r.length<11) return p||null;
   const x=r[8], z=r[9], k=r[10];
   if(p && p.k===k && Math.abs(p.x-x)<0.06 && Math.abs(p.z-z)<0.06) return p;
   if(!_propGrid){
     _propGrid=new Map();
-    for(const q of PROPS){ const key=Math.round(q.x*2)+','+Math.round(q.z*2);
-      let a=_propGrid.get(key); if(!a){ a=[]; _propGrid.set(key,a); } a.push(q); }
+    const put=(q,x,z)=>{ const key=Math.round(x*2)+','+Math.round(z*2);
+      let a=_propGrid.get(key); if(!a){ a=[]; _propGrid.set(key,a); } a.push(q); };
+    for(const q of PROPS){ put(q,q.x,q.z); if(q.ox!==undefined) put(q,q.ox,q.oz); }   // 비켜 놓은 자원은 처음 자리로도 찾는다(고치기 전 저장)
   }
   const gx=Math.round(x*2), gz=Math.round(z*2);
   let best=null, bd=0.15;
   for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){
     const a=_propGrid.get((gx+dx)+','+(gz+dz)); if(!a) continue;
     for(const q of a){ if(q.k!==k) continue;
-      const d=Math.hypot(q.x-x,q.z-z); if(d<bd){ bd=d; best=q; } }
+      const d=Math.min(Math.hypot(q.x-x,q.z-z),q.ox!==undefined?Math.hypot(q.ox-x,q.oz-z):1e9); if(d<bd){ bd=d; best=q; } }
   }
   return best;
 }
@@ -135,9 +137,9 @@ async function restore(d){
   let legacySkip=-1;
   if(!d.det){
     const STABLE={oak:1,fir:1,flint:1,pebble:1};
-    let se=PROPS.findIndex(p=>!STABLE[p.k]); if(se<0) se=PROPS.length;
+    let se=PROP_ORIG.findIndex(p=>!STABLE[p.k]); if(se<0) se=PROP_ORIG.length;
     let odd=0;
-    for(const r of d.props||[]){ if(r[0]<se) continue; const p=PROPS[r[0]];
+    for(const r of d.props||[]){ if(r[0]<se) continue; const p=PROP_ORIG[r[0]];
       if(!p || r[1]>(p.brMax|0) || r[2]>(p.oreMax|0) || r[3]>(p.logsMax|0) || r[4]>(p.berryMax|0)) odd++; }
     if(odd) legacySkip=se;
   }

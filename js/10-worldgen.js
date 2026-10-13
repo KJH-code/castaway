@@ -571,7 +571,77 @@ function placeResources(seed){
     }
   }
 
+  resolveOverlaps();
+  for(const k in counts) counts[k]=0; for(const p of PROPS) counts[p.k]=(counts[p.k]||0)+1;
   stats.props=PROPS.length; stats.counts=counts; stats.forced=forced;
+}
+
+/* ============================================================================
+   8-a) 자원끼리 겹치지 않게
+   ----------------------------------------------------------------------------
+   위 배치는 칸마다 주사위만 굴려서, 먼저 선 자원이 있는 칸에도 또 세웠다(빈자리 표시는 '하한 채우기' 에만 썼다) —
+   한 섬에 몸이 있는 자원 5,387 개 중 224 쌍이 서로 파고들었다(화강암+화강암 · 공작석+화강암 · 전나무+화강암 …).
+   **배치를 다 정한 뒤에** 고친다. 난수를 더 뽑지 않으므로 지형·다른 자원의 자리는 예전 그대로다(같은 시드 = 같은 섬).
+   · 드문 것(표의 max 가 작은 것)부터 자리를 잡고, 뒤에 오는 것이 앞의 것과 겹치면 **비켜 놓는다** — 부딪친 것에서
+     멀어지는 쪽부터 30° 씩 돌려 열세 방향, 처음 자리에서 4 m 안 · 뭍(높이 0.3 m 위)이어야 한다. 끝내 자리가 없으면 뺀다.
+   · 반지름은 생김새 크기(`PROP_FOOT` × 크기) — 바위는 30-props.js `ROCK_R` 를 다 빚은 겉의 최댓값까지 키운 것 · 나무 줄기 · 점토/모래 둔덕.
+   · 점토·모래(납작한 둔덕)는 저희끼리만 겹침을 본다 — 바위·나무가 그 위에 서는 것은 자연스럽다.
+   · 풀·갈대는 옮기지 않고, 바위·줄기 속(반지름의 0.85 안)에 난 것만 뺀다.
+   · 저장과 맞추기 — 뺀 것은 `gone`, 옮긴 것은 처음 자리(`ox`·`oz`)를 적어 둔다. `PROP_ORIG` 는 고치기 전 차례 그대로라
+     번호만 적힌 옛 저장이 이걸로 찾고, 자리로 찾는 저장(92-save.js `findSavedProp`)은 처음 자리로도 찾는다.
+   ========================================================================== */
+/* 바위는 다 빚은 뒤 울퉁불퉁한 겉이 `ROCK_R` 보다 최대 1.25배(방연석은 정육면체로 당겨 1.67배) 나간다 — 섬 하나에서 잰 몸 반지름의 최댓값 */
+const PROP_FOOT={granite:2.25,copper:1.31,iron:1.19,coal:1.19,zinc:1.06,galena:1.42,cinnabar:1.0,tin:1.0,sulfur:0.73,
+                 flint:0.18,pebble:0.13, oak:0.6,fir:0.5, clay:1.9,sand:2.0};
+const PROP_FLAT={clay:1,sand:1}, PROP_SOFT={grass:1,reed:1};
+let PROP_ORIG=[];
+function resolveOverlaps(){
+  PROP_ORIG=PROPS.slice();
+  const rank={}; RESOURCES.forEach(R=>rank[R.k]=R.max);
+  const order=PROPS.map((p,i)=>i).filter(i=>PROP_FOOT[PROPS[i].k]).sort((a,b)=>(rank[PROPS[a].k]-rank[PROPS[b].k])||(a-b));
+  const C=4, G=new Map(), key=(x,z)=>(x+4096)*8192+(z+4096), MAXR=3.8;
+  const add=p=>{ const k=key(Math.floor(p.x/C),Math.floor(p.z/C)); let a=G.get(k); if(!a){ a=[]; G.set(k,a); } a.push(p); };
+  const rOf=p=>PROP_FOOT[p.k]*p.s;
+  const near=(x,z,R,fn)=>{ for(let gz=Math.floor((z-R)/C);gz<=Math.floor((z+R)/C);gz++) for(let gx=Math.floor((x-R)/C);gx<=Math.floor((x+R)/C);gx++){
+      const a=G.get(key(gx,gz)); if(a) for(const q of a){ const r=fn(q); if(r) return r; } } return null; };
+  const hit=(p,x,z)=>near(x,z,rOf(p)+MAXR,q=>{
+    const fp=!!PROP_FLAT[p.k]; if(fp!==!!PROP_FLAT[q.k]) return null;
+    const r=rOf(p)+rOf(q)+(fp?0:0.15); return (x-q.x)*(x-q.x)+(z-q.z)*(z-q.z)<r*r?q:null; });
+  const elevAt=(x,z)=>{ const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2);
+    return (gx<2||gz<2||gx>N-3||gz>N-3)?-1:F.elev[IDX(gx,gz)]; };
+  let moved=0, dropped=0;
+  for(const i of order){
+    const p=PROPS[i], q=hit(p,p.x,p.z);
+    if(q){
+      let a0=Math.atan2(p.z-q.z,p.x-q.x); if(p.x===q.x&&p.z===q.z) a0=(i*2.39996)%6.2832;
+      const D=rOf(p)+rOf(q)+0.2; let ok=false;
+      for(let t=0;t<13&&!ok;t++){
+        const a=a0+(t&1?1:-1)*Math.ceil(t/2)*0.5236, nx=q.x+Math.cos(a)*D, nz=q.z+Math.sin(a)*D;
+        if((nx-p.x)*(nx-p.x)+(nz-p.z)*(nz-p.z)>16) continue;
+        const e=elevAt(nx,nz); if(e<=0.3||hit(p,nx,nz)) continue;
+        p.ox=p.x; p.oz=p.z; p.x=nx; p.z=nz; p.y=e; ok=true;
+      }
+      if(!ok){ p.gone=true; dropped++; continue; }
+      moved++;
+    }
+    add(p);
+  }
+  for(const p of PROPS) if(PROP_SOFT[p.k]&&near(p.x,p.z,MAXR,q=>!PROP_FLAT[q.k]&&!q.gone&&
+      (p.x-q.x)*(p.x-q.x)+(p.z-q.z)*(p.z-q.z)<(rOf(q)*0.85)**2)){ p.gone=true; dropped++; }
+  PROPS=PROPS.filter(p=>!p.gone);
+  stats.overlap={moved,dropped};
+}
+/* 착륙 자리 — 보급선(30-props.js `makeShip`)이 앉는 네모와 사람이 깨는 자리 둘레의 자원을 뺀다.
+   배 로컬(앞 −z) 네모 |x|<9.2 · −8.6<z<9 와 깨는 자리 3 m 안. 풀은 배 몸통 밑(|x|<3.4)과 깨는 자리만 뺀다(날개 밑 풀은 둔다) */
+function clearLanding(L){
+  const c=Math.cos(L.th), s=Math.sin(L.th);
+  for(const p of PROPS){
+    const dx=p.x-L.x, dz=p.z-L.z, lx=dx*c-dz*s, lz=dx*s+dz*c, soft=!!PROP_SOFT[p.k];
+    const inBox=Math.abs(lx)<(soft?3.4:9.2)+(soft?0:(PROP_FOOT[p.k]||0)*p.s)&&lz>-8.6-(soft?0:2)&&lz<9+(soft?0:2);
+    const sp=Math.hypot(p.x-L.sx,p.z-L.sz)<3+(PROP_FOOT[p.k]||0)*p.s;
+    if(inBox||sp) p.gone=true;
+  }
+  PROPS=PROPS.filter(p=>!p.gone);
 }
 
 /* ============================================================================
