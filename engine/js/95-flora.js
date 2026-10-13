@@ -67,6 +67,7 @@ const FLORA_PICK={
   fern    :{item:'fern',    n:'고사리',    verb:'뜯기',        regrow:24, cnt:[1,1], dur:0.6, stam:1.5, low:0.3},
   flower  :{item:'flower',  n:'들꽃',      verb:'꺾기',        regrow:30, cnt:[1,2], dur:0.4, stam:1, hide:1},
   limerock:{item:'limestone',n:'석회석', verb:'줍기',       regrow:72, cnt:[1,1], dur:0.5, stam:1, hide:1},      // 자갈밭의 흰 돌(30-props.js RUBBLE)
+  salt    :{item:'salt',    n:'소금 더께', verb:'캐기',       regrow:96, cnt:[1,2], dur:1.6, stam:5, hide:1, need:'pick'},  // 바닷가의 흰 더께(30-props.js RUBBLE) — 곡괭이로
   stone   :{item:'pebble',  n:'돌',        verb:'줍기',        regrow:72, cnt:[1,1], dur:0.4, stam:1, hide:1},      // 자갈밭의 잔돌(30-props.js RUBBLE)
   gbark   :{item:'bark',    n:'노거수 껍질', verb:'벗기기',    regrow:24, cnt:[2,3], dur:1.8, stam:4, need:'sharp'}, // 95-giants.js
   gresin  :{item:'resin',   n:'삼나무 송진', verb:'긁어내기',  regrow:24, cnt:[2,3], dur:1.6, stam:3, need:'sharp'},
@@ -947,6 +948,7 @@ function hasSharp(){
 function floraBlock(p){
   const D=FLORA_PICK[p.kind], left=floraWait(p);
   if(left>0) return D.n+' — 아직 다시 나지 않았다(약 '+Math.ceil(left)+'시간 뒤)';
+  if(D.need==='pick'&&!INV.slots.some(s=>(ITEMS[s.id].tool||{}).pick)) return D.n+' — 곡괭이로 캐야 한다(뗀석기 곡괭이면 된다)';
   if(D.need==='sharp'&&!hasSharp()) return D.n+' — 맨손으로는 못 벤다. 날붙이(주먹도끼·칼·도끼)를 지녀야 한다';
   if(D.take&&countId(D.take)<1) return D.n+' — 담을 '+ITEMS[D.take].n+'가 있어야 한다';
   return null;

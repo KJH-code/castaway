@@ -357,14 +357,14 @@ function updateHUD(dt){
       hudS(look,'display','block'); hudS(lb,'display','none');
       hudH(lt,'[좌클릭] 숫돌 — 갈아 만들기와 수리 · [F] 옮기기<em>'
         +'수리는 처음 재료의 절반(내림)이 든다</em>');
-      return;
-    }
-    if(c.kind==='power'){
+    }else if(c.kind==='power'){
       hudS(look,'display','block'); hudS(lb,'display','none');
       hudH(lt,'[좌클릭] 발전기 — 축전지와 전등 채우기<em>'
         +(powered()?'물레방아가 돌고 있다':'물레방아가 서 있다 — 채울 수 없다')+'</em>');
-      return;
-    }
+    }else{
+    /* (예전엔 위 두 갈래가 여기서 `return` 했다 — 숫돌·발전기를 **보고 있는 동안** 이 함수의 아랫도리가 통째로 안 돌아, 화면의
+       제작 진행 막대가 멈춰 보였다. 숫돌 곁에서 숫돌을 보며 마제 석기날을 만들면 '안 만들어지는' 것처럼 보이고, 숫돌 창을 열면
+       (조준이 풀려) 그새 찬 진행이 한꺼번에 보였다 — 베타 테스터 지적) */
     const head='[좌클릭] '+c.cname+' 열기'+(pushKind(c)?' · [F] 옮기기':'');
     // 모닥불은 좌클릭을 계속 누르면 불을 다루는 쪽으로 넘어간다
     if(isHearth(c) && !c.lit && isTorch && e.lit && e.fuel>0.12 && contFuel(c)){
@@ -391,8 +391,10 @@ function updateHUD(dt){
       hudH(lt,head+'<em>'+why+'</em>');
       if(IGNITE.t>0){ hudS(lb,'display','block'); hudS(lf,'width',Math.min(100,IGNITE.t/dur*100).toFixed(1)+'%'); }
     }else{
+      /* 불이면 비를 가리는지도 알린다(사용자 요청) — 지붕·나무 밑이면 비에도 안 꺼진다 */
+      const shel=(c.kind==='fire'||c.kind==='furnace')?(fireShelter(c)?' · '+fireShelter(c)+'(비에 안 꺼진다)':(WEA.rain>0.2?' · <b style="color:#e08a6a">비를 맞는다 — 꺼질 수 있다</b>':' · 한데(비가 오면 꺼질 수 있다)')):'';
       hudH(lt,head+'<em>'+contStatus(c)+' · '
-        +contWeight(c).toFixed(1)+' / '+c.cap+' kg</em>');
+        +contWeight(c).toFixed(1)+' / '+c.cap+' kg'+shel+'</em>');
       /* 안에서 여럿이 함께 익으므로 막대는 가장 먼저 끝날 것을 보여 준다 */
       if(c.lit){
         const fr=(c.kind==='fire')
@@ -400,6 +402,7 @@ function updateHUD(dt){
           : furnaceJobs(c).map(R=>clamp((c.jobs&&c.jobs[R.id]||0)/R.hours,0,1));
         if(fr.length){ hudS(lb,'display','block'); hudS(lf,'width',Math.min(100,Math.max(...fr)*100).toFixed(1)+'%'); }
       }
+    }
     }
   }else if(FISH.look&&equippedTool()&&(ITEMS[equippedTool().id].tool||{}).harpoon){
     const S=FISH.look.sp, hv=ITEMS[equippedTool().id].tool.harpoon;          // 작살을 든 채 물고기를 겨눴다

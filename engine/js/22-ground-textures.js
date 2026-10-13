@@ -163,6 +163,21 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         vec2 tS1=vTW.xy/2.1, tS2=vTW.zy/2.1, gS1x=dFdx(tS1), gS1y=dFdy(tS1), gS2x=dFdx(tS2), gS2y=dFdy(tS2);
         { vec4 s1=mix(texture2D(uNz,vTW.xy/113.0),texture2D(uNz,vTW.zy/113.0),wSx), s2=mix(texture2D(uNz,vTW.xy/27.0+vec2(0.37,0.11)),texture2D(uNz,vTW.zy/27.0+vec2(0.37,0.11)),wSx);
           n1=mix(n1,s1,stp); n2=mix(n2,s2,stp); }
+        float wallWet=0.0, wallSleek=0.0, wallDark=1.0; vec3 wallCol=vec3(-1.0);
+        /* **벽의 결은 자리마다 다르다**(사용자 요청) — 큰 얼룩(300 m)이 그 벽의 암석을 정한다:
+             · 금이 간 벽 — 절리. 잡음의 등고선을 가는 어두운 금으로 긋는다(두 방향 · 벽마다 촘촘하기가 다르다).
+             · **점판암** — 매끈하고 검푸르다. 얇은 쪽(벽개)이 비스듬히 나란하고, 볕을 좁고 밝게 되비친다.
+             · **스미는 물** — 위에서 아래로 길게 젖은 띠가 천천히 흘러내린다. 짙고, 물처럼 번들거린다.
+           옆에서 본 좌표(가로 · 높이)로 그린다. 값은 아래 바위 빛깔과 '화소마다의 빛'이 쓴다 */
+        if(stp>0.02){
+          float wt=texture2D(uNz,p/310.0+vec2(0.13,0.71)).b; vec2 sp=mix(vTW.xy,vTW.zy,wSx);
+          float f1=abs(texture2D(uRel,sp/9.0).a-0.5), f2=abs(texture2D(uRel,sp.yx/5.3+0.37).a-0.5);
+          float crack=clamp((1.0-smoothstep(0.0,0.030,f1))+(1.0-smoothstep(0.0,0.026,f2))*0.7,0.0,1.0);
+          wallDark=1.0-crack*0.58*stp*(0.30+0.70*smoothstep(0.42,0.60,wt));
+          wallSleek=smoothstep(0.32,0.20,wt)*stp;
+          wallCol=vec3(0.15,0.18,0.22)*(0.80+0.34*(0.5+0.5*sin((sp.y+sp.x*0.45)*8.0+n2.g*2.5)));
+          wallWet=smoothstep(0.60,0.78,texture2D(uNz,vec2(sp.x/13.0,sp.y/85.0+uShT*0.0035)).r)*stp;
+        }
         /* 바이옴 색과 가림막 — 잡음으로 비튼 자리에서, 가운데 + 둘레 셋을 섞어 읽는다(경계가 굽이치고 부드럽다) */
         vec2 wp=p+(n1.rg-0.5)*7.5+(n2.rg-0.5)*2.4;
         vec2 bu=(wp/uCell+uBioN*0.5+0.5)/uBioN; float br=3.5/uCell/uBioN;
@@ -193,6 +208,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         // 바위 — 가파를수록 드러나고, 높이를 따라 층이 진다
         float strata=0.5+0.5*sin(vTW.y*2.3+n2.a*5.0);
         c=mix(c,vec3(0.36,0.34,0.31)*(0.82+0.26*strata),steep*0.85);
+        if(wallCol.r>=0.0){ c=mix(c,wallCol,wallSleek*0.88)*wallDark*mix(1.0,0.60,wallWet); }   // 점판암 · 금 · 젖은 띠
         c=mix(c,c*vec3(0.60,0.80,0.70),subRock*0.6);                          // 물밑 바위에는 바닷말이 끼어 푸르스름하다
         /* 사진 결 — 그 자리에 있는 땅의 것만 읽는다. 한 장을 두 배율(2.1 m · 8.7 m)로 읽어 가까이는 잘게, 멀리는
            크게 — 타일이 되풀이되는 것이 덜 보인다. 갈래 안에서 읽으므로 기울기는 밖에서 구해 넘긴다(textureGrad). */
@@ -270,10 +286,12 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
           vec2 tu=(p/uCell+uBioN*0.5+0.5)/uBioN;
           float can=texture2D(uTL,tu+uSunDir.xz/max(uSunDir.y,0.22)*(7.0/uCell/uBioN)).b;   // 나무 키(7 m)만큼 해 쪽의 숲이 여기에 그늘을 드리운다
           float canK=smoothstep(uShR*0.72,uShR,vTD);
-          float wetK=clamp(max(wetS,mMud*flat1*0.55)+uWet*(0.55+0.45*(1.0-hr*2.0))+uDew*0.30*wGrass,0.0,1.0);   // 비는 낮은 데부터 고인다 · 이슬은 풀밭에
+          float wetK=clamp(max(max(wetS,wallWet),mMud*flat1*0.55)+uWet*(0.55+0.45*(1.0-hr*2.0))+uDew*0.30*wGrass,0.0,1.0);   // 비는 낮은 데부터 고인다 · 이슬은 풀밭에
           c*=mix(1.0,0.74,uWet*(1.0-mSand*0.5));                                  // 비 맞은 땅은 짙다
           vec3 Vv=normalize(cameraPosition-vTW), Hh=normalize(Vv+uSunDir);
-          float gl=mix(mix(7.0,22.0,wRock),96.0,wetK), f0=mix(0.022,0.05,wetK);
+          float gl=mix(mix(mix(7.0,22.0,wRock),150.0,wallSleek),96.0,wetK), f0=mix(mix(0.022,0.075,wallSleek),0.05,wetK);   // 점판암은 매끈하다
+          if(wallWet>0.01){ float rp=texture2D(uNz,vTW.xy/1.7+vec2(0.0,uShT*0.06)).g+texture2D(uNz,vTW.zy/1.7+vec2(0.0,uShT*0.06)).g-1.0;
+            Np=normalize(Np+vec3(rp,0.0,rp)*0.10*wallWet); }                         // 흘러내리는 물의 잔 일렁임 — 반짝임이 살아 움직인다
           float spec=f0*(gl+8.0)*0.125*pow(max(dot(Np,Hh),0.0),gl)*ndl*(0.35+0.65*smoothstep(0.35,0.65,lum))*mix(1.0,0.5,wetK);   // 젖은 데는 좁고 밝되 하얗게 뭉개지지 않게
           /* 이슬 맺힌 풀밭의 반짝임 — 잎 재질과 같은 식(98-dew.js ②) */
           if(uDew>0.01&&wGrass>0.05){ float cs=max(0.010,vTD*0.0024);

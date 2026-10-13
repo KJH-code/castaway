@@ -46,7 +46,7 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/50-items.js` | The `ITEMS` table, inventory + worn slots, drag and drop (incl. trash slot), bare-hand harvesting, eating, **drinking (must look at water)**, quick slots |
 | `engine/js/55-craft.js` | The `RECIPES` table, material counting, stations, crafting progress, crafting window |
 | `engine/js/60-stations.js` | Hearth, furnace, grindstone, anvil, water wheel, dynamo; storage (basket, chest, **trash can**) and **name tags**; **pushing stations** (hold F); shared container logic |
-| `engine/js/62-build.js` | House building (foundation, wall, roof, doors), build mode, **levelling with cement** (`PADS` — a foundation needs a pad under it), campfire → hearth upgrade, fire effects, **torch** / oil lamp / electric lamp |
+| `engine/js/62-build.js` | House building (foundation, wall, roof, doors; four tiers incl. brick; walls and post frames stand on bare ground via a hidden `ghost` base, roofs need support there), build mode, **levelling with cement** (`PADS` — a foundation needs a pad under it), campfire → hearth upgrade, fire effects, **torch** / oil lamp / electric lamp |
 | `engine/js/64-dex.js` | Item and mineral dictionary, the box window, the grindstone window |
 | `engine/js/70-weapons.js` | Melee hit test, held-item models (`WEAPON_FX`: spears, swords, axes, harpoons, torch …) |
 | `engine/js/data-sentinel-mesh.js` | One 1.3 MB line of mesh data (helmet model). Not meant to be read |
@@ -61,6 +61,7 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/95-flora.js` | Plants that grow in **groves**: each ~80 m patch of a biome gets one community (jungle, bamboo grove, birch stand, pine wood, mangrove swamp, palm grove, flower field …). Ten tree types with trunks you collide with, five kinds of undergrowth, and what you can pick from them (vines, bamboo, coconuts, bananas, mushrooms) |
 | `engine/js/95-giants.js` | Old-growth giants (30–40 m) whose buttress roots are walkable ground (`giantRootAt`, used by `floorAt`) |
 | `engine/js/96-sea.js` | Coral reefs (7 forms), anemones, kelp, starfish, seabed boulders, clams/oysters/urchins, fish schools (harpoon + net), and the **far-from-shore panic** |
+| `engine/js/66-decay.js` | Food spoilage (per-slot age, `rot` hours per item, rotten food, flies around containers and the player) and rain putting out unsheltered fires (`fireShelter`, `fireRain`) |
 | `engine/js/98-dew.js` | Dew: droplet meshes on leaves within 3.2 m (dielectric shading — Fresnel, sun glint, refracted-light crescent); the dew amount itself is `TERR_U.uDew` (set in `41-terrain-light.js`) and drives leaf/grass sparkle in `envPatch` and the ground shader |
 | `engine/js/96-foam.js` | Shoreline foam: instanced fractal clusters of tetrahedra (three chained by an edge, a smaller one budding from every face, then smaller again) within 55 m of the player, animated in the vertex shader from the real wave height and the beach profile; the shoreline scan is C (`engine/native/shore.c`) |
 | `engine/js/97-wildlife.js` | Bird flocks, nests with eggs, beehives with honey, the slingshot, tree climbing, and ambient insects (butterflies, fireflies, dragonflies, bees) |

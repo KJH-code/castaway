@@ -564,6 +564,18 @@ const ITEMS={
                food:20},
   fish_dried: {n:'말린 생선',  kg:0.25, c:0x9a8060, use:'배를 갈라 불가에 말렸다 — 가볍게 들고 다닌다',
                food:12},
+  /* ── 소금 · 상한 것 · 소금으로 만드는 먹을 것(사용자 요청) ── */
+  salt:       {n:'소금',       kg:0.15, c:0xf0efe8, use:'바닷가의 소금 더께를 곡괭이로 캔다 — 절이면 오래가고, 음식에 넣으면 맛이 난다'},
+  rot_food:   {n:'상한 음식',  kg:0.2,  c:0x5a6a3a, use:'상했다 — 먹으면 크게 탈이 난다. 버릴 것(파리가 꼬인다)', food:2, raw:true, spoiled:1},
+  fish_salted:{n:'소금절이 생선', kg:0.3, c:0xc8b89a, use:'소금에 절여 오래간다 — 날것이 아니다(허기 14)', food:14, fishy:1},
+  meat_salted:{n:'염장 고기',  kg:0.45, c:0x8a4a3a, use:'소금에 절인 고기 — 오래 두고 먹는다(허기 22)', food:22},
+  fish_grill_salt:{n:'소금구이', kg:0.28, c:0xd6a45a, use:'소금을 쳐 구운 생선 — 그냥 구운 것보다 든든하다(허기 24)', food:24, fishy:1},
+  soup_seaweed:{n:'바닷말국',  kg:3.4,  c:0x5a6a3a, use:'바닷말과 소금을 끓였다 — 배와 목을 함께 채운다', food:22, water:34, empty:'pot'},
+  soup_mushroom:{n:'버섯국',   kg:3.4,  c:0x9a8060, use:'버섯과 고사리를 소금으로 간해 끓였다', food:30, water:30, empty:'pot'},
+  namul:      {n:'고사리 무침', kg:0.12, c:0x5a7034, use:'익힌 고사리에 소금 — 쌉쌀한 맛이 가신다(허기 16)', food:16},
+  egg_mush:   {n:'버섯 알찜',  kg:0.16, c:0xe8d090, use:'새알에 구운 버섯과 소금(허기 28)', food:28},
+  skewer:     {n:'꼬치구이',   kg:0.35, c:0xa86a3a, use:'새고기와 버섯을 나뭇가지에 꿰어 소금을 쳤다(허기 34)', food:34},
+  banana_baked:{n:'구운 바나나', kg:0.14, c:0xb8903a, use:'불에 구워 달다(허기 16)', food:16, water:1},
   fat:        {n:'곰 기름',    kg:0.5,  c:0xe0d4a8, use:'곰 고기를 토기에 졸여 받은 기름 — 등잔을 밝힌다'},
 
   /* ── 감는 것 · 달인 것 ─────────────────────────────────────────────────── */
@@ -731,7 +743,7 @@ function invAdd(id,n){
     }
   }else{
     const s=INV.slots.find(x=>x.id===id&&x.dur===undefined&&x.sip===undefined);
-    if(s) s.n+=n; else INV.slots.push({id,n:n});
+    if(s){ freshMerge(s,s.n,n,DECAY.carry); s.n+=n; } else { const o={id,n:n}; freshMerge(o,0,n,DECAY.carry); INV.slots.push(o); }   // 들어온 때(66-decay.js)
   }
   invDirty=true; return true;
 }
@@ -799,7 +811,7 @@ function drawInv(){
       +(t.wear&&WEAR[t.wear.slot]===s?'<span class="eq">착용</span>':'')
       +(s.dur!==undefined?'<span class="eq" style="color:#8fd6b4">'+(Math.round(s.dur*10)/10)+'/'+t.durMax+'</span>':'')
       +(s.sip!==undefined?'<span class="eq" style="color:#6f9ec9">'+s.sip+'모금</span>':'')
-      +(s.amt!==undefined?'<span class="eq" style="color:#c8c8c0">'+Math.round(s.amt*100)+'%</span>':'')
+      +(s.amt!==undefined?'<span class="eq" style="color:#c8c8c0">'+Math.round(s.amt*100)+'%</span>':'')+freshTag(s)
       +(s.fuel!==undefined?'<span class="eq" style="color:'+(s.lit?'#e08a3a':'#5d7a71')+'">'
         +(s.lit?'타는 중 ':'꺼짐 ')+Math.round(s.fuel/t.burn*100)+'%</span>':'')
       +'<span class="u">'+t.use+'</span></span>'
@@ -1046,6 +1058,8 @@ function eatSlot(sl){
   if(i>=0) invRemove(i,1);
   if(T.empty && !invAdd(T.empty,1)) toast('빈 '+ITEMS[T.empty].n+'을 들 자리가 없어 버렸다');
   if(T.poison){ PL.ill=Math.max(PL.ill,90); hurtPL(T.poison,T.n+'의 독'); toast(T.n+' — 독이 온몸에 퍼진다! 반드시 구워 먹어야 한다'); }
+  else if(T.spoiled){ PL.ill=Math.max(PL.ill,120); hurtPL(5,'상한 음식'); toast('상한 것을 먹었다 — 크게 탈이 났다'); }
+  else if(T.raw&&T.fishy){ PL.ill=Math.max(PL.ill,75); toast(T.n+' — 날로 먹었다. 먹을 수는 있지만 탈이 났다(눈앞이 보랏빛으로 출렁인다) — 구워 먹을 것'); }
   else if(T.raw){ PL.ill=Math.max(PL.ill,45); toast(T.n+' — 날로 먹어 속이 뒤집힌다'); }
   else toast(T.n+' 먹었다');
   sfx('bind'); invDirty=true; return true;
@@ -1344,6 +1358,17 @@ function updateHarvest(dt){
   /* 보는 것이나 하는 일이 바뀌면 진행을 처음부터 — 예전엔 나무를 베다 만 몫(몇 초)이 그대로 남아, 곁의 풀(0.8초짜리)을 보는 순간
      막대가 칸 밖으로 몇 배나 뻗었다(사용자 지적) */
   { const hm=HARV.mode?HARV.mode.H:null; if(HARV._lt!==t||HARV._lm!==hm){ HARV._lt=t; HARV._lm=hm; HARV.t=0; } }
+  /* **맞지 않는 도구로도 내리칠 수는 있다 — 얻는 것 없이 날만 닳는다**(사용자 요청). 곡괭이로 나무를, 도끼로 바위를 치는 식.
+     0.9초에 한 번 내구가 2 닳고 기력이 든다. 다 닳으면 부서진다 */
+  if(t&&!HARV.mode&&useDown&&!PL.swim&&PL.stam>=3&&!uiOpen()){
+    const e=equippedTool(), T=e&&ITEMS[e.id].tool;
+    if(e&&T&&e.dur!==undefined&&(T.pick||T.axe)&&!T.drill){
+      HARV.active=true; HARV.wr=(HARV.wr||0)+dt; PL.stam=clamp(PL.stam-5*dt,0,100);
+      if(HARV.wr>=0.9){ HARV.wr=0; e.dur-=2; sfx('knap'); invDirty=true;
+        toast(ITEMS[e.id].n+' — 여기에 쓰는 도구가 아니다. 얻는 것 없이 날만 상한다');
+        if(e.dur<=0){ toast(ITEMS[e.id].n+' 파손'); invRemove(INV.slots.indexOf(e),1); EQUIP=null; } }
+      return; } }
+  HARV.wr=0;
   const want=useDown && harvestByUse() && !PL.swim;     // 캐기는 좌클릭(누르고 있는 동안)뿐 — E 는 안 쓴다
   if(!want || PL.stam<3){
     HARV.t=Math.max(0,HARV.t-dt*2.5); HARV.active=false; return;
@@ -1522,6 +1547,7 @@ function shrinkFoliage(p){
       arr[i+2]=p.z  +(arr[i+2]-p.z )*f;
     }
     a.needsUpdate=true;
+    propColScale(p,k);                         // 몸이 막히는 테두리도 같이 줄인다
     LIGHT.dirtyAt(p.x,p.z,3);                  // 오므라든 바위 그림자
     return;
   }
@@ -1535,6 +1561,15 @@ function shrinkFoliage(p){
   _M.compose(_V,_Q,_S);
   p._fm.setMatrixAt(p._fi,_M);
   p._fm.instanceMatrix.needsUpdate=true;
+  propColScale(p,k);
+}
+/* 캐서 줄어든 바위는 **몸이 막히는 테두리도 줄어든다** — 예전엔 메시만 오므라들고 충돌 원·방위별 테두리는 다 큰 때 그대로라,
+   반쯤 캔 바위 둘레에 보이지 않는 벽이 남았다(사용자 지적). k: 지금 크기의 비율(다 사라지면 0 — 안 막는다) */
+function propColScale(p,k){
+  const c=p._col; if(!c) return;
+  if(c.r0===undefined) c.r0=c.r;
+  c.r=c.r0*k;
+  if(c.p0){ if(!c.prof) c.prof=new Float32Array(c.p0.length); for(let i=0;i<c.p0.length;i++) c.prof[i]=c.p0[i]*k; }
 }
 /* 알림 — 채취 표시(#look) 밑의 따로 된 칸(#toast)에 최대 세 줄 쌓는다. 같은 말이 잇달아 오면 한 줄에 ×n 으로 센다.
    예전엔 #look 의 글을 빌려 써서, 캐는 동안 '+1' 이 뜰 때마다 1.4초씩 진행 막대가 가려졌다(사용자 지적) */

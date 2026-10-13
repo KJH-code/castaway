@@ -25,7 +25,8 @@ const BTIER=[
          door :[{id:'branch',n:4},{id:'fiber',n:4},{id:'cord',n:2}],
          window:[{id:'branch',n:4},{id:'fiber',n:5},{id:'cord',n:2}],
          leaf :[{id:'branch',n:6},{id:'cord',n:3}],
-         pane :[{id:'glass',n:2},{id:'branch',n:3},{id:'cord',n:2}]}},
+         pane :[{id:'glass',n:2},{id:'branch',n:3},{id:'cord',n:2}],
+         post :[{id:'branch',n:4},{id:'cord',n:2}]}},
   {id:'wood',   n:'나무', hp:300, c:{beam:0x6b5a3c, fill:0x8a7550, deck:0x7d6a48},
    cost:{found:[{id:'log',n:3},{id:'cord',n:3}],
          wall :[{id:'log',n:1},{id:'branch',n:5},{id:'cord',n:3}],
@@ -35,7 +36,8 @@ const BTIER=[
          door :[{id:'log',n:1},{id:'branch',n:3},{id:'cord',n:3}],
          window:[{id:'log',n:1},{id:'branch',n:4},{id:'cord',n:2}],
          leaf :[{id:'log',n:1},{id:'branch',n:4},{id:'cord',n:3}],
-         pane :[{id:'glass',n:2},{id:'log',n:1},{id:'cord',n:2}]}},
+         pane :[{id:'glass',n:2},{id:'log',n:1},{id:'cord',n:2}],
+         post :[{id:'log',n:2},{id:'cord',n:2}]}},
   {id:'stone',  n:'돌',   hp:900, c:{beam:0x74716a, fill:0x82807a, deck:0x6f6d67},
    cost:{found:[{id:'stone_block',n:4},{id:'clay_lump',n:2}],
          wall :[{id:'stone_block',n:3},{id:'clay_lump',n:2}],
@@ -45,7 +47,21 @@ const BTIER=[
          door :[{id:'stone_block',n:2},{id:'log',n:1},{id:'clay_lump',n:2}],
          window:[{id:'stone_block',n:2},{id:'log',n:1},{id:'clay_lump',n:1}],
          leaf :[{id:'log',n:2},{id:'branch',n:4},{id:'cord',n:4}],
-         pane :[{id:'glass',n:3},{id:'log',n:1},{id:'cord',n:2}]}}
+         pane :[{id:'glass',n:3},{id:'log',n:1},{id:'cord',n:2}],
+         post :[{id:'stone_block',n:2},{id:'clay_lump',n:1}]}},
+  /* 벽돌(사용자 요청) — 점토를 빚어 구운 벽돌(`brick` — 모닥불·가마에서 `brick_raw` 를 굽는다)을 점토로 붙여 쌓는다. 가장 튼튼하다.
+     벽의 메움은 벽돌 한 켜 무늬(`fill` 이 객체면 `bmat` 이 그 무늬를 입힌다 — 켜마다 반 장씩 어긋난다) */
+  {id:'brick',  n:'벽돌', hp:1400, c:{beam:0x6a3a2c, fill:{c:0xc8705a,brick:1}, deck:0x9a5240},
+   cost:{found:[{id:'brick',n:6},{id:'clay_lump',n:2}],
+         wall :[{id:'brick',n:5},{id:'clay_lump',n:1}],
+         roof :[{id:'brick',n:4},{id:'log',n:1},{id:'clay_lump',n:1}],
+         slope:[{id:'brick',n:5},{id:'log',n:1},{id:'clay_lump',n:1}],
+         gable:[{id:'brick',n:3},{id:'clay_lump',n:1}],
+         door :[{id:'brick',n:4},{id:'log',n:1},{id:'clay_lump',n:1}],
+         window:[{id:'brick',n:4},{id:'log',n:1},{id:'clay_lump',n:1}],
+         leaf :[{id:'log',n:2},{id:'branch',n:4},{id:'cord',n:4}],
+         pane :[{id:'glass',n:3},{id:'log',n:1},{id:'cord',n:2}],
+         post :[{id:'brick',n:4},{id:'clay_lump',n:1}]}}
 ];
 /* 경사 지붕 — 한 칸을 가로지르며 RISE 만큼 솟는다.
    3 m 를 가는 동안 2.4 m 오르니 38.7°. 지형 걷기 한계(49°)보다 완만해 걸어 오른다. */
@@ -55,7 +71,7 @@ const SLOPE_L=Math.hypot(RISE,CELL_B);              // 빗면 길이 3.84 m
 const BKIND=['found','wall','door','leaf','window','pane','roof','slope','gable'];
 const BKIND_N={found:'토대', wall:'벽', door:'문틀', leaf:'문짝',
                window:'창틀', pane:'창짝',
-               roof:'지붕', slope:'경사 지붕', gable:'삼각 벽'};
+               roof:'지붕', slope:'경사 지붕', gable:'삼각 벽', post:'기둥 틀'};
 /* 문짝 · 창짝은 문틀 · 창틀에 달린다. 벽 항목의 leaf 에 얹혀 함께 움직인다.
    문짝은 좌클릭으로 여닫고, 닫으면 뚫려 있던 충돌체가 되살아난다. */
 const FITS={leaf:'door', pane:'window'};
@@ -63,6 +79,7 @@ const WALLV=['wall','door','window'];               // 벽 자리에 들어가�
 const PADS=new Map();        // "gx,gz"     → {gx,gz,x,z,y,lo,mesh}  시멘트로 다진 터 — 토대는 이 위에만 선다(아래 '터 다지기')
 const FOUNDS=new Map();      // "gx,gz"     → {gx,gz,x,z,y,tier,hp,mesh}
 const WALLS =new Map();      // "gx,gz,L,s" → {gx,gz,L,s,v,tier,hp,mesh,cols}  v = 벽/문/창문
+const POSTS =new Map();      // "gx,gz,L"   → {gx,gz,L,tier,hp,mesh}  기둥 틀 — 벽 없이 지붕을 받친다(차양)
 const ROOFS =new Map();      // "gx,gz,L"   → {gx,gz,L,tier,hp,mesh}
 const SLOPES=new Map();      // "gx,gz,L"   → {gx,gz,L,s,tier,hp,mesh}  s = 솟는 쪽
 const GABLES=new Map();      // "gx,gz,L,s" → {gx,gz,L,s,h,tier,hp,mesh}  h = ±1 방향
@@ -106,7 +123,7 @@ function builtFloorAt(x,z){
   const f=FOUNDS.get(fkey(gx,gz)), pd=PADS.get(fkey(gx,gz));
   if(!f) return pd?pd.y:-1e9;                         // 다진 터도 바닥이다
   if(Math.abs(x-f.x)>CELL_B/2||Math.abs(z-f.z)>CELL_B/2) return -1e9;
-  let best=f.y;
+  let best=f.ghost?-1e9:f.y;                         // 맨땅의 바탕(토대 없이 세운 칸)은 바닥이 아니다
   for(let L=0;L<8;L++){                              // 밟고 선 층보다 낮은 지붕 중 가장 높은 것
     const r=ROOFS.get(rkey(gx,gz,L));
     if(r) best=Math.max(best,f.y+(L+1)*WALL_H);
@@ -125,7 +142,7 @@ function floorAt(x,z,fromY){
   if(!f||Math.abs(x-f.x)>CELL_B/2||Math.abs(z-f.z)>CELL_B/2) return t;
   const y=(fromY===undefined)?1e9:fromY+0.6;
   let best=t;
-  if(f.y<=y) best=Math.max(best,f.y);
+  if(!f.ghost&&f.y<=y) best=Math.max(best,f.y);
   for(let L=0;L<8;L++){
     const r=ROOFS.get(rkey(gx,gz,L));
     if(r){ const ry=f.y+(L+1)*WALL_H; if(ry<=y) best=Math.max(best,ry); }
@@ -136,7 +153,19 @@ function floorAt(x,z,fromY){
 }
 
 /* ---- 조각 만들기 ---- */
-const bmat=c=>new THREE.MeshLambertMaterial({color:c});
+/* 벽돌 한 켜 — 가로로 벽돌 여섯 장과 줄눈. 벽의 메움 널(가로 2.7 m × 세로 0.3 m)에 한 켜로 앉는다 */
+let _brickRow=null;
+function brickRowTex(){
+  if(_brickRow) return _brickRow;
+  const c=document.createElement('canvas'); c.width=384; c.height=48; const g=c.getContext('2d'), rnd=mulberry32(0xb21c);
+  g.fillStyle='#b9b2a4'; g.fillRect(0,0,384,48);                                   // 줄눈(점토 모르타르)
+  for(let i=0;i<6;i++){ const v=0.80+0.34*rnd(), w=rnd(); g.fillStyle='rgb('+Math.round(255*v)+','+Math.round(255*v*(0.86+0.1*w))+','+Math.round(255*v*(0.80+0.12*w))+')';
+    g.fillRect(i*64+3,4,58,40); for(let k=0;k<14;k++){ g.fillStyle='rgba(60,30,20,'+(0.05+0.10*rnd()).toFixed(2)+')'; g.fillRect(i*64+3+rnd()*54,4+rnd()*36,2+rnd()*5,1+rnd()*3); } }
+  _brickRow=new THREE.CanvasTexture(c); _brickRow.wrapS=THREE.RepeatWrapping; return _brickRow;
+}
+const bmat=(c,half)=>{ if(typeof c!=='object') return new THREE.MeshLambertMaterial({color:c});
+  const t=half?brickRowTex().clone():brickRowTex(); if(half){ t.offset.x=1/12; t.needsUpdate=true; }   // 켜마다 반 장 어긋난다
+  return new THREE.MeshLambertMaterial({color:c.c,map:t}); };
 function makeFound(C){
   const g=new THREE.Group(), H=CELL_B/2;
   const beam=bmat(C.beam), deck=bmat(C.deck);
@@ -156,7 +185,7 @@ function makeFound(C){
 }
 function makeWall(C){
   const g=new THREE.Group(), H=CELL_B/2;
-  const beam=bmat(C.beam), fill=bmat(C.fill);
+  const beam=bmat(C.beam), fill=bmat(C.fill), fill2=typeof C.fill==='object'?bmat(C.fill,true):fill;
   for(const sx of [-1,1]){
     const p2=new THREE.Mesh(new THREE.BoxGeometry(0.16,WALL_H,0.20),beam);
     p2.position.set(sx*(H-0.08),WALL_H/2,0); g.add(p2);
@@ -164,7 +193,7 @@ function makeWall(C){
   const top=new THREE.Mesh(new THREE.BoxGeometry(CELL_B,0.16,0.20),beam);
   top.position.y=WALL_H-0.08; g.add(top);
   for(let i=0;i<7;i++){
-    const w=new THREE.Mesh(new THREE.BoxGeometry(CELL_B-0.3,WALL_H/7-0.04,0.11),fill);
+    const w=new THREE.Mesh(new THREE.BoxGeometry(CELL_B-0.3,WALL_H/7-0.04,0.11),i%2?fill2:fill);
     w.position.set(0,WALL_H/14+i*WALL_H/7,(i%2?0.03:-0.03)); g.add(w);
   }
   for(const sx of [-0.7,0,0.7]){
@@ -322,7 +351,14 @@ function makePane(C){
   mid.position.set(W/2,H/2,0); g.add(mid);
   return g;
 }
-const BUILD_MESH={found:makeFound, wall:makeWall, door:makeDoor, window:makeWindow,
+/* 기둥 틀 — 네 귀퉁이 기둥과 그 머리를 잇는 도리. 벽 없이 지붕을 받친다(차양 · 정자) */
+function makePost(C){
+  const g=new THREE.Group(), H=CELL_B/2, beam=bmat(C.beam);
+  for(const sx of [-1,1]) for(const sz of [-1,1]){ const p=new THREE.Mesh(new THREE.BoxGeometry(0.18,WALL_H,0.18),beam); p.position.set(sx*(H-0.09),WALL_H/2,sz*(H-0.09)); g.add(p); }
+  for(const [ax,az] of [[1,0],[-1,0],[0,1],[0,-1]]){ const b=new THREE.Mesh(new THREE.BoxGeometry(ax?0.16:CELL_B,0.16,az?0.16:CELL_B),beam); b.position.set(ax*(H-0.09),WALL_H-0.08,az*(H-0.09)); g.add(b); }
+  return g;
+}
+const BUILD_MESH={post:makePost, found:makeFound, wall:makeWall, door:makeDoor, window:makeWindow,
                   leaf:makeLeaf, pane:makePane,
                   roof:makeRoof, slope:makeSlope, gable:makeGable};
 /* 문짝·창짝이 틀 안에서 앉는 자리 (벽 메시의 국소 좌표) */
@@ -367,8 +403,45 @@ function foundHeight(gx,gz){
   }
   return {y:heightAt(gx*CELL_B,gz*CELL_B)+FOUND_UP, snapped:false};
 }
+/* ── 토대 없이 세우기(사용자 요청) ─────────────────────────────────────────────
+   **벽은 맨땅에 홀로 선다. 지붕(과 차양)은 벽이나 기둥 틀이 받치면 토대 없이 놓인다.**
+   그런 칸에는 보이지 않는 '맨땅의 바탕'을 둔다 — 토대 표(FOUNDS)에 `ghost` 로 들어가 벽·지붕이 높이를 얻는 자리다.
+   바닥이 아니고(딛는 것은 땅이다), 그 칸의 조각을 다 걷어내면 사라진다. 높이는 이웃 바탕·토대에 맞추고(벽이 이어지게),
+   없으면 그 칸 네 귀와 가운데 땅 가운데 **가장 낮은 데**다(벽 밑이 뜨지 않게 — 높은 쪽은 땅에 묻힌다) */
+function groundBaseY(gx,gz){
+  const x=gx*CELL_B, z=gz*CELL_B, pd=PADS.get(fkey(gx,gz)); if(pd) return pd.y+0.02;
+  const lo=Math.min(heightAt(x,z),heightAt(x-1.5,z-1.5),heightAt(x+1.5,z-1.5),heightAt(x-1.5,z+1.5),heightAt(x+1.5,z+1.5))-0.05;
+  for(const [ox,oz] of SIDE){ const n=FOUNDS.get(fkey(gx+ox,gz+oz)); if(n&&Math.abs(n.y-lo)<1.0) return n.y; }
+  return lo;
+}
+function groundBase(gx,gz){
+  let f=FOUNDS.get(fkey(gx,gz)); if(f) return f;
+  f={gx,gz,x:gx*CELL_B,z:gz*CELL_B,y:groundBaseY(gx,gz),tier:-1,hp:1e9,mesh:null,ghost:true};
+  FOUNDS.set(fkey(gx,gz),f); return f;
+}
+/* 그 칸에 남은 조각이 없으면 맨땅의 바탕을 치운다 */
+function baseTidy(gx,gz){
+  const f=FOUNDS.get(fkey(gx,gz)); if(!f||!f.ghost) return;
+  for(let L=0;L<8;L++){ if(ROOFS.has(rkey(gx,gz,L))||SLOPES.has(rkey(gx,gz,L))||POSTS.has(rkey(gx,gz,L))) return;
+    for(let i=0;i<4;i++) if(WALLS.has(wkey(gx,gz,L,i))||GABLES.has(wkey(gx,gz,L,i))) return; }
+  FOUNDS.delete(fkey(gx,gz));
+}
+/* 지붕을 받칠 것이 있나 — 그 칸 그 층의 벽(이웃 칸이 맞댄 벽 포함) · 기둥 틀 · 이웃 칸의 지붕(이어 덮는다) */
+function roofSupport(gx,gz,L){
+  if(POSTS.has(rkey(gx,gz,L))) return true;
+  for(let i=0;i<4;i++){ const [ox,oz]=SIDE[i];
+    if(WALLS.has(wkey(gx,gz,L,i))||WALLS.has(wkey(gx+ox,gz+oz,L,(i+2)%4))) return true;
+    if(ROOFS.has(rkey(gx+ox,gz+oz,L))) return true; }
+  return false;
+}
+function placePost(gx,gz,L,tier){
+  const f=FOUNDS.get(fkey(gx,gz)); if(!f) return null;
+  const T=BTIER[tier], m=makePost(T.c); m.position.set(f.x,f.y+L*WALL_H,f.z); scene.add(m);
+  const o={gx,gz,L,tier,hp:T.hp,mesh:m}; POSTS.set(rkey(gx,gz,L),o); return o;
+}
 function placeFound(gx,gz,tier,y){
   const x=gx*CELL_B, z=gz*CELL_B;
+  if(tier<0){ const f={gx,gz,x,z,y:(y===undefined)?groundBaseY(gx,gz):y,tier:-1,hp:1e9,mesh:null,ghost:true}; FOUNDS.set(fkey(gx,gz),f); return f; }   // 저장에서 되살리는 맨땅의 바탕
   const T=BTIER[tier];
   const top=(y===undefined)?foundHeight(gx,gz).y:y;
   const m=makeFound(T.c); m.position.set(x,top,z); scene.add(m);
@@ -466,18 +539,19 @@ function placeGable(gx,gz,L,s,h,tier){
   return o;
 }
 function dropBuild(o,map,k){
-  scene.remove(o.mesh);
+  if(o.mesh) scene.remove(o.mesh);
   if(o.cols&&o.cols.length){
     for(const c of o.cols){ const i=COLLIDERS.indexOf(c); if(i>=0) COLLIDERS.splice(i,1); }
     buildColliderGrid();
   }
   map.delete(k);
+  if(o.gx!==undefined&&map!==FOUNDS) baseTidy(o.gx,o.gz);     // 그 칸이 비면 맨땅의 바탕도 치운다
 }
 function clearBuilds(){
   for(const o of PADS.values()){ scene.remove(o.mesh); o.mesh.geometry.dispose(); } PADS.clear();
-  for(const m of [FOUNDS,WALLS,ROOFS,SLOPES,GABLES]){
+  for(const m of [FOUNDS,WALLS,ROOFS,SLOPES,GABLES,POSTS]){
     for(const o of m.values()){
-      scene.remove(o.mesh);
+      if(o.mesh) scene.remove(o.mesh);
       if(o.cols) for(const c of o.cols){ const i=COLLIDERS.indexOf(c); if(i>=0) COLLIDERS.splice(i,1); }
     }
     m.clear();
@@ -593,13 +667,23 @@ function buildCheck(t){
   const x=gx*CELL_B, z=gz*CELL_B;
   if(Math.abs(x)>HALF-8||Math.abs(z)>HALF-8) return {ok:false, why:'섬 밖이다'};
   if(kind==='found'){
-    if(FOUNDS.has(fkey(gx,gz))) return {ok:false, why:'이미 토대가 있다'};
+    { const f0=FOUNDS.get(fkey(gx,gz)); if(f0) return {ok:false, why:f0.ghost?'벽이나 기둥이 선 자리다 — 먼저 걷어내야 토대를 놓는다':'이미 토대가 있다'}; }
     /* **터를 먼저 다져야 한다**(사용자 요청) — 예전엔 토대가 땅 위 30 cm 에 그냥 떠서, 비탈에서는 한쪽이 허공에 걸렸다.
        시멘트로 다진 터(PADS)가 그 칸에 있어야 하고, 토대는 그 위에 앉는다 */
     if(!PADS.has(fkey(gx,gz))) return {ok:false, why:'터를 먼저 다져야 한다 — 시멘트를 들고 땅을 보며 좌클릭(토대가 허공에 뜨지 않게)'};
     return {ok:true, why:''};
   }
-  if(!FOUNDS.has(fkey(gx,gz))) return {ok:false, why:'토대 위에만 세울 수 있다'};
+  /* 토대가 없는 칸 — 벽·문틀·창틀·기둥 틀은 맨땅에 선다. 지붕은 받칠 것(벽·기둥 틀·이웃 지붕)이 있어야 한다(사용자 요청) */
+  { const f0=FOUNDS.get(fkey(gx,gz));
+    if(!f0||f0.ghost){
+      if(kind==='roof'||kind==='slope'){ if(!roofSupport(gx,gz,L)) return {ok:false, why:'지붕은 벽이나 기둥 틀이 받쳐야 한다 — 이 칸에 벽이나 기둥 틀을 먼저 세운다(이웃 지붕에 이어 덮어도 된다)'}; }
+      else if(!f0&&(kind==='leaf'||kind==='pane'||kind==='gable')) return {ok:false, why:BKIND_N[kind]+'을 달 벽이 없다'};
+    } }
+  if(kind==='post'){
+    if(POSTS.has(rkey(gx,gz,L))) return {ok:false, why:'이미 기둥 틀이 있다'};
+    if(L>0 && !ROOFS.has(rkey(gx,gz,L-1))) return {ok:false, why:(L+1)+'층은 아래 지붕을 먼저 덮어야 한다'};
+    return {ok:true, why:''};
+  }
   if(L>0 && !ROOFS.has(rkey(gx,gz,L-1)))
     return {ok:false, why:(L+1)+'층은 아래 지붕을 먼저 덮어야 한다'};
   if(kind==='wall'||kind==='door'||kind==='window'){
@@ -711,8 +795,9 @@ function updateBuild(){
   BUILD.lvl=t.L||0;
   const g=BUILD.ghost; g.visible=true;
   const f=FOUNDS.get(fkey(t.gx,t.gz));
-  const base=f?f.y:foundHeight(t.gx,t.gz).y;
+  const base=f?f.y:(t.kind==='found'?foundHeight(t.gx,t.gz).y:groundBaseY(t.gx,t.gz));   // 토대가 없는 칸은 맨땅의 바탕 높이
   if(t.kind==='found'){ g.position.set(t.gx*CELL_B,base,t.gz*CELL_B); g.rotation.y=0; }
+  else if(t.kind==='post'){ g.position.set(t.gx*CELL_B,base+t.L*WALL_H,t.gz*CELL_B); g.rotation.y=0; }
   else if(t.kind==='wall'||t.kind==='door'||t.kind==='window'){
     const P0=wallPose(t.gx,t.gz,t.s);
     g.position.set(P0.x, base+t.L*WALL_H, P0.z); g.rotation.y=P0.rot;
@@ -741,7 +826,9 @@ function doBuild(){
   if(!BUILD.ok){ toast(BUILD.why||'여기엔 못 놓는다'); return; }
   const t=BUILD.tgt, tier=BUILD.tier;
   for(const r of buildCost(BUILD.kind)) consumeMat(r);
+  if(t.kind!=='found') groundBase(t.gx,t.gz);                  // 토대가 없는 칸이면 맨땅의 바탕을 둔다
   if(t.kind==='found') placeFound(t.gx,t.gz,tier);
+  else if(t.kind==='post') placePost(t.gx,t.gz,t.L,tier);
   else if(t.kind==='wall'||t.kind==='door'||t.kind==='window')
     placeWall(t.gx,t.gz,t.L,t.s,tier,t.kind);
   else if(t.kind==='leaf'||t.kind==='pane')
@@ -760,6 +847,10 @@ function undoBuild(){
     if(o&&o.leaf){ const k=o.leaf.kind, tr=o.leaf.tier;
                    dropFit(o); return refundBuild(k,tr); }
   }
+  if(t.kind==='post'){ const o=POSTS.get(rkey(t.gx,t.gz,t.L));
+    if(o){ const fb=FOUNDS.get(fkey(t.gx,t.gz));
+      if(fb&&fb.ghost&&(ROOFS.has(rkey(t.gx,t.gz,t.L))||SLOPES.has(rkey(t.gx,t.gz,t.L)))){ let wall=false; for(let i=0;i<4;i++) if(WALLS.has(wkey(t.gx,t.gz,t.L,i))) wall=true; if(!wall){ toast('지붕부터 걷어내야 한다 — 이 기둥이 받치고 있다'); return; } }
+      dropBuild(o,POSTS,rkey(t.gx,t.gz,t.L)); return refundBuild('post',o.tier); } }
   if(t.kind==='wall'||t.kind==='door'||t.kind==='window'){
     const o=WALLS.get(wkey(t.gx,t.gz,t.L,t.s));
     if(o){
@@ -1599,7 +1690,7 @@ function updateFurnaces(dt,dh){
     if(!g.jobs) g.jobs={};
     /* 불이 붙어 있는 동안에만 녹는다. 꺼지면 제자리에 멈춰 서고,
        다시 붙이면 녹던 데서 이어진다 — 모닥불의 굽기와 같은 규칙이다. */
-    if(g.lit && dh>0 && burnFuel(g,dh)){
+    if(g.lit && dh>0 && !fireRain(g,dh,0.01) && burnFuel(g,dh)){
       const live=furnaceJobs(g);
       for(const R of live){
         g.jobs[R.id]=(g.jobs[R.id]||0)+dh;
@@ -1649,6 +1740,7 @@ function updateFires(dt,dh){
     for(const k of Object.keys(f.cook))       // 다 꺼내 간 것은 진척을 지운다
       if(jobs.indexOf(k)<0) delete f.cook[k];
     if(!f.lit) continue;
+    if(fireRain(f,dh,f.kilnU?0.02:f.hearthU?0.10:0.60)) continue;   // 비 — 한데 있는 불은 꺼질 수 있다(66-decay.js)
     // 안에 든 땔감을 알아서 끌어다 문다 — 넣어두기만 하면 계속 탄다
     if(!burnFuel(f,dh)) continue;
     f.t+=dt;
