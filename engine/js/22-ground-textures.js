@@ -93,6 +93,22 @@ uniform mediump sampler2DArray uGnd;
 varying vec3 vTW;
 varying vec3 vTN;
 varying float vTD;
+/* **육각 타일**(Mikkelsen, "Practical Real-Time Hex-Tiling", JCGT 2022 — bgfx 의 examples/49-hextile 가 같은 기법이다. 식만 보고 새로 썼다).
+   사진 한 장을 그대로 되풀이하면 2 m 마다 같은 얼룩이 줄지어 보인다(사용자 지적: 땅 그림이 너무 되풀이된다).
+   땅을 세모 칸으로 나눠 **칸마다 사진을 다른 자리로 밀어** 읽고, 한 점을 둘러싼 세 칸의 것을 가중해 섞는다 — 같은 사진인데
+   되풀이 주기가 없어진다. 가중치를 5제곱해 섞이는 띠를 좁혀 무늬가 뭉개지지 않게 한다. 사진을 세 번 읽는 값이다 */
+vec2 hxo(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453); }
+vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
+  vec2 sk=mat2(1.0,0.0,-0.57735027,1.15470054)*(uv*1.7320508);
+  vec2 b=floor(sk); vec3 t=vec3(fract(sk),0.0); t.z=1.0-t.x-t.y;
+  float s=step(0.0,-t.z), s2=2.0*s-1.0;
+  float w1=-t.z*s2, w2=s-t.y*s2, w3=s-t.x*s2;
+  vec3 c1=textureGrad(uGnd,vec3(uv+hxo(b+vec2(s,s)),L),dx,dy).rgb,
+       c2=textureGrad(uGnd,vec3(uv+hxo(b+vec2(s,1.0-s)),L),dx,dy).rgb,
+       c3=textureGrad(uGnd,vec3(uv+hxo(b+vec2(1.0-s,s)),L),dx,dy).rgb;
+  w1=pow(w1,5.0); w2=pow(w2,5.0); w3=pow(w3,5.0);
+  return (c1*w1+c2*w2+c3*w3)/(w1+w2+w3);
+}
 `+frag.replace('#include <color_fragment>',`#include <color_fragment>
       {
         vec2 p=vTW.xz;
@@ -137,7 +153,7 @@ varying float vTD;
         vec2 ax=dFdx(uA), ay=dFdy(uA), bx=dFdx(uB), by=dFdy(uB);
         float fm=smoothstep(5.0,28.0,vTD);
         vec3 det=vec3(0.0);
-        #define GL(L) mix(textureGrad(uGnd,vec3(uA,L),ax,ay).rgb,textureGrad(uGnd,vec3(uB,L),bx,by).rgb,fm)
+        #define GL(L) mix(hexT(L,uA,ax,ay),textureGrad(uGnd,vec3(uB,L),bx,by).rgb,fm)
         if(wSand>0.02)  det+=wSand*GL(0.0);
         if(wGrass>0.02) det+=wGrass*GL(1.0);
         if(wLeaf>0.02)  det+=wLeaf*GL(2.0);
