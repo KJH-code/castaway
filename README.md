@@ -7,8 +7,8 @@ Three.js r128 · 빌드 과정 없음.
 island_world.html 을 브라우저로 열면 끝입니다.
 ```
 
-본편은 `island_world.html`(껍데기) + `css/game.css` + `js/*.js`(29개, 불러오는 차례대로 번호)로 나뉘어 있습니다.
-**`css/` · `js/` · `three.min.js` 를 `island_world.html` 곁에 같이 두세요.** 어느 파일에 무엇이 있는지는 [CODEMAP.md](CODEMAP.md).
+본편은 `island_world.html`(껍데기) + `engine/css/game.css` + `engine/js/*.js`(29개, 불러오는 차례대로 번호)로 나뉘어 있습니다.
+**`engine/` 와 `presets/` 폴더를 `island_world.html` 곁에 같이 두세요.** 어느 파일에 무엇이 있는지는 [CODEMAP.md](CODEMAP.md).
 한 파일로 묶으려면 `python3 tools/build_single.py` → `island_world_single.html`.
 
 **브라우저 없이 제 창으로 하려면 데스크톱 판**을 받으세요 —
@@ -20,27 +20,42 @@ island_world.html 을 브라우저로 열면 끝입니다.
 Windows 는 "PC 보호" 창에서 **추가 정보 → 실행**, macOS 는 **우클릭 → 열기**를 한 번 눌러야 합니다.
 
 지형은 시드 하나에서 결정론적으로 생성됩니다 — 같은 시드는 언제나 같은 섬이 됩니다.
-768 × 768 셀(셀 한 변 2.5 m, 월드 **1920 m** = 3.69 km², 삼각형 117만)을 만듭니다.
+768 × 768 셀을 셀 한 변 2.5 m(1,920 m)로 만든 뒤 통째로 키웁니다 — 새 섬은 2배(**3,840 m** = 14.7 km²)이고 설정의 '섬 넓이'로 1.9 · 3.8 · 5.8 km 를 고릅니다.
+
+**맥용 베타 빌드**는 `sh beta/build-mac.sh` — `beta/builds/` 에 `CASTAWAY.app` 과 `.dmg` 가 생깁니다([beta/README.md](beta/README.md)).
 
 ---
+
+## 폴더
+
+| 폴더 | 무엇 |
+|---|---|
+| `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
+| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 29개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
+| `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) · `random_textures/`(텍스처 모델이 낸 그림이 들어갈 자리) |
+| `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
+| `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
+| `desktop/` | 데스크톱 판(Electron 껍데기) |
+| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `tools/ai/`(텍스처 모델 학습) |
+| `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 파일
 
 | 파일 | 내용 |
 |------|------|
-| **wyvern_arena.html** | 잿불 와이번 시험장 |
-| **trio_arena.html** | 셋 시험장 — 모방 거미 1 · 북극곰 1 · 가고일 2 |
-| **island_world.html** + `css/` · `js/` | 메인 게임(나뉜 판 — [CODEMAP.md](CODEMAP.md)) |
-| **build_sandbox.html** | 건축장 — 평평한 터에서 재료·무게 제한 없이 집만 지어 본다 |
-| **mixed_arena.html** | 섞인 시험장 — 북극곰 1 · 가고일 3 · 입장 전 장비와 짐을 정한다 |
-| **gargoyle_arena.html** | 곤충형 가고일 전투 시험장 — 무기 5종 · 모델 내장 5 MB |
-| **bear_arena.html** | 북극곰 전투 시험장 — 내려찍기(볼리베어 Q) · 뼈대 자동 생성 · 무기 5종 · 1.6 MB |
-| **CASTAWAY_개발요약.md** | 설계 전반 — 지형 · 제작 트리 · 설비 · 몹 · 저장 |
-| **CASTAWAY_전사_초반부.md** | 초반 개발 대화 원문 |
-| **CASTAWAY_전사_2차.md** | 2차 작업 기록 — 돌창 · 설비 용기화 · 파워레벨 |
-| bear_high.glb | 북극곰 고해상 LOD (39,998 삼각형 · 정점색) |
-| stormscale_wyrm.glb | 번개비늘 와이엄, power 60 (62,706 삼각형 · PBR 텍스처) |
-| stone_colossus.glb | 용암 골렘, power 100 (250,012 삼각형 · PBR 텍스처) |
+| **beta/wyvern_arena.html** | 잿불 와이번 시험장 |
+| **beta/trio_arena.html** | 셋 시험장 — 모방 거미 1 · 북극곰 1 · 가고일 2 |
+| **island_world.html** + `engine/css/` · `engine/js/` | 메인 게임(나뉜 판 — [CODEMAP.md](CODEMAP.md)) |
+| **beta/build_sandbox.html** | 건축장 — 평평한 터에서 재료·무게 제한 없이 집만 지어 본다 |
+| **beta/mixed_arena.html** | 섞인 시험장 — 북극곰 1 · 가고일 3 · 입장 전 장비와 짐을 정한다 |
+| **beta/gargoyle_arena.html** | 곤충형 가고일 전투 시험장 — 무기 5종 · 모델 내장 5 MB |
+| **beta/bear_arena.html** | 북극곰 전투 시험장 — 내려찍기(볼리베어 Q) · 뼈대 자동 생성 · 무기 5종 · 1.6 MB |
+| **docs/CASTAWAY_개발요약.md** | 설계 전반 — 지형 · 제작 트리 · 설비 · 몹 · 저장 |
+| **docs/CASTAWAY_전사_초반부.md** | 초반 개발 대화 원문 |
+| **docs/CASTAWAY_전사_2차.md** | 2차 작업 기록 — 돌창 · 설비 용기화 · 파워레벨 |
+| presets/models/bear_high.glb | 북극곰 고해상 LOD (39,998 삼각형 · 정점색) |
+| presets/models/stormscale_wyrm.glb | 번개비늘 와이엄, power 60 (62,706 삼각형 · PBR 텍스처) |
+| presets/models/stone_colossus.glb | 용암 골렘, power 100 (250,012 삼각형 · PBR 텍스처) |
 
 `.glb` 셋은 **본 게임(`island_world.html`)이 아직 읽지 않습니다** — 몹 배치를 붙일 때
 쓰려고 미리 넣어둔 것입니다. 아레나 셋은 GLB 를 파일 안에 base64 로 박아 두고 직접 읽습니다.
@@ -72,7 +87,7 @@ Windows 는 "PC 보호" 창에서 **추가 정보 → 실행**, macOS 는 **우�
 | X | 재장전 (소총) |
 | 1 ~ 5 | 빠른 칸 — 손에 든 것과 맞바꾼다 |
 | Z | 집 짓기 — 토대 · 벽 · 문틀/문짝 · 창틀/창짝 · 지붕 · 경사 지붕 · 삼각 벽 |
-| I / C / B | 소지품 / 제작 / 사전 |
+| I / B | 가방(소지품 + 제작) / 사전 |
 | Q / G | 착용 · 장착 / 버리기 |
 | F / V / T / R | 손전등 / 자유 카메라 / 시간 배속 / 새 섬 |
 | Tab / F3 / F5 / F9 | 설정 / 진단 / 저장 / 불러오기 |
@@ -90,7 +105,7 @@ Windows 는 "PC 보호" 창에서 **추가 정보 → 실행**, macOS 는 **우�
 - 허기 · 수분 · 체온
 - 은신처 · 수면 · 탈출 목표
 
-자세한 내용은 [CASTAWAY_개발요약.md](CASTAWAY_개발요약.md) 에 있습니다.
+자세한 내용은 [docs/CASTAWAY_개발요약.md](docs/CASTAWAY_개발요약.md) 에 있습니다.
 
 ## 검사 (CI)
 
@@ -105,10 +120,10 @@ Windows 는 "PC 보호" 창에서 **추가 정보 → 실행**, macOS 는 **우�
 
 ```
 npm i -D playwright && npx playwright install chromium
-node tools/check-syntax.mjs *.html
+node tools/check-syntax.mjs *.html beta/*.html engine/js/*.js presets/*.js
 node tools/smoke.mjs                 # 특정 파일만: node tools/smoke.mjs island_world.html
 node tools/probe.mjs island_world.html PL.hp RECIPES.length
 ```
 
-three.js 는 레포 안의 `three.min.js`(r128)를 쓴다. 게임도 검사도 바깥으로 나가지
+three.js 는 레포 안의 `engine/three.min.js`(r128)를 쓴다. 게임도 검사도 바깥으로 나가지
 않으므로 네트워크 없이 돈다.

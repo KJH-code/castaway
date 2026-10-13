@@ -1,7 +1,7 @@
 /* 검사 대상 목록과 브라우저를 띄우는 공통부.
    smoke.mjs(오류 없이 뜨는가)와 probe.mjs(값을 재 온다)가 같이 쓴다.
 
-   three.js 는 레포 안의 three.min.js(r128)를 그대로 쓴다. 예전에는 CDN 요청을
+   three.js 는 레포 안의 engine/three.min.js(r128)를 그대로 쓴다. 예전에는 CDN 요청을
    가로채 node_modules 것으로 돌려줬지만, 이제 게임 자체가 바깥으로 나가지
    않으므로 가로챌 것이 없다 — 검사도 npm 설치 없이 돈다. */
 import {chromium} from 'playwright';
@@ -12,25 +12,26 @@ import {resolve} from 'node:path';
    본 게임은 세계 생성이 끝나야(busy=false), 아레나는 모델을 읽어야 끝이다.
    전역이 let 으로 선언돼 있어 스크립트가 죽으면 typeof 조차 던진다 — try 로 감싼다.
 
-   mimic_arena.html 은 21MB 라 여기 없다. probe 로는 이름을 직접 대면 열린다. */
+   beta/mimic_arena.html 은 21MB 라 smoke 기본 목록에서 빠진다. probe 로는 이름을 직접 대면 열린다. */
 export const PAGES = [
   {f: 'island_world.html',  ready: 'busy === false',                      ms: 1200000},   // 섬 생성 — 헤드리스 7~14분
-  {f: 'build_sandbox.html', ready: 'busy === false',                      ms: 300000},
-  {f: 'cloud_arena.html',   ready: 'CLOUDS.length > 0 && !!skyDome',      ms: 120000},
-  {f: 'bear_arena.html',    ready: '!!bMesh',                             ms: 180000},
-  {f: 'gargoyle_arena.html',ready: '!!gMesh',                             ms: 240000},
-  {f: 'mixed_arena.html',   ready: '!!bMesh && GS.every(g => g.mesh)',    ms: 300000},
-  {f: 'mimic_arena.html',   ready: '!!bMesh',                             ms: 420000},
-  {f: 'wyvern_arena.html', ready: '!!bMesh && !!fbGeo && BLDS.length>0', ms: 300000},
-  {f: 'battle_arena.html', ready: 'WYVS.length>0 && MIMS.length>0 && BS.every(b=>b.mesh) && GS.every(g=>g.mesh)', ms: 480000},
-  {f: 'night_arena.html', ready: 'WYVS.length>0 && MIMS.length>0 && BS.every(b=>b.mesh) && GS.every(g=>g.mesh)', ms: 480000},
-  {f: 'siege_arena.html', ready: '!!bMesh && BS.every(b=>b.mesh) && GS.every(g=>g.mesh) && BLDS.length>0', ms: 360000},
-  {f: 'crawler_arena.html', ready: '!!(C&&C.mesh)',                         ms: 180000},
-  {f: 'trio_arena.html',    ready: '!!bMesh && !!bearMesh && GS.every(g=>g.mesh)', ms: 480000},
+  {f: 'beta/build_sandbox.html', ready: 'busy === false',                      ms: 300000},
+  {f: 'beta/cloud_arena.html',   ready: 'CLOUDS.length > 0 && !!skyDome',      ms: 120000},
+  {f: 'beta/bear_arena.html',    ready: '!!bMesh',                             ms: 180000},
+  {f: 'beta/gargoyle_arena.html',ready: '!!gMesh',                             ms: 240000},
+  {f: 'beta/mixed_arena.html',   ready: '!!bMesh && GS.every(g => g.mesh)',    ms: 300000},
+  {f: 'beta/mimic_arena.html',   ready: '!!bMesh',                             ms: 420000},
+  {f: 'beta/wyvern_arena.html', ready: '!!bMesh && !!fbGeo && BLDS.length>0', ms: 300000},
+  {f: 'beta/battle_arena.html', ready: 'WYVS.length>0 && MIMS.length>0 && BS.every(b=>b.mesh) && GS.every(g=>g.mesh)', ms: 480000},
+  {f: 'beta/night_arena.html', ready: 'WYVS.length>0 && MIMS.length>0 && BS.every(b=>b.mesh) && GS.every(g=>g.mesh)', ms: 480000},
+  {f: 'beta/siege_arena.html', ready: '!!bMesh && BS.every(b=>b.mesh) && GS.every(g=>g.mesh) && BLDS.length>0', ms: 360000},
+  {f: 'beta/crawler_arena.html', ready: '!!(C&&C.mesh)',                         ms: 180000},
+  {f: 'beta/trio_arena.html',    ready: '!!bMesh && !!bearMesh && GS.every(g=>g.mesh)', ms: 480000},
 ];
 
+/* 시험장은 beta/ 에 있다 — 예전처럼 이름만 대도(wyvern_arena.html) 찾아 준다 */
 export const pageInfo = f =>
-  PAGES.find(p => p.f === f) || {f, ready: 'true', ms: 300000};
+  PAGES.find(p => p.f === f) || PAGES.find(p => p.f === 'beta/' + f) || {f, ready: 'true', ms: 300000};
 
 export const launch = () => chromium.launch({
   // CHROMIUM_PATH 를 주면 그 실행 파일을 쓴다 (내려받은 브라우저가 없는 곳에서 쓸 길)

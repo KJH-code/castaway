@@ -9,9 +9,9 @@ on:
     paths:
       - 'desktop/**'
       - 'island_world.html'
-      - 'three.min.js'
-      - 'css/**'
-      - 'js/**'
+      - 'engine/**'
+      - 'presets/*.js'
+      - 'presets/random_textures/**'
       - '.github/workflows/desktop.yml'
   workflow_dispatch:
 

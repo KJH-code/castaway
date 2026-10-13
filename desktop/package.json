@@ -42,16 +42,21 @@
         "to": "game/island_world.html"
       },
       {
-        "from": "../three.min.js",
-        "to": "game/three.min.js"
+        "from": "../engine",
+        "to": "game/engine",
+        "filter": [
+          "three.min.js",
+          "css/**",
+          "js/**"
+        ]
       },
       {
-        "from": "../css",
-        "to": "game/css"
-      },
-      {
-        "from": "../js",
-        "to": "game/js"
+        "from": "../presets",
+        "to": "game/presets",
+        "filter": [
+          "*.js",
+          "random_textures/**"
+        ]
       }
     ],
     "win": {
