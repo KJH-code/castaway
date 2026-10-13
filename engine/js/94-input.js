@@ -96,6 +96,8 @@ addEventListener('keydown',e=>{
     toast('시간 '+timeScale+'배 — 하루가 '+(24*60/timeScale).toFixed(0)+'초');
   }
   if(e.code==='KeyR'&&BUILD.on){ buildRotate(1); return; }   // 짓기 중엔 방향 돌리기
+  if(e.code==='KeyR'&&MOVE.t){ moveRotate(e.shiftKey?-1:1); return; }   // 옮기는 중엔 돌리기
+  if(e.code==='KeyF'&&!e.repeat&&!uiOpen()&&!BUILD.on){ if(MOVE.t) moveCancel(); else moveStart(); }   // 옮기기 — 집어 들기 · 그만두기(60-stations.js)
   if(e.code==='KeyR'){ newIsland(generateWorld); }
   if(e.code==='KeyZ'){                         // 짓기 모드
     if(BUILD.on){ exitBuild(); toast('짓기 끝'); }
@@ -144,6 +146,7 @@ cv.addEventListener('mousedown',e=>{
   if(flyMode){ dragF=true; return; }
   if(document.pointerLockElement!==cv) return;
   /* 좌클릭 — 쓰기(공격·채집·먹기 전부) · 짓기 중엔 조각 놓기. 우클릭 — 조준경 · 충전. */
+  if(MOVE.t){ if(e.button===0) movePlace(); else if(e.button===2) moveCancel(); return; }   // 옮기는 중 — 좌클릭 놓기 · 우클릭 그만두기
   if(e.button===0){
     if(BUILD.on) doBuild();
     else { useDown=true; if(!facing()) useHeld(); }   // 설비를 보고 있으면 손의 것을 안 쓴다(뗄 때 releaseE)
@@ -160,7 +163,7 @@ addEventListener('mouseup',e=>{ dragF=false;
 /* 눈앞에 설비(문짝·상자·화덕·제련로·숫돌·발전기)가 있나 — 그때 좌클릭은 공격·먹기가 아니라 설비 조작이다 */
 function facing(){ return !!(HARV.fit||HARV.cont); }
 addEventListener('blur',()=>{ mouseDown=false; useDown=false; });
-cv.addEventListener('wheel',e=>{ if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
+cv.addEventListener('wheel',e=>{ if(MOVE.t){ moveRotate(Math.sign(e.deltaY)); e.preventDefault(); return; } if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
 let BUILD_ESC_T=0;
 document.addEventListener('pointerlockchange',()=>{
   /* **잠금이 늦게 걸리면 바로 푼다.** 잠금은 요청하고 한참 뒤(브라우저가 받아 줄 때) 걸린다 — 상륙하거나 창을 닫으며 요청해 둔 잠금이
@@ -169,6 +172,7 @@ document.addEventListener('pointerlockchange',()=>{
   if(document.pointerLockElement===cv && (uiOpen()||paused)){ document.exitPointerLock(); return; }
   /* 짓기 중에 Esc 로 잠금이 풀렸으면 짓기만 끝내고 멈추지 않는다(사용자 요청 — '짓기 끝' 뒤에 일시정지 화면이 떴다).
      브라우저가 Esc 를 잠금 풀기로 먹어 keydown 이 안 올 수도 있어 여기서도 본다. 다시 누르면 잠긴다(mousedown) */
+  if(document.pointerLockElement!==cv && MOVE.t){ moveCancel(); toast('옮기기를 그만뒀다'); return; }   // Esc — 제자리로
   if(document.pointerLockElement!==cv && (BUILD.on||performance.now()-BUILD_ESC_T<800)){
     if(BUILD.on){ exitBuild(); toast('짓기 끝'); }
     BUILD_ESC_T=0; return;

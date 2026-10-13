@@ -339,7 +339,10 @@ function updateHUD(dt){
   const look=document.getElementById('look'), lt=document.getElementById('lookT'),
         lb=document.getElementById('lookB'), lf=document.getElementById('lookF');
   updateToasts(dt);                               // 알림은 따로 된 칸(#toast) — 채취 표시를 가리지 않는다
-  if(HARV.fit){
+  if(MOVE.t){                                     // 옮기는 중(60-stations.js)
+    hudS(look,'display','block'); hudS(lb,'display','none');
+    hudH(lt,MOVE.t.cname+' 옮기는 중 — [좌클릭] 놓기 · [휠·R] 돌리기 · [F·우클릭] 그만두기'+(MOVE.ok?'':'<em>'+MOVE.why+'</em>'));
+  }else if(HARV.fit){
     const w=HARV.fit;
     hudS(look,'display','block'); hudS(lb,'display','none');
     hudH(lt,'[좌클릭] '+BKIND_N[w.leaf.kind]+(w.leaf.open?' 닫기':' 열기'));
@@ -349,7 +352,7 @@ function updateHUD(dt){
     hudS(look,'display','block'); hudS(lb,'display','none');
     if(c.kind==='grind'){
       hudS(look,'display','block'); hudS(lb,'display','none');
-      hudH(lt,'[좌클릭] 숫돌 — 갈아 만들기와 수리 · [F] 밀기<em>'
+      hudH(lt,'[좌클릭] 숫돌 — 갈아 만들기와 수리 · [F] 옮기기<em>'
         +'수리는 처음 재료의 절반(내림)이 든다</em>');
       return;
     }
@@ -359,7 +362,7 @@ function updateHUD(dt){
         +(powered()?'물레방아가 돌고 있다':'물레방아가 서 있다 — 채울 수 없다')+'</em>');
       return;
     }
-    const head='[좌클릭] '+c.cname+' 열기'+(pushKind(c)?' · [F] 밀기':'');
+    const head='[좌클릭] '+c.cname+' 열기'+(pushKind(c)?' · [F] 옮기기':'');
     // 화덕은 좌클릭을 계속 누르면 불을 다루는 쪽으로 넘어간다
     if(isHearth(c) && !c.lit && isTorch && e.lit && e.fuel>0.12 && contFuel(c)){
       hudH(lt,head+'<em>길게 누르면 횃불로 불 옮기기</em>');

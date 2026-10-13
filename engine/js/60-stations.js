@@ -386,8 +386,6 @@ function placeStoreAt(kind,px,py,pz,slots,label,ry){
      물길·전선에 매여 있어 못 민다.
    · 무거울수록 느리고 힘이 든다(바구니 1.6 m/s … 제련로 0.7 m/s). 안에 든 것·불·이름표는 그대로 따라온다.
    · 물가·가파른 비탈·나무·바위·벽·다른 설비에 닿으면 멎는다. 저장하면 옮긴 자리가 남는다. */
-const PUSH={t:null, why:'', gridT:0, moved:0};
-const PUSH_V={basket:1.6, trash:1.6, chest:1.3, fire:1.1, grind:1.0, anvil:1.0, furnace:0.7};
 function pushKind(c){
   if(STORES.indexOf(c)>=0) return c.kind;
   if(FIRES.indexOf(c)>=0) return c.steam?null:'fire';
@@ -415,50 +413,74 @@ function pushCollider(c){
   c._col=COLLIDERS.find(o=>o.x===c.x&&o.z===c.z)||null;
   return c._col;
 }
-/* 그 자리로 못 미는 까닭(밀 수 있으면 빈 글) */
-function pushBlocked(c,nx,nz){
-  if(Math.abs(nx)>HALF-8||Math.abs(nz)>HALF-8) return '더는 밀 수 없다';
-  const ny=floorAt(nx,nz,c.y+0.1), onB=ny>heightAt(nx,nz)+0.05;   // 토대·지붕 위에 놓인 것은 그 판 위로 민다
-  if(!onB&&ny<0.4) return '물가로는 밀 수 없다';
-  if(!onB&&sampleAt(nx,nz).slope>0.6) return '비탈이 가팔라 안 밀린다';
-  if(Math.abs(ny-c.y)>0.5) return onB||c.y>heightAt(c.x,c.z)+0.3?'판 끝이다':'턱에 걸렸다';
-  const me=pushCollider(c), r=(me?me.r:0.5)*0.9;
-  const gx=Math.floor(nx/CG), gz=Math.floor(nz/CG);
-  for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){
-    const a=CGRID.get(cgKey(gx+dx,gz+dz)); if(!a) continue;
-    for(const o of a){ if(o===me) continue;
-      if(o.y0!==undefined&&(c.y>o.y1||c.y+1.2<o.y0)) continue;          // 다른 층의 것
-      const dn=Math.hypot(nx-o.x,nz-o.z);
-      /* 이미 겹친 채 놓인 것(바위 곁에 놓았다)은 **멀어지는 쪽으로는** 밀린다 — 예전엔 어느 쪽으로도 안 밀려 먹통이었다 */
-      if(dn<o.r+r&&dn<=Math.hypot(c.x-o.x,c.z-o.z)) return '무엇인가에 막혔다'; }
-  }
+function pushEnd(){ moveCancel(); }
+/* ── 옮기기(F) — 아크 서바이벌처럼 집어 들고, 돌리고, 내려놓는다(사용자 요청 — 예전엔 F 를 누르고 있는 동안 밀기라 불편했다) ──
+   설비를 보고 F → 그 설비가 눈앞에 떠서 시선을 따라온다(바닥 · 토대 · 지붕 위 — `floorAt`). 휠·R 로 15° 씩 돌리고 좌클릭으로 놓는다.
+   F 다시·우클릭·Esc 는 그만두기(제자리로). 놓을 자리가 안 되면 발밑 고리가 붉고 까닭이 뜬다. 안에 든 것·불·이름표는 그대로 따라온다.
+   들고 있는 동안 그 설비의 충돌 원은 빼 두고(r 0), 놓을 때 새 자리·높이로 옮긴다(`cgMove`). 돌린 각은 저장된다(`ry`). */
+const MOVE={t:null, ox:0, oy:0, oz:0, ory:0, ry:0, x:0, y:0, z:0, ok:false, why:'', col:null, cr:0, ring:null};
+function moveStart(){
+  if(MOVE.t) return;
+  const c=findPushTarget(); if(!c) return false;
+  if(!pushKind(c)){ toast(c.cname+' — 옮길 수 없다'); return false; }
+  MOVE.t=c; MOVE.ox=c.x; MOVE.oy=c.y; MOVE.oz=c.z; MOVE.ory=MOVE.ry=c.mesh.rotation.y;
+  MOVE.col=pushCollider(c); MOVE.cr=MOVE.col?MOVE.col.r:0.5; if(MOVE.col) MOVE.col.r=0;
+  if(!MOVE.ring){ MOVE.ring=new THREE.Mesh(new THREE.RingGeometry(0.85,1,40).rotateX(-Math.PI/2),
+      new THREE.MeshBasicMaterial({color:0x7fe0a0,transparent:true,opacity:0.7,depthWrite:false,side:THREE.DoubleSide}));
+    MOVE.ring.userData.lightRole='none'; MOVE.ring.renderOrder=6; scene.add(MOVE.ring); }
+  MOVE.ring.visible=true; sfx('bind');
+  return true;
+}
+/* 놓을 자리 — 눈에서 시선을 따라 걸어 바닥(땅·토대·지붕)에 닿는 첫 점. 4.5 m 안에 안 닿으면 앞 2.6 m 의 바닥 */
+function moveAim(){
+  const o=camera.position, cp=Math.cos(PL.pitch), dx=-Math.sin(PL.yaw)*cp, dy=Math.sin(PL.pitch), dz=-Math.cos(PL.yaw)*cp, ref=PL.pos.y+0.6;
+  let x=PL.pos.x-Math.sin(PL.yaw)*2.6, z=PL.pos.z-Math.cos(PL.yaw)*2.6;
+  for(let t=0.6;t<=4.5;t+=0.12){ const px=o.x+dx*t, py=o.y+dy*t, pz=o.z+dz*t; if(py<=floorAt(px,pz,ref)+0.02){ x=px; z=pz; break; } }
+  const hx=x-PL.pos.x, hz=z-PL.pos.z, hd=Math.hypot(hx,hz), mn=MOVE.cr+0.55;   // 발밑으로 끌어오지 않게
+  if(hd<mn){ const k=mn/(hd||1); x=PL.pos.x+(hd?hx:-Math.sin(PL.yaw))*k; z=PL.pos.z+(hd?hz:-Math.cos(PL.yaw))*k; }
+  return [x,floorAt(x,z,ref),z];
+}
+function moveCheck(c,x,y,z){
+  if(Math.abs(x)>HALF-8||Math.abs(z)>HALF-8) return '섬 끝이다';
+  const g=heightAt(x,z), onB=y>g+0.05, r=MOVE.cr*0.9;
+  if(!onB&&y<0.4) return '물가에는 놓을 수 없다';
+  if(!onB&&sampleAt(x,z).slope>0.6) return '너무 가파르다';
+  if(onB) for(const [ax,az] of [[r,0],[-r,0],[0,r],[0,-r]]) if(Math.abs(floorAt(x+ax,z+az,y+0.1)-y)>0.05) return '판 가장자리에 걸친다';
+  if(Math.abs(y-(PL.pos.y))<1.2&&Math.hypot(x-PL.pos.x,z-PL.pos.z)<r+0.35) return '발밑에는 못 놓는다';
+  const gx=Math.floor(x/CG), gz=Math.floor(z/CG);
+  for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const a=CGRID.get(cgKey(gx+dx,gz+dz)); if(!a) continue;
+    for(const o of a){ if(o===MOVE.col||o.r<=0) continue;
+      if(o.y0!==undefined&&(y>o.y1||y+1.2<o.y0)) continue;
+      if(Math.hypot(x-o.x,z-o.z)<o.r+r) return '무엇인가에 걸린다'; } }
+  if(c.kind==='fire'&&!c.steam) for(const f of FIRES) if(f!==c&&Math.hypot(f.x-x,f.z-z)<2.4&&Math.abs(f.y-y)<1.5) return '다른 불과 너무 가깝다';
   return '';
 }
-function pushEnd(){
-  if(PUSH.t&&PUSH.moved>0.01) LIGHT.dirtyAt(PUSH.t.x,PUSH.t.z,4);
-  PUSH.t=null; PUSH.why=''; PUSH.moved=0;
+function updateMove(dt){
+  const c=MOVE.t; if(!c) return;
+  if(uiOpen()||BUILD.on||PL.swim||PL.dead||!pushKind(c)){ moveCancel(); return; }
+  const [x,y,z]=moveAim(); MOVE.x=x; MOVE.y=y; MOVE.z=z;
+  MOVE.why=moveCheck(c,x,y,z); MOVE.ok=!MOVE.why;
+  c.mesh.position.set(x,y+0.02,z); c.mesh.rotation.y=MOVE.ry;
+  const R=MOVE.cr+0.15; MOVE.ring.position.set(x,y+0.04,z); MOVE.ring.scale.set(R,1,R);
+  MOVE.ring.material.color.setHex(MOVE.ok?0x7fe0a0:0xe07060);
 }
-function updatePush(dt){
-  if(!keys.KeyF||uiOpen()||BUILD.on||PL.swim||PL.dead){ if(PUSH.t) pushEnd(); return; }
-  let c=PUSH.t;
-  if(c&&(Math.hypot(c.x-PL.pos.x,c.z-PL.pos.z)>2.9||!pushKind(c))){ pushEnd(); c=null; }
-  if(!c){ c=findPushTarget(); if(!c) return; PUSH.t=c; PUSH.why=''; PUSH.moved=0; }
-  const kind=pushKind(c); if(!kind){ pushEnd(); return; }
-  if(PL.stam<3){ if(PUSH.why!=='stam'){ PUSH.why='stam'; toast('기력이 없어 밀 수 없다'); } return; }
-  let dx=c.x-PL.pos.x, dz=c.z-PL.pos.z; const d=Math.hypot(dx,dz)||1; dx/=d; dz/=d;
-  const v=PUSH_V[kind]||1, st=v*dt, nx=c.x+dx*st, nz=c.z+dz*st;
-  const why=pushBlocked(c,nx,nz);
-  if(why){ if(PUSH.why!==why){ PUSH.why=why; toast(c.cname?c.cname+' — '+why:why); } return; }
-  PUSH.why='';
-  const col=pushCollider(c);
-  c.x=nx; c.z=nz; c.y=floorAt(nx,nz,c.y+0.1);
-  c.mesh.position.set(c.x,c.y,c.z);
-  if(col){ cgMove(col,nx,nz); if(col.y0!==undefined){ col.y0=c.y-0.1; col.y1=c.y+1.8; } }                          // 충돌 칸은 그 하나만 옮긴다 — 예전엔 0.12초마다 충돌체 2만여 개로 격자를 통째로 다시 지어 멈칫했다
-  PUSH.moved+=st; PUSH.gridT+=dt;
-  if(PUSH.gridT>0.35){ PUSH.gridT=0; LIGHT.dirtyAt(c.x,c.z,4); }   // 그림자는 조금씩 따라온다
-  PL.stam=clamp(PL.stam-(2.2/v)*dt,0,100);          // 무거울수록 힘이 든다
-  if(Math.floor((PUSH.moved-st)/0.6)!==Math.floor(PUSH.moved/0.6)) sfx('bind');
+function moveRotate(dir){ if(MOVE.t) MOVE.ry+=dir*Math.PI/12; }
+function movePlace(){
+  const c=MOVE.t; if(!c) return;
+  if(!MOVE.ok){ toast(c.cname+' — '+MOVE.why); return; }
+  LIGHT.dirtyAt(MOVE.ox,MOVE.oz,4);
+  c.x=MOVE.x; c.y=MOVE.y; c.z=MOVE.z; c.mesh.position.set(c.x,c.y,c.z); c.mesh.rotation.y=MOVE.ry; if(c.ry!==undefined) c.ry=MOVE.ry;
+  const col=MOVE.col; if(col){ col.r=MOVE.cr; cgMove(col,c.x,c.z); if(col.y0!==undefined){ col.y0=c.y-0.1; col.y1=c.y+1.8; } }
+  LIGHT.dirtyAt(c.x,c.z,4); MOVE.t=null; MOVE.ring.visible=false;
+  toast(c.cname+' — 옮겨 놓았다'); sfx('bind');
 }
+function moveCancel(){
+  const c=MOVE.t; if(!c) return;
+  c.mesh.position.set(MOVE.ox,MOVE.oy,MOVE.oz); c.mesh.rotation.y=MOVE.ory;
+  if(MOVE.col) MOVE.col.r=MOVE.cr;
+  MOVE.t=null; if(MOVE.ring) MOVE.ring.visible=false;
+}
+function updatePush(dt){ updateMove(dt); }
 /* ── 용기 공통 ───────────────────────────────────────────────────────────────
    상자·화덕·제련로는 모두 "안에 물건을 넣고 빼는 곳"이다. 넣고 빼는 규칙은
    한 벌만 두고, 화덕과 제련로는 그 안에 든 것을 스스로 태우고 굽고 녹일 뿐이다.

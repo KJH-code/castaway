@@ -93,12 +93,12 @@ function snapshot(){
             sl:[...SLOPES.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.tier]),
             gb:[...GABLES.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.h,o.tier])},
     props:propDiff(),
-    fires:FIRES.map(f=>({x:f.x,y:f.y,z:f.z,lit:f.lit,fuel:f.fuel,st:f.steam?1:0,kl:f.kilnU?1:0,
+    fires:FIRES.map(f=>({x:f.x,y:f.y,z:f.z,lit:f.lit,fuel:f.fuel,st:f.steam?1:0,kl:f.kilnU?1:0,ry:+f.mesh.rotation.y.toFixed(3),
       cook:Object.assign({},f.cook), slots:saveSlots(f.slots)})),
-    grinds:GRINDS.map(g=>({x:g.x,y:g.y,z:g.z})),
-    furnaces:FURNACES.map(g=>({x:g.x,y:g.y,z:g.z,lit:g.lit,fuel:g.fuel,
+    grinds:GRINDS.map(g=>({x:g.x,y:g.y,z:g.z,ry:+g.mesh.rotation.y.toFixed(3)})),
+    furnaces:FURNACES.map(g=>({x:g.x,y:g.y,z:g.z,ry:+g.mesh.rotation.y.toFixed(3),lit:g.lit,fuel:g.fuel,
       jobs:Object.assign({},g.jobs), slots:saveSlots(g.slots)})),
-    anvils:ANVILS.map(g=>({x:g.x,y:g.y,z:g.z})),
+    anvils:ANVILS.map(g=>({x:g.x,y:g.y,z:g.z,ry:+g.mesh.rotation.y.toFixed(3)})),
     stores:STORES.map(g=>({k:g.kind,x:g.x,y:g.y,z:g.z,nm:g.label||'',ry:+g.mesh.rotation.y.toFixed(3),slots:saveSlots(g.slots)}),
     /* 전기 설비 — 여태 저장하지 않아 불러오면 통째로 사라졌다. 화학 단계가
        전부 이 넷 위에 서 있으므로(황산·질산·강선·충전) 같이 담는다. */
@@ -167,6 +167,7 @@ async function restore(d){
     if(f.st) placeSteamAt(f.x,f.y,f.z); else placeCampfireAt(f.x,f.y,f.z);   // 증기기관도 불 용기다
     const nf=FIRES[FIRES.length-1];
     if(f.kl) kilnify(nf);                       // 가마
+    if(f.ry!==undefined) nf.mesh.rotation.y=f.ry;
     nf.lit=f.lit; nf.fuel=f.fuel;
     nf.slots=loadSlots(f.slots);
     /* 굽던 진척 — 지금은 {구울것: 시간} 꾸러미다.
@@ -196,8 +197,9 @@ async function restore(d){
     for(const [gx,gz,L,s,tier] of d.builds.sl||[]) safe('경사 지붕',()=>placeSlope(gx,gz,L,s,tier|0));
     for(const [gx,gz,L,s,h,tier] of d.builds.gb||[]) safe('박공',()=>placeGable(gx,gz,L,s,h,tier|0));
   }
-  for(const g of d.grinds||[]) safe('숫돌',()=>placeGrindstoneAt(g.x,g.y,g.z));
-  for(const g of d.anvils||[]) safe('모루',()=>placeAnvilAt(g.x,g.y,g.z));
+  const setRy=(list,g)=>{ const o=list[list.length-1]; if(o&&o.mesh&&g.ry!==undefined) o.mesh.rotation.y=g.ry; };   // 옮기며 돌린 각(F)
+  for(const g of d.grinds||[]) safe('숫돌',()=>{ placeGrindstoneAt(g.x,g.y,g.z); setRy(GRINDS,g); });
+  for(const g of d.anvils||[]) safe('모루',()=>{ placeAnvilAt(g.x,g.y,g.z); setRy(ANVILS,g); });
   for(const g of d.stores||[]) safe('보관함',()=>{
     if(!STORE_DEF[g.k]) return;
     placeStoreAt(g.k,g.x,g.y,g.z,loadSlots(g.slots),g.nm,g.ry); });
@@ -208,7 +210,7 @@ async function restore(d){
   for(const [x,y,z] of PW.arcs||[])    safe('아크로',()=>placeArcAt(x,y,z));
   for(const [x,y,z] of PW.lathes||[])  safe('선반',()=>placeLatheAt(x,y,z));
   for(const g of d.furnaces||[]) safe('제련로',()=>{
-    const fu=placeFurnaceAt(g.x,g.y,g.z);
+    const fu=placeFurnaceAt(g.x,g.y,g.z); if(g.ry!==undefined) fu.mesh.rotation.y=g.ry;
     fu.slots=loadSlots(g.slots);
     /* 불을 안 때던 판의 세이브 — 진척(t)만 있고 불이 없다. 꺼진 채로 연다.
        땔감을 넣고 불을 붙이면 그때부터 돈다. */
