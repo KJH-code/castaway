@@ -49,11 +49,12 @@ addEventListener('keydown',e=>{
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
   if(e.code==='KeyE'&&boxOpen&&!e.repeat){ toggleBox(null); }
   if((e.code==='Escape'||e.code==='KeyE')&&grindOpen&&!e.repeat){ toggleGrind(); return; }
-  /* I · C — 가방 화면(소지품 + 고른 물건 + 제작이 한 장에 선다 · 98-bag.js). C 로 열면 검색칸에 바로 친다 */
+  /* I — 가방 화면(소지품 + 고른 물건 + 제작이 한 장에 선다 · 98-bag.js). 예전엔 C 로도 열렸고 그때는 검색칸에 바로 글자가
+     쳐졌다 — C 를 누르고 I 를 누르면 가방이 닫히는 대신 검색칸에 'i' 가 쳐졌다(사용자 지적). 이제 여는 키는 I 하나고,
+     검색칸은 **눌러야** 글자를 받는다. C 는 앉기만 한다 */
   if(e.code==='Escape'&&(invOpen||craftOpen)){ e.preventDefault(); closeBag(); return; }
   if(e.code==='Escape'&&BUILD.on){ exitBuild(); toast('짓기 끝'); }   // 짓기 중 Esc — 그만두기(잠긴 마우스도 같이 풀린다)
-  if(e.code==='KeyI'&&!e.repeat){ toggleBag('inv'); }
-  if(e.code==='KeyC'&&!e.ctrlKey&&!e.repeat){ toggleBag('craft'); }
+  if(e.code==='KeyI'&&!e.repeat){ toggleBag(); }
   /* F3 — 성능 창(예전의 '진단' 상자는 성능 창 맨 아래 줄로 옮겼다) */
   if(e.code==='F3'){ e.preventDefault(); PERF.toggle(); }
   if(e.code==='F5'){ e.preventDefault(); saveLocal(); }
@@ -168,7 +169,7 @@ document.addEventListener('pointerlockchange',()=>{
 let cfgOpen=false;
 const uiOpen=()=>invOpen||craftOpen||dexOpen||cfgOpen||boxOpen||grindOpen||askOpen;
 /* 이 창들이 열려 있는 동안은 세상이 멈춘다(loop) */
-const uiHold=()=>invOpen||craftOpen||dexOpen;
+const uiHold=()=>dexOpen;
 function syncLock(){
   if(!hasMouse||paused||flyMode) return;
   if(uiOpen()){

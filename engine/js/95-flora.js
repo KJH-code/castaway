@@ -30,16 +30,16 @@
    노거수(뿌리가 땅이 되는 큰 나무)는 95-giants.js 가 '노거수 숲' 군락에 세운다.
    ========================================================================== */
 const FLORA={seed:0, m:null, mat:null, depth:null, tex:null, patch:84, taken:new Map(), look:null,
-  far :{cx:1e9,cz:1e9,R:110,cell:6,  step:12,fade:14,salt:3,cols:[],picks:[],n:{},kinds:['jungle','mangrove','bamboo','palm','birch','pine','sapling','banana','treefern','acacia']},
+  far :{cx:1e9,cz:1e9,R:100,cell:6,  step:12,fade:14,salt:3,cols:[],picks:[],n:{},kinds:['jungle','mangrove','bamboo','palm','birch','pine','sapling','banana','treefern','acacia']},
   near:{cx:1e9,cz:1e9,R:46, cell:2.4,step:6, fade:7, salt:1,cols:[],picks:[],n:{},kinds:['fern','bush','flower','dry','shroom']}};
 /* 그림 묶음의 칸 */
 const FC={BARK:0,RING:1,LEAF:2,BIG:3,FERN:4,PALM:5,BAMBOO:6,NEEDLE:7,FLOWER:8,TWIG:9,MANG:10,VINE:11,BIRCH:12,PLAIN:13,STEM:14,CAP:15};
 /* 종류마다 — r 몸이 막히는 반지름(크기 1 일 때 · 없으면 지나간다) · pick 얻는 것 · cap 한 번에 서는 수 */
 const FLORA_KIND={
-  jungle:{r:0.44,pick:'vine',cap:420}, mangrove:{r:1.0,cap:260}, bamboo:{r:0.75,pick:'bamboo',cap:320}, palm:{r:0.22,pick:'coconut',cap:220},
-  birch:{r:0.16,cap:360}, pine:{r:0.14,cap:460}, sapling:{r:0.10,cap:360}, banana:{r:0.16,pick:'banana',cap:200},
-  treefern:{r:0.16,cap:260}, acacia:{r:0.18,cap:200},
-  fern:{cap:800}, bush:{r:0.30,cap:520}, flower:{cap:700}, dry:{cap:420}, shroom:{pick:'mushroom',cap:120} };
+  jungle:{r:0.44,pick:'vine',cap:900}, mangrove:{r:1.5,cap:420}, bamboo:{r:0.75,pick:'bamboo',cap:520}, palm:{r:0.22,pick:'coconut',cap:260},
+  birch:{r:0.16,cap:520}, pine:{r:0.14,cap:700}, sapling:{r:0.10,cap:520}, banana:{r:0.16,pick:'banana',cap:380},
+  treefern:{r:0.16,cap:380}, acacia:{r:0.18,cap:220},
+  fern:{cap:2600}, bush:{r:0.30,cap:1800}, flower:{cap:900}, dry:{cap:520}, shroom:{pick:'mushroom',cap:160} };
 /* 얻는 것 — regrow 다시 나기까지(게임 시간) · cnt [아래, 위] · need 'sharp' 날붙이를 지녀야 · hide 따면 그 자리가 빈다 */
 const FLORA_PICK={
   vine    :{item:'vine',    n:'덩굴',     verb:'끊기',        regrow:30, cnt:[1,2]},
@@ -49,18 +49,20 @@ const FLORA_PICK={
   mushroom:{item:'mushroom',n:'버섯',     verb:'따기',        regrow:36, cnt:[1,1], hide:1}
 };
 /* 바이옴마다의 군락 — w 얼룩이 그 군락이 될 몫 · far 나무 겹 · near 덤불 겹: [종류, 칸마다 설 확률, 크기 아래, 위]
-   giant: 노거수가 서는 군락(1 활엽 · 2 침엽 — 95-giants.js) · low: 표고가 이보다 높으면 그 바이옴의 둘째 군락으로 바꾼다 */
+   giant: 노거수가 서는 군락(1 활엽 · 2 침엽 — 95-giants.js) · low: 표고가 이보다 높으면 그 바이옴의 둘째 군락으로 바꾼다
+   dense · nearDense: 칸 하나에 몇 번 굴리나(나무 겹 · 덤불 겹 — 없으면 1). **숲은 빽빽하다**(사용자 요청) — 밀림은 나무를 칸마다 두 번,
+   덤불·고사리를 세 번 굴려 바닥이 거의 안 보인다 */
 const FLORA_COMM={
   [B.BROADLEAF]:[
-    {w:3,n:'밀림',      far:[['jungle',0.50,0.8,1.3],['banana',0.14,0.8,1.3],['treefern',0.10,0.8,1.3]], near:[['fern',0.22,0.8,1.4],['bush',0.10,0.7,1.3],['shroom',0.02,0.8,1.5]]},
-    {w:2,n:'대숲',      far:[['bamboo',0.62,0.8,1.25]],                                                  near:[['fern',0.06,0.7,1.1]]},
-    {w:2,n:'자작 숲',   far:[['birch',0.45,0.8,1.3],['sapling',0.10,0.8,1.2]],                           near:[['fern',0.10,0.7,1.2],['flower',0.05,0.8,1.2],['bush',0.06,0.7,1.2]]},
-    {w:3,n:'노거수 숲', giant:1, far:[['sapling',0.12,0.8,1.3],['treefern',0.06,0.8,1.2]],               near:[['fern',0.28,0.8,1.5],['shroom',0.04,0.8,1.6],['bush',0.05,0.7,1.2]]},
-    {w:2,n:'잡목 숲',   far:[['sapling',0.28,0.8,1.4],['birch',0.06,0.8,1.2]],                           near:[['bush',0.16,0.7,1.5],['fern',0.12,0.7,1.3]]} ],
+    {w:3,n:'밀림',      dense:2, nearDense:3, far:[['jungle',0.62,0.8,1.3],['banana',0.20,0.8,1.3],['treefern',0.14,0.8,1.3]], near:[['fern',0.46,0.9,1.6],['bush',0.36,0.8,1.5],['shroom',0.02,0.8,1.5]]},
+    {w:2,n:'대숲',      dense:2, far:[['bamboo',0.70,0.8,1.25]],                                         near:[['fern',0.10,0.7,1.1]]},
+    {w:2,n:'자작 숲',   dense:2, nearDense:2, far:[['birch',0.52,0.8,1.3],['sapling',0.14,0.8,1.2]],     near:[['fern',0.16,0.7,1.2],['flower',0.06,0.8,1.2],['bush',0.12,0.7,1.2]]},
+    {w:3,n:'노거수 숲', giant:1, nearDense:2, far:[['sapling',0.22,0.8,1.3],['treefern',0.12,0.8,1.2]],  near:[['fern',0.38,0.8,1.5],['shroom',0.04,0.8,1.6],['bush',0.10,0.7,1.2]]},
+    {w:2,n:'잡목 숲',   dense:2, nearDense:2, far:[['sapling',0.40,0.8,1.4],['birch',0.10,0.8,1.2]],     near:[['bush',0.26,0.7,1.5],['fern',0.20,0.7,1.3]]} ],
   [B.CONIFER]:[
-    {w:3,n:'솔숲',      far:[['pine',0.50,0.7,1.5]],                                                     near:[['fern',0.10,0.7,1.2],['shroom',0.03,0.8,1.5]]},
-    {w:2,n:'노거수 숲', giant:2, far:[['pine',0.12,0.7,1.2]],                                            near:[['fern',0.24,0.8,1.5],['shroom',0.05,0.8,1.6]]},
-    {w:2,n:'고사리 골', far:[['treefern',0.30,0.8,1.3],['pine',0.08,0.7,1.2]],                           near:[['fern',0.34,0.8,1.5],['bush',0.05,0.7,1.2]]} ],
+    {w:3,n:'솔숲',      dense:2, far:[['pine',0.60,0.7,1.5]],                                            near:[['fern',0.16,0.7,1.2],['shroom',0.03,0.8,1.5]]},
+    {w:2,n:'노거수 숲', giant:2, nearDense:2, far:[['pine',0.22,0.7,1.2]],                               near:[['fern',0.32,0.8,1.5],['shroom',0.05,0.8,1.6]]},
+    {w:2,n:'고사리 골', dense:2, nearDense:2, far:[['treefern',0.40,0.8,1.3],['pine',0.12,0.7,1.2]],     near:[['fern',0.44,0.8,1.5],['bush',0.08,0.7,1.2]]} ],
   [B.MEADOW]:[
     {w:3,n:'꽃밭',      far:[],                                                                          near:[['flower',0.30,0.8,1.4]]},
     {w:2,n:'자작 덤불', far:[['birch',0.18,0.8,1.2]],                                                    near:[['bush',0.10,0.7,1.3],['flower',0.06,0.8,1.2]]},
@@ -69,14 +71,15 @@ const FLORA_COMM={
     {w:2,n:'아카시아 벌',far:[['acacia',0.20,0.8,1.4]],                                                  near:[['dry',0.10,0.7,1.5]]},
     {w:2,n:'가시덤불',  far:[],                                                                          near:[['dry',0.24,0.7,1.6],['bush',0.04,0.6,1.0]]},
     {w:2,n:'마른 벌',   far:[['acacia',0.03,0.8,1.2]],                                                   near:[['dry',0.05,0.7,1.2]]} ],
-  [B.MARSH]:[ {w:1,n:'맹그로브 늪',low:2.5, far:[['mangrove',0.42,0.8,1.3]],                             near:[['fern',0.12,0.8,1.4]]},
-              {w:0,n:'고사리 늪',  far:[['treefern',0.10,0.8,1.2],['sapling',0.05,0.7,1.1]],                 near:[['fern',0.30,0.8,1.5],['bush',0.05,0.6,1.1]]} ],
+  [B.MARSH]:[ {w:1,n:'맹그로브 늪',low:2.5, dense:2, far:[['mangrove',0.80,0.8,1.3]],                    near:[['fern',0.12,0.8,1.4]]},
+              {w:0,n:'고사리 늪',  nearDense:2, far:[['treefern',0.14,0.8,1.2],['sapling',0.08,0.7,1.1]],    near:[['fern',0.36,0.8,1.5],['bush',0.08,0.6,1.1]]} ],
   [B.BEACH]:[ {w:2,n:'야자 숲', far:[['palm',0.26,0.8,1.25]], near:[]},  {w:3,n:'모래톱', far:[['palm',0.012,0.8,1.2]], near:[]} ],
   [B.DUNE] :[ {w:2,n:'야자 숲', far:[['palm',0.22,0.8,1.25]], near:[['dry',0.05,0.6,1.2]]},  {w:2,n:'사구', far:[], near:[['dry',0.06,0.6,1.2]]} ],
   [B.ROCK] :[ {w:1,n:'바위틈',  far:[], near:[['dry',0.03,0.6,1.1]]} ],
   [B.SCREE]:[ {w:1,n:'돌밭',    far:[], near:[['dry',0.015,0.6,1.0]]} ]
 };
-const FLORA_MANGROVE=['mangrove',0.5,0.8,1.3];       // 강어귀·늪 가의 얕은 물 — 군락표와 따로 본다
+/* 강어귀·늪 가의 얕은 물 — 군락표와 따로 본다. 얼룩 잡음이 높은 데에만 **빽빽이 모여** 선다(사용자 요청: 맹그로브는 모여 있어야 한다) */
+const FLORA_MANGROVE=['mangrove',0.92,0.8,1.3];
 const FLOWER_TINT=[[1,1,1],[1,0.86,0.30],[0.78,0.56,0.95],[1,0.62,0.70],[0.62,0.78,1],[1,0.5,0.3]];
 
 /* ── 자리 정하기 ─────────────────────────────────────────────────────────── */
@@ -317,9 +320,20 @@ function floraKit(rnd){
       const sp=S.leafW*0.32;
       for(let k=0;k<S.leafN;k++){ const p=at(Math.max(0.3,1-k*0.3*rnd()));
         parts.push(card([p[0]+(rnd()-0.5)*sp,p[1]-S.leafH*0.15+(rnd()-0.5)*sp*0.6,p[2]+(rnd()-0.5)*sp],S.leafW*(0.75+rnd()*0.4),S.leafH*(0.75+rnd()*0.4),S.leafCell,a+(rnd()-0.5)*2.6,S.leafTilt*(0.4+rnd()*1.2),S.leafC)); }
-      if(S.vine&&rnd()<S.vine){ const p=at(0.7), h=(S.vineH||1.3)*(1+rnd()*1.2);           // 늘어진 덩굴 — 그림이 위에서 아래로 늘어지므로 판을 가지 밑에 단다
-        parts.push({g:SHP.card(h*0.45,h,false),x:p[0],y:p[1]-h,z:p[2],ry:rnd()*6.283,cell:FC.VINE,c:W}); }
+      if(S.tips) S.tips.push(at(1));                    // 끝가지 자리 — 덩굴을 걸 데(liana)
     }
+  };
+  /* 덩굴 한 줄 — a 에서 b 로 걸린 줄(가운데가 sag 만큼 처진다)에 잎 뭉치가 달린다. 예전엔 가지 밑에 덩굴 그림 판 한 장을
+     달았는데, 판이라 옆에서 보면 사라지고 가까이서는 종이 띠였다(사용자 지적: 덩굴이 잘 안 됐다). 이제 **줄은 진짜 대롱**이고
+     잎만 십자 판이다 — 어느 쪽에서 봐도 줄이 보이고, 나무 사이에 늘어져 걸린다 */
+  const liana=(parts,a,b,sag,r,segs)=>{
+    const n=segs||5, pts=[], rad=[], wob=rnd()*6.28;
+    for(let i=0;i<=n;i++){ const t=i/n, k=4*t*(1-t);
+      pts.push([a[0]+(b[0]-a[0])*t+Math.sin(t*5+wob)*0.07*k, a[1]+(b[1]-a[1])*t-sag*k, a[2]+(b[2]-a[2])*t+Math.cos(t*4+wob)*0.07*k]);
+      rad.push(r*(1-0.35*t)); }
+    parts.push({g:SHP.tube(pts,rad,4,0.6),cell:FC.BARK,c:[0.34,0.38,0.22],c2:[0.44,0.48,0.26]});
+    for(let i=1;i<=n;i++) if(rnd()<0.75){ const p=pts[i], h=0.55+rnd()*0.45;
+      parts.push({g:SHP.card(h*0.8,h),x:p[0],y:p[1]-h*0.92,z:p[2],ry:rnd()*6.283,cell:FC.VINE,c:W}); }
   };
   /* 잎(그림 칸 2~11)은 한 톤 낮춘다 — 판때기의 법선을 위로 둬서 늘 볕을 정면으로 받는다. 그대로면 가지 사이에 그늘이 지는
      참나무 잎보다 훨씬 밝아 형광색으로 떴다 */
@@ -340,26 +354,35 @@ function floraKit(rnd){
         const tint=[k*ao*(0.95+0.12*w),k*ao,k*ao*(0.94+0.10*(1-w))];
         p.c=p.c.map((v,i)=>v*tint[i]); if(p.c2) p.c2=p.c2.map((v,i)=>v*tint[i]); } }
     return SHP.merge(parts,true,[0.80,1.04]); };      // 밑동이 짙다(땅 가까이는 둘레가 가려 하늘빛을 덜 받는다)
-  return {W,BARK,BARK2,unit,face,card,trunk,grow,fin};
+  return {W,BARK,BARK2,unit,face,card,trunk,grow,liana,fin};
 }
 /* 생김새 한 벌 — 씨앗(rnd)만 바꾸면 같은 짜임에 가지 각도·길이·수가 다른 다른 그루가 나온다.
    수(가지·잎·줄기)는 원래 값의 ±1~2 안에서만 흔든다 — 종류마다 생김새의 틀은 그대로다 */
 function floraShapes(rnd){
-  const {W,BARK,BARK2,unit,face,card,trunk,grow,fin}=floraKit(rnd);
+  const {W,BARK,BARK2,unit,face,card,trunk,grow,liana,fin}=floraKit(rnd);
   const ri=(a,b)=>a+Math.floor(rnd()*(b-a+1)), rf=(a,b)=>a+(b-a)*rnd();
   const G={};
   /* 밀림 나무 — 굵은 밑동, 다섯 갈래 큰 가지가 두 번씩 더 갈라져 스무 개의 끝가지. 덩굴이 늘어진다(키 9~11 m) */
   G.jungle=(()=>{ const parts=[], at=trunk(parts,7.0*rf(0.88,1.12),0.40,0.20,{flare:1.0,sway:rf(0.18,0.34),sides:8}), nb=ri(4,6);
-    const S={taper:0.66,split:[2,3],spread:1.5,up:0.6,lift:0.35,shrink:0.72,bend:0.10,leafN:3,leafW:2.1,leafH:1.9,leafCell:FC.LEAF,leafTilt:0.6,leafC:[0.86,1.0,0.86],vine:0.3};
+    const S={taper:0.66,split:[2,3],spread:1.5,up:0.6,lift:0.35,shrink:0.72,bend:0.10,leafN:3,leafW:2.1,leafH:1.9,leafCell:FC.LEAF,leafTilt:0.6,leafC:[0.86,1.0,0.86],tips:[]};
     for(let i=0;i<nb;i++){ const a=i/nb*6.283+rnd()*0.9;
       grow(parts,at(0.60+i*0.5/nb),unit(Math.cos(a)*0.9,0.75,Math.sin(a)*0.9),2.8+rnd()*0.9,0.15,2,S); }
+    /* 덩굴 — ① 끝가지에서 땅 가까이까지 늘어진 줄 서넛 ② 끝가지 둘 사이에 처져 걸린 줄 하나 ③ 줄기를 감아 오르는 줄 */
+    { const T=S.tips, pick=()=>T[(rnd()*T.length)|0];
+      for(let i=0,nh=ri(3,4);i<nh;i++){ const p=pick(); liana(parts,p,[p[0]+(rnd()-0.5)*0.8,0.5+rnd()*1.6,p[2]+(rnd()-0.5)*0.8],0.25,0.028,4); }
+      { const p=pick(), q=pick(); if(p!==q) liana(parts,p,q,1.2+rnd()*1.4,0.032,5); }
+      const hp=[], hr=[], a0=rnd()*6.28, turns=1.6+rnd();
+      for(let i=0;i<=9;i++){ const t=i/9, c=at(t*0.62), rr=0.46-0.20*t; hp.push([c[0]+Math.cos(a0+t*turns*6.283)*rr,c[1],c[2]+Math.sin(a0+t*turns*6.283)*rr]); hr.push(0.03); }
+      parts.push({g:SHP.tube(hp,hr,4,0.6),cell:FC.BARK,c:[0.34,0.38,0.22],c2:[0.44,0.48,0.26]});
+      for(let i=1;i<=9;i+=2){ const p=hp[i]; parts.push(card([p[0],p[1]-0.25,p[2]],0.6,0.7,FC.VINE,rnd()*6.283,0.2,W)); } }
     for(let i=0,ne=ri(2,4);i<ne;i++){ const p=at(0.28+i*0.12), a=rnd()*6.283;            // 줄기에 붙어 사는 큰 잎
       parts.push({g:SHP.frond(0.9,0.38,{segs:4,curl:1.0,cup:0.2,tip:0.5}),x:p[0],y:p[1],z:p[2],q:face(a,0.5),cell:FC.BIG,c:[0.9,1,0.9]}); }
     return fin(parts); })();
   /* 맹그로브 — 줄기가 물 위 1.2 m 에서 시작하고, 버팀뿌리 열 가닥이 활처럼 휘어 내려 넓게 박힌다(뿌리 지름 4 m · 키 5 m) */
   G.mangrove=(()=>{ const parts=[], RB=[0.40,0.33,0.28], RB2=[0.55,0.47,0.38];
     parts.push({g:SHP.tube([[0,1.15,0],[0.05,1.9,0.03],[0.14,2.6,0.02],[0.20,3.2,-0.05]],[0.17,0.15,0.13,0.11],7,0.5),cell:FC.BARK,c:RB,c2:RB2});
-    const nr=ri(9,12); for(let i=0;i<nr;i++){ const a=i/nr*6.283+rnd()*0.5, R=1.0+rnd()*1.1, h=1.0+rnd()*0.9, cx=Math.cos(a), cz=Math.sin(a);
+    /* 버팀뿌리는 **넓게** 벌어진다(지름 4 → 7 m · 사용자 요청) — 안쪽 고리와 바깥 고리 두 겹이라 이웃 나무의 뿌리와 얽힌다 */
+    const nr=ri(13,17); for(let i=0;i<nr;i++){ const a=i/nr*6.283+rnd()*0.5, R=(i%2?1.1+rnd()*0.9:2.1+rnd()*1.4), h=1.0+rnd()*0.9, cx=Math.cos(a), cz=Math.sin(a);
       parts.push({g:SHP.tube([[cx*0.08,h,cz*0.08],[cx*R*0.45,h+0.15,cz*R*0.45],[cx*R*0.85,h*0.45,cz*R*0.85],[cx*R,-0.2,cz*R],[cx*R*1.05,-1.2,cz*R*1.05]],
         [0.075,0.068,0.060,0.052,0.040],5,0),cell:FC.BARK,c:RB,c2:RB2});
       if(i%3===0){ const a2=a+0.55, R2=R*0.95;                              // 뿌리에서 또 갈라져 내리는 곁뿌리
@@ -491,27 +514,31 @@ function floraLayer(L,which){
   L.cx=px; L.cz=pz; L.cols.length=0; L.picks.length=0;
   for(const k of L.kinds) n[k].fill(0);
   const x0=Math.floor((px-R)/C), x1=Math.floor((px+R)/C), z0=Math.floor((pz-R)/C), z1=Math.floor((pz+R)/C);
-  for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){
-    const h=floraHash(gx,gz,L.salt);
+  const TRY=far?2:3;                                  // 칸 하나에 많아야 이만큼 선다(군락의 dense · nearDense 가 정한다)
+  for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ let lx=1e9, lz=1e9;
+   for(let tr=0;tr<TRY;tr++){
+    const salt=L.salt+tr*16, h=floraHash(gx,gz,salt);
     const wx=(gx+(h&255)/255)*C, wz=(gz+((h>>>8)&255)/255)*C;
     const ddx=wx-px, ddz=wz-pz, d=Math.sqrt(ddx*ddx+ddz*ddz); if(d>R) continue;
+    if(tr&&(wx-lx)*(wx-lx)+(wz-lz)*(wz-lz)<(far?2.2:0.5)) continue;       // 같은 칸의 앞 그루와 겹치면 넘긴다
     const ci=IDX(clamp(Math.round(wx/CELL+N/2),1,N-2),clamp(Math.round(wz/CELL+N/2),1,N-2));
     const el=F.elev[ci], bi=F.biome[ci];
     let u=((h>>>16)&4095)/4095, pick=null, patch=0;
     if(far&&el>-0.9&&el<0.5&&!F.river[ci]&&(bi===B.MARSH||F.dRiver[ci]<34)){
       /* 강어귀와 늪 가의 얕은 물 — 맹그로브가 띠를 이룬다(얼룩 잡음이 높은 데만 · 민물과 바다가 만나는 자리가 가려진다) */
-      if(floraVal(wx,wz,26,41)>0.42&&u<FLORA_MANGROVE[1]) pick=FLORA_MANGROVE;
+      if(floraVal(wx,wz,26,41)>0.50&&u<FLORA_MANGROVE[1]) pick=FLORA_MANGROVE;
     }else{
       if(el<0.4||F.river[ci]||F.slope[ci]>0.75) continue;
       let cm=floraCommAt(wx,wz,bi); if(!cm) continue;
       if(cm.low&&el>cm.low) cm=FLORA_COMM[bi][1];     // 맹그로브는 바닷가 낮은 늪에만 — 산 위 이탄지는 고사리 늪
+      if(tr>=((far?cm.dense:cm.nearDense)||1)) break;   // 이 군락은 칸마다 이만큼만 굴린다
       patch=_fp.id;
       /* 얼룩 가장자리로 갈수록 성기다(군락 사이의 빈터) · 그 안에서도 잔 얼룩으로 뭉쳤다 풀렸다 한다 */
       const dens=clamp(_fp.edge/10,0.12,1)*(0.55+0.9*floraVal(wx,wz,11,43));
       for(const t of cm[which]){ const pr=t[1]*dens; if(u<pr){ pick=t; break; } u-=pr; }
     }
     if(!pick) continue;
-    const kind=pick[0], ms=U.m[kind], vi=floraHash(gx,gz,L.salt+7)%ms.length, im=ms[vi], K=FLORA_KIND[kind], nk=n[kind];
+    const kind=pick[0], ms=U.m[kind], vi=floraHash(gx,gz,salt+7)%ms.length, im=ms[vi], K=FLORA_KIND[kind], nk=n[kind];
     if(nk[vi]>=im.instanceMatrix.count) continue;
     // 큰 나무·바위·설비·벽이 선 자리, 지은 바닥 위는 비운다
     const pad=(K.r||0)+0.5, cgx=Math.floor(wx/CG), cgz=Math.floor(wz/CG); let hit=false;
@@ -522,9 +549,9 @@ function floraLayer(L,which){
     if(hit||inLanding(wx,wz,pad)) continue;           // 보급선이 앉는 자리 · 깨는 자리는 비운다
     const gy=heightAt(wx,wz);
     if(floorAt(wx,wz)>gy+0.05) continue;
-    const key=(far?'F':'N')+gx+','+gz, P=K.pick?FLORA_PICK[K.pick]:null;
+    const key=(far?'F':'N')+gx+','+gz+(tr?'#'+tr:''), P=K.pick?FLORA_PICK[K.pick]:null;
     if(P&&P.hide){ const t=U.taken.get(key); if(t!==undefined){ if(gameHours-t<P.regrow) continue; U.taken.delete(key); } }
-    const h2=floraHash(gx,gz,L.salt+1);
+    const h2=floraHash(gx,gz,salt+1);
     const v=(h2&1023)/1023, sc=(pick[2]+(pick[3]-pick[2])*v)*clamp((R-d)/L.fade,0.25,1);
     const tl=far?0.05:0.16;
     _flE.set(((h2>>>10)&31)/31*tl-tl/2,((h2>>>15)&1023)/1023*6.283,((h2>>>25)&31)/31*tl-tl/2); _flQ.setFromEuler(_flE);
@@ -535,6 +562,8 @@ function floraLayer(L,which){
     im.setColorAt(nk[vi]++,_flC);
     if(K.r) L.cols.push({x:wx,z:wz,r:K.r*sc});
     if(P) L.picks.push({kind:K.pick,x:wx,y:gy,z:wz,key,r:(K.r||0.12)*sc,tree:!P.hide});
+    lx=wx; lz=wz;
+   }
   }
   for(const k of L.kinds) U.m[k].forEach((im,v)=>{ im.count=n[k][v]; im.visible=im.count>0;
     im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true; });

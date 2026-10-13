@@ -41,9 +41,12 @@ function giantShapes(rnd){
   const G=[];
   { // 0 케이폭 — 줄기가 16 m 까지 매끈하고 그 위로 큰 가지 일곱이 우산처럼 퍼진다(키 30 m · 수관 지름 24 m)
     const hk=rf(0.9,1.1), parts=[bole(19*hk,1.5,0.9,6,1.7,[0.46,0.40,0.34],[0.62,0.56,0.48],rf(0.5,1.5))];
-    const S={taper:0.66,split:[2,3],spread:1.4,up:0.5,lift:0.30,shrink:0.70,bend:0.06,leafN:5,leafW:4.2,leafH:3.6,leafCell:FC.LEAF,leafTilt:0.9,leafC:[0.84,1,0.84],vine:0.25,vineH:4,bark:[0.46,0.40,0.34],bark2:[0.62,0.56,0.48]};
+    const S={taper:0.66,split:[2,3],spread:1.4,up:0.5,lift:0.30,shrink:0.70,bend:0.06,leafN:5,leafW:4.2,leafH:3.6,leafCell:FC.LEAF,leafTilt:0.9,leafC:[0.84,1,0.84],tips:[],bark:[0.46,0.40,0.34],bark2:[0.62,0.56,0.48]};
     for(let i=0,nb=ri(6,8);i<nb;i++){ const a=i/nb*6.283+rnd()*0.5;
       grow(parts,[Math.cos(a)*0.5,(16.5+rnd()*2.5)*hk,Math.sin(a)*0.5],unit(Math.cos(a),0.55,Math.sin(a)),7.5+rnd()*2.5,0.55,2,S); }
+    /* 수관에서 늘어진 굵은 덩굴 — 끝가지에서 땅 위 2~7 m 까지, 그리고 끝가지 사이에 처져 걸린 것 */
+    for(let i=0,nl=ri(5,7);i<nl;i++){ const p=S.tips[(rnd()*S.tips.length)|0]; K.liana(parts,p,[p[0]+(rnd()-0.5)*2,2+rnd()*5,p[2]+(rnd()-0.5)*2],0.6,0.07,6); }
+    for(let i=0;i<2;i++){ const p=S.tips[(rnd()*S.tips.length)|0], q=S.tips[(rnd()*S.tips.length)|0]; if(p!==q) K.liana(parts,p,q,3+rnd()*3,0.08,6); }
     G.push(fin(parts)); }
   { // 1 반얀 — 굵고 낮은 줄기, 넓게 누운 가지에서 공기뿌리가 땅까지 늘어진다(키 22 m · 수관 지름 28 m)
     const BB=[0.42,0.36,0.30], BB2=[0.58,0.50,0.42], hk=rf(0.9,1.12), parts=[bole(11*hk,1.9,1.3,7,1.2,BB,BB2,rf(0.2,0.8))];

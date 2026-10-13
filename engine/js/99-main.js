@@ -20,9 +20,8 @@ function loop(){
   const PO=PERF.on;                // 성능 창이 켜져 있을 때만 토막마다 잰다
   if(!paused&&!busy) try{
     let tp=PO?performance.now():0;
-    /* 소지품 · 제작 · 사전 · 그림판을 연 동안은 **세상이 멈춘다**(사용자 요청) — 시간 · 배고픔·목마름 · 불 · 날씨 ·
-       물고기 · 몸의 움직임이 모두 선다. 창 안에서 하는 일(만들기 진행 · 끌어 놓기 · 먹기)만 그대로 돈다.
-       상자·화덕 창은 안 멈춘다 — 굽고 녹는 것이 눈앞에서 진행되는 창이다. */
+    /* **사전**을 편 동안만 세상이 멈춘다 — 시간 · 배고픔·목마름 · 불 · 날씨 · 몸의 움직임이 선다.
+       가방(소지품·제작)은 열어도 시간이 흐른다(사용자 요청 — 예전엔 가방도 멈췄다). 상자·화덕 창도 안 멈춘다. */
     const hold=uiHold();
     hudS(document.getElementById('holdTag'),'display',hold?'block':'none');
     if(hold) updateCraft(dt);

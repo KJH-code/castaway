@@ -1725,10 +1725,15 @@ function updateShip(dt){
   shipMesh.position.x+=SHIP.dir.x*sp*dt;
   shipMesh.position.z+=SHIP.dir.z*sp*dt;
   shipMesh.position.y+=(14+SHIP.t*6)*dt;
-  if(SHIP.t>12){
-    /* 광원은 장면에 세기 0 으로 남긴다 — 배와 같이 빼면 점광원 수가 바뀌어 모든 재질의 셰이더를 다시 짜느라
-       상륙 12초 뒤에 멈칫했다. 세기 0 이라 화면은 뺀 것과 같다. 다음 섬의 배(makeShip)가 치운다 */
-    const li=SHIP.light; if(li){ li.intensity=0; scene.attach(li); SHIP.parked=li; }
-    scene.remove(shipMesh); shipMesh=null;
-  }
+  if(SHIP.t>12) shipGone();
+}
+/* 배를 치운다 — 다 떠났을 때, 그리고 **쓰러졌다 깨어날 때**(배가 아직 뜨는 중에 물에 빠져 죽으면, 멈춘 화면 동안 배도 그 자리에
+   멈춰 있다가 깨어난 사람 머리 위에 그대로 떠 있었다 — 사용자 지적).
+   광원은 장면에 세기 0 으로 남긴다 — 배와 같이 빼면 점광원 수가 바뀌어 모든 재질의 셰이더를 다시 짜느라 멈칫한다.
+   세기 0 이라 화면은 뺀 것과 같다. 다음 섬의 배(makeShip)가 치운다 */
+function shipGone(){
+  if(!shipMesh) return;
+  const li=SHIP.light; if(li){ li.intensity=0; scene.attach(li); SHIP.parked=li; }
+  LIGHT.dirtyAt(shipMesh.position.x,shipMesh.position.z,14);
+  scene.remove(shipMesh); shipMesh=null; SHIP.st='away';
 }

@@ -153,6 +153,7 @@ function diePL(why){
 /* 깨어나기 — 짐은 그대로 두고 표류물 곁으로 돌려보낸다. 죽음이 가벼우면
    높이도 물도 무섭지 않으니, 배를 절반으로 깎아 대가를 남긴다. */
 function revivePL(){
+  shipGone();                                                  // 깨어났을 때 배는 이미 떠나고 없다(30-props.js)
   PL.pos.set(LANDING.sx, podPos.y+1, LANDING.sz);              // 늘 같은 자리(착륙 자리 — 30-props.js placePod)
   PL.pos.y=Math.max(0.2,heightAt(PL.pos.x,PL.pos.z))+0.2;
   PL.vel.set(0,0,0); PL.camY=undefined;
@@ -191,13 +192,16 @@ function walkable(x,z,fromH){
   return slopeAt(x,z)<=MAXSLOPE;              // 지속적인 급사면만 막는다
 }
 
+const NO_KEYS={};
 function updatePlayer(dt){
   if(PL.dead) return;                              // 쓰러져 있는 동안에는 아무것도 안 한다
   const p=PL.pos;
-  const fwd=(keys.KeyW?1:0)-(keys.KeyS?1:0);
-  const str=(keys.KeyD?1:0)-(keys.KeyA?1:0);
-  PL.crouch=!!(keys.ControlLeft||keys.KeyC)&&!PL.swim;
-  PL.run=!!keys.ShiftLeft && !PL.crouch && PL.stam>1 && fwd>0 && PL.food>0 && PL.water>0;
+  /* 가방(소지품·제작)을 연 동안에는 세상은 흐르지만 몸은 선다 — 누르고 있던 걷기·뛰기 키를 안 받는다 */
+  const K=(invOpen||craftOpen)?NO_KEYS:keys;
+  const fwd=(K.KeyW?1:0)-(K.KeyS?1:0);
+  const str=(K.KeyD?1:0)-(K.KeyA?1:0);
+  PL.crouch=!!(K.ControlLeft||K.KeyC)&&!PL.swim;
+  PL.run=!!K.ShiftLeft && !PL.crouch && PL.stam>1 && fwd>0 && PL.food>0 && PL.water>0;
 
   const gy=floorAt(p.x,p.z,p.y);
   // 바다는 해수면 0, 하천은 하도별 수면 표고를 쓴다
@@ -235,7 +239,7 @@ function updatePlayer(dt){
     // 부력으로 수면 근처에 뜬다. Space로 잠수 해제, Ctrl로 하강
     /* 기력이 다하면 몸이 가라앉는다 — 머리가 잠겨 숨이 닳기 시작한다(떠오르기도 안 먹는다). 발이 닿는 데로 나와야 산다 */
     const target=wl-(spent?1.75:0.45);
-    PL.vel.y += (((keys.Space&&!spent)?1.6:(keys.ControlLeft?-1.4:(target-p.y)*3.2))-PL.vel.y)*clamp(6*dt,0,1);
+    PL.vel.y += (((K.Space&&!spent)?1.6:(K.ControlLeft?-1.4:(target-p.y)*3.2))-PL.vel.y)*clamp(6*dt,0,1);
     /* 숨 — 머리가 잠기면 닳는다. 스노클이 있으면 수면 바로 밑(대롱 길이 0.5 m)까지는 숨을 쉰다 */
     PL.oxy=clamp(PL.oxy + (p.y<wl-(hasGear('snorkel')?1.7:1.2)?-9*dt:14*dt),0,100);
     if(spent){ if(!PL._spentMsg){ PL._spentMsg=true; toast('기력이 다했다 — 몸이 가라앉는다! 발 닿는 데로 나가라'); } }
@@ -247,10 +251,10 @@ function updatePlayer(dt){
     // 지붕 위에서 Ctrl(앉기) + Space → 그 자리에서 아래로 떨어진다.
     // 가장자리까지 걸어갈 자리가 없는 좁은 지붕에서도 내려올 수 있게 하는 길이다.
     // 보통 점프보다 먼저 본다 — 안 그러면 점프가 먼저 걸려 위로 뛴다.
-    if(keys.Space&&keys.ControlLeft&&PL.grounded&&p.y>heightAt(p.x,p.z)+0.9){
+    if(K.Space&&K.ControlLeft&&PL.grounded&&p.y>heightAt(p.x,p.z)+0.9){
       DROP.t=0.45; DROP.y=p.y; PL.grounded=false; PL.vel.y=-1.2;
     }
-    else if(keys.Space&&PL.grounded){ PL.vel.y=JUMP; PL.grounded=false; DROP.t=0; }
+    else if(K.Space&&PL.grounded){ PL.vel.y=JUMP; PL.grounded=false; DROP.t=0; }
     PL.oxy=clamp(PL.oxy+18*dt,0,100);
   }
 

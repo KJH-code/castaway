@@ -48,7 +48,7 @@ function camcInit(){
         float Y=dot(col,vec3(0.299,0.587,0.114));
         /* 색조 — 노을·새벽: 밝은 데는 주황 · 어두운 데는 보라 / 달밤: 푸른빛 */
         col*=mix(vec3(1.0),mix(vec3(0.96,0.78,1.50),vec3(1.22,0.92,0.60),smoothstep(0.14,0.55,Y)),uLow*0.85);
-        col*=mix(vec3(1.0),vec3(0.70,0.95,1.60),uMoon*0.85);
+        col*=mix(vec3(1.0),vec3(0.84,0.96,1.24),uMoon*0.70);
         col=mix(col,vec3(Y)*vec3(0.78,0.90,1.16),uNight*0.30);                 // 밤눈은 색을 덜 본다
         /* 물속 — 청록으로 가라앉고, 낮에는 수면에서 빛줄기가 비껴 내려온다 */
         col=mix(col,col*vec3(0.50,0.92,1.04)+vec3(0.0,0.025,0.04),uUnder*0.65);
@@ -67,12 +67,18 @@ function camcInit(){
         gl_FragColor=vec4(col,1.0);
       }`});
   const q=new THREE.Mesh(new THREE.PlaneGeometry(2,2),CAMC.mat); q.frustumCulled=false; CAMC.scene.add(q);
+  /* 화면 맨 위에 까는 흰 잡음 — 96 px 잡음 그림 한 장을 만들어 #tvNoise 의 바탕에 붙인다(자리는 CSS 가 박자마다 옮긴다) */
+  { const c=document.createElement('canvas'); c.width=c.height=96; const g=c.getContext('2d'), im=g.createImageData(96,96), rn=mulberry32(0x7e1e);
+    for(let i=0;i<im.data.length;i+=4){ const v=(rn()*255)|0; im.data[i]=im.data[i+1]=im.data[i+2]=v; im.data[i+3]=255; }
+    g.putImageData(im,0,0); const el=document.getElementById('tvNoise'); if(el) el.style.backgroundImage='url('+c.toDataURL()+')'; }
   CAMC.el={box:document.getElementById('camc'), bar:document.getElementById('camcB'), pct:document.getElementById('camcP'),
            msg:document.getElementById('camcM'), vf:document.getElementById('camcVF')};
 }
 /* 그리기 전에 — 캠코더가 켜져 있으면 그림판을 물리고 true 를 돌려준다(renderFrame 이 부른다) */
 function camcBegin(){
-  if(!CAMC.on||!CAMC.lines) return false;
+  const show=!!(CAMC.on&&CAMC.lines);
+  if(show!==CAMC.cls){ CAMC.cls=show; document.body.classList.toggle('camc-on',show); }   // CCTV 글씨·잡음·주사선(game.css) — 시작 화면에서도
+  if(!show) return false;
   if(!CAMC.mat) camcInit();
   const cw=renderer.domElement.width, ch=renderer.domElement.height;
   const h=Math.min(CAMC.lines,ch), w=Math.max(64,Math.min(1600,Math.round(h*cw/ch)));
@@ -113,6 +119,7 @@ function updateCamcorder(dt){
   if(CAMC.bat>30) CAMC.warned=false;
   // 화면 위의 표시
   const L=CAMC.el, show=CAMC.on&&CAMC.lines>0;
+  if(show!==CAMC.cls){ CAMC.cls=show; document.body.classList.toggle('camc-on',show); }   // CCTV 글씨·잡음·주사선(game.css)
   if(L.box){
     hudS(L.box,'display',show?'flex':'none'); hudS(L.vf,'display',show?'block':'none');
     if(show){

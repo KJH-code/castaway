@@ -1206,23 +1206,44 @@ function makeFire(s,opt){
   return g;
 }
 // 좌표를 직접 받는 형태 — 저장 복원에서 그대로 쓴다
+/* 화덕의 재질 — 예전엔 돌도 땔감도 민무늬 한 색이었다(사용자 지적: 화덕 텍스처가 없다).
+   돌은 바위 사진의 결(땅 사진 4번 층), 땔감은 캔버스에 그린 나무껍질과 나이테, 바닥은 잿빛 재. 한 번 만들어 모든 화덕이 나눠 쓴다 */
+let _hearthM=null;
+function hearthMats(){
+  if(_hearthM) return _hearthM;
+  const tex=(draw)=>{ const c=document.createElement('canvas'); c.width=c.height=64; draw(c.getContext('2d'));
+    const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; return t; };
+  const rn=mulberry32(0x4ea27);
+  const bark=tex(g=>{ g.fillStyle='#5a4532'; g.fillRect(0,0,64,64);
+    for(let i=0;i<60;i++){ g.fillStyle=rn()<0.55?'rgba(30,20,12,'+(0.25+rn()*0.35)+')':'rgba(150,120,90,'+(0.12+rn()*0.2)+')';
+      g.fillRect(rn()*64,rn()*64,1+rn()*2.5,10+rn()*40); } });
+  const end=tex(g=>{ g.fillStyle='#b89a6c'; g.fillRect(0,0,64,64);
+    for(let r=28;r>2;r-=4){ g.strokeStyle='rgba(90,62,36,'+(0.35+rn()*0.3)+')'; g.lineWidth=1.2; g.beginPath(); g.arc(32+rn()*2,32+rn()*2,r,0,6.283); g.stroke(); }
+    g.strokeStyle='rgba(60,40,24,.6)'; g.beginPath(); g.moveTo(32,32); g.lineTo(32+rn()*26,6); g.stroke(); });
+  const ash=tex(g=>{ g.fillStyle='#3a3836'; g.fillRect(0,0,64,64);
+    for(let i=0;i<260;i++){ const v=(20+rn()*150)|0; g.fillStyle='rgba('+v+','+v+','+(v-4)+','+(0.25+rn()*0.4)+')'; g.fillRect(rn()*64,rn()*64,1+rn()*3,1+rn()*3); } });
+  const stone=gndDetailPatch(new THREE.MeshLambertMaterial({color:0x8a857c}),4,0.45);
+  _hearthM={stone, bark:new THREE.MeshLambertMaterial({map:bark}), end:new THREE.MeshLambertMaterial({map:end}),
+            ash:new THREE.MeshLambertMaterial({map:ash})};
+  return _hearthM;
+}
 function placeCampfireAt(x,y,z){
 
-  const g=new THREE.Group();
-  const smat=new THREE.MeshLambertMaterial({color:0x74716a});
-  for(let i=0;i<7;i++){                       // 돌을 둘러 바람막이 — 하나하나 다른 모양
-    const a=i/7*Math.PI*2;
-    const st=new THREE.Mesh(hearthStone(0.2),smat);
-    st.position.set(Math.cos(a)*0.62,0.12,Math.sin(a)*0.62);
-    st.rotation.set(Math.random()*6.283,Math.random()*6.283,Math.random()*6.283);
-    st.scale.set(0.8+Math.random()*0.5,0.75+Math.random()*0.45,0.8+Math.random()*0.5);
+  const g=new THREE.Group(), HM=hearthMats();
+  for(let i=0;i<9;i++){                       // 돌을 둘러 바람막이 — 하나하나 다른 모양(둥글게 닳은 돌 · 바위 사진의 결)
+    const a=i/9*Math.PI*2+Math.random()*0.2;
+    const st=new THREE.Mesh(SHP.blob(0.19,(Math.random()*1e6)|0,{w:9,h:6,amp:0.28,sy:0.8}),HM.stone);
+    st.position.set(Math.cos(a)*0.62,0.10,Math.sin(a)*0.62);
+    st.rotation.set(Math.random()*0.5,Math.random()*6.283,Math.random()*0.5);
+    st.scale.set(0.85+Math.random()*0.5,0.75+Math.random()*0.4,0.85+Math.random()*0.5);
     g.add(st);
   }
-  const wmat=new THREE.MeshLambertMaterial({color:0x4a3a29});
-  for(let i=0;i<4;i++){                       // 땔감 더미
-    const a=i/4*Math.PI+0.4;
-    const w=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.07,1.0,4),wmat);
-    w.position.set(Math.cos(a)*0.1,0.2,Math.sin(a)*0.1);
+  { const ash=new THREE.Mesh(new THREE.CircleGeometry(0.56,18),HM.ash);     // 재가 깔린 바닥
+    ash.rotation.x=-Math.PI/2; ash.position.y=0.03; g.add(ash); }
+  for(let i=0;i<5;i++){                       // 땔감 더미 — 껍질 결이 있는 통나무 · 자른 면엔 나이테
+    const a=i/5*Math.PI+0.4;
+    const w=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.07,0.95,9),[HM.bark,HM.end,HM.end]);
+    w.position.set(Math.cos(a)*0.1,0.21,Math.sin(a)*0.1);
     w.rotation.set(Math.PI/2.6,a,0);
     g.add(w);
   }

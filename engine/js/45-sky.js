@@ -2230,31 +2230,37 @@ function updateSky(){
   const luxS=0.002*(1-clamp(WEA.cover,0,1)*0.6);
   const perc=(luxM+luxS)/0.26, percM=luxM/0.26;     // 조도 그대로(눈 순응 보정 없음 — 사용자 요청)
   MOON.lux=luxM+luxS; MOON.perc=perc;
-  if(sy<-0.05 && mmy>-0.02){
-    /* 밤에는 달이 광원이다(해가 지평선 밑이면 땅 밑에서 비추게 된다) */
-    sun.position.set(Math.cos(mAng)*400, mmy*380+60, 150);
-    sun.intensity=lerp(sun.intensity, 0.16*percM, nightK);
+  /* **해에서 달로 넘어가기** — 예전엔 해가 지평선 밑 3° 에 닿는 순간 빛의 방향을 달 쪽으로(달이 없으면 머리 위로) 홱 돌렸는데,
+     그때 세기는 아직 낮의 절반이었다. 그래서 노을 한가운데서 빛과 그림자가 한 프레임에 뒤집혔다(사용자 지적: 해가 갑자기
+     없어진다). 이제 ① 햇빛은 해가 +4.6° 에서 −3.4° 로 가라앉는 동안 0 까지 사그라지고(방향은 끝까지 해 쪽)
+     ② 그 뒤에야 달빛이 0 에서 올라온다. 방향이 바뀌는 순간의 세기는 0 이다.
+     **달빛**(사용자 요청) — 해와 같은 평행광이고 그림자도 드리운다. 해보다 훨씬 어둡고(보름 천정 0.42 · 해 1.08)
+     은은한 푸른빛이다. 달이 차고 높이 뜰수록 밝다. 그늘은 채우지 않는다 — 달그림자 속은 깜깜하다 */
+  const sunFade=clamp((sy+0.06)/0.14,0,1);
+  const moonFade=clamp((-sy-0.06)/0.10,0,1)*clamp(mmy*6+0.1,0,1);
+  if(moonFade>0){
+    sun.position.set(Math.cos(mAng)*400, Math.max(mmy,0.04)*380+60, 150);
+    sun.intensity=0.42*moonFade*(0.25+0.75*MOON.illum)*clamp(mEl*2.5,0.2,1)*cloudCut;
   }else{
-    sun.position.set(sx*400, sy*380+60, 150);
-    // 해도 달도 진 깜깜한 밤 — 남은 희미한 빛이라도 위에서 와야 한다
-    if(sy<-0.05){ sun.position.y=90; sun.intensity=lerp(sun.intensity,0,nightK); }
+    sun.position.set(sx*400, Math.max(sy,0.02)*380+60, 150);
+    sun.intensity*=sunFade;
   }
-  amb.intensity*=lerp(1,1.5*perc,nightK);
-  hemi.intensity=lerp(0.18,0.18*perc,nightK)+amb.intensity*0.5;
+  /* 밤의 그늘은 거의 0 이다(사용자 요청: 달그림자는 광도 0) — 하늘빛·환경광을 달빛만큼 올리지 않고 별빛 수준에 묶는다 */
+  amb.intensity*=lerp(1,0.5*perc,nightK);
+  hemi.intensity=lerp(0.18,0.012+0.02*perc,nightK)+amb.intensity*0.5;
   /* **빛의 색조**(사용자 요청) — 산란식이 내는 색은 눈의 순응을 거쳐 거의 흰빛으로 눅는다. 그 위에 한 겹 더 물들인다.
        · 노을·새벽(해가 지평선에서 17° 안) — 볕이 닿는 데는 **주황**, 그늘을 채우는 하늘빛·환경광은 **보라**.
-       · 달이 뜬 밤 — 달빛도 그늘도 **푸른빛**. 달이 밝을수록(차고 높을수록) 그늘을 푸른 빛으로 조금 더 채운다.
+       · 달이 뜬 밤 — 달빛이 **은은한 푸른빛**이다.
      화면 전체의 색조(밝은 데·어두운 데를 따로 물들이기)는 캠코더 후처리(46-camcorder.js)가 `SKYL.grade` 를 받아 한 번 더 한다 */
   {
     const low=clamp(1-sy/0.30,0,1)*clamp((sy+0.16)/0.14,0,1);            // 노을·새벽 1 · 한낮·한밤 0
-    const moonUp=nightK*clamp(mmy*5+0.15,0,1);                           // 달이 뜬 밤 1
+    const moonUp=moonFade;                                               // 달이 뜬 밤 1
     /* 물들이되 어두워지지는 않게 — 보라·푸른빛은 밝기(휘도)가 1 에 가깝도록 파랑을 1 넘게 준다 */
     sun.color.lerp(cTmp.setRGB(1.25,0.62,0.24),low*0.80);
     hemi.color.lerp(cTmp.setRGB(1.0,0.70,1.65),low*0.80); amb.color.lerp(cTmp,low*0.70);
-    if(moonUp>0){
-      sun.color.lerp(cTmp.setRGB(0.55,0.80,1.45),moonUp*0.85);
-      hemi.color.lerp(cTmp.setRGB(0.45,0.72,1.60),moonUp*0.85); amb.color.lerp(cTmp,moonUp*0.80);
-      hemi.intensity+=0.10*moonUp*Math.sqrt(MOON.illum);
+    if(moonUp>0){                                                        // 은은한 푸른빛 — 그늘은 채우지 않는다(달그림자는 깜깜하다)
+      sun.color.lerp(cTmp.setRGB(0.72,0.84,1.10),moonUp);
+      hemi.color.lerp(cTmp.setRGB(0.60,0.78,1.25),moonUp*0.7); amb.color.lerp(cTmp,moonUp*0.6);
     }
     SKYL.grade.low=low; SKYL.grade.moon=moonUp*Math.sqrt(MOON.illum); SKYL.grade.night=nightK;
   }
@@ -2283,12 +2289,14 @@ function updateSky(){
     const U=sunDisc.material.uniforms, G=sunGlow.material.uniforms;
     U.uCol.value.copy(cSun).lerp(_white3,clamp(_sd3.y*3,0,0.75));
     const vis=(1-WEA.mist*0.85)*(1-clamp((WEA.cover-0.75)*3,0,0.9));
-    U.uOp.value=clamp((_sd3.y+0.012)/0.02,0,1)*vis;
+    /* 해 원판은 **지평선 밑으로 다 내려갈 때까지** 그린다(땅과 바다가 가린다). 예전엔 해가 아직 지평선에 걸려 있을 때
+       0.7° 사이에 지워 버려, 노을 한가운데서 해가 갑자기 사라졌다 */
+    U.uOp.value=clamp((_sd3.y+0.085)/0.03,0,1)*vis;
     U.uK.value=lerp(1.15,4,clamp(_sd3.y*5,0,1));     // 지평선의 해는 똑바로 볼 수 있을 만큼 어둡다
     G.uCol.value.copy(cSun).lerp(_white3,clamp(_sd3.y*2,0,0.5));
-    G.uOp.value=clamp((_sd3.y+0.05)/0.06,0,1)*vis*(0.55+0.45*clamp(1-_sd3.y*2,0,1));
+    G.uOp.value=clamp((_sd3.y+0.13)/0.12,0,1)*vis*(0.55+0.45*clamp(1-_sd3.y*2,0,1));
     G.uW.value=clamp(11-turb*0.9-WEA.mist*4,3,11);
-    sunDisc.visible=sunGlow.visible=_sd3.y>-0.03;
+    sunDisc.visible=_sd3.y>-0.09; sunGlow.visible=_sd3.y>-0.13;
   }
   if(moonDisc){
     const D=1200;
@@ -2332,11 +2340,12 @@ function updateSky(){
   /* 물이 받는 빛 — 해(색×세기)와 하늘빛, 비칠 하늘(천정·지평선).
      구름 시험장에는 물이 없다(하늘 구역만 베껴 간다) */
   if(typeof WATER_U!=='undefined'){
-  WATER_U.uSunDir.value.copy(_sd3);
-  WATER_U.uSunCol.value.copy(sun.color).multiplyScalar(sy>-0.05?sun.intensity:0);
+  /* 물에 비치는 것 — 낮에는 해, 달이 뜬 밤에는 달(달빛 윤슬) */
+  WATER_U.uSunDir.value.copy(moonFade>0?_md3:_sd3);
+  WATER_U.uSunCol.value.copy(sun.color).multiplyScalar(sun.intensity);
   WATER_U.uAmb.value.copy(hemi.color).multiplyScalar(hemi.intensity*0.6)
     .add(cTmp.copy(amb.color).multiplyScalar(amb.intensity*0.6));
   WATER_U.uSkyZ.value.copy(cSky); WATER_U.uSkyH.value.copy(cHz);
-  TERR_U.uSunDir.value.copy(_sd3);
+  TERR_U.uSunDir.value.copy(moonFade>0?_md3:_sd3);
   }
 }

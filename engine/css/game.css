@@ -5,6 +5,19 @@
     font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     -webkit-user-select:none;user-select:none;touch-action:none}
   canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated}
+  /* ── CCTV 화면 글씨(사용자 요청) ─────────────────────────────────────────────
+     화면에 뜨는 글씨는 전부 낡은 감시 카메라의 자막처럼 보인다 — 빨강·청록이 옆으로 살짝 어긋나고(색 번짐) 가장자리가
+     번지며, 드문드문 깜빡인다. 캠코더를 끄면(설정) 이 꾸밈도 같이 꺼진다(body.camc-on 일 때만) */
+  body.camc-on{text-shadow:.7px 0 rgba(255,70,60,.50),-.7px 0 rgba(70,200,255,.50),0 0 3px rgba(190,255,225,.28);letter-spacing:.035em}
+  body.camc-on #hud,body.camc-on #bag,body.camc-on #ov,body.camc-on #cfg,body.camc-on #dex{animation:osdFlick 5.3s steps(1) infinite}
+  @keyframes osdFlick{0%,100%{opacity:1}41%{opacity:1}42%{opacity:.82}43%{opacity:1}77%{opacity:.9}78%{opacity:1}}
+  /* 흰 잡음 · 주사선 — 화면 맨 위에 한 겹(글씨와 창 위에도 깔린다). 잡음 그림은 46-camcorder.js 가 한 번 만들어 붙이고,
+     자리를 네 박자로 옮겨 지직거리게 한다 */
+  #tvNoise,#tvScan{position:fixed;inset:0;z-index:70;pointer-events:none;display:none}
+  body.camc-on #tvNoise,body.camc-on #tvScan{display:block}
+  #tvNoise{opacity:.075;mix-blend-mode:screen;background-size:192px 192px;animation:tvShift .36s steps(1) infinite}
+  #tvScan{background:repeating-linear-gradient(to bottom,rgba(0,0,0,.13) 0 1px,transparent 1px 3px);opacity:.6}
+  @keyframes tvShift{0%{background-position:0 0}25%{background-position:-71px 43px}50%{background-position:37px -89px}75%{background-position:-113px -17px}100%{background-position:0 0}}
 
   #hud{position:fixed;inset:0;pointer-events:none}
   .pnl{position:absolute;background:var(--panel);border:1px solid var(--line);padding:8px 10px}
@@ -15,7 +28,7 @@
   #sel .sG{margin:10px 0 4px;padding:10px 12px 10px 30px;background:rgba(216,200,144,.10);border-left:2px solid #d8c890;
            color:#f0e8c8;font-size:12px;line-height:2.0;letter-spacing:.02em}
   /* 캠코더 — 화면 위 오른쪽의 녹화 표시·배터리, 네 귀퉁이의 뷰파인더 꺾쇠 */
-  #camc{position:absolute;right:14px;top:12px;display:none;align-items:center;gap:8px;font-size:11px;letter-spacing:.12em;
+  #camc{z-index:9;position:absolute;right:14px;top:12px;display:none;align-items:center;gap:8px;font-size:11px;letter-spacing:.12em;
         color:#f2f6f4;text-shadow:0 0 3px rgba(0,0,0,.9)}
   #camc .rec{color:#ff5a4a;animation:camcBlink 1.4s steps(1) infinite}
   #camc .bt{position:relative;width:34px;height:13px;border:1.5px solid #f2f6f4;border-radius:2px;display:inline-block}
@@ -25,7 +38,7 @@
   #camc em{font-style:normal;color:#ffb0a0}
   #camc.low .bt{border-color:#ff8a70;animation:camcBlink .7s steps(1) infinite}
   @keyframes camcBlink{0%{opacity:1}50%{opacity:.25}100%{opacity:1}}
-  #camcVF{position:absolute;inset:0;display:none}
+  #camcVF{z-index:9;position:absolute;inset:0;display:none}
   #camcVF i{position:absolute;width:26px;height:26px;border:2px solid rgba(255,255,255,.55)}
   #camcVF i:nth-child(1){left:26px;top:52px;border-right:0;border-bottom:0}
   #camcVF i:nth-child(2){right:26px;top:52px;border-left:0;border-bottom:0}
@@ -64,8 +77,11 @@
   #lookB i{display:block;height:100%;width:0;background:var(--acc)}
 
   /* ── 가방 화면 — 소지품 · 고른 물건 · 제작이 화면을 덮는 한 장에 나란히 선다(98-bag.js) ── */
+  /* 가방 화면도 캠코더로 본다 — 바탕을 덜 가려 뒤의 (테이프 화질) 세상이 비치고, 녹화 표시·배터리(#camc)와 뷰파인더 꺾쇠가
+     가방 위에 그대로 뜬다(z-index 9). 그 자리를 비우려고 위를 띄운다 */
   #bag{position:fixed;inset:0;z-index:8;display:none;flex-direction:column;align-items:center;
     background:rgba(4,8,9,.93);padding:14px 14px 12px;pointer-events:auto}
+  body.camc-on #bag{background:rgba(4,8,9,.74);padding-top:40px}
   #bag .bagH{width:min(1180px,100%);display:flex;justify-content:space-between;align-items:center;
     font-size:12px;letter-spacing:.14em;color:#e6f5ee;padding:0 2px 9px}
   #bag .bagB{width:min(1180px,100%);flex:1;min-height:0;display:flex;gap:12px}
@@ -250,7 +266,7 @@
   #tool .td{height:4px;width:110px;margin-top:3px;background:rgba(0,0,0,.55);border:1px solid var(--line)}
   #tool .td i{display:block;height:100%;background:#d8c96a}
 
-  #cbar{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);
+  #cbar{z-index:9;position:absolute;left:50%;bottom:96px;transform:translateX(-50%);
     width:270px;background:var(--panel);border:1px solid var(--line);
     padding:8px 11px;display:none}
   #cbar .t{display:flex;justify-content:space-between;font-size:11px;color:var(--ink)}

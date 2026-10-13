@@ -1,5 +1,5 @@
 /* 98-bag.js — CASTAWAY
-   가방 화면 — 소지품과 제작을 **한 화면**에 나란히 띄운다(I · C). 열려 있는 동안 세상은 멈춘다(uiHold).
+   가방 화면 — 소지품과 제작을 **한 화면**에 나란히 띄운다(I). 열려 있어도 **시간은 흐른다**(몸만 멈춰 선다 — 사용자 요청으로 되돌렸다).
    물건을 누르면 가운데 칸에 그 물건으로 **할 수 있는 일**(들기·입기·먹기·빠른 칸·버리기)과
    **만들 수 있는 것**(그 물건이 재료·도구로 드는 제작법)이 뜬다.
    (island_world (6).html 이 이 차례로 읽는다 — 차례와 묶음은 README.md 의 「코드 지도」에 있다) */
@@ -39,8 +39,7 @@ function openBag(focus){
   invOpen=craftOpen=true; invDirty=craftDirty=true;
   bagSync();
   const q=document.getElementById('crfS');
-  q.value=''; craftQuery='';                     // 열 때마다 새로 찾는다
-  if(focus==='craft') setTimeout(()=>q.focus(),0);
+  q.value=''; craftQuery='';                     // 열 때마다 새로 찾는다 — 검색칸은 눌러야 글자를 받는다(저절로 잡지 않는다)
   syncLock();
 }
 function closeBag(){
