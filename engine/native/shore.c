@@ -5,6 +5,10 @@
  *
  *     cw_shore — walks the grid cells within R metres of the player, finds every cell edge that
  *                crosses the waterline, and lays anchors along the shore every `step` metres.
+ *                Each anchor also carries the beach profile along its inland direction: how far
+ *                out to sea the bed is 0.30 m down, and how far inland the ground is 0.15, 0.35
+ *                and 0.60 m up. The foam shader turns "the sea is this high right now" into
+ *                "the water's edge is this far up the beach" from those four numbers.
  *
  * Unlike erosion.c this does NOT have to match JavaScript bit for bit: the result is only where
  * foam is drawn, nothing is saved from it. It uses single precision and reads the elevation
@@ -15,7 +19,8 @@
 #define MAXOUT 2048
 extern float H[];                               /* erosion.c — elevation, metres */
 static unsigned char RIV[MAXN * MAXN];          /* 1 where the cell is river (no sea foam there) */
-static float OUT[MAXOUT * 5];                   /* x, z, inland nx, nz, 1/slope  per anchor */
+#define STRIDE 9
+static float OUT[MAXOUT * STRIDE];              /* x, z, inland nx, nz, 1/slope, d(-0.30), d(+0.15), d(+0.35), d(+0.60)  per anchor */
 
 unsigned char *cw_river(void) { return RIV; }
 float *cw_shore_out(void) { return OUT; }
@@ -29,6 +34,26 @@ static inline float h_at(const float *h, int N, float inv_cell, float wx, float 
   float fx = gx - x, fz = gz - z;
   const float *p = h + z * N + x;
   return p[0] * (1 - fx) * (1 - fz) + p[1] * fx * (1 - fz) + p[N] * (1 - fx) * fz + p[N + 1] * fx * fz;
+}
+
+/* Distance along (dx,dz) from (qx,qz) to where the ground first reaches level+rise
+ * (rise > 0: walking inland and up; rise < 0: walking out to sea and down). */
+static float reach(const float *h, int N, float inv, float qx, float qz, float dx, float dz,
+                   float level, float rise, float max_d) {
+  const float st = 0.5f;
+  float prev = h_at(h, N, inv, qx, qz) - level;
+  for (float t = st; t <= max_d; t += st) {
+    float cur = h_at(h, N, inv, qx + dx * t, qz + dz * t) - level;
+    if (rise > 0 ? cur >= rise : cur <= rise) {
+      float k = (rise - prev) / (cur - prev);
+      if (!(k >= 0)) k = 0; else if (k > 1) k = 1;
+      return t - st + st * k;
+    }
+    prev = cur;
+  }
+  /* not reached within max_d (a very flat beach): extend the slope seen so far, up to 3x */
+  if (rise > 0 ? prev > 0.02f : prev < -0.02f) { float d = max_d * rise / prev; return d > 3 * max_d ? 3 * max_d : d; }
+  return 3 * max_d;
 }
 
 int cw_shore(int N, float cell, float px, float pz, float R, float step, float level, int max_out) {
@@ -71,8 +96,15 @@ int cw_shore(int N, float cell, float px, float pz, float R, float step, float l
         float s2 = __builtin_sqrtf(g2x * g2x + g2z * g2z);
         if (s2 < 0.015f) continue;
         float is = 1.0f / s2; if (is > 14.0f) is = 14.0f;
-        o[0] = qx; o[1] = qz; o[2] = g2x / s2; o[3] = g2z / s2; o[4] = is;
-        o += 5;
+        float ux = g2x / s2, uz = g2z / s2;
+        o[0] = qx; o[1] = qz; o[2] = ux; o[3] = uz; o[4] = is;
+        o[5] = reach(h, N, inv, qx, qz, -ux, -uz, level, -0.30f, 10.0f);
+        o[6] = reach(h, N, inv, qx, qz, ux, uz, level, 0.15f, 14.0f);
+        o[7] = reach(h, N, inv, qx, qz, ux, uz, level, 0.35f, 14.0f);
+        o[8] = reach(h, N, inv, qx, qz, ux, uz, level, 0.60f, 14.0f);
+        if (o[7] < o[6] + 0.05f) o[7] = o[6] + 0.05f;
+        if (o[8] < o[7] + 0.05f) o[8] = o[7] + 0.05f;
+        o += STRIDE;
         if (++n >= max_out) return n;
       }
     }

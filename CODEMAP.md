@@ -8,11 +8,11 @@ Keep the `engine/` and `presets/` folders next to it.
 | Folder | What |
 |---|---|
 | `engine/` | The game engine: `three.min.js` (three.js r128), `css/game.css`, `js/*.js` (the game code, mapped below), `native/` (C kernels and their built output) |
-| `presets/` | Data, not code: `presets.js` (graphics and island presets picked in the settings panel), `models/` (mob models), `random_textures/` (output slot for the texture model) |
+| `presets/` | Data, not code: `presets.js` (graphics and island presets picked in the settings panel), `models/` (mob models) |
 | `beta/` | Stand-alone test arenas and sandboxes (`*_arena.html`, `build_sandbox.html`, `_v.html`) |
 | `env/` | Build-only toolchains (C compiler, Python venv) — fetched by scripts, never committed (`env/README.md`) |
 | `desktop/` | Electron wrapper |
-| `tools/` | Check and build scripts; `tools/ai/` for model training |
+| `tools/` | Check and build scripts |
 | `docs/` | Design notes, development logs, graphics-engine research |
 
 The game used to be one 2.3 MB HTML file. It is now split into a stylesheet and
@@ -52,11 +52,13 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/80-player.js` | Mob table, first-person player (walking, **swimming**, stamina, hunger, health), synthesized audio, footsteps |
 | `engine/js/82-hud.js` | Minimap, HUD (look prompt, bars), performance window (F3), benchmark |
 | `engine/js/90-init.js` | Fog/shadow shader patches, shader precompile, `initThree()`, `generateWorld()` (the generation sequence) |
+| `engine/js/91-title.js` | The opening-screen art on one canvas: stencil CASTAWAY banner drawn from strokes, the receding crawl, and the crack — rendered flat in black and white, bent onto a curved screen, then split into red/green/blue |
 | `engine/js/92-save.js` | `snapshot()` / `restore()`, yes/no dialog, save slots (1–3, auto, previous-game backup), autosave |
 | `engine/js/94-input.js` | Keyboard, mouse, touch, opening/closing windows, pause, settings panel |
 | `engine/js/95-flora.js` | Plants that grow in **groves**: each ~80 m patch of a biome gets one community (jungle, bamboo grove, birch stand, pine wood, mangrove swamp, palm grove, flower field …). Ten tree types with trunks you collide with, five kinds of undergrowth, and what you can pick from them (vines, bamboo, coconuts, bananas, mushrooms) |
 | `engine/js/95-giants.js` | Old-growth giants (30–40 m) whose buttress roots are walkable ground (`giantRootAt`, used by `floorAt`) |
 | `engine/js/96-sea.js` | Coral reefs (7 forms), anemones, kelp, starfish, seabed boulders, clams/oysters/urchins, fish schools (harpoon + net), and the **far-from-shore panic** |
+| `engine/js/96-foam.js` | Shoreline foam: instanced tetrahedra within 55 m of the player, animated in the vertex shader from the real wave height and the beach profile; the shoreline scan is C (`engine/native/shore.c`) |
 | `engine/js/97-wildlife.js` | Bird flocks, nests with eggs, beehives with honey, the slingshot, tree climbing, and ambient insects (butterflies, fireflies, dragonflies, bees) |
 | `engine/js/98-bag.js` | The full-screen **bag screen**: inventory + selected-item panel (actions, what it can make) + crafting, side by side |
 | `engine/js/99-main.js` | The frame loop (`loop()`), and the five calls at the very end that start the game |

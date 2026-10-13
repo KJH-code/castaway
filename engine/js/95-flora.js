@@ -316,6 +316,9 @@ function floraKit(rnd){
   /* 방위 a 를 보고 선 뒤 바깥으로 t 만큼 눕는 회전 */
   const face=(a,t)=>new THREE.Quaternion().setFromEuler(new THREE.Euler(0,1.5708-a,0)).premultiply(lean(a,t));
   const card=(p,w,h,cl,a,t,c)=>({g:SHP.card(w,h),x:p[0],y:p[1],z:p[2],q:face(a,t),cell:cl,c:c||W});
+  /* 홑 판 — 열십자(판 둘)로 세우지 않고 한 장. 여러 장을 자리·방위·눕힘을 달리해 흩으면 열십자보다 덩어리져 보인다
+     (열십자는 어느 쪽에서 봐도 '판 두 장이 엇갈린 것'으로 읽혀 납작했다 — 사용자 지적). 세모 수는 같다(홑 판 둘 = 열십자 하나) */
+  const card1=(p,w,h,cl,a,t,c)=>({g:SHP.card(w,h,false),x:p[0],y:p[1],z:p[2],q:face(a,t),cell:cl,c:c||W});
   /* 줄기 — 살짝 흔들리며 오르는 대롱. 밑동이 벌어진다. 줄기 위의 자리(0~1)를 돌려주는 함수를 낸다 */
   const trunk=(parts,H,r0,r1,S)=>{ S=S||{};
     const n=S.segs||6, pts=[], rad=[], sw=S.sway===undefined?0.12:S.sway, ph=rnd()*6.28;
@@ -343,8 +346,10 @@ function floraKit(rnd){
       const a=Math.atan2(d[2],d[0]);
       /* 잎 판때기는 끝가지 둘레 공 안에 흩는다(한 점에 모으면 잎이 판 한 장처럼 납작하게 읽힌다) — 판마다 크기·눕힘이 다르다 */
       const sp=S.leafW*0.32;
-      for(let k=0;k<S.leafN;k++){ const p=at(Math.max(0.3,1-k*0.3*rnd()));
-        parts.push(card([p[0]+(rnd()-0.5)*sp,p[1]-S.leafH*0.15+(rnd()-0.5)*sp*0.6,p[2]+(rnd()-0.5)*sp],S.leafW*(0.75+rnd()*0.4),S.leafH*(0.75+rnd()*0.4),S.leafCell,a+(rnd()-0.5)*2.6,S.leafTilt*(0.4+rnd()*1.2),S.leafC)); }
+      /* 잎 뭉치 — 자리마다 홑 판 둘을 뭉치 둘레에 따로 놓는다(서로 다른 쪽을 보고, 바깥으로 눕는다). 뭉치가 공처럼 부푼다 */
+      for(let k=0;k<S.leafN;k++){ const p=at(Math.max(0.3,1-k*0.3*rnd())), a0=a+(rnd()-0.5)*2.6;
+        for(let e=0;e<2;e++){ const aa=a0+e*(1.3+rnd()*0.9), rr=sp*(0.35+rnd()*0.55);
+          parts.push(card1([p[0]+Math.cos(aa)*rr,p[1]-S.leafH*0.15+(rnd()-0.5)*sp*0.7,p[2]+Math.sin(aa)*rr],S.leafW*(0.72+rnd()*0.36),S.leafH*(0.72+rnd()*0.36),S.leafCell,aa,S.leafTilt*(0.5+rnd()*1.2),S.leafC)); } }
       if(S.tips) S.tips.push(at(1));                    // 끝가지 자리 — 덩굴을 걸 데(liana)
     }
   };
@@ -379,12 +384,12 @@ function floraKit(rnd){
         const tint=[k*ao*(0.95+0.12*w),k*ao,k*ao*(0.94+0.10*(1-w))];
         p.c=p.c.map((v,i)=>v*tint[i]); if(p.c2) p.c2=p.c2.map((v,i)=>v*tint[i]); } }
     return SHP.merge(parts,true,[0.80,1.04]); };      // 밑동이 짙다(땅 가까이는 둘레가 가려 하늘빛을 덜 받는다)
-  return {W,BARK,BARK2,unit,face,card,trunk,grow,liana,fin};
+  return {W,BARK,BARK2,unit,face,card,card1,trunk,grow,liana,fin};
 }
 /* 생김새 한 벌 — 씨앗(rnd)만 바꾸면 같은 짜임에 가지 각도·길이·수가 다른 다른 그루가 나온다.
    수(가지·잎·줄기)는 원래 값의 ±1~2 안에서만 흔든다 — 종류마다 생김새의 틀은 그대로다 */
 function floraShapes(rnd){
-  const {W,BARK,BARK2,unit,face,card,trunk,grow,liana,fin}=floraKit(rnd);
+  const {W,BARK,BARK2,unit,face,card,card1,trunk,grow,liana,fin}=floraKit(rnd);
   const ri=(a,b)=>a+Math.floor(rnd()*(b-a+1)), rf=(a,b)=>a+(b-a)*rnd();
   const G={};
   /* 밀림 나무 — 굵은 밑동, 다섯 갈래 큰 가지가 두 번씩 더 갈라져 스무 개의 끝가지. 덩굴이 늘어진다(키 9~11 m) */
@@ -480,12 +485,15 @@ function floraShapes(rnd){
   /* 덤불 — 잔가지 다섯에 잎 판때기 열한 장 */
   G.bush=(()=>{ const parts=[];
     for(let i=0,nb=ri(4,6);i<nb;i++){ const a=i/nb*6.283+rnd(); parts.push({g:SHP.limb([0,-0.05,0],unit(Math.cos(a)*0.7,1,Math.sin(a)*0.7),0.55+rnd()*0.25,0.025,0.012,1,4,0,0),cell:FC.BARK,c:BARK}); }
-    for(let i=0,nc=ri(9,13);i<nc;i++){ const a=rnd()*6.283, rr=rnd()*0.35;
-      parts.push(card([Math.cos(a)*rr,0.05+rnd()*0.45,Math.sin(a)*rr],0.75+rnd()*0.3,0.7+rnd()*0.3,FC.LEAF,a,0.3+rnd()*0.8,[0.95,1.05,0.9])); }
+    /* 잎은 **둥근 지붕 꼴**로 — 작은 홑 판 스무 장을 반구 껍질에 얹고 바깥으로 눕힌다(예전엔 큰 열십자 판 열 장이 가운데에 몰려
+       납작했다 — 사용자 지적). 아래 둘레는 넓고 위로 갈수록 모인다 */
+    for(let i=0,nc=ri(18,22);i<nc;i++){ const u=(i+rnd())/nc, a=i*2.399+rnd()*0.6, el=Math.acos(1-u*0.95), rr=0.20+0.34*Math.sin(el), y=0.10+0.50*Math.cos(el)*(0.8+0.4*rnd());
+      parts.push(card1([Math.cos(a)*rr,y,Math.sin(a)*rr],0.42+rnd()*0.22,0.40+rnd()*0.20,FC.LEAF,a+(rnd()-0.5)*0.8,0.35+el*0.55+rnd()*0.25,[0.95,1.05,0.9])); }
     return fin(parts); })();
-  /* 들꽃 — 꽃 그림 판때기 세 겹 */
+  /* 들꽃 — 포기 하나에 꽃 판 일곱 장이 **사방으로 벌어진다**(키와 눕힘이 저마다 다르다). 예전엔 판 세 장이 한 점에 겹쳐 종이 같았다 */
   G.flower=(()=>{ const parts=[];
-    for(let i=0,nf=ri(3,4);i<nf;i++){ const a=i*2.1+rnd()*0.5, rr=i?0.08+rnd()*0.08:0; parts.push({g:SHP.card(0.55,0.55),x:Math.cos(a)*rr,z:Math.sin(a)*rr,ry:a,cell:FC.FLOWER,c:W}); }
+    for(let i=0,nf=ri(6,8);i<nf;i++){ const a=i*2.399+rnd()*0.7, rr=i?0.06+rnd()*0.16:0, sc=0.34+rnd()*0.26;
+      parts.push(card1([Math.cos(a)*rr,-0.02,Math.sin(a)*rr],sc,sc*(0.95+rnd()*0.3),FC.FLOWER,a,i?0.18+rnd()*0.42:0.05,W)); }
     return fin(parts); })();
   /* 마른 덤불 — 잔가지 그림 판때기 넷 */
   G.dry=(()=>{ const parts=[];
@@ -514,12 +522,15 @@ function floraBuild(){
   FLORA.mat=new THREE.MeshLambertMaterial({map:FLORA.tex,alphaTest:0.4,vertexColors:true,side:THREE.DoubleSide});
   /* 잎 판때기의 그림자 — 깊이 재질도 그림의 알파로 잘라야 판 네모가 통째로 찍히지 않는다 */
   FLORA.depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:FLORA.tex,alphaTest:0.4});
+  /* 땅에 녹아들기(envPatch) — 나무 줄기 밑동은 한 뼘 반, 덤불·고사리·꽃·버섯(matN)은 손가락 두 마디만(키가 작아 더 주면 통째로 땅빛이 된다) */
+  FLORA.mat.userData.melt=0.42;
+  FLORA.matN=FLORA.mat.clone(); FLORA.matN.userData.melt=0.06;
   FLORA.m={};
   for(const L of [FLORA.far,FLORA.near]) for(const k of L.kinds){
     const nv=FLORA_VARS[k]||1, cap=Math.ceil(FLORA_KIND[k].cap*2.5)+8;   // 벌마다 몫 — 기준 벌(`FLORA.ref`)이 먼 그루를 다 받으므로 예전 종류 전체 몫(평균의 2.5배)
     FLORA.m[k]=[]; L.n[k]=new Int32Array(nv);
     for(let v=0;v<nv;v++){
-      const im=new THREE.InstancedMesh(SH[v][k],FLORA.mat,cap);
+      const im=new THREE.InstancedMesh(SH[v][k],L===FLORA.far?FLORA.mat:FLORA.matN,cap);
       im.setColorAt(0,new THREE.Color(1,1,1));          // 색 버퍼는 count 가 가득일 때 만든다
       im.count=0; im.visible=false; im.frustumCulled=false;
       if(L===FLORA.far) im.customDepthMaterial=FLORA.depth;   // 나무는 그림자를 드리운다
@@ -636,7 +647,7 @@ function updateFlora(force){
    ④ 다시 채우는 때 — 사람이 2 m 움직였거나 보이는 칸이 바뀌었을 때만. 종류마다 메시가 단계별로 하나라 그리기 호출은
       종류 × (가까운 벌 몇 + 복제 셋 + 그림 하나)다. 행렬은 배열에 바로 쓰고 그림자 지도는 드리우는 것(55 m 안)이 바뀔 때만 다시 그린다.
    몸이 막히는 원(`cols`)·딸 것(`picks`)은 60 m 안의 그루만, 사람이 움직일 때 다시 센다(그때 그 둘레의 지은 바닥·설비도 다시 본다). */
-const FL_TILE=64, FL_LOD=[[55,0.6],[90,0.3]], FL_PIC=200, FL_STEP=2, FL_NEAR=60;
+const FL_TILE=64, FL_LOD=[[40,0.5],[75,0.25]], FL_PIC=160, FL_STEP=2, FL_NEAR=60;   // 잰 값: 이 겹이 한 프레임의 4 ms 였다 — 단계를 당기고(55→40 · 90→75 · 200→160) 잎을 더 솎는다
 const _ffPM=new THREE.Matrix4(), _ffFr=new THREE.Frustum(), _ffSp=new THREE.Sphere();
 function floraPlantAll(){
   const U=FLORA, L=U.far, C=L.cell, n=Math.floor(HALF/C)-1;
@@ -753,7 +764,7 @@ function floraFarBuild(){
       im.count=0; im.visible=false; im.frustumCulled=false;
       if(cast) im.customDepthMaterial=FLORA.depth; else im.userData.lightRole='recv';   // 55 m 밖은 그림자를 안 드리운다
       im.matrixAutoUpdate=false; im.updateMatrix(); scene.add(im); return im; };
-    const lods=[0.6,0.3,0.1].map((f,i)=>mk(floraLodGeo(base,f),FLORA.mat,i===0));
+    const lods=[FL_LOD[0][1],FL_LOD[1][1],0.1].map((f,i)=>mk(floraLodGeo(base,f),FLORA.mat,i===0));
     const pic=floraBakePic(base);
     let pm=null;
     if(pic){ pm=mk(SHP.card(1,1),new THREE.MeshLambertMaterial({map:pic.tex,alphaTest:0.35,side:THREE.DoubleSide}),false); }
@@ -775,11 +786,12 @@ function floraFar(force){
   const px=PL.pos.x, pz=PL.pos.z, mv=(px-L.cx)**2+(pz-L.cz)**2>=FL_STEP*FL_STEP;
   if(L.cx===1e9) force=true;
   camera.updateMatrixWorld(); _ffPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _ffFr.setFromProjectionMatrix(_ffPM);
+  occTick();
   let sig=0;
   for(const t of U.tl){
     const d=Math.hypot(t.cx-px,t.cz-pz)-t.r;
     let v=d<=VIEW_DIST;
-    if(v&&d>CULL_NEAR){ _ffSp.center.set(t.cx,t.cy,t.cz); _ffSp.radius=t.r+30; v=_ffFr.intersectsSphere(_ffSp); }
+    if(v&&d>CULL_NEAR){ _ffSp.center.set(t.cx,t.cy,t.cz); _ffSp.radius=t.r+30; v=_ffFr.intersectsSphere(_ffSp)&&!tileOcc(t,26); }   // 산 너머는 거른다(30-props.js)
     t.v=v; if(v) sig=(sig*31+t.i+1)|0;
   }
   if(!force&&!mv&&sig===U.sig) return;
@@ -800,13 +812,13 @@ function floraFar(force){
   }
   for(const k of L.kinds){ for(const im of U.m[k]) im.count=0; const f=U.fm[k]; if(f){ for(const im of f.lods) im.count=0; if(f.pm) f.pm.count=0; } }
   const put=(im,p)=>{ const i=im.count++; im.instanceMatrix.array.set(p.m,i*16); const c=im.instanceColor.array; c[i*3]=p.c[0]; c[i*3+1]=p.c[1]; c[i*3+2]=p.c[2]; };
-  let csig=0;
+  let csig=0; const QK=QUAL.k;
   for(const t of U.tl){ if(!t.v) continue;
     for(const p of t.ps){ if(p.blk) continue;
       const dx=p.x-px, dz=p.z-pz, d=Math.sqrt(dx*dx+dz*dz); if(d>VIEW_DIST) continue;
       const f=U.fm[p.k];
       if(d<=FULL_DIST){ const im=U.m[p.k][p.v]; if(im.count<im.instanceMatrix.count){ put(im,p); csig=(csig*31+p.i)|0; } }
-      else if(d<=FL_PIC){ const lv=d<=FL_LOD[0][0]?0:d<=FL_LOD[1][0]?1:2; put(f.lods[lv],p); if(!lv) csig=(csig*31+p.i)|0; }
+      else if(d<=FL_PIC*QK){ const lv=d<=FL_LOD[0][0]*QK?0:d<=FL_LOD[1][0]*QK?1:2; put(f.lods[lv],p); if(!lv) csig=(csig*31+p.i)|0; }   // 자동 품질(QUAL.k)이 단계를 당긴다
       else if(f.pm){
         if(!p.pm){ const c=f.pic.can; _flE.set(0,p.yaw,0); _flQ.setFromEuler(_flE); _flV.set(p.x,p.y+c.y0*p.sy,p.z); _flS.set(c.w*p.s,(c.y1-c.y0)*p.sy,c.w*p.s);
           _flM.compose(_flV,_flQ,_flS); p.pm=Float32Array.from(_flM.elements); }

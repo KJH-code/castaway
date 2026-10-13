@@ -671,6 +671,7 @@ function rockMat(k,col){
   const FACET=(HABIT[k]&&HABIT[k].smooth===0)?1:0;      // 면마다 각진 바위만 면별 톤을 준다
   const PHOTO=GND_OK();                                 // 사진 결을 쓸 수 있나(22-ground-textures.js)
   const big=!(k==='pebble'||k==='flint');
+  m.userData.melt=big?0.5:0.1; m.userData.meltAttr=true;   // 높이는 바위마다(aMelt — buildProps 가 제 크기의 0.4배로 적는다)                        // 밑동이 땅 빛깔로 녹아든다(envPatch — 45-sky.js '땅에 녹아들기')
   m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,TERR_U);
     sh.vertexShader='varying vec3 vRW;\nvarying vec3 vRN;\nvarying vec3 vRV;\n'+sh.vertexShader.replace('#include <begin_vertex>',
@@ -1003,8 +1004,11 @@ function waterMat(river){
       sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
       vec3 wp0=(modelMatrix*vec4(transformed,1.0)).xyz;
       if(uRiver<0.5){
+        /* 멀어질수록 파도를 눕힌다 — 판의 칸이 파장보다 굵어지는 거리(파장의 3~11배)에서. 굵은 칸으로 짧은 파도를 세우면
+           수면이 제멋대로 꺾이고, 판이 사람을 따라 옮겨질 때마다 그 꺾임이 바뀌어 먼바다가 어른거린다 */
+        float od=length(position.xz);
         for(int i=0;i<3;i++){ vec3 w=wv(i); vec2 d=vec2(cos(w.x),sin(w.x)); float k=6.2832/w.y;
-          transformed.y+=w.z*sin(k*dot(d,wp0.xz)-sqrt(G*k)*uWT); }
+          transformed.y+=w.z*(1.0-smoothstep(w.y*3.0,w.y*11.0,od))*sin(k*dot(d,wp0.xz)-sqrt(G*k)*uWT); }
       }
       vWW=(modelMatrix*vec4(transformed,1.0)).xyz;
       vWN=normalize(mat3(modelMatrix)*normal);       // 수면의 기울기 — 바다는 곧게 위, 하천은 물길을 따라 눕는다
@@ -1121,7 +1125,8 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       vec3 u=bb/(aT+bb);
       vec3 Rinf=0.0949*u+0.0794*u*u;
       vec3 Kt=(aT+bb)*(1.0/muS+1.0/muV);
-      vec3 Tb=exp(-Kt*d);
+      /* 하천은 빛이 지나는 깊이를 0.6배로 센다 — 섬을 2배로 키우며 물도 두 배 깊어져(1 m 남짓) 한낮에도 검은 판처럼 보였다 */
+      vec3 Tb=exp(-Kt*d*(uRiver>0.5?0.6:1.0));
       vec3 rr=Rinf*(1.0-Tb)+(bot/3.14159)*Tb;
       vec3 Rup=0.52*rr/(1.0-1.7*rr);
       vec3 light=uAmb+uSunCol*max(uSunDir.y,0.0)*(1.0-F)*shM;
@@ -1149,7 +1154,7 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
            ② 그 바깥 1.8 m 까지 얕아질수록 촘촘해지는 **파도 줄**이 뭍 쪽으로 밀려온다
            ③ 하천은 물길이 가파른 데(여울)에서 물살을 따라 흰 줄이 흘러내린다.
          무늬는 잡음 텍스처 두 번으로 낸다 */
-      float surf=0.5+0.5*sin(uWT*0.9+sin(vWW.x*0.07)*2.0+sin(vWW.z*0.05)*2.0);
+      float surf=uRiver>0.5?0.5+0.5*sin(uWT*0.9+sin(vWW.x*0.07)*2.0+sin(vWW.z*0.05)*2.0):clamp(0.5+vWW.y/1.2,0.0,1.0);   // 바다는 진짜 수면 높이(밀려온 만큼 거품 띠가 넓다)
       float lace=texture2D(uNz,vWW.xz/2.3+vec2(uWT*0.013,0.0)).r*0.6+texture2D(uNz,vWW.xz/0.83+vec2(0.0,uWT*0.021)).g*0.4;
       float fringe=smoothstep(0.34+0.22*surf,0.02,d)*smoothstep(0.34,0.60,lace+0.22*surf);
       float lines=smoothstep(0.62,0.96,sin(d*6.5+uWT*1.15+lace*3.0))*smoothstep(1.8,0.25,d)*smoothstep(0.38,0.66,lace);
@@ -1172,6 +1177,7 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       diffuseColor.a=smoothstep(0.03,0.55,d+wig*0.06);   // 물가를 넓게 녹인다
       // 하천 판의 볼록한 모서리 — 판의 삼각형 끝이 땅 위에 세모로 드러나지 않게 녹인다(aEdge 0.25 → 0 · 0.5 이상 → 1)
       if(uRiver>0.5){
+        diffuseColor.a*=mix(0.74,0.96,smoothstep(0.25,1.6,d));    // 얕은 개울은 바닥의 자갈·돌이 비친다(깊은 소는 거의 안 비친다)
         diffuseColor.a*=smoothstep(0.0,0.5,vEdge+wig*0.04);
         /* 강어귀 — 바닥이 바다 밑으로 내려간 데서는 하천 판을 바다 높이에서 녹여 없앤다(그 자리는 바닷물 판이 덮는다).
            두 판이 같은 높이에서 겹쳐 금이 서던 것이 사라진다 */
@@ -1198,10 +1204,43 @@ function buildWaterElev(){
   WATER_U.uElev.value=waterElevTex; WATER_U.uGrid.value.set(N,CELL);
 }
 let oceanBase=null;
+const WSURF={h:null, e:null, q:null};
+/* 눈에 보이는 하천 수면의 높이 — 하천 판의 그 삼각형((x,z)·(x,z+1)·(x+1,z) / 나머지)을 그대로 푼다.
+   판이 없거나, 판이 거의 투명한 둘레(가장자리 몫 0.2 아래 — 물 셰이더가 0→0.5 에서 알파를 녹인다)면 null */
+function riverSurfAt(wx,wz){
+  const W=WSURF; if(!W.h) return null;
+  const gx=wx/CELL+N/2, gz=wz/CELL+N/2, x=Math.floor(gx), z=Math.floor(gz);
+  if(x<0||z<0||x>=N-1||z>=N-1) return null;
+  const i=z*N+x; if(!W.q[i]) return null;
+  const fx=gx-x, fz=gz-z, H=W.h, E=W.e;
+  let h, e;
+  if(fx+fz<=1){ h=H[i]+(H[i+1]-H[i])*fx+(H[i+N]-H[i])*fz; e=E[i]+(E[i+1]-E[i])*fx+(E[i+N]-E[i])*fz; }
+  else{ const j=i+N+1, u=1-fx, v=1-fz; h=H[j]+(H[i+N]-H[j])*u+(H[i+1]-H[j])*v; e=E[j]+(E[i+N]-E[j])*u+(E[i+1]-E[j])*v; }
+  return e<0.2?null:h;
+}
+/* 바다 수면의 높이 — 물 셰이더가 바닷물 판을 오르내리게 하는 긴 파도 셋(wv(0~2))과 같은 식 · 같은 시계 */
+function seaSurfAt(wx,wz){
+  const t=WATER_U.uTime.value;
+  return 0.30*Math.sin(0.10134*(0.9394*wx+0.3429*wz)-0.9971*t)+0.20*Math.sin(0.16982*(0.8525*wx-0.5227*wz)-1.2907*t)
+        +0.10*Math.sin(0.29920*(0.3624*wx+0.9320*wz)-1.7132*t);
+}
+/* 그 자리의 물 — {wl 수면 높이, river 민물인가}. 물이 없으면 wl 은 땅보다 낮게 나온다(바다 0) */
+function waterAt(wx,wz,gy){
+  const rs=riverSurfAt(wx,wz);
+  if(rs!==null&&rs>0.05&&rs>gy+0.05) return {wl:rs,river:true};
+  return {wl:0,river:false};
+}
 function buildWater(){
   if(!ocean){
     // 굵은 파도(파장 21~62 m)만 정점을 움직이므로 격자는 15 m 면 된다
-    const g=new THREE.PlaneGeometry(WORLD*1.7,WORLD*1.7,220,220); g.rotateX(-Math.PI/2);
+    /* **가까이는 촘촘하게, 멀리는 성기게** — 예전엔 고른 격자(칸 30 m)였다. 파도는 파장 62·37·21 m 라 칸 하나에 파도가 하나씩
+       들어가 수면이 굵은 세모로 꺾여 일렁였고(사용자 지적: 수면이 이상하다), 눈에 보이는 물가가 파도 식과 몇 m 씩 어긋났다
+       (물가 거품이 제자리에 안 섰다). 정점 수는 그대로 두고 자리를 가운데로 몰았다: 가운데 0.6 m · 40 m 에서 4 m · 100 m 에서 8 m ·
+       끝(3 km)에서 90 m. 판은 사람을 따라다니되 4 m 눈금에 맞춰 옮긴다(45-sky.js) — 먼바다의 파도는 정점 셰이더가 눕힌다 */
+    const g=new THREE.PlaneGeometry(2,2,220,220); g.rotateX(-Math.PI/2);
+    { const P=g.attributes.position.array, HW=WORLD*0.85, A=0.02;
+      for(let i=0;i<P.length;i+=3){ const u=P[i], v=P[i+2]; P[i]=HW*(A*u+(1-A)*u*u*u); P[i+2]=HW*(A*v+(1-A)*v*v*v); }
+      g.attributes.position.needsUpdate=true; g.computeBoundingSphere(); }
     oceanBase=Float32Array.from(g.attributes.position.array);
     ocean=new THREE.Mesh(g,waterMat(false));
     ocean.userData.lightRole='recv';
@@ -1212,13 +1251,37 @@ function buildWater(){
   if(riverMesh){ scene.remove(riverMesh); riverMesh.geometry.dispose(); }
   // 정점 수위 = 그 격자점을 공유하는 하도 셀들의 평균.
   // 이웃한 사각형이 같은 모서리 높이를 쓰게 되므로 계단이 사라지고 하나로 이어진다.
+  /* **그리는 수위**(RL) — 섬을 지을 때의 수위(F.wlev)를 그대로 그리면 강어귀에서 수면이 **제 둑보다 높게**, 바다 위 1 m 넘게
+     떠 있었다(사용자 지적: 수면이 이상하다 — 강바닥은 해수면 밑으로 파였는데 수위는 파이기 전 땅을 따라가서다). 물은 가장 낮은
+     둑보다 높이 설 수 없다:
+       ① 칸마다 물길이 아닌 이웃(둑) 가운데 가장 낮은 것보다 3 cm 낮게 누른다 — 강어귀에선 둑이 바다라 해수면까지 내려간다
+       ② 그 '내린 몫'을 물길을 따라 위로 퍼뜨린다 — 어귀에서 해수면에 닿고 위로 갈수록 서서히 제 수위로 돌아간다
+       ③ 그래도 뭍에선 바닥보다 6 cm 는 높게(여울이 마르지 않게). 해수면까지 내려간 칸은 바다다 — 판을 안 깐다.
+     섬의 생김새(F.wlev · 자원 배치)는 건드리지 않는다 — 그리는 판과 그 판을 읽는 놀이 쪽(riverSurfAt)만 바뀐다 */
+  const RL=new Float32Array(N*N), DD=new Float32Array(N*N), rcells=[];
+  for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=IDX(x,z); if(!F.river[i]) continue;
+    let bank=1e9;                                      // 가장 낮은 둑 — 둑이 바다면 해수면(0)으로 친다
+    for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const j=i+dz*N+dx; if(F.river[j]) continue; const b=Math.max(F.elev[j],0); if(b<bank) bank=b; }
+    DD[i]=Math.max(0,F.wlev[i]-(bank-0.03)); rcells.push(i); }   // DD — 지을 때의 수위에서 얼마나 내려야 하나
+  /* 내린 몫을 물길을 따라 퍼뜨린다 — 한 칸 갈 때마다 10 cm 씩 덜 내린다(어귀의 1 m 내림이 50 m 쯤에 걸쳐 풀린다).
+     수위 자체가 아니라 '내린 몫'을 퍼뜨리므로 산골짜기의 가파른 물길은 제 깊이를 그대로 지킨다 */
+  for(let pass=0;pass<24;pass++){ let ch=0;
+    for(let q=0;q<rcells.length;q++){ const i=pass&1?rcells[rcells.length-1-q]:rcells[q]; let hi=0;
+      for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const j=i+dz*N+dx; if(j!==i&&F.river[j]&&DD[j]>hi) hi=DD[j]; }
+      if(hi-0.10>DD[i]+1e-4){ DD[i]=hi-0.10; ch++; } }
+    if(!ch) break; }
+  for(const i of rcells){
+    RL[i]=F.wlev[i]-DD[i];
+    if(F.elev[i]>0.25) RL[i]=Math.max(RL[i],Math.min(F.wlev[i],F.elev[i]+0.06));   // 뭍의 물길은 바닥이 드러나지 않게
+  }
+  const wet=j=>F.river[j]&&RL[j]>0.02;                 // 해수면 아래로 내려간 물길 칸은 바다가 덮는다
   const vw=(x,z)=>{
     let sm=0,n=0;
     for(let d=0;d<4;d++){
       const xx=x-(d&1), zz=z-((d>>1)&1);
       if(xx<0||zz<0||xx>=N||zz>=N) continue;
       const j=IDX(xx,zz);
-      if(F.river[j]){ sm+=F.wlev[j]; n++; }
+      if(wet(j)){ sm+=RL[j]; n++; }
     }
     return n?sm/n:null;
   };
@@ -1227,23 +1290,32 @@ function buildWater(){
      **판을 물길 밖으로 한 칸 더 깐다**(둘레 칸) — 물길 칸만 깔면 판이 끝나는 둑에서 물이 아직 깊어
      알파가 1 인 채로 끊겨 칸 모양 계단·세모가 그대로 보였다. 바깥 둘레 점은 0 이라 한 칸(2.5 m)에 걸쳐 스러진다 */
   const inner=(x,z)=>{ let n=0; for(let d=0;d<4;d++){ const xx=x-(d&1), zz=z-((d>>1)&1);
-    if(xx>=0&&zz>=0&&xx<N&&zz<N&&F.river[IDX(xx,zz)]) n++; } return n/4; };
+    if(xx>=0&&zz>=0&&xx<N&&zz<N&&wet(IDX(xx,zz))) n++; } return n/4; };
   // 둘레 점의 수위 — 가까운(4×4 칸) 물길 칸 수위의 평균
   const vw2=(x,z)=>{ const v=vw(x,z); if(v!==null) return v; let sm=0,n=0;
     for(let zz=z-2;zz<=z+1;zz++) for(let xx=x-2;xx<=x+1;xx++){
-      if(xx<0||zz<0||xx>=N||zz>=N) continue; const j=IDX(xx,zz); if(F.river[j]){ sm+=F.wlev[j]; n++; } }
-    return n?sm/n:null; };
+      if(xx<0||zz<0||xx>=N||zz>=N) continue; const j=IDX(xx,zz); if(wet(j)){ sm+=RL[j]; n++; } }
+    /* 둘레 점은 **그 자리 땅 밑으로 한 뼘 묻는다** — 낮은 둑에선 판이 땅 위로 떠서 칸 모양대로 곧게 끊겼다(물가가 네모났다).
+       이제 판이 둑으로 가며 땅속으로 들어가 물가가 '수심 0' 인 금으로 굽이친다. 강어귀에선 바다 밑으로 들어가 바닷물에 이어진다 */
+    return n?Math.min(sm/n,F.elev[IDX(x,z)]-0.05):null; };
   const nearRiver=(x,z)=>{ for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const xx=x+dx, zz=z+dz;
-    if(xx>=0&&zz>=0&&xx<N&&zz<N&&F.river[IDX(xx,zz)]) return true; } return false; };
+    if(xx>=0&&zz>=0&&xx<N&&zz<N&&wet(IDX(xx,zz))) return true; } return false; };
+  /* **물의 영역은 그려진 판이 정한다**(사용자 지적: 얕은 물에 앉기만 해도 물속 화면이 됐다). 예전엔 놀이 쪽이 물 높이를
+     '둘레 네 칸 가운데 가장 높은 수위'(waterLevelAt)로 어림했다 — 비탈진 하천에선 눈에 보이는 수면보다 1 m 넘게 높게 나와
+     무릎 깊이에서도 헤엄·물속 화면이 걸렸다. 판을 짓는 김에 격자점의 수위(h) · 가장자리 몫(e) · 판이 깔린 칸(q)을 적어 두고,
+     `riverSurfAt` 이 그 삼각형을 그대로 풀어 **눈에 보이는 수면**을 돌려준다 */
+  WSURF.h=new Float32Array(N*N); WSURF.e=new Float32Array(N*N); WSURF.q=new Uint8Array(N*N);
   for(let z=0;z<N-1;z++) for(let x=0;x<N-1;x++){
     if(!nearRiver(x,z)) continue;
     const a=vw2(x,z), b=vw2(x,z+1), c=vw2(x+1,z), d=vw2(x+1,z+1);
     if(a===null||b===null||c===null||d===null) continue;
     const X=(x-N/2)*CELL, Z=(z-N/2)*CELL, S=CELL;
+    { const i=IDX(x,z); WSURF.q[i]=1; WSURF.h[i]=a; WSURF.h[i+N]=b; WSURF.h[i+1]=c; WSURF.h[i+N+1]=d; }
     tris.push(X,a,Z, X,b,Z+S, X+S,c,Z,
               X+S,c,Z, X,b,Z+S, X+S,d,Z+S);
     const ea=inner(x,z), eb=inner(x,z+1), ec=inner(x+1,z), ed=inner(x+1,z+1);
     edg.push(ea,eb,ec, ec,eb,ed);
+    { const i=IDX(x,z); WSURF.e[i]=ea; WSURF.e[i+N]=eb; WSURF.e[i+1]=ec; WSURF.e[i+N+1]=ed; }
   }
   if(tris.length){
     const g=new THREE.BufferGeometry();

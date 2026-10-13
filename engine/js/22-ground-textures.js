@@ -169,15 +169,19 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         /* 물가 — 젖은 띠와 밀려온 거품. 바닷물 셰이더의 거품과 같은 박자(uShT)로 오르내린다 */
         float h=vTW.y;
         if(h<1.3&&h>-0.8){
-          float sw=0.5+0.5*sin(uShT*0.9+sin(p.x*0.07)*2.0+sin(p.y*0.05)*2.0);
+          /* **진짜 수면** — 바닷물 판을 오르내리게 하는 긴 파도 셋(물 셰이더의 wv(0~2))을 같은 식 · 같은 시계로 푼다. 예전엔 여기만
+             제 박자(sin 하나)로 오르내려, 물이 빠졌는데 흰 물자국이 남거나 물이 덮었는데 마른 모래로 보였다 */
+          float sea=0.30*sin(0.10134*dot(vec2(0.9394,0.3429),p)-0.9971*uShT)+0.20*sin(0.16982*dot(vec2(0.8525,-0.5227),p)-1.2907*uShT)
+                   +0.10*sin(0.29920*dot(vec2(0.3624,0.9320),p)-1.7132*uShT);
+          float sw=clamp(0.5+sea/1.2,0.0,1.0);
           /* 젖은 띠 — 예전엔 반 미터 높이까지 고르게 짙어 물가에 띠를 칠한 것 같았다(사용자 지적). 물결이 닿는 데까지만,
              가장자리는 잡음으로 들쭉날쭉하게, 짙기도 한 단계만 */
-          float wet=smoothstep(0.30+0.20*sw+(n2.r-0.5)*0.18,0.02,h)*step(-0.6,h);
+          float wet=smoothstep(0.52+0.14*sw+(n2.r-0.5)*0.18,0.02,h)*step(-0.6,h);   // 물결이 가장 높이 닿는 데(0.6 m)까지 젖어 있다
           c*=mix(1.0,0.76,wet);                                               // 젖은 모래·자갈은 짙다
           c+=vec3(0.10,0.11,0.12)*wet*pow(max(uSunDir.y,0.0),2.0)*smoothstep(0.25,0.0,h);   // 물 먹은 자리의 번들거림
           float lace=texture2D(uNz,p/2.3+vec2(uShT*0.013,0.0)).r*0.6+texture2D(uNz,p/0.83).g*0.4;
-          float top=0.03+0.22*sw;                                             // 이번 물결이 닿은 높이
-          float foam=smoothstep(top+0.05,top-0.01,h)*smoothstep(-0.04,0.01,h)*smoothstep(0.40,0.62,lace+0.25*(1.0-(top-h)/0.25));
+          float top=sea;                                                      // 지금 물이 닿은 높이
+          float foam=smoothstep(top+0.015,top-0.015,h)*smoothstep(top-0.34,top-0.20,h)*smoothstep(0.40,0.62,lace+0.25*(1.0-(top-h)/0.25));   // 물머리 밑 한 뼘 반의 얇은 물자국
           c=mix(c,vec3(0.90,0.93,0.92),clamp(foam,0.0,1.0)*0.40);              // 옅은 물자국만 — 도톰한 거품은 메시가 맡는다(96-foam.js)
         }
         /* 물밑의 빛 그물 — 수면의 잔물결이 햇빛을 모았다 흩었다 하며 바닥에 일렁이는 밝은 줄을 친다(수심 0.3~12 m) */
