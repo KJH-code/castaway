@@ -17,7 +17,12 @@ const ITEMS={
                read:['불을 피우세요. 밤은 어둡습니다',
                      '식량을 확보하세요',
                      '돌 곡괭이와 같은 도구를 우선 만드세요',
-                     '철제 도구를 만들고 싶다면 제련소랑 모루, 그리고 숯이 중요합니다']},
+                     '철제 도구를 만들고 싶다면 제련소랑 모루, 그리고 숯이 중요합니다'],
+               /* 안내 네 줄 밑에 두 줄 띄우고 조작 글쇠(사용자 요청) — [글쇠, 하는 일] */
+               keys:[['WASD','이동'],['Shift','달리기'],['Space','뛰기(기력을 쓴다 · 물에서는 못 뛴다)'],['Ctrl','앉기'],
+                     ['좌클릭','손에 든 것 쓰기 · 누르고 있으면 캐기·따기'],['우클릭','조준 · 충전'],
+                     ['I','가방(소지품 · 제작)'],['B','사전'],['M','지도 크게/작게'],['L','전등'],['1 ~ 5','빠른 칸'],
+                     ['Z','집 짓기'],['E','열린 창 닫기'],['F','설비 밀기'],['Tab','설정'],['F5 / F9','저장 / 불러오기'],['Esc','멈춤']]},
   /* 손 충전기 — 캠코더 배터리만 채운다(46-camcorder.js). 손에 들고 좌클릭을 누르고 있으면 손잡이를 돌린다 */
   hand_charger:{n:'손 충전기', kg:0.35, c:0x3a3d40, use:'손잡이를 돌려 캠코더 배터리를 채운다 — 들고 좌클릭을 누르고 있는다',
                tool:{charger:1}},
@@ -1032,9 +1037,7 @@ function lookWater(reach){
   const dx=-Math.sin(PL.yaw)*cp, dy=Math.sin(PL.pitch), dz=-Math.cos(PL.yaw)*cp;
   for(let t=0.15;t<=reach;t+=0.1){
     const x=ex+dx*t, y=ey+dy*t, z=ez+dz*t;
-    const g=heightAt(x,z), sm=sampleAt(x,z);
-    const river=!!(sm.river&&sm.elev>0);
-    const wl=river?waterLevelAt(x,z):0;
+    const g=heightAt(x,z), WA=waterAt(x,z,g), river=WA.river, wl=WA.wl;
     if(wl>g+0.12&&y<=wl) return {fresh:river,x,z};          // 수면에 닿았다(그 자리에 물이 땅 위로 고여 있다)
     if(y<=g) return null;                                    // 땅에 닿았다
   }
@@ -1309,6 +1312,9 @@ function updateHarvest(dt){
   HARV.near=prop;
   const t=HARV.near;
   HARV.mode=pickMode(t);
+  /* 보는 것이나 하는 일이 바뀌면 진행을 처음부터 — 예전엔 나무를 베다 만 몫(몇 초)이 그대로 남아, 곁의 풀(0.8초짜리)을 보는 순간
+     막대가 칸 밖으로 몇 배나 뻗었다(사용자 지적) */
+  { const hm=HARV.mode?HARV.mode.H:null; if(HARV._lt!==t||HARV._lm!==hm){ HARV._lt=t; HARV._lm=hm; HARV.t=0; } }
   const want=useDown && harvestByUse() && !PL.swim;     // 캐기는 좌클릭(누르고 있는 동안)뿐 — E 는 안 쓴다
   if(!want || PL.stam<3){
     HARV.t=Math.max(0,HARV.t-dt*2.5); HARV.active=false; return;

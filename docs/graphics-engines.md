@@ -120,6 +120,44 @@ Epic's own documentation and SIGGRAPH course notes; they should be read from the
 | Hex-tiling in the ground shader | Visual repetition | Visual; three extra texture reads per active ground layer near the camera |
 | World scale (generate at 1.92 km, scale uniformly to 3.84 km) | Island/biome size | Same generation time; 217k props instead of 54k, built lazily |
 
+### 5.1 Second pass (same machine, same conifer spot, four view directions)
+
+| Change | What it addresses | Measured |
+|---|---|---|
+| Tree copies end at 125 m (was 150), middle ring at 72 m (was 90); far giant trees use a reduced mesh | Vertex load | 2.37M / 1.92M / 1.81M / 2.17M → 1.90M / 1.67M / 1.60M / 1.83M triangles |
+| Ridge occlusion: tiles whose tops are hidden behind terrain are not drawn (`tileOcc`, `30-props.js`) | Vertex load in hilly views | 0–8% fewer triangles at this spot; 0.12 ms per re-evaluation (only when the eye moves 4 m) |
+| Horizon haze in the fog chunk (`90-init.js`) | Pop-in at the draw distance | Visual; no measurable cost |
+| Ocean mesh graded: 0.6 m cells at the centre, 90 m at the edge, same vertex count | Wave shape near the player, foam alignment | Visual; triangle count unchanged |
+| Ground blend (`envPatch`, `userData.melt`) | Objects looking pasted on | One texture read per pixel inside the blend height; four texel fetches per vertex for non-instanced rock batches |
+| Shoreline scan with beach profile, C vs JS | Foam placement | C 0.17 ms vs JS 0.30–0.34 ms per rescan |
+
+Frame rate was **not** measured in a visible window: the test pane throttles frames, so only triangle counts and
+CPU-side milliseconds above are comparable.
+
+### 5.2 Third pass — measured in a real window
+
+`tools/bench-window.js` runs the in-game benchmark (a 40 s lap around the landing site, shortened here to 24–30 s) in a
+visible 1440×838 Electron window on the same Apple M1. The hidden test pane cannot measure frame rate, and anything
+else rendering at the same time (including a second copy of the game) halves the result — close it first.
+
+| | Capped at 60 Hz | Uncapped |
+|---|---|---|
+| Before this pass | 47.9 fps (1% low 15.2) | 57.3 fps |
+| After | 57.4 fps (1% low 27.4) | 68.0 fps |
+
+What moved it, from A/B runs with one thing switched off at a time (uncapped, turning in place at the landing site):
+
+- **Interface effects, not 3D**: with the HUD's animated scanline overlay, flicker and colour-fringe text shadows switched
+  off, the same scene went from 46 to 60 fps. An animated `background-position` and an opacity animation over a WebGL
+  canvas make the browser re-composite the whole screen every frame. They were removed.
+- Giant trees drawn at full detail out to 200 m: about 4 ms. Now full detail to 95 m, a reduced mesh beyond.
+- The whole-island plant layer: about 4 ms. Detail rings pulled in (55/90/200 m → 40/75/160 m).
+- Full-detail oak and fir branches in neighbouring tiles: about 3 ms. Neighbour threshold 10 m → 6 m.
+- Rocks: about 3 ms (triplanar photo texture). Left as is.
+- Shadows, the camcorder resolution, water and the sky pass each moved the result by 1 ms or less.
+
+The automatic quality control now steps detail down when the slow frame-time average passes 19.5 ms (51 fps).
+
 ## 6. Roadmap, ordered by value for this renderer
 
 1. **Tree mesh weight.** A single oak is still about 45k triangles at full detail. Generate proper LOD meshes with

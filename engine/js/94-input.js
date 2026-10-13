@@ -191,6 +191,7 @@ function syncLock(){
 function pause(){
   paused=true; audioPause(true);
   const ov=document.getElementById('ov');
+  ov.classList.remove('title');                     // 간판의 지직거림 · 올라가는 글은 처음 여는 화면에서만(멈춤 화면은 가만히)
   ov.querySelector('h1').textContent='일시정지';
   ov.querySelector('.s').textContent='시드 '+P.seed+' · '+BIOME_INFO[sampleAt(PL.pos.x,PL.pos.z).biome].n;
   document.getElementById('bStart').textContent='계속';
@@ -221,6 +222,9 @@ document.getElementById('bCfgX').onclick=()=>toggleCfg(false);
 function audioPause(on){ if(!A.ctx) return; try{ on?A.ctx.suspend():A.ctx.resume(); }catch(e){} }
 let winHidden=false;           // 데스크톱 판에서 창을 내렸나(브라우저는 document.hidden 이 알려 준다)
 document.addEventListener('visibilitychange',()=>{ if(document.hidden) audioPause(true); else if(!paused&&!winHidden) audioPause(false); });
+/* 창이 **앞에 있지 않으면** 놀이를 멈추고 소리를 끈다 — 예전엔 창이 가려지지만 않으면(다른 앱을 쓰는 동안에도) 바람·파도 소리가
+   계속 났고 배고픔·시간도 흘렀다(사용자 지적: 안 하는데도 바람 소리가 난다). 돌아와서 '계속'을 누르면 이어진다 */
+addEventListener('blur',()=>{ try{ audioPause(true); if(typeof landed!=='undefined'&&landed&&!paused&&!busy&&!BENCH.on&&!PL.dead) pause(); }catch(e){} });
 /* 그래픽이 끊기면(드라이버 재시작 · GPU 메모리) 화면이 멈춘다 — 자동 저장해 두고 다시 불러오기를 권한다 */
 cv.addEventListener('webglcontextlost',e=>{
   e.preventDefault();

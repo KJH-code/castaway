@@ -14,8 +14,14 @@
    그래서 먼 산이 푸르스름하게 물러난다. 하늘빛은 **보는 방향의 지평선 하늘색**이다(`skyScatter`
    를 카메라 앞쪽으로 돌린 것) — 해 쪽을 보면 노을빛, 반대쪽은 푸른빛으로 먼 땅이 녹는다.
    Three 의 fog_fragment 를 바꾸므로 **안개를 받는 모든 재질에 똑같이 듣는다**(물 포함). */
+/* **지평선의 연무**(사용자 요청) — 맑은 날의 소광계수로는 450 m 가 4% 밖에 안 흐려져, 나무가 그리는 거리(`VIEW_DIST`) 끝에서
+   또렷한 채로 툭 나타났다. 바다 섬의 습한 공기처럼 **그리는 거리의 1/3 부터 끝까지 서서히** 그 방향 지평선 하늘빛으로 물러나게
+   한다(끝에서 74%) — 새로 나타나는 나무는 이미 하늘빛에 녹아 있다. 그 너머의 먼 산은 1.8 km 까지 조금 더 물러난다(92%) */
+const HAZE_GLSL=(()=>{ const V=(typeof VIEW_DIST!=='undefined'?VIEW_DIST:450);
+  return 'fogT *= 1.0 - 0.74*smoothstep('+(V*0.30).toFixed(1)+','+V.toFixed(1)+',fogDepth) - 0.18*smoothstep('+V.toFixed(1)+',1800.0,fogDepth);'; })();
 THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
   vec3 fogT = exp( - fogDensity * fogDepth * vec3( 0.93, 1.0, 1.12 ) );
+  ${HAZE_GLSL}
   gl_FragColor.rgb = gl_FragColor.rgb * fogT + fogColor * ( 1.0 - fogT );
 #endif`;
 /* ── 램버트: 빛마다 제 그림자만 받는다 ──────────────────────────────────────

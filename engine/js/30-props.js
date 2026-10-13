@@ -10,7 +10,7 @@
    칸 반지름(대각선 절반 + 나무 가지가 칸 밖으로 나가는 여유 12 m)을 빼고 잰다. */
 /* 땅 안개가 물리값(가시거리 수십 km)이 되어 150 m 에서 나무가 사라지는 경계가 드러났다 —
    임포스터(나무당 판 4장)를 450 m 까지 그린다 */
-const VIEW_DIST=450, NEAR_DIST=55, TILE=64, COPY_DIST=150;
+const VIEW_DIST=450, NEAR_DIST=55, TILE=64, COPY_DIST=125;   // 복제 나무는 125 m 까지(예전 150) — 그 밖은 그림 판때기. 연무가 차이를 가린다
 const TREE_TILES=[];
 const WIND_ON=false;
 /* 풀·갈대·자갈처럼 작은 것은 멀면 안 보인다 — 섬 전체를 한 인스턴스 메시로 들고 있으면 발밑 풀
@@ -18,9 +18,9 @@ const WIND_ON=false;
    `PROP_DIST` 밖 칸을 통째로 끈다(updateTileVis). 가까운 풀의 빽빽함은 그대로다. */
 const PROP_TILE=64, PROP_TILES=[];
 /* 나무(oak·fir)는 줄기 메시 — 섬 전체 4천 그루를 늘 그렸다(70만). 그 밖은 그림 판때기 속 줄기가 대신한다.
-   162 = COPY_DIST 150 + 12: 나무 칸은 반경 TILE·0.71+12, 프롭 칸은 PROP_TILE·0.71 이라 12 m 를 더해야
+   COPY_DIST + 12: 나무 칸은 반경 TILE·0.71+12, 프롭 칸은 PROP_TILE·0.71 이라 12 m 를 더해야
    판때기가 켜지는 바로 그 거리에서 줄기 메시가 꺼진다(둘 다 같은 64 m 격자). */
-const TRUNK_DIST=162;
+const TRUNK_DIST=COPY_DIST+12;
 /* 점토 노출지·모래 언덕(지름 3 m 남짓 · 땅에 반쯤 묻힌 원반)도 칸에 담는다 — 예전엔 섬 전체(모래 561 · 점토 316)를 한 메시로
    거리·시야와 상관없이 늘 그려서 본 패스·그림자 패스에 프레임마다 40만 삼각형이 들었다. 300 m 밖은 몇 화소다 */
 const PROP_DIST={grass:200, reed:110, pebble:90, flint:110, oak:TRUNK_DIST, fir:TRUNK_DIST, clay:300, sand:300};
@@ -36,26 +36,63 @@ const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
 const ROCK_TILE=64, ROCK_DIST=200, ROCK_SMALL=70, ROCK_KEEP=90, ROCK_TILES=[], ROCK_MAT={};
 /* **자동 품질**(`QUAL`) — 프레임이 떨어지면 '어디까지 자세히 그리나' 를 스스로 당긴다(마인크래프트의 그리는 거리처럼).
    `QUAL.k`(0.45~1)가 나무의 제 가지·복제 단계 거리 · 풀과 소품이 보이는 거리 · 덤불·작은 나무를 까는 반경에 곱해진다.
-   프레임 시간의 느린 평균이 24 ms(약 42 FPS)를 넘는 채로 2초가 가면 한 단계(0.1) 내리고, 15 ms 밑으로 6초가 가면 한 단계(0.05)
-   올린다 — 올리고 내리는 문턱을 벌려 놓아 오르내리며 떨지 않는다. 설정의 '자동 품질' 로 끈다(끄면 늘 1) */
-const QUAL={k:1, on:true, ema:16, t:0, lo:0.45};
+   문턱은 아래 `qualTick` — 50 FPS 를 지키는 쪽으로 잡았다. 설정의 '자동 품질' 로 끈다(끄면 늘 1) */
+const QUAL={k:1, on:true, ema:16, t:0, lo:0.4};
 function qualTick(dtMs,dt){
   const Q=QUAL;
   if(!Q.on){ if(Q.k!==1){ Q.k=1; qualApply(); } return; }
   Q.ema+=(Math.min(dtMs,100)-Q.ema)*0.05;
-  if(Q.ema>24&&Q.k>Q.lo){ Q.t+=dt; if(Q.t>2){ Q.t=0; Q.k=Math.max(Q.lo,+(Q.k-0.1).toFixed(2)); qualApply(); } }
-  else if(Q.ema<15&&Q.k<1){ Q.t-=dt; if(Q.t<-6){ Q.t=0; Q.k=Math.min(1,+(Q.k+0.05).toFixed(2)); qualApply(); } }
+  /* **50 FPS 를 지킨다**(사용자 요청) — 프레임 시간의 느린 평균이 19.5 ms(51 FPS)를 넘는 채로 1.5초가 가면 한 단계 내린다.
+     올리는 것은 15.2 ms 밑으로 8초(60 Hz 화면에서 꽉 찬 60 FPS 는 16.7 ms 라 저절로는 안 오른다 — 넉넉할 때만 오른다) */
+  if(Q.ema>19.5&&Q.k>Q.lo){ Q.t+=dt; if(Q.t>1.5){ Q.t=0; Q.k=Math.max(Q.lo,+(Q.k-0.1).toFixed(2)); qualApply(); } }
+  else if(Q.ema<15.2&&Q.k<1){ Q.t-=dt; if(Q.t<-8){ Q.t=0; Q.k=Math.min(1,+(Q.k+0.05).toFixed(2)); qualApply(); } }
   else Q.t*=0.9;
 }
 function qualApply(){ _tvForce=true; if(typeof FLORA!=='undefined'){ FLORA.far.cx=1e9; FLORA.near.cx=1e9; } }
 /* 화면 밖 칸 거르기 — 칸을 경계구(가로 반경 + 높이 몫 30 m)로 보고 시야 절두체에 안 걸리면 끈다.
    가장자리가 `CULL_NEAR`(10 m) 안인 칸은 늘 그린다(몸을 돌리는 순간 곁의 나무가 튀어나오지 않게). */
 const CULL_NEAR=10, _tFr=new THREE.Frustum(), _tPM=new THREE.Matrix4(), _tSp=new THREE.Sphere();
-function tileSeen(t,d){
+function tileSeen(t,d,top){
   if(d<=CULL_NEAR) return true;
   if(t._cy===undefined) t._cy=heightAt(t.cx,t.cz)+10;
   _tSp.center.set(t.cx,t._cy,t.cz); _tSp.radius=t.r+30;
-  return _tFr.intersectsSphere(_tSp);
+  return _tFr.intersectsSphere(_tSp)&&!tileOcc(t,top||30);
+}
+/* ── 산 너머 거르기 ─────────────────────────────────────────────────────────
+   시야 절두체 안이라도 **등성이 뒤에 가려 안 보이는 칸**은 그리지 않는다(사용자 요청: 같은 비탈·같은 시야에 든 것만).
+   눈에서 칸 꼭대기(가장 높은 땅 + 그 칸에서 가장 키 큰 것 `top`)까지 땅 위로 줄을 그어, 사이의 땅이 그 줄보다 2.5 m 넘게
+   높으면 가린 것이다. 칸 가운데와 시선에 가로로 양 끝 — 세 줄이 다 막혀야 감춘다(한쪽이라도 보이면 그린다).
+   눈앞 12 m 와 칸 앞 40 m 는 안 본다(발밑 둔덕 · 그 칸이 선 비탈 자체). 70 m 안의 칸은 늘 그린다.
+   가림은 **눈의 자리**로만 정해진다(고개를 돌려도 같다) — 그래서 눈이 4 m(세로 1.5 m) 움직였을 때만 다시 세고,
+   그 사이엔 칸마다 적어 둔 답을 쓴다. 한 번에 칸 300개 × 줄 셋 × 많아야 28점 — 재 보니 0.5 ms 안쪽이다(`occBench()`) */
+const OCC={on:true, x:1e9, y:0, z:1e9, gen:0, n:0, hid:0};
+function occTick(){
+  const e=camera.position, dx=e.x-OCC.x, dy=e.y-OCC.y, dz=e.z-OCC.z;
+  if(dx*dx+dz*dz>16||dy*dy>2.25){ OCC.x=e.x; OCC.y=e.y; OCC.z=e.z; OCC.gen++; OCC.n=OCC.hid=0; }
+}
+function sightBlocked(ex,ey,ez,tx,ty,tz){
+  const dx=tx-ex, dz=tz-ez, d=Math.sqrt(dx*dx+dz*dz); if(d<70) return false;
+  const n=Math.min(28,Math.max(6,Math.ceil(d/(CELL*2)))), inv=1/n;
+  for(let i=1;i<n;i++){ const t=i*inv, dd=t*d; if(dd<12||d-dd<40) continue;
+    if(heightAt(ex+dx*t,ez+dz*t)>ey+(ty-ey)*t+2.5) return true; }
+  return false;
+}
+function tileOcc(t,top){
+  if(!OCC.on) return false;
+  if(t._og===OCC.gen) return t._oc;
+  t._og=OCC.gen; OCC.n++;
+  if(t._oy===undefined){ const r=t.r*0.6;                // 칸에서 가장 높은 땅(가운데와 네 귀)
+    t._oy=Math.max(heightAt(t.cx,t.cz),heightAt(t.cx+r,t.cz+r),heightAt(t.cx-r,t.cz+r),heightAt(t.cx+r,t.cz-r),heightAt(t.cx-r,t.cz-r)); }
+  const ex=OCC.x, ey=OCC.y, ez=OCC.z, ty=t._oy+top, dx=t.cx-ex, dz=t.cz-ez, d=Math.sqrt(dx*dx+dz*dz)||1, sx=-dz/d*t.r, sz=dx/d*t.r;
+  t._oc=sightBlocked(ex,ey,ez,t.cx,ty,t.cz)&&sightBlocked(ex,ey,ez,t.cx+sx,ty,t.cz+sz)&&sightBlocked(ex,ey,ez,t.cx-sx,ty,t.cz-sz);
+  if(t._oc) OCC.hid++;
+  return t._oc;
+}
+/* 가림 세기에 드는 시간 — 지금 자리에서 나무 칸 전부를 reps 번 다시 센다(ms/번 · 칸 수 · 가려진 수) */
+function occBench(reps){
+  reps=reps||20; let n=0, hid=0; const t0=performance.now();
+  for(let r=0;r<reps;r++){ OCC.gen++; n=hid=0; for(const t of TREE_TILES){ const d=tileGap(t,PL.pos.x,PL.pos.z); if(d>VIEW_DIST) continue; n++; if(tileOcc(t,30)) hid++; } }
+  return ((performance.now()-t0)/reps).toFixed(3)+' ms · 칸 '+n+' · 가려진 칸 '+hid;
 }
 /* 사람 자리·시야(투영×보기 행렬)가 지난번과 **똑같으면** 결과도 똑같다 — 멈춰 서 있거나 창을 열어 둔 동안
    칸 1,400개를 다시 볼 까닭이 없다. 칸이 새로 생기면(buildProps · buildFarTrees) `_tvForce` 로 다시 본다 */
@@ -90,6 +127,7 @@ function updateTileVis(){
     for(let i=0;i<16;i++) _tvLast[i]=e[i];
     _tvLast[16]=px; _tvLast[17]=pz; _tvForce=false; }
   _tFr.setFromProjectionMatrix(_tPM);
+  occTick();                                          // 눈이 움직였으면 산 너머 가림을 다시 센다
   /* 칸이 켜지거나 꺼지면 그 칸이 드리우던 그림자도 바뀐다 — 그림자 지도를 매 프레임 안 그리므로(LIGHT)
      바뀐 칸 둘레만 다시 그리게 알린다 */
   // 바위 — 칸 가장자리가 200 m 밖이면 통째로 안 그린다
@@ -103,10 +141,10 @@ function updateTileVis(){
       propGroup.remove(t.m); t.m.geometry.dispose(); t.m=null;
       for(const p of t.ps){ p._batch=null; p._k=1; }
     }
-    if(t.m&&setVis(t.m,want)) LIGHT.dirtyAt(t.cx,t.cz,t.r);
+    if(t.m&&setVis(t.m,want&&!tileOcc(t,8))) LIGHT.dirtyAt(t.cx,t.cz,t.r);   // 산 너머의 바위 칸은 거른다
   }
   const QK=QUAL.k;
-  for(const t of PROP_TILES){ const d=tileGap(t,px,pz), v=d<=t.d*QK&&tileSeen(t,d);
+  for(const t of PROP_TILES){ const d=tileGap(t,px,pz), v=d<=t.d*QK&&tileSeen(t,d,6);
     let f=false; for(const m of t.ms) if(setVis(m,v)) f=true;
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r); }
   _treeBudget=1; _treeDrop=1;
@@ -240,7 +278,7 @@ function bakeTreeImpostor(list,kind){
 /* 복제 단계마다 [가지 몫, 잎 몫] — 가까운 것(칸 테두리 10 m 밖 ~ 55 m) · 55~90 m · 90~150 m.
    예전 값(0.6·0.3·0.1)은 창 크기 그대로 그리던 때의 것이다. 캠코더 화면(세로 480줄)에서는 40 m 밖 나무가 100 화소 남짓이라
    잔가지가 화소 하나보다 가늘다 — 몫을 절반쯤으로 줄여도 윤곽은 같다 */
-const FAR_REF={}, FAR_LOD=[[0.22,0.32],[0.08,0.13],[0.035,0.07]], FULL_EDGE=10, LOD0_EDGE=26, COPY_MID=90, FULL_DIST=25;   // FULL_DIST — 새 식물(95-flora.js)이 제 생김새로 서는 거리
+const FAR_REF={}, FAR_LOD=[[0.22,0.32],[0.08,0.13],[0.035,0.07]], FULL_EDGE=6, LOD0_EDGE=26, COPY_MID=72, FULL_DIST=25;   // FULL_DIST — 새 식물(95-flora.js)이 제 생김새로 서는 거리
 function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
   const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
   const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
@@ -741,7 +779,7 @@ function buildProps(){
     const SH=shellFor(R.k), SHELL_V=SH.V, UNIQ=SH.U,
           uniqDir=SH.uniqDir, vertU=SH.vertU, spx=SH.px;
     const total=list.length*SHELL_V;
-    const pos=new Float32Array(total*3), nor=new Float32Array(total*3);
+    const pos=new Float32Array(total*3), nor=new Float32Array(total*3), mel=new Float32Array(total);   // mel — 땅에 녹아드는 높이(바위마다 제 크기만큼)
     const fac=new Float32Array(UNIQ);
     /* own[u] — 그 자리의 반지름을 누가 정했나.
          −1  혹(굽은 자리)        0..  몇 번째 자르기 평면       100+  정육면체 몇 번째 면
@@ -812,6 +850,7 @@ function buildProps(){
       if(R.k==='flint') off=0.15*p.s; else if(R.k==='pebble') off=0.11*p.s; else off=0.5*p.s;
       const oy=p.y+off, S0=p.s;
       p._vs=o/3; p._vn=SHELL_V; p._cy=oy; p._k=1;
+      mel.fill(clamp(0.34*S0*r0,0.05,0.8),o/3,o/3+SHELL_V);
 
       for(let i=0;i<SHELL_V;i++){
         const f=fac[vertU[i]];
@@ -875,6 +914,7 @@ function buildProps(){
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.BufferAttribute(pos,3));
     g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+    g.setAttribute('aMelt',new THREE.BufferAttribute(mel,1));
     g.computeBoundingSphere();
     if(!ROCK_MAT[R.k]) ROCK_MAT[R.k]=rockMat(R.k,R.c);   // 칸마다 나눠도 재질은 종류당 하나
     return new THREE.Mesh(g,ROCK_MAT[R.k]);
@@ -885,7 +925,7 @@ function buildProps(){
      `ROCK_R` 의 0.85(울퉁불퉁한 겉보다 조금 안쪽). 자갈·부싯돌은 발목 아래라 넘어간다. */
   const RAD={oak:0.6,fir:0.5};
   for(const k in ROCK_R) if(ROCK_R[k]>=0.4) RAD[k]=ROCK_R[k]*0.85;
-  const trunkMat=barkMat(0x4a3d31,'trunk');
+  const trunkMat=barkMat(0x4a3d31,'trunk'); trunkMat.userData.melt=0.50; trunkMat.userData.meltTex=true;   // 줄기 밑동이 땅에 녹아든다(envPatch). 높이는 표고 텍스처로 잰다 — 이 줄기는 인스턴스 원점이 밑동이 아니라서, 원점에서 재면 줄기가 통째로 땅빛이 됐다
   const limbMat =barkMat(0x4f4033,'limb');
   limbMat.userData.wind='limb';                // 바람에 가지 끝이 흔들린다(envPatch)
   LIMB_MAT_C=instCompact(barkMat(0x4f4033,'limb')); LIMB_MAT_C.userData.wind='limb';   // 칸 가지(압축 인스턴스)
@@ -1260,6 +1300,7 @@ function rubbleInit(){
       '#include <color_fragment>\ndiffuseColor.rgb*=mix(0.50,1.10,smoothstep(-0.55,0.45,vRubY));');
   };
   m.customProgramCacheKey=()=>'rubble';
+  m.userData.melt=0.14;                                // 잔돌은 반쯤 묻힌 듯 — 아래 반이 땅 빛깔로 녹아든다(envPatch)
   gndDetailPatch(m,4,0.7);                             // 진짜 바위 사진의 결을 한 겹(22-ground-textures.js)
   const im=new THREE.InstancedMesh(g,m,RUBBLE.cap);
   /* 인스턴스 색 칸을 처음부터 만들어 둔다(셰이더가 한 가지로 짜인다). **count 를 0 으로 내리기 전에** 불러야 한다 —

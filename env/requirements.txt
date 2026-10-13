@@ -1,6 +1,0 @@
-# Python packages for tools/ai/ (texture and outline models).
-#   python3 -m venv env/py && env/py/bin/pip install -r env/requirements.txt
-torch>=2.2
-torchvision>=0.17
-numpy>=1.26
-pillow>=10.0

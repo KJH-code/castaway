@@ -419,7 +419,7 @@ function drawGrind(){
       return '<div class="cr'+(ok?'':' no')+'" data-i="'+i+'">'
         +'<div class="cn">'+R.n+'<span class="ck">'+ITEMS[R.out.id].kg+' kg</span></div>'
         +'<div class="cm">'+mats+'</div><div class="cd">'+R.note+'</div></div>';
-    }).join('') : '<div style="color:var(--dim);font-size:10px;padding:8px 2px">'
+    }).join('') : '<div style="color:var(--dim);font-size:12px;padding:8px 2px">'
       +'숫돌에서 만드는 것이 아직 없다</div>');
   document.getElementById('gwsTop').querySelectorAll('.cr').forEach(el=>{
     el.onclick=()=>{ startCraft(RECIPES[+el.dataset.i]); toggleGrind(); };
