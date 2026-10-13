@@ -332,11 +332,8 @@ function updateHUD(dt){
   // 채집 프롬프트 / 조사 표시
   const look=document.getElementById('look'), lt=document.getElementById('lookT'),
         lb=document.getElementById('lookB'), lf=document.getElementById('lookF');
-  if(toastT>0){
-    toastT-=dt;
-    hudS(look,'display','block'); hudS(lb,'display','none');
-    hudT(lt,lt.dataset.toast||'');
-  }else if(HARV.fit){
+  updateToasts(dt);                               // 알림은 따로 된 칸(#toast) — 채취 표시를 가리지 않는다
+  if(HARV.fit){
     const w=HARV.fit;
     hudS(look,'display','block'); hudS(lb,'display','none');
     hudH(lt,'[좌클릭] '+BKIND_N[w.leaf.kind]+(w.leaf.open?' 닫기':' 열기'));

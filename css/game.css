@@ -15,14 +15,16 @@
   #sel .sG{margin:10px 0 4px;padding:10px 12px 10px 30px;background:rgba(216,200,144,.10);border-left:2px solid #d8c890;
            color:#f0e8c8;font-size:12px;line-height:2.0;letter-spacing:.02em}
   /* 캠코더 — 화면 위 오른쪽의 녹화 표시·배터리, 네 귀퉁이의 뷰파인더 꺾쇠 */
-  #camc{position:absolute;right:14px;top:12px;display:none;align-items:center;gap:8px;font-size:11px;letter-spacing:.12em;
-        color:#f2f6f4;text-shadow:0 0 3px rgba(0,0,0,.9)}
-  #camc .rec{color:#ff5a4a;animation:camcBlink 1.4s steps(1) infinite}
-  #camc .bt{position:relative;width:34px;height:13px;border:1.5px solid #f2f6f4;border-radius:2px;display:inline-block}
-  #camc .bt::after{content:'';position:absolute;right:-5px;top:3px;width:3px;height:5px;background:#f2f6f4;border-radius:0 1px 1px 0}
+  #camc{position:absolute;right:16px;top:12px;display:none;flex-direction:column;align-items:flex-end;gap:5px;
+        color:#f2f6f4;letter-spacing:.12em;text-shadow:0 0 3px rgba(0,0,0,.9),0 1px 2px rgba(0,0,0,.8)}
+  #camc .r1{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:600}
+  #camc .rec{color:#ff4a3a;animation:camcBlink 1.4s steps(1) infinite;font-size:22px;letter-spacing:.08em}
+  #camc .bt{position:relative;width:54px;height:22px;border:2.5px solid #f2f6f4;border-radius:3px;display:inline-block;padding:2px}
+  #camc .bt::after{content:'';position:absolute;right:-8px;top:5px;width:5px;height:8px;background:#f2f6f4;border-radius:0 2px 2px 0}
   #camc .bt i{display:block;height:100%;background:#9fe0b6}
-  #camc b{font-weight:500;min-width:40px}
-  #camc em{font-style:normal;color:#ffb0a0}
+  #camc b{font-weight:600;min-width:60px;text-align:right}
+  #camc .r2{font-size:15px;font-weight:500;letter-spacing:.14em;color:#f4f8f6}   /* 표류 며칠째 · 시각 — 캠코더의 날짜 찍기 */
+  #camc em{font-style:normal;color:#ffb0a0;font-size:12px}
   #camc.low .bt{border-color:#ff8a70;animation:camcBlink .7s steps(1) infinite}
   @keyframes camcBlink{0%{opacity:1}50%{opacity:.25}100%{opacity:1}}
   #camcVF{position:absolute;inset:0;display:none}
@@ -62,6 +64,12 @@
   #look em{font-style:normal;color:var(--dim);margin-left:8px}
   #lookB{height:3px;margin-top:5px;background:rgba(0,0,0,.6);display:none}
   #lookB i{display:block;height:100%;width:0;background:var(--acc)}
+  /* 알림 — 채취 표시(#look) 밑에 따로 쌓인다(예전엔 #look 의 글을 빌려 써서 그동안 진행 막대가 가려졌다) · 가방 화면 위에도 보인다 */
+  #toast{position:fixed;left:50%;top:calc(57% + 48px);transform:translateX(-50%);z-index:9;pointer-events:none;
+    display:flex;flex-direction:column;align-items:center;gap:4px}
+  #toast div{position:relative;background:var(--panel);border:1px solid var(--line);padding:4px 11px;font-size:11px;
+    white-space:nowrap;color:#e6f5ee}
+  #toast div .n{color:var(--acc);margin-left:6px}
 
   /* ── 가방 화면 — 소지품 · 고른 물건 · 제작이 화면을 덮는 한 장에 나란히 선다(98-bag.js) ── */
   #bag{position:fixed;inset:0;z-index:8;display:none;flex-direction:column;align-items:center;
@@ -220,18 +228,42 @@
   #crfQ span{font-size:9px;color:var(--dim);flex:0 0 auto}
   #crf .ih{font-size:10px;letter-spacing:.12em;color:var(--dim);
     padding-bottom:7px;border-bottom:1px solid var(--line)}
-  .ch{font-size:9px;letter-spacing:.16em;color:var(--dim);margin:12px 0 2px;
-    padding-bottom:4px;border-bottom:1px solid var(--line)}
+  #crfQ button{font-size:9px;padding:3px 7px;color:var(--dim);border-color:var(--line)}
+  #crfQ button.on{color:#04070a;background:var(--acc);border-color:var(--acc)}
+  /* 단계 요약 줄 — 단계마다 번호 · 이름 · 만들 수 있는 것/전부. 누르면 그 단계를 펴서 보여 준다 */
+  .ctree{display:flex;flex-wrap:wrap;gap:3px;margin:2px 0 8px}
+  .ctree b{font-weight:400;font-size:9px;color:var(--dim);border:1px solid var(--line);padding:2px 5px;cursor:pointer;white-space:nowrap}
+  .ctree b em{font-style:normal;color:var(--ink);margin-right:4px}
+  .ctree b span{margin-left:5px;color:var(--dim)}
+  .ctree b.r{color:#cfeee0;border-color:rgba(143,214,180,.5)} .ctree b.r span{color:var(--acc)}
+  .ctree b:hover{background:rgba(143,214,180,.1)}
+  /* 단계 제목 — 접고 편다 · 밑에 채운 정도 막대 */
+  .ch{position:relative;font-size:10px;letter-spacing:.08em;color:#cfe3da;margin:10px 0 2px;padding:5px 2px 7px;
+    border-bottom:1px solid var(--line);cursor:pointer}
   .ch:first-child{margin-top:2px}
-  .ch span{float:right;letter-spacing:0}
-  .cr{padding:8px 4px;border-bottom:1px solid rgba(130,180,165,.08);cursor:pointer}
+  .ch i{font-style:normal;color:var(--dim);display:inline-block;width:12px}
+  .ch em{font-style:normal;color:var(--acc);margin-right:6px;font-size:9px}
+  .ch span{float:right;letter-spacing:0;color:var(--dim);font-size:9px}
+  .ch u{position:absolute;left:0;right:0;bottom:-1px;height:2px;background:rgba(0,0,0,.4)}
+  .ch u s{display:block;height:100%;background:var(--acc);opacity:.7}
+  .ch:hover{background:rgba(143,214,180,.06)}
+  /* 제작법 한 줄 — 아이콘 · 이름 · 재료 칩 · 설명 한 줄 */
+  .cr{display:flex;gap:8px;align-items:flex-start;padding:7px 4px;border-bottom:1px solid rgba(130,180,165,.08);cursor:pointer}
   .cr:hover{background:rgba(143,214,180,.07)}
-  .cr.no{opacity:.45;cursor:default}
+  .cr.no{opacity:.55;cursor:default}
+  .cr.ok{background:rgba(143,214,180,.05)}
+  .cr .ci{flex:0 0 30px;width:30px;height:30px;display:block;border:1px solid var(--line)}
+  .cr i.ci{opacity:.5}
+  .cr .cb{flex:1;min-width:0}
   .cn{display:flex;justify-content:space-between;font-size:11px;color:var(--ink)}
-  .cn .ck{color:var(--dim);font-size:9px}
-  .cm{font-size:9px;margin-top:4px}
-  .cm .g{color:var(--acc)} .cm .b{color:#d8724a}
-  .cd{font-size:9px;color:var(--dim);margin-top:3px;line-height:1.5}
+  .cn small{color:var(--acc);font-size:9px}
+  .cn .ck{color:var(--dim);font-size:9px;margin-left:6px}
+  .cm{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+  .cm .c{font-size:9px;padding:1px 4px;border:1px solid rgba(130,180,165,.18);white-space:nowrap}
+  .cm .c small{font-size:8px;opacity:.85}
+  .cm .g{color:var(--acc);border-color:rgba(143,214,180,.35)} .cm .b{color:#d8724a;border-color:rgba(216,114,74,.35)}
+  .cm .t{border-style:dashed} .cm .s{border-style:dotted}
+  .cd{font-size:9px;color:var(--dim);margin-top:3px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #crfP{height:3px;background:rgba(0,0,0,.6);margin-top:8px;display:none}
   #crfP i{display:block;height:100%;width:0;background:var(--acc)}
 
@@ -359,3 +391,29 @@
 .de .kr{display:grid;grid-template-columns:74px 1fr;gap:8px;font-size:10px;line-height:1.55;margin-top:4px}
 .de .kr>b{color:var(--acc);font-weight:600;text-align:right}
 .de .kr>span{color:var(--ink)} .de .kr>span b{color:#e6f5ee;font-weight:600}
+
+  /* ── 캠코더 화면일 때는 UI 도 테이프 화질(사용자 요청 — 글자·단추·라벨 상자·아이콘 모두) ──────────────
+     색 번짐(빨강은 왼쪽 · 청록은 오른쪽으로 어긋난다 — 3D 화면의 테이프 셰이더와 같은 쪽) · 주사선 · 글자 번짐 빛.
+     큰 창은 통째로 번지게(filter — 글자·테두리·단추·아이콘이 다 같이), 늘 바뀌는 HUD 는 글자·테두리 그림자로만(값이 싸다).
+     `body.camc` 는 캠코더가 켜져 있을 때만 붙는다(46-camcorder.js) */
+  body.camc{--caR:rgba(255,46,86,.62);--caB:rgba(36,214,255,.58);--scan:repeating-linear-gradient(180deg,rgba(0,0,0,.30) 0,rgba(0,0,0,.30) 1px,transparent 1px,transparent 3px)}
+  /* 글자 — 그림자로 빨강·청록 두 벌을 어긋나게 겹친다(물려받으므로 창 하나에 걸면 그 안의 글자가 다). 창 통째로 filter 를 걸면
+     불투명한 바탕 사각형 모양으로만 번져 글자는 깨끗하게 남았다 — 그래서 글자 · 테두리 · 아이콘에 따로 건다 */
+  body.camc #bag,body.camc #dex,body.camc #box,body.camc #cfg,body.camc #gws,body.camc #ask,body.camc #ov,body.camc #hud,body.camc #toast{
+    text-shadow:-1.5px 0 var(--caR),1.5px 0 var(--caB),0 0 4px rgba(170,255,225,.3)}
+  body.camc button,body.camc input,body.camc select,body.camc .ws,body.camc #bag .pnl,body.camc #dex,body.camc #box,body.camc #cfg,
+  body.camc #gws,body.camc #ask .box,body.camc #crfP,body.camc #sel .sG{box-shadow:-1.6px 0 0 var(--caR),1.6px 0 0 var(--caB)}
+  body.camc img,body.camc #inv .sw,body.camc #box .sw{filter:drop-shadow(-1.5px 0 0 var(--caR)) drop-shadow(1.5px 0 0 var(--caB))}
+  body.camc #camc{text-shadow:-1.6px 0 var(--caR),1.6px 0 var(--caB),0 0 3px rgba(0,0,0,.9),0 1px 2px rgba(0,0,0,.8)}
+  body.camc #hud .pnl,body.camc #look,body.camc #toast div,body.camc #quick .q{box-shadow:-1.6px 0 0 var(--caR),1.6px 0 0 var(--caB)}
+  body.camc #hud .bar .t,body.camc #camc .bt{box-shadow:-1.3px 0 0 var(--caR),1.3px 0 0 var(--caB)}
+  /* 주사선 — 판의 바탕에 깔고(굴러가는 창은 이것만), 굴러가지 않는 판은 글자 위로도 한 겹 */
+  body.camc .pnl,body.camc #look,body.camc #toast div,body.camc #ask .box,body.camc #quick .q{background-image:var(--scan)}
+  body.camc #bag,body.camc #ov,body.camc #ask{background-image:var(--scan)}
+  body.camc #bag::after,body.camc #hud .pnl::after,body.camc #look::after,body.camc #toast div::after,body.camc #ask .box::after{
+    content:'';position:absolute;inset:0;pointer-events:none;background:var(--scan);opacity:.55;animation:tapeRoll 9s linear infinite}
+  body.camc #ask .box{position:relative}
+  @keyframes tapeRoll{from{background-position:0 0}to{background-position:0 90px}}
+  /* 글자 — 테이프의 낮은 해상도처럼 아주 살짝 번진다 */
+  body.camc #bag .bagB,body.camc #dex,body.camc #box,body.camc #cfg,body.camc #gws{font-smooth:never;-webkit-font-smoothing:none}
+

@@ -42,7 +42,7 @@ function camcInit(){
         jit+=smoothstep(0.985,1.0,band)*0.004*(0.3+weak*3.0);
         uv.x+=jit;
         float px=1.0/uRes.x;
-        vec3 a=texture2D(tD,uv).rgb, l=texture2D(tD,uv-vec2(px*1.7,0.0)).rgb, r=texture2D(tD,uv+vec2(px*1.7,0.0)).rgb;
+        vec3 a=texture2D(tD,uv).rgb, l=texture2D(tD,uv-vec2(px*2.4,0.0)).rgb, r=texture2D(tD,uv+vec2(px*2.4,0.0)).rgb;   // 색 번짐 — 사용자 요청으로 1.7 → 2.4 화소
         vec3 col=vec3(l.r*0.55+a.r*0.45, a.g*0.64+0.18*(l.g+r.g), r.b*0.55+a.b*0.45);   // 색 번짐 — 빨강·파랑이 옆으로 어긋난다
         if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0) col=vec3(0.0);
         float Y=dot(col,vec3(0.299,0.587,0.114));
@@ -68,8 +68,11 @@ function camcInit(){
       }`});
   const q=new THREE.Mesh(new THREE.PlaneGeometry(2,2),CAMC.mat); q.frustumCulled=false; CAMC.scene.add(q);
   CAMC.el={box:document.getElementById('camc'), bar:document.getElementById('camcB'), pct:document.getElementById('camcP'),
-           msg:document.getElementById('camcM'), vf:document.getElementById('camcVF')};
+           msg:document.getElementById('camcM'), vf:document.getElementById('camcVF'), day:document.getElementById('camcD')};
 }
+/* UI 도 테이프 화질로 — 캠코더가 켜져 있으면 body 에 camc 를 붙인다(css/game.css 끝의 'body.camc' 묶음) */
+function camcBody(on){ if(CAMC._body!==on){ CAMC._body=on; document.body.classList.toggle('camc',on); } }
+camcBody(CAMC.on&&CAMC.lines>0);
 /* 그리기 전에 — 캠코더가 켜져 있으면 그림판을 물리고 true 를 돌려준다(renderFrame 이 부른다) */
 function camcBegin(){
   if(!CAMC.on||!CAMC.lines) return false;
@@ -99,9 +102,8 @@ function updateCamcorder(dt){
   const e=equippedTool(), cranking=!!(e&&e.id==='hand_charger'&&useDown&&!uiOpen()&&!PL.dead);
   if(cranking){
     if(CAMC.bat>=100){ if(CAMC.crank<=0) toast('캠코더 배터리 — 가득 찼다'); CAMC.crank=1.5; }
-    else if(PL.stam<2){ if(CAMC.crank<=0) toast('기력이 없어 손잡이를 못 돌린다'); CAMC.crank=1.5; }
     else{
-      CAMC.bat=Math.min(100,CAMC.bat+CAMC.CRANK*dt); PL.stam=clamp(PL.stam-3.5*dt,0,100);
+      CAMC.bat=Math.min(100,CAMC.bat+CAMC.CRANK*dt);   // 손잡이 돌리기는 기력을 안 쓴다(사용자 요청 — 예전엔 초당 3.5씩 깎였다)
       CAMC.crank-=dt; if(CAMC.crank<=0){ CAMC.crank=0.22; sfx('bind'); }       // 손잡이 돌아가는 소리
       if(typeof weaponFx!=='undefined'&&weaponFx&&weaponFx.userData.spin) weaponFx.userData.spin.rotation.z-=dt*10;
     }
@@ -113,9 +115,13 @@ function updateCamcorder(dt){
   if(CAMC.bat>30) CAMC.warned=false;
   // 화면 위의 표시
   const L=CAMC.el, show=CAMC.on&&CAMC.lines>0;
+  camcBody(show);
   if(L.box){
     hudS(L.box,'display',show?'flex':'none'); hudS(L.vf,'display',show?'block':'none');
     if(show){
+      /* 캠코더의 날짜 찍기 — 표류 며칠째 · 시각(오전/오후 12시간제) */
+      const hd=((hourOfDay%24)+24)%24, H=Math.floor(hd), M=Math.floor((hd-H)*60), h12=(H%12)||12;
+      hudT(L.day,'표류 '+dayNo()+'일째  '+(H<12?'오전':'오후')+' '+h12+':'+String(M).padStart(2,'0'));
       const p=Math.round(CAMC.bat);
       hudS(L.bar,'width',p+'%'); hudS(L.bar,'background',p>30?'#9fe0b6':(p>15?'#e0c060':'#e0604a'));
       hudT(L.pct,p+'%'+(cranking&&CAMC.bat<100?' ↑':''));

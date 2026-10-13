@@ -715,11 +715,15 @@ function drawInv(){
   if(wornSum('carry')) wh+='<div class="ws"><span>적재 보너스</span><b>+'
     +wornSum('carry')+' kg</b></div>';
   wh+='</div>';
-  if(!INV.slots.length){ L.innerHTML=wh+'<div class="ie">비어 있음</div>'; wireDrag(L); if(typeof drawSel==='function') drawSel(); return; }
+  /* **같은 내용이면 다시 쓰지 않는다** — 예전엔 칸 하나를 누를 때마다 목록 HTML 을 (그것도 두 번) 통째로 다시 써서
+     아이콘 <img> 가 새로 만들어지고, 데이터 주소 그림을 다시 푸는 한 프레임 동안 비어 보였다(창을 누를 때마다 깜박임).
+     이제 내용이 바뀔 때만 다시 쓰고, 고른 칸이 바뀐 것은 표시(sel)만 옮긴다 */
+  if(!INV.slots.length){ const h0=wh+'<div class="ie">비어 있음</div>';
+    if(L._html!==h0){ L.innerHTML=h0; L._html=h0; wireDrag(L); } if(typeof drawSel==='function') drawSel(); return; }
   const keepScroll=L.scrollTop;                   // 다시 그려도 굴린 자리는 그대로
-  L.innerHTML=INV.slots.map((s,i)=>{
+  const rows=INV.slots.map((s,i)=>{
     const t=ITEMS[s.id];
-    return '<div class="it'+(i===INV.sel?' sel':'')+'" data-i="'+i+'" draggable="true">'
+    return '<div class="it" data-i="'+i+'" draggable="true">'
       +iconTag(s.id,t)
       +'<span class="nm">'+t.n+' <span class="qt">×'+s.n+'</span>'
       +(s===EQUIP?'<span class="eq">장착</span>':'')
@@ -730,13 +734,16 @@ function drawInv(){
         +(s.lit?'타는 중 ':'꺼짐 ')+Math.round(s.fuel/t.burn*100)+'%</span>':'')
       +'<span class="u">'+t.use+'</span></span>'
       +'<span class="kg">'+(t.kg*s.n).toFixed(1)+' kg</span></div>';
-  }).join('');
-  L.innerHTML=wh+L.innerHTML;
-  L.scrollTop=keepScroll;
-  L.querySelectorAll('.it').forEach(el=>{
-    el.onclick=()=>{ INV.sel=+el.dataset.i; invDirty=true; };
-  });
-  wireDrag(L);
+  }).join(''), html=wh+rows;
+  if(L._html!==html){
+    L.innerHTML=html; L._html=html;
+    L.scrollTop=keepScroll;
+    L.querySelectorAll('.it').forEach(el=>{
+      el.onclick=()=>{ INV.sel=+el.dataset.i; invDirty=true; };
+    });
+    wireDrag(L);
+  }
+  L.querySelectorAll('.it').forEach(el=>el.classList.toggle('sel',+el.dataset.i===INV.sel));
   if(typeof drawSel==='function') drawSel();      // 가운데 '고른 물건' 칸(98-bag.js)
 }
 
@@ -1337,8 +1344,24 @@ function shrinkFoliage(p){
   p._fm.setMatrixAt(p._fi,_M);
   p._fm.instanceMatrix.needsUpdate=true;
 }
-let toastT=0;
+/* 알림 — 채취 표시(#look) 밑의 따로 된 칸(#toast)에 최대 세 줄 쌓는다. 같은 말이 잇달아 오면 한 줄에 ×n 으로 센다.
+   예전엔 #look 의 글을 빌려 써서, 캐는 동안 '+1' 이 뜰 때마다 1.4초씩 진행 막대가 가려졌다(사용자 지적) */
+const TOASTS=[]; let toastDirty=false;
 function toast(m){
-  const e=document.getElementById('lookT');
-  e.dataset.toast=m; toastT=1.4;
+  const last=TOASTS[TOASTS.length-1];
+  if(last&&last.m===m){ last.n++; last.t=2.4; }
+  else{ TOASTS.push({m,n:1,t:2.4}); if(TOASTS.length>3) TOASTS.shift(); }
+  toastDirty=true;
+}
+function updateToasts(dt){
+  const el=document.getElementById('toast'); if(!el) return;
+  let gone=false;
+  for(const q of TOASTS){ q.t-=dt; if(q.t<=0) gone=true; }
+  if(gone){ for(let i=TOASTS.length-1;i>=0;i--) if(TOASTS[i].t<=0) TOASTS.splice(i,1); toastDirty=true; }
+  if(toastDirty){
+    toastDirty=false;
+    el.innerHTML=TOASTS.map(q=>'<div>'+String(q.m).replace(/[<>&]/g,'')+(q.n>1?'<span class="n">×'+q.n+'</span>':'')+'</div>').join('');
+  }
+  const ds=el.children;                             // 끝 0.4초는 흐려지며 사라진다
+  for(let i=0;i<ds.length&&i<TOASTS.length;i++){ const o=Math.min(1,TOASTS[i].t/0.4).toFixed(2); if(ds[i]._o!==o){ ds[i]._o=o; ds[i].style.opacity=o; } }
 }
