@@ -138,7 +138,7 @@ function initThree(){
   camera.userData.lightRole='recv';
   LIGHT.addSpot(camera,flash,true);      // 손전등은 그림자를 만든다
   camera.add(flash.target); scene.add(camera);
-  LIGHT.poolInit();                      // 불빛 풀 — 화덕·증기기관·제련로의 빛은 늘 서 있는 광원 몇 개가 옮겨 싣는다(광원 수가 안 바뀐다)
+  LIGHT.poolInit();                      // 불빛 풀 — 모닥불·증기기관·제련로의 빛은 늘 서 있는 광원 몇 개가 옮겨 싣는다(광원 수가 안 바뀐다)
   LIGHT.setQuality(LIGHT.q);
   resize(); addEventListener('resize',resize);
 }
@@ -331,6 +331,7 @@ async function generateWorld(){
   await phase('하천 침식',34);      hydraulic(seed,Math.round(38000*P.ero*(16/(CELL*CELL))));
   await phase('사면 안정화',48);    thermal(8,1.45*(CELL/4),0.45);
                                     smoothTerrain(3,0.6);   // 표면 잡티 제거
+                                    if((P.tv|0)>=2) terrainFeatures(seed); else LANDFORMS=[];   // 피오르·골짜기·절벽·단구·산릉(지형 판 2 — 10-worldgen.js)
                                     computeSlope();
   await phase('수계 추출',58);      hydrology(); computeSlope(); computeTWI();
                                     distanceField(F.dWater,i=>F.elev[i]<=0);
@@ -368,7 +369,7 @@ async function generateWorld(){
                                     invAdd('guide',1);        // 생존 안내서 — 가방에서 누르면 읽힌다
                                     invAdd('codex',1);        // 사전은 처음부터 지닌다
                                     invAdd('hand_charger',1); // 캠코더 배터리를 채우는 손 충전기
-                                    CAMC.bat=100; CAMC.warned=false;
+                                    CAMC.bat=100; CAMC.warned=false; CAMC.health=1; CAMC.li=false; CAMC.hsaid=0;
                                     invAdd('ring_platinum',1); // 표류 전부터 끼고 있던 반지
                                     invAdd('can_food',2);     // 보급선이 쥐여 준 비상식량
                                     invAdd('bottle_water',1); // 물 한 병 — 비면 다시 채운다
@@ -386,6 +387,13 @@ async function generateWorld(){
                                     ARCS.forEach(g=>scene.remove(g.mesh)); ARCS.length=0;
                                     LATHES.forEach(g=>scene.remove(g.mesh)); LATHES.length=0;
                                     boxOpen=false; curStore=null;
+                                    /* 열려 있던 창은 전부 닫는다 — 가방을 연 채 새 섬을 만들면 가방이 열린 채로 시작했다(사용자 지적) */
+                                    try{ if(typeof closeBag==='function') closeBag(); }catch(e){}
+                                    invOpen=craftOpen=false;
+                                    if(typeof dexOpen!=='undefined'&&dexOpen){ dexOpen=false; const d=document.getElementById('dex'); if(d) d.style.display='none'; }
+                                    { const b=document.getElementById('box'); if(b) b.style.display='none'; }
+                                    if(typeof CTREE!=='undefined') ctreeHide(true);
+                                    if(typeof GATHER!=='undefined'){ GATHER.p=null; GATHER.t=0; GATHER.on=false; }
                                     CREATURES.length=0; ATK.cd=0; ATK.swing=0;
 
   document.getElementById('iSeed').textContent=P.seed;
@@ -393,7 +401,8 @@ async function generateWorld(){
               '육지',(stats.landCells/(N*N)*100).toFixed(1)+'%','자원',stats.props);
   ovLoad.textContent='';
   document.getElementById('bStart').style.display='';
-  document.getElementById('bStart').textContent='상륙';
+  document.getElementById('bStart').textContent='착륙';
+  if(typeof titleAfterGen==='function') titleAfterGen();     // 처음이면 간판과 '시작' · 다시 만든 섬이면 곧장 '착륙' 단추(91-title.js)
   offerLoadOnStart();                  // 저장된 것이 있으면 상륙 전에 한 번 물어본다
   }catch(e){
     showErr('생성',e);
@@ -402,4 +411,4 @@ async function generateWorld(){
   }
   busy=false;                           // 실패해도 잠기지 않게 반드시 해제
 }
-function placeProps_(seed){ placePod(seed); buildProps(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다
+function placeProps_(seed){ placePod(seed); buildProps(); buildCrags(); buildCaves(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다

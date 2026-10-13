@@ -415,8 +415,146 @@ let PROPS=[];
 /* 다 만든 섬(표고 · 하천 · 거리장)을 통째로 S 배로 키운다 — 바이옴을 정한 **뒤**, 자원을 놓기 **전**에 부른다.
    격자는 그대로 두고 칸 한 변(CELL)과 높이·거리(m)만 S 배가 된다. 비탈(F.slope — 비율)과 바이옴은 안 바뀐다.
    S 가 1 이면 아무것도 안 한다(예전 섬과 한 비트도 다르지 않다) */
+/* ── 지형 판 2 — 피오르 · 골짜기 · 절벽과 단구 · 산릉과 탁상지 ─────────────────
+   침식을 다 돌린 높이 지도에 큰 지형을 덧새긴다(사용자 요청). 하천·기후·식생·자원은 이 뒤에 정해지므로 물길은 새 골짜기를 따라 흐른다.
+   **섬의 생김새가 바뀐다** — 그래서 지형 판(P.tv)이 2 일 때만 돈다. 판이 없는 옛 저장은 1 로 읽혀 예전 섬 그대로 열린다.
+   크기는 만들 때의 칸(2.5 m)으로 적었다 — 6배 섬에서는 여섯 배다(피오르 너비 100 m 남짓 · 길이 2~5 km · 절벽 단 40 m 안팎).
+     ① **산릉** — 얼룩진 구역마다 날 선 능선을 돋운다(알프스 꼴).  **탁상지** — 가장자리가 절벽인 평평한 꼭대기 셋.
+     ② **단구와 절벽** — 얼룩진 구역의 높이를 계단으로 접는다: 평평한 턱과 그 사이의 벼랑.
+     ③ **바닷가 절벽** — 얼룩진 구역에서는 뭍이 바다에서 곧장 솟는다(나머지는 예전처럼 완만한 해변).
+     ④ **골짜기** — 높은 데서 가장 가파른 쪽으로 내려가며 U 자 꼴로 판다(빙하곡). 아래로 갈수록 넓어진다.
+     ⑤ **피오르** — 바다에서 뭍 안쪽으로 굽이치며 파고드는 좁고 깊은 물길. 벽이 가파르다. */
+/* 새긴 큰 지형의 자리(격자 칸) — k: fjord 피오르 · valley 골짜기 · mesa 탁상지. 길은 점의 줄(pts)이다. 시험·지도 표시에 쓴다 */
+let LANDFORMS=[];
+function terrainFeatures(seed){
+  LANDFORMS=[];
+  const e=F.elev, rnd=mulberry32((seed^0x7e44a1)>>>0), nA=makePerlin(seed^0x51ab7), nB=makePerlin(seed^0x99c31);
+  let hi=0; for(let i=0;i<e.length;i++) if(e[i]>hi) hi=e[i];
+  if(hi<8) return;
+  const fb=(nz,x,z,o)=>{ let a=1,f=1,sm=0,t=0; for(let i=0;i<o;i++){ sm+=nz(x*f,z*f)*a; t+=a; a*=0.5; f*=2.03; } return sm/t; };
+  /* ① 산릉 · ② 단구 · ③ 바닷가 절벽 — 칸마다 */
+  for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){
+    const i=IDX(x,z); let h=e[i]; if(h<=0.2) continue;
+    const u=x/N, v=z/N;
+    const kR=smoothstep(0.08,0.40,fb(nA,u*4.2+3.1,v*4.2-7.7,3));                    // 산릉이 서는 구역
+    if(kR>0&&h>2){ const r=1-Math.abs(fb(nB,u*13+11,v*13+5,4)); h+=kR*Math.pow(r,3.2)*hi*0.62*smoothstep(2,hi*0.22,h); }
+    /* 단구 — 높이를 계단으로 접되, 접기 전에 높이를 잔물결로 흔든다(안 흔들면 벼랑이 등고선을 그대로 따라 논두렁처럼 보인다).
+       턱은 살짝 기울고(원래 비탈의 1/4) 벼랑은 단 높이의 끝 1할에 몰린다 */
+    const kT=smoothstep(0.15,0.40,fb(nB,u*3.4-9.2,v*3.4+2.6,3));
+    if(kT>0&&h>2.5){ const wv=hi*0.075*fb(nA,u*15+4.4,v*15-8.8,3), st=hi*0.19, hq=(h+wv)/st, q=Math.floor(hq), f=hq-q;
+      h=lerp(h,Math.max(0.8,(q+0.25*f+0.75*smoothstep(0.88,0.99,f))*st-wv),kT); }
+    const kC=smoothstep(0.14,0.40,fb(nA,u*5.0+21.4,v*5.0+13.9,3));                  // 바닷가가 절벽인 구역
+    if(kC>0&&h<hi*0.30) h+=kC*hi*0.14*smoothstep(0.25,1.5,h)*(1-smoothstep(hi*0.18,hi*0.30,h));
+    e[i]=h;
+  }
+  /* 탁상지 넷 — 꼭대기는 평평하고 둘레는 벼랑. 테두리는 길쭉하고 들쭉날쭉하다(둥근 원반이면 지어낸 티가 난다) */
+  for(let k=0,tries=0;k<4&&tries<4000;tries++){
+    const cx=40+rnd()*(N-80), cz=40+rnd()*(N-80), h0=e[IDX(cx|0,cz|0)]; if(h0<hi*0.12||h0>hi*0.5) continue;
+    const R=8+rnd()*12, el=0.55+rnd()*0.9, rot=rnd()*3.1416, cr=Math.cos(rot), sr=Math.sin(rot), top=h0+hi*(0.16+rnd()*0.12), X=R*2.1; k++;
+    LANDFORMS.push({k:'mesa',x:cx,z:cz,R});
+    for(let dz=-X;dz<=X;dz++) for(let dx=-X;dx<=X;dx++){ const x=(cx+dx)|0, z=(cz+dz)|0; if(x<1||z<1||x>=N-1||z>=N-1) continue;
+      const wob=1+0.62*fb(nA,x*0.045+k*9.3,z*0.045-k*4.1,3), d=Math.hypot(dx*cr+dz*sr,(dz*cr-dx*sr)/el)/wob, pf=1-smoothstep(R*0.86,R*1.05,d), i=IDX(x,z);
+      if(pf>0&&e[i]>0.5) e[i]=Math.max(e[i],lerp(e[i],top+1.2*fb(nB,x*0.07,z*0.07,3)+(dx*cr+dz*sr)*0.03,pf)); } }
+  /* 길을 따라 파는 도장 — 가운데 w0 칸은 바닥(floor), 그 밖 wall 칸에 걸쳐 벽이 선다(pw<1 가파른 벽 · >1 U 자) */
+  const stamp=(cx,cz,w0,wall,floor,pw,cap)=>{ const R=Math.ceil(w0+wall);
+    for(let dz=-R;dz<=R;dz++){ const z=Math.round(cz)+dz; if(z<1||z>=N-1) continue;
+      for(let dx=-R;dx<=R;dx++){ const x=Math.round(cx)+dx; if(x<1||x>=N-1) continue;
+        const d=Math.hypot(x-cx,z-cz); if(d>R) continue;
+        const t=d<=w0?0:(d-w0)/wall, tg=floor+Math.pow(t,pw)*cap, i=IDX(x,z); if(tg<e[i]) e[i]=tg; } } };
+  /* 뭉갠 높이(여섯 칸 평균을 두 번 흐린 것) — 골짜기 길은 큰 흐름을 따른다. 칸마다의 가장 가파른 쪽을 따르면 단구 모서리에서 직각으로 꺾였다 */
+  const CS=6, CN=(N/CS)|0, sm=new Float32Array(CN*CN), tmp=new Float32Array(CN*CN);
+  for(let cz=0;cz<CN;cz++) for(let cx=0;cx<CN;cx++){ let a=0; for(let dz=0;dz<CS;dz++) for(let dx=0;dx<CS;dx++) a+=e[IDX(cx*CS+dx,cz*CS+dz)]; sm[cz*CN+cx]=a/(CS*CS); }
+  for(let it=0;it<2;it++){ tmp.set(sm); for(let cz=1;cz<CN-1;cz++) for(let cx=1;cx<CN-1;cx++){ const i=cz*CN+cx; sm[i]=(tmp[i]*2+tmp[i-1]+tmp[i+1]+tmp[i-CN]+tmp[i+CN])/6; } }
+  const smAt=(x,z)=>{ const fx=clamp(x/CS-0.5,0,CN-1.001), fz=clamp(z/CS-0.5,0,CN-1.001), ix=fx|0, iz=fz|0, tx=fx-ix, tz=fz-iz, i=iz*CN+ix;
+    return lerp(lerp(sm[i],sm[i+1],tx),lerp(sm[i+CN],sm[i+CN+1],tx),tz); };
+  const eAt=(x,z)=>e[IDX(clamp(Math.round(x),1,N-2),clamp(Math.round(z),1,N-2))];
+  /* 길 하나를 긋는다 — 뭉갠 높이의 비탈을 따라(up: 오르막 · 아니면 내리막) 굽이치며. 관성이 있어 급히 꺾이지 않는다 */
+  const trace=(x,z,an,steps,up,stop)=>{ const pts=[], ph=rnd()*6.283, f1=0.045+rnd()*0.03;
+    for(let st=0;st<steps;st++){ pts.push([x,z]); if(stop&&stop(x,z,st)) break;
+      let gx=smAt(x+3,z)-smAt(x-3,z), gz=smAt(x,z+3)-smAt(x,z-3); const gl=Math.hypot(gx,gz);
+      if(gl>1e-4){ const ga=Math.atan2(up?gz:-gz,up?gx:-gx); let d=(ga-an)%6.2832; if(d>3.1416) d-=6.2832; if(d<-3.1416) d+=6.2832; an+=clamp(d,-0.5,0.5)*0.16; }
+      const a2=an+0.55*Math.sin(st*f1+ph)+0.22*Math.sin(st*f1*2.7+ph*1.7);
+      x+=Math.cos(a2)*1.5; z+=Math.sin(a2)*1.5; if(x<4||z<4||x>N-5||z>N-5) break; }
+    return pts; };
+  /* ④ 걸린 골짜기 셋 — 높은 데서 바다(나 피오르)까지. 위는 좁고 아래로 갈수록 넓다 */
+  for(let k=0,tries=0;k<3&&tries<6000;tries++){
+    const x=30+rnd()*(N-60), z=30+rnd()*(N-60); if(eAt(x,z)<hi*0.42) continue;
+    const pts=trace(x,z,Math.atan2(-(smAt(x,z+3)-smAt(x,z-3)),-(smAt(x+3,z)-smAt(x-3,z))),640,false,(px,pz)=>eAt(px,pz)<0.4);
+    if(pts.length<60) continue; k++; LANDFORMS.push({k:'valley',pts});
+    let fl=1e9; const wl=9+rnd()*4;
+    pts.forEach((p,i)=>{ const sN=i/(pts.length-1); fl=Math.max(-0.4,Math.min(fl,eAt(p[0],p[1])-(1+hi*0.10*Math.sin(Math.PI*clamp(sN*1.1,0,1)))));
+      stamp(p[0],p[1],(1.4+3.4*sN)*(1+0.25*Math.sin(i*0.09+k)),wl,fl,1.9,hi*0.8); });
+  }
+  /* ⑤ 피오르 다섯 — 섬 둘레를 고르게 나눠 바다에서 뭍 안쪽으로. 어귀는 넓고 깊으며 안으로 갈수록 좁아지고, 가지가 하나 갈라진다.
+     끝머리는 U 자 골짜기로 이어져 산으로 올라간다(빙하가 판 골의 아랫도리가 물에 잠긴 것이 피오르다) */
+  const fjord=(x,z,an,L,w,deep,arm)=>{
+    const pts=trace(x,z,an,L,true,null); if(pts.length<12) return;
+    LANDFORMS.push({k:'fjord',pts,arm:!arm});
+    pts.forEach((p,i)=>{ const sN=i/(pts.length-1); stamp(p[0],p[1],(0.9+w*Math.pow(1-sN,0.8))*(1+0.28*Math.sin(i*0.13+w)),8.5,-(1.2+deep*(1-sN)),0.85,hi*0.75); });
+    const q=pts[pts.length-1], q0=pts[Math.max(0,pts.length-6)], ha=Math.atan2(q[1]-q0[1],q[0]-q0[0]);
+    if(arm){ const m=pts[(pts.length*(0.4+rnd()*0.2))|0], m0=pts[Math.max(0,((pts.length*0.4)|0)-5)];
+      fjord(m[0],m[1],Math.atan2(m[1]-m0[1],m[0]-m0[0])+(rnd()<0.5?1:-1)*(0.75+rnd()*0.4),(L*0.42)|0,w*0.5,deep*0.55,false); }
+    const vp=trace(q[0],q[1],ha,arm?(L*0.9)|0:(L*0.5)|0,true,(px,pz)=>eAt(px,pz)>hi*0.62); if(vp.length<10) return;
+    const top=eAt(vp[vp.length-1][0],vp[vp.length-1][1])*0.8; LANDFORMS.push({k:'valley',pts:vp});
+    vp.forEach((p,i)=>{ const sN=i/(vp.length-1); stamp(p[0],p[1],2.6-1.8*sN,11,-1.2+(top+1.2)*Math.pow(sN,1.5),1.9,hi*0.8); });
+  };
+  { const nF=5, a0=rnd()*6.283;
+    for(let k=0;k<nF;k++){ const th=a0+(k+rnd()*0.6)/nF*6.283, cx=Math.cos(th), cz=Math.sin(th);
+      let rc=0; for(let r=8;r<N/2-4;r++){ if(e[IDX((N/2+cx*r)|0,(N/2+cz*r)|0)]>0.5) rc=r; }
+      if(rc<60) continue;
+      fjord(N/2+cx*(rc+10),N/2+cz*(rc+10),th+Math.PI,Math.round(rc*(0.30+rnd()*0.22)/1.5),3.6+rnd()*2.4,3.4+rnd()*1.8,true); } }
+}
+/* ── 동굴 ───────────────────────────────────────────────────────────────────
+   높이 지도로는 땅속 굴을 팔 수 없다. 대신 가파른 바위 비탈에 **바위 굴집**을 세운다 — 집채만 한 바위들이 둥글게 기대어 지붕을
+   이룬 굴(32-caves.js 가 짓는다 · 입구는 비탈 아래쪽). **금속 광석은 그 안에 모인다**: 굴마다 가장 가까운 광석 열 몇 개를 굴 속
+   바닥으로 옮긴다. 바깥에는 그만큼 화강암이 흔하다(placeResources 의 TVM). 자리는 섬마다 같다(시드) */
+let CAVES=[];
+const CAVE_ORE=['iron','copper','tin','zinc','galena','coal'];
+const CAVE_GRID=new Map(), CAVE_G=48, caveKey=(gx,gz)=>(gx+2048)*4096+(gz+2048);
+/* 그 자리가 굴(방 반지름 + pad) 안인가 — 그 방을 돌려준다. 덤불·나무·노거수가 굴 속에 서지 않게 하는 데, 화면의 바이옴 이름에 쓴다 */
+function caveAt(x,z,pad){
+  if(!CAVES.length) return null; pad=pad||0;
+  const gx=Math.floor(x/CAVE_G), gz=Math.floor(z/CAVE_G);
+  for(let az=-1;az<=1;az++) for(let ax=-1;ax<=1;ax++){ const a=CAVE_GRID.get(caveKey(gx+ax,gz+az)); if(!a) continue;
+    for(const r of a){ const dx=x-r.x, dz=z-r.z, q=r.R+pad; if(dx*dx+dz*dz<q*q) return r; } }
+  return null;
+}
+function caveSites(seed){
+  CAVES=[]; CAVE_GRID.clear(); if((P.tv|0)<2) return;
+  const rnd=mulberry32((seed^0xca7e5)>>>0), WS=CELL/GCELL, want=Math.round(9*WS*WS/4+6);
+  let hi=0; for(let i=0;i<F.elev.length;i++) if(F.elev[i]>hi) hi=F.elev[i];
+  const okAt=(x,z)=>{ const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2); if(gx<4||gz<4||gx>N-5||gz>N-5) return false;
+    const i=IDX(gx,gz); return F.elev[i]>2.5&&!F.river[i]&&F.slope[i]<0.6; };
+  for(let tries=0;tries<90000&&CAVES.length<want;tries++){
+    const gx=6+((rnd()*(N-12))|0), gz=6+((rnd()*(N-12))|0), i=IDX(gx,gz), h=F.elev[i];
+    if(h<3*WS||h>hi*0.8||F.river[i]||F.slope[i]<0.14||F.slope[i]>0.46) continue;
+    const x=(gx-N/2)*CELL+(rnd()-0.5)*CELL*0.6, z=(gz-N/2)*CELL+(rnd()-0.5)*CELL*0.6;
+    if(CAVES.some(c=>Math.hypot(c.x-x,c.z-z)<200)) continue;
+    const yaw=Math.atan2(-(F.elev[i+N]-F.elev[i-N]),-(F.elev[i+1]-F.elev[i-1]));   // 내리막 쪽 — 입구가 그리로 난다
+    /* 굴 하나는 방 1~3 개가 등고선을 따라 이어진 것이다. 방마다 터진 데(open): 입구 · 이웃 방 쪽 */
+    const rooms=[{x,z,y:heightAt(x,z),R:5.4+rnd()*1.6,open:[yaw]}], nR=1+((rnd()*3)|0);
+    let dir=yaw+(rnd()<0.5?1:-1)*(1.45+rnd()*0.25);
+    for(let k=1;k<nR;k++){ const a=rooms[k-1], R=4.6+rnd()*1.6, D=a.R+R+0.8, bx=a.x+Math.cos(dir)*D, bz=a.z+Math.sin(dir)*D;
+      if(!okAt(bx,bz)) break;
+      a.open.push(dir); rooms.push({x:bx,z:bz,y:heightAt(bx,bz),R,open:[dir+Math.PI]}); dir+=(rnd()-0.5)*1.1; }
+    CAVES.push({x,z,y:rooms[0].y,yaw,rooms,seed:(rnd()*1e9)|0});
+  }
+  for(const c of CAVES) for(const r of c.rooms){ const k=caveKey(Math.floor(r.x/CAVE_G),Math.floor(r.z/CAVE_G)); let a=CAVE_GRID.get(k); if(!a) CAVE_GRID.set(k,a=[]); a.push(r); r.cave=c; }
+  /* 광석을 굴 속으로 — 굴마다 600 m 안의 가장 가까운 것부터 방 하나에 여덟~열두 개 */
+  const ore=[]; for(let k=0;k<PROPS.length;k++){ const p=PROPS[k]; if(CAVE_ORE.indexOf(p.k)>=0) ore.push(p); }
+  for(const c of CAVES){
+    const near=[]; for(const p of ore){ if(p.cave) continue; const d=(p.x-c.x)*(p.x-c.x)+(p.z-c.z)*(p.z-c.z); if(d<600*600) near.push([d,p]); }
+    near.sort((a,b)=>a[0]-b[0]);
+    const n=Math.min(near.length,c.rooms.length*(8+((rnd()*5)|0))), put=[];
+    for(let k=0;k<n;k++){ const p=near[k][1], rm=c.rooms[k%c.rooms.length]; let px=rm.x, pz=rm.z;
+      for(let t=0;t<14;t++){ const a=rnd()*6.283, r=0.8+rnd()*(rm.R-2.4); px=rm.x+Math.cos(a)*r; pz=rm.z+Math.sin(a)*r; if(!put.some(q=>Math.hypot(q[0]-px,q[1]-pz)<1.6)) break; }
+      put.push([px,pz]); p.x=px; p.z=pz; p.y=heightAt(px,pz); p.s=Math.min(p.s,0.95); p.cave=1; }
+    c.ore=n;
+  }
+  PROPS=PROPS.filter(p=>p.cave||!caveAt(p.x,p.z,4.4));   // 굴 자리에 서 있던 나무·바위는 치운다(지붕을 뚫고 나온다)
+}
 function worldRescale(S){
-  S=(S===2||S===3)?S:1;
+  S=(S>=1&&S<=6)?Math.round(S):1;                      // 1~6배(6배 = 한 변 11.5 km)
   setWorldScale(S);
   if(S===1) return;
   const e=F.elev, w=F.wlev, a=F.dWater, b=F.dRiver;
@@ -528,12 +666,14 @@ function placeResources(seed){
     let placed=0;
     /* 키운 섬(배율 2·3)은 칸 하나가 4·9배 넓다 — 넓이당 밀도를 지키려면 칸에 여럿이 서야 하고(DSCALE 이 확률을 그만큼 올린다 ·
        1 을 넘는 몫은 그 수만큼 세운다), 상한(max)도 넓이만큼 는다. 배율 1 은 예전 코드 그대로다(난수 차례가 같아야 같은 섬이다) */
-    const WS=CELL/GCELL, cap=R.max*WS*WS;
+    /* 지형 판 2: 금속 광석은 겉에 절반만 나고(나머지는 굴 속에 모인다 — caveSites) 화강암이 그만큼 흔하다 */
+    const TVM=(P.tv|0)>=2?(R.k==='granite'?1.7:CAVE_ORE.indexOf(R.k)>=0?0.6:1):1;
+    const WS=CELL/GCELL, cap=R.max*WS*WS*Math.max(1,TVM);
     for(let z=2;z<N-2 && placed<cap;z++){
       for(let x=2;x<N-2 && placed<cap;x++){
         const i=IDX(x,z);
         if(h[i]<=0.3) continue;
-        const p=Math.min(1,fn(i))*R.d*DSCALE;
+        const p=Math.min(1,fn(i))*R.d*DSCALE*TVM;
         if(WS===1){
           if(p<=0 || rnd()>p) continue;
           push(R.k,x,z);
@@ -596,6 +736,8 @@ function placeResources(seed){
   }
 
   resolveOverlaps();
+  caveSites(seed);                                     // 동굴 자리를 잡고 광석을 그 안으로 옮긴다(지형 판 2)
+  cragSites(seed);                                     // 벼랑에 박힌 큰 바위 무리(33-crags.js)
   for(const k in counts) counts[k]=0; for(const p of PROPS) counts[p.k]=(counts[p.k]||0)+1;
   stats.props=PROPS.length; stats.counts=counts; stats.forced=forced;
 }

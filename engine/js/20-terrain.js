@@ -1033,7 +1033,7 @@ varying vec3 vWW;
 varying vec3 vVD;
 varying vec3 vWN;
 `+WAVES+`
-float elev1(vec2 g){ vec4 t=texture2D(uElev,(g+0.5)/uGrid.x); return (t.r*255.0*256.0+t.g*255.0)/65535.0*300.0-100.0; }
+float elev1(vec2 g){ vec4 t=texture2D(uElev,(g+0.5)/uGrid.x); return (t.r*255.0*256.0+t.g*255.0)/65535.0*1200.0-100.0; }
 // 16비트를 나눠 담았으니 텍스처 보간은 못 쓴다 — 네 점을 직접 섞는다
 float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
   return mix(mix(elev1(i),elev1(i+vec2(1,0)),f.x),mix(elev1(i+vec2(0,1)),elev1(i+vec2(1,1)),f.x),f.y); }
@@ -1195,7 +1195,7 @@ function buildWaterElev(){
      높이를 −100~200 m 로 16비트에 담아 8비트 두 칸(R 위·G 아래)에 나눠 넣는다 — 3 mm 눈금 */
   const px=new Uint8Array(N*N*4);
   for(let i=0;i<N*N;i++){
-    const v=Math.round(clamp((F.elev[i]+100)/300,0,1)*65535);
+    const v=Math.round(clamp((F.elev[i]+100)/1200,0,1)*65535);   // −100~1100 m(6배 섬의 산은 340 m 를 넘는다 — 예전 200 m 에서 잘렸다) · 눈금 1.8 cm
     px[i*4]=v>>8; px[i*4+1]=v&255; px[i*4+3]=255;
   }
   waterElevTex=new THREE.DataTexture(px,N,N,THREE.RGBAFormat,THREE.UnsignedByteType);

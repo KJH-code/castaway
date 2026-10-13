@@ -120,7 +120,7 @@ function giantsBuild(){
         const a=CGRID.get(cgKey(cgx+ax,cgz+az)); if(!a) continue;
         for(const o of a){ const ox=wx-o.x, oz=wz-o.z, q=o.r+rr; if(ox*ox+oz*oz<q*q){ hit=true; break; } }
       }
-      if(hit||inLanding(wx,wz,rr+GIANT_KIND[v].rootL*s*1.3)) continue;   // 착륙 자리엔 판근까지 안 닿게
+      if(hit||caveAt(wx,wz,rr+6)||inLanding(wx,wz,rr+GIANT_KIND[v].rootL*s*1.3)) continue;   // 착륙 자리엔 판근까지 안 닿게
       placed={gx,gz,x:wx,z:wz,y:heightAt(wx,wz),s,v,w:floraHash(gx,gz,96)%GIANT_VARS,yaw:((h>>>12)&1023)/1023*6.283};
     }
     if(!placed) continue;

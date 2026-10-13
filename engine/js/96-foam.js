@@ -21,34 +21,52 @@
        **자바스크립트** 두 판을 다 짜서 견줬다. 빠른 쪽을 쓴다(`FOAM.useC`) — 결과는 README 가 아니라 `foamBench()` 로 다시 잴 것.
      · 그 밖(조각에 씨앗 나눠 주기 · 버퍼에 담기)은 자바스크립트 — 한 번에 0.1 ms 안쪽이라 옮겨서 얻을 것이 없다.
    ========================================================================== */
-const FOAM={mesh:null, geo:null, cap:8800, K:16, KS:6, KB:3, R:55, step:0.75, level:0.03, cx:1e9, cz:1e9, n:0, anchors:0,
+const FOAM={mesh:null, geo:null, cap:3600, K:6, KS:2, KB:1, R:44, step:0.75, level:0.03, cx:1e9, cz:1e9, n:0, anchors:0,
             useC:true, synced:false, ST:9, out:new Float32Array(2048*9),
             U:{uFT:{value:0}, uFP:WATER_U.uFP, uFR:WATER_U.uFR}};   // uFP·uFR 은 물 셰이더와 같이 쓴다 — 조각이 서는 데서는 칠한 거품이 옅어진다
 
-/* 조각 하나 = **사면체 뭉치**(사용자 요청 — 안에서 도는 사면체 뭉치 + 텍스처). 작은 사면체 넷을 반지름 0.55 안에 모아 두고,
-   뭉치가 통째로 구르는 동안 사면체 하나하나도 제 가운데를 축으로 따로 돈다(aSub — 제 가운데 xyz · 박자). */
+/* 조각 하나 = **프랙탈 사면체 뭉치**(사용자 요청). 짜임:
+     ① **큰 사면체 셋이 모서리로 이어진다** — 앞 사면체의 한 모서리를 축으로 반 바퀴 돌린 자리에 다음 것이 선다(모서리 하나만 맞닿는다).
+        다음 것은 그 맞은편 모서리로 또 이어져 지그재그 사슬이 된다. 크기는 저마다 다르다(0.78~1.12배).
+     ② **면마다 작은 사면체가 돋는다** — 큰 사면체의 네 면 가운데에 밑면을 붙이고 바깥으로 선다(면 크기의 0.34~0.64배).
+     ③ 그 작은 사면체의 바깥 면에서 **또 더 작은 것**이 돋는다(하나 · 가끔 둘 · 0.38~0.62배) — 같은 꼴이 줄어들며 되풀이된다.
+   3 + 12 + 열여섯 안팎 = 서른 남짓. 뭉치는 한 덩어리로 구르고(사슬이 안 끊어진다), 돋은 것들은 붙은 자리를 축으로 숨 쉬듯 조금 커졌다
+   작아진다. 사면체마다 aSub(붙은 자리 xyz · 박자)와 aLv(몇 대인가 0·1·2)를 단다 */
 function foamCluster(){
-  /* **프랙탈 뭉치**(사용자 요청 — 다각형에 다각형을 붙여서): 가운데 사면체의 네 면마다 반 크기 사면체를 붙이고, 그 바깥 세 면 중
-     두 면에 또 반 크기를 붙인다(1 + 4 + 8 = 13). 사면체마다 aSub(제 가운데 · 박자)와 aLv(몇 대인가)를 달아, 셰이더가
-     **뭉치 가운데를 축으로 공전시키며(바깥 대일수록 빠르게) 제자리에서도 돌린다** — 뭉친 속이 휘저어지며 섞인다 */
   const P=[], Nn=[], S=[], L=[], rnd=mulberry32(0xf0a3);
-  const T0=new THREE.TetrahedronGeometry(1,0), T=T0.index?T0.toNonIndexed():T0, tp=T.attributes.position.array;
-  const faces=[]; for(let f=0;f<tp.length/9;f++){ const a=[tp[f*9],tp[f*9+1],tp[f*9+2]], b=[tp[f*9+3],tp[f*9+4],tp[f*9+5]], c=[tp[f*9+6],tp[f*9+7],tp[f*9+8]];
-    const m=[(a[0]+b[0]+c[0])/3,(a[1]+b[1]+c[1])/3,(a[2]+b[2]+c[2])/3], l=Math.hypot(m[0],m[1],m[2]); faces.push([m[0]/l,m[1]/l,m[2]/l,l]); }
-  const put=(cx,cy,cz,r,lv)=>{ const ph=rnd()*6.283, q=new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd()*6.28,rnd()*6.28,rnd()*6.28)), v=new THREE.Vector3();
-    for(let i=0;i<tp.length;i+=9){ const vs=[0,3,6].map(o=>v.set(tp[i+o],tp[i+o+1],tp[i+o+2]).applyQuaternion(q).multiplyScalar(r).toArray());
-      const e1=[vs[1][0]-vs[0][0],vs[1][1]-vs[0][1],vs[1][2]-vs[0][2]], e2=[vs[2][0]-vs[0][0],vs[2][1]-vs[0][1],vs[2][2]-vs[0][2]];
-      let n=[e1[1]*e2[2]-e1[2]*e2[1],e1[2]*e2[0]-e1[0]*e2[2],e1[0]*e2[1]-e1[1]*e2[0]]; const nl=Math.hypot(...n)||1; n=n.map(x=>x/nl);
-      for(const p of vs){ P.push(p[0]+cx,p[1]+cy,p[2]+cz); Nn.push(...n); S.push(cx,cy,cz,ph); L.push(lv); } } };
-  const R0=0.42; put(0,0,0,R0,0);
-  for(const f of faces){ const r1=R0*0.5, d1=R0*f[3]+r1*0.75, c1=[f[0]*d1,f[1]*d1,f[2]*d1]; put(c1[0],c1[1],c1[2],r1,1);
-    /* 손주 둘 — 자식 바깥쪽으로 비스듬히 */
-    for(let k=0;k<2;k++){ const a=rnd()*6.283, t=[f[1]*Math.cos(a)-f[2]*Math.sin(a), f[2]*Math.cos(a)+f[0]*Math.sin(a), f[0]*Math.cos(a)-f[1]*Math.sin(a)];
-      const dir=[f[0]+t[0]*0.8,f[1]+t[1]*0.8,f[2]+t[2]*0.8], dl=Math.hypot(...dir), r2=r1*0.5, d2=r1*0.6+r2*0.8;
-      put(c1[0]+dir[0]/dl*d2,c1[1]+dir[1]/dl*d2,c1[2]+dir[2]/dl*d2,r2,2); } }
+  const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]], add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]], mul=(a,k)=>[a[0]*k,a[1]*k,a[2]*k];
+  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]], dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const len=a=>Math.hypot(a[0],a[1],a[2]), unit=a=>{ const l=len(a)||1; return [a[0]/l,a[1]/l,a[2]/l]; };
+  const cen=v=>mul(v.reduce(add),1/v.length);
+  /* 사면체 하나를 버퍼에 — 면마다 바깥을 보는 법선(면이 각져 보인다) */
+  const put=(T,anchor,lv)=>{ const c=cen(T), ph=rnd()*6.283;
+    for(const f of [[0,1,2],[0,3,1],[1,3,2],[2,3,0]]){ let v=[T[f[0]],T[f[1]],T[f[2]]], n=unit(cross(sub(v[1],v[0]),sub(v[2],v[0])));
+      if(dot(n,sub(cen(v),c))<0){ v=[v[0],v[2],v[1]]; n=mul(n,-1); }
+      for(const q of v){ P.push(q[0],q[1],q[2]); Nn.push(n[0],n[1],n[2]); S.push(anchor[0],anchor[1],anchor[2],ph); L.push(lv); } } };
+  /* 면 f(세 점) 위에 돋는 사면체 — 밑면은 그 면을 가운데로 k 배 줄인 세모, 꼭짓점은 바깥으로 */
+  const bud=(face,inside,k)=>{ const g=cen(face); let n=unit(cross(sub(face[1],face[0]),sub(face[2],face[0]))); if(dot(n,sub(g,inside))<0) n=mul(n,-1);
+    const base=face.map(q=>add(g,mul(sub(q,g),k))), e=len(sub(base[1],base[0]));
+    return {T:[base[0],base[1],base[2],add(g,mul(n,e*0.8165))], g}; };
+  const faces=T=>[[T[0],T[1],T[2]],[T[0],T[1],T[3]],[T[1],T[2],T[3]],[T[2],T[0],T[3]]];
+  /* ① 사슬 — 정사면체에서 시작해, 모서리 AB 를 축으로 C·D 를 반 바퀴 돌려 다음 것을 세운다(다음 축은 새 C·D 모서리) */
+  const R0=0.40, mains=[]; let T=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]].map(q=>mul(q,R0/Math.sqrt(3)));
+  mains.push(T);
+  for(let k=1;k<3;k++){ const A=T[0], B=T[1], ax=unit(sub(B,A)), mid=mul(add(A,B),0.5), sc=0.78+rnd()*0.34;
+    const flip=q=>{ const r=sub(q,A), along=mul(ax,dot(r,ax)); return add(A,sub(mul(along,2),r)); };            // 축을 지나 맞은편으로
+    const grow=q=>add(mid,mul(sub(q,mid),sc));                                                                 // 크기가 다르다(맞닿은 모서리 가운데를 축으로)
+    const C2=grow(flip(T[2])), D2=grow(flip(T[3]));
+    T=[C2,D2,grow(A),grow(B)]; mains.push(T); }
+  /* 뭉치의 가운데를 원점으로 옮긴다(셰이더가 원점을 축으로 굴린다) */
+  { const c=cen(mains.map(cen)); for(const M of mains) for(let i=0;i<4;i++) M[i]=sub(M[i],c); }
+  for(const M of mains){ put(M,cen(M),0);
+    const mc=cen(M);
+    for(const f of faces(M)){ const b1=bud(f,mc,0.34+rnd()*0.30); put(b1.T,b1.g,1);                              // ② 면마다 하나
+      const fs=faces(b1.T).slice(1), c1=cen(b1.T), u2=rnd(), n2=u2<0.30?0:u2<0.88?1:2, first=(rnd()*3)|0;      // 없기도 하고(30%) 둘이기도 하다(12%)                       // ③ 그 바깥 면(밑면 빼고 셋)에서 또 하나(가끔 둘)
+      for(let k=0;k<n2;k++){ const b2=bud(fs[(first+k)%3],c1,0.38+rnd()*0.24); put(b2.T,b2.g,2); } } }
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
   g.setAttribute('aSub',new THREE.Float32BufferAttribute(S,4)); g.setAttribute('aLv',new THREE.Float32BufferAttribute(L,1));
+  FOAM.tets=P.length/36;
   return g;
 }
 /* 거품 판의 무늬 — 크고 작은 거품 고리가 엉긴 레이스(캔버스 · 바깥으로 갈수록 옅다) */
@@ -128,17 +146,9 @@ function foamInit(){
         float fya=aC.x*40.0+uFT*0.15*(aC.x-0.5); vec2 fq=vec2(position.x*cos(fya)-position.z*sin(fya),position.x*sin(fya)+position.z*cos(fya))*fs*4.5;
         vec3 transformed=vec3(fpos.x+fq.x, fy-aB.w*0.22+0.02, fpos.z+fq.y);
       #else
-        /* 뭉치 속 사면체 하나하나가 ① 뭉치 가운데를 축으로 공전하고(바깥 대일수록 빠르게 · 위아래로 출렁) ② 제 가운데를 축으로 돈다 —
-           속이 휘저어지며 섞인다 */
-        vec3 fsc=aSub.xyz, flp=position-fsc;
-        { vec3 oax=normalize(vec3(sin(aC.x*17.0+aLv),1.2,cos(aC.x*23.0-aLv)));
-          float oan=uFT*(0.7+0.9*aLv)*(aC.x<0.5?-1.0:1.0)+aSub.w, oc=cos(oan), os=sin(oan);
-          fsc=fsc*oc+cross(oax,fsc)*os+oax*dot(oax,fsc)*(1.0-oc);
-          fsc*=1.0+0.18*aLv*sin(uFT*2.1+aSub.w*3.0); }
-        vec3 fax2=normalize(vec3(sin(aSub.w*3.1+aC.x*11.0),0.6,cos(aSub.w*2.3)));
-        float fan2=uFT*(2.2+aSub.w)+aSub.w*5.0, fc2=cos(fan2), fs2=sin(fan2);
-        flp=flp*fc2+cross(fax2,flp)*fs2+fax2*dot(fax2,flp)*(1.0-fc2);
-        vec3 fv=(fsc+flp)*fs;
+        /* 뭉치는 **한 덩어리**로 구른다(모서리로 이은 사슬이 안 끊어진다). 돋은 사면체(aLv 1·2)만 붙은 자리(aSub.xyz)를 축으로
+           숨 쉬듯 조금 커졌다 작아진다 — 대가 깊을수록 크게 */
+        vec3 fv=(aSub.xyz+(position-aSub.xyz)*(1.0+0.16*aLv*sin(uFT*2.3+aSub.w)))*fs;
         vec3 frot=fv*fc+cross(fax,fv)*fsn+fax*dot(fax,fv)*(1.0-fc); frot.y*=fflat;
         vec3 transformed=frot+fpos;
       #endif`);
@@ -237,10 +247,10 @@ function foamScatter(){
       if(rim){
         const q=(c-U.KS-U.KB+r1)/(U.K-U.KS-U.KB);          // 물가를 따라 고르게 벌려 놓는다(빈틈이 없게)
         Bq[j]=is; Bq[j+1]=(q-0.5)*U.step*1.15; Bq[j+2]=100+(r2-0.42)*(0.5+0.05*is);   // 물머리 앞뒤 한 뼘 — 완만한 데는 조금 더 넓게
-        Bq[j+3]=0.11+0.10*r3;
+        Bq[j+3]=0.20+0.17*r3;                                  // 뭉치가 커서(사슬 길이 ≈ 크기의 3배) 물가를 따라 서로 닿는다
       }else{
         Bq[j]=is; Bq[j+1]=(r1-0.5)*U.step*1.7; Bq[j+2]=breaker?-1:r2*r2*(0.4+0.12*is);   // 완만한 물가는 물머리 뒤로 길게 늘어선다
-        Bq[j+3]=(breaker?0.08:0.05)+0.17*r3*r3+0.07*steep;                     // 크기(m) — 잔 조각이 많고 굵은 것은 드물다 · 가파른 데는 굵다
+        Bq[j+3]=(breaker?0.15:0.11)+0.26*r3*r3+0.10*steep;                     // 크기(m) — 잔 조각이 많고 굵은 것은 드물다 · 가파른 데는 굵다
       }
       C[j]=r1*0.61+r3*0.39; C[j+1]=0.35+0.65*r2; C[j+2]=(2.5+5*r3)*(r1<0.5?-1:1); C[j+3]=(0.10+0.35*r1)*(0.6+2.4*steep);   // 가파른 데는 높이 튄다
       k++;

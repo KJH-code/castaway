@@ -31,7 +31,8 @@ app.whenReady().then(async () => {
       const W=ms=>new Promise(r=>setTimeout(r,ms)); let t=0;
       while((typeof busy==='undefined'||busy)&&t++<900) await W(100);
       try{ askClose(false); }catch(e){}
-      document.getElementById('bStart').click(); await W(1500);
+      if(typeof titleLand==='function') titleLand(); else document.getElementById('bStart').click();   // 첫 화면의 '시작'은 이제 글을 먼저 읽힌다(91-title.js)
+      await W(1500);
       try{ ${EXTRA} }catch(e){ return JSON.stringify({error:'extra: '+e.message}); }
       localStorage.removeItem('castaway.bench');
       BENCH.dur=${DUR}; BENCH.warm=2; benchStart();

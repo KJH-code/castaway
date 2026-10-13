@@ -29,7 +29,7 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 |---|---|
 | `engine/css/game.css` | All styling: HUD, panels (inventory, crafting, box, settings), camcorder overlay, start screen, touch buttons |
 | `engine/js/00-core.js` | Error banner, seeded random + noise, grid size, the global terrain fields `F`, biome table, resource table, island parameters `P` |
-| `engine/js/10-worldgen.js` | Island generation: uplift → thermal erosion → droplet erosion → rivers → slope/distance fields → climate → biome classification → resource placement → seabed relief (`shapeSeabed`, runs last so land and saves are unaffected); `heightAt()` and friends |
+| `engine/js/10-worldgen.js` | Island generation: uplift → thermal erosion → droplet erosion → rivers → slope/distance fields → climate → biome classification → resource placement → seabed relief (`shapeSeabed`, runs last so land and saves are unaffected); `heightAt()` and friends. Terrain version 2 (`P.tv`): `terrainFeatures()` carves fjords, valleys, terraces, sea cliffs, ranges and mesas after erosion; `caveSites()` picks cave sites and moves metal ores into them |
 | `engine/js/12-native.js` | Loads the **C erosion kernels** (WebAssembly) and routes `thermal` / `hydraulic` / `smoothTerrain` to them; `nativeVerify()` checks they give bit-identical islands to the JavaScript versions. Source: `engine/native/erosion.c`, build: `sh engine/native/build.sh` |
 | `engine/js/data-native-wasm.js` | The compiled WebAssembly as base64 (generated — do not edit) |
 | `engine/js/20-terrain.js` | Tree limb/leaf instancing data, bark, **ground shader** (per-biome textures, gravel), **rock material**, terrain chunks + LOD, sea/river water |
@@ -37,13 +37,15 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/22-ground-textures.js` | Loads those photos into one array texture, builds the noise texture, and holds the **photo-based ground shader** (+ shoreline wet band and foam) |
 | `engine/js/24-shapes.js` | Smooth shape toolkit shared by land plants and sea life: tubes (branches, roots, coral), lumpy blobs (stones), bending fronds (seaweed, ferns, palms), lathe shapes, leaf cards, and the part merger |
 | `engine/js/30-props.js` | Distance tiers and tile culling, far trees, `buildProps()` (grass, trees, rocks, mounds), scattered gravel stones (`RUBBLE`), berries, supply ship |
+| `engine/js/32-caves.js` | Caves: boulder-dome chambers (1–3 linked rooms) built on steep slopes, with glowworm points on the ceiling, glowing mushrooms on the floor and a faint pooled light per room |
+| `engine/js/33-crags.js` | Cliff rocks: on steep cells, huge rock clusters grown fractally (chained main rocks → smaller rocks → smaller still, sizes vary), each rock with its own shade; merged per 320 m tile and built as the player approaches, coarse shapes and a plain material far away |
 | `engine/js/40-light.js` | `LIGHT`: who casts/receives shadows, sun shadow box, point/spot shadow budget, `renderFrame()` |
 | `engine/js/45-sky.js` | Time of day, moon, sun, clouds, weather, rain, cloud shadows + wind, atmospheric sky, and the light tints (orange/violet at sunset and dawn, blue under the moon) |
 | `engine/js/46-camcorder.js` | **Camcorder view**: the world is drawn to a small 480-line picture and shown through a tape/lens shader (colour bleed, grain, scan lines, sunset/moonlight grading, underwater look); battery and the hand charger |
 | `engine/js/50-items.js` | The `ITEMS` table, inventory + worn slots, drag and drop (incl. trash slot), bare-hand harvesting, eating, **drinking (must look at water)**, quick slots |
 | `engine/js/55-craft.js` | The `RECIPES` table, material counting, stations, crafting progress, crafting window |
 | `engine/js/60-stations.js` | Hearth, furnace, grindstone, anvil, water wheel, dynamo; storage (basket, chest, **trash can**) and **name tags**; **pushing stations** (hold F); shared container logic |
-| `engine/js/62-build.js` | House building (foundation, wall, roof, doors), build mode, fire effects, **torch** / oil lamp / electric lamp |
+| `engine/js/62-build.js` | House building (foundation, wall, roof, doors), build mode, **levelling with cement** (`PADS` — a foundation needs a pad under it), campfire → hearth upgrade, fire effects, **torch** / oil lamp / electric lamp |
 | `engine/js/64-dex.js` | Item and mineral dictionary, the box window, the grindstone window |
 | `engine/js/70-weapons.js` | Melee hit test, held-item models (`WEAPON_FX`: spears, swords, axes, harpoons, torch …) |
 | `engine/js/data-sentinel-mesh.js` | One 1.3 MB line of mesh data (helmet model). Not meant to be read |
@@ -52,13 +54,13 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/80-player.js` | Mob table, first-person player (walking, **swimming**, stamina, hunger, health), synthesized audio, footsteps |
 | `engine/js/82-hud.js` | Minimap, HUD (look prompt, bars), performance window (F3), benchmark |
 | `engine/js/90-init.js` | Fog/shadow shader patches, shader precompile, `initThree()`, `generateWorld()` (the generation sequence) |
-| `engine/js/91-title.js` | The opening-screen art on one canvas: stencil CASTAWAY banner drawn from strokes, the receding crawl, and the crack — rendered flat in black and white, bent onto a curved screen, then split into red/green/blue |
+| `engine/js/91-title.js` | The opening-screen art on one canvas: stencil CASTAWAY banner drawn from strokes, the receding crawl, and the crack — rendered flat in black and white, bent onto a curved screen, then split into red/green/blue. Also the opening text (words appear one at a time with a beep) and the glowing 착륙 button; restarts skip straight to the button |
 | `engine/js/92-save.js` | `snapshot()` / `restore()`, yes/no dialog, save slots (1–3, auto, previous-game backup), autosave |
 | `engine/js/94-input.js` | Keyboard, mouse, touch, opening/closing windows, pause, settings panel |
 | `engine/js/95-flora.js` | Plants that grow in **groves**: each ~80 m patch of a biome gets one community (jungle, bamboo grove, birch stand, pine wood, mangrove swamp, palm grove, flower field …). Ten tree types with trunks you collide with, five kinds of undergrowth, and what you can pick from them (vines, bamboo, coconuts, bananas, mushrooms) |
 | `engine/js/95-giants.js` | Old-growth giants (30–40 m) whose buttress roots are walkable ground (`giantRootAt`, used by `floorAt`) |
 | `engine/js/96-sea.js` | Coral reefs (7 forms), anemones, kelp, starfish, seabed boulders, clams/oysters/urchins, fish schools (harpoon + net), and the **far-from-shore panic** |
-| `engine/js/96-foam.js` | Shoreline foam: instanced tetrahedra within 55 m of the player, animated in the vertex shader from the real wave height and the beach profile; the shoreline scan is C (`engine/native/shore.c`) |
+| `engine/js/96-foam.js` | Shoreline foam: instanced fractal clusters of tetrahedra (three chained by an edge, a smaller one budding from every face, then smaller again) within 55 m of the player, animated in the vertex shader from the real wave height and the beach profile; the shoreline scan is C (`engine/native/shore.c`) |
 | `engine/js/97-wildlife.js` | Bird flocks, nests with eggs, beehives with honey, the slingshot, tree climbing, and ambient insects (butterflies, fireflies, dragonflies, bees) |
 | `engine/js/98-bag.js` | The full-screen **bag screen**: inventory + selected-item panel (actions, what it can make) + crafting, side by side |
 | `engine/js/99-main.js` | The frame loop (`loop()`), and the five calls at the very end that start the game |
@@ -66,7 +68,10 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 ## Things added on 2026-10-13 (short map)
 
 - **World scale** — `GCELL` / `setWorldScale` in `00-core.js`, `worldRescale` in `10-worldgen.js`. Islands are generated at 1.92 km
-  and scaled uniformly; `CELL`, `WORLD`, `HALF` are variables now.
+  and scaled uniformly (`P.ws` 1–6; new islands use 6 = 11.5 km); `CELL`, `WORLD`, `HALF` are variables now.
+  `island_world.html?ws=2` starts with a smaller island (the CI smoke test uses it).
+- **Terrain version** — `P.tv` in `00-core.js`. 2 adds the carved landforms, caves and cliff rocks; saves without it load as 1
+  and regenerate the exact old island. Anything that changes what the seed produces must sit behind this flag.
 - **Level of detail and automatic quality** — `updateTileVis`, `limbLod`, `QUAL` in `30-props.js`.
 - **Bag screen** — `98-bag.js` (two tabs, tooltips, recipe detail), `drawInv` / `invChip` in `50-items.js` (categories, pockets),
   `drawCraft` / `craftEdges` in `55-craft.js` (skill tree).

@@ -66,6 +66,7 @@ const FLORA_PICK={
   frond   :{item:'fern',    n:'나무고사리', verb:'잎 뜯기',    regrow:24, cnt:[2,3], dur:1.0, stam:2.5},
   fern    :{item:'fern',    n:'고사리',    verb:'뜯기',        regrow:24, cnt:[1,1], dur:0.6, stam:1.5, low:0.3},
   flower  :{item:'flower',  n:'들꽃',      verb:'꺾기',        regrow:30, cnt:[1,2], dur:0.4, stam:1, hide:1},
+  limerock:{item:'limestone',n:'석회석', verb:'줍기',       regrow:72, cnt:[1,1], dur:0.5, stam:1, hide:1},      // 자갈밭의 흰 돌(30-props.js RUBBLE)
   stone   :{item:'pebble',  n:'돌',        verb:'줍기',        regrow:72, cnt:[1,1], dur:0.4, stam:1, hide:1},      // 자갈밭의 잔돌(30-props.js RUBBLE)
   gbark   :{item:'bark',    n:'노거수 껍질', verb:'벗기기',    regrow:24, cnt:[2,3], dur:1.8, stam:4, need:'sharp'}, // 95-giants.js
   gresin  :{item:'resin',   n:'삼나무 송진', verb:'긁어내기',  regrow:24, cnt:[2,3], dur:1.6, stam:3, need:'sharp'},
@@ -598,6 +599,7 @@ function floraNearRiver(ci){
 }
 /* 그 자리에 큰 나무·바위·설비·벽(충돌 원)이 있나 */
 function floraHit(wx,wz,pad){
+  if(caveAt(wx,wz,pad+2.5)) return true;               // 굴 속·굴 벽에는 안 선다(10-worldgen.js)
   const cgx=Math.floor(wx/CG), cgz=Math.floor(wz/CG);
   for(let az=-1;az<=1;az++) for(let ax=-1;ax<=1;ax++){
     const a=CGRID.get(cgKey(cgx+ax,cgz+az)); if(!a) continue;

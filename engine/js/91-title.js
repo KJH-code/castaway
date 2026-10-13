@@ -18,9 +18,10 @@
    ③ 캠코더처럼 **번진다** — 살짝 흐리고, 빨강·초록·파랑을 따로 떠서 옆으로 어긋나게 겹친다(맞는 데는 흰색, 가장자리에만 색).
       금 둘레에서는 크게 갈라진다(깨진 화면). 그 위에 주사선 · 일렁이는 빛 · 가장자리 어둠.
    글씨가 지저분해 보이는 것은 이 ②③ 때문이어야 한다 — 글씨 자체는 깨끗하다.
+   차례(TITLE.mode): 'banner' 간판과 올라가는 글(단추 '시작') → 'intro' 여는 글 세 줄 → 'land' 크고 빛나는 '착륙' 단추(아래 '여는 글과 착륙').
    값: 간판·금은 크기가 바뀔 때 한 번만 그려 두고, 프레임마다는 띠 수백 장을 옮겨 붙인다(초당 20번 · 여는 화면에서만).
    ========================================================================== */
-const TITLE={on:false, timer:0, t0:0, cv:null, cx:null, W:0, H:0, dpr:1, L:null, text:null,
+const TITLE={mode:'banner', first:true, intro:{t0:0,said:0,keep:false,text:false}, btn:null, ac:null, on:false, timer:0, t0:0, cv:null, cx:null, W:0, H:0, dpr:1, L:null, text:null,
              ban:null, crk:null, txt:null, mid:null, flat:null, bA:null, bB:null, ch:null, out:null, band:null, rays:null, KA:0.22, KB:0.13};
 
 /* ── 스텐실 글자 — 높이 100 칸에 긋는다. w 너비 · draw(c) 줄기 · cuts 잘라 낼 이음매(네모) ── */
@@ -124,21 +125,101 @@ function titleText(){
   T.txt=cv; T.txtH=H;
   T.mid=titleCanvas(Math.round(T.L.sc.w),Math.round(T.L.sc.h));
 }
+/* ── 여는 글과 '착륙' ───────────────────────────────────────────────────────
+   처음 켰을 때: 단추는 **시작** → 누르면 글 세 줄이 **낱말 하나씩 삐 소리와 함께** 찍힌다 → 다 찍히면 크고 빛나는 **착륙** 단추.
+   전부 같은 유리(휨 · 색 번짐 · 주사선)를 거친다. 섬을 다시 만들었을 때(새 섬 · 불러오기)는 글 없이 **착륙 단추만** 뜬다.
+   글이 찍히는 동안 화면을 누르거나 Enter 를 치면 건너뛴다 */
+const TITLE_LINES=['당신은 돈이 부족해서 이 게임에 참여했습니다.','살아남으세요','증거를 남기세요'], TITLE_WORD_DT=0.24, TITLE_LINE_DT=0.75;
+function titleBeep(n){
+  try{ const C=TITLE.ac||(TITLE.ac=new (window.AudioContext||window.webkitAudioContext)()); if(C.state==='suspended') C.resume();
+    const o=C.createOscillator(), g=C.createGain(), t=C.currentTime, vol=0.07*(typeof SET!=='undefined'&&SET.vol!==undefined?clamp(+SET.vol,0,1):1);
+    o.type='square'; o.frequency.value=n%5===0?660:880; o.connect(g); g.connect(C.destination);
+    g.gain.setValueAtTime(Math.max(0.0001,vol),t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.07); o.start(t); o.stop(t+0.08); }catch(e){}
+}
+function titleIntroFlat(a,t,W,H){
+  const T=TITLE, I=T.intro, el=(performance.now()-I.t0)/1000;
+  const fs=Math.round(clamp(W/27,20,42)), lh=fs*2.0, FONT='"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif';
+  a.textBaseline='middle'; a.textAlign='left'; a.fillStyle='#fff';
+  if(I.text){
+    a.font='700 '+fs+'px '+FONT;
+    let tt=0.45, shown=0, cx=0, cy=0; const y0=H*0.20;
+    for(let li=0;li<TITLE_LINES.length;li++){ const words=TITLE_LINES[li].split(' '); let x=W/2-a.measureText(TITLE_LINES[li]).width/2; const y=y0+li*lh;
+      for(const w of words){ if(I.keep||el>=tt){ a.fillText(w,x,y); shown++; cx=x+a.measureText(w).width; cy=y; } x+=a.measureText(w+' ').width; tt+=TITLE_WORD_DT; }
+      tt+=TITLE_LINE_DT; }
+    if(!I.keep){
+      if(shown>I.said){ I.said=shown; titleBeep(shown); }
+      if(shown&&Math.floor(t*3)%2===0) a.fillRect(cx+fs*0.18,cy-fs*0.5,fs*0.5,fs);          // 깜빡이는 글 끝
+      if(el>tt+0.25){ I.keep=true; T.mode='land'; I.tl=performance.now(); }
+    }
+  }
+  if(T.mode==='land'){
+    /* 크고 빛나는 '착륙' — 숨 쉬듯 밝아졌다 어두워진다. 누를 자리(T.btn)를 적어 둔다 */
+    const p=0.5+0.5*Math.sin(t*3.0), bw=clamp(W*0.30,230,430), bh=clamp(H*0.21,86,150), bx=W/2-bw/2, by=I.text?H*0.60:H*0.5-bh/2, r=bh*0.16;
+    const rr=()=>{ a.beginPath(); a.moveTo(bx+r,by); a.arcTo(bx+bw,by,bx+bw,by+bh,r); a.arcTo(bx+bw,by+bh,bx,by+bh,r); a.arcTo(bx,by+bh,bx,by,r); a.arcTo(bx,by,bx+bw,by,r); a.closePath(); };
+    a.save(); a.shadowColor='#fff'; a.shadowBlur=22+34*p; rr(); a.fillStyle='rgba(255,255,255,'+(0.10+0.10*p).toFixed(3)+')'; a.fill();
+    a.lineWidth=5; a.strokeStyle='#fff'; a.stroke(); a.shadowBlur=14+22*p;
+    a.fillStyle='#fff'; a.font='800 '+Math.round(bh*0.50)+'px '+FONT; a.textAlign='center'; a.fillText('착륙',W/2,by+bh*0.53); a.restore();
+    T.btn={x:bx,y:by,w:bw,h:bh};
+  }else T.btn=null;
+}
+/* 차례를 바꾼다 — 'banner'(간판 · 시작 단추) · 'intro'(여는 글) · 'land'(착륙 단추). 멈춰 있었으면 다시 돈다 */
+function titleEnter(mode,text){
+  const T=TITLE, ov=document.getElementById('ov'); if(!ov) return;
+  T.mode=mode; T.intro={t0:performance.now(), said:0, keep:mode==='land'&&!!text, text:mode==='intro'||!!text}; T.btn=null;
+  ov.classList.add('title'); ov.classList.toggle('tland',mode!=='banner');
+  titleStart();
+}
+/* 섬을 다 지었을 때(90-init.js 가 부른다) — 처음이면 간판과 '시작', 다시 만든 섬이면 곧장 '착륙' 단추만 */
+function titleAfterGen(){
+  const b=document.getElementById('bStart');
+  if(TITLE.first){ b.textContent='시작'; titleEnter('banner'); }
+  else{ b.textContent='착륙'; titleEnter('land',false); }
+}
+function titleLand(){ TITLE.first=false; titleStop(); start(); }
+/* 누른 자리가 '착륙' 단추 안인가 — 단추의 네 귀를 유리의 휨대로 옮겨 그 테두리 상자로 본다 */
+function titleHit(ev){
+  const T=TITLE, b=T.btn; if(!b||!T.flat) return false;
+  const r=T.cv.getBoundingClientRect(), x=(ev.clientX-r.left)/r.width*T.flat.width, y=(ev.clientY-r.top)/r.height*T.flat.height, W=T.flat.width, H=T.flat.height;
+  const c=[[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.h],[b.x+b.w,b.y+b.h]].map(q=>titleBend(q[0],q[1],W,H));
+  return x>=Math.min(c[0][0],c[2][0])-6&&x<=Math.max(c[1][0],c[3][0])+6&&y>=Math.min(c[0][1],c[1][1])-6&&y<=Math.max(c[2][1],c[3][1])+6;
+}
+{ const cv=document.getElementById('ovArt'), bs=document.getElementById('bStart'), titleUp=()=>{ const ov=document.getElementById('ov'); return TITLE.on&&ov&&ov.classList.contains('title')&&ov.style.display!=='none'; };
+  /* '시작' — 처음 여는 화면에서만 가로챈다(멈춤 화면의 '계속' · 쓰러진 뒤의 '깨어나기'는 그대로 start 로 간다) */
+  if(bs) bs.addEventListener('click',ev=>{ if(!titleUp()||TITLE.mode!=='banner') return; ev.stopImmediatePropagation(); ev.preventDefault();
+    if(typeof gameHours!=='undefined'&&gameHours>=0.01) titleEnter('land',false);      // 저장을 불러왔다 — 여는 글은 건너뛴다
+    else titleEnter('intro'); });
+  if(cv){
+    cv.addEventListener('click',ev=>{ if(!titleUp()) return;
+      if(TITLE.mode==='intro'){ TITLE.intro.keep=true; TITLE.mode='land'; return; }       // 글이 찍히는 중에 누르면 건너뛴다
+      if(TITLE.mode==='land'&&titleHit(ev)) titleLand(); });
+    cv.addEventListener('mousemove',ev=>{ cv.style.cursor=(TITLE.mode==='land'&&titleHit(ev))?'pointer':'default'; });
+  }
+  addEventListener('keydown',ev=>{ if(!titleUp()||(ev.code!=='Enter'&&ev.code!=='NumpadEnter')) return;
+    if(typeof busy!=='undefined'&&busy) return;
+    if(document.getElementById('ask')&&document.getElementById('ask').style.display==='flex') return;   // 묻는 상자가 떠 있으면 그쪽이 먼저
+    ev.preventDefault();
+    if(TITLE.mode==='banner'){ if(bs&&bs.style.display!=='none') bs.click(); }
+    else if(TITLE.mode==='intro'){ TITLE.intro.keep=true; TITLE.mode='land'; }
+    else titleLand(); });
+}
 /* ── 프레임 ── */
 function titleDraw(now){
   const T=TITLE, L=T.L, sc=L.sc, W=T.flat.width, H=T.flat.height, t=(now-T.t0)/1000;
-  /* ① 평평한 그림 — 검은 바탕 · 올라가는 글 · 간판 · 금 */
-  const m=T.mid.getContext('2d'), mw=T.mid.width, mh=T.mid.height, K=0.24, span=T.txtH*0.66;
-  m.setTransform(1,0,0,1,0,0); m.globalCompositeOperation='source-over'; m.clearRect(0,0,mw,mh);
-  const scroll=((t*26)%(T.txtH+sc.h*0.9))-sc.h*0.30;                 // 글 그림에서 화면 맨 아랫줄이 읽는 자리
-  const tear=(Math.floor(t*0.7)%5===0)?Math.floor((t*3.1%1)*mh):-99; // 가끔 한 띠가 옆으로 밀린다(낡은 수신)
-  for(let j=0;j<mh;j+=2){ const v=j/mh, z=1/(K+(1-K)*v), sy=scroll-(z-1)/(1/K-1)*span; if(sy<0||sy>=T.txt.height-2) continue;
-    const wj=mw/z*0.96, off=((j>tear&&j<tear+9)?7:0)+Math.sin(j*0.035+t*2.3)*1.5*v;     // 줄마다 살짝 물결친다
-    m.drawImage(T.txt,0,sy,T.txt.width,2*z,(mw-wj)/2+off,j,wj,2); }
-  m.globalCompositeOperation='destination-out';                      // 위로 갈수록 사라진다(간판 바로 밑)
-  let g=m.createLinearGradient(0,0,0,mh*0.42); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(0.4,'rgba(0,0,0,.8)'); g.addColorStop(1,'rgba(0,0,0,0)'); m.fillStyle=g; m.fillRect(0,0,mw,mh*0.42);
-  const a=T.flat.getContext('2d'); a.setTransform(1,0,0,1,0,0); a.globalCompositeOperation='source-over'; a.fillStyle='#000'; a.fillRect(0,0,W,H);
-  a.drawImage(T.mid,sc.x,sc.y); a.drawImage(T.ban,0,0);
+  /* ① 평평한 그림 — 검은 바탕 위에, 차례(mode)에 따라: 간판과 올라가는 글 / 여는 글 / 큰 '착륙' 단추 */
+  const a=T.flat.getContext('2d'); a.setTransform(1,0,0,1,0,0); a.globalCompositeOperation='source-over'; a.shadowBlur=0; a.fillStyle='#000'; a.fillRect(0,0,W,H);
+  let g;
+  if(T.mode==='banner'){
+    const m=T.mid.getContext('2d'), mw=T.mid.width, mh=T.mid.height, K=0.24, span=T.txtH*0.66;
+    m.setTransform(1,0,0,1,0,0); m.globalCompositeOperation='source-over'; m.clearRect(0,0,mw,mh);
+    const scroll=((t*26)%(T.txtH+sc.h*0.9))-sc.h*0.30;                 // 글 그림에서 화면 맨 아랫줄이 읽는 자리
+    const tear=(Math.floor(t*0.7)%5===0)?Math.floor((t*3.1%1)*mh):-99; // 가끔 한 띠가 옆으로 밀린다(낡은 수신)
+    for(let j=0;j<mh;j+=2){ const v=j/mh, z=1/(K+(1-K)*v), sy=scroll-(z-1)/(1/K-1)*span; if(sy<0||sy>=T.txt.height-2) continue;
+      const wj=mw/z*0.96, off=((j>tear&&j<tear+9)?7:0)+Math.sin(j*0.035+t*2.3)*1.5*v;     // 줄마다 살짝 물결친다
+      m.drawImage(T.txt,0,sy,T.txt.width,2*z,(mw-wj)/2+off,j,wj,2); }
+    m.globalCompositeOperation='destination-out';                      // 위로 갈수록 사라진다(간판 바로 밑)
+    g=m.createLinearGradient(0,0,0,mh*0.42); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(0.4,'rgba(0,0,0,.8)'); g.addColorStop(1,'rgba(0,0,0,0)'); m.fillStyle=g; m.fillRect(0,0,mw,mh*0.42);
+    a.drawImage(T.mid,sc.x,sc.y); a.drawImage(T.ban,0,0);
+  }else titleIntroFlat(a,t,W,H);
   /* 빛이 일렁인다 — 밝은 띠 둘이 서로 다른 빠르기로 훑고 내려간다(검은 데는 그대로 검다 — 흰 것만 더 밝거나 어두워진다) */
   a.globalCompositeOperation='multiply';
   { const base=0.80+0.05*Math.sin(t*9)+0.03*Math.sin(t*23), stops=[[0,base],[1,base]];
@@ -193,5 +274,5 @@ function titleStart(){
   T.cx=T.cv.getContext('2d'); T.on=true; T.t0=performance.now();
   T.timer=setInterval(titleTick,50); titleTick();
 }
-function titleStop(){ const T=TITLE; if(!T.on) return; T.on=false; clearInterval(T.timer); document.getElementById('ov').classList.remove('title'); }
+function titleStop(){ const T=TITLE; if(!T.on) return; T.on=false; clearInterval(T.timer); const ov=document.getElementById('ov'); ov.classList.remove('title'); ov.classList.remove('tland'); }
 titleStart();

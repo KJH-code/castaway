@@ -17,7 +17,7 @@
    ⑤ **벌레** — 보기 좋으라고만 있다: 낮의 풀밭엔 나비, 밤의 숲과 늪엔 반딧불이, 물가엔 잠자리. 사람 둘레 28 m 에 점으로 날린다.
    자리는 전부 나무의 해시라 섬 생성·저장 형식을 건드리지 않는다. 꺼낸 알·딴 꿀의 자리는 식생의 `FLORA.taken` 에 같이 적힌다(저장된다).
    ========================================================================== */
-const WILD={nestIM:null, hiveIM:null, birdIM:null, bugs:null, cx:1e9, cz:1e9, picks:[], nests:[], hives:[],
+const WILD={fallen:[], swarm:null, nestIM:null, hiveIM:null, birdIM:null, bugs:null, cx:1e9, cz:1e9, picks:[], nests:[], hives:[],
             flocks:[], perched:[], bugN:140, t:0, hint:false};
 const CLIMB={on:false, p:null, ang:0, h:0, top:0, sp:false};
 const isNestTree=p=>(p.k==='oak'||p.k==='fir')&&!p.felled&&((p._hash>>>11)%14)===0;
@@ -131,6 +131,7 @@ function wildScatter(){
     const dx=t.cx-px, dz=t.cz-pz; if(dx*dx+dz*dz>(70+t.r)*(70+t.r)) continue;
     for(const p of t.ps){
       const ddx=p.x-px, ddz=p.z-pz; if(ddx*ddx+ddz*ddz>70*70) continue;
+      if(p.felled) continue;                              // 벤 나무에는 둥지도 벌집도 없다(벌집은 떨어졌다 — wildTreeFelled)
       if(isNestTree(p)&&nn<WILD.nestIM.instanceMatrix.count){
         const a=((p._hash>>>3)%628)/100, r=0.34*p.s, y=p.y+nestH(p);
         _wE.set(0,a,0); _wQ.setFromEuler(_wE); _wV.set(p.x+Math.cos(a)*r,y,p.z+Math.sin(a)*r); _wM.compose(_wV,_wQ,_wS);
@@ -146,8 +147,40 @@ function wildScatter(){
       }
     }
   }
+  /* 땅에 떨어진 벌집 — 옆으로 누워 있다. 꿀은 여기서도 딸 수 있다(같은 열쇠 — 한 번 따면 끝) */
+  for(const f of WILD.fallen){ if((f.x-px)*(f.x-px)+(f.z-pz)*(f.z-pz)>70*70||nh>=WILD.hiveIM.instanceMatrix.count) continue;
+    f.i=nh; _wE.set(1.45,f.a,0.2); _wQ.setFromEuler(_wE); _wV.set(f.x,f.y,f.z); _wM.compose(_wV,_wQ,_wS); WILD.hiveIM.setMatrixAt(nh++,_wM);
+    WILD.picks.push({kind:'honey',x:f.x,y:f.gy+0.15,z:f.z,key:f.key,r:0.35,tree:false,ay:f.gy+0.15}); }
   WILD.nestIM.count=nn; WILD.nestIM.instanceMatrix.needsUpdate=true;
   WILD.hiveIM.count=nh; WILD.hiveIM.instanceMatrix.needsUpdate=true;
+}
+/* ── 나무를 베면 벌집이 떨어진다 ─────────────────────────────────────────────
+   벌집이 달린 참나무를 다 베면(50-items.js 가 부른다) 벌집이 땅으로 떨어지고 **성난 벌 떼**가 사람을 쫓아온다(사용자 요청).
+   떼는 초속 5.6 m 로 따라붙는다 — 걷기(4.3)로는 못 벗어나고 달리면(7.4) 벌어진다. 닿아 있는 동안 0.9초마다 쏘인다.
+   16초면 흩어지고, **물에 들어가거나 불 붙인 횃불을 들면** 훨씬 빨리 물러난다. 떨어진 벌집의 꿀은 그대로 딸 수 있다 */
+function wildTreeFelled(p){
+  if(!WILD.hiveIM||p.k!=='oak'||((p._hash>>>15)%26)!==0||((p._hash>>>11)%14)===0) return;   // 벌집이 달렸던 참나무인가(isHiveTree 는 벤 나무를 빼므로 여기서는 못 쓴다)
+  const a=((p._hash>>>5)%628)/100, r=0.66*p.s, x=p.x+Math.cos(a)*r, z=p.z+Math.sin(a)*r, gy=heightAt(x,z);
+  WILD.fallen.push({x,z,y:p.y+1.75,gy,vy:0,a,key:'H'+p._hash,i:-1,land:false});
+  WILD.swarm={x,y:p.y+1.9,z,t:16,hit:0.5,said:false};
+  WILD.cx=1e9;                                         // 다시 깐다(나무에 달린 것은 사라지고 떨어지는 것이 선다)
+  toast('벌집이 떨어졌다 — 성난 벌 떼가 달려든다! 달아나라(물에 들어가거나 횃불 연기를 쓰면 물러난다)');
+  sfx('branch');
+}
+function wildSwarm(dt){
+  for(const f of WILD.fallen){ if(f.land||f.i<0) continue;          // 떨어지는 중 — 땅에 닿을 때까지
+    f.vy-=14*dt; f.y+=f.vy*dt; if(f.y<=f.gy+0.12){ f.y=f.gy+0.12; f.land=true; sfx('stone'); }
+    _wE.set(f.land?1.45:0.4,f.a,0.2); _wQ.setFromEuler(_wE); _wV.set(f.x,f.y,f.z); _wS.set(1,1,1); _wM.compose(_wV,_wQ,_wS);
+    WILD.hiveIM.setMatrixAt(f.i,_wM); WILD.hiveIM.instanceMatrix.needsUpdate=true; }
+  const S=WILD.swarm; if(!S) return;
+  const tx=PL.pos.x, ty=PL.pos.y+1.35, tz=PL.pos.z, dx=tx-S.x, dy=ty-S.y, dz=tz-S.z, d=Math.sqrt(dx*dx+dy*dy+dz*dz)||1;
+  const e=equippedTool(), smoke=!!(e&&e.lit), wet=PL.swim||PL.depth>1.0;
+  S.t-=dt*(wet?5:smoke?3:1);
+  if(!wet&&d>0.25){ const k=Math.min(1,5.6*(smoke?0.45:1)*dt/d); S.x+=dx*k; S.y+=dy*k; S.z+=dz*k; }
+  S.hit-=dt;
+  if(d<1.4&&S.hit<=0&&!PL.dead&&!wet&&!smoke){ S.hit=0.9; hurtPL(2.5,'벌 떼에 쏘였다');
+    if(!S.said){ S.said=true; toast('벌 떼에 쏘인다 — 달려서 벗어나라'); } }
+  if(S.t<=0||d>70||PL.dead){ WILD.swarm=null; if(!PL.dead) toast('벌 떼가 흩어졌다'); }
 }
 /* 새 떼 — 사람 둘레 숲 위를 원을 그리며 돈다. 맞아서 줄어든 떼는 멀어지면 새 떼로 바뀐다 */
 function wildFlocks(dt){
@@ -201,10 +234,14 @@ const BUG_C=[[0,0,0],[1.0,0.86,0.30],[0.75,1.0,0.35],[0.38,0.62,0.78],[0.95,0.75
 function wildBugs(dt){
   const B_=WILD.bugs, P=B_.pts.geometry.attributes.position, C=B_.pts.geometry.attributes.color, px=PL.pos.x, pz=PL.pos.z;
   const night=hourOfDay<5.2||hourOfDay>19.6, t=WILD.t, cntB={};
+  const SW=WILD.swarm;
   for(let i=0;i<B_.st.length;i++){ const s=B_.st[i];
+    /* 성난 벌 떼 — 앞의 서른 마리가 떼의 자리를 빠르고 넓게 맴돈다(떼가 사람을 쫓는다 — wildSwarm) */
+    if(SW&&i<30){ s.k=4; s.life=2; s.sw=1; s.bx=SW.x; s.by=SW.y; s.bz=SW.z; if(s.y<-900){ s.x=SW.x; s.y=SW.y; s.z=SW.z; } }
+    else if(s.sw){ s.sw=0; s.life=0; }
     s.life-=dt;
     const dd=(s.x-px)*(s.x-px)+(s.z-pz)*(s.z-pz);
-    if(s.life<=0||dd>30*30||s.k===0){                // 다시 태어난다 — 그 자리의 바이옴과 시각에 맞는 벌레로
+    if((!s.sw&&(s.life<=0||dd>30*30))||s.k===0){                // 다시 태어난다 — 그 자리의 바이옴과 시각에 맞는 벌레로
       s.k=0; s.y=-999;
       if(i<16&&WILD.hives.length){ const h=WILD.hives[i%WILD.hives.length]; s.x=h.x; s.y=h.y; s.z=h.z; s.k=4; s.life=6+Math.random()*6; s.bx=h.x; s.by=h.y; s.bz=h.z; }
       else{ const a=Math.random()*6.283, d=3+Math.random()*24, x=px+Math.cos(a)*d, z=pz+Math.sin(a)*d, sm=sampleAt(x,z);
@@ -215,7 +252,7 @@ function wildBugs(dt){
           if(s.k){ s.x=x; s.z=z; s.life=8+Math.random()*14; s.gy=g; } } }
     }
     if(s.k){
-      if(s.k===4){ s.x=s.bx+Math.sin(t*5+s.ph)*0.45; s.y=s.by+Math.sin(t*7+s.ph*2)*0.32; s.z=s.bz+Math.cos(t*6+s.ph*1.3)*0.45; }       // 벌 — 벌집 둘레를 맴돈다
+      if(s.k===4){ const q=s.sw?2.4:1, w=s.sw?1.9:1; s.x=s.bx+Math.sin(t*5*w+s.ph)*0.45*q; s.y=s.by+Math.sin(t*7*w+s.ph*2)*0.32*q; s.z=s.bz+Math.cos(t*6*w+s.ph*1.3)*0.45*q; }       // 벌 — 벌집 둘레를 맴돈다(성난 떼는 넓고 빠르게)
       else if(s.k===2){ s.x+=Math.sin(t*0.7+s.ph)*0.25*dt; s.z+=Math.cos(t*0.6+s.ph*1.4)*0.25*dt; s.y+=Math.sin(t*0.9+s.ph)*0.15*dt; }  // 반딧불이 — 느리게 뜬다
       else if(s.k===3){ s.x+=Math.sin(t*1.9+s.ph)*2.4*dt; s.z+=Math.cos(t*1.6+s.ph*1.7)*2.4*dt; }                                         // 잠자리 — 빠르게 휙휙
       else{ s.x+=Math.sin(t*1.3+s.ph)*0.9*dt; s.z+=Math.cos(t*1.1+s.ph*1.6)*0.9*dt; s.y=s.gy+0.7+0.5*Math.sin(t*2.3+s.ph); }              // 나비 — 팔랑팔랑
@@ -314,7 +351,7 @@ function updateWildlife(dt){
   WILD.t+=dt; WILD_U.t.value=WILD.t;
   const dx=PL.pos.x-WILD.cx, dz=PL.pos.z-WILD.cz;
   if(dx*dx+dz*dz>100) wildScatter();
-  wildFlocks(dt); wildBugs(dt);
+  wildSwarm(dt); wildFlocks(dt); wildBugs(dt);
   if(!WILD.hint&&!CLIMB.on&&landed&&climbLook()){ WILD.hint=true; toast('나무 줄기를 보고 Space — 나무를 오른다(둥지는 높은 데 있다)'); }
 }
-function wildReset(){ WILD.cx=WILD.cz=1e9; WILD.flocks.length=0; WILD.picks.length=0; CLIMB.on=false; WILD.hint=false; }
+function wildReset(){ WILD.fallen.length=0; WILD.swarm=null; WILD.cx=WILD.cz=1e9; WILD.flocks.length=0; WILD.picks.length=0; CLIMB.on=false; WILD.hint=false; }

@@ -1742,7 +1742,7 @@ function envPatch(m){
     const has=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.vertexShader+sh.fragmentShader);   // 제 셰이더가 이미 선언했으면 다시 안 한다
     const MV=melt?(has('uElev')?'':'uniform sampler2D uElev;\n')+(has('uGrid')?'':'uniform vec2 uGrid;\n')+(meltA?'attribute float aMelt;\n':'')+`varying float vMeltH;
 varying float vMeltT;
-float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.x-1.0))),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*300.0-100.0; }
+float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.x-1.0))),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*1200.0-100.0; }
 `:'';
     const W=WIND_GLSL[wind]||'';
     sh.vertexShader='uniform float uTime;\nuniform vec3 uWind;\nvarying vec2 vCsXZ;\n'+MV+
