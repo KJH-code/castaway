@@ -48,6 +48,7 @@ function genBase(seed){
    2) 열적 침식 — 안식각 초과분 이동
    ========================================================================== */
 function thermal(iters,talus,rate){
+  if(nativeOn()){ nativeRun(X=>X.cw_thermal(N,iters,talus,rate)); return; }   // C 판(12-native.js) — 결과는 아래와 한 비트도 다르지 않다
   const h=F.elev, tmp=new Float32Array(h.length);
   for(let it=0;it<iters;it++){
     tmp.set(h);
@@ -72,6 +73,7 @@ function thermal(iters,talus,rate){
    ========================================================================== */
 function hydraulic(seed, drops){
   if(drops<=0) return;
+  if(nativeOn()){ nativeRun(X=>X.cw_hydraulic(N,seed>>>0,drops)); return; }   // C 판(12-native.js)
   const h=F.elev, rnd=mulberry32(seed^0xdeadbeef);
   const R=2;                    // 침식 브러시 반경
   const bo=[], bw=[]; let bsum=0;
@@ -137,6 +139,7 @@ function hydraulic(seed, drops){
 /* 침식이 남긴 셀 단위 잡티만 걷어낸다. 3×3 가중 평균에 계수 k 만큼만 섞으므로
    골짜기·능선 같은 큰 형태는 그대로 두고 표면만 매끄러워진다. */
 function smoothTerrain(passes,k){
+  if(nativeOn()){ nativeRun(X=>X.cw_smooth(N,passes,k)); return; }             // C 판(12-native.js)
   const h=F.elev, t=new Float32Array(h.length);
   for(let it=0;it<passes;it++){
     t.set(h);

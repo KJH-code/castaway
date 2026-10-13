@@ -315,6 +315,7 @@ async function generateWorld(){
   try{
   document.getElementById('ov').style.display='flex';
   document.getElementById('bStart').style.display='none';
+  await NATIVE.ready;                   // C 로 짠 침식 토막(WebAssembly)이 켜지기를 기다린다 — 못 켜면 JS 판으로 돈다(12-native.js)
   const seed=hashStr(P.seed), t0=performance.now();
 
   await phase('지각 융기',6);       genBase(seed);

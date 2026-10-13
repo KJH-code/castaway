@@ -30,6 +30,8 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/css/game.css` | All styling: HUD, panels (inventory, crafting, box, settings), camcorder overlay, start screen, touch buttons |
 | `engine/js/00-core.js` | Error banner, seeded random + noise, grid size, the global terrain fields `F`, biome table, resource table, island parameters `P` |
 | `engine/js/10-worldgen.js` | Island generation: uplift → thermal erosion → droplet erosion → rivers → slope/distance fields → climate → biome classification → resource placement → seabed relief (`shapeSeabed`, runs last so land and saves are unaffected); `heightAt()` and friends |
+| `engine/js/12-native.js` | Loads the **C erosion kernels** (WebAssembly) and routes `thermal` / `hydraulic` / `smoothTerrain` to them; `nativeVerify()` checks they give bit-identical islands to the JavaScript versions. Source: `engine/native/erosion.c`, build: `sh engine/native/build.sh` |
+| `engine/js/data-native-wasm.js` | The compiled WebAssembly as base64 (generated — do not edit) |
 | `engine/js/20-terrain.js` | Tree limb/leaf instancing data, bark, **ground shader** (per-biome textures, gravel), **rock material**, terrain chunks + LOD, sea/river water |
 | `engine/js/data-ground-textures.js` | Eight real photo textures (sand, grass, two forest floors, rock, pebbles, mud, dry soil) embedded as base64. Not meant to be read |
 | `engine/js/22-ground-textures.js` | Loads those photos into one array texture, builds the noise texture, and holds the **photo-based ground shader** (+ shoreline wet band and foam) |

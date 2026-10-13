@@ -208,6 +208,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 |---|---|
 | `00-core.js` | 오류 띠 · 시드 난수·잡음 · 격자 크기 · 지형 필드 `F` · 바이옴 표 · **`RESOURCES`** · 섬 인자 `P` |
 | `10-worldgen.js` | 1)~8) 섬 만들기(융기 → 열적·수적 침식 → 하천 → 경사·거리장 → 기후 → 바이옴 → 자원 배치) · 해저 굴곡 `shapeSeabed`(맨 끝 — 땅·저장에 안 닿는다) · `heightAt` 등 조회 창구 |
+| `12-native.js` · `data-native-wasm.js` | **C 로 짠 침식 토막**(열적·물방울 침식·다듬기)을 WebAssembly 로 잇는다 — 원본 `engine/native/erosion.c` · 짓기 `sh engine/native/build.sh`(컴파일러는 `sh env/setup-zig.sh`) · **JS 판과 한 비트도 달라선 안 된다**: 한쪽을 고치면 `node tools/probe.mjs island_world.html "nativeVerify()"` 로 견줄 것(전부 same 이어야 한다). `data-native-wasm.js` 는 base64 — 읽지 말 것 |
 | `20-terrain.js` | 가지·잎 인스턴스 · 압축 `instCompact` 87 · 나무껍질 · 땅 셰이더 · 암석 재질 · 지형 `buildChunks` 858 / LOD `updateTerrainLOD` 916 · 바다·하천 물 |
 | `22-ground-textures.js` | 땅 사진을 배열 텍스처로 · 사진 결 땅 셰이더(물가 젖은 띠·거품) |
 | `24-shapes.js` | 땅 식물·바다 생물이 같이 쓰는 매끈한 모양 도구(관·혹·휘는 잎·돌림체·잎 판·합치기) |
