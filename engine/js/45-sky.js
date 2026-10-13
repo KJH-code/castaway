@@ -1736,7 +1736,7 @@ function envPatch(m){
   m.onBeforeCompile=(sh,r)=>{
     if(prev&&prev!==THREE.Material.prototype.onBeforeCompile) prev(sh,r);
     Object.assign(sh.uniforms,{csFine:CSH.fine, csCoarse:CSH.coarse, csC:CSH.ctr,
-      csS:CSH.size, csOn:CSH.on, uTime:CSH.time, uWind:CSH.wind});
+      csS:CSH.size, csOn:CSH.on, uTime:CSH.time, uWind:CSH.wind, uTLe:TERR_U.uTL, uTLg:TLIT.G});
     if(melt){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
       for(const k in MU) if(MU[k]&&!sh.uniforms[k]) sh.uniforms[k]=MU[k]; }
     const has=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.vertexShader+sh.fragmentShader);   // 제 셰이더가 이미 선언했으면 다시 안 한다
@@ -1781,13 +1781,18 @@ uniform vec2 csC;
 uniform float csS;
 uniform float csOn;
 varying vec2 vCsXZ;
+uniform sampler2D uTLe;
+uniform vec2 uTLg;
+vec4 tlE(){ return texture2D(uTLe,(vCsXZ/uTLg.y+uTLg.x*0.5+0.5)/uTLg.x); }
 float cloudSh(){
   vec2 uv=(vCsXZ-csC)/csS+0.5;
   vec2 e=smoothstep(0.0,0.08,uv)*smoothstep(0.0,0.08,1.0-uv);
   float t=(texture2D(csFine,uv).r+texture2D(csCoarse,uv).r)*${CS_TAU.toFixed(1)};
-  return mix(1.0,exp(-t),csOn*e.x*e.y);
+  return mix(1.0,exp(-t),csOn*e.x*e.y)*tlE().r;                 // × 산 그림자(41-terrain-light.js)
 }
-`+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();');
+`+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();')
+      /* 간접광(하늘빛)에 하늘 트임을 곱한다 — 골짜기·벼랑 밑은 하늘이 좁다. 벽에서 되비치는 몫 0.45 는 남긴다 */
+      .replace('reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb );','reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb ) * ( 0.45 + 0.55 * tlE().g );');
     if(melt){
       const fh=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.fragmentShader);
       sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')

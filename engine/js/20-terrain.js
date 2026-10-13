@@ -884,9 +884,11 @@ function buildChunks(){
     for(let j=0;j<nv;j++) for(let i=0;i<nv;i++){
       const x=Math.min(N-1,x0+i), z=Math.min(N-1,z0+j), id=IDX(x,z), p=(j*nv+i)*3;
       pos[p]=(x-N/2)*CELL; pos[p+1]=F.elev[id]; pos[p+2]=(z-N/2)*CELL; H[j*nv+i]=F.elev[id];
-      // ±2 셀 스텐실 — 폭을 넓히면 셀 단위 요철이 조명에 덜 드러난다
-      const xm=Math.max(0,x-2), xp=Math.min(N-1,x+2);
-      const zm=Math.max(0,z-2), zp=Math.min(N-1,z+2);
+      // ±2 셀 스텐실 — 폭을 넓히면 셀 단위 요철이 조명에 덜 드러난다. 칸이 큰 섬(7.5 m 이상)은 ±1 — 칸 하나가 이미 큰 지형이라
+      // 넓히면 벼랑·능선의 면이 뭉개진다(잔 기복은 화소에서 따로 얹는다 — 22-ground-textures.js)
+      const sw=CELL>=7.5?1:2;
+      const xm=Math.max(0,x-sw), xp=Math.min(N-1,x+sw);
+      const zm=Math.max(0,z-sw), zp=Math.min(N-1,z+sw);
       const gx=(F.elev[IDX(xp,z)]-F.elev[IDX(xm,z)])/((xp-xm)*CELL);
       const gz=(F.elev[IDX(x,zp)]-F.elev[IDX(x,zm)])/((zp-zm)*CELL);
       const inv=1/Math.sqrt(gx*gx+1+gz*gz);
