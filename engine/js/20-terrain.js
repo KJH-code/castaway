@@ -501,7 +501,12 @@ void patchCalc(vec3 pos){
   float hb=mix(mix(mix(h00,h10,f.x),mix(h01,h11,f.x),f.y),ht,uTri);                              // heightAt 의 면 — 판 1·2 는 쌍선형, 판 3 은 세모 면
   float d=length(pos.xz);
   float m=textureLod(uTL,(g+0.5)/uGrid.x,0.0).a;
-  float rel=(textureLod(uRel,(mat2(0.8253,-0.5646,0.5646,0.8253)*w+vec2(17.0,3.0))/31.0,0.0).r-0.5)*${RELIEF.amp.toFixed(3)}*m*(1.0-smoothstep(uPR*0.74,uPR*0.89,d));
+  ivec2 gm=ivec2(int(uGrid.x)-1);                                                                 // 땅의 거칠기(표고 텍스처의 B) — 프랙털의 비
+  float gr=mix(mix(texelFetch(uElev,clamp(i,ivec2(0),gm),0).b,texelFetch(uElev,clamp(i+ivec2(1,0),ivec2(0),gm),0).b,f.x),
+               mix(texelFetch(uElev,clamp(i+ivec2(0,1),ivec2(0),gm),0).b,texelFetch(uElev,clamp(i+ivec2(1,1),ivec2(0),gm),0).b,f.x),f.y);
+  float fr=0.20+0.55*gr;
+  float rel=((textureLod(uRel,(mat2(0.8253,-0.5646,0.5646,0.8253)*w+vec2(17.0,3.0))/31.0,0.0).r-0.5)
+            +fr*0.5*(textureLod(uRel,(mat2(-0.3233,-0.9463,0.9463,-0.3233)*w+vec2(5.0,41.0))/7.5,0.0).r-0.5))*${RELIEF.amp.toFixed(3)}*m*(1.0-smoothstep(uPR*0.74,uPR*0.89,d));
   patchPos=vec3(w.x,mix(hb+rel,ht,smoothstep(uPR*0.89,uPR*0.985,d)),w.y);
   float sw=uGrid.y>=7.5?1.0:2.0;                                                                  // 본 땅의 정점 법선과 같은 폭(buildChunks)
   patchNor=normalize(vec3(-(pB(g+vec2(sw,0.0))-pB(g-vec2(sw,0.0))),2.0*sw*uGrid.y,-(pB(g+vec2(0.0,sw))-pB(g-vec2(0.0,sw)))));
@@ -1274,6 +1279,7 @@ function buildWaterElev(){
   for(let i=0;i<N*N;i++){
     const v=Math.round(clamp((F.elev[i]+100)/1200,0,1)*65535);   // −100~1100 m(6배 섬의 산은 340 m 를 넘는다 — 예전 200 m 에서 잘렸다) · 눈금 1.8 cm
     px[i*4]=v>>8; px[i*4+1]=v&255; px[i*4+3]=255;
+    px[i*4+2]=RELIEF.on&&RELIEF.G?RELIEF.G[i]:0;      // B 땅의 거칠기(10-worldgen.js — 덧판이 프랙털의 비로 쓴다)
   }
   waterElevTex=new THREE.DataTexture(px,N,N,THREE.RGBAFormat,THREE.UnsignedByteType);
   waterElevTex.magFilter=waterElevTex.minFilter=THREE.NearestFilter;

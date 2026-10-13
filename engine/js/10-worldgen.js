@@ -850,13 +850,24 @@ function shapeSeabed(seed){
      먼 땅(칸마다 정점 하나)에는 안 보인다 — 46 m 밖의 30 cm 는 두 화소가 안 된다.
    · 표고장(`F.elev`)은 그대로다. 그래서 하천·물·그림자·지도는 안 바뀐다.
    · 지형 판 3 부터(`P.tv`). 그 전 판의 섬은 기복이 없다(물체의 높이가 저장과 달라지지 않게) */
-const RELIEF={on:false, amp:0.70, M:null};
+const RELIEF={on:false, amp:0.70, M:null, G:null};   // G: 땅의 거칠기(0 고운 모래·진흙 ~ 255 자갈·암반) — 프랙털의 비를 정한다
 /* 높이 텍스처를 그 자리에서 읽는다(0~1) — 덧판 셰이더의 textureLod(uRel,(M2·p+(17,3))/31).r 과 같은 값(쌍선형 · 되풀이) */
 function reliefT(wx,wz){
   const Q=GND.relQ, u=(0.8253*wx+0.5646*wz+17)/31*256-0.5, v=(-0.5646*wx+0.8253*wz+3)/31*256-0.5;
   const ix=Math.floor(u), iy=Math.floor(v), fx=u-ix, fy=v-iy, x0=ix&255, x1=(ix+1)&255, y0=(iy&255)<<8, y1=((iy+1)&255)<<8;
   return (Q[y0+x0]*(1-fx)+Q[y0+x1]*fx)*(1-fy)+(Q[y1+x0]*(1-fx)+Q[y1+x1]*fx)*fy;
 }
+/* 둘째 겹(7.5 m 에 한 장 — 2 m·1 m 둔덕, 반 미터 골) — 셰이더의 textureLod(uRel,(M3·p+(5,41))/7.5).r 과 같은 값 */
+function reliefT2(wx,wz){
+  const Q=GND.relQ, u=(-0.3233*wx+0.9463*wz+5)/7.5*256-0.5, v=(-0.9463*wx-0.3233*wz+41)/7.5*256-0.5;
+  const ix=Math.floor(u), iy=Math.floor(v), fx=u-ix, fy=v-iy, x0=ix&255, x1=(ix+1)&255, y0=(iy&255)<<8, y1=((iy+1)&255)<<8;
+  return (Q[y0+x0]*(1-fx)+Q[y0+x1]*fx)*(1-fy)+(Q[y1+x0]*(1-fx)+Q[y1+x1]*fx)*fy;
+}
+/* **프랙털의 비는 땅의 거칠기를 따른다**(사용자 요청) — 겹을 하나 내려갈 때마다 높이가 줄어드는 비(r)가 고운 땅(모래·진흙·습지)은
+   0.20, 거친 땅(자갈밭·암반·가파른 비탈)은 0.75 다. 고운 땅은 큰 둔덕만 순하게 굽이치고, 거친 땅은 잔 굴곡이 살아 울퉁불퉁하다.
+   거칠기(`RELIEF.G`)는 바이옴과 비탈에서 정한다. 사람 둘레의 덧판이 같은 식으로 그린다(20-terrain.js — 표고 텍스처의 B) */
+const RELIEF_GRAIN=(()=>{ const a=new Uint8Array(16).fill(70); a[B.BEACH]=18; a[B.DUNE]=28; a[B.MARSH]=22; a[B.MEADOW]=60; a[B.BROADLEAF]=95; a[B.CONIFER]=95;
+  a[B.SCRUB]=125; a[B.RIVER]=150; a[B.ROCK]=205; a[B.SCREE]=255; a[B.FUMAROLE]=170; a[B.SHELF]=18; a[B.DEEP]=18; return a; })();
 /* 가림막 — 물(바다·하천)에서 한 칸은 0 · 그다음 칸은 절반 · 그 밖은 1. 낮은 뭍(0.6~2.6 m)에서 차츰 선다 */
 function reliefMask(){
   const M=RELIEF.M||(RELIEF.M=new Uint8Array(N*N)), h=F.elev, W=new Uint8Array(N*N);
@@ -868,6 +879,9 @@ function reliefMask(){
   for(let z=2;z<N-2;z++) for(let x=2;x<N-2;x++){ const i=z*N+x; if(W[i]) continue;
     const near=W[i-1]===1||W[i+1]===1||W[i-N]===1||W[i+N]===1;
     M[i]=Math.round(255*(near?0.5:1)*smoothstep(0.6,2.6,h[i])); }
+  { const G=RELIEF.G||(RELIEF.G=new Uint8Array(N*N)), T=new Uint8Array(N*N);                // 거칠기 — 바이옴 + 비탈, 한 번 흐린다
+    for(let i=0;i<N*N;i++) T[i]=Math.min(255,RELIEF_GRAIN[F.biome[i]]+Math.max(0,F.slope[i]-0.3)*190);
+    G.set(T); for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=z*N+x; G[i]=(T[i]*4+T[i-1]+T[i+1]+T[i-N]+T[i+N])>>3; } }
   RELIEF.on=true; TERR_U.uTri.value=1;
 }
 function heightAt(wx,wz){
@@ -879,7 +893,9 @@ function heightAt(wx,wz){
      메시와 한 뼘~1 m 어긋나, 먼 비탈의 나무·바위·풀이 뜨거나 묻혔다(사용자 지적). 사람 둘레의 덧판도 같은 면을 쓴다(`uTri`) */
   const y=fx+fz<=1?h[i]+(h[i+1]-h[i])*fx+(h[i+N]-h[i])*fz:h[i+N+1]+(h[i+N]-h[i+N+1])*(1-fx)+(h[i+1]-h[i+N+1])*(1-fz);
   const M=RELIEF.M, m=M[i]*a+M[i+1]*b+M[i+N]*c+M[i+N+1]*d;
-  return m>0?y+m*(RELIEF.amp/255)*(reliefT(wx,wz)-0.5):y;
+  if(!(m>0)) return y;
+  const G=RELIEF.G, r=0.20+0.55/255*(G[i]*a+G[i+1]*b+G[i+N]*c+G[i+N+1]*d);         // 프랙털의 비 — 거칠수록 잔 겹이 크다
+  return y+m*(RELIEF.amp/255)*((reliefT(wx,wz)-0.5)+r*0.5*(reliefT2(wx,wz)-0.5));
 }
 /* 그 자리의 땅 기울기(∂h/∂x · ∂h/∂z) — heightAt 의 차분이라 잔 기복까지 든다. e: 재는 폭(m). 돌려주는 배열은 돌려 쓴다 */
 const _gSl=[0,0];

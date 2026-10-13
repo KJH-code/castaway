@@ -216,6 +216,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `32-caves.js` | 동굴 — 바위 굴집 `buildCaves`(방 1~3 개) · 반딧불이 유충(빛나는 점)·빛나는 버섯·방마다 약한 불빛(불빛 풀) · `updateCaves` |
 | `33-crags.js` | 암벽 — 가파른 칸의 큰 바위 무리 `cragSites`/`cragGrow`(프랙털 세 단계 · 덩이마다 다른 빛깔) · 320 m 칸 메시 `cragMesh` · `updateCrags` |
 | `40-light.js` | **`LIGHT` 46**(배역 · 해 그림자 상자 · 점·집중광 예산) · `renderFrame` |
+| `66-decay.js` | 상하는 먹을 것(칸의 `t` · `ITEMS[].rot` · `freshMerge` · `updateDecay` · 파리) · 비에 꺼지는 불(`fireShelter` · `fireRain`) |
 | `98-dew.js` | 이슬 — 가까운 잎 위의 물방울 메시 `updateDew`(양은 `TERR_U.uDew` — 41-terrain-light.js 가 정하고, 잎·풀밭의 반짝임은 envPatch·땅 셰이더가 그린다) |
 | `41-terrain-light.js` | 섬 크기의 빛 텍스처 `TLIT` — R 산 그림자(`tlitSweepStep`) · G 하늘 트임 · B 숲 덮임 · A 잔 기복 가림막 · `tlitBuild` · `updateTlit` |
 | `45-sky.js` | `SKY` 8 · `updateWeather` 357 · 구름 명암 `litQueue` 905 · `updateClouds` 1476 · `SKY_LUT` 1967 · **`updateSky` 2107**(노을·달밤 색조 `SKYL.grade` 포함) — **`beta/cloud_arena.html` 의 원본** |
@@ -355,6 +356,11 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - **땅의 빛은 화소에서 센다**(22-ground-textures.js) — 램버트의 정점 값 `lambW.x` 자리에 `gndSun` 을 넣는다. 램버트 조각 셰이더의
   그 두 줄(`SUN` · `IND`)이 바뀌면 조용히 예전 방식으로 돌아간다(`PIX` 거짓). 섬 크기의 빛(산 그림자·하늘 트임)은 `envPatch` 가
   빛을 받는 모든 재질에 곱한다(41-terrain-light.js). 캠코더 그림판은 되는 장치에서 반정밀 실수다(`CAMC.hdr`).
+- **`updateHUD`(82-hud.js) 안에서 일찍 `return` 하지 말 것** — 조준 표시 갈래에서 돌아가면 그 아래(가방 맞춤 · 도구 표시 · **제작 진행 막대**)가
+  통째로 안 돈다. 숫돌을 보는 동안 막대가 멈춰 '안 만들어진다'는 베타 신고가 이것이었다. 갈래는 else-if 로 잇는다.
+- **먹을 것의 칸을 새로 만들 때는 나이를 들고 갈 것**(`DECAY.carry` → `stackInto`·`invAdd` 가 `freshMerge` 로 받는다 — 66-decay.js). 그냥 새 칸을
+  만들면 옮길 때마다 새것이 된다. **토대 표(FOUNDS)에는 보이지 않는 '맨땅의 바탕'(`ghost` · tier −1 · mesh 없음)이 섞여 있다** — 토대를 도는
+  코드는 `f.ghost` 를 걸러야 한다(바닥이 아니고 메시도 없다 — 62-build.js `groundBase`).
 - **큰 바위(33-crags.js)는 충돌 원이 아니라 그려진 꼴로 막는다** — `floorAt` 이 `cragFloor` 를 거친다(낮으면 딛고 높으면 벽). 바위 꼴(`cragShape`)이나
   덩이의 돌림·늘림을 바꾸면 메시(`cragMesh`)와 충돌(`cragIndex`·`cragSpan`)이 같은 값을 쓰는지 볼 것. **비탈에 놓는 것은 묻거나 눕힌다**
   (`groundSlope` — 풀·덤불은 기울기대로 눕히고 나무 밑동·바위·자갈은 아래쪽이 뜨지 않게 내린다). 곧추 얹으면 6배 섬의 가파른 비탈에서 뜬다.
