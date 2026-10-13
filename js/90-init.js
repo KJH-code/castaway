@@ -164,7 +164,7 @@ let busy=false;
 function freezeStatics(){
   const fr=o=>{ o.matrixAutoUpdate=false; o.updateMatrix(); };
   if(propGroup) for(const o of propGroup.children) fr(o);
-  for(const m of chunks) fr(m);
+  for(const B of TERR_BLK) fr(B.m);          // 지형 묶음(청크는 그리는 단위가 아니다 — 20-terrain.js)
   if(riverMesh) fr(riverMesh);
 }
 /* ── 셰이더 미리 짜기(E2) ─────────────────────────────────────────────────

@@ -21,7 +21,9 @@ const PROP_TILE=64, PROP_TILES=[];
    162 = COPY_DIST 150 + 12: 나무 칸은 반경 TILE·0.71+12, 프롭 칸은 PROP_TILE·0.71 이라 12 m 를 더해야
    판때기가 켜지는 바로 그 거리에서 줄기 메시가 꺼진다(둘 다 같은 64 m 격자). */
 const TRUNK_DIST=162;
-const PROP_DIST={grass:200, reed:110, pebble:90, flint:110, oak:TRUNK_DIST, fir:TRUNK_DIST};
+/* 점토 노출지·모래 언덕(지름 3 m 남짓 · 땅에 반쯤 묻힌 원반)도 칸에 담는다 — 예전엔 섬 전체(모래 561 · 점토 316)를 한 메시로
+   거리·시야와 상관없이 늘 그려서 본 패스·그림자 패스에 프레임마다 40만 삼각형이 들었다. 300 m 밖은 몇 화소다 */
+const PROP_DIST={grass:200, reed:110, pebble:90, flint:110, oak:TRUNK_DIST, fir:TRUNK_DIST, clay:300, sand:300};
 const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
 /* 칸마다 셋 중 하나를 고른다.
      NEAR_DIST(55 m) 안   — 가지와 잎을 다 그린다
