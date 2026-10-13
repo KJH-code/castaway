@@ -197,7 +197,7 @@ function selRecipe(){
     +'<div><b>'+R.n+'</b>'+(R.out?' <span class="qo">×'+R.out.n+'</span>':'')
     +'<div class="sK">'+TIER_LABEL[R.tier]+' · '+(R.time||0)+'초 · 기력 '+(R.stam||0)+(out?' · '+(out.kg*R.out.n).toFixed(1)+' kg':' · 설치')+'</div></div></div>'
     +'<div class="sU">'+R.note+'</div>'
-    +'<div class="sA"><button data-act="rcraft" class="go'+(ok?'':' off')+'">'+(busy?'만드는 중…':ok?'만들기':'아직 못 만든다')+'</button></div>';
+    +'<div class="sA"><button data-act="rcraft" class="go'+(ok?'':' off')+'">'+(R.proc?(R.proc==='furnace'?'제련로에 넣어 두는 일':'화덕·가마에 넣어 두는 일'):busy?'만드는 중…':ok?'만들기':'아직 못 만든다')+'</button></div>';
   h+='<div class="sS">재료</div><div class="sP">'+R.in.map(r=>{ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];
       return '<div class="'+(hv>=r.n?'g':'b')+'">'+matName(r)+' <span class="cn"><b>'+hv+'</b> / '+r.n+'</span>'+(hv<r.n&&mk.length?' '+link(mk[0]):'')+'</div>'; }).join('')+'</div>';
   if(R.need&&R.need.length) h+='<div class="sS">도구(닳지 않는다)</div><div class="sP">'+R.need.map(r=>{ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];
@@ -211,6 +211,7 @@ function selRecipe(){
 /* 고른 물건 칸의 단추 */
 function bagAct(act,arg){
   if(act==='rcraft'){ const R=RECIPES[CRAFT.sel]; if(!R) return;
+    if(R.proc){ procHow(R); return; }
     if(!canCraft(R)){ toast('아직 못 만든다 — '+bagMissing(R)); return; }
     startCraft(R); toast(R.n+' — 만드는 중'); craftDirty=true; return; }
   if(act==='rsel'){ const i=+arg; if(!RECIPES[i]) return;
@@ -227,7 +228,7 @@ function bagAct(act,arg){
   if(!sl) return;
   const T=ITEMS[sl.id];
   if(act==='pk'){ sl.pk=+arg||undefined; toast(sl.pk?T.n+' → ▣ '+INV.pockets[sl.pk-1]:T.n+' — 칸에서 뺐다'); }
-  else if(act==='equip'){ EQUIP=sl; toast(T.n+' 들었다'); sfx('bind'); }
+  else if(act==='equip'){ if(craftBusy()) return; EQUIP=sl; toast(T.n+' 들었다'); sfx('bind'); }
   else if(act==='unequip'){ if(EQUIP===sl) EQUIP=null; toast(T.n+' 내려놓음'); }
   else if(act==='wear'){ WEAR[T.wear.slot]=sl; refreshWear(); toast(T.n+' 입었다'); sfx('bind'); }
   else if(act==='unwear'){ if(WEAR[T.wear.slot]===sl) WEAR[T.wear.slot]=null; refreshWear(); toast(T.n+' 벗음'); }

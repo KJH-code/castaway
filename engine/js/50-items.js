@@ -82,6 +82,8 @@ const ITEMS={
 
   // 채굴 산출물
   clay_lump:  {n:'점토',       kg:2.0,  c:0x8a7150, use:'토기 · 도가니 · 화로 내벽'},
+  brick_raw:  {n:'날벽돌',     kg:1.6,  c:0x9a7a58, use:'점토를 틀에 찍어 말린 벽돌 — 화덕에 구우면 벽돌'},
+  brick:      {n:'벽돌',       kg:1.4,  c:0xa4553a, use:'구운 벽돌 — 화덕을 둘러 가마를 짓는다'},
   // 사냥물 — 잡은 몹에서 나온다. 철보다 무르지만 훨씬 가볍다.
   chitin:     {n:'키틴',       kg:0.5,  c:0x4a5a4e,
                use:'가고일 껍질 — 철보다 무르지만 절반 무게다'},
@@ -876,6 +878,7 @@ function dragPut(where,one){
   }
   if(where==='hand'){
     if(!holdable(T)){ toast('들 수 있는 물건이 아니다'); return; }
+    if(craftBusy()) return;
     EQUIP=sl; toast(T.n+' 들었다'); sfx('bind'); invDirty=true; return;
   }
   if(where==='list'){                               // 목록으로 되돌리면 내려놓는다
@@ -1079,6 +1082,7 @@ function pruneQuick(){                              // 사라진 물건을 가�
 }
 function quickSwap(i){
   if(i<0||i>=QUICK.length) return;
+  if(craftBusy()) return;
   pruneQuick();
   const held=equippedTool(), want=QUICK[i];
   if(!held && !want){ toast((i+1)+'번 칸이 비어 있다'); return; }
@@ -1410,6 +1414,55 @@ function hideLimb(p,j){
   const LPB=LEAF_PER[p.k]||1;
   for(let q=0;q<LPB;q++) instSetM(p._lf,(p._lbBase+j)*LPB+q,_M);
 }
+/* ── 벤 나무의 그루터기 ──────────────────────────────────────────────────
+   밑동이 벌어진 짧은 줄기(껍질 골 · 뿌리 혹 넷) + 비스듬히 벤 윗면(나이테 · 속심 · 갈라진 금) + 마지막에 꺾여 넘어가며 남은
+   **쪼개진 나뭇결 이빨**(경첩 쪽). 참나무·전나무가 나눠 쓰는 인스턴스 메시 하나 · 반지름은 그 줄기 밑동 굵기를 재서 맞춘다 */
+const STUMP={im:null, map:new Map(), n:0, rad:new Map()};
+function stumpGeo(){
+  const P=[], C=[], tri=(a,b,c,ca,cb,cc)=>{ P.push(...a,...b,...c); C.push(...ca,...(cb||ca),...(cc||ca)); };
+  const S=14, BK=[0.30,0.23,0.17], BK2=[0.42,0.33,0.24], cutY=th=>0.55+0.10*Math.cos(th);   // 윗면은 비스듬히
+  const rad=(th,y)=>{ const f=1+0.35*Math.exp(-y*5)*(0.6+0.4*Math.max(0,Math.cos(th*4))); return f*(1+0.04*Math.sin(th*11)); };   // 밑동 판근 · 껍질 골
+  for(let i=0;i<S;i++){ const a=i/S*6.2832, b=(i+1)/S*6.2832;
+    for(let k=0;k<3;k++){ const y0=k===0?-0.25:k*cutY(a)/3, y1=(k+1)*cutY(a)/3, yb0=k===0?-0.25:k*cutY(b)/3, yb1=(k+1)*cutY(b)/3;
+      const p00=[Math.cos(a)*rad(a,y0),y0,Math.sin(a)*rad(a,y0)], p01=[Math.cos(a)*rad(a,y1),y1,Math.sin(a)*rad(a,y1)],
+            p10=[Math.cos(b)*rad(b,yb0),yb0,Math.sin(b)*rad(b,yb0)], p11=[Math.cos(b)*rad(b,yb1),yb1,Math.sin(b)*rad(b,yb1)];
+      const c=(i&1)?BK:BK2; tri(p00,p10,p11,c); tri(p00,p11,p01,c); } }
+  /* 윗면 — 껍질 테 · 나이테 다섯(밝고 어두운 고리) · 짙은 속심 · 가운데서 뻗은 금 셋 */
+  const RING=[[0.0,0.30,0.20,0.12],[0.12,0.78,0.62,0.42],[0.30,0.70,0.54,0.36],[0.48,0.80,0.64,0.44],[0.64,0.68,0.52,0.34],[0.80,0.76,0.60,0.40],[0.92,0.44,0.32,0.20],[1.0]];
+  for(let i=0;i<S;i++){ const a=i/S*6.2832, b=(i+1)/S*6.2832;
+    for(let r=0;r<RING.length-1;r++){ const r0=RING[r][0], r1=RING[r+1][0], c=RING[r].slice(1);
+      const q=(t,rr)=>[Math.cos(t)*rr*rad(t,cutY(t)),cutY(t)+0.01,Math.sin(t)*rr*rad(t,cutY(t))];
+      if(r===0) tri(q(a,0),q(b,r1),q(a,r1),c); else{ tri(q(a,r0),q(b,r1),q(a,r1),c); tri(q(a,r0),q(b,r0),q(b,r1),c); } } }
+  /* 갈라진 금 셋 — 속심 가까이에서 바깥으로 가늘어지는 틈(살짝 위에 얹은 가는 띠) */
+  for(const th of [0.9,2.8,4.6]){ const ux=Math.cos(th), uz=Math.sin(th), vx=-uz, vz=ux, y=cutY(th)+0.02;
+    const pt=(r,w)=>[ux*r+vx*w, y-(1-r)*0.0+0.0, uz*r+vz*w], c=[0.20,0.14,0.09];
+    tri(pt(0.1,0.025),pt(0.85,0.004),pt(0.1,-0.025),c); }
+  /* 경첩 쪽(+x)에 쪼개져 남은 나뭇결 이빨 — 얇은 쐐기 여섯 */
+  for(let k=0;k<6;k++){ const t=-0.5+k*0.2, x=0.55+0.25*Math.cos(t*2), z=t*0.9, y=cutY(0)+0.01, h=0.18+0.22*((k*37)%5)/5, w=0.07;
+    const base=[[x-w,y,z-w],[x+w,y,z-w],[x,y,z+w]], top=[x+0.02,y+h,z]; const c=[0.74,0.58,0.38], c2=[0.86,0.72,0.50];
+    for(let e=0;e<3;e++) tri(base[e],base[(e+1)%3],top,c,c,c2); }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));
+  g.computeVertexNormals(); return g;
+}
+/* 그 줄기 지오메트리의 밑동 굵기(밑에서 15~30% 높이 정점의 평균 반지름) — 종류마다 한 번 */
+function stumpRadius(geo){
+  if(STUMP.rad.has(geo)) return STUMP.rad.get(geo);
+  geo.computeBoundingBox(); const b=geo.boundingBox, a=geo.attributes.position, H=b.max.y-b.min.y;
+  let s=0, n=0; for(let i=0;i<a.count;i++){ const y=(a.getY(i)-b.min.y)/H; if(y>0.15&&y<0.3){ s+=Math.hypot(a.getX(i),a.getZ(i)); n++; } }
+  const r=n?s/n:0.3; STUMP.rad.set(geo,r); return r;
+}
+function stumpPut(p){
+  if(!STUMP.im||STUMP.im.parent!==propGroup){
+    if(STUMP.im&&STUMP.im.parent) STUMP.im.parent.remove(STUMP.im);
+    STUMP.im=new THREE.InstancedMesh(stumpGeo(),new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}),1024);
+    STUMP.im.count=0; STUMP.im.frustumCulled=false; propGroup.add(STUMP.im); STUMP.map.clear(); STUMP.n=0; }
+  let i=STUMP.map.get(p); if(i===undefined){ if(STUMP.n>=1024) return; i=STUMP.n++; STUMP.map.set(p,i); }
+  const R=stumpRadius(p._tm.geometry)*p.s*1.05;
+  _E.set(0,((p._hash>>>5)%628)/100,0); _Q.setFromEuler(_E); _V.set(p.x,p.y,p.z); _S.set(R,Math.max(0.5,R*1.6),R);
+  _M.compose(_V,_Q,_S); STUMP.im.setMatrixAt(i,_M); STUMP.im.count=STUMP.n; STUMP.im.instanceMatrix.needsUpdate=true;
+  LIGHT.dirtyAt(p.x,p.z,3);
+}
 function shrinkFoliage(p){
   /* 나무는 가지만으로 이뤄져 있다 — 꺾인 가지를 실제로 지운다.
      가지·잎은 칸이 가까워져야 지어진다(30-props.js tile.build) — 아직 안 지은 나무면 가지는 건너뛰고(p._lb 없음),
@@ -1424,11 +1477,10 @@ function shrinkFoliage(p){
         p._bb.setMatrixAt(p._bbi,_M); p._bb.instanceMatrix.needsUpdate=true;
         if(p._cp) for(const m of p._cp){ m.setMatrixAt(p._bbi,_M); m.instanceMatrix.needsUpdate=true; }
       }
-      const ss=p.s*0.22;
-      _E.set(0,p.r,0); _Q.setFromEuler(_E);
-      _V.set(p.x,p.y+p._toff*0.22,p.z); _S.set(p.s,ss,p.s);
-      _M.compose(_V,_Q,_S);
+      /* 줄기는 접고 그 자리에 **그루터기**를 세운다(사용자 지적 — 예전엔 줄기를 22% 로 눌러 놓아 윗면이 뾰족한 우듬지 끝이었다) */
+      _V.set(p.x,p.y,p.z); _S.set(0,0,0); _M.compose(_V,_Q.identity(),_S);
       p._tm.setMatrixAt(p._fi,_M); p._tm.instanceMatrix.needsUpdate=true;
+      stumpPut(p);
       if(p._col){ p._col.r=0.45*p.s; p._col.prof=null; }
     }else if(p._lb) for(let j=p.br;j<p.brMax;j++) hideLimb(p,j);
     /* 남은 아래 가지는 0..br-1, 꺾인 것은 br..brMax-1 — **꺾인 것을 전부** 숨긴다(몇 번 불러도 같다).

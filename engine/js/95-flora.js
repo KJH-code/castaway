@@ -892,10 +892,13 @@ function floraReset(seed){
    여럿이면 가깝고 겨눈 쪽에 가까운 것(거리 × (2 − 겨눈 cos)) — 덤불 옆 버섯을 내려다보면 버섯이다 */
 function floraFindLook(){
   FLORA.look=null;
-  if(uiOpen()||PL.dead||PL.swim||!floraHandOK()) return;
+  if(uiOpen()||PL.dead||PL.swim) return;
+  const e0=equippedTool(), W0=e0&&ITEMS[e0.id].tool, sharpHand=!!(W0&&(W0.weapon&&!W0.gun||W0.axe));   // 칼·도끼를 든 채로도 노거수 껍질·송진은 벗긴다
+  const hand=floraHandOK(); if(!hand&&!sharpHand) return;
   const ex=camera.position.x, ey=camera.position.y, ez=camera.position.z, cp=Math.cos(PL.pitch);
   const fx=-Math.sin(PL.yaw)*cp, fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*cp, hx=-Math.sin(PL.yaw), hz=-Math.cos(PL.yaw);
   let bd=1e9;
+  if(hand){
   for(const list of [FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,WILD.picks]) for(const p of list){
     const dx=p.x-ex, dz=p.z-ez;
     if(p.tree){
@@ -907,6 +910,7 @@ function floraFindLook(){
       const c=(dx*fx+dy*fy+dz*fz)/d; if(c<0.80) continue;
       const sc=d*(2-c); if(sc<bd){ bd=sc; FLORA.look=p; }
     }
+  }
   }
   /* 노거수 — 줄기 곁에 서서 줄기를 볼 때(더 가까운 것이 없으면) */
   if(!FLORA.look){ const g=giantNear(ex,ez,9);

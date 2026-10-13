@@ -93,7 +93,7 @@ function snapshot(){
             sl:[...SLOPES.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.tier]),
             gb:[...GABLES.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.h,o.tier])},
     props:propDiff(),
-    fires:FIRES.map(f=>({x:f.x,y:f.y,z:f.z,lit:f.lit,fuel:f.fuel,st:f.steam?1:0,
+    fires:FIRES.map(f=>({x:f.x,y:f.y,z:f.z,lit:f.lit,fuel:f.fuel,st:f.steam?1:0,kl:f.kilnU?1:0,
       cook:Object.assign({},f.cook), slots:saveSlots(f.slots)})),
     grinds:GRINDS.map(g=>({x:g.x,y:g.y,z:g.z})),
     furnaces:FURNACES.map(g=>({x:g.x,y:g.y,z:g.z,lit:g.lit,fuel:g.fuel,
@@ -166,6 +166,7 @@ async function restore(d){
     PL.pos.set(f.x,f.y,f.z); PL.yaw=Math.PI;   // 설치 지점을 앞에 두기 위한 임시 위치
     if(f.st) placeSteamAt(f.x,f.y,f.z); else placeCampfireAt(f.x,f.y,f.z);   // 증기기관도 불 용기다
     const nf=FIRES[FIRES.length-1];
+    if(f.kl) kilnify(nf);                       // 가마
     nf.lit=f.lit; nf.fuel=f.fuel;
     nf.slots=loadSlots(f.slots);
     /* 굽던 진척 — 지금은 {구울것: 시간} 꾸러미다.

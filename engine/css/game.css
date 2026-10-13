@@ -173,7 +173,8 @@
   #ctree .mbox.up{top:auto;bottom:-6px}
   #ctree .cb.more:hover .mbox{display:block}
   #ctree .mbox div{padding:2px 4px;white-space:nowrap} #ctree .mbox div.g{color:#bfeeda} #ctree .mbox div.b{color:#e8b9a4}
-  .nd.ok{box-shadow:inset 3px 0 0 #8fd6b4}                       /* 만들 수 있는 것 — 왼쪽에 초록 띠 */
+  .nd.ok{box-shadow:inset 3px 0 0 #8fd6b4}
+  .nd.pr{border-style:dashed;opacity:.92} .nd.pr span:after{content:' ⚒';color:#d8b070}   /* 설비에 넣어 두는 일(제련·굽기) */                       /* 만들 수 있는 것 — 왼쪽에 초록 띠 */
   .nd.sel{outline:2px solid #e8d9a0;outline-offset:1px;background:rgb(44,40,24);color:#fff3c8;opacity:1}   /* 고른 것 — 노란 테(만들 수 있는 것의 초록과 헷갈리지 않게) */
   .nd.busy{border-color:#e8d9a0}
   .nd:hover{background:rgb(18,32,30);opacity:1}

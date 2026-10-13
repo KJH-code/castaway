@@ -21,22 +21,34 @@
        **자바스크립트** 두 판을 다 짜서 견줬다. 빠른 쪽을 쓴다(`FOAM.useC`) — 결과는 README 가 아니라 `foamBench()` 로 다시 잴 것.
      · 그 밖(조각에 씨앗 나눠 주기 · 버퍼에 담기)은 자바스크립트 — 한 번에 0.1 ms 안쪽이라 옮겨서 얻을 것이 없다.
    ========================================================================== */
-const FOAM={mesh:null, geo:null, cap:8800, K:22, KS:8, KB:4, R:55, step:0.75, level:0.03, cx:1e9, cz:1e9, n:0, anchors:0,
+const FOAM={mesh:null, geo:null, cap:8800, K:16, KS:6, KB:3, R:55, step:0.75, level:0.03, cx:1e9, cz:1e9, n:0, anchors:0,
             useC:true, synced:false, ST:9, out:new Float32Array(2048*9),
             U:{uFT:{value:0}, uFP:WATER_U.uFP, uFR:WATER_U.uFR}};   // uFP·uFR 은 물 셰이더와 같이 쓴다 — 조각이 서는 데서는 칠한 거품이 옅어진다
 
 /* 조각 하나 = **사면체 뭉치**(사용자 요청 — 안에서 도는 사면체 뭉치 + 텍스처). 작은 사면체 넷을 반지름 0.55 안에 모아 두고,
    뭉치가 통째로 구르는 동안 사면체 하나하나도 제 가운데를 축으로 따로 돈다(aSub — 제 가운데 xyz · 박자). */
 function foamCluster(){
-  const P=[], Nn=[], S=[], rnd=mulberry32(0xf0a3);
-  for(let k=0;k<4;k++){
-    const t0=new THREE.TetrahedronGeometry(0.34+rnd()*0.22,0), t=t0.index?t0.toNonIndexed():t0, p=t.attributes.position.array, n=t.attributes.normal.array;
-    const cx=k?(rnd()-0.5)*0.9:0, cy=k?(rnd()-0.5)*0.5:0, cz=k?(rnd()-0.5)*0.9:0, ph=rnd()*6.283;
-    for(let i=0;i<p.length;i+=3){ P.push(p[i]+cx,p[i+1]+cy,p[i+2]+cz); Nn.push(n[i],n[i+1],n[i+2]); S.push(cx,cy,cz,ph); }
-  }
+  /* **프랙탈 뭉치**(사용자 요청 — 다각형에 다각형을 붙여서): 가운데 사면체의 네 면마다 반 크기 사면체를 붙이고, 그 바깥 세 면 중
+     두 면에 또 반 크기를 붙인다(1 + 4 + 8 = 13). 사면체마다 aSub(제 가운데 · 박자)와 aLv(몇 대인가)를 달아, 셰이더가
+     **뭉치 가운데를 축으로 공전시키며(바깥 대일수록 빠르게) 제자리에서도 돌린다** — 뭉친 속이 휘저어지며 섞인다 */
+  const P=[], Nn=[], S=[], L=[], rnd=mulberry32(0xf0a3);
+  const T0=new THREE.TetrahedronGeometry(1,0), T=T0.index?T0.toNonIndexed():T0, tp=T.attributes.position.array;
+  const faces=[]; for(let f=0;f<tp.length/9;f++){ const a=[tp[f*9],tp[f*9+1],tp[f*9+2]], b=[tp[f*9+3],tp[f*9+4],tp[f*9+5]], c=[tp[f*9+6],tp[f*9+7],tp[f*9+8]];
+    const m=[(a[0]+b[0]+c[0])/3,(a[1]+b[1]+c[1])/3,(a[2]+b[2]+c[2])/3], l=Math.hypot(m[0],m[1],m[2]); faces.push([m[0]/l,m[1]/l,m[2]/l,l]); }
+  const put=(cx,cy,cz,r,lv)=>{ const ph=rnd()*6.283, q=new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd()*6.28,rnd()*6.28,rnd()*6.28)), v=new THREE.Vector3();
+    for(let i=0;i<tp.length;i+=9){ const vs=[0,3,6].map(o=>v.set(tp[i+o],tp[i+o+1],tp[i+o+2]).applyQuaternion(q).multiplyScalar(r).toArray());
+      const e1=[vs[1][0]-vs[0][0],vs[1][1]-vs[0][1],vs[1][2]-vs[0][2]], e2=[vs[2][0]-vs[0][0],vs[2][1]-vs[0][1],vs[2][2]-vs[0][2]];
+      let n=[e1[1]*e2[2]-e1[2]*e2[1],e1[2]*e2[0]-e1[0]*e2[2],e1[0]*e2[1]-e1[1]*e2[0]]; const nl=Math.hypot(...n)||1; n=n.map(x=>x/nl);
+      for(const p of vs){ P.push(p[0]+cx,p[1]+cy,p[2]+cz); Nn.push(...n); S.push(cx,cy,cz,ph); L.push(lv); } } };
+  const R0=0.42; put(0,0,0,R0,0);
+  for(const f of faces){ const r1=R0*0.5, d1=R0*f[3]+r1*0.75, c1=[f[0]*d1,f[1]*d1,f[2]*d1]; put(c1[0],c1[1],c1[2],r1,1);
+    /* 손주 둘 — 자식 바깥쪽으로 비스듬히 */
+    for(let k=0;k<2;k++){ const a=rnd()*6.283, t=[f[1]*Math.cos(a)-f[2]*Math.sin(a), f[2]*Math.cos(a)+f[0]*Math.sin(a), f[0]*Math.cos(a)-f[1]*Math.sin(a)];
+      const dir=[f[0]+t[0]*0.8,f[1]+t[1]*0.8,f[2]+t[2]*0.8], dl=Math.hypot(...dir), r2=r1*0.5, d2=r1*0.6+r2*0.8;
+      put(c1[0]+dir[0]/dl*d2,c1[1]+dir[1]/dl*d2,c1[2]+dir[2]/dl*d2,r2,2); } }
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
-  g.setAttribute('aSub',new THREE.Float32BufferAttribute(S,4));
+  g.setAttribute('aSub',new THREE.Float32BufferAttribute(S,4)); g.setAttribute('aLv',new THREE.Float32BufferAttribute(L,1));
   return g;
 }
 /* 거품 판의 무늬 — 크고 작은 거품 고리가 엉긴 레이스(캔버스 · 바깥으로 갈수록 옅다) */
@@ -53,7 +65,7 @@ function foamLaceTex(){
 }
 function foamInit(){
   const base=foamCluster(), g=new THREE.InstancedBufferGeometry();
-  g.setAttribute('position',base.attributes.position); g.setAttribute('normal',base.attributes.normal); g.setAttribute('aSub',base.attributes.aSub);
+  g.setAttribute('position',base.attributes.position); g.setAttribute('normal',base.attributes.normal); g.setAttribute('aSub',base.attributes.aSub); g.setAttribute('aLv',base.attributes.aLv);
   /* 조각마다 — aA 물가의 점(x·z)과 뭍 쪽 방향(nx·nz) · aB 1/비탈 · 물가를 따라 비낀 거리 · 물머리보다 처지는 거리 · 크기
                  aC 씨앗 · 버티는 몫(물이 빠질 때 얼마나 오래 남나) · 구르는 빠르기 · 튀는 높이 */
   FOAM.aA=new THREE.InstancedBufferAttribute(new Float32Array(FOAM.cap*4),4);
@@ -66,7 +78,7 @@ function foamInit(){
   g.instanceCount=0;
   const mk=(m,sheet)=>{ m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,FOAM.U);
-    sh.vertexShader=(sheet?'#define FOAM_SHEET\n':'attribute vec4 aSub;\n')+'attribute vec4 aA;\nattribute vec4 aB;\nattribute vec4 aC;\nattribute vec4 aD;\nuniform float uFT;\nuniform vec3 uFP;\nuniform float uFR;\n'
+    sh.vertexShader=(sheet?'#define FOAM_SHEET\n':'attribute vec4 aSub;\nattribute float aLv;\n')+'attribute vec4 aA;\nattribute vec4 aB;\nattribute vec4 aC;\nattribute vec4 aD;\nuniform float uFT;\nuniform vec3 uFP;\nuniform float uFR;\n'
       +sh.vertexShader.replace('#include <begin_vertex>',`
       /* **진짜 수면을 따른다** — 바닷물 판은 긴 파도 셋으로 오르내린다(20-terrain.js 물 셰이더의 wv(0~2)와 같은 수 · 같은 시계).
          물가의 그 점에서 수면 높이(fsurf)와 오르내리는 빠르기(fdv)를 풀면, 물머리가 뭍으로 얼마나 올라왔나는 (수면 − 물가 높이) ÷ 비탈이다 */
@@ -116,8 +128,13 @@ function foamInit(){
         float fya=aC.x*40.0+uFT*0.15*(aC.x-0.5); vec2 fq=vec2(position.x*cos(fya)-position.z*sin(fya),position.x*sin(fya)+position.z*cos(fya))*fs*4.5;
         vec3 transformed=vec3(fpos.x+fq.x, fy-aB.w*0.22+0.02, fpos.z+fq.y);
       #else
-        /* 뭉치 속 사면체 하나하나가 제 가운데를 축으로 따로 돈다 */
+        /* 뭉치 속 사면체 하나하나가 ① 뭉치 가운데를 축으로 공전하고(바깥 대일수록 빠르게 · 위아래로 출렁) ② 제 가운데를 축으로 돈다 —
+           속이 휘저어지며 섞인다 */
         vec3 fsc=aSub.xyz, flp=position-fsc;
+        { vec3 oax=normalize(vec3(sin(aC.x*17.0+aLv),1.2,cos(aC.x*23.0-aLv)));
+          float oan=uFT*(0.7+0.9*aLv)*(aC.x<0.5?-1.0:1.0)+aSub.w, oc=cos(oan), os=sin(oan);
+          fsc=fsc*oc+cross(oax,fsc)*os+oax*dot(oax,fsc)*(1.0-oc);
+          fsc*=1.0+0.18*aLv*sin(uFT*2.1+aSub.w*3.0); }
         vec3 fax2=normalize(vec3(sin(aSub.w*3.1+aC.x*11.0),0.6,cos(aSub.w*2.3)));
         float fan2=uFT*(2.2+aSub.w)+aSub.w*5.0, fc2=cos(fan2), fs2=sin(fan2);
         flp=flp*fc2+cross(fax2,flp)*fs2+fax2*dot(fax2,flp)*(1.0-fc2);
@@ -215,7 +232,7 @@ function foamScatter(){
       const j=k*4;
       A[j]=x; A[j+1]=z; A[j+2]=nx; A[j+3]=nz;
       D[j]=d0; D[j+1]=d1; D[j+2]=d2; D[j+3]=d3;
-      /* 스물둘 가운데 — 여덟은 물머리의 거품 · 넷은 물가 바깥에서 부서지며 밀려오는 물결 · 열은 물가의 금을 늘 덮는 띠 */
+      /* 열여섯 가운데 — 여섯은 물머리의 거품 · 셋은 물가 바깥에서 부서지며 밀려오는 물결 · 일곱은 물가의 금을 늘 덮는 띠(조각 하나가 프랙탈 뭉치라 예전 스물둘보다 적게) */
       const breaker=c>=U.KS&&c<U.KS+U.KB, rim=c>=U.KS+U.KB;
       if(rim){
         const q=(c-U.KS-U.KB+r1)/(U.K-U.KS-U.KB);          // 물가를 따라 고르게 벌려 놓는다(빈틈이 없게)

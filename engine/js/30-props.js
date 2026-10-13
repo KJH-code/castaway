@@ -1542,6 +1542,7 @@ function resolveProps(p,radius){
       const ddx=p.x-c.x, ddz=p.z-c.z; let rr=c.r+radius;
       const d2=ddx*ddx+ddz*ddz;
       if(d2>=rr*rr||d2<1e-8) continue;
+      if(c.y0!==undefined&&p.y!==undefined&&(p.y>c.y1||p.y+1.7<c.y0)) continue;   // 높이가 있는 것(토대·지붕 위 상자 등) — 위층·아래층은 안 막는다
       if(c.prof){                                     // 둥글지 않은 것(바위 · 노거수의 판근) — 그 방위의 반지름
         const K=c.prof.length, a=(Math.atan2(ddz,ddx)/6.2832+1)%1*K, i=Math.floor(a), f=a-i;
         rr=c.prof[i%K]*(1-f)+c.prof[(i+1)%K]*f+radius;

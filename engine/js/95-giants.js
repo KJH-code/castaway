@@ -311,6 +311,12 @@ function giantStumpGeo(g){
     parts.push({g:SHP.grid(22,1,(u,q)=>{ const th=u*6.2832, k=a+(b-a)*q, r=giantBoleR(B,th,cut,H)*k;
         return [Math.cos(th)*r, cut+0.04*(1-k*k), Math.sin(th)*r]; },true),cell:rim?FC.BARK:FC.CAP,c:col});
   }
+  /* 갈라진 금 — 속심에서 바깥으로 뻗는 짙은 틈 넷 · 경첩 쪽(+x) 테두리에 쪼개져 남은 나뭇결 이빨 */
+  for(let i=0;i<4;i++){ const th=0.6+i*1.55, R0=giantBoleR(B,th,cut,H), w=0.035;
+    parts.push({g:SHP.grid(6,1,(u,q)=>{ const r=R0*(0.12+0.8*u), o=(q-0.5)*w*(1+u*2); return [Math.cos(th)*r-Math.sin(th)*o, cut+0.045, Math.sin(th)*r+Math.cos(th)*o]; }),
+      cell:FC.PLAIN,c:[0.16,0.11,0.07]}); }
+  for(let k=0;k<9;k++){ const th=-0.7+k*0.175, R0=giantBoleR(B,th,cut,H)*(0.72+0.2*((k*29)%7)/7), h=0.35+0.55*((k*53)%9)/9;
+    parts.push({g:SHP.limb([Math.cos(th)*R0,cut-0.02,Math.sin(th)*R0],[0.08*Math.cos(th),1,0.08*Math.sin(th)],h,0.09,0.006,2,4,0,0),cell:FC.PLAIN,c:[0.70,0.55,0.36],c2:[0.86,0.72,0.50]}); }
   return SHP.merge(parts,true);
 }
 function giantStump(g){

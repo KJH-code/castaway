@@ -373,7 +373,7 @@ async function generateWorld(){
                                     invAdd('can_food',2);     // 보급선이 쥐여 준 비상식량
                                     invAdd('bottle_water',1); // 물 한 병 — 비면 다시 채운다
                                     HARV.near=null; HARV.t=0; REGROW.length=0;
-                                    EQUIP=null; CRAFT.recipe=null; craftDirty=true;
+                                    EQUIP=null; CRAFT.recipe=null; CRAFT.held=null; craftDirty=true;
                                     QUICK.fill(null); quickDirty=true;
                                     clearBuilds(); exitBuild();
                                     FIRES.forEach(f=>scene.remove(f.mesh)); FIRES.length=0;
