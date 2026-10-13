@@ -25,6 +25,7 @@ const FIRING={
   fish:        {out:'fish_cooked', hours:0.15, count:1},
   mushroom:    {out:'mushroom_cooked', hours:0.08, count:1},   // 숲의 버섯 — 구워야 탈이 없다
   fern:        {out:'fern_cooked', hours:0.06, count:1},
+  banana:      {out:'banana_baked', hours:0.07, count:1},
   bird_raw:    {out:'bird_cooked', hours:0.18, count:1},
   egg:         {out:'egg_cooked', hours:0.06, count:1},
   seaweed:     {out:'ash',  hours:0.20, count:1},              // 바닷말을 태운 재(소다회) — 잿물·유리로 이어진다
@@ -573,7 +574,7 @@ function stackInto(arr,id,n,extra){
   const T=ITEMS[id];
   if(indiv(T)||extra){ arr.push(Object.assign({id,n:1},extra||{})); return 1; }
   const s=arr.find(x=>x.id===id&&x.dur===undefined&&x.fuel===undefined&&x.sip===undefined);
-  if(s) s.n+=n; else arr.push({id,n});
+  if(s){ freshMerge(s,s.n,n,DECAY.carry); s.n+=n; } else { const o={id,n}; freshMerge(o,0,n,DECAY.carry); arr.push(o); }   // 들어온 때를 들고 간다(66-decay.js)
   return n;
 }
 function toStore(i,all){
@@ -594,7 +595,7 @@ function toStore(i,all){
     invRemove(i,1);
   }else{
     const n=Math.min(all?sl.n:1,room);
-    stackInto(st.slots,sl.id,n); invRemove(i,n);
+    DECAY.carry=sl.t; stackInto(st.slots,sl.id,n); DECAY.carry=null; invRemove(i,n);
   }
   invDirty=true; boxDirty=true; sfx('bind');
 }
@@ -605,7 +606,7 @@ function fromStore(i,all){
   if(room<1){ toast('더 들 수 없다'); return; }
   const n=indiv(T)?1:Math.min(all?sl.n:1,room);
   if(indiv(T)) stackInto(INV.slots,sl.id,1,{dur:sl.dur,fuel:sl.fuel,lit:sl.lit,sip:sl.sip,mag:sl.mag,ammoId:sl.ammoId});
-  else stackInto(INV.slots,sl.id,n);
+  else{ DECAY.carry=sl.t; stackInto(INV.slots,sl.id,n); DECAY.carry=null; }
   sl.n-=n; if(sl.n<=0) st.slots.splice(i,1);
   invDirty=true; boxDirty=true; sfx('bind');
 }

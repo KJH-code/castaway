@@ -27,17 +27,18 @@ function camcInit(){
   CAMC.mat=new THREE.ShaderMaterial({
     depthTest:false, depthWrite:false, fog:false,
     uniforms:{tD:{value:null}, uRes:{value:new THREE.Vector2(640,480)}, uT:{value:0}, uBat:{value:1}, uUnder:{value:0},
-              uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}, uHdr:{value:0}},
+              uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}, uHdr:{value:0}, uIll:{value:0}},
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
     fragmentShader:`
       precision highp float;
-      uniform sampler2D tD; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr;
+      uniform sampler2D tD; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll;
       varying vec2 vUv;
       float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
       void main(){
         vec2 c=vUv-0.5, uv=0.5+c*(1.0+0.045*dot(c,c));                     // 렌즈 — 가장자리가 살짝 볼록하다
         float weak=smoothstep(0.15,0.0,uBat), dead=smoothstep(0.012,0.0,uBat);
         uv+=uUnder*vec2(sin(uv.y*17.0+uT*1.7),cos(uv.x*13.0+uT*1.3))*0.0045;   // 물속 — 일렁인다
+        uv+=uIll*vec2(sin(uv.y*7.0+uT*1.1),cos(uv.x*5.0+uT*0.8))*0.0060;        // 탈이 났다 — 눈앞이 느리게 출렁인다
         float ln=floor(uv.y*uRes.y);
         float jit=(h21(vec2(ln,floor(uT*24.0)))-0.5)*0.0011*(1.0+9.0*weak);    // 테이프 — 줄마다 살짝 밀린다
         float band=fract(uv.y*0.9-uT*0.07);                                    // 천천히 내려오는 트래킹 띠
@@ -59,6 +60,8 @@ function camcInit(){
            어두우니 반만 건다(안 그러면 밤이 온통 보라다) */
         { float shd=(1.0-smoothstep(0.02,0.21,Y))*(1.0-0.5*uNight);
           col=mix(col,col*vec3(0.74,0.52,1.42)+vec3(0.024,0.0,0.056),shd*0.9); }
+        /* **탈이 났다**(날것·상한 것을 먹었다 — 사용자 요청) — 화면이 보랏빛으로 물든다. 가장자리가 더 짙다 */
+        col=mix(col,vec3(Y)*vec3(0.80,0.52,1.25)+col*vec3(0.30,0.10,0.42)+vec3(0.030,0.0,0.065),uIll*(0.55+0.35*smoothstep(0.15,0.6,length(c))));
         /* 물속 — 청록으로 가라앉고, 낮에는 수면에서 빛줄기가 비껴 내려온다 */
         col=mix(col,col*vec3(0.50,0.92,1.04)+vec3(0.0,0.025,0.04),uUnder*0.65);
         if(uUnder>0.01){
@@ -116,6 +119,7 @@ function camcEnd(under){
   const U=CAMC.mat.uniforms, G=SKYL.grade;
   CAMC.under+=((under?1:0)-CAMC.under)*0.25;
   U.uT.value=(performance.now()/1000)%1000; U.uBat.value=CAMC.bat/100; U.uUnder.value=CAMC.under;
+  U.uIll.value+=((PL.ill>0?clamp(PL.ill/6,0,1):0)-U.uIll.value)*0.06;      // 탈 — 서서히 물들고 서서히 걷힌다
   U.uLow.value=G.low; U.uMoon.value=G.moon; U.uNight.value=G.night; U.uDay.value=clamp(1-G.night*1.2,0,1); U.uGrain.value=CAMC.noise;
   renderer.setRenderTarget(null);
   renderer.render(CAMC.scene,CAMC.cam);

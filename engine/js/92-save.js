@@ -13,7 +13,7 @@
 const SAVE_VER=1;
 /* 용기 속 슬롯은 소지품과 같은 모양으로 저장한다 */
 const saveSlots=a=>a.map(sl=>({id:sl.id,n:sl.n,dur:sl.dur,fuel:sl.fuel,lit:sl.lit,
-                               mag:sl.mag,ammoId:sl.ammoId,sip:sl.sip,pk:sl.pk,amt:sl.amt}));
+                               mag:sl.mag,ammoId:sl.ammoId,sip:sl.sip,pk:sl.pk,amt:sl.amt,t:sl.t}));
 const loadSlots=a=>(a||[]).filter(sl=>ITEMS[sl.id]).map(sl=>{
   const o={id:sl.id,n:sl.n};
   if(sl.dur!==undefined) o.dur=sl.dur;
@@ -22,6 +22,7 @@ const loadSlots=a=>(a||[]).filter(sl=>ITEMS[sl.id]).map(sl=>{
   if(sl.ammoId&&ITEMS[sl.ammoId]) o.ammoId=sl.ammoId;   // 탄창에 물린 탄 종류
   if(sl.sip!==undefined) o.sip=sl.sip;                  // 물통에 남은 모금
   if(sl.amt!==undefined) o.amt=clamp(+sl.amt||0,0,1);   // 시멘트 통에 남은 양
+  if(typeof sl.t==='number') o.t=sl.t;                  // 먹을 것이 들어온 때(66-decay.js)
   if(sl.pk>0&&sl.pk<=6) o.pk=sl.pk|0;                   // 소지품의 내 칸(가방 화면)
   return o;
 });

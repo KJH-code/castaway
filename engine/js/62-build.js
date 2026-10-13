@@ -1599,7 +1599,7 @@ function updateFurnaces(dt,dh){
     if(!g.jobs) g.jobs={};
     /* 불이 붙어 있는 동안에만 녹는다. 꺼지면 제자리에 멈춰 서고,
        다시 붙이면 녹던 데서 이어진다 — 모닥불의 굽기와 같은 규칙이다. */
-    if(g.lit && dh>0 && burnFuel(g,dh)){
+    if(g.lit && dh>0 && !fireRain(g,dh,0.01) && burnFuel(g,dh)){
       const live=furnaceJobs(g);
       for(const R of live){
         g.jobs[R.id]=(g.jobs[R.id]||0)+dh;
@@ -1649,6 +1649,7 @@ function updateFires(dt,dh){
     for(const k of Object.keys(f.cook))       // 다 꺼내 간 것은 진척을 지운다
       if(jobs.indexOf(k)<0) delete f.cook[k];
     if(!f.lit) continue;
+    if(fireRain(f,dh,f.kilnU?0.02:f.hearthU?0.10:0.60)) continue;   // 비 — 한데 있는 불은 꺼질 수 있다(66-decay.js)
     // 안에 든 땔감을 알아서 끌어다 문다 — 넣어두기만 하면 계속 탄다
     if(!burnFuel(f,dh)) continue;
     f.t+=dt;
