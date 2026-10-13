@@ -180,39 +180,39 @@ python -m http.server 5173
 `sed -n '시작,끝p'` 로 그 구역만 뜰 것.** 파일이 2.1MB(약 60만 토큰)라 통독은
 컨텍스트를 통째로 태운다. 구역 하나는 보통 2~5천 토큰이면 충분하다.
 
-### 구역 지도 — `island_world.html` (15,283줄)
+### 구역 지도 — `island_world.html` (15,346줄)
 
 | 줄 | 구역 | 무엇이 있나 |
 |---|---|---|
-| 618 | 1) 기반 지형 | 시드 PRNG · 높이맵 · **`N`=768 · `CELL`=2.5 · `WORLD`=1920 m** (533) |
-| 659 | 2) 열적 침식 | 안식각 초과분 이동 |
-| 682 | 3) 수적 침식 | 물방울 시뮬레이션 |
-| 768 | 4) 수문 | D8 흐름 누적 → 하천 |
-| 855 | 5) 경사 · 거리장 | |
-| 884 | 6) 기후 | 탁월풍 지형성 강수 |
-| 973 | 7) 바이옴 분류 | |
-| 1020 | 8) 자원 배치 | 지질 규칙 · 광물 분포 |
-| 1189 | 샘플링 API | 지형 조회 창구 |
-| 1213 | 9) 3D 월드 렌더링 | 압축 인스턴스 `instCompact` 1294 · 지형 `buildChunks` 1945 / LOD `updateTerrainLOD` 2003 · 칸 보이기 `updateTileVis` 2291 · 먼 나무 `buildFarTrees` 2514 · `buildProps` 2566 |
-| 3677 | 빛 · 하늘 · 날씨 · 구름 | **`LIGHT` 3717** · `SKY` 3989 · `updateWeather` 4336 · 구름 명암 `litQueue` 4884 · `updateClouds` 5455 · 하늘 표 `SKY_LUT` 5945 · `updateSky` 6085 |
-| 6305 | 10) 아이템 · 인벤토리 | **`ITEMS` 6312** · `INV` 6833 · 드래그 `dragPut` 6951 / `wireDrag` 6987 |
-| 7020 | 11) 맨손 채집 | `HARVEST` 7026 · `MINE` 7048 |
-| 7518 | 12) 제작 | **`RECIPES` 7525** · `startCraft` 8460 · `drawCraft` 8522 |
-| 8573 | 12-b) 불 | `FIRING` 8583 · `SMELT` 8613 |
-| 8936 | 집 짓기 | `BUILD` 9003 · `floorAt` 9048 · `BUILD_MESH` 9252 |
-| 10419 | 사전 | `GEO`/`MINERALS` · `obtainOf` — 표를 역으로 훑어 획득 경로를 만든다.
+| 622 | 1) 기반 지형 | 시드 PRNG · 높이맵 · **`N`=768 · `CELL`=2.5 · `WORLD`=1920 m** (537) |
+| 663 | 2) 열적 침식 | 안식각 초과분 이동 |
+| 686 | 3) 수적 침식 | 물방울 시뮬레이션 |
+| 772 | 4) 수문 | D8 흐름 누적 → 하천 |
+| 859 | 5) 경사 · 거리장 | |
+| 888 | 6) 기후 | 탁월풍 지형성 강수 |
+| 977 | 7) 바이옴 분류 | |
+| 1024 | 8) 자원 배치 | 지질 규칙 · 광물 분포 |
+| 1193 | 샘플링 API | 지형 조회 창구 |
+| 1217 | 9) 3D 월드 렌더링 | 압축 인스턴스 `instCompact` 1298 · 지형 `buildChunks` 1949 / LOD `updateTerrainLOD` 2007 · 칸 보이기 `updateTileVis` 2295 · 먼 나무 `buildFarTrees` 2518 · `buildProps` 2570 |
+| 3681 | 빛 · 하늘 · 날씨 · 구름 | **`LIGHT` 3721** · `SKY` 3993 · `updateWeather` 4340 · 구름 명암 `litQueue` 4888 · `updateClouds` 5459 · 하늘 표 `SKY_LUT` 5949 · `updateSky` 6089 |
+| 6309 | 10) 아이템 · 인벤토리 | **`ITEMS` 6316** · `INV` 6837 · 드래그 `dragPut` 6955 / `wireDrag` 6991 |
+| 7024 | 11) 맨손 채집 | `HARVEST` 7030 · `MINE` 7052 |
+| 7522 | 12) 제작 | **`RECIPES` 7529** · `startCraft` 8464 · `drawCraft` 8526 |
+| 8577 | 12-b) 불 | `FIRING` 8587 · `SMELT` 8617 |
+| 8940 | 집 짓기 | `BUILD` 9007 · `floorAt` 9052 · `BUILD_MESH` 9256 |
+| 10423 | 사전 | `GEO`/`MINERALS` · `obtainOf` — 표를 역으로 훑어 획득 경로를 만든다.
   **`MINERALS` 에 넣은 것은 `GEO` 에도 있어야 한다** — 하나만 있으면 광물 탭이 통째로
   안 그려진다(`sand` 가 그랬다). `obtainOf` 는 `RECIPES`·`HARVEST`·`CHOP`·`MINE`·
   `FIRING`·`SMELT`·`MOBS[].drop` 을 다 훑는다 |
-| 10934 | 근접 공격 | `CREATURES` 10940 (비어 있음) |
-| 10943 | 손에 든 무기 | **`WEAPON_FX` 11123** — 손에 드는 것의 생김새를 id로 키잉한 조립 함수 |
-| 12728~ | 전투 진입점 | `equippedWeapon` 12728 · `shoot` 12815 · `castNet` 13000 · `attack` 13058 |
-| 13178 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
-| 13273 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
-| 13488 | 음향 | 물리 모델 합성 |
-| 13671 | HUD | `drawMap` 13694 · `drawCompass` 13734 · 성능 창 `PERF` 13763 · `updateHUD` 13935 |
-| 14127 | 초기화 · 루프 | `initThree` 14225 · `freezeStatics` 14278 · 셰이더 미리 짜기 `PRECOMP` 14304 · `start` 14990 · `loop` 15211 |
-| 14494 | 저장 / 불러오기 | `snapshot` 14527 · `saveLocal` 14739 · `loadFile` 14798 |
+| 10998 | 근접 공격 | `CREATURES` 11004 (비어 있음) |
+| 11007 | 손에 든 무기 | **`WEAPON_FX` 11187** — 손에 드는 것의 생김새를 id로 키잉한 조립 함수 |
+| 12792~ | 전투 진입점 | `equippedWeapon` 12792 · `shoot` 12879 · `castNet` 13064 · `attack` 13122 |
+| 13242 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
+| 13337 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
+| 13552 | 음향 | 물리 모델 합성 |
+| 13735 | HUD | `drawMap` 13758 · `drawCompass` 13798 · 성능 창 `PERF` 13827 · `updateHUD` 13999 |
+| 14191 | 초기화 · 루프 | `initThree` 14289 · `freezeStatics` 14342 · 셰이더 미리 짜기 `PRECOMP` 14368 · `start` 15054 · `loop` 15274 |
+| 14558 | 저장 / 불러오기 | `snapshot` 14591 · `saveLocal` 14803 · `loadFile` 14862 |
 
 배너의 번호는 믿지 말 것 — 11)과 12-d)가 두 번씩 나오고 12-c)가 12-d) 뒤에 온다.
 **줄 번호가 정본이다.** 큰 삽입·삭제 뒤에는 이 표의 줄 번호도 같이 고칠 것:
@@ -938,6 +938,9 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   재질은 물리 재질 `gM`(이름으로 나눠 씀) + 하늘 반사 정육면체 `gEnv`(캔버스 6장) — 쇠는 반사가 생김새의 반이다. **본편 다른 재질(램버트·퐁)과 다르다.**
   무겁다 — 비늘 갑옷 한 벌 15만 · 판금 15만 삼각형. 아이콘은 한 번 찍고 버리니 괜찮지만, **몸에 입혀 여럿을 그릴 때는 비늘 장수(`row`/`col`)와 격자부터 줄일 것.**
   **빠른 칸(1~5)은 화면 아래 가운데**(46 px 네모 · 그림) — 왼쪽 아래에 두었더니 산소 칸이 생겨 길어진 상태 막대를 가렸다.
+- **사전(B)에 '조작' 탭이 있다**(`CONTROLS_GUIDE` · `dexTab==='keys'` · 단추 `#dexK`) — 갈래마다 [글쇠, 설명] 표를 두 칸(`.kr`)으로 그린다.
+  시작 화면의 짧은 안내(`#ov .k`)보다 자세하고, 설비를 볼 때 좌클릭이 손의 것보다 먼저라는 것·횃불과 화덕 사이 불 옮기기도 적었다.
+  **조작을 바꾸면 이 표와 `#ov .k` 를 같이 고칠 것.**
 - **쓰기는 전부 좌클릭이다**(사용자 요청 — 예전엔 우클릭) — 공격(연사도 누르고 있는 동안) · 먹기·마시기·감기 · 전등 · 그물·수류탄 · 빈손이면 물가에서 마시기,
   그리고 **캐기도 좌클릭을 누르고 있는 동안뿐이다 — E 로 캐던 것은 없앴다**(`updateHarvest` 는 `useDown && harvestByUse()`).
   `harvestByUse()` = 캘 것을 보고 있고(`HARV.mode`) **빈손이거나 손의 것이 그 캐기 도구**(`HARV.mode.tool`)일 때 — 칼을 들고 덤불을 보면 캐지 않고 휘두른다.

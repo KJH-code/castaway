@@ -102,6 +102,9 @@
   .de .dg{font-size:9px;color:var(--dim);margin-top:3px;line-height:1.6}
   .de .dg b{color:#9ab8ad;font-weight:400}
   #dex .df{font-size:9px;color:var(--dim);margin-top:10px;text-align:center}
+  .de .kr{display:grid;grid-template-columns:74px 1fr;gap:8px;font-size:10px;line-height:1.55;margin-top:4px}
+  .de .kr>b{color:var(--acc);font-weight:600;text-align:right}
+  .de .kr>span{color:var(--ink)} .de .kr>span b{color:#e6f5ee;font-weight:600}
 
   #box{left:50%;top:50%;transform:translate(-50%,-50%);
     width:min(520px,calc(100% - 24px));max-height:78%;overflow:auto;
@@ -340,6 +343,7 @@
   <div class="dh">
     <button id="dexI" class="on">아이템</button>
     <button id="dexM">광물</button>
+    <button id="dexK">조작</button>
   </div>
   <div id="dexL"></div>
   <div class="df">B 닫기</div>
@@ -10882,6 +10886,60 @@ document.getElementById('gwsSlot').ondrop=ev=>{
 };
 
 let dexOpen=false, dexTab='item';
+/* 사전 '조작' 탭 — 갈래마다 [글쇠, 설명]. 시작 화면의 짧은 안내(#ov .k)보다 자세하다.
+   **조작을 바꾸면 여기도 고칠 것** — 글쇠 처리는 keydown 처리기(Tab·F3·F5… 있는 곳)와 mousedown/mouseup 에 있다. */
+const CONTROLS_GUIDE=[
+  ['움직이기',[
+    ['WASD','걷기 · <b>Shift</b> 달리기(기력이 닳는다 · 배고프거나 목마르면 못 달린다)'],
+    ['Space','뛰기 · 물속에선 떠오르기'],
+    ['Ctrl','앉기 · 물속에선 가라앉기 · <b>Ctrl+Space</b> 지붕 위에서 아래로 내려가기'],
+    ['마우스','둘러보기 — 화면을 한 번 누르면 마우스가 잠긴다'],
+  ]],
+  ['좌클릭 — 손에 든 것 쓰기',[
+    ['무기','휘두르기·찌르기 · 총은 쏘기(연사총은 누르고 있으면 계속)'],
+    ['캐기','캘 것을 보고 <b>누르고 있기</b> — 빈손(풀·열매·가지) · 도끼(나무) · 곡괭이·드릴(광석·암석)'],
+    ['먹을 것','먹기·마시기·붕대 감기'],
+    ['빈손','물가를 보고 누르면 물 마시기'],
+    ['전등','켜고 끄기(<b>L</b> 도 된다)'],
+    ['그물','무릎 위까지 잠기는 물에 들어가서 던지기'],
+    ['수류탄','던지기 — 3.5초 뒤 터진다'],
+  ]],
+  ['좌클릭 — 설비를 보고 있을 때',[
+    ['','설비를 보고 있으면 손에 든 것은 안 쓴다 — 설비가 먼저다'],
+    ['짧게','상자·화덕·제련로·숫돌·발전기 창 열기 · 문 여닫기 · 발전기는 지닌 축전지·전등 채우기'],
+    ['길게','화덕·제련로 불 다루기 — 부싯깃 + 활비비로 불 피우기'],
+    ['횃불','<b>켠 횃불</b>을 들고 꺼진 화덕을 길게 → 화덕에 불이 옮겨 붙는다(땔감이 있어야 함) · <b>꺼진 횃불</b>을 들고 타는 화덕을 길게 → 횃불에 불이 붙는다'],
+    ['E · Esc','열린 상자·화덕·숫돌 창 닫기'],
+  ]],
+  ['우클릭',[
+    ['저격총','누르고 있는 동안 조준경'],
+    ['전등·드릴','지닌 축전지에서 전기 옮겨 담기'],
+  ]],
+  ['소지품 · 제작 · 사전',[
+    ['I','소지품 — 끌어다 <b>손·옷·입</b> 칸에 놓는다 · 숫자로 칸 고르기'],
+    ['G','고른 것 1개 버리기 · <b>Shift+G</b> 전부'],
+    ['C','제작 — 검색칸으로 찾는다'],
+    ['B','사전(이 창) — 아이템·광물·조작'],
+    ['1 ~ 5','빠른 칸 — 손의 것과 맞바꾼다'],
+    ['X','재장전'],
+  ]],
+  ['집 짓기',[
+    ['Z','짓기 시작·끝'],
+    ['1 ~ 9','조각 고르기(토대·벽·지붕·문…) · <b>0</b> 재료 등급'],
+    ['R · Q','방향 돌리기 · 삼각 벽 좌우 뒤집기'],
+    ['좌클릭 · G','놓기 · 걷어내기'],
+  ]],
+  ['화면 · 저장',[
+    ['M','미니맵 크게/작게'],
+    ['V','자유 카메라'],
+    ['T','시간 빠르게(1 → 20 → 60 → 300배)'],
+    ['Tab','설정 — 그래픽·음량·마우스 감도·저장 칸·섬 생성'],
+    ['F3','성능 창'],
+    ['F5 · F9','고른 칸에 저장 · 불러오기(묻고 나서) — 놀이 5분마다 자동 저장'],
+    ['R','새 섬(묻고 나서)'],
+    ['Esc','일시정지'],
+  ]],
+];
 function drawDex(){
   if(!dexOpen) return;
   const L=document.getElementById('dexL');
@@ -10898,6 +10956,12 @@ function drawDex(){
       h+='<div class="dg">'+(got.length?got.map(g=>'<b>'+g.split(' — ')[0]+'</b> '
           +g.split(' — ').slice(1).join(' — ')).join('<br>')
         :'<b>처음부터 지님</b>')+'</div></div>';
+    }
+  }else if(dexTab==='keys'){
+    h+='<div class="dt">조작 안내</div>';
+    for(const [title,rows] of CONTROLS_GUIDE){
+      h+='<div class="de"><div class="dn"><span>'+title+'</span></div>'
+        +rows.map(([k,d])=>'<div class="kr"><b>'+k+'</b><span>'+d+'</span></div>').join('')+'</div>';
     }
   }else{
     h+='<div class="dt">광물 '+MINERALS.length+'종</div>';
@@ -15181,12 +15245,11 @@ document.getElementById('bSeed').onclick=()=>{
 };
 const tgl=(id,fn)=>{ const b=document.getElementById(id);
   b.onclick=()=>{ b.classList.toggle('on'); fn(b.classList.contains('on')); }; };
-document.getElementById('dexI').onclick=()=>{ dexTab='item';
-  document.getElementById('dexI').classList.add('on');
-  document.getElementById('dexM').classList.remove('on'); drawDex(); };
-document.getElementById('dexM').onclick=()=>{ dexTab='mineral';
-  document.getElementById('dexM').classList.add('on');
-  document.getElementById('dexI').classList.remove('on'); drawDex(); };
+/* 사전 탭 셋 — 아이템 · 광물 · 조작 */
+for(const [bid,tab] of [['dexI','item'],['dexM','mineral'],['dexK','keys']])
+  document.getElementById(bid).onclick=()=>{ dexTab=tab;
+    for(const b of ['dexI','dexM','dexK']) document.getElementById(b).classList.toggle('on',b===bid);
+    drawDex(); };
 tgl('bProps',v=>{ showProps=v; if(propGroup) propGroup.visible=v; });
 tgl('bGuar',v=>{ newIsland(()=>{ GUARANTEE=v; generateWorld(); },()=>document.getElementById('bGuar').classList.toggle('on',!v)); });
 tgl('bFly',v=>{ flyMode=v; if(v&&document.pointerLockElement) document.exitPointerLock(); });
