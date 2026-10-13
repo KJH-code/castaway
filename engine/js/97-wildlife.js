@@ -59,8 +59,66 @@ function wildInit(){
     g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(n*3),3));
     const pts=new THREE.Points(g,new THREE.PointsMaterial({size:0.045,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:0.95,depthWrite:false}));
     pts.frustumCulled=false; pts.userData.lightRole='none'; scene.add(pts);
-    WILD.bugs={pts, st:Array.from({length:n},()=>({x:0,y:-999,z:0,k:0,ph:Math.random()*6.28,life:0}))}; }
+    WILD.bugs={pts, st:Array.from({length:n},()=>({x:0,y:-999,z:0,k:0,ph:Math.random()*6.28,life:0,px:0,pz:0,yaw:0}))}; }
+  bugMeshes();
 }
+/* ── 벌레의 생김새 — 점이 아니라 날개 치는 입체(사용자 요청) ──────────────────────────
+   갈래마다 인스턴스 메시 하나: 나비(앞·뒷날개 넷 · 무늬) · 잠자리(긴 배 · 투명한 날개 넷 · 큰 겹눈) · 반딧불이(검은 몸 · 노란 꽁무니 + 빛 점) ·
+   벌(노랑·검정 줄무늬 · 작은 날개 둘). 정점마다 aW(0 몸 · ±1 왼·오른 날개)를 달아 셰이더가 몸 축(z)을 경첩으로 날개를 친다
+   — 빠르기·폭은 갈래마다(나비 9 Hz 크게 · 잠자리 28 Hz 작게 · 벌 45 Hz). 위상은 자리로 흩는다. 앞이 +z, 자리는 wildBugs 가 날아가는 쪽으로 돌린다 */
+const BUG_KIND={1:'fly',5:'fly',6:'fly',2:'glow',3:'drag',4:'bee'};
+function bugGeo(kind){
+  const P=[], C=[], W=[], tri=(a,b,c,col,w)=>{ P.push(...a,...b,...c); for(let i=0;i<3;i++){ C.push(...col); W.push(w); } };
+  const fan=(pts,col,w,col2)=>{ for(let i=1;i<pts.length-1;i++) tri(pts[0],pts[i],pts[i+1],i>pts.length*0.55&&col2?col2:col,w); };
+  const body=(len,r,z0,col,seg)=>{ const S=6, n=seg||3; for(let k=0;k<n;k++){ const za=z0+len*k/n, zb=z0+len*(k+1)/n, ra=r*Math.sin(Math.PI*(k+0.5)/n)+r*0.25, rb=r*Math.sin(Math.PI*(k+1.5)/n)+r*0.25;
+      const c=Array.isArray(col[0])?col[k%col.length]:col;
+      for(let i=0;i<S;i++){ const a=i/S*6.283, b=(i+1)/S*6.283, A=[Math.cos(a)*ra,Math.sin(a)*ra,za], B=[Math.cos(b)*ra,Math.sin(b)*ra,za], C2=[Math.cos(b)*rb,Math.sin(b)*rb,zb], D=[Math.cos(a)*rb,Math.sin(a)*rb,zb];
+        tri(A,B,C2,c,0); tri(A,C2,D,c,0); } } };
+  const mirror=(pts)=>pts.map(p=>[-p[0],p[1],p[2]]);
+  if(kind==='fly'){                                   // 나비 — 날개폭 약 9 cm
+    body(0.042,0.0045,-0.022,[0.10,0.08,0.06],4);
+    const fw=[[0.002,0,0.006],[0.020,0,0.024],[0.044,0,0.026],[0.050,0,0.010],[0.034,0,-0.004],[0.004,0,-0.002]];
+    const hw=[[0.002,0,-0.002],[0.030,0,-0.006],[0.036,0,-0.022],[0.022,0,-0.034],[0.006,0,-0.020]];
+    for(const s of [1,-1]){ const f=s>0?fw:mirror(fw), h=s>0?hw:mirror(hw);
+      fan(f,[1,1,1],s,[0.18,0.14,0.10]); fan(h,[0.92,0.92,0.92],s,[0.25,0.2,0.15]); }
+    tri([0.001,0.002,0.02],[0.008,0.004,0.036],[0.0,0.002,0.021],[0.1,0.08,0.06],0); tri([-0.001,0.002,0.02],[-0.008,0.004,0.036],[0.0,0.002,0.021],[0.1,0.08,0.06],0);   // 더듬이
+  }else if(kind==='drag'){                            // 잠자리 — 몸 7 cm · 날개폭 9 cm
+    body(0.05,0.0028,-0.045,[[0.20,0.45,0.62],[0.10,0.22,0.30]],6); body(0.018,0.005,0.004,[0.18,0.32,0.30],2);
+    body(0.008,0.006,0.020,[0.30,0.55,0.70],1);                                                        // 겹눈
+    for(const z of [0.014,0.002]) for(const s of [1,-1]){ const w=[[0.002,0,z],[0.046,0,z+0.006],[0.050,0,z],[0.046,0,z-0.004],[0.004,0,z-0.006]];
+      fan(s>0?w:mirror(w),[0.86,0.92,0.95],s); }
+  }else if(kind==='bee'){                             // 벌 — 1.6 cm
+    body(0.016,0.0045,-0.008,[[0.95,0.75,0.12],[0.10,0.08,0.05]],4);
+    for(const s of [1,-1]){ const w=[[0.001,0.002,0.003],[0.010,0.003,0.006],[0.013,0.003,0.0],[0.006,0.002,-0.004]]; fan(s>0?w:mirror(w),[0.92,0.95,1.0],s); }
+  }else{                                              // 반딧불이 — 1.4 cm · 꽁무니가 노랗다
+    body(0.010,0.0028,0.0,[0.10,0.09,0.08],2); body(0.006,0.0032,-0.006,[1.0,0.95,0.45],1);
+    for(const s of [1,-1]){ const w=[[0.001,0.002,0.008],[0.006,0.002,0.006],[0.007,0.002,-0.004],[0.002,0.002,-0.002]]; fan(s>0?w:mirror(w),[0.25,0.20,0.15],s); }
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));
+  g.setAttribute('aW',new THREE.Float32BufferAttribute(W,1)); g.computeVertexNormals(); return g;
+}
+const BUG_FLAP={fly:[9.0,1.05,0.25],drag:[28.0,0.35,0.0],bee:[45.0,0.6,0.1],glow:[20.0,0.7,0.2]};   // 빠르기(Hz) · 폭(rad) · 쉼 각
+function bugMeshes(){
+  WILD.bugIM={};
+  for(const k of ['fly','drag','bee','glow']){
+    const F=BUG_FLAP[k], m=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide,transparent:k==='drag',opacity:k==='drag'?0.85:1});
+    m.onBeforeCompile=sh=>{ sh.uniforms.uWT=WILD_U.t;
+      sh.vertexShader='uniform float uWT;\nattribute float aW;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+        if(aW!=0.0){ float ph=0.0;
+          #ifdef USE_INSTANCING
+            ph=instanceMatrix[3].x*7.1+instanceMatrix[3].z*5.3;
+          #endif
+          float th=${F[2].toFixed(3)}+${F[1].toFixed(3)}*sin(uWT*${(F[0]*6.2832).toFixed(3)}+ph);   // 몸 축(z)을 경첩으로 — 위로 +
+          float x=transformed.x;
+          transformed.x=x*cos(th); transformed.y+=abs(x)*sin(th); }`); };
+    m.customProgramCacheKey=()=>'bug_'+k;
+    const im=new THREE.InstancedMesh(bugGeo(k),m,WILD.bugN);
+    im.setColorAt(0,new THREE.Color(1,1,1)); im.count=0; im.frustumCulled=false; im.userData.lightRole='recv';
+    im.matrixAutoUpdate=false; im.updateMatrix(); scene.add(im); WILD.bugIM[k]=im;
+  }
+}
+const _bgC=new THREE.Color();
 const WILD_U={t:{value:0}};
 const _wM=new THREE.Matrix4(), _wQ=new THREE.Quaternion(), _wE=new THREE.Euler(), _wV=new THREE.Vector3(), _wS=new THREE.Vector3(1,1,1);
 
@@ -142,7 +200,7 @@ function slingShot(e,W){
 const BUG_C=[[0,0,0],[1.0,0.86,0.30],[0.75,1.0,0.35],[0.38,0.62,0.78],[0.95,0.75,0.15],[1.0,0.55,0.75],[0.92,0.92,0.98]];
 function wildBugs(dt){
   const B_=WILD.bugs, P=B_.pts.geometry.attributes.position, C=B_.pts.geometry.attributes.color, px=PL.pos.x, pz=PL.pos.z;
-  const night=hourOfDay<5.2||hourOfDay>19.6, t=WILD.t;
+  const night=hourOfDay<5.2||hourOfDay>19.6, t=WILD.t, cntB={};
   for(let i=0;i<B_.st.length;i++){ const s=B_.st[i];
     s.life-=dt;
     const dd=(s.x-px)*(s.x-px)+(s.z-pz)*(s.z-pz);
@@ -162,11 +220,23 @@ function wildBugs(dt){
       else if(s.k===3){ s.x+=Math.sin(t*1.9+s.ph)*2.4*dt; s.z+=Math.cos(t*1.6+s.ph*1.7)*2.4*dt; }                                         // 잠자리 — 빠르게 휙휙
       else{ s.x+=Math.sin(t*1.3+s.ph)*0.9*dt; s.z+=Math.cos(t*1.1+s.ph*1.6)*0.9*dt; s.y=s.gy+0.7+0.5*Math.sin(t*2.3+s.ph); }              // 나비 — 팔랑팔랑
     }
-    P.array[i*3]=s.x; P.array[i*3+1]=s.y; P.array[i*3+2]=s.z;
+    /* 생김새 — 날아가는 쪽을 본다(움직임으로 방향을 낸다 · 벌은 벌집 둘레를 돌아 그쪽) */
+    const kd=BUG_KIND[s.k];
+    if(kd){ const im=WILD.bugIM[kd], j=cntB[kd]|0;
+      const mx=s.x-s.px, mz=s.z-s.pz; if(mx*mx+mz*mz>1e-8){ let d=Math.atan2(mx,mz)-s.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); s.yaw+=d*Math.min(1,dt*8); }
+      if(j<im.instanceMatrix.count){ const sc=kd==='fly'?1.25:kd==='drag'?1.15:1.4;
+        _wE.set(kd==='fly'?Math.sin(t*3+s.ph)*0.25:0,s.yaw,Math.sin(t*2+s.ph)*0.15); _wQ.setFromEuler(_wE); _wV.set(s.x,s.y,s.z); _wS.set(sc,sc,sc);
+        _wM.compose(_wV,_wQ,_wS); im.setMatrixAt(j,_wM);
+        const c0=BUG_C[s.k]; _bgC.setRGB(kd==='fly'?c0[0]:1,kd==='fly'?c0[1]:1,kd==='fly'?c0[2]:1); im.setColorAt(j,_bgC); cntB[kd]=j+1; }
+      _wS.set(1,1,1); }
+    s.px=s.x; s.pz=s.z;
+    /* 점은 반딧불이의 빛만 남긴다 */
+    P.array[i*3]=s.x; P.array[i*3+1]=s.k===2?s.y:-999; P.array[i*3+2]=s.z;
     const c=BUG_C[s.k]||BUG_C[0], k=s.k===2?(0.35+0.65*Math.max(0,Math.sin(t*2.2+s.ph*3))):(s.k===4?0.9:(0.75+0.25*Math.sin(t*16+s.ph)));
     C.array[i*3]=c[0]*k; C.array[i*3+1]=c[1]*k; C.array[i*3+2]=c[2]*k;
   }
   P.needsUpdate=true; C.needsUpdate=true;
+  for(const k in WILD.bugIM){ const im=WILD.bugIM[k]; im.count=cntB[k]|0; im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true; }
 }
 
 /* 잠자리채 — 겨눈 쪽 3 m 안의 벌레를 떠서 유리병에 담는다. 한 번 휘두르면 겨눈 것 둘레 1 m 의 벌레가 **몇 마리 같이** 걸린다
