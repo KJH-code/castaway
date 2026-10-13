@@ -377,14 +377,14 @@ const ITEMS={
   iron_wrought:{n:'연철',      kg:1.8,  c:0x8a8078,
                use:'쇠똥을 짜낸 순한 철 — 두들겨 모양을 잡는다'},
   axe_iron:   {n:'철 도끼',    kg:2.4,  c:0x9a938c,
-               use:'벌목 — 날이 가장 잘 든다', tool:{axe:1,speed:3.2,wear:1}, durMax:900},
+               use:'벌목 — 날이 가장 잘 든다 · 노거수도 벤다', tool:{axe:2,speed:3.2,wear:1}, durMax:900},
   pick_iron:  {n:'철 곡괭이',  kg:3.2,  c:0x9a938c,
                use:'화강암까지 직접 캔다 — 불이 필요 없다',
                tool:{pick:3,speed:3.4,wear:1}, durMax:1000},
   /* 강철 연장 — 담금질한 날이라 무디어지는 속도가 철의 절반이다 */
   axe_steel:  {n:'강철 도끼',  kg:2.3,  c:0x74797f,
-               use:'벌목 — 한 번 벼려두면 오래 간다',
-               tool:{axe:1,speed:4.0,wear:1}, durMax:1800},
+               use:'벌목 — 한 번 벼려두면 오래 간다 · 노거수도 벤다',
+               tool:{axe:2,speed:4.0,wear:1}, durMax:1800},
   pick_steel: {n:'강철 곡괭이', kg:3.0,  c:0x74797f,
                use:'화강암을 철 곡괭이보다 빠르게 깬다',
                tool:{pick:3,speed:4.3,wear:1}, durMax:2000},
@@ -769,7 +769,7 @@ function drawInv(){
   ch+='</div>';
   const row=i=>{
     const s=INV.slots[i], t=ITEMS[s.id];
-    return '<div class="it'+(i===INV.sel?' sel':'')+'" data-i="'+i+'" data-tipi="'+s.id+'" draggable="true">'
+    return '<div class="it" data-i="'+i+'" data-tipi="'+s.id+'" draggable="true">'
       +iconTag(s.id,t)
       +'<span class="nm">'+t.n+' <span class="qt">×'+s.n+'</span>'
       +(s===EQUIP?'<span class="eq">장착</span>':'')
@@ -793,24 +793,30 @@ function drawInv(){
     body=ids.length?'<div class="igL">'+ids.map(row).join('')+'</div>'
         :'<div class="ie">'+(view[0]==='p'?'이 칸은 비었다 — 물건을 위의 칸 단추로 끌어다 놓는다':'이 갈래의 물건이 없다')+'</div>';
   }
-  const keepScroll=L.scrollTop;                   // 다시 그려도 굴린 자리는 그대로
-  L.innerHTML=wh+ch+body;
-  L.scrollTop=keepScroll;
-  L.querySelectorAll('.it').forEach(el=>{
-    el.onclick=()=>{ INV.sel=+el.dataset.i; invDirty=true; };
-  });
-  L.querySelectorAll('.ic button').forEach(el=>{ el.onclick=()=>invChip(el.dataset.v,el); });
-  /* 칸 단추·칸 머리줄에 끌어다 놓으면 그 칸에 든다('전체' 에 놓으면 칸에서 뺀다) */
-  L.querySelectorAll('.drop').forEach(el=>{
-    el.ondragover=ev=>{ if(DRAG){ ev.preventDefault(); ev.stopPropagation(); el.classList.add('over'); } };
-    el.ondragleave=()=>el.classList.remove('over');
-    el.ondrop=ev=>{ ev.preventDefault(); ev.stopPropagation(); el.classList.remove('over');
-      const sl=DRAG; DRAG=null; if(!sl||INV.slots.indexOf(sl)<0) return;
-      const v=el.dataset.v, pk=v==='all'?0:+v.slice(2);
-      sl.pk=pk||undefined; invDirty=true; sfx('bind');
-      toast(pk?ITEMS[sl.id].n+' → ▣ '+INV.pockets[pk-1]:ITEMS[sl.id].n+' — 칸에서 뺐다'); };
-  });
-  wireDrag(L);
+  /* **같은 내용이면 다시 쓰지 않는다**(main) — 칸 하나를 누를 때마다 목록을 통째로 다시 쓰면 아이콘 <img> 가 새로 만들어져
+     한 프레임 비어 보였다(창을 누를 때마다 깜박임). 내용이 바뀔 때만 다시 쓰고, 고른 칸이 바뀐 것은 표시(sel)만 옮긴다 */
+  const html=wh+ch+body;
+  if(L._html!==html){
+    const keepScroll=L.scrollTop;                 // 다시 그려도 굴린 자리는 그대로
+    L.innerHTML=html; L._html=html;
+    L.scrollTop=keepScroll;
+    L.querySelectorAll('.it').forEach(el=>{
+      el.onclick=()=>{ INV.sel=+el.dataset.i; invDirty=true; };
+    });
+    L.querySelectorAll('.ic button').forEach(el=>{ el.onclick=()=>invChip(el.dataset.v,el); });
+    /* 칸 단추·칸 머리줄에 끌어다 놓으면 그 칸에 든다('전체' 에 놓으면 칸에서 뺀다) */
+    L.querySelectorAll('.drop').forEach(el=>{
+      el.ondragover=ev=>{ if(DRAG){ ev.preventDefault(); ev.stopPropagation(); el.classList.add('over'); } };
+      el.ondragleave=()=>el.classList.remove('over');
+      el.ondrop=ev=>{ ev.preventDefault(); ev.stopPropagation(); el.classList.remove('over');
+        const sl=DRAG; DRAG=null; if(!sl||INV.slots.indexOf(sl)<0) return;
+        const v=el.dataset.v, pk=v==='all'?0:+v.slice(2);
+        sl.pk=pk||undefined; invDirty=true; sfx('bind');
+        toast(pk?ITEMS[sl.id].n+' → ▣ '+INV.pockets[pk-1]:ITEMS[sl.id].n+' — 칸에서 뺐다'); };
+    });
+    wireDrag(L);
+  }
+  L.querySelectorAll('.it').forEach(el=>el.classList.toggle('sel',+el.dataset.i===INV.sel));
   if(typeof drawSel==='function') drawSel();      // 가운데 '고른 물건' 칸(98-bag.js)
 }
 /* 소지품 윗줄의 단추 — 볼 갈래를 바꾸거나, 칸을 만들고 · 이름을 고치고 · 지운다 */
@@ -1101,6 +1107,11 @@ function pickMode(t){
   let T=e?ITEMS[e.id].tool:null;
   if(T && T.drill && e.dur<=0) T=null;             // 전기가 떨어진 드릴은 맨손과 같다(우클릭으로 채운다)
 
+  if(t.giant){                                     // 노거수 — 철 도끼 이상(axe 2)이라야 날이 박힌다(95-giants.js)
+    if(T && (T.axe|0)>=GIANT_CHOP.tier && t.logs>0)
+      return {H:GIANT_CHOP, field:'logs', tool:true, dur:GIANT_CHOP.dur/(T.speed||1), wear:T.wear||1};
+    return null;
+  }
   if(T && T.axe && CHOP[t.k] && t.logs>0){
     // 자루가 없는 주먹도끼는 느리고 빨리 닳는다
     return {H:CHOP[t.k], field:'logs', tool:true,
@@ -1133,6 +1144,12 @@ function josaRo(w){
 function blockReason(t){
   if(!t) return null;
   const e=equippedTool(), T=e?ITEMS[e.id].tool:null;
+  if(t.giant){
+    if(t.logs<=0) return null;
+    if(!T||!T.axe) return '줄기가 너무 굵다 — 철 도끼 이상을 들고 줄기를 보며 좌클릭을 누르고 있으면 벤다';
+    if((T.axe|0)<GIANT_CHOP.tier) return josaRo(ITEMS[e.id].n)+'는 이 줄기에 날이 안 박힌다 — 철 도끼 이상이라야 벤다';
+    return null;
+  }
   const M=MINE[t.k];
   if(M && t.ore>0 && e && T && T.drill && e.dur<=0)
     return '드릴 전기가 없다 — 우클릭으로 축전지에서 채우거나 발전기 곁에서 채워라';
@@ -1174,15 +1191,23 @@ function eachNearProp(x,z,fn){
 const isNode=k=>!!(HARVEST[k]||MINE[k]||CHOP[k]);
 function findHarvestTarget(){
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
-  let best=null, bd=2.8;
+  /* 손에 든 도구로 할 수 있는 것이 1.2 m 앞선다 — 도끼를 들고 줄기를 보는데 발밑 풀이 더 가까우면 풀을 골라서
+     (풀은 빈손 채집이라 도끼로는 아무것도 안 했다) 줄기를 못 베었다. 곡괭이와 광석도 같다 */
+  const e=equippedTool(), W=e?(ITEMS[e.id].tool||{}):{};
+  const fit=p=>(W.axe&&CHOP[p.k]&&p.logs>0)||(W.pick&&MINE[p.k]&&p.ore>0);
+  let best=null, bs=2.8;
   eachNearProp(PL.pos.x,PL.pos.z,p=>{
     if(!isNode(p.k)) return;
     const dx=p.x-PL.pos.x, dz=p.z-PL.pos.z;
     const d=Math.hypot(dx,dz);
-    if(d>bd||d<0.05) return;
+    if(d>2.8||d<0.05) return;
     if((dx/d)*fx+(dz/d)*fz < 0.5) return;      // 시야 밖이면 제외
-    bd=d; best=p;
+    const sc=d-(fit(p)?1.2:0);
+    if(sc<bs){ bs=sc; best=p; }
   });
+  /* 노거수 줄기 — 줄기 겉까지 1.6 m 안이면 후보(줄기가 굵어 가운데까지 재면 늘 멀다). 도끼를 들었으면 똑같이 앞선다 */
+  const gt=giantChopTarget(fx,fz);
+  if(gt){ const sc=gt.d-(W.axe?1.2:0); if(!best||sc<bs) best=gt.prop; }
   return best;
 }
 /* 화덕·제련로 상호작용 — 이제 여기서 하는 일은 '불'뿐이다.
@@ -1339,7 +1364,8 @@ function updateHarvest(dt){
     if(field==='logs' && t.logs<=0){ t.felled=true; t.br=0; }   // 다 베면 그루터기만
   }
   if(field==='br' && t.br<=0 && H.regrow!==undefined){ t.cut=gameHours; REGROW.push(t); }
-  shrinkFoliage(t);
+  if(t.giant) giantChopped(t);                       // 노거수 — 남은 통나무를 적고, 다 베면 쓰러뜨린다(95-giants.js)
+  else shrinkFoliage(t);
   invDirty=true;
   toast(msg);
   sfx(harvestSfx(t.k,field));
@@ -1427,8 +1453,24 @@ function shrinkFoliage(p){
   p._fm.setMatrixAt(p._fi,_M);
   p._fm.instanceMatrix.needsUpdate=true;
 }
-let toastT=0;
+/* 알림 — 채취 표시(#look) 밑의 따로 된 칸(#toast)에 최대 세 줄 쌓는다. 같은 말이 잇달아 오면 한 줄에 ×n 으로 센다.
+   예전엔 #look 의 글을 빌려 써서, 캐는 동안 '+1' 이 뜰 때마다 1.4초씩 진행 막대가 가려졌다(사용자 지적) */
+const TOASTS=[]; let toastDirty=false;
 function toast(m){
-  const e=document.getElementById('lookT');
-  e.dataset.toast=m; toastT=1.4;
+  const last=TOASTS[TOASTS.length-1];
+  if(last&&last.m===m){ last.n++; last.t=2.4; }
+  else{ TOASTS.push({m,n:1,t:2.4}); if(TOASTS.length>3) TOASTS.shift(); }
+  toastDirty=true;
+}
+function updateToasts(dt){
+  const el=document.getElementById('toast'); if(!el) return;
+  let gone=false;
+  for(const q of TOASTS){ q.t-=dt; if(q.t<=0) gone=true; }
+  if(gone){ for(let i=TOASTS.length-1;i>=0;i--) if(TOASTS[i].t<=0) TOASTS.splice(i,1); toastDirty=true; }
+  if(toastDirty){
+    toastDirty=false;
+    el.innerHTML=TOASTS.map(q=>'<div>'+String(q.m).replace(/[<>&]/g,'')+(q.n>1?'<span class="n">×'+q.n+'</span>':'')+'</div>').join('');
+  }
+  const ds=el.children;                             // 끝 0.4초는 흐려지며 사라진다
+  for(let i=0;i<ds.length&&i<TOASTS.length;i++){ const o=Math.min(1,TOASTS[i].t/0.4).toFixed(2); if(ds[i]._o!==o){ ds[i]._o=o; ds[i].style.opacity=o; } }
 }

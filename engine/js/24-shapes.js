@@ -178,9 +178,10 @@ SHP.merge=function(parts,withUV,grad){
   let total=0; const tmp=[];
   for(const pt of parts){ const g=pt.g.index?pt.g.toNonIndexed():pt.g; tmp.push(g); total+=g.attributes.position.count; }
   const P=new Float32Array(total*3), Nn=new Float32Array(total*3), C=new Float32Array(total*3), U=withUV?new Float32Array(total*2):null;
-  let o=0;
+  let o=0; const ranges=[];
   parts.forEach((pt,pi)=>{
     const g=tmp[pi], p=g.attributes.position.array, nr=g.attributes.normal.array, uv=g.attributes.uv?g.attributes.uv.array:null, cnt=p.length/3;
+    ranges.push({o,n:cnt,cell:pt.cell,x:pt.x||0,y:pt.y||0,z:pt.z||0});   // 부품마다 정점 구간 — 줄인 복제(95-flora.js `floraLodGeo`)가 잎 판만 솎는다
     M.compose(new THREE.Vector3(pt.x||0,pt.y||0,pt.z||0),
       pt.q||new THREE.Quaternion().setFromEuler(new THREE.Euler(pt.rx||0,pt.ry||0,pt.rz||0)),
       new THREE.Vector3(pt.s||1,pt.sy||pt.s||1,pt.s||1));
@@ -216,6 +217,7 @@ SHP.merge=function(parts,withUV,grad){
   out.setAttribute('color',new THREE.BufferAttribute(C,3));
   if(U) out.setAttribute('uv',new THREE.BufferAttribute(U,2));
   out.computeBoundingSphere();
+  out.userData.parts=ranges;
   return out;
 };
 /* 방위 a 쪽으로 t 만큼 눕히는 회전(+Y 로 선 것을 바깥으로 눕힌다) */

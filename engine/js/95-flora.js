@@ -22,49 +22,56 @@
    ③ **몸이 막힌다** — 줄기가 있는 것은 전부(`FLORA_KIND.r`). 덤불도 한가운데는 못 지난다. 고사리·꽃·버섯만 헤치고 간다.
    ④ **얻는 것** — 밀림 나무의 덩굴 · 대나무 · 야자열매 · 바나나 · 버섯(`FLORA_PICK`). 바라보고 좌클릭.
       딴 자리는 하루 이틀 뒤 다시 난다(`FLORA.taken` — 저장된다).
-   ⑤ 두 겹으로 깐다 — 나무는 6 m 칸 · 사람 둘레 110 m, 덤불·고사리는 2.4 m 칸 · 46 m. 자리는 전부 칸 번호의 해시라
+   ⑤ 두 겹으로 깐다 — 나무는 6 m 칸 · **섬 전체를 한 번**(참나무·전나무와 같은 길 — 아래 '나무 겹' · `floraFar`),
+      덤불·고사리는 2.4 m 칸 · 사람 둘레 46 m 를 걸을 때마다. 자리는 전부 칸 번호의 해시라
       같은 섬 같은 자리에 늘 같은 것이 선다. 섬 생성(자원 배치)과 무관하다.
    ⑥ **그루마다 생김새가 다르다** — 종류마다 씨앗만 바꿔 여러 벌을 지어 두고(`floraShapes` · 벌 수 `FLORA_VARS` — 나무 8 · 덤불·고사리 6 ·
       꽃·마른 덤불·버섯 4) 칸 번호의 해시로 그루마다 한 벌을 고른다. 짜임(줄기·가지 치는 법·잎 그림)은 그대로고 가지·잎·줄기 수는
       원래 값의 ±1~2, 키는 ±10% 안에서만 흔든다. 벌마다 인스턴스 메시가 하나라 `FLORA.m[종류]` 는 배열이다.
+      **제 생김새는 가까이서만** — 나무는 25 m(`FULL_DIST`) 밖이면 기준 그루의 줄인 복제·그림(아래 '나무 겹'), 덤불·고사리는
+      12 m(층의 `own`) 밖이면 종류마다 **사람에게서 가장 가까운 그루의 벌 하나**(`FLORA.ref`)로 찍는다.
    노거수(뿌리가 땅이 되는 큰 나무)는 95-giants.js 가 '노거수 숲' 군락에 세운다.
    ========================================================================== */
-const FLORA={seed:0, m:null, mat:null, depth:null, tex:null, patch:84, taken:new Map(), look:null,
-  far :{cx:1e9,cz:1e9,R:100,cell:6,  step:12,fade:14,salt:3,cols:[],picks:[],n:{},kinds:['jungle','mangrove','bamboo','palm','birch','pine','sapling','banana','treefern','acacia']},
-  near:{cx:1e9,cz:1e9,R:46, cell:2.4,step:6, fade:7, salt:1,cols:[],picks:[],n:{},kinds:['fern','bush','flower','dry','shroom']}};
+const FLORA={seed:0, m:null, mat:null, depth:null, tex:null, patch:84, taken:new Map(), look:null, ref:{}, pend:[], pendN:0,
+  far :{cx:1e9,cz:1e9,R:110,cell:6,  step:12,fade:14,salt:3,own:FULL_DIST,cols:[],picks:[],n:{},kinds:['jungle','mangrove','bamboo','palm','birch','pine','sapling','banana','treefern','acacia']},
+  near:{cx:1e9,cz:1e9,R:46, cell:2.4,step:6, fade:7, salt:1,own:12,cols:[],picks:[],n:{},kinds:['fern','bush','flower','dry','shroom']}};
 /* 그림 묶음의 칸 */
 const FC={BARK:0,RING:1,LEAF:2,BIG:3,FERN:4,PALM:5,BAMBOO:6,NEEDLE:7,FLOWER:8,TWIG:9,MANG:10,VINE:11,BIRCH:12,PLAIN:13,STEM:14,CAP:15};
 /* 종류마다 — r 몸이 막히는 반지름(크기 1 일 때 · 없으면 지나간다) · pick 얻는 것 · cap 한 번에 서는 수 */
 const FLORA_KIND={
-  jungle:{r:0.44,pick:'vine',cap:900}, mangrove:{r:1.5,pick:'bark_m',cap:420}, bamboo:{r:0.75,pick:'bamboo',cap:520}, palm:{r:0.22,pick:'coconut',cap:260},
-  birch:{r:0.16,pick:'bark_b',cap:520}, pine:{r:0.14,pick:'resin',cap:700}, sapling:{r:0.10,pick:'twig',cap:520}, banana:{r:0.16,pick:'banana',cap:380},
-  treefern:{r:0.16,pick:'frond',cap:380}, acacia:{r:0.18,pick:'bark_a',cap:220},
-  fern:{pick:'fern',cap:2600}, bush:{r:0.30,pick:'bushtwig',cap:1800}, flower:{pick:'flower',cap:900}, dry:{pick:'drytwig',cap:520}, shroom:{pick:'mushroom',cap:160} };
-/* 얻는 것 — regrow 다시 나기까지(게임 시간) · cnt [아래, 위] · need 'sharp' 날붙이를 지녀야 · hide 따면 그 자리가 빈다
-   low: 발밑의 낮은 것 — 줄기가 아니라 그 포기를 내려다봐야 잡힌다(숲을 걷는 내내 고사리가 잡히지 않게) */
+  jungle:{r:0.44,pick:'vine',cap:420}, mangrove:{r:1.5,pick:'bark_m',cap:260}, bamboo:{r:0.75,pick:'bamboo',cap:320}, palm:{r:0.22,pick:'coconut',cap:220},
+  birch:{r:0.16,pick:'bark_b',cap:360}, pine:{r:0.14,pick:'resin',cap:460}, sapling:{r:0.10,pick:'twig',cap:360}, banana:{r:0.16,pick:'banana',cap:200},
+  treefern:{r:0.16,pick:'frond',cap:260}, acacia:{r:0.18,pick:'bark_a',cap:200},
+  /* 덤불 겹의 몫은 사람 둘레 46 m 에 서는 수 — 밀림은 칸마다 셋까지 서므로(nearDense) 넉넉히 */
+  fern:{pick:'fern',cap:1100}, bush:{r:0.30,pick:'bushtwig',cap:760}, flower:{pick:'flower',cap:700}, dry:{pick:'drytwig',cap:420}, shroom:{pick:'mushroom',cap:140} };
+/* 얻는 것 — regrow 다시 나기까지(게임 시간) · cnt [아래, 위] 얻는 수(무작위) · need 'sharp' 날붙이를 지녀야 · hide 따면 그 자리가 빈다
+   dur 좌클릭을 누르고 있어야 하는 시간(초 · 진행 막대) · stam 그동안 드는 기력(초당) · extra [[아이템, 확률], …] 가끔 함께 딸려 나오는 것
+   low 키 작은 것 — 나무처럼 줄기 쪽을 보는 것이 아니라 버섯처럼 그 포기(크기 × low 높이)를 겨눠야 한다(숲을 걷는 내내 고사리가 잡히지 않게)
+   take 담을 그릇을 하나 쓴다 · sting 불 붙인 횃불 없이 따면 쏘인다 */
 const FLORA_PICK={
-  vine    :{item:'vine',    n:'덩굴',     verb:'끊기',        regrow:30, cnt:[1,2]},
-  bamboo  :{item:'bamboo',  n:'대나무',   verb:'베기',        regrow:60, cnt:[2,3], need:'sharp'},
-  coconut :{item:'coconut', n:'야자열매', verb:'흔들어 따기', regrow:48, cnt:[1,2]},
-  banana  :{item:'banana',  n:'바나나',   verb:'따기',        regrow:48, cnt:[2,3]},
-  mushroom:{item:'mushroom',n:'버섯',     verb:'따기',        regrow:36, cnt:[1,1], hide:1},
+  vine    :{item:'vine',    n:'덩굴',      verb:'끊기',        regrow:30, cnt:[1,2], dur:1.3, stam:4},
+  bamboo  :{item:'bamboo',  n:'대나무',    verb:'베기',        regrow:60, cnt:[2,3], dur:2.2, stam:6, need:'sharp'},
+  coconut :{item:'coconut', n:'야자열매',  verb:'흔들어 따기', regrow:48, cnt:[1,2], dur:1.8, stam:6},
+  banana  :{item:'banana',  n:'바나나',    verb:'따기',        regrow:48, cnt:[2,3], dur:1.1, stam:2.5},
+  mushroom:{item:'mushroom',n:'버섯',      verb:'따기',        regrow:36, cnt:[1,1], dur:0.5, stam:1, hide:1},
+  /* 덤불 — 잔가지를 꺾는다. 마른 잎·검불이 부싯깃이 되고, 열매가 달린 철이면 베리도 딸려 온다 */
+  bushtwig:{item:'branch',  n:'덤불',      verb:'가지 꺾기',   regrow:20, cnt:[1,2], dur:1.2, stam:4, low:0.45, extra:[['tinder',0.25],['berry',0.3]]},
+  drytwig :{item:'branch',  n:'마른 덤불', verb:'가지 꺾기',   regrow:24, cnt:[1,2], dur:1.0, stam:3.5, low:0.4, extra:[['tinder',0.6]]},
   /* **세상에 선 것은 전부 무엇인가를 준다**(사용자 요청: 손댈 수 없는 것이 없게) — 아래는 그래서 더한 것들이다 */
-  bark_m  :{item:'bark',    n:'맹그로브 껍질', verb:'벗기기', regrow:48, cnt:[1,2], need:'sharp'},
-  bark_b  :{item:'bark',    n:'자작 껍질',     verb:'벗기기', regrow:36, cnt:[1,2]},
-  bark_a  :{item:'bark',    n:'아카시아 껍질', verb:'벗기기', regrow:48, cnt:[1,1], need:'sharp'},
-  resin   :{item:'resin',   n:'송진',     verb:'긁어내기',    regrow:36, cnt:[1,1], need:'sharp'},
-  twig    :{item:'branch',  n:'어린 나무', verb:'가지 꺾기',  regrow:24, cnt:[1,1]},
-  frond   :{item:'fern',    n:'나무고사리', verb:'잎 뜯기',   regrow:24, cnt:[2,3]},
-  fern    :{item:'fern',    n:'고사리',   verb:'뜯기',        regrow:24, cnt:[1,1], low:1},
-  bushtwig:{item:'branch',  n:'덤불',     verb:'가지 꺾기',   regrow:24, cnt:[1,1], low:1},
-  flower  :{item:'flower',  n:'들꽃',     verb:'꺾기',        regrow:30, cnt:[1,2], hide:1},
-  drytwig :{item:'tinder',  n:'마른 덤불', verb:'뜯기',       regrow:30, cnt:[1,1], hide:1},
-  stone   :{item:'pebble',  n:'돌',       verb:'줍기',        regrow:72, cnt:[1,1], hide:1},      // 자갈밭의 잔돌(30-props.js RUBBLE)
-  gbark   :{item:'bark',    n:'노거수 껍질', verb:'벗기기',   regrow:24, cnt:[2,3], need:'sharp'}, // 95-giants.js
-  gresin  :{item:'resin',   n:'삼나무 송진', verb:'긁어내기', regrow:24, cnt:[2,3], need:'sharp'},
-  /* 둥지의 알 · 벌집의 꿀(97-wildlife.js) — take: 담을 그릇을 하나 쓴다 · sting: 불 붙인 횃불 없이 건드리면 쏘인다 */
-  egg     :{item:'egg',     n:'새 둥지',  verb:'알 꺼내기',   regrow:48, cnt:[1,2]},
-  honey   :{item:'honey',   n:'벌집',     verb:'꿀 따기',     regrow:72, cnt:[1,1], take:'pot', sting:7}
+  bark_m  :{item:'bark',    n:'맹그로브 껍질', verb:'벗기기', regrow:48, cnt:[1,2], dur:1.6, stam:4, need:'sharp'},
+  bark_b  :{item:'bark',    n:'자작 껍질',     verb:'벗기기', regrow:36, cnt:[1,2], dur:1.4, stam:3},
+  bark_a  :{item:'bark',    n:'아카시아 껍질', verb:'벗기기', regrow:48, cnt:[1,1], dur:1.6, stam:4, need:'sharp'},
+  resin   :{item:'resin',   n:'송진',      verb:'긁어내기',    regrow:36, cnt:[1,1], dur:1.4, stam:3, need:'sharp'},
+  twig    :{item:'branch',  n:'어린 나무', verb:'가지 꺾기',   regrow:24, cnt:[1,1], dur:1.0, stam:3},
+  frond   :{item:'fern',    n:'나무고사리', verb:'잎 뜯기',    regrow:24, cnt:[2,3], dur:1.0, stam:2.5},
+  fern    :{item:'fern',    n:'고사리',    verb:'뜯기',        regrow:24, cnt:[1,1], dur:0.6, stam:1.5, low:0.3},
+  flower  :{item:'flower',  n:'들꽃',      verb:'꺾기',        regrow:30, cnt:[1,2], dur:0.4, stam:1, hide:1},
+  stone   :{item:'pebble',  n:'돌',        verb:'줍기',        regrow:72, cnt:[1,1], dur:0.4, stam:1, hide:1},      // 자갈밭의 잔돌(30-props.js RUBBLE)
+  gbark   :{item:'bark',    n:'노거수 껍질', verb:'벗기기',    regrow:24, cnt:[2,3], dur:1.8, stam:4, need:'sharp'}, // 95-giants.js
+  gresin  :{item:'resin',   n:'삼나무 송진', verb:'긁어내기',  regrow:24, cnt:[2,3], dur:1.6, stam:3, need:'sharp'},
+  /* 둥지의 알 · 벌집의 꿀(97-wildlife.js) */
+  egg     :{item:'egg',     n:'새 둥지',   verb:'알 꺼내기',   regrow:48, cnt:[1,2], dur:1.2, stam:2},
+  honey   :{item:'honey',   n:'벌집',      verb:'꿀 따기',     regrow:72, cnt:[1,1], dur:2.0, stam:4, take:'pot', sting:7}
 };
 /* 바이옴마다의 군락 — w 얼룩이 그 군락이 될 몫 · far 나무 겹 · near 덤불 겹: [종류, 칸마다 설 확률, 크기 아래, 위]
    giant: 노거수가 서는 군락(1 활엽 · 2 침엽 — 95-giants.js) · low: 표고가 이보다 높으면 그 바이옴의 둘째 군락으로 바꾼다
@@ -509,7 +516,7 @@ function floraBuild(){
   FLORA.depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:FLORA.tex,alphaTest:0.4});
   FLORA.m={};
   for(const L of [FLORA.far,FLORA.near]) for(const k of L.kinds){
-    const nv=FLORA_VARS[k]||1, cap=Math.ceil(FLORA_KIND[k].cap*2.5/nv)+8;   // 벌마다 몫 — 고르게 나뉘므로 평균의 2.5배면 넉넉하다
+    const nv=FLORA_VARS[k]||1, cap=Math.ceil(FLORA_KIND[k].cap*2.5)+8;   // 벌마다 몫 — 기준 벌(`FLORA.ref`)이 먼 그루를 다 받으므로 예전 종류 전체 몫(평균의 2.5배)
     FLORA.m[k]=[]; L.n[k]=new Int32Array(nv);
     for(let v=0;v<nv;v++){
       const im=new THREE.InstancedMesh(SH[v][k],FLORA.mat,cap);
@@ -535,10 +542,21 @@ function floraNearRiver(ci){
     for(let dx=-r;dx<=r;dx++){ const x=cx+dx; if(x<1||x>=N-1) continue; if(riv[z*N+x]&&F.elev[z*N+x]>-0.5) return true; } }
   return false;
 }
+/* 그 자리에 큰 나무·바위·설비·벽(충돌 원)이 있나 */
+function floraHit(wx,wz,pad){
+  const cgx=Math.floor(wx/CG), cgz=Math.floor(wz/CG);
+  for(let az=-1;az<=1;az++) for(let ax=-1;ax<=1;ax++){
+    const a=CGRID.get(cgKey(cgx+ax,cgz+az)); if(!a) continue;
+    for(const o of a){ const ox=wx-o.x, oz=wz-o.z, rr=o.r+pad; if(ox*ox+oz*oz<rr*rr) return true; }
+  }
+  return false;
+}
+/* 덤불 겹(사람 둘레 46 m) — 사람을 따라 다시 깐다. 나무 겹은 아래 `floraFar` 가 섬 전체를 한 번 깔고 거리로 고른다 */
 function floraLayer(L,which){
   const U=FLORA, px=PL.pos.x, pz=PL.pos.z, C=L.cell, R=L.R*QUAL.k, n=L.n, far=which==='far';   // 자동 품질이 반경을 당긴다(30-props.js)
   L.cx=px; L.cz=pz; L.cols.length=0; L.picks.length=0;
   for(const k of L.kinds) n[k].fill(0);
+  const near0={}, nearV={}; U.pendN=0;
   const x0=Math.floor((px-R)/C), x1=Math.floor((px+R)/C), z0=Math.floor((pz-R)/C), z1=Math.floor((pz+R)/C);
   const TRY=far?2:3;                                  // 칸 하나에 많아야 이만큼 선다(군락의 dense · nearDense 가 정한다)
   for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ let lx=1e9, lz=1e9;
@@ -564,15 +582,10 @@ function floraLayer(L,which){
       for(const t of cm[which]){ const pr=t[1]*dens; if(u<pr){ pick=t; break; } u-=pr; }
     }
     if(!pick) continue;
-    const kind=pick[0], ms=U.m[kind], vi=floraHash(gx,gz,salt+7)%ms.length, im=ms[vi], K=FLORA_KIND[kind], nk=n[kind];
-    if(nk[vi]>=im.instanceMatrix.count) continue;
+    const kind=pick[0], ms=U.m[kind], vi=floraHash(gx,gz,salt+7)%ms.length, K=FLORA_KIND[kind], nk=n[kind];
     // 큰 나무·바위·설비·벽이 선 자리, 지은 바닥 위는 비운다
-    const pad=(K.r||0)+0.5, cgx=Math.floor(wx/CG), cgz=Math.floor(wz/CG); let hit=false;
-    for(let az=-1;az<=1&&!hit;az++) for(let ax=-1;ax<=1&&!hit;ax++){
-      const a=CGRID.get(cgKey(cgx+ax,cgz+az)); if(!a) continue;
-      for(const o of a){ const ox=wx-o.x, oz=wz-o.z, rr=o.r+pad; if(ox*ox+oz*oz<rr*rr){ hit=true; break; } }
-    }
-    if(hit||inLanding(wx,wz,pad)) continue;           // 보급선이 앉는 자리 · 깨는 자리는 비운다
+    const pad=(K.r||0)+0.5;
+    if(floraHit(wx,wz,pad)||inLanding(wx,wz,pad)) continue;   // 보급선이 앉는 자리 · 깨는 자리는 비운다
     const gy=heightAt(wx,wz);
     if(floorAt(wx,wz)>gy+0.05) continue;
     const key=(far?'F':'N')+gx+','+gz+(tr?'#'+tr:''), P=K.pick?FLORA_PICK[K.pick]:null;
@@ -582,15 +595,22 @@ function floraLayer(L,which){
     const tl=far?0.05:0.16;
     _flE.set(((h2>>>10)&31)/31*tl-tl/2,((h2>>>15)&1023)/1023*6.283,((h2>>>25)&31)/31*tl-tl/2); _flQ.setFromEuler(_flE);
     _flV.set(wx,gy-0.03,wz); _flS.set(sc,sc*(0.9+0.2*((h>>>28)&15)/15),sc);
-    _flM.compose(_flV,_flQ,_flS); im.setMatrixAt(nk[vi],_flM);
+    _flM.compose(_flV,_flQ,_flS);
     if(kind==='flower'){ const t=FLOWER_TINT[patch%FLOWER_TINT.length]; _flC.setRGB(t[0],t[1],t[2]); }   // 꽃밭은 얼룩마다 한 빛깔
     else{ const g=0.86+0.26*((h2>>>3)&15)/15, w=((h2>>>7)&15)/15; _flC.setRGB(g*(0.94+0.14*w),g,g*(0.92+0.08*(1-w))); }
-    im.setColorAt(nk[vi]++,_flC);
+    if(d<=L.own){ const im=ms[vi]; if(nk[vi]>=im.instanceMatrix.count) continue;      // 가까우면 제 벌
+      im.setMatrixAt(nk[vi],_flM); im.setColorAt(nk[vi]++,_flC); }
+    else{ const q=U.pend[U.pendN]||(U.pend[U.pendN]={k:'',m:new Float32Array(16),c:new Float32Array(3)}); U.pendN++;   // 멀면 기준 벌로(아래에서)
+      q.k=kind; q.m.set(_flM.elements); q.c[0]=_flC.r; q.c[1]=_flC.g; q.c[2]=_flC.b; }
+    if(U.ref[kind]===undefined&&d<(near0[kind]??1e9)){ near0[kind]=d; nearV[kind]=vi; }   // 기준 벌을 아직 안 정한 종류 — 가장 가까운 그루
     if(K.r) L.cols.push({x:wx,z:wz,r:K.r*sc});
-    if(P) L.picks.push({kind:K.pick,x:wx,y:gy+(P.low?0.3*sc:0),z:wz,key,r:(K.r||0.12)*sc,tree:!(P.hide||P.low)});
+    if(P) L.picks.push({kind:K.pick,x:wx,y:gy,z:wz,key,r:(K.r||0.12)*sc,tree:!P.hide&&!P.low,ay:P.low?gy+P.low*sc:gy+0.06});
     lx=wx; lz=wz;
    }
   }
+  for(const k in nearV) U.ref[k]=nearV[k];
+  for(let i=0;i<U.pendN;i++){ const q=U.pend[i], v=U.ref[q.k], im=U.m[q.k][v], nk=n[q.k]; if(nk[v]>=im.instanceMatrix.count) continue;
+    _flM.fromArray(q.m); im.setMatrixAt(nk[v],_flM); _flC.setRGB(q.c[0],q.c[1],q.c[2]); im.setColorAt(nk[v]++,_flC); }
   for(const k of L.kinds) U.m[k].forEach((im,v)=>{ im.count=n[k][v]; im.visible=im.count>0;
     im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true; });
   if(far) LIGHT.dirtyAt(px,pz,R);                      // 나무가 바뀌었다 — 그림자 지도를 다시 그린다
@@ -598,12 +618,205 @@ function floraLayer(L,which){
 function updateFlora(force){
   const U=FLORA; if(!scene) return;
   if(!U.m) floraBuild();
-  const px=PL.pos.x, pz=PL.pos.z;
-  for(const L of [U.far,U.near]){
-    const dx=px-L.cx, dz=pz-L.cz;
-    if(force||dx*dx+dz*dz>=L.step*L.step) floraLayer(L,L===U.far?'far':'near');
-  }
+  const L=U.near, dx=PL.pos.x-L.cx, dz=PL.pos.z-L.cz;
+  if(force||dx*dx+dz*dz>=L.step*L.step) floraLayer(L,'near');
+  floraFar(force);
   floraFindLook();
+  updateGiants(force);                                 // 노거수 — 200 m 안팎으로 생김새를 가른다(95-giants.js)
+}
+/* ── 나무 겹 — 참나무·전나무와 같은 길 ───────────────────────────────────────
+   (30-props.js 의 `updateTileVis` · `buildFarTrees` · `FAR_REF` · `bakeTreeGeo` · `bakeTreeImpostor` 를 그대로 따른다)
+   ① **섬 전체를 한 번 깐다**(`floraPlantAll` — 6 m 칸의 해시. 예전엔 사람 둘레 110 m 만 걸을 때마다 다시 깔아서 그 밖의 숲이 비었다)
+      그루마다 자리·행렬·빛깔을 적어 64 m 칸(`FL_TILE`)에 담는다.
+   ② **기준 그루** — 종류마다 섬을 다 지은 순간 사람에게서 가장 가까운 그루의 벌(`FLORA.ref`). 그 벌로 줄인 복제 셋
+      (`floraLodGeo` — 잎 판 60 · 30 · 10% 를 1/√몫 배로 키워 덮는 넓이를 맞추고, 잔가지도 그만큼 솎는다)과 그림 한 장(`floraBakePic`)을 짓는다.
+   ③ **거리로 고른다**(`floraFar` · 그루마다):  25 m(`FULL_DIST`) 안 제 벌 그대로 · 25~55 m 복제 60%(그림자 드리움) ·
+      55~90 m 30% · 90~200 m 10% · 200 m(`FL_PIC`) ~ 450 m(`VIEW_DIST`) 기준 그루를 찍은 그림 판때기 · 그 밖은 안 그린다.
+      55 m 밖은 그림자를 드리우지 않는다. **화면 밖 칸은 거른다**(칸 경계구 · 가장자리 10 m 안 칸은 늘).
+   ④ 다시 채우는 때 — 사람이 2 m 움직였거나 보이는 칸이 바뀌었을 때만. 종류마다 메시가 단계별로 하나라 그리기 호출은
+      종류 × (가까운 벌 몇 + 복제 셋 + 그림 하나)다. 행렬은 배열에 바로 쓰고 그림자 지도는 드리우는 것(55 m 안)이 바뀔 때만 다시 그린다.
+   몸이 막히는 원(`cols`)·딸 것(`picks`)은 60 m 안의 그루만, 사람이 움직일 때 다시 센다(그때 그 둘레의 지은 바닥·설비도 다시 본다). */
+const FL_TILE=64, FL_LOD=[[55,0.6],[90,0.3]], FL_PIC=200, FL_STEP=2, FL_NEAR=60;
+const _ffPM=new THREE.Matrix4(), _ffFr=new THREE.Frustum(), _ffSp=new THREE.Sphere();
+function floraPlantAll(){
+  const U=FLORA, L=U.far, C=L.cell, n=Math.floor(HALF/C)-1;
+  U.P=[]; U.tl=[]; U.kn={};
+  const tiles=new Map();
+  for(let gz=-n;gz<n;gz++) for(let gx=-n;gx<n;gx++){ let lx=1e9, lz=1e9;
+   for(let tr=0;tr<2;tr++){                           // 칸 하나에 많아야 둘(군락의 dense 가 정한다 — 빽빽한 숲)
+    const salt=L.salt+tr*16, h=floraHash(gx,gz,salt);
+    const wx=(gx+(h&255)/255)*C, wz=(gz+((h>>>8)&255)/255)*C;
+    if(tr&&(wx-lx)*(wx-lx)+(wz-lz)*(wz-lz)<2.2) continue;   // 같은 칸의 앞 그루와 겹치면 넘긴다
+    const ci=IDX(clamp(Math.round(wx/CELL+N/2),1,N-2),clamp(Math.round(wz/CELL+N/2),1,N-2));
+    const el=F.elev[ci], bi=F.biome[ci];
+    let u=((h>>>16)&4095)/4095, pick=null;
+    if(el>-0.9&&el<0.5&&!F.river[ci]&&(bi===B.MARSH||floraNearRiver(ci))){
+      /* 강어귀와 늪 가의 얕은 물 — 맹그로브가 띠를 이룬다(얼룩 잡음이 높은 데만 · 민물과 바다가 만나는 자리가 가려진다) */
+      if(floraVal(wx,wz,26,41)>0.50&&u<FLORA_MANGROVE[1]) pick=FLORA_MANGROVE;
+    }else{
+      if(el<0.4||F.river[ci]||F.slope[ci]>0.75) continue;
+      let cm=floraCommAt(wx,wz,bi); if(!cm) continue;
+      if(cm.low&&el>cm.low) cm=FLORA_COMM[bi][1];     // 맹그로브는 바닷가 낮은 늪에만 — 산 위 이탄지는 고사리 늪
+      if(tr>=(cm.dense||1)) break;
+      /* 얼룩 가장자리로 갈수록 성기다(군락 사이의 빈터) · 그 안에서도 잔 얼룩으로 뭉쳤다 풀렸다 한다 */
+      const dens=clamp(_fp.edge/10,0.12,1)*(0.55+0.9*floraVal(wx,wz,11,43));
+      for(const t of cm.far){ const pr=t[1]*dens; if(u<pr){ pick=t; break; } u-=pr; }
+    }
+    if(!pick) continue;
+    const kind=pick[0], K=FLORA_KIND[kind], pad=(K.r||0)+0.5;
+    if(floraHit(wx,wz,pad)||inLanding(wx,wz,pad)) continue;
+    const gy=heightAt(wx,wz); if(floorAt(wx,wz)>gy+0.05) continue;
+    const h2=floraHash(gx,gz,salt+1), v=(h2&1023)/1023, sc=pick[2]+(pick[3]-pick[2])*v, tl=0.05, yaw=((h2>>>15)&1023)/1023*6.283;
+    const sy=sc*(0.9+0.2*((h>>>28)&15)/15);
+    _flE.set(((h2>>>10)&31)/31*tl-tl/2,yaw,((h2>>>25)&31)/31*tl-tl/2); _flQ.setFromEuler(_flE);
+    _flV.set(wx,gy-0.03,wz); _flS.set(sc,sy,sc); _flM.compose(_flV,_flQ,_flS);
+    const g=0.86+0.26*((h2>>>3)&15)/15, w=((h2>>>7)&15)/15;
+    const p={i:U.P.length, k:kind, v:floraHash(gx,gz,salt+7)%U.m[kind].length, x:wx, y:gy, z:wz, s:sc, sy, yaw,
+             m:Float32Array.from(_flM.elements), c:[g*(0.94+0.14*w),g,g*(0.92+0.08*(1-w))], pm:null,
+             key:'F'+gx+','+gz+(tr?'#'+tr:''), r:(K.r||0)*sc, blk:false};
+    U.P.push(p); U.kn[kind]=(U.kn[kind]||0)+1;
+    const tk=Math.floor(wx/FL_TILE)+'|'+Math.floor(wz/FL_TILE);
+    let t=tiles.get(tk); if(!t){ t={i:U.tl.length, cx:(Math.floor(wx/FL_TILE)+0.5)*FL_TILE, cz:(Math.floor(wz/FL_TILE)+0.5)*FL_TILE, r:FL_TILE*0.71+12, cy:0, ps:[], v:false}; tiles.set(tk,t); U.tl.push(t); }
+    t.ps.push(p); lx=wx; lz=wz;
+   }
+  }
+  for(const t of U.tl) t.cy=heightAt(t.cx,t.cz)+8;
+}
+/* 줄인 복제 — 기준 벌의 부품(SHP.merge 가 적어 둔 구간)에서 잎 판(정점 12 이하 · 그림 칸 잎~덩굴)은 몫 f 만 남겨 1/√f 배로 키우고,
+   줄기·가지는 가장 큰 것의 절반 넘는 것은 다 두고 나머지는 큰 차례로 f 몫만 둔다(참나무 `bakeTreeGeo` 가 긴 가지만 남기는 것과 같다) */
+function floraLodGeo(g,f){
+  const R=g.userData.parts; if(!R||f>=1) return g;
+  const P=g.attributes.position.array, Nn=g.attributes.normal.array, Cc=g.attributes.color.array, UV=g.attributes.uv?g.attributes.uv.array:null;
+  const leafy=r=>r.n<=12&&r.cell>=FC.LEAF&&r.cell<=FC.VINE&&r.cell!==FC.BAMBOO;
+  const keep=[], solid=[];
+  R.forEach((r,i)=>{
+    if(leafy(r)){ if((floraHash(i,r.n,57)%10000)/10000<f) keep.push([r,1/Math.sqrt(f)]); return; }
+    let x0=1e9,y0=1e9,z0=1e9,x1=-1e9,y1=-1e9,z1=-1e9;
+    for(let j=r.o;j<r.o+r.n;j++){ const x=P[j*3],y=P[j*3+1],z=P[j*3+2]; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; if(z<z0)z0=z; if(z>z1)z1=z; }
+    solid.push([r,Math.hypot(x1-x0,y1-y0,z1-z0)]);
+  });
+  solid.sort((a,b)=>b[1]-a[1]);
+  const big=solid.length?solid[0][1]*0.5:0, rest=solid.filter(a=>a[1]<big);
+  for(const a of solid) if(a[1]>=big) keep.push([a[0],1]);
+  for(let i=0;i<Math.ceil(rest.length*f);i++) keep.push([rest[i][0],1]);
+  let tot=0; for(const [r] of keep) tot+=r.n;
+  const p2=new Float32Array(tot*3), n2=new Float32Array(tot*3), c2=new Float32Array(tot*3), u2=UV?new Float32Array(tot*2):null;
+  let o=0;
+  for(const [r,k] of keep){
+    for(let j=r.o;j<r.o+r.n;j++,o++){
+      p2[o*3]=r.x+(P[j*3]-r.x)*k; p2[o*3+1]=r.y+(P[j*3+1]-r.y)*k; p2[o*3+2]=r.z+(P[j*3+2]-r.z)*k;
+      n2[o*3]=Nn[j*3]; n2[o*3+1]=Nn[j*3+1]; n2[o*3+2]=Nn[j*3+2];
+      c2[o*3]=Cc[j*3]; c2[o*3+1]=Cc[j*3+1]; c2[o*3+2]=Cc[j*3+2];
+      if(u2){ u2[o*2]=UV[j*2]; u2[o*2+1]=UV[j*2+1]; }
+    }
+  }
+  const out=new THREE.BufferGeometry();
+  out.setAttribute('position',new THREE.BufferAttribute(p2,3)); out.setAttribute('normal',new THREE.BufferAttribute(n2,3));
+  out.setAttribute('color',new THREE.BufferAttribute(c2,3)); if(u2) out.setAttribute('uv',new THREE.BufferAttribute(u2,2));
+  out.computeBoundingSphere(); out.userData.lod=1;
+  return out;
+}
+/* 기준 그루를 옆에서 찍은 그림 — 참나무 `bakeTreeImpostor` 와 같다(정투영 · 고른 빛 · 알파는 잎·줄기 자리만) */
+function floraBakePic(g){
+  if(!renderer) return null;
+  g.computeBoundingBox(); const b=g.boundingBox;
+  const hw=Math.max(-b.min.x,b.max.x,-b.min.z,b.max.z)+0.1, y0=Math.max(0,b.min.y), y1=b.max.y+0.1;
+  const wide=2*hw>(y1-y0), W=wide?512:256, H=wide?256:512;
+  const mat=new THREE.MeshLambertMaterial({map:FLORA.tex,alphaTest:0.4,vertexColors:true,side:THREE.DoubleSide});
+  const sc0=new THREE.Scene(); sc0.add(new THREE.Mesh(g,mat));
+  sc0.add(new THREE.AmbientLight(0xffffff,0.72));
+  const dl=new THREE.DirectionalLight(0xffffff,0.45); dl.position.set(0.3,1,0.6); sc0.add(dl);
+  const cam=new THREE.OrthographicCamera(-hw,hw,y1,y0,-100,100); cam.position.set(0,0,30); cam.lookAt(0,0,0); cam.updateMatrixWorld();
+  const rt=new THREE.WebGLRenderTarget(W,H,{format:THREE.RGBAFormat,depthBuffer:true});
+  rt.texture.generateMipmaps=true; rt.texture.minFilter=THREE.LinearMipmapLinearFilter;
+  const oc=renderer.getClearColor(new THREE.Color()), oa=renderer.getClearAlpha(), ot=renderer.getRenderTarget(), osh=renderer.shadowMap.enabled;
+  renderer.shadowMap.enabled=false;
+  renderer.setRenderTarget(rt); renderer.setClearColor(0x2c3a22,0); renderer.clear(true,true,true);
+  renderer.render(sc0,cam);
+  renderer.setRenderTarget(ot); renderer.setClearColor(oc,oa); renderer.shadowMap.enabled=osh;
+  mat.dispose();
+  return {tex:rt.texture, rt, can:{y0, y1, w:2*hw}};
+}
+/* 기준 그루 · 줄인 복제 · 그림 · 단계마다 메시 — 섬 전체를 깐 바로 뒤에 한 번 */
+function floraFarBuild(){
+  const U=FLORA, px=PL.pos.x, pz=PL.pos.z;
+  floraPlantAll();
+  U.fm={};
+  for(const k of U.far.kinds){
+    if(!U.kn[k]) continue;
+    let best=null, bd=Infinity;
+    for(const p of U.P) if(p.k===k){ const d=(p.x-px)**2+(p.z-pz)**2; if(d<bd){ bd=d; best=p; } }
+    U.ref[k]=best.v;
+    const base=U.m[k][best.v].geometry, n=U.kn[k];
+    const mk=(geo,mat,cast)=>{ const im=new THREE.InstancedMesh(geo,mat,n);
+      if(mat===FLORA.mat) im.setColorAt(0,new THREE.Color(1,1,1));          // 색 버퍼는 count 가 가득일 때 만든다
+      im.count=0; im.visible=false; im.frustumCulled=false;
+      if(cast) im.customDepthMaterial=FLORA.depth; else im.userData.lightRole='recv';   // 55 m 밖은 그림자를 안 드리운다
+      im.matrixAutoUpdate=false; im.updateMatrix(); scene.add(im); return im; };
+    const lods=[0.6,0.3,0.1].map((f,i)=>mk(floraLodGeo(base,f),FLORA.mat,i===0));
+    const pic=floraBakePic(base);
+    let pm=null;
+    if(pic){ pm=mk(SHP.card(1,1),new THREE.MeshLambertMaterial({map:pic.tex,alphaTest:0.35,side:THREE.DoubleSide}),false); }
+    U.fm[k]={lods,pic,pm};
+  }
+  U.far.cx=1e9; U.sig=null; U.csig=null;
+}
+function floraFarDrop(){
+  const U=FLORA; if(!U.fm){ U.P=null; return; }
+  for(const k in U.fm){ const f=U.fm[k];
+    for(const im of f.lods){ scene.remove(im); if(im.geometry.userData.lod) im.geometry.dispose(); im.dispose(); }
+    if(f.pm){ scene.remove(f.pm); f.pm.geometry.dispose(); f.pm.material.dispose(); f.pm.dispose(); }
+    if(f.pic) f.pic.rt.dispose(); }
+  U.fm=null; U.P=null; U.tl=null;
+}
+function floraFar(force){
+  const U=FLORA, L=U.far;
+  if(!U.P) floraFarBuild();
+  const px=PL.pos.x, pz=PL.pos.z, mv=(px-L.cx)**2+(pz-L.cz)**2>=FL_STEP*FL_STEP;
+  if(L.cx===1e9) force=true;
+  camera.updateMatrixWorld(); _ffPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _ffFr.setFromProjectionMatrix(_ffPM);
+  let sig=0;
+  for(const t of U.tl){
+    const d=Math.hypot(t.cx-px,t.cz-pz)-t.r;
+    let v=d<=VIEW_DIST;
+    if(v&&d>CULL_NEAR){ _ffSp.center.set(t.cx,t.cy,t.cz); _ffSp.radius=t.r+30; v=_ffFr.intersectsSphere(_ffSp); }
+    t.v=v; if(v) sig=(sig*31+t.i+1)|0;
+  }
+  if(!force&&!mv&&sig===U.sig) return;
+  U.sig=sig;
+  /* 사람이 움직였으면 — 60 m 안 그루의 막힘(그 뒤 지은 바닥·설비)·몸 원·딸 것을 다시 센다 */
+  if(force||mv){
+    L.cx=px; L.cz=pz; L.cols.length=0; L.picks.length=0;
+    for(const t of U.tl){ if(Math.hypot(t.cx-px,t.cz-pz)-t.r>FL_NEAR) continue;
+      for(const p of t.ps){ const dx=p.x-px, dz=p.z-pz; if(dx*dx+dz*dz>FL_NEAR*FL_NEAR) continue;
+        const K=FLORA_KIND[p.k], pad=(K.r||0)+0.5;
+        p.blk=floraHit(p.x,p.z,pad)||floorAt(p.x,p.z)>p.y+0.05;
+        if(p.blk) continue;
+        if(K.r) L.cols.push({x:p.x,z:p.z,r:p.r});
+        if(K.pick){ const P=FLORA_PICK[K.pick];
+          if(P.hide){ const tk=U.taken.get(p.key); if(tk!==undefined&&gameHours-tk<P.regrow) continue; }
+          L.picks.push({kind:K.pick,x:p.x,y:p.y,z:p.z,key:p.key,r:(K.r||0.12)*p.s,tree:!P.hide&&!P.low,ay:P.low?p.y+P.low*p.s:p.y+0.06}); }
+      } }
+  }
+  for(const k of L.kinds){ for(const im of U.m[k]) im.count=0; const f=U.fm[k]; if(f){ for(const im of f.lods) im.count=0; if(f.pm) f.pm.count=0; } }
+  const put=(im,p)=>{ const i=im.count++; im.instanceMatrix.array.set(p.m,i*16); const c=im.instanceColor.array; c[i*3]=p.c[0]; c[i*3+1]=p.c[1]; c[i*3+2]=p.c[2]; };
+  let csig=0;
+  for(const t of U.tl){ if(!t.v) continue;
+    for(const p of t.ps){ if(p.blk) continue;
+      const dx=p.x-px, dz=p.z-pz, d=Math.sqrt(dx*dx+dz*dz); if(d>VIEW_DIST) continue;
+      const f=U.fm[p.k];
+      if(d<=FULL_DIST){ const im=U.m[p.k][p.v]; if(im.count<im.instanceMatrix.count){ put(im,p); csig=(csig*31+p.i)|0; } }
+      else if(d<=FL_PIC){ const lv=d<=FL_LOD[0][0]?0:d<=FL_LOD[1][0]?1:2; put(f.lods[lv],p); if(!lv) csig=(csig*31+p.i)|0; }
+      else if(f.pm){
+        if(!p.pm){ const c=f.pic.can; _flE.set(0,p.yaw,0); _flQ.setFromEuler(_flE); _flV.set(p.x,p.y+c.y0*p.sy,p.z); _flS.set(c.w*p.s,(c.y1-c.y0)*p.sy,c.w*p.s);
+          _flM.compose(_flV,_flQ,_flS); p.pm=Float32Array.from(_flM.elements); }
+        f.pm.instanceMatrix.array.set(p.pm,(f.pm.count++)*16);
+      }
+    } }
+  for(const k of L.kinds){
+    const fin=im=>{ im.visible=im.count>0; im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true; };
+    U.m[k].forEach(fin); const f=U.fm[k]; if(f){ f.lods.forEach(fin); if(f.pm) fin(f.pm); } }
+  if(csig!==U.csig){ U.csig=csig; LIGHT.dirtyAt(px,pz,FL_LOD[0][0]); }   // 그림자를 드리우는 것(55 m 안)이 바뀌었다
 }
 /* 줄기에 몸이 막힌다 — updatePlayer 가 큰 나무·바위(resolveProps) 다음에 부른다 */
 function floraCollide(p,radius){
@@ -615,11 +828,13 @@ function floraCollide(p,radius){
 function floraReset(seed){
   FLORA.seed=seed|0; FLORA.far.cx=FLORA.far.cz=FLORA.near.cx=FLORA.near.cz=1e9;
   FLORA.far.cols.length=FLORA.near.cols.length=0; FLORA.far.picks.length=FLORA.near.picks.length=0;
-  FLORA.taken.clear(); FLORA.look=null;
+  FLORA.taken.clear(); FLORA.look=null; FLORA.ref={};   // 기준 벌은 섬마다 새로(가장 가까운 그루)
+  floraFarDrop();                                       // 섬 전체 나무 목록 · 줄인 복제 · 그림은 다음 updateFlora 가 새로 짓는다
 }
 
 /* ── 얻기 ────────────────────────────────────────────────────────────────── */
-/* 눈앞의 딸 것 — 나무는 줄기에서 1.7 m 안에서 그쪽을 보고 있을 때, 버섯은 눈에서 2.2 m 안 */
+/* 눈앞의 딸 것 — 나무는 줄기에서 1.7 m 안에서 그쪽을 보고 있을 때, 버섯·덤불은 눈에서 2.2 m(+덤불 반지름) 안에서 겨눈 것.
+   여럿이면 가깝고 겨눈 쪽에 가까운 것(거리 × (2 − 겨눈 cos)) — 덤불 옆 버섯을 내려다보면 버섯이다 */
 function floraFindLook(){
   FLORA.look=null;
   if(uiOpen()||PL.dead||PL.swim||!floraHandOK()) return;
@@ -630,12 +845,12 @@ function floraFindLook(){
     const dx=p.x-ex, dz=p.z-ez;
     if(p.tree){
       const d=Math.sqrt(dx*dx+dz*dz); if(d>p.r+1.7||d<1e-3) continue;
-      if((dx*hx+dz*hz)/d<0.75) continue;
-      if(d<bd){ bd=d; FLORA.look=p; }
-    }else{                                             // 낮은 것(고사리·꽃·버섯·돌) — 그 포기를 똑바로 내려다봐야 한다
-      const dy=p.y+0.06-ey, d=Math.sqrt(dx*dx+dy*dy+dz*dz); if(d>2.3||d<0.05) continue;
-      if((dx*fx+dy*fy+dz*fz)/d<0.90) continue;
-      if(d<bd){ bd=d; FLORA.look=p; }
+      const c=(dx*hx+dz*hz)/d; if(c<0.75) continue;
+      const sc=d*(2-c); if(sc<bd){ bd=sc; FLORA.look=p; }
+    }else{                                             // 낮은 것(고사리·꽃·버섯·덤불·돌) — 그 포기를 겨눠야 한다
+      const ay=p.ay!==undefined?p.ay:p.y+0.06, dy=ay-ey, d=Math.sqrt(dx*dx+dy*dy+dz*dz); if(d>2.2+(ay>p.y+0.1?p.r:0)||d<0.05) continue;   // 덤불은 몸 반지름만큼 더
+      const c=(dx*fx+dy*fy+dz*fz)/d; if(c<0.80) continue;
+      const sc=d*(2-c); if(sc<bd){ bd=sc; FLORA.look=p; }
     }
   }
   /* 노거수 — 줄기 곁에 서서 줄기를 볼 때(더 가까운 것이 없으면) */
@@ -657,21 +872,65 @@ function floraWait(p){
   if(left<=0){ FLORA.taken.delete(p.key); return 0; }
   return left;
 }
-/* 좌클릭 — 눈앞의 것을 딴다. 땄거나 막혔으면 true(손의 것을 쓰지 않는다) */
+/* 날붙이를 지녔나 — 대나무 베기 · 굴 떼어 내기 */
+function hasSharp(){
+  return INV.slots.some(s=>{ const t=ITEMS[s.id], w=t.tool||{}; return (t.tags&&t.tags.indexOf('sharp')>=0)||w.weapon||w.axe||w.harpoon; });
+}
+/* 못 따는 까닭(없으면 null) */
+function floraBlock(p){
+  const D=FLORA_PICK[p.kind], left=floraWait(p);
+  if(left>0) return D.n+' — 아직 다시 나지 않았다(약 '+Math.ceil(left)+'시간 뒤)';
+  if(D.need==='sharp'&&!hasSharp()) return D.n+' — 맨손으로는 못 벤다. 날붙이(주먹도끼·칼·도끼)를 지녀야 한다';
+  if(D.take&&countId(D.take)<1) return D.n+' — 담을 '+ITEMS[D.take].n+'가 있어야 한다';
+  return null;
+}
+/* 좌클릭을 누른 순간 — 따는 것은 누르고 있는 동안 updateGather 가 한다(진행 막대). 여기선 막혔으면 까닭만 알린다.
+   딸 것을 보고 있으면 true(손의 것을 쓰지 않는다) */
 function floraPick(){
   const p=FLORA.look; if(!p) return false;
-  const D=FLORA_PICK[p.kind], left=floraWait(p);
-  if(left>0){ toast(D.n+' — 아직 다시 나지 않았다(약 '+Math.ceil(left)+'시간 뒤)'); return true; }
-  if(D.need==='sharp'&&!INV.slots.some(s=>{ const t=ITEMS[s.id]; return (t.tags&&t.tags.indexOf('sharp')>=0)||(t.tool&&(t.tool.weapon||t.tool.axe)); })){
-    toast(D.n+' — 맨손으로는 못 벤다. 날붙이(주먹도끼·칼·도끼)를 지녀야 한다'); return true; }
-  if(D.take&&countId(D.take)<1){ toast(D.n+' — 담을 '+ITEMS[D.take].n+'가 있어야 한다'); return true; }
-  const hh=floraHash(Math.round(p.x*3),Math.round(p.z*3),(gameHours|0)+9), n=D.cnt[0]+hh%(D.cnt[1]-D.cnt[0]+1);
+  const why=floraBlock(p); if(why) toast(why);
+  return true;
+}
+/* 막대가 다 찼다 — 얻는 수는 cnt 안에서 무작위 · extra 는 저마다 제 확률로 딸려 나온다 */
+function floraTake(p){
+  const D=FLORA_PICK[p.kind], n=D.cnt[0]+((Math.random()*(D.cnt[1]-D.cnt[0]+1))|0);
   let got=0; for(let i=0;i<n;i++) if(invAdd(D.item,1)) got++;
-  if(!got){ toast('무거워서 더 못 든다'); return true; }
+  if(!got){ toast('무거워서 더 못 든다'); return false; }
+  let msg=ITEMS[D.item].n+' +'+got;
+  if(D.extra) for(const [id,pr] of D.extra) if(Math.random()<pr&&invAdd(id,1)) msg+=' · '+ITEMS[id].n+' +1';
   FLORA.taken.set(p.key,gameHours); FLORA.look=null;
   if(D.take){ const i=INV.slots.findIndex(sl=>sl.id===D.take&&sl.dur===undefined); if(i>=0) invRemove(i,1); }        // 그릇 하나에 담았다
-  if(D.sting){ const e=equippedTool(); if(!(e&&e.lit)){ hurtPL(D.sting,'벌에 쏘였다'); toast('벌에 쏘였다 — 불 붙인 횃불을 들고 따면 연기에 벌이 물러난다'); } }
-  if(D.hide){ FLORA.near.cx=1e9; RUBBLE.cx=1e9; }      // 버섯·꽃·돌은 그 자리가 빈다 — 다음 프레임에 다시 깐다
-  toast(D.n+' +'+got); sfx('bind'); invDirty=true;
+  if(D.sting){ const e=equippedTool(); if(!(e&&e.lit)){ hurtPL(D.sting,'벌에 쏘였다'); msg+=' — 벌에 쏘였다(불 붙인 횃불을 들고 따면 연기에 벌이 물러난다)'; } }
+  if(D.hide){ FLORA.near.cx=1e9; FLORA.far.cx=1e9; RUBBLE.cx=1e9; }   // 버섯·꽃·돌은 그 자리가 빈다 — 다음 프레임에 다시 깐다
+  toast(msg); sfx('bind'); invDirty=true;
   return true;
+}
+
+/* ── 누르고 있는 동안 따기 ──────────────────────────────────────────────────
+   덩굴·대나무·열매·버섯·덤불(FLORA_PICK)과 조개·굴·성게(SEA_PICK, 96-sea.js)는 예전엔 누르는 순간 바로 들어왔다 —
+   캐기(HARV)처럼 좌클릭을 누르고 있는 동안 막대가 차고(dur 초 · 기력 stam/초) 다 차면 딴다. 계속 누르고 있으면
+   다음 것으로 넘어간다. 눈을 돌리면 처음부터, 손을 떼면 막대가 천천히 줄어든다(다시 누르면 이어서). */
+const GATHER={p:null, t:0, dur:1, on:false};
+/* 지금 좌클릭이 딸 것 — useHeld 와 같은 차례(바다 → 캐기가 먼저 → 식생 · 작살로 물고기를 겨눴거나 총을 들면 안 딴다) */
+function gatherLook(){
+  const e=equippedTool(), T=e&&ITEMS[e.id], W=(T&&T.tool)||{};
+  if(SEA.look&&!(FISH.look&&W.harpoon)) return SEA.look;
+  if(harvestByUse()) return null;
+  if(FLORA.look&&!W.gun) return FLORA.look;
+  return null;
+}
+function updateGather(dt){
+  const p=gatherLook();
+  if(p!==GATHER.p){ GATHER.p=p; GATHER.t=0; }           // 다른 것으로 눈을 돌렸다 — 처음부터
+  GATHER.on=false;
+  if(!p) return;
+  const sea=p===SEA.look, D=sea?SEA_PICK[p.kind]:FLORA_PICK[p.kind];
+  GATHER.dur=D.dur||1;
+  const go=useDown&&!BUILD.on&&!facing()&&!PL.dead&&PL.stam>=2&&!(sea?seaBlock(p):floraBlock(p));
+  if(!go){ GATHER.t=Math.max(0,GATHER.t-dt*2.5); return; }
+  GATHER.on=true; GATHER.t+=dt;
+  PL.stam=clamp(PL.stam-(D.stam||2)*dt,0,100);
+  if(GATHER.t<GATHER.dur) return;
+  GATHER.t=0; GATHER.p=null;
+  if(sea) seaTake(p); else floraTake(p);
 }

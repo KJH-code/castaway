@@ -9,6 +9,7 @@
    곧바로 닫으면 그 약속이 거절된다. 받아 주는 데가 없어 화면 위에 붉은 '[비동기] …pointer lock' 오류 띠가 떴다.
    거절은 흔한 일이고 다음 클릭에 다시 잠기므로 오류로 치지 않는다. */
 function lockPointer(){
+  if(typeof uiOpen==='function'&&uiOpen()) return;   // 창이 열려 있으면 잠그지 않는다(눌러야 할 단추가 있다)
   try{ const p=cv.requestPointerLock(); if(p&&typeof p.catch==='function') p.catch(()=>{}); }catch(e){}
 }
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
@@ -161,6 +162,10 @@ function facing(){ return !!(HARV.fit||HARV.cont); }
 addEventListener('blur',()=>{ mouseDown=false; useDown=false; });
 cv.addEventListener('wheel',e=>{ if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
 document.addEventListener('pointerlockchange',()=>{
+  /* **잠금이 늦게 걸리면 바로 푼다.** 잠금은 요청하고 한참 뒤(브라우저가 받아 줄 때) 걸린다 — 상륙하거나 창을 닫으며 요청해 둔 잠금이
+     그사이 C·I 로 연 가방 위에서 걸리면 커서가 사라지고 모든 클릭이 캔버스로 갔다(제작 창에서 소지품을 눌러도 안 넘어가던 버그).
+     창이 열려 있거나 멈춘 동안 걸린 잠금은 곧바로 놓아 준다 */
+  if(document.pointerLockElement===cv && (uiOpen()||paused)){ document.exitPointerLock(); return; }
   if(document.pointerLockElement!==cv && !paused && !flyMode && !busy && !touchOnly
      && !uiOpen()) pause();
 });
@@ -355,7 +360,7 @@ document.getElementById('pCap').addEventListener('input',e=>{
 document.getElementById('vCap').textContent='끔';
 /* 캠코더 화면 — 0 끄기 · 1~3 세로 줄 수(360 · 480 · 720). 줄 수가 적을수록 가볍다 */
 document.getElementById('pCam').addEventListener('input',e=>{
-  const v=clamp(parseInt(e.target.value)||0,0,3); CAMC.lines=CAMC_LINES[v];
+  const v=clamp(parseInt(e.target.value)||0,0,3); CAMC.lines=CAMC_LINES[v]; camcBody(CAMC.on&&CAMC.lines>0);
   document.getElementById('vCam').textContent=v?CAMC_LINES[v]+'줄':'끔';
 });
 document.getElementById('vCam').textContent='480줄';

@@ -12,6 +12,9 @@ function loop(){
   if(paused&&!busy&&!document.hidden&&!winHidden) precompTick(now);   // 멈춘 동안 나올 셰이더를 미리 짠다(E2)
   /* 창을 내렸으면 그리지 않고, 멈춤 화면 뒤는 초당 10번만 그린다(덮개가 94% 가려 보이지 않는다) — GPU·전기를 아낀다 */
   if(document.hidden||winHidden||(paused&&now-lastDraw<100)){ last=now; return; }
+  /* 섬을 짓는 동안(busy)은 그리지 않는다 — 덮개(94%) 뒤에서 짓다 만 장면(땅이 없어졌다 생기고, 하늘 표가 비었다 차고 …)을
+     초당 10번 그려서 로딩 내내 뒤가 깜박였다. 화면은 마지막으로 그린 그림을 그대로 둔다 */
+  if(busy){ last=now; return; }
   /* 프레임 제한(설정) — 정한 간격이 안 됐으면 이번 화면 주기는 건너뛴다. last 는 그대로 두어 dt 가 쉰 시간을 안는다 */
   if(FPS_CAP>0&&now-lastDraw<1000/FPS_CAP-1.5) return;
   lastDraw=now;
@@ -58,9 +61,11 @@ function loop(){
       }
       updateBuild();
       updateHarvest(dt);
+      updateGather(dt);           // 덩굴·덤불·열매·버섯·조개 — 누르고 있는 동안 막대가 찬다(95-flora.js)
       updateCraft(dt);
       updateRegrow();
       updatePlayer(dt);
+      updateGiantFalls(dt);       // 벤 노거수가 넘어간다 · 땅을 치면 화면이 흔들린다(사람 시점 다음에 얹는다 — 95-giants.js)
     }
     }                           // hold — 세상이 멈춘 동안은 위를 통째로 건너뛴다
     if(PO) tp=PERF.lap(4,tp);

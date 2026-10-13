@@ -221,6 +221,11 @@ function obtainOf(id){
     if(X&&X.id===id) out.push('채굴 — '+RESOURCES.find(r=>r.k===k).n+' (떼어 낼 때 '+Math.round(X.p*100)+'% 로 딸려 나온다)'); }
   // 표에서 뽑히지 않는 부수 산출물
   if(id==='berry') out.push('채집 — 풀숲 (열매가 달린 덤불에서 가끔 딸려 나온다)');
+  /* 식생·바닷가에서 따는 것(95-flora.js FLORA_PICK · 96-sea.js SEA_PICK) */
+  for(const k in FLORA_PICK){ const D=FLORA_PICK[k];
+    if(D.item===id) out.push('따기 — '+D.n+' ('+D.verb+(D.need?' · 날붙이를 지녀야':'')+')');
+    if(D.extra) for(const x of D.extra) if(x[0]===id) out.push('따기 — '+D.n+' ('+D.verb+' 때 '+Math.round(x[1]*100)+'% 로 딸려 나온다)'); }
+  for(const k in SEA_PICK){ const D=SEA_PICK[k]; if(D.item===id) out.push('줍기 — 바닷가 '+D.n+' ('+D.verb+')'); }
   if(id==='ring_platinum') out.push('처음부터 지님 — 표류 전부터 끼고 있었다');
   if(id==='can_food')    out.push('처음부터 지님 — 보급선이 두 캔 쥐여 주었다. 섬에서는 못 만든다');
   if(id==='bottle_water'||id==='bottle_empty')
@@ -506,7 +511,7 @@ const CONTROLS_GUIDE=[
     ['캐기','캘 것을 보고 <b>누르고 있기</b> — 빈손(풀·열매·가지) · 도끼(나무) · 곡괭이·드릴(광석·암석)'],
     ['먹을 것','먹기·마시기·붕대 감기'],
     ['빈손','<b>민물</b>(하천)을 보고 누르면 물 마시기 — 바닷물은 못 마신다'],
-    ['딸 것','덩굴·대나무·열매·버섯을 보고 누르면 따기 · 바다에선 조개·굴·성게 줍기'],
+    ['딸 것','덩굴·대나무·열매·버섯·덤불을 보고 좌클릭을 누르고 있으면 막대가 차고 딴다(덤불은 나뭇가지 — 가끔 부싯깃·베리) · 바다에선 조개·굴·성게 줍기'],
     ['작살','물고기를 겨누고 찌르기'],
     ['손 충전기','누르고 있으면 캠코더 배터리를 돌려 채운다'],
     ['전등','켜고 끄기(<b>L</b> 도 된다)'],

@@ -130,7 +130,7 @@ function drawSel(){
     const id=sl.id, T=ITEMS[id], esc=s=>String(s).replace(/[<>&]/g,'');
     const ico=itemIcon(id);
     h+='<div class="sH">고른 물건</div><div class="sT">'
-      +(ico?'<img src="'+ico+'" alt="">':'')
+      +(ico?'<img decoding="sync" src="'+ico+'" alt="">':'')
       +'<div><b>'+T.n+'</b> <span class="q">×'+sl.n+'</span>'
       +'<div class="sK">'+(T.kg*sl.n).toFixed(1)+' kg'
         +(sl.dur!==undefined?' · 내구 '+(Math.round(sl.dur*10)/10)+'/'+T.durMax:'')

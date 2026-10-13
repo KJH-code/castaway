@@ -1115,8 +1115,29 @@ function craftCat(R){
 /* 그 물건을 만드는 제작법들 · 그 물건이 드는 제작법들(재료든 도구든) */
 const craftMakers=id=>RECIPES.filter(R=>R.out&&R.out.id===id);
 const craftUsers=id=>RECIPES.filter(R=>R.in.some(r=>r.id===id)||(R.need||[]).some(r=>r.id===id));
+/* '가능만' — 지금 만들 수 있는 마디만 남긴다(main 의 단계별 목록에서 온 단추 — 나무에서도 같은 일을 한다) */
+let craftOnly=false;
+const _cEsc=t=>String(t).replace(/[<>&"]/g,'');
+/* 아이콘은 이미 찍어 둔 것만 바로 — 나머지는 프레임마다 몇 개씩 찍는다(처음 열 때 수백 개를 한꺼번에 찍으면 멈춘다).
+   입는 것(갑옷 — 수십만 삼각형)은 가진 뒤 소지품에서 찍힌 것만 쓴다 */
+const _icoQ=[];
+function iconSoon(id){
+  if(ITEM_ICON[id]) return ITEM_ICON[id];
+  const T=ITEMS[id]; if(!T||T.wear) return '';
+  if(_icoQ.indexOf(id)<0) _icoQ.push(id);
+  return '';
+}
+function iconPump(){
+  if(!_icoQ.length) return false;
+  const t0=performance.now(); let made=false;
+  while(_icoQ.length&&performance.now()-t0<6){ itemIcon(_icoQ.shift()); made=true; }
+  return made;
+}
+const iconTagSoon=(id,t)=>{ const u=iconSoon(id);
+  return u?'<img class="sw ico" decoding="sync" src="'+u+'" alt="">':'<i class="sw" style="background:#'+t.c.toString(16).padStart(6,'0')+'"></i>'; };
 function drawCraft(){
   if(!craftOpen) return;
+  if(iconPump()) craftDirty=true;                  // 아이콘이 새로 찍혔으면 한 번 더 그린다
   const crfL=document.getElementById('crfL'), nEl=document.getElementById('crfN'), q=craftQuery.trim();
   const tabs=document.getElementById('crfT');
   /* 탭 줄 — 갈래마다 지금 만들 수 있는 수 / 전체 */
@@ -1127,22 +1148,22 @@ function drawCraft(){
   }
   let html='';
   if(q){                                            // ── 검색: 걸리는 것만 목록으로
-    const hit=RECIPES.filter(craftMatch);
+    const hit=RECIPES.filter(craftMatch).filter(R=>!craftOnly||canCraft(R));
     if(nEl) nEl.textContent=hit.length+' / '+RECIPES.length;
     html=hit.length?'<div class="tl">'+hit.map(R=>{ const i=RECIPES.indexOf(R);
         return '<div class="nd row '+(canCraft(R)?'ok':'no')+(i===CRAFT.sel?' sel':'')+'" data-i="'+i+'" data-tipr="'+i+'">'
-          +(R.out?iconTag(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')+'<span>'+R.n+'</span><em>'+TIER_LABEL[R.tier]+'</em></div>'; }).join('')+'</div>'
-      :'<div style="color:var(--dim);font-size:10px;padding:10px 2px">\''+q+'\' 에 걸리는 제작법이 없다</div>';
+          +(R.out?iconTagSoon(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')+'<span>'+R.n+'</span><em>'+TIER_LABEL[R.tier]+'</em></div>'; }).join('')+'</div>'
+      :'<div style="color:var(--dim);font-size:10px;padding:10px 2px">\''+_cEsc(q)+'\' 에 걸리는 제작법이 없다</div>';
   }else{                                            // ── 나무: 단이 왼쪽에서 오른쪽으로
     const list=RECIPES.map((R,i)=>({R,i})).filter(o=>craftCat(o.R)===craftTab);
     if(nEl) nEl.textContent=list.filter(o=>canCraft(o.R)).length+' / '+list.length+' 가능';
     html='<div class="tw"><svg class="te"></svg>';
     for(const tier of TIER_ORDER){
-      const col=list.filter(o=>o.R.tier===tier); if(!col.length) continue;
+      const col=list.filter(o=>o.R.tier===tier&&(!craftOnly||canCraft(o.R))); if(!col.length) continue;
       html+='<div class="tc"><div class="th">'+TIER_LABEL[tier]+'<span>'+col.filter(o=>canCraft(o.R)).length+'/'+col.length+'</span></div>'
         +col.map(o=>{ const R=o.R, ok=canCraft(R), busy=CRAFT.recipe===R;
           return '<div class="nd '+(ok?'ok':'no')+(o.i===CRAFT.sel?' sel':'')+(busy?' busy':'')+'" data-i="'+o.i+'" data-tipr="'+o.i+'">'
-            +(R.out?iconTag(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')
+            +(R.out?iconTagSoon(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')
             +'<span>'+R.n+'</span>'+(R.out&&R.out.n>1?'<em>×'+R.out.n+'</em>':'')+'</div>'; }).join('')+'</div>';
     }
     html+='</div>';
@@ -1184,4 +1205,8 @@ document.getElementById('crf').addEventListener('click',ev=>{
   if(CRAFT.sel===i){ if(canCraft(RECIPES[i])) startCraft(RECIPES[i]); else toast('아직 못 만든다 — 오른쪽 칸에 모자란 것이 적혀 있다'); }
   else CRAFT.sel=i;
   document.getElementById('crfL')._html=null; craftDirty=true; drawCraft();
+});
+document.getElementById('crfOnly').addEventListener('click',ev=>{
+  ev.stopPropagation();
+  craftOnly=!craftOnly; ev.currentTarget.classList.toggle('on',craftOnly); document.getElementById('crfL')._html=null; craftDirty=true;
 });

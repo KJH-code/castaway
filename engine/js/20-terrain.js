@@ -810,8 +810,8 @@ vec2 grain(vec3 p){
    **먼 청크는 속 격자를 건너뛴다**(`TERR_LOD` — 2·4·8 칸마다 한 점). 이웃 청크와 맞닿는 테두리 한 줄은
    어느 단계든 **늘 촘촘한 그대로** 두고, 그 테두리와 성긴 속 격자 사이만 지퍼처럼 세모로 잇는다 —
    그래서 이웃끼리 단계가 달라도 틈(갈라진 금)이 안 생기고 치마도 필요 없다. 단계마다 세모 수:
-   1칸 2,048 · 2칸 576 · 4칸 224 · 8칸 144. 네 단계의 인덱스를 한 버퍼에 이어 담아 모든 청크가 나눠 쓰고,
-   청크는 `setDrawRange` 로 제 단계 구간만 그린다(버퍼를 갈아 끼우지 않는다).
+   1칸 2,048 · 2칸 576 · 4칸 224 · 8칸 144. 네 단계의 인덱스를 한 버퍼(`TERR_IDX`)에 이어 담아 두고,
+   청크 묶음(아래 `TERR_BLK`)이 청크마다 제 단계 구간을 옮겨 이어 붙여 한 번에 그린다.
    단계는 **화면 오차**로 고른다(`updateTerrainLOD`) — 지을 때 단계마다 '성긴 면이 참 높이에서 벗어나는
    가장 큰 값'(m)을 재 두고(`lodErr`), 그 오차가 화면에서 `TERR_LOD_PX`(1 화소) 밑이 되는 가장 성긴 단계를 쓴다.
    평평한 데는 일찍, 험한 데는 늦게 성겨진다. `TERR_LOD_NEAR`(60 m) 안은 늘 촘촘하다.
@@ -855,19 +855,29 @@ function terrainLodIndex(n){
   const arr=nv*nv>65535?new Uint32Array(out):new Uint16Array(out);
   return {attr:new THREE.BufferAttribute(arr,1), ranges};
 }
+/* ── 청크 묶음 ─────────────────────────────────────────────────────────
+   청크는 **그리는 단위가 아니다** — 4×4 청크(320 m · `TERR_G`)를 한 지오메트리(`TERR_BLK` — 묶음 36 개)로 짓고, 청크는 그 안의
+   제 정점 구간(33×33)과 단계(`lod`)만 가진다. 묶음의 인덱스는 청크마다 제 단계 구간(`TERR_IDX`)을 제 정점 자리로 밀어 이어 붙인 것이고,
+   단계가 바뀐 청크가 있는 묶음만 다시 잇는다(`updateTerrainLOD` 끝 · 바뀐 앞부분만 올린다).
+   예전엔 청크 하나가 메시 하나라 보이는 청크마다 그리기 호출을 썼다 — 본 패스 그리기 호출 500 가운데 165 가 지형이었다
+   (청크 576 중 대부분이 세모 144 개짜리 가장 성긴 단계). 세모·단계 고르기는 그대로라 화면은 같고, 대신 화면 밖 거르기가
+   묶음(320 m) 단위로 굵어진다. */
+const TERR_G=4, TERR_BLK=[];
 function buildChunks(){
   _tlK=NaN;                                  // 새 청크 — 다음 updateTerrainLOD 가 단계를 다시 고른다
-  for(const m of chunks){ scene.remove(m); m.geometry.dispose(); }
-  chunks.length=0;
+  for(const B of TERR_BLK){ scene.remove(B.m); B.m.geometry.dispose(); }
+  TERR_BLK.length=0; chunks.length=0;
   const col=new THREE.Color();
   // 면 단위 각짐을 없앤다 — 법선과 색을 정점마다 따로 주고 부드럽게 보간한다
   const mat=terrainMat();
-  const n=CH, nv=CH+1;
+  const n=CH, nv=CH+1, NV=nv*nv, G=TERR_G;
   if(!TERR_IDX) TERR_IDX=terrainLodIndex(n);
-  const H=new Float32Array(nv*nv);
-  for(let cz=0;cz<NC;cz++) for(let cx=0;cx<NC;cx++){
-    const x0=cx*CH, z0=cz*CH;
-    const pos=new Float32Array(nv*nv*3), c=new Float32Array(nv*nv*3), nor=new Float32Array(nv*nv*3);
+  const H=new Float32Array(NV), box=new THREE.Box3(), v3=new THREE.Vector3();
+  for(let bz=0;bz<NC;bz+=G) for(let bx=0;bx<NC;bx+=G){
+    const P=new Float32Array(G*G*NV*3), Cc=new Float32Array(G*G*NV*3), Nn=new Float32Array(G*G*NV*3), B={ck:[], dirty:true};
+    for(let k=0;k<G*G;k++){
+    const cx=bx+(k%G), cz=bz+((k/G)|0), x0=cx*CH, z0=cz*CH;
+    const pos=P.subarray(k*NV*3,(k+1)*NV*3), c=Cc.subarray(k*NV*3,(k+1)*NV*3), nor=Nn.subarray(k*NV*3,(k+1)*NV*3);
     // 정점마다 높이장의 기울기에서 법선을 직접 구한다.
     // 이웃 청크도 같은 전역 격자를 보므로 경계에서 이음매가 생기지 않는다.
     for(let j=0;j<nv;j++) for(let i=0;i<nv;i++){
@@ -897,16 +907,35 @@ function buildChunks(){
       }
       err.push(e);
     }
+    /* 청크의 경계구 — 단계 고르기가 쓴다(예전 청크 메시의 computeBoundingSphere 와 같은 식: 상자 가운데 · 가장 먼 점) */
+    box.makeEmpty(); for(let q=0;q<NV;q++) box.expandByPoint(v3.set(pos[q*3],pos[q*3+1],pos[q*3+2]));
+    const bs=new THREE.Sphere(); box.getCenter(bs.center); let r2=0;
+    for(let q=0;q<NV;q++){ const d2=bs.center.distanceToSquared(v3.set(pos[q*3],pos[q*3+1],pos[q*3+2])); if(d2>r2) r2=d2; }
+    bs.radius=Math.sqrt(r2);
+    const ck={cx,cz,bs,lodErr:err,lod:0,blk:B,k};
+    B.ck.push(ck); chunks.push(ck);
+    }
     const g=new THREE.BufferGeometry();
-    g.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    g.setAttribute('color',new THREE.BufferAttribute(c,3));
-    g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
-    g.setIndex(TERR_IDX.attr);
-    g.setDrawRange(TERR_IDX.ranges[0][0],TERR_IDX.ranges[0][1]);
+    g.setAttribute('position',new THREE.BufferAttribute(P,3));
+    g.setAttribute('color',new THREE.BufferAttribute(Cc,3));
+    g.setAttribute('normal',new THREE.BufferAttribute(Nn,3));
+    const ix=new THREE.BufferAttribute(new Uint16Array(G*G*TERR_IDX.ranges[0][1]),1);   // 가장 촘촘한 단계로 다 차도 들어가는 크기
+    ix.setUsage(THREE.DynamicDrawUsage); g.setIndex(ix); g.setDrawRange(0,0);
     g.computeBoundingSphere();
-    const m=new THREE.Mesh(g,mat);
-    m.userData.lodErr=err; m.userData.lod=0;
-    scene.add(m); chunks.push(m);
+    B.m=new THREE.Mesh(g,mat); B.m.matrixAutoUpdate=false; B.m.updateMatrix();
+    scene.add(B.m); TERR_BLK.push(B);
+  }
+  terrainJoin(true);
+}
+/* 단계가 바뀐 청크가 있는 묶음의 인덱스를 다시 잇는다 — 청크 k 의 단계 구간을 k·1089 만큼 밀어 차례로 */
+function terrainJoin(all){
+  const IA=TERR_IDX.attr.array, NV=(CH+1)*(CH+1);
+  for(const B of TERR_BLK){
+    if(!B.dirty&&!all) continue;
+    const ix=B.m.geometry.index, A=ix.array; let o=0;
+    for(const c of B.ck){ const r=TERR_IDX.ranges[c.lod], base=c.k*NV; for(let i=0;i<r[1];i++) A[o+i]=IA[r[0]+i]+base; o+=r[1]; }
+    ix.updateRange.offset=0; ix.updateRange.count=o; ix.needsUpdate=true;
+    B.m.geometry.setDrawRange(0,o); B.dirty=false;
   }
 }
 /* 청크마다 단계를 고른다 — 카메라에서 청크 경계구까지 거리 d, 오차 e 가 화면에서 e·K/d 화소
@@ -919,13 +948,14 @@ function updateTerrainLOD(){
   if(cp.x===_tlX&&cp.y===_tlY&&cp.z===_tlZ&&K===_tlK) return;
   _tlX=cp.x; _tlY=cp.y; _tlZ=cp.z; _tlK=K;
   TERR_STAT.fill(0);
-  for(const m of chunks){
-    const bs=m.geometry.boundingSphere, d=Math.max(1,cp.distanceTo(bs.center)-bs.radius), E=m.userData.lodErr;
+  for(const c of chunks){
+    const bs=c.bs, d=Math.max(1,cp.distanceTo(bs.center)-bs.radius), E=c.lodErr;
     let lv=0;
     if(d>TERR_LOD_NEAR) for(let k=E.length-1;k>0;k--) if(E[k]*K/d<TERR_LOD_PX){ lv=k; break; }
-    if(lv!==m.userData.lod){ m.userData.lod=lv; const r=TERR_IDX.ranges[lv]; m.geometry.setDrawRange(r[0],r[1]); }
+    if(lv!==c.lod){ c.lod=lv; c.blk.dirty=true; }
     TERR_STAT[lv]++;
   }
+  terrainJoin(false);
 }
 
 /* ── 물 ─────────────────────────────────────────────────────────────────

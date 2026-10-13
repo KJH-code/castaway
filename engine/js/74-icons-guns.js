@@ -91,7 +91,7 @@ function _icoShape(id){
   return g;
 }
 const iconTag=(id,t)=>{ const u=itemIcon(id);
-  return u?'<img class="sw ico" src="'+u+'" alt="">':'<i class="sw" style="background:#'+t.c.toString(16).padStart(6,'0')+'"></i>'; };
+  return u?'<img class="sw ico" decoding="sync" src="'+u+'" alt="">':'<i class="sw" style="background:#'+t.c.toString(16).padStart(6,'0')+'"></i>'; };
 function itemIcon(id){
   if(ITEM_ICON[id]) return ITEM_ICON[id];
   const T=ITEMS[id]; if(!T) return '';
@@ -597,7 +597,7 @@ function useHeld(){
   if(W.torch){ toggleTorch(e); return; }
   if(W.weapon||W.net||W.throw){ attack(); return; }
   if(W.drill && e.dur<=0){ toast('전기가 없다 — 우클릭으로 축전지에서 채운다'); return; }
-  if(W.axe) toast(T.n+' — 나무 줄기를 보고 좌클릭을 누르고 있으면 벤다(가지를 꺾으려면 손을 비울 것)');
+  if(W.axe) toast((HARV.near&&blockReason(HARV.near))||(T.n+' — 나무 줄기를 보고 좌클릭을 누르고 있으면 벤다(가지를 꺾으려면 손을 비울 것)'));
   else if(W.pick) toast(T.n+' — 광석·암석을 보고 좌클릭을 누르고 있으면 캔다');
 }
 /* 우클릭 — 축전지로 채우는 물건(전등·드릴)을 지닌 축전지에서 채운다 */

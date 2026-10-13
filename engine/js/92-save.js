@@ -106,6 +106,7 @@ function snapshot(){
     sea:[...SEA.taken].filter(e=>gameHours-e[1]<SEA_REGROW).map(e=>[e[0],+e[1].toFixed(2)]),   // 주운 조개·굴·성게 자리
     cam:+CAMC.bat.toFixed(1),                       // 캠코더 배터리
     flora:[...FLORA.taken].filter(e=>gameHours-e[1]<72).map(e=>[e[0],+e[1].toFixed(2)]),        // 딴 덩굴·대나무·열매·버섯 자리
+    giants:giantSave(),                             // 벤 노거수 — 'gx,gz' → 남은 통나무(0 이면 쓰러진 그루)
     power:{wheels:WHEELS.map(g=>[g.x,g.y,g.z]),
            dynamos:DYNAMOS.map(g=>[g.x,g.y,g.z]),
            arcs:ARCS.map(g=>[g.x,g.y,g.z]),
@@ -244,6 +245,7 @@ async function restore(d){
   safe('바다',()=>{ SEA.taken=new Map((d.sea||[]).filter(e=>Array.isArray(e)&&typeof e[0]==='string')); SEA.dirty=true; });
   safe('캠코더',()=>{ CAMC.bat=typeof d.cam==='number'?clamp(d.cam,0,100):100; });
   safe('식생',()=>{ FLORA.taken=new Map((d.flora||[]).filter(e=>Array.isArray(e)&&typeof e[0]==='string')); FLORA.near.cx=FLORA.far.cx=1e9; });
+  safe('노거수',()=>giantRestore(d.giants));
   PL.pos.set(d.pl.x,d.pl.y,d.pl.z); PL.vel.set(0,0,0);
   PL.yaw=d.pl.yaw; PL.pitch=d.pl.pitch;
   PL.stam=d.pl.stam; PL.oxy=d.pl.oxy;

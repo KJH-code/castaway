@@ -21,17 +21,18 @@
    ========================================================================== */
 const SEA={seed:0, cx:1e9, cz:1e9, R:52, cell:2.2, m:null, picks:[], taken:new Map(), look:null, dirty:false, clock:0};
 const SEA_REGROW=48;                               // 주운 자리가 다시 나기까지(게임 시간)
+/* dur 좌클릭을 누르고 있어야 하는 시간(초 · 진행 막대 — updateGather, 95-flora.js) · stam 그동안 드는 기력(초당) */
 const SEA_PICK={
-  clam  :{item:'clam',   n:'조개', verb:'줍기'},
-  oyster:{item:'oyster', n:'굴',   verb:'떼어 내기', need:'sharp'},
-  urchin:{item:'urchin', n:'성게', verb:'따기', prick:5},
+  clam  :{item:'clam',   n:'조개', verb:'줍기',      dur:0.7, stam:1.5},
+  oyster:{item:'oyster', n:'굴',   verb:'떼어 내기', dur:1.6, stam:4, need:'sharp'},
+  urchin:{item:'urchin', n:'성게', verb:'따기',      dur:0.9, stam:2, prick:5},
   /* 바다에 선 것도 전부 무엇인가를 준다(사용자 요청). keep — 떼어도 그 자리에 남는다(다시 뗄 수 있기까지 regrow 시간) */
-  coral   :{item:'coral',   n:'산호',     verb:'조각 떼기', need:'sharp', keep:1, regrow:48},
-  weed    :{item:'seaweed', n:'바닷말',   verb:'뜯기',      keep:1, regrow:24},
-  kelp    :{item:'seaweed', n:'다시마',   verb:'뜯기',      keep:1, regrow:24, cnt:2},
-  rock    :{item:'pebble',  n:'물밑 바위', verb:'돌 떼기',  keep:1, regrow:48},
-  anem    :{n:'말미잘',     verb:'건드리기', keep:1, sting:3},
-  starfish:{item:'starfish',n:'불가사리', verb:'줍기'}
+  coral   :{item:'coral',   n:'산호',     verb:'조각 떼기', dur:1.6, stam:4, need:'sharp', keep:1, regrow:48},
+  weed    :{item:'seaweed', n:'바닷말',   verb:'뜯기',      dur:0.8, stam:2, keep:1, regrow:24},
+  kelp    :{item:'seaweed', n:'다시마',   verb:'뜯기',      dur:1.0, stam:2.5, keep:1, regrow:24, cnt:2},
+  rock    :{item:'pebble',  n:'물밑 바위', verb:'돌 떼기',  dur:1.2, stam:3, keep:1, regrow:48},
+  anem    :{n:'말미잘',     verb:'건드리기', dur:0.3, stam:0, keep:1, sting:3},
+  starfish:{item:'starfish',n:'불가사리', verb:'줍기',      dur:0.6, stam:1.5}
 };
 const SEA_U={uSeaT:{value:0}};
 function seaHash(gx,gz,salt){
@@ -267,17 +268,27 @@ function seaFindLook(){
     bd=d; SEA.look=p;
   }
 }
-/* 좌클릭 — 눈앞의 것을 줍는다. 주웠거나 막혔으면 true(손의 것을 쓰지 않는다) */
+/* 못 줍는 까닭(없으면 null) */
+function seaBlock(p){
+  const D=SEA_PICK[p.kind];
+  if(D.keep){ const t=SEA.taken.get(p.key);          // 그 자리에 남는 것 — 방금 뗀 자리는 한동안 못 뗀다
+    if(t!==undefined&&gameHours-t<(D.regrow||SEA_REGROW)) return D.n+(D.sting?' — 방금 쏘였다. 건드리지 마라':' — 방금 뗀 자리다. 다른 것을 찾아라'); }
+  if(D.need==='sharp'&&!hasSharp()) return D.n+' — 단단히 붙었다. 날붙이(주먹도끼·작살 따위)를 지녀야 뗀다';
+  return null;
+}
+/* 좌클릭을 누른 순간 — 줍는 것은 누르고 있는 동안 updateGather 가 한다. 여기선 막혔으면 까닭만 알린다.
+   주울 것을 보고 있으면 true(손의 것을 쓰지 않는다) */
 function seaPick(){
   const p=SEA.look; if(!p) return false;
+  const why=seaBlock(p); if(why) toast(why);
+  return true;
+}
+/* 막대가 다 찼다 */
+function seaTake(p){
   const D=SEA_PICK[p.kind];
-  const sharp=INV.slots.some(s=>{ const t=ITEMS[s.id]; return (t.tags&&t.tags.indexOf('sharp')>=0)||(t.tool&&(t.tool.harpoon||t.tool.weapon)); });
-  if(D.sting){ hurtPL(D.sting,'말미잘에 쏘였다'); toast('말미잘 — 촉수에 쏘였다. 흰동가리나 드나드는 곳이다'); return true; }
-  if(D.keep){ const t=SEA.taken.get(p.key);
-    if(t!==undefined&&gameHours-t<(D.regrow||SEA_REGROW)){ toast(D.n+' — 방금 뗀 자리다. 다른 것을 찾아라'); return true; } }
-  if(D.need==='sharp'&&!sharp){ toast(D.n+' — 단단히 붙었다. 날붙이(주먹도끼·작살 따위)를 지녀야 뗀다'); return true; }
+  if(D.sting){ hurtPL(D.sting,'말미잘에 쏘였다'); toast('말미잘 — 촉수에 쏘였다. 흰동가리나 드나드는 곳이다'); SEA.taken.set(p.key,gameHours); return true; }
   let got=0; for(let i=0;i<(D.cnt||1);i++) if(invAdd(D.item,1)) got++;
-  if(!got){ toast('무거워서 더 못 든다'); return true; }
+  if(!got){ toast('무거워서 더 못 든다'); return false; }
   SEA.taken.set(p.key,gameHours); SEA.look=null;
   if(!D.keep) SEA.dirty=true;                        // 주워서 없어지는 것만 다시 깐다
   if(D.keep){ toast(D.n+' — '+ITEMS[D.item].n+' +'+got); sfx('bind'); invDirty=true; return true; }
