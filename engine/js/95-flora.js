@@ -514,12 +514,15 @@ function floraBuild(){
   FLORA.mat=new THREE.MeshLambertMaterial({map:FLORA.tex,alphaTest:0.4,vertexColors:true,side:THREE.DoubleSide});
   /* 잎 판때기의 그림자 — 깊이 재질도 그림의 알파로 잘라야 판 네모가 통째로 찍히지 않는다 */
   FLORA.depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:FLORA.tex,alphaTest:0.4});
+  /* 땅에 녹아들기(envPatch) — 나무 줄기 밑동은 한 뼘 반, 덤불·고사리·꽃·버섯(matN)은 손가락 두 마디만(키가 작아 더 주면 통째로 땅빛이 된다) */
+  FLORA.mat.userData.melt=0.30;
+  FLORA.matN=FLORA.mat.clone(); FLORA.matN.userData.melt=0.05;
   FLORA.m={};
   for(const L of [FLORA.far,FLORA.near]) for(const k of L.kinds){
     const nv=FLORA_VARS[k]||1, cap=Math.ceil(FLORA_KIND[k].cap*2.5)+8;   // 벌마다 몫 — 기준 벌(`FLORA.ref`)이 먼 그루를 다 받으므로 예전 종류 전체 몫(평균의 2.5배)
     FLORA.m[k]=[]; L.n[k]=new Int32Array(nv);
     for(let v=0;v<nv;v++){
-      const im=new THREE.InstancedMesh(SH[v][k],FLORA.mat,cap);
+      const im=new THREE.InstancedMesh(SH[v][k],L===FLORA.far?FLORA.mat:FLORA.matN,cap);
       im.setColorAt(0,new THREE.Color(1,1,1));          // 색 버퍼는 count 가 가득일 때 만든다
       im.count=0; im.visible=false; im.frustumCulled=false;
       if(L===FLORA.far) im.customDepthMaterial=FLORA.depth;   // 나무는 그림자를 드리운다
@@ -775,11 +778,12 @@ function floraFar(force){
   const px=PL.pos.x, pz=PL.pos.z, mv=(px-L.cx)**2+(pz-L.cz)**2>=FL_STEP*FL_STEP;
   if(L.cx===1e9) force=true;
   camera.updateMatrixWorld(); _ffPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _ffFr.setFromProjectionMatrix(_ffPM);
+  occTick();
   let sig=0;
   for(const t of U.tl){
     const d=Math.hypot(t.cx-px,t.cz-pz)-t.r;
     let v=d<=VIEW_DIST;
-    if(v&&d>CULL_NEAR){ _ffSp.center.set(t.cx,t.cy,t.cz); _ffSp.radius=t.r+30; v=_ffFr.intersectsSphere(_ffSp); }
+    if(v&&d>CULL_NEAR){ _ffSp.center.set(t.cx,t.cy,t.cz); _ffSp.radius=t.r+30; v=_ffFr.intersectsSphere(_ffSp)&&!tileOcc(t,26); }   // 산 너머는 거른다(30-props.js)
     t.v=v; if(v) sig=(sig*31+t.i+1)|0;
   }
   if(!force&&!mv&&sig===U.sig) return;

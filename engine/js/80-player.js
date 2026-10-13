@@ -144,6 +144,7 @@ function diePL(why){
   PL.hp=0; PL.dead=true; paused=true;
   try{ if(document.pointerLockElement===cv) document.exitPointerLock(); }catch(e){}
   const ov=document.getElementById('ov');
+  ov.classList.remove('title');
   ov.querySelector('h1').textContent='쓰러졌다';
   ov.querySelector('.s').textContent=why+'. 눈을 떠 보니 표류물 곁이다 — '
     +'가진 것은 그대로지만 배는 절반만 차 있다.';
@@ -206,12 +207,13 @@ function updatePlayer(dt){
 
   const gy=floorAt(p.x,p.z,p.y);
   // 바다는 해수면 0, 하천은 하도별 수면 표고를 쓴다
-  const sm=sampleAt(p.x,p.z);
-  const wl=(sm.river&&sm.elev>0)?waterLevelAt(p.x,p.z):0;
+  /* 물의 영역은 **그려진 수면**이 정한다(riverSurfAt — 20-terrain.js). 하천 판이 그 자리 땅 위에 있을 때만 민물이다 */
+  const WA=waterAt(p.x,p.z,gy), inRiver=WA.river;
+  const wl=WA.wl;
   const depth=Math.max(0,wl-gy);          // 수심
   const sub=Math.max(0,wl-p.y);           // 플레이어 발이 잠긴 깊이
   // 헤엄은 가슴 넘게 잠겨야 — 하천(수심 1 m 안팎)은 걸어서 건넌다. 예전 1.7 m 는 하천 판 경사에서도 걸렸다
-  const SWIMD=(sm.river&&sm.elev>0)?2.6:2.2;
+  const SWIMD=inRiver?2.6:2.2;
   /* 한번 헤엄치기 시작하면 발이 수면 밑 0.25 m 에 올 때까지는 헤엄이다. 예전엔 들 때도 날 때도 1.0 m 였는데,
      부력이 몸을 띄우는 자리(발 0.45 m)가 그보다 얕아 **뜨자마자 헤엄이 풀리고 → 가라앉아 다시 헤엄 → …** 을
      프레임마다 되풀이했다. 그래서 눈이 딱 수면에 걸려 물속 안개가 깜빡였고, 헤엄 기력도 세 번에 한 번은 안 빠졌다. */
@@ -329,11 +331,13 @@ function updatePlayer(dt){
   camera.rotation.set(PL.pitch,PL.yaw,Math.sin(PL.bob)*hs*0.0016,'YXZ');
 
   // 수중이면 안개를 진하게 — 물 밖과 확실히 구분되게
-  const head=p.y+PL.eye;
-  if(head<wl){
+  /* **화면이 물속으로 바뀌는 것은 눈이 수면 밑으로 내려갔을 때만**(사용자 요청: 물의 깊이로 정한다) — 눈(카메라)의 높이를
+     그 자리의 수면과 견준다. 바다는 지금 그 자리의 물결 높이까지 본다. 눈높이보다 얕은 물(서서 0.3 m · 앉아도 눈 밑)에선 안 바뀐다 */
+  const head=camera.position.y, surf=inRiver?wl:(gy<0.3?seaSurfAt(p.x,p.z):-1e9);
+  if(head<surf-0.04&&surf-gy>0.35){
     /* 물속 — 안개를 **물빛**으로 바꾼다. 예전엔 색은 그대로(지평선의 흰 잿빛) 두고 짙기만 올려, 물속이 잿빛 연기 속 같았다
        (사용자 지적: 물속이 진짜 같지 않다). 볕이 있는 만큼 밝은 청록, 밤에는 검푸르다. 물안경이 있으면 멀리까지 맑다 */
-    const lum=clamp(hemi.intensity*1.1+sun.intensity*0.55,0.03,1.1), rv=(sm.river&&sm.elev>0);
+    const lum=clamp(hemi.intensity*1.1+sun.intensity*0.55,0.03,1.1), rv=inRiver;
     scene.fog.color.setRGB((rv?0.10:0.03)*lum,(rv?0.22:0.30)*lum,(rv?0.16:0.37)*lum);
     scene.fog.density=hasGear('goggles')?0.030:0.060; skyUnder=true;
   }

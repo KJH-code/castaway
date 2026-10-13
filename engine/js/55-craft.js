@@ -1198,7 +1198,11 @@ function craftEdges(root){
 /* 마디·탭 누르기 — 목록 바탕에서 한 번에 받는다. 마디는 한 번 누르면 고르고, 고른 것을 다시 누르면 만든다 */
 document.getElementById('crf').addEventListener('click',ev=>{
   const t=ev.target&&ev.target.closest?ev.target.closest('#crfT button'):null;
-  if(t){ craftTab=t.dataset.tab; const q=document.getElementById('crfS'); q.value=''; craftQuery=''; document.getElementById('crfL')._html=null; craftDirty=true; drawCraft(); return; }
+  if(t){ craftTab=t.dataset.tab;
+    /* 고른 마디가 새 탭에 없으면 고른 것을 푼다 — 예전엔 오른쪽 칸에 앞 탭의 제작법이 그대로 남아, 이 탭에서 밝게 보이는
+       마디(만들 수 있는 것)를 고른 것으로 잘못 읽게 했다(사용자 지적) */
+    if(RECIPES[CRAFT.sel]&&craftCat(RECIPES[CRAFT.sel])!==craftTab) CRAFT.sel=-1;
+    const q=document.getElementById('crfS'); q.value=''; craftQuery=''; document.getElementById('crfL')._html=null; craftDirty=true; drawCraft(); return; }
   const el=ev.target&&ev.target.closest?ev.target.closest('.nd'):null;
   if(!el) return;
   const i=+el.dataset.i;

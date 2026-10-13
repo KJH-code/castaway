@@ -1032,9 +1032,7 @@ function lookWater(reach){
   const dx=-Math.sin(PL.yaw)*cp, dy=Math.sin(PL.pitch), dz=-Math.cos(PL.yaw)*cp;
   for(let t=0.15;t<=reach;t+=0.1){
     const x=ex+dx*t, y=ey+dy*t, z=ez+dz*t;
-    const g=heightAt(x,z), sm=sampleAt(x,z);
-    const river=!!(sm.river&&sm.elev>0);
-    const wl=river?waterLevelAt(x,z):0;
+    const g=heightAt(x,z), WA=waterAt(x,z,g), river=WA.river, wl=WA.wl;
     if(wl>g+0.12&&y<=wl) return {fresh:river,x,z};          // 수면에 닿았다(그 자리에 물이 땅 위로 고여 있다)
     if(y<=g) return null;                                    // 땅에 닿았다
   }
@@ -1309,6 +1307,9 @@ function updateHarvest(dt){
   HARV.near=prop;
   const t=HARV.near;
   HARV.mode=pickMode(t);
+  /* 보는 것이나 하는 일이 바뀌면 진행을 처음부터 — 예전엔 나무를 베다 만 몫(몇 초)이 그대로 남아, 곁의 풀(0.8초짜리)을 보는 순간
+     막대가 칸 밖으로 몇 배나 뻗었다(사용자 지적) */
+  { const hm=HARV.mode?HARV.mode.H:null; if(HARV._lt!==t||HARV._lm!==hm){ HARV._lt=t; HARV._lm=hm; HARV.t=0; } }
   const want=useDown && harvestByUse() && !PL.swim;     // 캐기는 좌클릭(누르고 있는 동안)뿐 — E 는 안 쓴다
   if(!want || PL.stam<3){
     HARV.t=Math.max(0,HARV.t-dt*2.5); HARV.active=false; return;

@@ -120,6 +120,20 @@ Epic's own documentation and SIGGRAPH course notes; they should be read from the
 | Hex-tiling in the ground shader | Visual repetition | Visual; three extra texture reads per active ground layer near the camera |
 | World scale (generate at 1.92 km, scale uniformly to 3.84 km) | Island/biome size | Same generation time; 217k props instead of 54k, built lazily |
 
+### 5.1 Second pass (same machine, same conifer spot, four view directions)
+
+| Change | What it addresses | Measured |
+|---|---|---|
+| Tree copies end at 125 m (was 150), middle ring at 72 m (was 90); far giant trees use a reduced mesh | Vertex load | 2.37M / 1.92M / 1.81M / 2.17M → 1.90M / 1.67M / 1.60M / 1.83M triangles |
+| Ridge occlusion: tiles whose tops are hidden behind terrain are not drawn (`tileOcc`, `30-props.js`) | Vertex load in hilly views | 0–8% fewer triangles at this spot; 0.12 ms per re-evaluation (only when the eye moves 4 m) |
+| Horizon haze in the fog chunk (`90-init.js`) | Pop-in at the draw distance | Visual; no measurable cost |
+| Ocean mesh graded: 0.6 m cells at the centre, 90 m at the edge, same vertex count | Wave shape near the player, foam alignment | Visual; triangle count unchanged |
+| Ground blend (`envPatch`, `userData.melt`) | Objects looking pasted on | One texture read per pixel inside the blend height; four texel fetches per vertex for non-instanced rock batches |
+| Shoreline scan with beach profile, C vs JS | Foam placement | C 0.17 ms vs JS 0.30–0.34 ms per rescan |
+
+Frame rate was **not** measured in a visible window: the test pane throttles frames, so only triangle counts and
+CPU-side milliseconds above are comparable.
+
 ## 6. Roadmap, ordered by value for this renderer
 
 1. **Tree mesh weight.** A single oak is still about 45k triangles at full detail. Generate proper LOD meshes with

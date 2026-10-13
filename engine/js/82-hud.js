@@ -363,10 +363,10 @@ function updateHUD(dt){
     // 화덕은 좌클릭을 계속 누르면 불을 다루는 쪽으로 넘어간다
     if(isHearth(c) && !c.lit && isTorch && e.lit && e.fuel>0.12 && contFuel(c)){
       hudH(lt,head+'<em>길게 누르면 횃불로 불 옮기기</em>');
-      if(IGNITE.t>0){ hudS(lb,'display','block'); hudS(lf,'width',(IGNITE.t/1.5*100)+'%'); }
+      if(IGNITE.t>0){ hudS(lb,'display','block'); hudS(lf,'width',Math.min(100,IGNITE.t/1.5*100).toFixed(1)+'%'); }
     }else if(isHearth(c) && c.lit && isTorch && !e.lit && e.fuel>0){
       hudH(lt,head+'<em>길게 누르면 횃불에 불 붙이기 · 연료 '+fmtFuel(e.fuel)+'</em>');
-      if(IGNITE.t>0){ hudS(lb,'display','block'); hudS(lf,'width',(IGNITE.t/1.0*100)+'%'); }
+      if(IGNITE.t>0){ hudS(lb,'display','block'); hudS(lf,'width',Math.min(100,IGNITE.t/1.0*100).toFixed(1)+'%'); }
     }else if(isHearth(c) && !c.lit){
       const canFire=e&&(ITEMS[e.id].tool||{}).fire;
       const tin=needsTinder(e), dur=igniteDur(e);
@@ -383,7 +383,7 @@ function updateHUD(dt){
                    :(IGNITE.t/dur<0.6)?'비비는 중 — 톱밥에 열이 오른다'
                                       :'불씨를 부싯깃에 옮겨 불어넣는 중';
       hudH(lt,head+'<em>'+why+'</em>');
-      if(IGNITE.t>0){ hudS(lb,'display','block'); hudS(lf,'width',(IGNITE.t/dur*100)+'%'); }
+      if(IGNITE.t>0){ hudS(lb,'display','block'); hudS(lf,'width',Math.min(100,IGNITE.t/dur*100).toFixed(1)+'%'); }
     }else{
       hudH(lt,head+'<em>'+contStatus(c)+' · '
         +contWeight(c).toFixed(1)+' / '+c.cap+' kg</em>');
@@ -392,7 +392,7 @@ function updateHUD(dt){
         const fr=(c.kind==='fire')
           ? fireJobs(c).map(j=>clamp((c.cook&&c.cook[j]||0)/FIRING[j].hours,0,1))
           : furnaceJobs(c).map(R=>clamp((c.jobs&&c.jobs[R.id]||0)/R.hours,0,1));
-        if(fr.length){ hudS(lb,'display','block'); hudS(lf,'width',(Math.max(...fr)*100)+'%'); }
+        if(fr.length){ hudS(lb,'display','block'); hudS(lf,'width',Math.min(100,Math.max(...fr)*100).toFixed(1)+'%'); }
       }
     }
   }else if(FISH.look&&equippedTool()&&(ITEMS[equippedTool().id].tool||{}).harpoon){
@@ -427,7 +427,7 @@ function updateHUD(dt){
         const left=M.field==='logs'?('통나무 '+t.logs):('남은 '+t[M.field]+'회');   // 캐기는 ore · 채집은 br — 예전엔 늘 br 을 보여 바위는 '남은 0회' 였다
         hudH(lt,'[좌클릭] '+M.H.label+'<em>'+R.n+' · '+left+'</em>');
         hudS(lb,'display',HARV.t>0?'block':'none');
-        hudS(lf,'width',(HARV.t/(M.dur||M.H.dur)*100)+'%');
+        hudS(lf,'width',Math.min(100,HARV.t/(M.dur||M.H.dur)*100).toFixed(1)+'%');
       }else{
         const why=blockReason(t);
         hudH(lt,R.n+'<em>'+(why||(t.felled?'그루터기만 남았다':'더 얻을 게 없다'))+'</em>');

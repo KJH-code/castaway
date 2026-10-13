@@ -191,6 +191,7 @@ function syncLock(){
 function pause(){
   paused=true; audioPause(true);
   const ov=document.getElementById('ov');
+  ov.classList.remove('title');                     // 간판의 지직거림 · 올라가는 글은 처음 여는 화면에서만(멈춤 화면은 가만히)
   ov.querySelector('h1').textContent='일시정지';
   ov.querySelector('.s').textContent='시드 '+P.seed+' · '+BIOME_INFO[sampleAt(PL.pos.x,PL.pos.z).biome].n;
   document.getElementById('bStart').textContent='계속';

@@ -32,11 +32,11 @@ Windows 는 "PC 보호" 창에서 **추가 정보 → 실행**, macOS 는 **우�
 |---|---|
 | `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
 | `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 29개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
-| `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) · `random_textures/`(텍스처 모델이 낸 그림이 들어갈 자리) |
+| `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) |
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `tools/ai/`(텍스처 모델 학습) |
+| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 파일

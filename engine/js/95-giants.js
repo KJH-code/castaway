@@ -142,7 +142,7 @@ function giantsBuild(){
      그루의 벌 하나**로 모두 찍는다(참나무·전나무의 기준 나무 `FAR_REF` 와 같은 방식 · `GIANT.ref`). 예전엔 128 m 칸 × 종류 × 벌로
      나눠 섬 전체를 늘 그렸다(인스턴스 메시 62 · 뿌리 메시 33 — 그림자 패스까지 그리기 호출이 그 두 배). 이제 먼 노거수는 종류마다
      한 번(셋)이고, 뿌리는 200 m 안의 그루만 그린다(땅에 누운 1 m 남짓한 등성이라 그 밖에선 안 보인다). 고르는 일은 `updateGiants` */
-  if(!GIANT.rootMat) GIANT.rootMat=FLORA.mat.clone();
+  if(!GIANT.rootMat){ GIANT.rootMat=FLORA.mat.clone(); GIANT.rootMat.userData.melt=0.22; }
   const px=PL.pos.x, pz=PL.pos.z, cnt=GIANT.geo.map(a=>a.map(()=>0)), kcnt=GIANT.geo.map(()=>0);
   GIANT.ref=GIANT.geo.map((a,v)=>{ let best=0, bd=Infinity;
     for(const g of GIANT.list) if(g.v===v){ const d=(g.x-px)**2+(g.z-pz)**2; if(d<bd){ bd=d; best=g.w; } }
@@ -164,7 +164,10 @@ function giantsBuild(){
   GIANT.near=GIANT.geo.map((a,v)=>a.map((geo,w)=>{ if(!cnt[v][w]) return null;
     if(!geo.boundingSphere) geo.computeBoundingSphere();
     const im=mk(wrap(geo),cnt[v][w],false); im.userData.k0=geo.boundingSphere.center.length()+geo.boundingSphere.radius; return im; }));
-  GIANT.far=GIANT.geo.map((a,v)=>kcnt[v]?mk(a[GIANT.ref[v]],kcnt[v],true):null);
+  /* 먼 쪽은 **줄인 복제**로 — 예전엔 200 m 밖의 노거수도 제 생김새 그대로(그루마다 삼각형 수천)였다. 새 식물의 줄인 복제와 같은 길
+     (`floraLodGeo` — 잎 판을 30% 만 남겨 키우고 잔가지를 솎는다 · 큰 줄기는 그대로). 연무 속이라 차이가 안 보인다 */
+  GIANT.far=GIANT.geo.map((a,v)=>{ if(!kcnt[v]) return null;
+    const base=a[GIANT.ref[v]], lod=floraLodGeo(base,0.3), im=mk(lod,kcnt[v],true); im.userData.own=lod!==base; return im; });
   /* 뿌리는 그루마다 보통 메시 하나 — r128 은 재질 하나에 셰이더가 하나라, 인스턴스 메시와 재질을 나눠 쓰면 그릴 때마다
      셰이더를 갈아 끼운다(인스턴스 색이 없는 메시가 섞이면 아예 죽는다). 그래서 뿌리는 제 재질을 쓴다 */
   const o={x:0,z:0,h:0,w:0};
@@ -214,7 +217,8 @@ function updateGiants(force){
   camera.updateMatrixWorld(); _gPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _gFr.setFromProjectionMatrix(_gPM);
   let sig=ch?-1:0, k=0;
   for(const g of GIANT.list){ if(g.near) continue; _gSp.center.set(g.fc[0],g.fc[1],g.fc[2]); _gSp.radius=g.fr;
-    g.seen=_gFr.intersectsSphere(_gSp); if(g.seen) sig=(sig*31+k)|0; k++; }
+    g.seen=_gFr.intersectsSphere(_gSp)&&!tileOcc(g._ot||(g._ot={cx:g.x,cz:g.z,r:14}),48);     // 산 너머의 노거수는 거른다(30-props.js)
+    if(g.seen) sig=(sig*31+k)|0; k++; }
   if(sig===GIANT.farSig) return;
   GIANT.farSig=sig;
   for(const im of GIANT.far) if(im) im.count=0;
@@ -311,7 +315,7 @@ function giantStumpGeo(g){
 }
 function giantStump(g){
   if(g.stumpM) return;
-  if(!GIANT.rootMat) GIANT.rootMat=FLORA.mat.clone();
+  if(!GIANT.rootMat){ GIANT.rootMat=FLORA.mat.clone(); GIANT.rootMat.userData.melt=0.22; }
   const m=new THREE.Mesh(giantStumpGeo(g),GIANT.rootMat);
   m.matrixAutoUpdate=false; m.matrix.fromArray(g.mat); m.matrixWorldNeedsUpdate=true;
   m.geometry.computeBoundingSphere(); m.frustumCulled=true; m.userData.own=true;

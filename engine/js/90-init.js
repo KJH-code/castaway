@@ -14,8 +14,14 @@
    그래서 먼 산이 푸르스름하게 물러난다. 하늘빛은 **보는 방향의 지평선 하늘색**이다(`skyScatter`
    를 카메라 앞쪽으로 돌린 것) — 해 쪽을 보면 노을빛, 반대쪽은 푸른빛으로 먼 땅이 녹는다.
    Three 의 fog_fragment 를 바꾸므로 **안개를 받는 모든 재질에 똑같이 듣는다**(물 포함). */
+/* **지평선의 연무**(사용자 요청) — 맑은 날의 소광계수로는 450 m 가 4% 밖에 안 흐려져, 나무가 그리는 거리(`VIEW_DIST`) 끝에서
+   또렷한 채로 툭 나타났다. 바다 섬의 습한 공기처럼 **그리는 거리의 1/3 부터 끝까지 서서히** 그 방향 지평선 하늘빛으로 물러나게
+   한다(끝에서 74%) — 새로 나타나는 나무는 이미 하늘빛에 녹아 있다. 그 너머의 먼 산은 1.8 km 까지 조금 더 물러난다(92%) */
+const HAZE_GLSL=(()=>{ const V=(typeof VIEW_DIST!=='undefined'?VIEW_DIST:450);
+  return 'fogT *= 1.0 - 0.74*smoothstep('+(V*0.30).toFixed(1)+','+V.toFixed(1)+',fogDepth) - 0.18*smoothstep('+V.toFixed(1)+',1800.0,fogDepth);'; })();
 THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
   vec3 fogT = exp( - fogDensity * fogDepth * vec3( 0.93, 1.0, 1.12 ) );
+  ${HAZE_GLSL}
   gl_FragColor.rgb = gl_FragColor.rgb * fogT + fogColor * ( 1.0 - fogT );
 #endif`;
 /* ── 램버트: 빛마다 제 그림자만 받는다 ──────────────────────────────────────
@@ -142,6 +148,14 @@ function resize(){
 }
 
 const barF=document.getElementById('barF'), ovLoad=document.getElementById('ovLoad');
+/* 시작 화면 간판의 지직거림 — 잡음 그림 한 장(128²)을 글자 안에 깔고 CSS(`#ov h1`)가 그 자리를 튀긴다 */
+(function(){ try{
+  const c=document.createElement('canvas'); c.width=c.height=128;
+  const g=c.getContext('2d'), d=g.createImageData(128,128);
+  for(let i=0;i<d.data.length;i+=4){ const v=Math.random()<0.07?30:(140+Math.random()*115)|0; d.data[i]=d.data[i+1]=d.data[i+2]=v; d.data[i+3]=255; }
+  g.putImageData(d,0,0);
+  document.documentElement.style.setProperty('--fizz','url('+c.toDataURL()+')');
+}catch(e){} })();
 /* 다음 단계로 넘어가기 전에 진행 막대를 한 번 그리게 숨을 돌린다. 탭이 뒤에 가려져 있으면 브라우저가
    requestAnimationFrame 을 아예 안 불러 섬 만들기가 그 자리에서 멎었다 — 가려졌으면 기다리지 않고,
    보일 때도 0.15초 안에 프레임이 안 오면 그냥 간다 */

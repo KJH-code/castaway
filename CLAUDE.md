@@ -16,11 +16,11 @@
 |---|---|
 | `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
 | `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 29개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
-| `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) · `random_textures/`(텍스처 모델이 낸 그림이 들어갈 자리) |
+| `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) |
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `tools/ai/`(텍스처 모델 학습) |
+| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
@@ -34,7 +34,7 @@ island_world.html
 ### 데스크톱 판(`desktop/`)
 
 브라우저를 벗어나 제 창으로 뜨는 게임. **게임 본체는 베끼지 않는다** — 개발 중엔 `../island_world.html` 을,
-묶은 판은 `extraResources` 로 `resources/game/` 에 넣어 둔 것을 연다(`island_world.html` · `engine/` 의 `three.min.js`·`css/`·`js/` · `presets/` 의 `*.js`·`random_textures/` — **본편이 읽는 파일 묶음을 새로 만들면 `desktop/package.json` 의 `filter` 에도 더할 것**. 모델(`presets/models/`)과 `engine/native/` 의 C 원본은 안 넣는다)(`main.js` 의 `GAME`). 그래서 게임을 고치면
+묶은 판은 `extraResources` 로 `resources/game/` 에 넣어 둔 것을 연다(`island_world.html` · `engine/` 의 `three.min.js`·`css/`·`js/` · `presets/` 의 `*.js` — **본편이 읽는 파일 묶음을 새로 만들면 `desktop/package.json` 의 `filter` 에도 더할 것**. 모델(`presets/models/`)과 `engine/native/` 의 C 원본은 안 넣는다)(`main.js` 의 `GAME`). 그래서 게임을 고치면
 데스크톱 판은 다시 묶기만 하면 된다.
 
 ```bash
@@ -232,6 +232,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `95-flora.js` | 군락 식생(정글·대숲·자작나무·소나무·맹그로브·야자·꽃밭 …) · 나무 열 갈래 · 덩굴·죽순·야자·바나나·버섯 · **종류마다 여러 벌**(`floraShapes` · `FLORA_VARS` — 칸 해시로 그루마다 고름 · `FLORA.m[종류]` 는 벌마다 메시 배열) · **나무 갈래는 참나무·전나무와 같은 길**(`floraFar` — 섬 전체를 한 번 깔아 64 m 칸에 담고, 그루마다 25 m(`FULL_DIST`) 안 제 벌 · 25~55 m 기준 그루(섬을 다 지은 순간 가장 가까운 그루 `FLORA.ref`) 복제 60%(그림자 드리움) · 55~90 m 30% · 90~200 m 10%(`floraLodGeo` — 잎 판을 솎고 1/√몫 배로 키움 · 큰 줄기는 그대로) · 200(`FL_PIC`)~450 m 기준 그루를 찍은 그림(`floraBakePic`) · 화면 밖 칸은 거름 · 2 m 움직이거나 보이는 칸이 바뀔 때만 다시 채움 · 몸 원·딸 것은 60 m 안만) · 덤불 겹은 사람 둘레 46 m, 12 m(층의 `own`) 밖은 가장 가까운 그루의 벌 하나 · `SHP.merge` 가 부품마다 정점 구간을 `userData.parts` 에 적는다(줄인 복제가 쓴다) · 그림 묶음 `floraAtlas`(1024² · 칸 256 — 잎 판은 **작은 잎 수십 장이 붙은 잔가지 한 줌**, 껍질·자작·바나나 줄기·버섯 갓은 값잡음으로 칠함 · 칸 12 자작 · 14 바나나 줄기 · 15 버섯) · `fin` 이 잎 판마다 수관 속 그늘(가운데·아래일수록 어둡게)과 빛깔 흔들기를 곱하고 통째로 밑동을 짙게(`merge` grad 0.80→1.04) |
 | `95-giants.js` | 30~40 m 노거수 · 걸을 수 있는 판근(`giantRootAt` — `floorAt` 이 쓴다) · 종류마다 네 벌(`GIANT_VARS` · `GIANT.geo[종류][벌]`) · **200 m 밖은 종류마다 가장 가까운 그루의 벌 하나**(`GIANT.ref` · `updateGiants` — 참나무·전나무 `FAR_REF` 와 같은 방식 · 시야 안 그루만 채움 · 그림자 안 드리움 · 뿌리는 200 m 안만) |
 | `96-sea.js` | 산호·말미잘·바닷말·불가사리·바위·조개·물고기 떼(작살·그물) · 먼 바다 공포 |
+| `96-foam.js` | **물가의 거품** — 사람 둘레 55 m 의 물가에 서는 사면체 조각(물머리 · 부서지는 물결 · 물가를 늘 덮는 띠). 움직임은 정점 셰이더(진짜 수면 = 물 셰이더의 긴 파도 셋 · 물가의 생김새 `aD`), 물가 찾기는 C(`engine/native/shore.c` — `foamBench()` 로 JS 판과 견준다). **물 셰이더의 파도 수를 바꾸면 여기 · 땅 셰이더의 젖은 띠(22) · `seaSurfAt`(20) 도 같이** |
 | `97-wildlife.js` | 새 떼(`wildFlocks`) · 둥지와 알 · 벌집과 꿀(`WILD.picks` — `FLORA_PICK` 의 egg·honey) · 새총(`slingShot` · 총·활도 `wildShot`) · 나무 오르기(`climbTick` — `updatePlayer` 가 맨 먼저 부른다) · 나비·반딧불이·잠자리·벌(`wildBugs`) |
 | `98-bag.js` | 가방 화면(소지품 + 고른 것 + 제작) |
 | `99-main.js` | **`loop`** 8 · 맨 끝에서 게임을 켜는 다섯 줄 |
@@ -357,7 +358,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - **r128 은 재질 하나에 셰이더가 하나다** — `InstancedMesh` 와 보통 `Mesh` 가 재질을 나눠 쓰면 안 되고, 재질을 나눠 쓰는 인스턴스 메시는
   전부 인스턴스 색(`setColorAt`)이 있어야 한다(없으면 그릴 때 죽는다 — 노거수 뿌리가 `GIANT.rootMat` 을 따로 쓰는 까닭).
 - **베타 빌드** — `sh beta/build-mac.sh` 가 `beta/builds/` 에 `CASTAWAY.app` 과 `.dmg` 를 만든다(레포에 안 담는다 · 200 MB 넘음).
-  npm 캐시는 `env/.cache/npm`(홈의 캐시 권한이 꼬인 기계가 있다). 학습 자료는 `tools/ai/data/` 에 **담는다**(계획은 `tools/ai/README.md`).
+  npm 캐시는 `env/.cache/npm`(홈의 캐시 권한이 꼬인 기계가 있다).
 - **조사한 그래픽 엔진·기법과 측정값은 `docs/graphics-engines.md`** — 확인한 것만 적었다. 새 기법을 넣으면 거기 표에 잰 값을 더할 것.
 
 - **바다 밑은 1.6배 깊다**(`genBase` — 해안 완만화 뒤 `e<0` 이면 ×1.6. 해안선은 그대로).

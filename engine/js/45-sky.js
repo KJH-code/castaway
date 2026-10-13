@@ -1710,9 +1710,19 @@ const WIND_GLSL={
                        cos(uTime*6.3+ph*4.0+transformed.z*9.0))*0.03*uWind.z;
          wpos.y +=sin(uTime*8.3+ph*6.0)*0.02*uWind.z;`
 };
+/* ── 땅에 녹아들기 ──────────────────────────────────────────────────────────
+   바위·줄기·뿌리·덤불이 땅에 '올려놓은' 것처럼 보이던 것(밑동에 칼로 자른 금)을 없앤다(사용자 요청: 바탕 그림과 제 그림을 섞어
+   물체가 바탕에 녹아들게). 재질에 `userData.melt = 높이(m)` 를 적어 두면:
+     ① 정점 셰이더가 **땅에서 얼마나 떠 있나**(vMeltH)를 센다 — 인스턴스는 제 밑동(인스턴스 원점)에서, 통짜 메시는 표고 텍스처
+        (물 셰이더가 쓰는 `uElev` — 네 점을 직접 섞는다)에서.
+     ② 조각 셰이더가 그 높이 안에서 제 빛깔을 **그 자리의 땅 빛깔**(땅 셰이더가 읽는 바이옴 색 `uBio`)로 섞는다. 제 그림의
+        밝고 어두운 결은 남긴다(땅 빛깔 × 제 밝기) — 그래서 바위 결·껍질 결이 땅 빛깔 위로 이어진다. 섞이는 금은 잡음으로 들쭉날쭉.
+   값: 정점마다 덧셈 한 번(통짜 메시는 텍스처 네 번) · 화소는 그 높이 안에서만 텍스처 한 번. 학습 모델·미리 구운 그림은 없다 */
+const MELT_U={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell};
 function envPatch(m){
   if(!m||m.userData._env) return;
   const lam=!!m.isMeshLambertMaterial, dep=!!m.isMeshDepthMaterial;
+  const melt=lam&&m.userData.melt>0?+m.userData.melt:0;
   /* 바람 흔들림은 껐다(`WIND_ON`) — 풀·잎·베리·가지 정점마다 사인파를 셌는데, 정점이 한 프레임에
      수백만 개라 가장 비싼 축에 들었다. 켜려면 true 로(코드는 그대로 남아 있다). */
   const wind=WIND_ON&&m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';
@@ -1723,8 +1733,13 @@ function envPatch(m){
     if(prev&&prev!==THREE.Material.prototype.onBeforeCompile) prev(sh,r);
     Object.assign(sh.uniforms,{csFine:CSH.fine, csCoarse:CSH.coarse, csC:CSH.ctr,
       csS:CSH.size, csOn:CSH.on, uTime:CSH.time, uWind:CSH.wind});
+    if(melt) for(const k in MELT_U) if(!sh.uniforms[k]) sh.uniforms[k]=MELT_U[k];
+    const has=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.vertexShader+sh.fragmentShader);   // 제 셰이더가 이미 선언했으면 다시 안 한다
+    const MV=melt?(has('uElev')?'':'uniform sampler2D uElev;\n')+(has('uGrid')?'':'uniform vec2 uGrid;\n')+`varying float vMeltH;
+float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.x-1.0))),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*300.0-100.0; }
+`:'';
     const W=WIND_GLSL[wind]||'';
-    sh.vertexShader='uniform float uTime;\nuniform vec3 uWind;\nvarying vec2 vCsXZ;\n'+
+    sh.vertexShader='uniform float uTime;\nuniform vec3 uWind;\nvarying vec2 vCsXZ;\n'+MV+
       sh.vertexShader.replace('#include <project_vertex>',`
       vec4 wpos=vec4(transformed,1.0);
       vec4 wb4=vec4(0.0,0.0,0.0,1.0);
@@ -1737,6 +1752,12 @@ function envPatch(m){
       float sw=uWind.z*(sin(uTime*1.7-ph)*0.6+sin(uTime*3.1-ph*1.9)*0.25+0.55);
       ${W}`:''}
       vCsXZ=wpos.xz;
+      ${melt?`#ifdef USE_INSTANCING
+        vMeltH=wpos.y-wb4.y;
+      #else
+        { vec2 mg=wpos.xz/uGrid.y+uGrid.x*0.5, mf=fract(mg); mg=floor(mg);
+          vMeltH=wpos.y-mix(mix(meltE(mg),meltE(mg+vec2(1.0,0.0)),mf.x),mix(meltE(mg+vec2(0.0,1.0)),meltE(mg+vec2(1.0,1.0)),mf.x),mf.y); }
+      #endif`:''}
       vec4 mvPosition=viewMatrix*wpos;
       gl_Position=projectionMatrix*mvPosition;`);
     if(lam) sh.fragmentShader=`uniform sampler2D csFine;
@@ -1752,11 +1773,22 @@ float cloudSh(){
   return mix(1.0,exp(-t),csOn*e.x*e.y);
 }
 `+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();');
+    if(melt){
+      const fh=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.fragmentShader);
+      sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')+'varying float vMeltH;\n'
+        +sh.fragmentShader.replace('#include <alphatest_fragment>',`#include <alphatest_fragment>
+      { float mw=0.5+0.25*sin(vCsXZ.x*7.3+vCsXZ.y*3.1)+0.25*sin(vCsXZ.y*9.7-vCsXZ.x*4.3);      // 섞이는 금을 들쭉날쭉하게
+        float mk=1.0-smoothstep(0.0,${melt.toFixed(3)}*(0.55+0.9*mw),vMeltH); mk*=mk;   // 밑동에서만 짙고 위로는 빨리 풀린다
+        if(mk>0.004){
+          vec3 mg=texture2D(uBio,(vCsXZ/uCell+uBioN*0.5+0.5)/uBioN).rgb;
+          float ml=dot(diffuseColor.rgb,vec3(0.3333));
+          diffuseColor.rgb=mix(diffuseColor.rgb,mg*clamp(0.50+1.25*ml,0.55,1.4),mk*0.80); } }`);
+    }
   };
   /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
      다른 램버트 재질과 같은 프로그램으로 묶여 제 코드가 통째로 빠졌다 */
   const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
-  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(pk?'-'+pk.call(m):'');
+  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(melt?'m'+melt:'')+(pk?'-'+pk.call(m):'');
   m.needsUpdate=true;
 }
 
@@ -2336,7 +2368,7 @@ function updateSky(){
     stars.position.copy(camera.position);
     stars.material.opacity=clamp(-sy*1.9-0.10,0,1)*(1-WEA.mist);
   }
-  if(ocean) ocean.position.set(camera.position.x,0,camera.position.z);
+  if(ocean) ocean.position.set(Math.round(camera.position.x/4)*4,0,Math.round(camera.position.z/4)*4);   // 4 m 눈금 — 촘촘한 가운데가 사람을 따라온다(20-terrain.js)
   /* 물이 받는 빛 — 해(색×세기)와 하늘빛, 비칠 하늘(천정·지평선).
      구름 시험장에는 물이 없다(하늘 구역만 베껴 간다) */
   if(typeof WATER_U!=='undefined'){
