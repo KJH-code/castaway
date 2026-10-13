@@ -120,12 +120,15 @@ async function restore(d){
   /* 한 군데가 틀려도 나머지는 살린다 — 예전엔 중간에 하나만 터져도 그 뒤(집·상자·소지품)가 통째로 안 돌아왔다 */
   const bad=[];
   const safe=(what,fn)=>{ try{ fn(); }catch(e){ console.error('[불러오기] '+what,e); bad.push(what); } };
+  P.ws=1;                                      // 섬 배율이 없는 옛 저장은 1(1.9 km 섬) — 예전 섬 그대로 열린다
   Object.assign(P,d.P);
+  if(P.ws!==2&&P.ws!==3) P.ws=1;
   if(d.guar!==undefined){ GUARANTEE=!!d.guar; const bg=document.getElementById('bGuar'); if(bg) bg.classList.toggle('on',GUARANTEE); }
   // 슬라이더도 저장값에 맞춘다
   const setv=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
   setv('pSeed',P.seed); setv('pSize',P.size); setv('pRidge',P.ridge);
   setv('pEro',P.ero); setv('pSea',P.sea); setv('pRain',P.rain); setv('pLimb',P.limb);
+  { const el=document.getElementById('pWs'); if(el){ el.value=P.ws; el.dispatchEvent(new Event('input')); } }
   await generateWorld();                       // 같은 시드 → 같은 지형·같은 자원 배치
   GAME_ID=d.gid||('old-'+(d.at||'')+'-'+P.seed);   // 이 판을 이어 한다(자동 저장이 같은 판으로 안다)
 

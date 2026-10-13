@@ -15,6 +15,7 @@ function loop(){
   /* 프레임 제한(설정) — 정한 간격이 안 됐으면 이번 화면 주기는 건너뛴다. last 는 그대로 두어 dt 가 쉰 시간을 안는다 */
   if(FPS_CAP>0&&now-lastDraw<1000/FPS_CAP-1.5) return;
   lastDraw=now;
+  if(!paused&&!busy&&!uiHold()) qualTick(now-last,Math.min(0.1,(now-last)/1000));   // 자동 품질 — 프레임이 떨어지면 자세히 그리는 거리를 당긴다(30-props.js)
   const dt=Math.min(0.05,(now-last)/1000); last=now;
 
   const PO=PERF.on;                // 성능 창이 켜져 있을 때만 토막마다 잰다

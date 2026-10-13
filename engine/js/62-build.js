@@ -747,7 +747,7 @@ function flowAt(x,z){
   return F.river[i]?F.flow[i]:0;
 }
 // 회전 속도 기준값. 설치 조건이 아니라 바퀴가 얼마나 빨리 도는지에만 쓴다.
-const WHEEL_REF=()=>110*(16/(CELL*CELL))/Math.max(0.35,P.rain)*3.2;
+const WHEEL_REF=()=>110*(16/(GCELL*GCELL))/Math.max(0.35,P.rain)*3.2;   // 유량(F.flow)은 만들 때의 칸 수로 센 값이다 — 섬 배율과 무관
 function wheelSpot(){
   const x=PL.pos.x-Math.sin(PL.yaw)*1.6, z=PL.pos.z-Math.cos(PL.yaw)*1.6;
   if(flowAt(x,z)<=0) return {ok:false,why:'하천 위에 놓아야 한다'};

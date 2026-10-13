@@ -412,6 +412,17 @@ function classify(){
    8) 자원 배치 — 지질 규칙
    ========================================================================== */
 let PROPS=[];
+/* 다 만든 섬(표고 · 하천 · 거리장)을 통째로 S 배로 키운다 — 바이옴을 정한 **뒤**, 자원을 놓기 **전**에 부른다.
+   격자는 그대로 두고 칸 한 변(CELL)과 높이·거리(m)만 S 배가 된다. 비탈(F.slope — 비율)과 바이옴은 안 바뀐다.
+   S 가 1 이면 아무것도 안 한다(예전 섬과 한 비트도 다르지 않다) */
+function worldRescale(S){
+  S=(S===2||S===3)?S:1;
+  setWorldScale(S);
+  if(S===1) return;
+  const e=F.elev, w=F.wlev, a=F.dWater, b=F.dRiver;
+  for(let i=0;i<e.length;i++){ e[i]*=S; w[i]*=S; a[i]*=S; b[i]*=S; }
+  fumaCenter.x*=S; fumaCenter.z*=S; fumaCenter.r*=S;
+}
 function placeResources(seed){
   PROPS=[];
   const rnd=mulberry32(seed^0x27d4eb2f);
@@ -515,15 +526,25 @@ function placeResources(seed){
   for(const R of RESOURCES){
     const fn=suit[R.k], isTree=(R.k==='oak'||R.k==='fir');
     let placed=0;
-    for(let z=2;z<N-2 && placed<R.max;z++){
-      for(let x=2;x<N-2 && placed<R.max;x++){
+    /* 키운 섬(배율 2·3)은 칸 하나가 4·9배 넓다 — 넓이당 밀도를 지키려면 칸에 여럿이 서야 하고(DSCALE 이 확률을 그만큼 올린다 ·
+       1 을 넘는 몫은 그 수만큼 세운다), 상한(max)도 넓이만큼 는다. 배율 1 은 예전 코드 그대로다(난수 차례가 같아야 같은 섬이다) */
+    const WS=CELL/GCELL, cap=R.max*WS*WS;
+    for(let z=2;z<N-2 && placed<cap;z++){
+      for(let x=2;x<N-2 && placed<cap;x++){
         const i=IDX(x,z);
         if(h[i]<=0.3) continue;
         const p=Math.min(1,fn(i))*R.d*DSCALE;
-        if(p<=0 || rnd()>p) continue;
-        push(R.k,x,z);
-        if(!isTree) markOcc(x,z,occR);
-        placed++;
+        if(WS===1){
+          if(p<=0 || rnd()>p) continue;
+          push(R.k,x,z);
+          if(!isTree) markOcc(x,z,occR);
+          placed++;
+        }else{
+          if(p<=0) continue;
+          const whole=Math.floor(p), n=whole+(rnd()<p-whole?1:0);
+          for(let k=0;k<n&&placed<cap;k++){ push(R.k,x,z); placed++; }
+          if(n&&!isTree) markOcc(x,z,occR);
+        }
       }
     }
     counts[R.k]=placed;

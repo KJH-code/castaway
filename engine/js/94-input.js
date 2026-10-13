@@ -310,6 +310,7 @@ function rng(id,key,vid,fmt,after){
   const u=()=>{ P[key]=parseFloat(el.value); v.textContent=fmt(P[key]); if(after) after(); };
   el.addEventListener('input',u); u();
 }
+rng('pWs','ws','vWs',x=>['','1.9 km','3.8 km','5.8 km'][x]||'');   // 섬 배율 — 새 섬부터(00-core.js)
 rng('pSize','size','vSize',x=>x.toFixed(2));
 rng('pRidge','ridge','vRidge',x=>x.toFixed(2));
 rng('pEro','ero','vEro',x=>x.toFixed(2));
@@ -358,6 +359,11 @@ document.getElementById('pCam').addEventListener('input',e=>{
   document.getElementById('vCam').textContent=v?CAMC_LINES[v]+'줄':'끔';
 });
 document.getElementById('vCam').textContent='480줄';
+/* 자동 품질 — 프레임이 떨어지면 자세히 그리는 거리를 스스로 당긴다(QUAL · 30-props.js) */
+document.getElementById('pAuto').addEventListener('input',e=>{
+  QUAL.on=parseInt(e.target.value)>0; document.getElementById('vAuto').textContent=QUAL.on?'켬':'끔';
+});
+document.getElementById('vAuto').textContent='켬';
 /* 화면 잡음 — 0 끔 · 1 보통 · 2 짙게(캠코더 셰이더의 알갱이 세기 · 창 바탕의 잡음 무늬) */
 document.getElementById('pNoise').addEventListener('input',e=>{
   const v=clamp(parseInt(e.target.value)||0,0,2); CAMC.noise=v;
@@ -373,16 +379,16 @@ document.getElementById('pSlot').addEventListener('change',e=>{
    브라우저 저장소에 둔다(데스크톱 판도 같은 저장소가 userData 에 남는다). 섬 모양(시드·크기…)은 저장 파일이 가진다.
    손으로 바꿀 때(change)만 적는다 — 불러올 때 맞추는 input 은 다시 적지 않는다 */
 const SET_KEY='castaway.settings';
-const SET={res:1, far:1, shadow:2, limb:0.8, vol:0.9, sens:1, slot:'1', cap:0, cam:2, noise:1};
+const SET={res:1, far:1, shadow:2, limb:0.8, vol:0.9, sens:1, slot:'1', cap:0, cam:2, noise:1, auto:1};
 function saveSettings(){ try{ localStorage.setItem(SET_KEY,JSON.stringify(SET)); }catch(e){} }
-for(const [id,k] of [['pRes','res'],['pFar','far'],['pShadow','shadow'],['pLimb','limb'],['pVol','vol'],['pSens','sens'],['pCap','cap'],['pCam','cam'],['pNoise','noise']])
+for(const [id,k] of [['pRes','res'],['pFar','far'],['pShadow','shadow'],['pLimb','limb'],['pVol','vol'],['pSens','sens'],['pCap','cap'],['pCam','cam'],['pNoise','noise'],['pAuto','auto']])
   document.getElementById(id).addEventListener('change',e=>{ SET[k]=parseFloat(e.target.value); saveSettings(); });
 function applySettings(){
   try{ const o=JSON.parse(localStorage.getItem(SET_KEY)||'{}'); for(const k in SET) if(k in o) SET[k]=o[k]; }catch(e){}
   const put=(id,v)=>{ const el=document.getElementById(id); if(!el||typeof v!=='number'||!isFinite(v)) return;
     el.value=v; el.dispatchEvent(new Event('input')); };
   put('pRes',SET.res); put('pFar',SET.far); put('pShadow',SET.shadow); put('pLimb',SET.limb); put('pVol',SET.vol); put('pSens',SET.sens);
-  put('pCap',SET.cap); put('pCam',SET.cam); put('pNoise',SET.noise);
+  put('pCap',SET.cap); put('pCam',SET.cam); put('pNoise',SET.noise); put('pAuto',SET.auto);
   curSlot=(SET.slot==='2'||SET.slot==='3')?SET.slot:'1'; drawSlots();
 }
 document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.value);
@@ -398,10 +404,10 @@ document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.val
     move('pRes',p.res,1); move('pFar',p.far,1); move('pShadow',p.shadow,1); move('pLimb',p.limb,1); move('pCam',p.cam,1); move('pNoise',p.noise,1);
     toast('그래픽 프리셋 — '+p.n+(landed?' (가지 밀도는 새 섬부터)':'')); });
   isle.addEventListener('change',()=>{ const p=ISLAND_PRESETS.find(q=>q.id===isle.value); if(!p) return;
-    move('pSize',p.size); move('pRidge',p.ridge); move('pEro',p.ero); move('pSea',p.sea); move('pRain',p.rain);
+    move('pWs',p.ws||2); move('pSize',p.size); move('pRidge',p.ridge); move('pEro',p.ero); move('pSea',p.sea); move('pRain',p.rain);
     toast('섬 프리셋 — '+p.n+" · '새 섬' 을 누르면 이 모양으로 만든다"); });
   for(const id of ['pRes','pFar','pShadow','pLimb','pCam','pNoise']) document.getElementById(id).addEventListener('change',e=>{ if(e.isTrusted) gfx.value=''; });
-  for(const id of ['pSize','pRidge','pEro','pSea','pRain']) document.getElementById(id).addEventListener('input',e=>{ if(e.isTrusted) isle.value=''; });
+  for(const id of ['pWs','pSize','pRidge','pEro','pSea','pRain']) document.getElementById(id).addEventListener('input',e=>{ if(e.isTrusted) isle.value=''; });
 }
 /* 검색칸 — 글자를 칠 때마다 목록을 다시 그린다 */
 document.getElementById('crfS').addEventListener('input',e=>{

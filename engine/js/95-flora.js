@@ -525,7 +525,7 @@ function floraBuild(){
 const _flM=new THREE.Matrix4(), _flQ=new THREE.Quaternion(), _flE=new THREE.Euler(), _flV=new THREE.Vector3(),
       _flS=new THREE.Vector3(), _flC=new THREE.Color();
 function floraLayer(L,which){
-  const U=FLORA, px=PL.pos.x, pz=PL.pos.z, C=L.cell, R=L.R, n=L.n, far=which==='far';
+  const U=FLORA, px=PL.pos.x, pz=PL.pos.z, C=L.cell, R=L.R*QUAL.k, n=L.n, far=which==='far';   // 자동 품질이 반경을 당긴다(30-props.js)
   L.cx=px; L.cz=pz; L.cols.length=0; L.picks.length=0;
   for(const k of L.kinds) n[k].fill(0);
   const x0=Math.floor((px-R)/C), x1=Math.floor((px+R)/C), z0=Math.floor((pz-R)/C), z1=Math.floor((pz+R)/C);

@@ -62,9 +62,17 @@ function makePerlin(seed){
 
 /* ---------------- 그리드 규격 ---------------- */
 const N = 768;              // 시뮬레이션 격자 (N×N)
-const CELL = 2.5;           // 셀 한 변 = 2.5 m — 월드 1920 m
-const WORLD = N*CELL;       // 1920 m
-const HALF = WORLD/2;
+/* **섬 배율**(`P.ws`) — 섬은 늘 칸 2.5 m(GCELL) · 한 변 1,920 m 로 **만든 뒤**, 통째로 ws 배로 키운다(`worldRescale` — 10-worldgen.js).
+   가로·세로·높이를 같이 키우므로 생김새(비탈·바이옴의 배치)는 그대로고 크기만 달라진다: 2배면 한 변 3,840 m · 넓이 4배 ·
+   바이옴 하나의 너비도 2배 · 산도 2배 높다. 격자 수(N)는 그대로라 만드는 시간과 메모리는 거의 같다.
+   · 같은 시드의 섬은 배율이 달라도 같은 모양이다. 저장에 배율이 들어 있고, 없는 옛 저장은 1 로 읽는다(예전 섬 그대로 열린다).
+   · 그래서 `CELL` · `WORLD` · `HALF` 는 상수가 아니다 — 섬을 만들 때마다 `setWorldScale` 이 다시 정한다.
+     **불러오는 순간 도는 코드에서 이 셋으로 다른 상수를 만들어 두면 안 된다**(함수 안에서 읽을 것). */
+const GCELL = 2.5;          // 섬을 '만들 때' 의 칸 한 변(m) — 지형 생성·침식·하천은 늘 이 크기로 센다
+let CELL = GCELL;           // 세상의 칸 한 변 = GCELL × 섬 배율
+let WORLD = N*CELL;         // 섬 한 변(m) — 배율 1 이면 1,920 m
+let HALF = WORLD/2;
+function setWorldScale(s){ CELL=GCELL*s; WORLD=N*CELL; HALF=WORLD/2; }
 
 /* ---------------- 전역 필드 ---------------- */
 const F = {
@@ -142,6 +150,7 @@ const RESOURCES=[
 ];
 
 /* ---------------- 파라미터 ---------------- */
-const P = { seed:'castaway', size:0.70, ridge:0.85, ero:0.60, sea:0, rain:1.0, limb:0.8 };
+const P = { seed:'castaway', size:0.70, ridge:0.85, ero:0.60, sea:0, rain:1.0, limb:0.8,
+            ws:2 };   // ws 섬 배율(1 = 1.9 km · 2 = 3.8 km · 3 = 5.8 km) — 새 섬은 2배로 시작한다
 let windDir={x:1,z:0,name:'서풍'};
 let stats={};

@@ -37,9 +37,10 @@ const nativeOn=()=>NATIVE.ok&&NATIVE.on&&N<=768;
    표고 표의 해시와 걸린 시간을 낸다. 끝나면 표고를 원래대로 돌려놓는다(놀던 섬은 그대로다) */
 function nativeVerify(seeds){
   if(!NATIVE.ok) return 'WebAssembly 가 안 켜졌다';
-  const keep=F.elev.slice(), was=NATIVE.on, out=[];
+  const keep=F.elev.slice(), was=NATIVE.on, out=[], ws=CELL/GCELL, CELL0=GCELL;
+  setWorldScale(1);                                 // 지형 생성은 늘 칸 2.5 m 에서 돈다
   const hash=a=>{ const u=new Uint32Array(a.buffer,a.byteOffset,a.length); let h=2166136261; for(let i=0;i<u.length;i++){ h^=u[i]; h=Math.imul(h,16777619); } return (h>>>0).toString(16); };
-  const run=seed=>{ thermal(22,1.15*(CELL/4),0.5); hydraulic(seed,Math.round(38000*P.ero*(16/(CELL*CELL)))); thermal(8,1.45*(CELL/4),0.45); smoothTerrain(3,0.6); };
+  const run=seed=>{ thermal(22,1.15*(CELL0/4),0.5); hydraulic(seed,Math.round(38000*P.ero*(16/(CELL0*CELL0)))); thermal(8,1.45*(CELL0/4),0.45); smoothTerrain(3,0.6); };
   for(const s of (seeds||['castaway','ashen-4471','7'])){
     const seed=hashStr(s); genBase(seed); const base=F.elev.slice();
     NATIVE.on=false; let t=performance.now(); run(seed); const msJS=performance.now()-t, hJS=hash(F.elev);
@@ -47,6 +48,6 @@ function nativeVerify(seeds){
     NATIVE.on=true;  t=performance.now(); run(seed); const msC=performance.now()-t, hC=hash(F.elev);
     out.push(s+': '+(hJS===hC?'same':'DIFFERENT')+' ('+hJS+' / '+hC+') · JS '+Math.round(msJS)+' ms · C '+Math.round(msC)+' ms');
   }
-  F.elev.set(keep); NATIVE.on=was;
+  F.elev.set(keep); NATIVE.on=was; setWorldScale(ws);
   return out.join('\n');
 }

@@ -31,7 +31,21 @@ const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
    3천 배다. 보이는 나무의 87% 가 이 띠에 든다(넓이로 (150²-55²)/150²).
    칸을 128 → 64 m 로 줄였다 — 칸이 크면 55 m 경계가 뭉툭해져 가까운 칸
    안의 먼 나무까지 통째로 자세히 그리게 된다. */
-const ROCK_TILE=64, ROCK_DIST=200, ROCK_SMALL=70, ROCK_TILES=[], ROCK_MAT={};
+const ROCK_TILE=64, ROCK_DIST=200, ROCK_SMALL=70, ROCK_KEEP=90, ROCK_TILES=[], ROCK_MAT={};
+/* **자동 품질**(`QUAL`) — 프레임이 떨어지면 '어디까지 자세히 그리나' 를 스스로 당긴다(마인크래프트의 그리는 거리처럼).
+   `QUAL.k`(0.45~1)가 나무의 제 가지·복제 단계 거리 · 풀과 소품이 보이는 거리 · 덤불·작은 나무를 까는 반경에 곱해진다.
+   프레임 시간의 느린 평균이 24 ms(약 42 FPS)를 넘는 채로 2초가 가면 한 단계(0.1) 내리고, 15 ms 밑으로 6초가 가면 한 단계(0.05)
+   올린다 — 올리고 내리는 문턱을 벌려 놓아 오르내리며 떨지 않는다. 설정의 '자동 품질' 로 끈다(끄면 늘 1) */
+const QUAL={k:1, on:true, ema:16, t:0, lo:0.45};
+function qualTick(dtMs,dt){
+  const Q=QUAL;
+  if(!Q.on){ if(Q.k!==1){ Q.k=1; qualApply(); } return; }
+  Q.ema+=(Math.min(dtMs,100)-Q.ema)*0.05;
+  if(Q.ema>24&&Q.k>Q.lo){ Q.t+=dt; if(Q.t>2){ Q.t=0; Q.k=Math.max(Q.lo,+(Q.k-0.1).toFixed(2)); qualApply(); } }
+  else if(Q.ema<15&&Q.k<1){ Q.t-=dt; if(Q.t<-6){ Q.t=0; Q.k=Math.min(1,+(Q.k+0.05).toFixed(2)); qualApply(); } }
+  else Q.t*=0.9;
+}
+function qualApply(){ _tvForce=true; if(typeof FLORA!=='undefined'){ FLORA.far.cx=1e9; FLORA.near.cx=1e9; } }
 /* 화면 밖 칸 거르기 — 칸을 경계구(가로 반경 + 높이 몫 30 m)로 보고 시야 절두체에 안 걸리면 끈다.
    가장자리가 `CULL_NEAR`(10 m) 안인 칸은 늘 그린다(몸을 돌리는 순간 곁의 나무가 튀어나오지 않게). */
 const CULL_NEAR=10, _tFr=new THREE.Frustum(), _tPM=new THREE.Matrix4(), _tSp=new THREE.Sphere();
@@ -77,20 +91,32 @@ function updateTileVis(){
   /* 칸이 켜지거나 꺼지면 그 칸이 드리우던 그림자도 바뀐다 — 그림자 지도를 매 프레임 안 그리므로(LIGHT)
      바뀐 칸 둘레만 다시 그리게 알린다 */
   // 바위 — 칸 가장자리가 200 m 밖이면 통째로 안 그린다
-  for(const t of ROCK_TILES){ if(setVis(t.m,tileGap(t,px,pz)<=t.d)) LIGHT.dirtyAt(t.cx,t.cz,t.r); }
-  for(const t of PROP_TILES){ const d=tileGap(t,px,pz), v=d<=t.d&&tileSeen(t,d);
+  let rockBudget=3;                                  // 노는 중에는 한 프레임에 바위 칸 셋까지만 빚는다
+  for(const t of ROCK_TILES){
+    const g=tileGap(t,px,pz), want=g<=t.d;
+    if(want&&!t.m){
+      if(busy||rockBudget>0){ rockBudget--; t.m=t.build(); }
+      else _tvForce=true;                              // 다음 프레임에 이어서
+    }else if(t.m&&g>t.d+ROCK_KEEP){                    // 멀어졌다 — 버린다(다시 가까워지면 같은 모양으로 빚는다)
+      propGroup.remove(t.m); t.m.geometry.dispose(); t.m=null;
+      for(const p of t.ps){ p._batch=null; p._k=1; }
+    }
+    if(t.m&&setVis(t.m,want)) LIGHT.dirtyAt(t.cx,t.cz,t.r);
+  }
+  const QK=QUAL.k;
+  for(const t of PROP_TILES){ const d=tileGap(t,px,pz), v=d<=t.d*QK&&tileSeen(t,d);
     let f=false; for(const m of t.ms) if(setVis(m,v)) f=true;
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r); }
   _treeBudget=1; _treeDrop=1;
   for(const t of TREE_TILES){
     const d=tileGap(t,px,pz), seen=tileSeen(t,d);
-    const near=seen&&d<=NEAR_DIST, mid=seen&&d>NEAR_DIST&&d<=VIEW_DIST;
+    const near=seen&&d<=NEAR_DIST*QK, mid=seen&&d>NEAR_DIST*QK&&d<=VIEW_DIST;
     /* **제 가지를 그대로 그리는 칸은 사람이 선 칸과, 칸 테두리가 10 m 안인 이웃뿐이다.** 예전엔 칸의 경계구(반지름 57 m)가
        25 m 안이면 — 곧 칸 가운데가 82 m 안이면 — 전부 제 가지였다. 그러면 칸 일곱이 한꺼번에 걸려 가지·잎만 540만 삼각형을
        그렸다(성능 창으로 잰 값 — 한 프레임 790만 가운데). 눈에 다 보이지도 않는 40~80 m 밖 나무의 잔가지였다.
        이제 한두 칸이고, 사람이 든 칸이 아닌 이웃은 가지를 성긴 판(18면)으로 그린다(아래 `limbLod`) */
     const ex=Math.max(Math.abs(t.cx-px)-TILE/2,0), ez=Math.max(Math.abs(t.cz-pz)-TILE/2,0), de=Math.sqrt(ex*ex+ez*ez);
-    let full=near&&(de<=FULL_EDGE||!t.cps);
+    let full=near&&(de<=(QK<0.8?0.5:FULL_EDGE)||!t.cps);      // 품질을 내렸으면 사람이 선 칸만 제 가지
     /* 가지·잎은 이때 짓는다. 섬을 만드는 중(덮개 뒤)에는 몇 칸이든 바로, 노는 중에는 **한 프레임에 한 칸**만 —
        못 지은 칸은 이번엔 복제 나무로 보이고(아래 lv 0) 다음 프레임에 다시 본다 */
     if(full&&!t.built){
@@ -102,9 +128,9 @@ function updateTileVis(){
     let f=false;
     if(t.lm){ if(setVis(t.lm,full)) f=true; if(setVis(t.ls,full)) f=true; if(setVis(t.fm,full)) f=true;
       if(full) limbLod(t.lm,de>0.01); }                // 사람이 든 칸만 촘촘한 가지(48면) — 이웃 칸은 성긴 가지(18면)
-    const cp=mid && d<=COPY_DIST;              // 기준 나무 복제 · 150 m 밖은 같은 나무를 찍은 그림
+    const cp=mid && d<=COPY_DIST*QK;           // 기준 나무 복제 · 150 m 밖은 같은 나무를 찍은 그림
     /* 복제 단계 — 0: 칸 테두리가 26 m 안인 이웃(제 가지를 안 그리는 가장 가까운 칸) · 1: 그 밖 ~ 90 m · 2: 90~150 m */
-    if(t.cps){ const lv=(near&&!full)?(de<=LOD0_EDGE?0:1):cp?(d>COPY_MID?2:1):-1;
+    if(t.cps){ const lv=(near&&!full)?(de<=LOD0_EDGE*QK?0:1):cp?(d>COPY_MID*QK?2:1):-1;
       for(let k=0;k<3;k++){ if(setVis(t.cps[2*k],lv===k)) f=true; if(setVis(t.cps[2*k+1],lv===k)) f=true; } }
     if(t.bb && setVis(t.bb,mid && !(t.cps&&cp))) f=true;
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r);
@@ -1143,13 +1169,23 @@ function buildProps(){
         const gx=Math.floor(p.x/ROCK_TILE), gz=Math.floor(p.z/ROCK_TILE), key=gx+','+gz;
         let b=bins.get(key); if(!b){ b={gx,gz,ps:[]}; bins.set(key,b); } b.ps.push(p);
       }
+      /* **바위 칸은 가까워질 때 빚는다**(마인크래프트의 청크처럼 — 나무 칸의 가지·잎과 같은 방식). 예전엔 섬의 바위·자갈을
+         전부 섬을 만들 때 빚어 들고 있었다(자갈 3,000개만 정점 72만). 섬을 2~3배로 키우면 그것이 4~9배가 된다.
+         보이는 거리(큰 바위 200 m · 자갈 70 m) 안에 들면 빚고(`build`), 90 m 더 멀어지면 버린다(updateTileVis).
+         캐서 오므라든 것·주워 간 것은 다시 빚을 때 `shrinkFoliage` 가 그 모습으로 되돌린다 */
       for(const b of bins.values()){
-        const batch=buildRockBatch(b.ps,R);
-        batch.frustumCulled=true;            // 경계구로 화면 밖 칸도 거른다(캐면 안쪽으로만 오므라든다)
-        b.ps.forEach(p=>{ p._batch=batch; p._fm=null; });
-        propGroup.add(batch);
-        ROCK_TILES.push({m:batch, cx:(b.gx+0.5)*ROCK_TILE, cz:(b.gz+0.5)*ROCK_TILE, r:ROCK_TILE*0.71+4,
-                         d:ROCK_R[R.k]<0.3?ROCK_SMALL:ROCK_DIST});
+        const tile={m:null, ps:b.ps, cx:(b.gx+0.5)*ROCK_TILE, cz:(b.gz+0.5)*ROCK_TILE, r:ROCK_TILE*0.71+4,
+                    d:ROCK_R[R.k]<0.3?ROCK_SMALL:ROCK_DIST};
+        b.ps.forEach(p=>{ p._batch=null; p._fm=null; p._k=1; });
+        tile.build=()=>{
+          const batch=buildRockBatch(b.ps,R);
+          batch.frustumCulled=true;          // 경계구로 화면 밖 칸도 거른다(캐면 안쪽으로만 오므라든다)
+          batch.visible=false; batch.matrixAutoUpdate=false; batch.updateMatrix();
+          propGroup.add(batch);
+          for(const p of b.ps){ p._batch=batch; shrinkFoliage(p); }
+          return batch;
+        };
+        ROCK_TILES.push(tile);
       }
     }else if(PROP_DIST[R.k]){
       const bins=new Map(), _TM=new THREE.Matrix4();

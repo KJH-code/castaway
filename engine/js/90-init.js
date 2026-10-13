@@ -317,6 +317,7 @@ async function generateWorld(){
   document.getElementById('bStart').style.display='none';
   await NATIVE.ready;                   // C 로 짠 침식 토막(WebAssembly)이 켜지기를 기다린다 — 못 켜면 JS 판으로 돈다(12-native.js)
   const seed=hashStr(P.seed), t0=performance.now();
+  setWorldScale(1);                     // 섬은 늘 칸 2.5 m 로 만든다 — 다 만든 뒤 worldRescale 이 배율(P.ws)만큼 키운다
 
   await phase('지각 융기',6);       genBase(seed);
   await phase('안식각 정리',18);    thermal(22,1.15*(CELL/4),0.5);
@@ -333,7 +334,10 @@ async function generateWorld(){
      같은 시드인데 섬이 달라져, 불러온 저장의 '캔 자리'가 엉뚱한 자원에 덧씌워졌다(진행이 날아간 원인). */
   await phase('식생 분류',76);      F.fuma.fill(0); classify();
                                     hydrothermal(seed); classify();
-  await phase('광상 탐사',82);      placeResources(seed);
+  await phase('광상 탐사',82);      worldRescale(P.ws);     // 섬 배율 — 통째로 키운다(1 이면 그대로 · 00-core.js)
+                                    camera.far=Math.max(3000,WORLD*1.15); camera.updateProjectionMatrix();
+                                    document.getElementById('mSpan').textContent=Math.round(WORLD)+' m';
+                                    placeResources(seed);
                                     shapeSeabed(seed);      // 바다 바닥의 기복 — 뭍·자원을 다 정한 **뒤에**(같은 시드의 섬은 그대로다)
   await phase('지형 메시',90);      buildBioTex(); buildChunks(); buildWater();
   await phase('자원 배치',96);      placeProps_(seed);

@@ -7,7 +7,7 @@
    11) HUD
    ========================================================================== */
 let mapImg=null, mapBase=null, mapBaseProps=null, mapBaseT=0;
-document.getElementById('mSpan').textContent=WORLD+' m';
+document.getElementById('mSpan').textContent=WORLD+' m';   // 섬을 만들 때마다 다시 적는다(generateWorld — 섬 배율)
 function cacheMap(){
   const ctx=document.getElementById('map').getContext('2d');
   const img=ctx.createImageData(N,N), d=img.data, col=new THREE.Color();
@@ -151,7 +151,7 @@ const PERF={on:false, sec:new Float64Array(7), nf:0, t0:0, show:0, ring:new Floa
       const k=Math.max(1,Math.round(m*0.01)); let sm=0; for(let i=m-k;i<m;i++) sm+=sub[i]; low=(1000/(sm/k)).toFixed(0); }
     let tot=0, L=[];
     L.push('FPS '+(this.nf*1000/el).toFixed(1)+'  · 1% low '+low+'  · '+renderer.domElement.width+'×'+renderer.domElement.height
-      +(FPS_CAP?'  · 제한 '+FPS_CAP:''));
+      +(FPS_CAP?'  · 제한 '+FPS_CAP:'')+(QUAL.k<1?'  · 자동 품질 '+QUAL.k.toFixed(2):''));
     L.push((GPU_SOFT?'⚠ 소프트웨어 렌더 — ':'')+(GPU_NAME||'장치 이름 모름').slice(0,58));
     for(let i=0;i<7;i++){ tot+=this.sec[i]; L.push(this.names[i].padEnd(8,'　')+f(this.sec[i]/n)+' ms'); }
     L.push('CPU 합'.padEnd(8,'　')+f(tot/n)+' ms'+(this.gpu.n?'   GPU '+(this.gpu.ms/this.gpu.n).toFixed(2)+' ms':(this.gpu.ext?'   GPU …':'   GPU 못 잼')));
