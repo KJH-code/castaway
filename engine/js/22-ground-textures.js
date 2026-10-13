@@ -178,7 +178,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
           float lace=texture2D(uNz,p/2.3+vec2(uShT*0.013,0.0)).r*0.6+texture2D(uNz,p/0.83).g*0.4;
           float top=0.03+0.22*sw;                                             // 이번 물결이 닿은 높이
           float foam=smoothstep(top+0.05,top-0.01,h)*smoothstep(-0.04,0.01,h)*smoothstep(0.40,0.62,lace+0.25*(1.0-(top-h)/0.25));
-          c=mix(c,vec3(0.90,0.93,0.92),clamp(foam,0.0,1.0)*0.40);              // 옅은 물자국만 — 도톰한 거품은 메시가 맡는다(96-shore.js)
+          c=mix(c,vec3(0.90,0.93,0.92),clamp(foam,0.0,1.0)*0.40);              // 옅은 물자국만 — 도톰한 거품은 메시가 맡는다(96-foam.js)
         }
         /* 물밑의 빛 그물 — 수면의 잔물결이 햇빛을 모았다 흩었다 하며 바닥에 일렁이는 밝은 줄을 친다(수심 0.3~12 m) */
         if(h<-0.25){

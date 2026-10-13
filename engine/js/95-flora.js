@@ -402,7 +402,7 @@ function floraShapes(rnd){
     /* 버팀뿌리는 **넓게** 벌어진다(지름 4 → 7 m · 사용자 요청) — 안쪽 고리와 바깥 고리 두 겹이라 이웃 나무의 뿌리와 얽힌다 */
     const nr=ri(13,17); for(let i=0;i<nr;i++){ const a=i/nr*6.283+rnd()*0.5, R=(i%2?1.1+rnd()*0.9:2.1+rnd()*1.4), h=1.0+rnd()*0.9, cx=Math.cos(a), cz=Math.sin(a);
       parts.push({g:SHP.tube([[cx*0.08,h,cz*0.08],[cx*R*0.45,h+0.15,cz*R*0.45],[cx*R*0.85,h*0.45,cz*R*0.85],[cx*R,-0.2,cz*R],[cx*R*1.05,-1.2,cz*R*1.05]],
-        [0.075,0.068,0.060,0.052,0.040],5,0),cell:FC.BARK,c:RB,c2:RB2});
+        [0.075,0.068,0.060,0.052,0.040],6,0),cell:FC.PLAIN,c:[RB[0]*0.72,RB[1]*0.72,RB[2]*0.72],c2:[RB2[0]*0.72,RB2[1]*0.72,RB2[2]*0.72]});   // 뿌리는 민무늬 — 껍질 그림의 세로 줄이 면마다 달라 각목처럼 보였다
       if(i%3===0){ const a2=a+0.55, R2=R*0.95;                              // 뿌리에서 또 갈라져 내리는 곁뿌리
         parts.push({g:SHP.tube([[cx*R*0.6,h*0.9,cz*R*0.6],[Math.cos(a2)*R2*0.9,h*0.4,Math.sin(a2)*R2*0.9],[Math.cos(a2)*R2,-1.1,Math.sin(a2)*R2]],[0.045,0.040,0.030],4,0),cell:FC.BARK,c:RB,c2:RB2}); } }
     const S={taper:0.68,split:[2,3],spread:1.6,up:0.35,lift:0.2,shrink:0.7,bend:0.05,leafN:3,leafW:1.15,leafH:1.0,leafCell:FC.MANG,leafTilt:0.9,leafC:[0.85,1,0.9],bark:RB,bark2:RB2};
@@ -527,6 +527,14 @@ function floraBuild(){
 /* ── 깔기 ────────────────────────────────────────────────────────────────── */
 const _flM=new THREE.Matrix4(), _flQ=new THREE.Quaternion(), _flE=new THREE.Euler(), _flV=new THREE.Vector3(),
       _flS=new THREE.Vector3(), _flC=new THREE.Color();
+/* 그 칸에서 30 m 안에 **하천** 칸이 있나 — 강어귀를 가린다. 예전엔 `F.dRiver` 를 봤는데 그 거리장은 하천과 **바다** 둘 다에서 재는
+   것이라 바닷가 전체가 걸렸다(트인 모래 해변마다 맹그로브가 섰다). 하천 표를 직접 훑는다 */
+function floraNearRiver(ci){
+  const r=Math.max(2,Math.ceil(30/CELL)), cx=ci%N, cz=(ci/N)|0, riv=F.river;
+  for(let dz=-r;dz<=r;dz++){ const z=cz+dz; if(z<1||z>=N-1) continue;
+    for(let dx=-r;dx<=r;dx++){ const x=cx+dx; if(x<1||x>=N-1) continue; if(riv[z*N+x]&&F.elev[z*N+x]>-0.5) return true; } }
+  return false;
+}
 function floraLayer(L,which){
   const U=FLORA, px=PL.pos.x, pz=PL.pos.z, C=L.cell, R=L.R*QUAL.k, n=L.n, far=which==='far';   // 자동 품질이 반경을 당긴다(30-props.js)
   L.cx=px; L.cz=pz; L.cols.length=0; L.picks.length=0;
@@ -542,7 +550,7 @@ function floraLayer(L,which){
     const ci=IDX(clamp(Math.round(wx/CELL+N/2),1,N-2),clamp(Math.round(wz/CELL+N/2),1,N-2));
     const el=F.elev[ci], bi=F.biome[ci];
     let u=((h>>>16)&4095)/4095, pick=null, patch=0;
-    if(far&&el>-0.9&&el<0.5&&!F.river[ci]&&(bi===B.MARSH||F.dRiver[ci]<34)){
+    if(far&&el>-0.9&&el<0.5&&!F.river[ci]&&(bi===B.MARSH||floraNearRiver(ci))){
       /* 강어귀와 늪 가의 얕은 물 — 맹그로브가 띠를 이룬다(얼룩 잡음이 높은 데만 · 민물과 바다가 만나는 자리가 가려진다) */
       if(floraVal(wx,wz,26,41)>0.50&&u<FLORA_MANGROVE[1]) pick=FLORA_MANGROVE;
     }else{

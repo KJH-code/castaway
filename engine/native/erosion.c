@@ -22,7 +22,7 @@
 typedef unsigned int u32;
 
 #define MAXN 768
-static float H[MAXN * MAXN];   /* the elevation field — JS copies F.elev in and out */
+float H[MAXN * MAXN];          /* the elevation field — JS copies F.elev in and out (shore.c reads it too) */
 static float T[MAXN * MAXN];   /* scratch copy */
 
 float *cw_elev(void) { return H; }

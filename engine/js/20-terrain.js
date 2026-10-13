@@ -948,7 +948,8 @@ let waterElevTex=null;
 const WATER_U={uTime:{value:0}, uSunDir:{value:new THREE.Vector3(0,1,0)},
   uSunCol:{value:new THREE.Color(1,1,1)}, uAmb:{value:new THREE.Color(0.3,0.35,0.4)},
   uSkyZ:{value:new THREE.Color(0.3,0.5,0.9)}, uSkyH:{value:new THREE.Color(0.7,0.8,0.9)},
-  uElev:{value:null}, uGrid:{value:new THREE.Vector2(768,2.5)}};
+  uElev:{value:null}, uGrid:{value:new THREE.Vector2(768,2.5)},
+  uFP:{value:new THREE.Vector3()}, uFR:{value:0}};   // 사면체 거품이 서는 자리(사람 둘레 uFR m) — 96-foam.js 가 채운다. 0 이면 칠한 거품만
 function waterMat(river){
   /* 램버트로 세우는 까닭은 오직 그림자다 — 조명은 아래에서 손수 센다. 램버트여야 그림자 지도
      유니폼이 붙고 `envPatch` 가 구름 그림자(`cloudSh`)를 얹는다. 예전엔 MeshBasic 이라 물에
@@ -992,6 +993,8 @@ uniform vec3 uSkyH;
 uniform sampler2D uElev;
 uniform sampler2D uNz;
 uniform vec2 uGrid;
+uniform vec3 uFP;
+uniform float uFR;
 varying vec3 vWW;
 varying vec3 vVD;
 varying vec3 vWN;
@@ -1128,6 +1131,9 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
         float streak=texture2D(uNz,fu).b*0.65+texture2D(uNz,fu*2.3+0.4).a*0.35;
         foam=max(fringe*0.55,rapid*smoothstep(0.50,0.72,streak)*smoothstep(0.04,0.20,d));
       }
+      /* 사람 가까이의 바닷가는 거품을 **사면체 조각**(96-foam.js)이 맡는다 — 칠한 거품은 옅은 물자국만 남기고,
+         조각이 스러지는 거리(uFR−12 ~ uFR m)에서 도로 짙어진다. 멀리서는 칠한 거품뿐이다(조각은 거기까지 안 깐다) */
+      if(uRiver<0.5) foam*=mix(0.22,1.0,smoothstep(uFR-12.0,uFR,distance(vWW.xz,uFP.xz)));
       col=mix(col,(uAmb+uSunCol*max(uSunDir.y,0.0)*shM)*0.9,foam*0.8);   // 거품은 흰 알베도 0.9
       /* 물가 — 지형 텍스처(쌍선형)와 땅 메시(삼각형)의 높이가 몇 cm 어긋나 물가가 삼각형 톱니로 보였다.
          알파를 0.06 m 부터 올려 메시와 만나는 금을 투명한 데로 밀고, 잔물결 잡음으로 물가를 굽이치게 한다 */

@@ -49,5 +49,6 @@ function nativeVerify(seeds){
     out.push(s+': '+(hJS===hC?'same':'DIFFERENT')+' ('+hJS+' / '+hC+') · JS '+Math.round(msJS)+' ms · C '+Math.round(msC)+' ms');
   }
   F.elev.set(keep); NATIVE.on=was; setWorldScale(ws);
+  if(typeof foamSync==='function') foamSync();        // 견주느라 C 쪽 표고를 덮어썼다 — 물가 찾기(96-foam.js)가 보는 표고를 되돌린다
   return out.join('\n');
 }
