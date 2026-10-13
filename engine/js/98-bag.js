@@ -90,7 +90,7 @@ function openBag(focus){
   syncLock();
 }
 function closeBag(){
-  invOpen=craftOpen=false; if(BAG.tip){ BAG.tip.style.display='none'; BAG.tipKey=''; }
+  invOpen=craftOpen=false; if(typeof ctreeHide==='function') ctreeHide(true); if(BAG.tip){ BAG.tip.style.display='none'; BAG.tipKey=''; }
   const q=document.getElementById('crfS'); if(q) q.blur();
   bagSync(); syncLock();
 }
@@ -140,6 +140,7 @@ function drawSel(){
         +(T.wear?' · '+WEAR_N[T.wear.slot]+(T.wear.armor?' 방어 '+T.wear.armor:'')+(T.wear.warm?' 보온 '+T.wear.warm:'')+(T.wear.carry?' 적재 +'+T.wear.carry:''):'')
       +'</div></div></div><div class="sU">'+esc(T.use||'')+'</div>';
     if(T.read) h+='<ol class="sG">'+T.read.map(l=>'<li>'+esc(l)+'</li>').join('')+'</ol>';   // 읽을거리(생존 안내서)
+    if(T.keys) h+='<br><br><div class="sGk">'+T.keys.map(([k,d])=>'<div><b>'+esc(k)+'</b><span>'+esc(d)+'</span></div>').join('')+'</div>';   // 두 줄 띄우고 조작 글쇠
     // ── 할 수 있는 일
     const acts=[];
     if(holdable(T)) acts.push(EQUIP===sl?['unequip','손에서 내려놓기']:['equip','손에 들기']);
@@ -189,7 +190,7 @@ function drawSel(){
 /* 고른 제작법 — 기술 나무에서 누른 마디의 재료 · 도구 · 자리 · 만들기 단추 · 앞뒤로 이어지는 것 */
 function selRecipe(){
   const R=RECIPES[CRAFT.sel];
-  if(!R) return '<div class="sH">고른 제작법</div><div class="sE">왼쪽 나무에서 마디를 누르면<br>드는 재료와 <b>만들기</b> 단추가 여기에 뜬다<br><br>마디에 마우스를 올리면<br>드는 것과 쓰임이 말풍선으로 뜬다<br><br>줄은 "이것이 있어야 저것을 만든다" 는 뜻이다</div>';
+  if(!R) return '<div class="sH">고른 제작법</div><div class="sE">왼쪽에서 마디를 누르면<br>드는 재료와 <b>만들기</b> 단추가 여기에 뜬다<br><br>마디에 마우스를 올리면<br><b>조합 나무</b>가 곁에 뜬다<br>(드는 것 → 이것 → 이것으로 만드는 것)</div>';
   const ok=canCraft(R), out=R.out&&ITEMS[R.out.id], busy=CRAFT.recipe===R, ico=out?itemIcon(R.out.id):'';
   const link=(U)=>'<button class="lk" data-act="rsel" data-arg="'+RECIPES.indexOf(U)+'">'+U.n+' →</button>';
   let h='<div class="sH">고른 제작법</div><div class="sT">'+(ico?'<img src="'+ico+'" alt="">':'')

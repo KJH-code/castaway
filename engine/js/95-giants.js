@@ -142,7 +142,7 @@ function giantsBuild(){
      그루의 벌 하나**로 모두 찍는다(참나무·전나무의 기준 나무 `FAR_REF` 와 같은 방식 · `GIANT.ref`). 예전엔 128 m 칸 × 종류 × 벌로
      나눠 섬 전체를 늘 그렸다(인스턴스 메시 62 · 뿌리 메시 33 — 그림자 패스까지 그리기 호출이 그 두 배). 이제 먼 노거수는 종류마다
      한 번(셋)이고, 뿌리는 200 m 안의 그루만 그린다(땅에 누운 1 m 남짓한 등성이라 그 밖에선 안 보인다). 고르는 일은 `updateGiants` */
-  if(!GIANT.rootMat){ GIANT.rootMat=FLORA.mat.clone(); GIANT.rootMat.userData.melt=0.22; }
+  if(!GIANT.rootMat){ GIANT.rootMat=FLORA.mat.clone(); GIANT.rootMat.userData.melt=0.35; }
   const px=PL.pos.x, pz=PL.pos.z, cnt=GIANT.geo.map(a=>a.map(()=>0)), kcnt=GIANT.geo.map(()=>0);
   GIANT.ref=GIANT.geo.map((a,v)=>{ let best=0, bd=Infinity;
     for(const g of GIANT.list) if(g.v===v){ const d=(g.x-px)**2+(g.z-pz)**2; if(d<bd){ bd=d; best=g.w; } }
@@ -184,13 +184,13 @@ function giantsBuild(){
 }
 /* 200 m 안팎 가르기 — 매 프레임(updateFlora 가 부른다). 75그루 남짓의 거리만 재고, 안팎이 바뀐 그루가 있을 때만 인스턴스를 다시 채운다.
    경계에서 오락가락하지 않게 나갈 때는 10 m 더 멀어져야 한다 */
-const GIANT_FAR=200, GIANT_HYST=10;
+const GIANT_FAR=95, GIANT_HYST=10;    // 제 생김새(그림자도 드리운다)는 95 m 안만 — 잰 값: 200 m 일 때 노거수만 한 프레임의 4 ms 였다. 그 밖은 줄인 복제
 const _gM=new THREE.Matrix4(), _gC=new THREE.Color(), _gPM=new THREE.Matrix4(), _gFr=new THREE.Frustum(), _gSp=new THREE.Sphere();
 function updateGiants(force){
   if(!GIANT.list.length||!GIANT.near) return;
   const px=PL.pos.x, pz=PL.pos.z; let ch=!!force;
   for(const g of GIANT.list){
-    const dx=g.x-px, dz=g.z-pz, d=Math.sqrt(dx*dx+dz*dz), on=d<(g.near?GIANT_FAR+GIANT_HYST:GIANT_FAR);
+    const dx=g.x-px, dz=g.z-pz, d=Math.sqrt(dx*dx+dz*dz), on=d<(g.near?GIANT_FAR+GIANT_HYST:GIANT_FAR)*QUAL.k;
     if(on!==g.near){ g.near=on; ch=true; }
   }
   if(ch){
@@ -315,7 +315,7 @@ function giantStumpGeo(g){
 }
 function giantStump(g){
   if(g.stumpM) return;
-  if(!GIANT.rootMat){ GIANT.rootMat=FLORA.mat.clone(); GIANT.rootMat.userData.melt=0.22; }
+  if(!GIANT.rootMat){ GIANT.rootMat=FLORA.mat.clone(); GIANT.rootMat.userData.melt=0.35; }
   const m=new THREE.Mesh(giantStumpGeo(g),GIANT.rootMat);
   m.matrixAutoUpdate=false; m.matrix.fromArray(g.mat); m.matrixWorldNeedsUpdate=true;
   m.geometry.computeBoundingSphere(); m.frustumCulled=true; m.userData.own=true;

@@ -148,14 +148,6 @@ function resize(){
 }
 
 const barF=document.getElementById('barF'), ovLoad=document.getElementById('ovLoad');
-/* 시작 화면 간판의 지직거림 — 잡음 그림 한 장(128²)을 글자 안에 깔고 CSS(`#ov h1`)가 그 자리를 튀긴다 */
-(function(){ try{
-  const c=document.createElement('canvas'); c.width=c.height=128;
-  const g=c.getContext('2d'), d=g.createImageData(128,128);
-  for(let i=0;i<d.data.length;i+=4){ const v=Math.random()<0.07?30:(140+Math.random()*115)|0; d.data[i]=d.data[i+1]=d.data[i+2]=v; d.data[i+3]=255; }
-  g.putImageData(d,0,0);
-  document.documentElement.style.setProperty('--fizz','url('+c.toDataURL()+')');
-}catch(e){} })();
 /* 다음 단계로 넘어가기 전에 진행 막대를 한 번 그리게 숨을 돌린다. 탭이 뒤에 가려져 있으면 브라우저가
    requestAnimationFrame 을 아예 안 불러 섬 만들기가 그 자리에서 멎었다 — 가려졌으면 기다리지 않고,
    보일 때도 0.15초 안에 프레임이 안 오면 그냥 간다 */

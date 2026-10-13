@@ -36,15 +36,16 @@ const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
 const ROCK_TILE=64, ROCK_DIST=200, ROCK_SMALL=70, ROCK_KEEP=90, ROCK_TILES=[], ROCK_MAT={};
 /* **자동 품질**(`QUAL`) — 프레임이 떨어지면 '어디까지 자세히 그리나' 를 스스로 당긴다(마인크래프트의 그리는 거리처럼).
    `QUAL.k`(0.45~1)가 나무의 제 가지·복제 단계 거리 · 풀과 소품이 보이는 거리 · 덤불·작은 나무를 까는 반경에 곱해진다.
-   프레임 시간의 느린 평균이 24 ms(약 42 FPS)를 넘는 채로 2초가 가면 한 단계(0.1) 내리고, 15 ms 밑으로 6초가 가면 한 단계(0.05)
-   올린다 — 올리고 내리는 문턱을 벌려 놓아 오르내리며 떨지 않는다. 설정의 '자동 품질' 로 끈다(끄면 늘 1) */
-const QUAL={k:1, on:true, ema:16, t:0, lo:0.45};
+   문턱은 아래 `qualTick` — 50 FPS 를 지키는 쪽으로 잡았다. 설정의 '자동 품질' 로 끈다(끄면 늘 1) */
+const QUAL={k:1, on:true, ema:16, t:0, lo:0.4};
 function qualTick(dtMs,dt){
   const Q=QUAL;
   if(!Q.on){ if(Q.k!==1){ Q.k=1; qualApply(); } return; }
   Q.ema+=(Math.min(dtMs,100)-Q.ema)*0.05;
-  if(Q.ema>24&&Q.k>Q.lo){ Q.t+=dt; if(Q.t>2){ Q.t=0; Q.k=Math.max(Q.lo,+(Q.k-0.1).toFixed(2)); qualApply(); } }
-  else if(Q.ema<15&&Q.k<1){ Q.t-=dt; if(Q.t<-6){ Q.t=0; Q.k=Math.min(1,+(Q.k+0.05).toFixed(2)); qualApply(); } }
+  /* **50 FPS 를 지킨다**(사용자 요청) — 프레임 시간의 느린 평균이 19.5 ms(51 FPS)를 넘는 채로 1.5초가 가면 한 단계 내린다.
+     올리는 것은 15.2 ms 밑으로 8초(60 Hz 화면에서 꽉 찬 60 FPS 는 16.7 ms 라 저절로는 안 오른다 — 넉넉할 때만 오른다) */
+  if(Q.ema>19.5&&Q.k>Q.lo){ Q.t+=dt; if(Q.t>1.5){ Q.t=0; Q.k=Math.max(Q.lo,+(Q.k-0.1).toFixed(2)); qualApply(); } }
+  else if(Q.ema<15.2&&Q.k<1){ Q.t-=dt; if(Q.t<-8){ Q.t=0; Q.k=Math.min(1,+(Q.k+0.05).toFixed(2)); qualApply(); } }
   else Q.t*=0.9;
 }
 function qualApply(){ _tvForce=true; if(typeof FLORA!=='undefined'){ FLORA.far.cx=1e9; FLORA.near.cx=1e9; } }
@@ -277,7 +278,7 @@ function bakeTreeImpostor(list,kind){
 /* 복제 단계마다 [가지 몫, 잎 몫] — 가까운 것(칸 테두리 10 m 밖 ~ 55 m) · 55~90 m · 90~150 m.
    예전 값(0.6·0.3·0.1)은 창 크기 그대로 그리던 때의 것이다. 캠코더 화면(세로 480줄)에서는 40 m 밖 나무가 100 화소 남짓이라
    잔가지가 화소 하나보다 가늘다 — 몫을 절반쯤으로 줄여도 윤곽은 같다 */
-const FAR_REF={}, FAR_LOD=[[0.22,0.32],[0.08,0.13],[0.035,0.07]], FULL_EDGE=10, LOD0_EDGE=26, COPY_MID=72, FULL_DIST=25;   // FULL_DIST — 새 식물(95-flora.js)이 제 생김새로 서는 거리
+const FAR_REF={}, FAR_LOD=[[0.22,0.32],[0.08,0.13],[0.035,0.07]], FULL_EDGE=6, LOD0_EDGE=26, COPY_MID=72, FULL_DIST=25;   // FULL_DIST — 새 식물(95-flora.js)이 제 생김새로 서는 거리
 function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
   const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
   const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
@@ -778,7 +779,7 @@ function buildProps(){
     const SH=shellFor(R.k), SHELL_V=SH.V, UNIQ=SH.U,
           uniqDir=SH.uniqDir, vertU=SH.vertU, spx=SH.px;
     const total=list.length*SHELL_V;
-    const pos=new Float32Array(total*3), nor=new Float32Array(total*3);
+    const pos=new Float32Array(total*3), nor=new Float32Array(total*3), mel=new Float32Array(total);   // mel — 땅에 녹아드는 높이(바위마다 제 크기만큼)
     const fac=new Float32Array(UNIQ);
     /* own[u] — 그 자리의 반지름을 누가 정했나.
          −1  혹(굽은 자리)        0..  몇 번째 자르기 평면       100+  정육면체 몇 번째 면
@@ -849,6 +850,7 @@ function buildProps(){
       if(R.k==='flint') off=0.15*p.s; else if(R.k==='pebble') off=0.11*p.s; else off=0.5*p.s;
       const oy=p.y+off, S0=p.s;
       p._vs=o/3; p._vn=SHELL_V; p._cy=oy; p._k=1;
+      mel.fill(clamp(0.34*S0*r0,0.05,0.8),o/3,o/3+SHELL_V);
 
       for(let i=0;i<SHELL_V;i++){
         const f=fac[vertU[i]];
@@ -912,6 +914,7 @@ function buildProps(){
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.BufferAttribute(pos,3));
     g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+    g.setAttribute('aMelt',new THREE.BufferAttribute(mel,1));
     g.computeBoundingSphere();
     if(!ROCK_MAT[R.k]) ROCK_MAT[R.k]=rockMat(R.k,R.c);   // 칸마다 나눠도 재질은 종류당 하나
     return new THREE.Mesh(g,ROCK_MAT[R.k]);
@@ -922,7 +925,7 @@ function buildProps(){
      `ROCK_R` 의 0.85(울퉁불퉁한 겉보다 조금 안쪽). 자갈·부싯돌은 발목 아래라 넘어간다. */
   const RAD={oak:0.6,fir:0.5};
   for(const k in ROCK_R) if(ROCK_R[k]>=0.4) RAD[k]=ROCK_R[k]*0.85;
-  const trunkMat=barkMat(0x4a3d31,'trunk');
+  const trunkMat=barkMat(0x4a3d31,'trunk'); trunkMat.userData.melt=0.50; trunkMat.userData.meltTex=true;   // 줄기 밑동이 땅에 녹아든다(envPatch). 높이는 표고 텍스처로 잰다 — 이 줄기는 인스턴스 원점이 밑동이 아니라서, 원점에서 재면 줄기가 통째로 땅빛이 됐다
   const limbMat =barkMat(0x4f4033,'limb');
   limbMat.userData.wind='limb';                // 바람에 가지 끝이 흔들린다(envPatch)
   LIMB_MAT_C=instCompact(barkMat(0x4f4033,'limb')); LIMB_MAT_C.userData.wind='limb';   // 칸 가지(압축 인스턴스)
@@ -1297,7 +1300,7 @@ function rubbleInit(){
       '#include <color_fragment>\ndiffuseColor.rgb*=mix(0.50,1.10,smoothstep(-0.55,0.45,vRubY));');
   };
   m.customProgramCacheKey=()=>'rubble';
-  m.userData.melt=0.10;                                // 잔돌은 반쯤 묻힌 듯 — 아래 반이 땅 빛깔로 녹아든다(envPatch)
+  m.userData.melt=0.14;                                // 잔돌은 반쯤 묻힌 듯 — 아래 반이 땅 빛깔로 녹아든다(envPatch)
   gndDetailPatch(m,4,0.7);                             // 진짜 바위 사진의 결을 한 겹(22-ground-textures.js)
   const im=new THREE.InstancedMesh(g,m,RUBBLE.cap);
   /* 인스턴스 색 칸을 처음부터 만들어 둔다(셰이더가 한 가지로 짜인다). **count 를 0 으로 내리기 전에** 불러야 한다 —

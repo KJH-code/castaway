@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>CASTAWAY — 섬 생성 + 3D 월드</title>
+<link rel="stylesheet" href="engine/css/font.css">
 <link rel="stylesheet" href="engine/css/game.css">
 </head>
 <body>
@@ -106,7 +107,7 @@
   <div id="crfT"></div>
   <div id="crfL"></div>
   <div id="crfP"><i id="crfF"></i></div>
-  <div class="if" style="color:var(--dim);font-size:9px;margin-top:8px">마디를 누르면 오른쪽에 재료가 뜬다 · 고른 마디를 한 번 더 누르면 만든다 · 마우스를 올리면 쓰임 · 검색칸은 눌러야 글자를 받는다</div>
+  <div class="if" style="color:var(--dim);font-size:11px;margin-top:8px">마디에 마우스를 올리면 조합 나무가 뜬다(드는 것 → 이것 → 만드는 것) · 누르면 오른쪽에 재료 · 고른 마디를 한 번 더 누르면 만든다 · 검색칸은 눌러야 글자를 받는다</div>
 </div>
 
 <div class="pnl" id="cfg">
@@ -164,8 +165,9 @@
 </div>
 
 <div id="ov" class="title">
+  <canvas id="ovArt"></canvas>
   <h1 data-t="CASTAWAY">CASTAWAY</h1>
-  <div id="ovGpu" style="display:none;color:#e8a06a;font-size:11px;letter-spacing:.06em;margin:-6px 0 10px;max-width:560px;text-align:center;line-height:1.6"></div>
+  <div id="ovGpu" style="display:none;color:#e8a06a;font-size:14px;letter-spacing:.06em;margin:-6px 0 10px;max-width:560px;text-align:center;line-height:1.6"></div>
   <div id="ovCrawl"><div id="ovRoll">
   <div class="s">보급선은 좌표만 남기고 떠났다. 섬은 시드 하나로 만들어진다 —
     융기, 침식, 하천, 기후, 식생, 광상이 그 순서대로 결정된다.</div>
@@ -211,7 +213,7 @@
       <button id="gwsDo">수리</button>
     </div>
     <div id="gwsPick"></div>
-    <div class="if" style="color:var(--dim);font-size:9px;margin-top:8px">
+    <div class="if" style="color:var(--dim);font-size:11px;margin-top:8px">
       수리는 처음 만들 때 든 재료의 절반이 든다(내림) · E 또는 Esc 로 닫는다</div>
   </div>
 </div>
@@ -251,6 +253,7 @@
 <script src="engine/js/80-player.js"></script>
 <script src="engine/js/82-hud.js"></script>
 <script src="engine/js/90-init.js"></script>
+<script src="engine/js/91-title.js"></script>
 <script src="engine/js/92-save.js"></script>
 <script src="engine/js/94-input.js"></script>
 <script src="engine/js/95-flora.js"></script>

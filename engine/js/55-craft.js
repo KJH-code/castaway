@@ -1136,7 +1136,7 @@ function iconPump(){
 const iconTagSoon=(id,t)=>{ const u=iconSoon(id);
   return u?'<img class="sw ico" decoding="sync" src="'+u+'" alt="">':'<i class="sw" style="background:#'+t.c.toString(16).padStart(6,'0')+'"></i>'; };
 function drawCraft(){
-  if(!craftOpen) return;
+  if(!craftOpen){ if(CTREE.i>=0) ctreeHide(true); return; }
   if(iconPump()) craftDirty=true;                  // 아이콘이 새로 찍혔으면 한 번 더 그린다
   const crfL=document.getElementById('crfL'), nEl=document.getElementById('crfN'), q=craftQuery.trim();
   const tabs=document.getElementById('crfT');
@@ -1151,18 +1151,18 @@ function drawCraft(){
     const hit=RECIPES.filter(craftMatch).filter(R=>!craftOnly||canCraft(R));
     if(nEl) nEl.textContent=hit.length+' / '+RECIPES.length;
     html=hit.length?'<div class="tl">'+hit.map(R=>{ const i=RECIPES.indexOf(R);
-        return '<div class="nd row '+(canCraft(R)?'ok':'no')+(i===CRAFT.sel?' sel':'')+'" data-i="'+i+'" data-tipr="'+i+'">'
+        return '<div class="nd row '+(canCraft(R)?'ok':'no')+(i===CRAFT.sel?' sel':'')+'" data-i="'+i+'">'
           +(R.out?iconTagSoon(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')+'<span>'+R.n+'</span><em>'+TIER_LABEL[R.tier]+'</em></div>'; }).join('')+'</div>'
-      :'<div style="color:var(--dim);font-size:10px;padding:10px 2px">\''+_cEsc(q)+'\' 에 걸리는 제작법이 없다</div>';
+      :'<div style="color:var(--dim);font-size:12px;padding:10px 2px">\''+_cEsc(q)+'\' 에 걸리는 제작법이 없다</div>';
   }else{                                            // ── 나무: 단이 왼쪽에서 오른쪽으로
     const list=RECIPES.map((R,i)=>({R,i})).filter(o=>craftCat(o.R)===craftTab);
     if(nEl) nEl.textContent=list.filter(o=>canCraft(o.R)).length+' / '+list.length+' 가능';
-    html='<div class="tw"><svg class="te"></svg>';
+    html='<div class="tw">';
     for(const tier of TIER_ORDER){
       const col=list.filter(o=>o.R.tier===tier&&(!craftOnly||canCraft(o.R))); if(!col.length) continue;
       html+='<div class="tc"><div class="th">'+TIER_LABEL[tier]+'<span>'+col.filter(o=>canCraft(o.R)).length+'/'+col.length+'</span></div>'
         +col.map(o=>{ const R=o.R, ok=canCraft(R), busy=CRAFT.recipe===R;
-          return '<div class="nd '+(ok?'ok':'no')+(o.i===CRAFT.sel?' sel':'')+(busy?' busy':'')+'" data-i="'+o.i+'" data-tipr="'+o.i+'">'
+          return '<div class="nd '+(ok?'ok':'no')+(o.i===CRAFT.sel?' sel':'')+(busy?' busy':'')+'" data-i="'+o.i+'">'
             +(R.out?iconTagSoon(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')
             +'<span>'+R.n+'</span>'+(R.out&&R.out.n>1?'<em>×'+R.out.n+'</em>':'')+'</div>'; }).join('')+'</div>';
     }
@@ -1170,30 +1170,81 @@ function drawCraft(){
   }
   if(crfL._html!==html){
     const sx=crfL.scrollLeft, sy=crfL.scrollTop; crfL.innerHTML=html; crfL._html=html; crfL.scrollLeft=sx; crfL.scrollTop=sy;
-    if(!q) craftEdges(crfL);
   }
   if(typeof drawSel==='function') drawSel();
 }
-/* 마디 사이의 줄 — 같은 탭 안에서 A 의 결과물이 B 의 재료·도구면 A → B. 마디를 다 놓은 뒤 자리를 재서 SVG 로 긋는다 */
-function craftEdges(root){
-  const tw=root.querySelector('.tw'), svg=root.querySelector('svg.te'); if(!tw||!svg) return;
-  const box=tw.getBoundingClientRect(), pos={};
-  tw.querySelectorAll('.nd').forEach(el=>{ const r=el.getBoundingClientRect(); pos[el.dataset.i]={x0:r.left-box.left,x1:r.right-box.left,y:r.top-box.top+r.height/2}; });
-  const W=tw.scrollWidth, H=tw.scrollHeight; let d='', ds='';
-  for(const k in pos){ const B=RECIPES[+k], pb=pos[k];
-    const ids=B.in.concat(B.need||[]).map(r=>r.id).filter(Boolean);
-    for(const id of ids) for(const A of craftMakers(id)){ const pa=pos[RECIPES.indexOf(A)]; if(!pa||pa===pb) continue;
-      let seg;
-      if(Math.abs(pa.x0-pb.x0)<2){                    // 같은 단 안 — 왼쪽으로 꺾쇠처럼 돌아 잇는다
-        const x=pa.x0, k=14+Math.min(18,Math.abs(pa.y-pb.y)*0.12);
-        seg='M'+x.toFixed(1)+' '+pa.y.toFixed(1)+' C'+(x-k).toFixed(1)+' '+pa.y.toFixed(1)+' '+(x-k).toFixed(1)+' '+pb.y.toFixed(1)+' '+x.toFixed(1)+' '+pb.y.toFixed(1)+' ';
-      }else{
-        const fwd=pa.x0<pb.x0, x1=fwd?pa.x1:pa.x0, x2=fwd?pb.x0:pb.x1, bend=Math.max(18,Math.abs(x2-x1)*0.45)*(fwd?1:-1);
-        seg='M'+x1.toFixed(1)+' '+pa.y.toFixed(1)+' C'+(x1+bend).toFixed(1)+' '+pa.y.toFixed(1)+' '+(x2-bend).toFixed(1)+' '+pb.y.toFixed(1)+' '+x2.toFixed(1)+' '+pb.y.toFixed(1)+' ';
-      }
-      if(+k===CRAFT.sel||RECIPES.indexOf(A)===CRAFT.sel) ds+=seg; else d+=seg; } }
-  svg.setAttribute('width',W); svg.setAttribute('height',H);
-  svg.innerHTML='<path d="'+d+'" class="e"/><path d="'+ds+'" class="e s"/>';
+/* ── 조합 나무 — 마디에 마우스를 올렸을 때만 뜬다 ───────────────────────────────
+   예전엔 탭 안의 마디를 전부 줄로 이어 늘 그려 두었다 — 줄이 수십 가닥 겹쳐 무엇이 무엇에 이어지는지 읽을 수 없었다(사용자 지적).
+   이제 줄은 없고, **마디에 마우스를 올리면** 그 마디의 조합 나무가 곁에 뜬다:
+       드는 것(재료 · 도구 · 작업 자리)  ──▶  이 물건  ──▶  이것으로 만드는 것
+   · 가지는 한쪽에 **다섯까지** — 더 있으면 '… +N' 이 붙고, 그 위에 마우스를 올리면 나머지가 글 상자로 뜬다.
+   · 가지를 누르면 그 제작법으로 건너간다(재료를 만드는 법 · 이것이 드는 다음 물건).
+   · **상자가 사라지지 않게** — 나무는 마디에 2 px 겹쳐 붙이고(틈이 없다), 마우스가 마디나 나무를 벗어나도 0.28초는 남아 있다
+     (그 사이에 나무 위로 들어오면 그대로). '… +N' 의 글 상자는 그 칸의 자식이라 칸에서 상자로 옮겨 가도 안 닫힌다. */
+const CTREE={el:null, i:-1, hideT:0, showT:0, MAXB:5};
+function ctreeEl(){
+  if(CTREE.el) return CTREE.el;
+  const el=document.createElement('div'); el.id='ctree'; el.style.display='none'; document.body.appendChild(el);
+  el.addEventListener('mouseenter',()=>clearTimeout(CTREE.hideT));
+  el.addEventListener('mouseleave',()=>ctreeHide());
+  el.addEventListener('click',ev=>{ const t=ev.target.closest&&ev.target.closest('[data-go]'); if(!t) return;
+    const i=+t.dataset.go; if(!RECIPES[i]) return;
+    CRAFT.sel=i; craftTab=craftCat(RECIPES[i]); const q=document.getElementById('crfS'); q.value=''; craftQuery='';
+    document.getElementById('crfL')._html=null; craftDirty=true; drawCraft(); ctreeHide(true); });
+  return CTREE.el=el;
+}
+function ctreeHide(now){
+  clearTimeout(CTREE.hideT); clearTimeout(CTREE.showT);
+  const go=()=>{ if(CTREE.el) CTREE.el.style.display='none'; CTREE.i=-1; };
+  if(now) go(); else CTREE.hideT=setTimeout(go,280);
+}
+/* 가지들 — 다섯까지 보이고 나머지는 '… +N'(글 상자) */
+function ctreeBranches(items,side){
+  const N=CTREE.MAXB, head=items.slice(0,N), rest=items.slice(N);
+  let h=head.map(x=>'<div class="cb '+(x.cls||'')+'"'+(x.go>=0?' data-go="'+x.go+'"':'')+'>'+x.html+'</div>').join('');
+  if(rest.length) h+='<div class="cb more">… +'+rest.length+'<div class="mbox '+side+'">'
+    +rest.map(x=>'<div class="'+(x.cls||'')+'"'+(x.go>=0?' data-go="'+x.go+'"':'')+'>'+x.html+'</div>').join('')+'</div></div>';
+  return h||'<div class="cb none">없다</div>';
+}
+function ctreeShow(i,anchor){
+  const R=RECIPES[i]; if(!R||!anchor||!anchor.isConnected) return;
+  const el=ctreeEl(), needs=[], uses=[];
+  for(const r of R.in){ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];
+    needs.push({cls:hv>=r.n?'g':'b', go:mk.length?RECIPES.indexOf(mk[0]):-1, html:_cEsc(matName(r))+' <small>'+Math.min(hv,99)+'/'+r.n+'</small>'}); }
+  for(const r of (R.need||[])){ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];
+    needs.push({cls:(hv>=r.n?'g':'b')+' t', go:mk.length?RECIPES.indexOf(mk[0]):-1, html:_cEsc(matName(r))+' <small>도구</small>'}); }
+  if(R.station) needs.push({cls:(stationOK(R)?'g':'b')+' t', go:-1, html:_cEsc(STATION[R.station].n)+' <small>곁에서</small>'});
+  if(R.out) for(const U of craftUsers(R.out.id)) uses.push({cls:canCraft(U)?'g':'', go:RECIPES.indexOf(U), html:_cEsc(U.n)});
+  const ico=R.out?iconSoon(R.out.id):'';
+  el.innerHTML='<div class="ctT">조합 나무</div><div class="ctR">'
+    +'<div class="ctC l">'+ctreeBranches(needs,'l')+'</div>'
+    +'<div class="ctM '+(canCraft(R)?'ok':'')+'">'+(ico?'<img decoding="sync" src="'+ico+'" alt="">':'')+'<b>'+_cEsc(R.n)+'</b>'+(R.out&&R.out.n>1?'<small>×'+R.out.n+'</small>':'')+'</div>'
+    +'<div class="ctC r">'+(R.out?ctreeBranches(uses,'r'):'<div class="cb none">설치하는 것이다</div>')+'</div></div>'
+    +'<div class="ctF">가지를 누르면 그 제작법으로 간다</div>';
+  el.style.display='block'; CTREE.i=i;
+  /* 자리 — 마디 바로 아래에 2 px 겹쳐 붙인다(틈이 없어야 마우스가 건너가는 동안 안 닫힌다). 아래가 모자라면 위로 */
+  const a=anchor.getBoundingClientRect(), w=el.offsetWidth, h=el.offsetHeight;
+  const below=a.bottom+h-2<innerHeight-6;
+  el.style.left=Math.max(6,Math.min(innerWidth-w-6,a.left+a.width/2-w/2))+'px';
+  el.style.top=(below?a.bottom-2:Math.max(6,a.top-h+2))+'px';
+  /* '… +N' 의 글 상자 — 아래로 펼 자리가 없으면 위로 편다 · 옆으로 펼 자리가 없으면 반대쪽으로(화면 밖으로 잘리지 않게) */
+  for(const m of el.querySelectorAll('.cb.more')){ const r=m.getBoundingClientRect(), b=m.querySelector('.mbox'), bh=Math.min(innerHeight*0.46,b.children.length*22+14);
+    b.classList.toggle('up',r.top+bh>innerHeight-8);
+    if(b.classList.contains('r')&&r.right+200>innerWidth){ b.classList.remove('r'); b.classList.add('l'); }
+    else if(b.classList.contains('l')&&r.left-200<0){ b.classList.remove('l'); b.classList.add('r'); } }
+}
+/* 마디에 마우스가 오가는 것 — 목록 바탕에서 한 번에 받는다(목록을 다시 그려도 그대로 듣는다) */
+{ const L=document.getElementById('crfL');
+  L.addEventListener('mouseover',ev=>{ const nd=ev.target.closest&&ev.target.closest('.nd'); if(!nd) return;
+    clearTimeout(CTREE.hideT); const i=+nd.dataset.i; if(i===CTREE.i) return;
+    clearTimeout(CTREE.showT); CTREE.showT=setTimeout(()=>{ const cur=L.querySelector('.nd[data-i="'+i+'"]'); if(cur&&cur.matches(':hover')) ctreeShow(i,cur); },150); });
+  L.addEventListener('mouseout',ev=>{ const nd=ev.target.closest&&ev.target.closest('.nd'); if(!nd) return;
+    const to=ev.relatedTarget; if(to&&(nd.contains(to)||(CTREE.el&&CTREE.el.contains(to)))) return;
+    clearTimeout(CTREE.showT); ctreeHide(); });
+  /* 목록을 굴리면 닫는다 — 다만 목록을 다시 그릴 때(아이콘이 찍힐 때마다) 굴린 자리를 되돌리며 나는 scroll 은 빼야 한다
+     (그걸로 닫으면 나무가 뜨자마자 사라진다). 자리가 정말 4 px 넘게 바뀌었을 때만 닫는다 */
+  let sx=0, sy=0;
+  L.addEventListener('scroll',()=>{ if(Math.abs(L.scrollLeft-sx)>4||Math.abs(L.scrollTop-sy)>4) ctreeHide(true); sx=L.scrollLeft; sy=L.scrollTop; },{passive:true});
 }
 /* 마디·탭 누르기 — 목록 바탕에서 한 번에 받는다. 마디는 한 번 누르면 고르고, 고른 것을 다시 누르면 만든다 */
 document.getElementById('crf').addEventListener('click',ev=>{

@@ -134,6 +134,30 @@ Epic's own documentation and SIGGRAPH course notes; they should be read from the
 Frame rate was **not** measured in a visible window: the test pane throttles frames, so only triangle counts and
 CPU-side milliseconds above are comparable.
 
+### 5.2 Third pass — measured in a real window
+
+`tools/bench-window.js` runs the in-game benchmark (a 40 s lap around the landing site, shortened here to 24–30 s) in a
+visible 1440×838 Electron window on the same Apple M1. The hidden test pane cannot measure frame rate, and anything
+else rendering at the same time (including a second copy of the game) halves the result — close it first.
+
+| | Capped at 60 Hz | Uncapped |
+|---|---|---|
+| Before this pass | 47.9 fps (1% low 15.2) | 57.3 fps |
+| After | 57.4 fps (1% low 27.4) | 68.0 fps |
+
+What moved it, from A/B runs with one thing switched off at a time (uncapped, turning in place at the landing site):
+
+- **Interface effects, not 3D**: with the HUD's animated scanline overlay, flicker and colour-fringe text shadows switched
+  off, the same scene went from 46 to 60 fps. An animated `background-position` and an opacity animation over a WebGL
+  canvas make the browser re-composite the whole screen every frame. They were removed.
+- Giant trees drawn at full detail out to 200 m: about 4 ms. Now full detail to 95 m, a reduced mesh beyond.
+- The whole-island plant layer: about 4 ms. Detail rings pulled in (55/90/200 m → 40/75/160 m).
+- Full-detail oak and fir branches in neighbouring tiles: about 3 ms. Neighbour threshold 10 m → 6 m.
+- Rocks: about 3 ms (triplanar photo texture). Left as is.
+- Shadows, the camcorder resolution, water and the sky pass each moved the result by 1 ms or less.
+
+The automatic quality control now steps detail down when the slow frame-time average passes 19.5 ms (51 fps).
+
 ## 6. Roadmap, ordered by value for this renderer
 
 1. **Tree mesh weight.** A single oak is still about 45k triangles at full detail. Generate proper LOD meshes with

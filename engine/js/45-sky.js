@@ -395,7 +395,9 @@ function updateWeather(){
   for(const k in CLOUD_KINDS) A[k]=0;
   /* WS6 은 '거의 맑음'의 평균(구름 40%)이라 그대로 쓰면 날마다 똑같이 40% 로 맑은 날이 없다.
      실제로는 맑은 날과 구름 낀 날이 섞인 평균이므로 날마다 0~2.8배로 흔든다(평균 약 1 · 약 3분의 1 은 0 — 맑은 날) */
-  const qn=2.8*clamp((weaNoise(T/18,weaSalt^0x61)-0.35)/0.4,0,1);   // 맑은 쪽 두 상태가 함께 오르내린다
+  /* 바닥을 0.28 로 — 0 이면 '맑은 날' 내내(castaway 시드는 첫 24시간) 하늘에 구름이 한 점도 없어 구름이 사라진 버그로 보였다
+     (사용자 지적). 맑은 날에도 뭉게구름 몇 점은 뜬다(구름양 약 10%) */
+  const qn=Math.max(0.28,2.8*clamp((weaNoise(T/18,weaSalt^0x61)-0.35)/0.4,0,1));   // 맑은 쪽 두 상태가 함께 오르내린다
   for(let s=1;s<=9;s++){ const P=WS_PROF[s]; if(!w[s]) continue; const m=w[s]*P._f*(s===6||s===9?qn:1);
     for(const k in P) A[k]+=m*P[k]; }
   // 갈래마다 제 흔들림(같은 상태 안에서도 날마다 조금씩 다르다)
@@ -1711,18 +1713,20 @@ const WIND_GLSL={
          wpos.y +=sin(uTime*8.3+ph*6.0)*0.02*uWind.z;`
 };
 /* ── 땅에 녹아들기 ──────────────────────────────────────────────────────────
-   바위·줄기·뿌리·덤불이 땅에 '올려놓은' 것처럼 보이던 것(밑동에 칼로 자른 금)을 없앤다(사용자 요청: 바탕 그림과 제 그림을 섞어
-   물체가 바탕에 녹아들게). 재질에 `userData.melt = 높이(m)` 를 적어 두면:
+   바위·줄기·뿌리가 땅에 '올려놓은' 것처럼 보이던 것(밑동에 칼로 자른 금)을 없앤다(사용자 요청: 바탕 그림과 제 그림을 섞어
+   물체가 바탕에 녹아들게 · 만나는 금은 들쭉날쭉하게 · 모서리는 둥글게). 재질에 `userData.melt = 높이(m)` 를 적어 두면:
      ① 정점 셰이더가 **땅에서 얼마나 떠 있나**(vMeltH)를 센다 — 인스턴스는 제 밑동(인스턴스 원점)에서, 통짜 메시는 표고 텍스처
-        (물 셰이더가 쓰는 `uElev` — 네 점을 직접 섞는다)에서.
-     ② 조각 셰이더가 그 높이 안에서 제 빛깔을 **그 자리의 땅 빛깔**(땅 셰이더가 읽는 바이옴 색 `uBio`)로 섞는다. 제 그림의
-        밝고 어두운 결은 남긴다(땅 빛깔 × 제 밝기) — 그래서 바위 결·껍질 결이 땅 빛깔 위로 이어진다. 섞이는 금은 잡음으로 들쭉날쭉.
-   값: 정점마다 덧셈 한 번(통짜 메시는 텍스처 네 번) · 화소는 그 높이 안에서만 텍스처 한 번. 학습 모델·미리 구운 그림은 없다 */
-const MELT_U={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell};
+        (물 셰이더가 쓰는 `uElev` — 네 점을 직접 섞는다)에서. 지오메트리에 `aMelt`(정점마다의 녹는 높이 — 바위는 제 크기의 0.4배)가
+        있으면 `userData.meltAttr` 로 그것을 쓴다.
+     ② **모서리를 둥글린다** — 그 높이 안의 법선을 땅의 법선(위) 쪽으로 눕혀 밑동의 명암이 땅과 이어지게 하고, 밑동의 정점을
+        바깥으로 살짝 벌려 턱을 만든다(땅에 묻힌 듯).
+     ③ 조각 셰이더가 그 높이 안을 **그 자리의 땅 그림**으로 덮는다 — 땅 셰이더가 읽는 바이옴 색(`uBio`)에 땅의 얼룩(잡음 `uNz`)을
+        곱한 것. 덮이는 금은 굵은 잡음이 혀처럼 올라오고 잔 잡음이 톱니를 내서 **들쭉날쭉**하다.
+   값: 정점마다 덧셈 몇 번(통짜 메시는 텍스처 네 번) · 화소는 그 높이 안팎에서 텍스처 두 번(+ 덮이는 데서 두 번). 미리 구운 그림은 없다 */
 function envPatch(m){
   if(!m||m.userData._env) return;
   const lam=!!m.isMeshLambertMaterial, dep=!!m.isMeshDepthMaterial;
-  const melt=lam&&m.userData.melt>0?+m.userData.melt:0;
+  const melt=lam&&m.userData.melt>0?+m.userData.melt:0, meltA=!!m.userData.meltAttr, meltT=!!m.userData.meltTex;
   /* 바람 흔들림은 껐다(`WIND_ON`) — 풀·잎·베리·가지 정점마다 사인파를 셌는데, 정점이 한 프레임에
      수백만 개라 가장 비싼 축에 들었다. 켜려면 true 로(코드는 그대로 남아 있다). */
   const wind=WIND_ON&&m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';
@@ -1733,9 +1737,11 @@ function envPatch(m){
     if(prev&&prev!==THREE.Material.prototype.onBeforeCompile) prev(sh,r);
     Object.assign(sh.uniforms,{csFine:CSH.fine, csCoarse:CSH.coarse, csC:CSH.ctr,
       csS:CSH.size, csOn:CSH.on, uTime:CSH.time, uWind:CSH.wind});
-    if(melt) for(const k in MELT_U) if(!sh.uniforms[k]) sh.uniforms[k]=MELT_U[k];
+    if(melt){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
+      for(const k in MU) if(MU[k]&&!sh.uniforms[k]) sh.uniforms[k]=MU[k]; }
     const has=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.vertexShader+sh.fragmentShader);   // 제 셰이더가 이미 선언했으면 다시 안 한다
-    const MV=melt?(has('uElev')?'':'uniform sampler2D uElev;\n')+(has('uGrid')?'':'uniform vec2 uGrid;\n')+`varying float vMeltH;
+    const MV=melt?(has('uElev')?'':'uniform sampler2D uElev;\n')+(has('uGrid')?'':'uniform vec2 uGrid;\n')+(meltA?'attribute float aMelt;\n':'')+`varying float vMeltH;
+varying float vMeltT;
 float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.x-1.0))),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*300.0-100.0; }
 `:'';
     const W=WIND_GLSL[wind]||'';
@@ -1751,13 +1757,22 @@ float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.
       ${W?`float ph=dot(wb4.xz,uWind.xy)*0.06+dot(wb4.xz,vec2(0.031,0.017));
       float sw=uWind.z*(sin(uTime*1.7-ph)*0.6+sin(uTime*3.1-ph*1.9)*0.25+0.55);
       ${W}`:''}
+      ${melt?`{
+        float mT=${meltA?'aMelt':melt.toFixed(3)}, mH;
+        ${meltT?'':`#ifdef USE_INSTANCING
+          mH=wpos.y-wb4.y;
+        #else`}
+          { vec2 mg=wpos.xz/uGrid.y+uGrid.x*0.5, mf=fract(mg); mg=floor(mg);
+            mH=wpos.y-mix(mix(meltE(mg),meltE(mg+vec2(1.0,0.0)),mf.x),mix(meltE(mg+vec2(0.0,1.0)),meltE(mg+vec2(1.0,1.0)),mf.x),mf.y); }
+        ${meltT?'':'#endif'}
+        float mK=1.0-smoothstep(0.0,mT,mH);
+        vec3 mWN=normalize((vec4(transformedNormal,0.0)*viewMatrix).xyz);                 // 세계 좌표의 법선
+        float mHL=length(mWN.xz);
+        if(mHL>0.001) wpos.xz+=mWN.xz/mHL*(mK*mK*mT*0.20*mHL);                             // 밑동을 벌린다(둥근 턱)
+        transformedNormal=normalize(mix(transformedNormal,normalize((viewMatrix*vec4(0.0,1.0,0.0,0.0)).xyz),mK*0.78));   // 법선을 땅 쪽으로 눕힌다
+        vMeltH=mH; vMeltT=mT;
+      }`:''}
       vCsXZ=wpos.xz;
-      ${melt?`#ifdef USE_INSTANCING
-        vMeltH=wpos.y-wb4.y;
-      #else
-        { vec2 mg=wpos.xz/uGrid.y+uGrid.x*0.5, mf=fract(mg); mg=floor(mg);
-          vMeltH=wpos.y-mix(mix(meltE(mg),meltE(mg+vec2(1.0,0.0)),mf.x),mix(meltE(mg+vec2(0.0,1.0)),meltE(mg+vec2(1.0,1.0)),mf.x),mf.y); }
-      #endif`:''}
       vec4 mvPosition=viewMatrix*wpos;
       gl_Position=projectionMatrix*mvPosition;`);
     if(lam) sh.fragmentShader=`uniform sampler2D csFine;
@@ -1775,20 +1790,24 @@ float cloudSh(){
 `+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();');
     if(melt){
       const fh=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.fragmentShader);
-      sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')+'varying float vMeltH;\n'
+      sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')
+        +(fh('uNz')?'':'uniform sampler2D uNz;\n')+'varying float vMeltH;\nvarying float vMeltT;\n'
         +sh.fragmentShader.replace('#include <alphatest_fragment>',`#include <alphatest_fragment>
-      { float mw=0.5+0.25*sin(vCsXZ.x*7.3+vCsXZ.y*3.1)+0.25*sin(vCsXZ.y*9.7-vCsXZ.x*4.3);      // 섞이는 금을 들쭉날쭉하게
-        float mk=1.0-smoothstep(0.0,${melt.toFixed(3)}*(0.55+0.9*mw),vMeltH); mk*=mk;   // 밑동에서만 짙고 위로는 빨리 풀린다
+      if(vMeltH<vMeltT*1.5){
+        /* 덮이는 금 — 굵은 잡음(1.9 m)이 혀처럼 올라오고 잔 잡음(0.4 m)이 톱니를 낸다. 금 자체는 좁게(그 높이의 45%) 넘어간다 */
+        float mN=texture2D(uNz,vCsXZ/1.9).r, mF=texture2D(uNz,vCsXZ/0.41+0.31).g;
+        float mE=vMeltT*(0.30+0.95*mN*mN+0.38*(mF-0.5));
+        float mk=1.0-smoothstep(mE*0.55,mE,vMeltH);
         if(mk>0.004){
           vec3 mg=texture2D(uBio,(vCsXZ/uCell+uBioN*0.5+0.5)/uBioN).rgb;
-          float ml=dot(diffuseColor.rgb,vec3(0.3333));
-          diffuseColor.rgb=mix(diffuseColor.rgb,mg*clamp(0.50+1.25*ml,0.55,1.4),mk*0.80); } }`);
+          float md=0.84+0.42*(texture2D(uNz,vCsXZ/0.93+0.17).b-0.5)+0.26*(mF-0.5);          // 땅의 얼룩
+          diffuseColor.rgb=mix(diffuseColor.rgb,mg*md,mk*0.94); } }`);
     }
   };
   /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
      다른 램버트 재질과 같은 프로그램으로 묶여 제 코드가 통째로 빠졌다 */
   const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
-  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(melt?'m'+melt:'')+(pk?'-'+pk.call(m):'');
+  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(melt?'m'+melt+(meltA?'a':'')+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
   m.needsUpdate=true;
 }
 

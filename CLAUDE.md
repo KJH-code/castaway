@@ -20,7 +20,7 @@
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) |
+| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
@@ -227,6 +227,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `80-player.js` | `rollSpawns` 87 · **`PL` 119** · `hurtPL` 132 · `updatePlayer` 195(걷기·헤엄·기력·배고픔) · 음향 · 발소리 |
 | `82-hud.js` | `drawMap` 29 · `drawCompass` 69 · 성능 창 `PERF` 98 · `updateHUD` 270 · 벤치마크 |
 | `90-init.js` | 안개·그림자 셰이더 손질 · `initThree` 104 · `freezeStatics` 164 · `PRECOMP` 190 · `generateWorld`(만드는 차례) |
+| `91-title.js` | **여는 화면의 그림**(캔버스 `#ovArt` — 처음 여는 화면 `#ov.title` 에서만 돈다) — 스텐실 간판 CASTAWAY(글자를 직접 긋는다 · 위가 좁은 올려다본 꼴 · 소실점으로 가는 두께) · 뒤로 누워 올라가는 안내 글 · 깨진 금. 전부 흑백으로 평평하게 그린 뒤 통째로 볼록한 유리에 휘고(`titleBend`), 빨강·초록·파랑을 갈라 겹친다 |
 | `92-save.js` | `snapshot` 67 · 불러오기 · 묻는 상자 · 저장 칸 · `saveLocal` 330 · `loadFile` 401 · 자동 저장 · `DESKTOP` 잇기 |
 | `94-input.js` | 키보드·마우스·터치 · 창 여닫기 · 일시정지 · 설정 창 |
 | `95-flora.js` | 군락 식생(정글·대숲·자작나무·소나무·맹그로브·야자·꽃밭 …) · 나무 열 갈래 · 덩굴·죽순·야자·바나나·버섯 · **종류마다 여러 벌**(`floraShapes` · `FLORA_VARS` — 칸 해시로 그루마다 고름 · `FLORA.m[종류]` 는 벌마다 메시 배열) · **나무 갈래는 참나무·전나무와 같은 길**(`floraFar` — 섬 전체를 한 번 깔아 64 m 칸에 담고, 그루마다 25 m(`FULL_DIST`) 안 제 벌 · 25~55 m 기준 그루(섬을 다 지은 순간 가장 가까운 그루 `FLORA.ref`) 복제 60%(그림자 드리움) · 55~90 m 30% · 90~200 m 10%(`floraLodGeo` — 잎 판을 솎고 1/√몫 배로 키움 · 큰 줄기는 그대로) · 200(`FL_PIC`)~450 m 기준 그루를 찍은 그림(`floraBakePic`) · 화면 밖 칸은 거름 · 2 m 움직이거나 보이는 칸이 바뀔 때만 다시 채움 · 몸 원·딸 것은 60 m 안만) · 덤불 겹은 사람 둘레 46 m, 12 m(층의 `own`) 밖은 가장 가까운 그루의 벌 하나 · `SHP.merge` 가 부품마다 정점 구간을 `userData.parts` 에 적는다(줄인 복제가 쓴다) · 그림 묶음 `floraAtlas`(1024² · 칸 256 — 잎 판은 **작은 잎 수십 장이 붙은 잔가지 한 줌**, 껍질·자작·바나나 줄기·버섯 갓은 값잡음으로 칠함 · 칸 12 자작 · 14 바나나 줄기 · 15 버섯) · `fin` 이 잎 판마다 수관 속 그늘(가운데·아래일수록 어둡게)과 빛깔 흔들기를 곱하고 통째로 밑동을 짙게(`merge` grad 0.80→1.04) |

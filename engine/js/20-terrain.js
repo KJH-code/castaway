@@ -671,7 +671,7 @@ function rockMat(k,col){
   const FACET=(HABIT[k]&&HABIT[k].smooth===0)?1:0;      // 면마다 각진 바위만 면별 톤을 준다
   const PHOTO=GND_OK();                                 // 사진 결을 쓸 수 있나(22-ground-textures.js)
   const big=!(k==='pebble'||k==='flint');
-  m.userData.melt=big?0.30:0.08;                        // 밑동이 땅 빛깔로 녹아든다(envPatch — 45-sky.js '땅에 녹아들기')
+  m.userData.melt=big?0.5:0.1; m.userData.meltAttr=true;   // 높이는 바위마다(aMelt — buildProps 가 제 크기의 0.4배로 적는다)                        // 밑동이 땅 빛깔로 녹아든다(envPatch — 45-sky.js '땅에 녹아들기')
   m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,TERR_U);
     sh.vertexShader='varying vec3 vRW;\nvarying vec3 vRN;\nvarying vec3 vRV;\n'+sh.vertexShader.replace('#include <begin_vertex>',

@@ -52,6 +52,7 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/80-player.js` | Mob table, first-person player (walking, **swimming**, stamina, hunger, health), synthesized audio, footsteps |
 | `engine/js/82-hud.js` | Minimap, HUD (look prompt, bars), performance window (F3), benchmark |
 | `engine/js/90-init.js` | Fog/shadow shader patches, shader precompile, `initThree()`, `generateWorld()` (the generation sequence) |
+| `engine/js/91-title.js` | The opening-screen art on one canvas: stencil CASTAWAY banner drawn from strokes, the receding crawl, and the crack — rendered flat in black and white, bent onto a curved screen, then split into red/green/blue |
 | `engine/js/92-save.js` | `snapshot()` / `restore()`, yes/no dialog, save slots (1–3, auto, previous-game backup), autosave |
 | `engine/js/94-input.js` | Keyboard, mouse, touch, opening/closing windows, pause, settings panel |
 | `engine/js/95-flora.js` | Plants that grow in **groves**: each ~80 m patch of a biome gets one community (jungle, bamboo grove, birch stand, pine wood, mangrove swamp, palm grove, flower field …). Ten tree types with trunks you collide with, five kinds of undergrowth, and what you can pick from them (vines, bamboo, coconuts, bananas, mushrooms) |
