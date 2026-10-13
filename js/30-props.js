@@ -1560,6 +1560,10 @@ function makeShip(){
   const dust=new THREE.Mesh(new THREE.PlaneGeometry(1,1).translate(0,0.5,0),fireMats().smoke);
   dust.scale.set(22,9,1); dust.position.set(0,-0.3,1.5); dust.frustumCulled=false; dust.visible=false; dust.userData.lightRole='none';
   g.add(dust); SHIP.dust=dust;
+  /* 총알이 맞는 몸 — 불꽃·먼지·노즐 속·항법등은 뺀다(직접 붙인 메시만 · 불꽃은 묶음이라 저절로 빠진다) */
+  SHIP.solids=g.children.filter(o=>o.isMesh&&o!==dust&&!SHIP.hots.includes(o)&&!SHIP.navs.includes(o)&&o!==glass);
+  SHIP.solids.push(glass);
+  SHIP.box=shipBoxes(Y,prof.map(v=>[v.x,v.y]));
   const li=LIGHT.addPoint(g,{color:0x9fd8ff,intensity:0,dist:40,pos:[0,1.0,2.0]});
   SHIP.light=li;
   /* 캡슐 옆에 내려앉는다 — 바다 쪽으로 머리를 두게 놓는다 */
@@ -1572,6 +1576,96 @@ function makeShip(){
   g.rotation.y=Math.atan2(away.x,away.z)+Math.PI;
   scene.add(g); shipMesh=g;
   SHIP.st='wait'; SHIP.t=0;
+}
+/* ── 보급선 히트박스 ────────────────────────────────────────────────────
+   배 자리 기준(로컬 — 앞이 −z · 배 중심 x 0 · 바닥 y 0)의 **볼록 다각형 + 높이 구간**(y0~y1)으로 몸을 적는다(`SHIP.box`).
+   예전엔 아무 판정이 없어 배를 그냥 걸어서 뚫었고, 상륙 자리(캡슐 둘레 3 m · 배는 캡슐에서 9 m)가 배 몸 속일 때도 있었다.
+   · 몸통 — 납작한 양력 몸통이라 옆구리 밑면이 2.5 m 넘게 떠 있다. 그래서 **밑면 높이로 잘라 층을 낸다**: 밑면이 c 보다
+     낮은 곳의 윤곽을 c 마다(1.9 · 2.5 · 3.1 · 3.2 m) 하나씩 — 서 있는 사람은 옆구리 밑을 지나 배 밑판에서 막히고,
+     뛰면 머리가 옆구리 밑면에 닿는다. 배 밑판(1.1 m) · 날개(2.3~3.3 m) · 날개 끝 엔진 · 꼬리 엔진 · 경사판 · 다리 셋.
+   · 사람 — `shipCollide`: 발~머리가 겹치는 다각형마다 가장 얕게 들어간 변 쪽으로 밀어낸다. 지난 프레임에 머리가 그 밑면
+     아래였으면 옆으로 밀지 않고 머리를 막는다(천장). `shipFloor`: 날개 윗면 · 몸통 윗면에 설 수 있다(떠나는 중엔 못 선다).
+   · 총알 `rayShip`(메시에 광선 — `SHIP.solids`) · 로켓 `shipInside`(닿으면 터짐) · 수류탄(튕긴다).
+   배가 오르거나 돌면 같이 따라간다(배 자리·요각으로 로컬 좌표를 낸다 — 배는 기울지 않는다). */
+function shipBoxes(Y,prof){
+  const B=[], poly=(pts,y0,y1,top)=>{                        // 변마다 바깥 법선 · 거리(볼록 · 어느 쪽으로 돌든)
+    let cx=0, cz=0; for(const q of pts){ cx+=q[0]; cz+=q[1]; } cx/=pts.length; cz/=pts.length;
+    const E=[]; for(let i=0;i<pts.length;i++){ const a=pts[i], b=pts[(i+1)%pts.length];
+      let nx=b[1]-a[1], nz=-(b[0]-a[0]); const l=Math.hypot(nx,nz)||1; nx/=l; nz/=l;
+      if(nx*(cx-a[0])+nz*(cz-a[1])>0){ nx=-nx; nz=-nz; }
+      E.push([nx,nz,nx*a[0]+nz*a[1]]); }
+    B.push({pts,E,y0,y1,top:top||null}); };     // top(x,z) — 윗면에 설 수 있는 것만(날개·몸통)
+  /* 몸통 — 돌림체 옆모습 r(z)(가로 1.25배 · 세로 0.62배). 밑면이 c 보다 낮은 곳의 반폭 */
+  const rAt=z=>{ for(let i=0;i<prof.length-1;i++){ const a=prof[i], b=prof[i+1]; if(z>=a[1]&&z<=b[1]&&b[1]>a[1]) return a[0]+(b[0]-a[0])*(z-a[1])/(b[1]-a[1]); } return 0; };
+  SHIP.rAt=rAt; SHIP.Y=Y;
+  const hullTop=(x,z)=>{ const r=rAt(z), w=1.25*r; return Math.abs(x)<w?Y+0.62*r*Math.sqrt(1-(x/w)*(x/w)):-1e9; };
+  const wingTop=x=>Y-0.34+0.08*(Math.abs(x)-1.9);
+  for(const c of [1.9,2.5,3.1,3.2]){
+    const R=[], L=[];
+    for(let z=-7.2;z<=6.0001;z+=0.4){ const r=rAt(z), hh=0.62*r, dy=Y-c; if(hh<=dy) continue;
+      const hw=1.25*r*Math.sqrt(1-(dy/hh)*(dy/hh)); R.push([hw,z]); L.unshift([-hw,z]); }
+    if(R.length>1) poly(R.concat(L),c,Y+0.62*2.45,hullTop);
+  }
+  poly([[-1.6,-3.65],[1.6,-3.65],[1.6,4.85],[-1.6,4.85]],1.1,Y,false);          // 배 밑판
+  for(const sx of [-1,1]){
+    poly([[sx*1.9,-2.2],[sx*7.3,1.4],[sx*7.3,3.3],[sx*1.9,4.0]],Y-0.88,Y+0.1,wingTop);   // 날개(끝이 0.43 m 들린다)
+    poly([[sx*6.85,-1.4],[sx*7.2,-1.95],[sx*8.2,-1.95],[sx*8.55,-1.4],[sx*8.55,3.65],[sx*6.85,3.65]],1.4,Y+0.55,false);   // 날개 끝 엔진 통
+    const o=[]; for(let k=0;k<8;k++){ const a=k/8*6.2832; o.push([sx*2.05+Math.cos(a)*0.68,2.8+Math.sin(a)*0.68]); }
+    poly(o,0,Y-1.3,false);                                                        // 뒷다리 · 받침
+  }
+  { const o=[]; for(let k=0;k<8;k++){ const a=k/8*6.2832; o.push([Math.cos(a)*0.52,-4.0+Math.sin(a)*0.52]); } poly(o,0,Y-1.5,false); }   // 앞다리
+  poly([[-1.2,5.7],[1.2,5.7],[1.2,7.9],[-1.2,7.9]],Y-0.95,Y+1.35,false);        // 꼬리 주 엔진
+  poly([[-1.3,4.5],[1.3,4.5],[1.3,6.7],[-1.3,6.7]],1.2,1.85,false);              // 화물 경사판
+  return B;
+}
+/* 세계 좌표 → 배 로컬(배는 y 축으로만 돈다) */
+const _sl={x:0,z:0,y:0,c:1,s:0};
+function shipLocal(x,y,z){
+  const P=shipMesh.position, th=shipMesh.rotation.y, c=Math.cos(th), s=Math.sin(th), dx=x-P.x, dz=z-P.z;
+  _sl.x=dx*c-dz*s; _sl.z=dx*s+dz*c; _sl.y=y-P.y; _sl.c=c; _sl.s=s; return _sl;
+}
+const shipSD=(b,x,z)=>{ let sd=-1e9, k=0; for(let i=0;i<b.E.length;i++){ const e=b.E[i], d=e[0]*x+e[1]*z-e[2]; if(d>sd){ sd=d; k=i; } } SHIP._k=k; return sd; };
+/* 사람 — p 발 자리(옮김) · rad 몸 반지름 · h 키 · prevY 지난 발 높이 · vel 속도(머리를 막을 때 위로 가는 몫을 지운다) */
+function shipCollide(p,rad,h,prevY,vel){
+  if(!shipMesh||!SHIP.box||SHIP.st==='away') return;
+  const P=shipMesh.position; if((p.x-P.x)*(p.x-P.x)+(p.z-P.z)*(p.z-P.z)>15*15) return;
+  const L=shipLocal(p.x,p.y,p.z), fy=L.y, py=prevY-P.y; let lx=L.x, lz=L.z, hit=false;
+  for(const b of SHIP.box){
+    if(fy+h<=b.y0||fy>=b.y1) continue;
+    const sd=shipSD(b,lx,lz); if(sd>=rad) continue;
+    if(py+h<=b.y0+0.02){                                   // 밑에서 머리를 들이밀었다 — 천장
+      p.y=P.y+b.y0-h-0.01; if(vel&&vel.y>0) vel.y=0; continue; }
+    if(b.top&&py>=b.top(lx,lz)-0.05) continue;             // 위에 서 있다(shipFloor 가 받친다)
+    const e=b.E[SHIP._k]; lx+=e[0]*(rad-sd); lz+=e[1]*(rad-sd); hit=true;
+  }
+  if(hit){ const c=L.c, s=L.s; p.x=P.x+lx*c+lz*s; p.z=P.z-lx*s+lz*c; }
+}
+/* 설 자리 — 날개 윗면 · 몸통 윗면. y 에서 0.6 m 위까지만 올라선다(floorAt 과 같은 규칙) */
+function shipFloor(x,z,y){
+  if(!shipMesh||!SHIP.box||SHIP.st==='away') return -1e9;
+  const P=shipMesh.position; if((x-P.x)*(x-P.x)+(z-P.z)*(z-P.z)>15*15) return -1e9;
+  const L=shipLocal(x,y,z); let best=-1e9;
+  for(const b of SHIP.box) if(b.top&&shipSD(b,L.x,L.z)<0){ const t=b.top(L.x,L.z); if(t<=L.y+0.6) best=Math.max(best,t); }
+  return best>-1e9?P.y+best:-1e9;
+}
+/* 점이 배 몸 속인가 — 로켓·수류탄 */
+function shipInside(x,y,z){
+  if(!shipMesh||!SHIP.box) return false;
+  const P=shipMesh.position; if((x-P.x)*(x-P.x)+(z-P.z)*(z-P.z)>15*15||y<P.y-0.5||y>P.y+7) return false;
+  const L=shipLocal(x,y,z);
+  for(const b of SHIP.box) if(L.y>b.y0&&L.y<b.y1&&shipSD(b,L.x,L.z)<0) return true;
+  return false;
+}
+/* 총알 — 배 메시에 광선을 쏴 맞은 거리(없으면 Infinity) */
+const _shipRay=new THREE.Raycaster();
+function rayShip(o,dir,range){
+  if(!shipMesh||!SHIP.solids) return Infinity;
+  const P=shipMesh.position, ox=P.x-o.x, oz=P.z-o.z, t=ox*dir.x+oz*dir.z;
+  if(t<-12||t>range+12) return Infinity;
+  shipMesh.updateMatrixWorld(true);
+  _shipRay.set(o,dir); _shipRay.far=range;
+  const h=_shipRay.intersectObjects(SHIP.solids,false);
+  return h.length?h[0].distance:Infinity;
 }
 /* 엔진 세기 k(0~1) — 불꽃 길이·밝기, 노즐 속 달아오름, 광원을 한꺼번에 맞춘다 */
 function shipPower(k,dust){

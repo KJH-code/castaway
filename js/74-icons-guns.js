@@ -382,7 +382,7 @@ function shoot(w,W){
   const n=W.pellets||1, sp=W.spread||0;
   const up=new THREE.Vector3(0,1,0), rt=new THREE.Vector3().crossVectors(d,up).normalize();
   const uu=new THREE.Vector3().crossVectors(rt,d).normalize();
-  let best=null, bt=0, tot=0;
+  let best=null, bt=0, tot=0, shipHit=false;
   for(let k=0;k<n;k++){
     const dir=d.clone();
     if(sp>0){                                 // 고르게 퍼뜨린다(원판 위 균등)
@@ -390,6 +390,7 @@ function shoot(w,W){
       dir.addScaledVector(rt,Math.cos(a)*r).addScaledVector(uu,Math.sin(a)*r).normalize();
     }
     const hit=rayCreature(o,dir,W.reach);
+    const ts=rayShip(o,dir,hit.t); if(ts<hit.t){ hit.c=null; hit.t=ts; shipHit=true; }   // 보급선이 가로막는다
     if(k===0||n<=3)
       showTracer(o.clone().addScaledVector(dir,0.6), o.clone().addScaledVector(dir,hit.t));
     if(hit.c){
@@ -399,7 +400,7 @@ function shoot(w,W){
   }
   if(best) toast((best.hp<=0?'쓰러뜨렸다':'명중 '+Math.round(bt)+' m')
                  +(n>1?' ('+tot+' / '+n+'알)':''));
-  else toast('빗나갔다');
+  else toast(shipHit?'보급선 몸에 맞았다 — 쨍':'빗나갔다');
   if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
   invDirty=true;
 }
@@ -436,6 +437,7 @@ function updateGrenades(dt){
     g.v.y-=9.8*dt; p.addScaledVector(g.v,dt);
     const gy=Math.max(heightAt(p.x,p.z),-0.2)+0.07;
     if(p.y<gy){ p.y=gy; g.v.y=Math.abs(g.v.y)*0.3; g.v.x*=0.55; g.v.z*=0.55; }   // 튀며 구른다
+    if(shipInside(p.x,p.y,p.z)){ p.addScaledVector(g.v,-dt); g.v.x*=-0.4; g.v.z*=-0.4; g.v.y=Math.abs(g.v.y)*0.3; }   // 보급선 몸에 튕긴다
     g.m.rotation.x+=dt*8*Math.hypot(g.v.x,g.v.z)*0.2;
     g.t-=dt;
     if(g.t<=0){ explode(p.clone(),g.dmg,g.r); scene.remove(g.m); GRENADES.splice(i,1); }
@@ -499,7 +501,7 @@ function updateRockets(dt){
     let hit=false;
     for(let k=0;k<n&&!hit;k++){
       p.addScaledVector(R.v,dt/n);
-      if(p.y<=Math.max(heightAt(p.x,p.z),-0.3)+0.05) hit=true;
+      if(p.y<=Math.max(heightAt(p.x,p.z),-0.3)+0.05||shipInside(p.x,p.y,p.z)) hit=true;   // 땅 · 보급선
       for(const c of CREATURES){
         if(c.hp>0 && Math.hypot(c.x-p.x,(c.y||0)+1-p.y,c.z-p.z)<(c.r||1.5)){
           hit=true; p.set(c.x,c.y||0,c.z); break;                // 몸에 맞으면 그 자리에서 터진다(420 그대로)
