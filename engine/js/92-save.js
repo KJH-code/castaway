@@ -123,9 +123,9 @@ async function restore(d){
   /* 한 군데가 틀려도 나머지는 살린다 — 예전엔 중간에 하나만 터져도 그 뒤(집·상자·소지품)가 통째로 안 돌아왔다 */
   const bad=[];
   const safe=(what,fn)=>{ try{ fn(); }catch(e){ console.error('[불러오기] '+what,e); bad.push(what); } };
-  P.ws=1;                                      // 섬 배율이 없는 옛 저장은 1(1.9 km 섬) — 예전 섬 그대로 열린다
+  P.ws=1; P.tv=1;                              // 섬 배율·지형 판이 없는 옛 저장은 1(1.9 km 섬 · 예전 지형) — 예전 섬 그대로 열린다
   Object.assign(P,d.P);
-  if(P.ws!==2&&P.ws!==3) P.ws=1;
+  if(!(P.ws>=1&&P.ws<=6)) P.ws=1; P.ws=Math.round(P.ws);
   if(d.guar!==undefined){ GUARANTEE=!!d.guar; const bg=document.getElementById('bGuar'); if(bg) bg.classList.toggle('on',GUARANTEE); }
   // 슬라이더도 저장값에 맞춘다
   const setv=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };

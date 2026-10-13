@@ -599,6 +599,7 @@ function floraNearRiver(ci){
 }
 /* 그 자리에 큰 나무·바위·설비·벽(충돌 원)이 있나 */
 function floraHit(wx,wz,pad){
+  if(caveAt(wx,wz,pad+2.5)) return true;               // 굴 속·굴 벽에는 안 선다(10-worldgen.js)
   const cgx=Math.floor(wx/CG), cgz=Math.floor(wz/CG);
   for(let az=-1;az<=1;az++) for(let ax=-1;ax<=1;ax++){
     const a=CGRID.get(cgKey(cgx+ax,cgz+az)); if(!a) continue;

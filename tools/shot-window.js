@@ -9,6 +9,8 @@ const path = require('path'), os = require('os'), fs = require('fs');
 app.setPath('userData', path.join(os.tmpdir(), 'castaway-shot'));
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
+/* CASTAWAY_UNCAP=1 — 화면 주사율에 묶이지 않는다(준 JS 안에서 프레임을 세어 견줄 때) */
+if (process.env.CASTAWAY_UNCAP === '1') { app.commandLine.appendSwitch('disable-frame-rate-limit'); app.commandLine.appendSwitch('disable-gpu-vsync'); }
 const OUT = process.argv[2] || 'shot.png', JS = process.argv[3] || '', W = +process.argv[4] || 1280, H = +process.argv[5] || 800;
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: W, height: H, useContentSize: true, show: false, backgroundColor: '#03060a', webPreferences: { backgroundThrottling: false } });

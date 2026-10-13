@@ -331,6 +331,7 @@ async function generateWorld(){
   await phase('하천 침식',34);      hydraulic(seed,Math.round(38000*P.ero*(16/(CELL*CELL))));
   await phase('사면 안정화',48);    thermal(8,1.45*(CELL/4),0.45);
                                     smoothTerrain(3,0.6);   // 표면 잡티 제거
+                                    if((P.tv|0)>=2) terrainFeatures(seed); else LANDFORMS=[];   // 피오르·골짜기·절벽·단구·산릉(지형 판 2 — 10-worldgen.js)
                                     computeSlope();
   await phase('수계 추출',58);      hydrology(); computeSlope(); computeTWI();
                                     distanceField(F.dWater,i=>F.elev[i]<=0);
@@ -410,4 +411,4 @@ async function generateWorld(){
   }
   busy=false;                           // 실패해도 잠기지 않게 반드시 해제
 }
-function placeProps_(seed){ placePod(seed); buildProps(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다
+function placeProps_(seed){ placePod(seed); buildProps(); buildCrags(); buildCaves(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다
