@@ -20,7 +20,7 @@
    R·G 는 빛을 받는 모든 재질이 읽는다(envPatch — 45-sky.js: 구름 그림자 자리에 같이 곱한다). B 는 땅 셰이더만(22-ground-textures.js).
    ========================================================================== */
 const TLIT={px:null, tex:null, S:null, job:null, dir:new THREE.Vector3(0,-1,0), G:{value:new THREE.Vector2(768,2.5)}};
-TERR_U.uTL={value:null}; TERR_U.uShR={value:46}; TERR_U.uWet={value:0};
+TERR_U.uTL={value:null}; TERR_U.uShR={value:46}; TERR_U.uWet={value:0}; TERR_U.uDew={value:0};
 { const t=new THREE.DataTexture(new Uint8Array([255,255,0,255]),1,1,THREE.RGBAFormat); t.needsUpdate=true; TERR_U.uTL.value=t; }
 
 /* 섬을 다 지은 뒤 한 번 — 하늘 트임과 숲 덮임을 세고, 산 그림자를 지금 빛으로 한 번에 훑는다 */
@@ -86,6 +86,9 @@ function updateTlit(dt){
   if(!TLIT.tex) return;
   TERR_U.uShR.value=LIGHT.QUAL[LIGHT.q].R||40;
   if(typeof WEA!=='undefined'){ const w=TERR_U.uWet, to=clamp(WEA.rain*1.6,0,1); w.value+=(to-w.value)*clamp((dt||0.016)*(to>w.value?0.25:0.02),0,1); }   // 비가 오면 15초에 젖고 3분에 마른다
+  /* 이슬 — 새벽 2시 반부터 맺혀 5시 반에 가득, 8~10시에 마른다. 흐린 밤에는 덜(복사 냉각이 약하다). 비 온 뒤에는 잎에 물기가 남는다(98-dew.js) */
+  if(typeof WEA!=='undefined'){ const h=hourOfDay, tg=Math.max(smoothstep(2.5,5.5,h)*(1-smoothstep(7.8,10.2,h))*(1-0.55*clamp(WEA.cover,0,1)),TERR_U.uWet.value*0.7), d=TERR_U.uDew;
+    d.value+=(tg-d.value)*clamp((dt||0.016)*0.06,0,1); }
   const J=TLIT.job;
   if(J){ tlitSweepStep(J,96); if(J.k>=N){ TLIT.tex.needsUpdate=true; TLIT.dir.copy(J.dir); TLIT.job=null; } return; }
   const d=TERR_U.uSunDir.value;

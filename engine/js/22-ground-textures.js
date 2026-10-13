@@ -130,7 +130,7 @@ function gndTerrainFrag(frag){
   const PIX=frag.split(SUN).length===2&&frag.split(IND).length===2;      // 램버트 조각 셰이더가 예상과 같을 때만 화소 빛으로 간다
   if(PIX) frag=frag.replace(SUN,SUN.replace('lambW.x','gndSun')).replace(IND,IND+'\n\treflectedLight.indirectDiffuse *= gndAmb;');
   return `uniform vec3 uSunDir;
-uniform sampler2D uRel; uniform sampler2D uTL; uniform float uShR, uWet;
+uniform sampler2D uRel; uniform sampler2D uTL; uniform float uShR, uWet, uDew;
 float gndSun=1.0, gndAmb=1.0;
 uniform sampler2D uBio; uniform sampler2D uBio2; uniform sampler2D uNz; uniform float uBioN, uCell, uShT;
 uniform mediump sampler2DArray uGnd;
@@ -251,6 +251,15 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
           vec2 g=(t1.gb-0.5)*(RK*3.0/190.0)+((t2.gb-0.5)*M2)*(RK*0.50/31.0)+((t3.gb-0.5)*M3)*(RK*0.065/4.2);
           float hr=(t1.r-0.5)*0.45+(t2.r-0.5)*0.35+(t3.r-0.5)*0.20;             // 기복의 높낮이(−0.5~0.5 — 큰 것·가운데·잔 것)
           g*=kR*(1.0-0.65*stp);                                                 // 벽에서는 순하게(위로 미는 기복은 벽에서 세로 줄이 된다)
+          /* **모래의 물결 자국** — 물밑 모래와 모래밭에는 물살·바람이 낸 잔 이랑이 진다. 마구잡이 혹이 아니라 **한 방향으로 나란한**
+             이랑이다: 이랑은 물가와 나란히(비탈의 내리막에 수직으로) 눕는다. 방향이 다른 세 벌(60° 간격)을 두고 그 자리의 내리막 방향에
+             가까운 벌이 이기게 섞는다(방향을 화소마다 돌리면 무늬가 뭉개진다). 간격은 얕은 데 30 cm · 깊은 데 90 cm(큰 이랑),
+             높이 1.2 cm. 잡음으로 굽이친다. 20 m 밖에서는 화소보다 잘아져 지운다 */
+          { float sandK=max(mSand*flat1,(h<0.3?(1.0-subRock)*(1.0-grav):0.0))*smoothstep(22.0,7.0,vTD);
+            if(sandK>0.02){ vec2 dn=normalize(Ng.xz+vec2(0.021,0.013)); float lam=mix(0.32,0.90,smoothstep(0.3,-7.0,h)), kk=6.2832/lam, ws=0.0, hs=0.0; vec2 gr=vec2(0.0);
+              for(int i=0;i<3;i++){ float an=float(i)*1.0472+0.35; vec2 d=vec2(cos(an),sin(an)); float w=pow(abs(dot(dn,d)),6.0)+0.02;
+                float ph=dot(p,d)*kk+(n2.r-0.5)*5.0+(n1.g-0.5)*9.0; gr+=w*d*(cos(ph)+0.35*cos(2.0*ph+1.0))*kk; hs+=w*sin(ph); ws+=w; }
+              g+=gr/ws*(0.012*sandK); hr+=hs/ws*0.10*sandK; } }
           float ny=max(Ng.y,0.3);
           vec3 Np=normalize(vec3(Ng.x/ny-g.x,1.0,Ng.z/ny-g.y));
           float lum=dot(det,vec3(0.3333)), nearB=1.0-smoothstep(6.0,34.0,vTD);
@@ -261,11 +270,15 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
           vec2 tu=(p/uCell+uBioN*0.5+0.5)/uBioN;
           float can=texture2D(uTL,tu+uSunDir.xz/max(uSunDir.y,0.22)*(7.0/uCell/uBioN)).b;   // 나무 키(7 m)만큼 해 쪽의 숲이 여기에 그늘을 드리운다
           float canK=smoothstep(uShR*0.72,uShR,vTD);
-          float wetK=clamp(max(wetS,mMud*flat1*0.55)+uWet*(0.55+0.45*(1.0-hr*2.0)),0.0,1.0);   // 비는 낮은 데부터 고인다
+          float wetK=clamp(max(wetS,mMud*flat1*0.55)+uWet*(0.55+0.45*(1.0-hr*2.0))+uDew*0.30*wGrass,0.0,1.0);   // 비는 낮은 데부터 고인다 · 이슬은 풀밭에
           c*=mix(1.0,0.74,uWet*(1.0-mSand*0.5));                                  // 비 맞은 땅은 짙다
           vec3 Vv=normalize(cameraPosition-vTW), Hh=normalize(Vv+uSunDir);
           float gl=mix(mix(7.0,22.0,wRock),96.0,wetK), f0=mix(0.022,0.05,wetK);
-          float spec=f0*(gl+8.0)*0.125*pow(max(dot(Np,Hh),0.0),gl)*ndl*(0.35+0.65*smoothstep(0.35,0.65,lum));
+          float spec=f0*(gl+8.0)*0.125*pow(max(dot(Np,Hh),0.0),gl)*ndl*(0.35+0.65*smoothstep(0.35,0.65,lum))*mix(1.0,0.5,wetK);   // 젖은 데는 좁고 밝되 하얗게 뭉개지지 않게
+          /* 이슬 맺힌 풀밭의 반짝임 — 잎 재질과 같은 식(98-dew.js ②) */
+          if(uDew>0.01&&wGrass>0.05){ float cs=max(0.010,vTD*0.0024);
+            float hh=fract(sin(dot(floor(vTW/cs),vec3(127.1,311.7,74.7))+floor(dot(Vv,vec3(31.0,17.0,23.0)))*13.7)*43758.5453);
+            spec+=smoothstep(0.990,1.0,hh)*smoothstep(60.0,12.0,vTD)*6.0*uDew*wGrass*ndl; }
           gndSun=ndl*(1.0-0.62*can*canK)+spec/max(dot(c,vec3(0.3333)),0.03);
           gndAmb=(0.86+0.28*smoothstep(-0.30,0.30,hr))*(1.0-0.18*can)*(0.90+0.10*Np.y/ny*Ng.y);
         }`:''}
