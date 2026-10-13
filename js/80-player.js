@@ -166,6 +166,7 @@ function spawnPlayer(){
   const a=Math.random()*6.28;
   PL.pos.set(podPos.x+Math.cos(a)*3, podPos.y+1, podPos.z+Math.sin(a)*3);
   PL.pos.y=Math.max(0.2,heightAt(PL.pos.x,PL.pos.z))+0.2;
+  for(let i=0;i<4;i++){ shipCollide(PL.pos,PRAD+0.3,PL.eye+0.15,PL.pos.y); PL.pos.y=Math.max(0.2,heightAt(PL.pos.x,PL.pos.z))+0.2; }   // 배 몸 속에서 깨지 않게
   PL.vel.set(0,0,0); PL.hp=HPMAX; PL.stam=100; PL.oxy=100; PL.food=100; PL.water=100; PL.ill=0;
   PL.dead=false; hurtFlash=0;
   PL.yaw=Math.atan2(podPos.x-PL.pos.x, podPos.z-PL.pos.z)+Math.PI;
@@ -263,10 +264,12 @@ function updatePlayer(dt){
   if(walkable(p.x,p.z+mz,fh)) p.z+=mz; else PL.vel.z*=0.4;
   resolveProps(p,PRAD);
   floraCollide(p,PRAD);                        // 어린 나무·자작·야자의 줄기(95-flora.js)
+  const y0=p.y;
   p.y+=PL.vel.y*dt;
+  shipCollide(p,PRAD,PL.eye+0.15,y0,PL.vel);   // 보급선 몸에 막힌다 · 머리가 밑면에 닿는다(30-props.js)
 
   if(DROP.t>0){ DROP.t-=dt; }
-  let ng=floorAt(p.x,p.z,p.y);                 // 지은 바닥이 있으면 그 위에 선다
+  let ng=Math.max(floorAt(p.x,p.z,p.y),shipFloor(p.x,p.z,p.y));   // 지은 바닥 · 보급선 날개·몸 위에 선다
   if(DROP.t>0) ng=Math.min(ng, floorAt(p.x,p.z,DROP.y-1.0));   // 뚫고 내려가는 중
   if(p.y<=ng){
     if(PL.vel.y<-13 && !PL.swim && depth<0.5){
