@@ -228,6 +228,7 @@ function updatePlayer(dt){
   const fins=PL.swim&&hasGear('fins'), spent=PL.swim&&PL.stam<1;
   let sp = PL.swim?SWIMSP*(fins?1.5:1)*(spent?0.45:1) : (PL.crouch?CROUCH : (PL.run?RUN:WALK));
   sp*=1-0.45*load;
+  if(!PL.swim&&load>0.6&&PL.stam<1) sp*=0.7;           // 무거운 짐에 기력까지 다했으면 발을 끈다
   if(!PL.swim && depth>0.5) sp*=1-0.45*PL.wade;      // 물속 저항
 
   const s=Math.sin(PL.yaw), c=Math.cos(PL.yaw);
@@ -260,9 +261,11 @@ function updatePlayer(dt){
     /* 뛰기 — **기력을 쓴다**(한 번에 9 · 짐이 무거우면 더) · 기력이 모자라면 못 뛴다 · **물에서는 못 뛴다**(무릎 넘게 잠기면 —
        예전엔 물에서 Space 를 연타하면 헤엄보다 빨리, 기력도 안 쓰고 건넜다. 사용자 지적) */
     else if(K.Space&&PL.grounded){
-      const cost=JUMP_STAM*(1+load*0.8);
+      /* 짐이 무거우면 낮게 뛰고 더 지친다(사용자 요청) — 만재에서 뛰는 빠르기 0.6배(높이 0.36배) · 기력 2.6배 */
+      const cost=JUMP_STAM*(1+load*1.6);
       if(depth>0.45){ if(!PL._jw||performance.now()-PL._jw>2500){ PL._jw=performance.now(); toast('물에서는 뛸 수 없다'); } }
-      else if(PL.stam>=cost){ PL.vel.y=JUMP; PL.grounded=false; DROP.t=0; PL.stam-=cost; }
+      else if(PL.stam>=cost){ PL.vel.y=JUMP*(1-0.4*load); PL.grounded=false; DROP.t=0; PL.stam-=cost; }
+      else if(!PL._jt||performance.now()-PL._jt>2500){ PL._jt=performance.now(); toast(load>0.6?'짐이 무거워 뛸 기력이 없다':'뛸 기력이 없다'); }
     }
     PL.oxy=clamp(PL.oxy+18*dt,0,100);
   }
@@ -307,6 +310,8 @@ function updatePlayer(dt){
   /* 헤엄은 기력을 **천천히** 판다 — 저어 가면 초당 2.2(45초쯤), 떠 있기만 해도 0.6. 물에서는 쉬어도 안 찬다.
      오리발이 있으면 절반. 예전엔 저을 때만 초당 6 이 빠지고 떠 있으면 도로 찼다(다해도 아무 일이 없었다). */
   else if(PL.swim) PL.stam-=(moving?2.2:0.6)*(fins?0.5:1)*dt*drain;
+  /* 짐이 무거우면(적재 60% 넘게) 걷기만 해도 지친다(사용자 요청) — 만재에서 초당 6 · 서 있으면 다시 찬다 */
+  else if(moving&&PL.grounded&&load>0.6) PL.stam-=6*Math.pow((load-0.6)/0.4,1.3)*dt;
   else if(!HARV.active&&PL.grounded) PL.stam+=12*dt*(1-load*0.5)        // 공중에서는 안 찬다(뛰는 동안 숨을 못 고른다)
                                 *(PL.food<=0?0:(PL.ill>0?0.45:1));
   if(PL.food<=0) PL.stam-=3.5*dt;                    // 굶으면 도로 빠진다

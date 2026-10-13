@@ -827,7 +827,7 @@ function placeSteamAt(x,y,z){
   const smoke=new THREE.Mesh(new THREE.PlaneGeometry(1,1).translate(0,0.5,0),fireMats().smoke);
   smoke.scale.set(1.4,4,1); smoke.position.set(-0.55,3.0,0); smoke.frustumCulled=false; smoke.userData.lightRole='none';
   flame.add(smoke); smoke.position.set(-0.55,2.9,-0.6);                                   // 굴뚝 연기 — 불과 함께 켜진다
-  const light=LIGHT.addPoint(g,{color:0xff8038,intensity:0,dist:10,pos:[0,0.4,0.9]}); light.visible=false;
+  const light=LIGHT.addFire(g,{color:0xff7a2a,intensity:0,dist:10,pos:[0,0.4,0.9]}); light.visible=false;
   g.rotation.y=PL.yaw; g.position.set(x,y,z); scene.add(g);
   const f={kind:'fire', cname:'증기기관', steam:true, cap:60, slotCap:10, slots:[],
            x,y,z,lit:false,fuel:0,cook:{},mesh:g,flame,light,t:0,wheel,rod};
@@ -1080,16 +1080,20 @@ void main(){
   float a=smoothstep(0.0,0.30,body)*smoothstep(0.0,0.08,y);
   if(a<=0.002) discard;
   float t=clamp(body*1.35,0.0,1.0)*uHeat;          // 온도 — 속이 가장 뜨겁다
-  vec3 col=mix(vec3(0.55,0.06,0.0),vec3(1.0,0.38,0.05),smoothstep(0.0,0.35,t));
-  col=mix(col,vec3(1.0,0.78,0.30),smoothstep(0.35,0.75,t));
-  col=mix(col,vec3(1.0,0.97,0.85),smoothstep(0.75,1.0,t));
-  gl_FragColor=vec4(col*a*0.85, a);
+  // 겉은 카민(짙은 붉은 자주) → 주홍 → 속은 레몬빛(사용자 요청) — 속 끝만 조금 희게
+  vec3 col=mix(vec3(0.85,0.0,0.16),vec3(1.0,0.06,0.18),smoothstep(0.0,0.26,t));
+  col=mix(col,vec3(1.0,0.40,0.06),smoothstep(0.26,0.52,t));
+  col=mix(col,vec3(1.0,0.90,0.22),smoothstep(0.52,0.80,t));
+  col=mix(col,vec3(1.0,0.96,0.50),smoothstep(0.92,1.0,t));
+  // 더하기 섞음이라 짙은 겉빛은 밝은 바탕에 묻힌다 — 겉(카민)은 더 세게, 속(레몬)은 덜 세게 더해 속이 하얗게 타지 않게
+  float k=mix(1.25,0.62,smoothstep(0.3,0.8,t));
+  gl_FragColor=vec4(col*a*k, a);
 }`});
   const glow=new THREE.ShaderMaterial({uniforms:{uTime:FIRE_U.uTime}, vertexShader:BILL_VS,
     transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
     fragmentShader:`uniform float uTime; varying vec2 vUv;
 void main(){ float r=length(vUv-0.5)*2.0; float a=pow(max(0.0,1.0-r),2.2)*(0.85+0.15*sin(uTime*9.0));
-  gl_FragColor=vec4(vec3(1.0,0.42,0.12)*a*0.22,a); }`});
+  gl_FragColor=vec4(vec3(1.0,0.48,0.10)*a*0.22,a); }`});   // 둘레 번짐 — 주황
   const smoke=new THREE.ShaderMaterial({uniforms:{uTime:FIRE_U.uTime}, vertexShader:BILL_VS,
     transparent:true, depthWrite:false,
     fragmentShader:`uniform float uTime; varying vec2 vUv;
@@ -1176,6 +1180,19 @@ void main(){
   return g;
 }
 /* s — 크기(화덕 1 · 횃불 0.25). smoke/sparks 는 끌 수 있다 */
+/* 불꽃 셰이더 미리 짜기 — 불꽃·번짐·연기·불티는 ShaderMaterial 이라 광원 수와 상관없이 한 번만 짜면 된다.
+   예전엔 처음 불을 켜는 순간(보이게 되는 순간) 다섯 개를 짜느라 멈칫했다(PRECOMP 는 소프트웨어 렌더에서 꺼져 있어 못 막았다) */
+let _fireWarm=false;
+function fireWarm(){
+  if(_fireWarm||!renderer) return; _fireWarm=true;
+  try{ /* 열쇠에 광원 수·안개가 든다(ShaderMaterial 도) — 본 장면과 같은 수의 가짜 광원을 세운 빈 장면(90-init.js precompScene) */
+    const sc=precompScene(lightCensus(),true), g=makeFire(1);
+    g.position.set(0,0,-3); g.traverse(o=>{ o.visible=true; }); g.parent=sc; sc.children.push(g);
+    renderer.compile(sc,camera);
+    /* 점광원 그림자의 거리 재질 — 불빛 풀의 그림자 칸을 상륙 자리에 세워 한 번 그려 둔다(세기 0 이라 화면엔 안 보인다) */
+    for(const l of LIGHT.pool) if(l.castShadow&&!l.userData.who){ l.position.set(PL.pos.x,PL.pos.y,PL.pos.z); l.distance=22;
+      l.shadow.camera.far=24; l.shadow.camera.updateProjectionMatrix(); l.shadow.needsUpdate=true; l.updateMatrixWorld(); } g.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }catch(e){ _fireWarm=false; }
+}
 function makeFire(s,opt){
   opt=opt||{};
   const M=fireMats(), g=new THREE.Group(), plane=new THREE.PlaneGeometry(1,1);
@@ -1249,7 +1266,7 @@ function placeCampfireAt(x,y,z){
   }
   const flame=makeFire(1.35); flame.position.y=0.10;
   flame.visible=false; g.add(flame);
-  const light=LIGHT.addPoint(g,{color:0xff8038,intensity:0,dist:22,shadow:true,pos:[0,0.6,0]});
+  const light=LIGHT.addFire(g,{color:0xff7a2a,intensity:0,dist:22,shadow:true,pos:[0,0.6,0]});   // 불빛 풀(40-light.js) — 주황
   light.visible=false;
 
   g.position.set(x,y,z); scene.add(g);

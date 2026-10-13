@@ -54,7 +54,7 @@ addEventListener('keydown',e=>{
      쳐졌다 — C 를 누르고 I 를 누르면 가방이 닫히는 대신 검색칸에 'i' 가 쳐졌다(사용자 지적). 이제 여는 키는 I 하나고,
      검색칸은 **눌러야** 글자를 받는다. C 는 앉기만 한다 */
   if(e.code==='Escape'&&(invOpen||craftOpen)){ e.preventDefault(); closeBag(); return; }
-  if(e.code==='Escape'&&BUILD.on){ exitBuild(); toast('짓기 끝'); }   // 짓기 중 Esc — 그만두기(잠긴 마우스도 같이 풀린다)
+  if(e.code==='Escape'&&BUILD.on){ exitBuild(); toast('짓기 끝'); BUILD_ESC_T=performance.now(); }   // 짓기 중 Esc — 그만두기(잠긴 마우스도 같이 풀린다 · 일시정지 화면은 안 띄운다 — 아래 pointerlockchange)
   if(e.code==='KeyI'&&!e.repeat){ toggleBag(); }
   /* F3 — 성능 창(예전의 '진단' 상자는 성능 창 맨 아래 줄로 옮겼다) */
   if(e.code==='F3'){ e.preventDefault(); PERF.toggle(); }
@@ -161,11 +161,18 @@ addEventListener('mouseup',e=>{ dragF=false;
 function facing(){ return !!(HARV.fit||HARV.cont); }
 addEventListener('blur',()=>{ mouseDown=false; useDown=false; });
 cv.addEventListener('wheel',e=>{ if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
+let BUILD_ESC_T=0;
 document.addEventListener('pointerlockchange',()=>{
   /* **잠금이 늦게 걸리면 바로 푼다.** 잠금은 요청하고 한참 뒤(브라우저가 받아 줄 때) 걸린다 — 상륙하거나 창을 닫으며 요청해 둔 잠금이
      그사이 C·I 로 연 가방 위에서 걸리면 커서가 사라지고 모든 클릭이 캔버스로 갔다(제작 창에서 소지품을 눌러도 안 넘어가던 버그).
      창이 열려 있거나 멈춘 동안 걸린 잠금은 곧바로 놓아 준다 */
   if(document.pointerLockElement===cv && (uiOpen()||paused)){ document.exitPointerLock(); return; }
+  /* 짓기 중에 Esc 로 잠금이 풀렸으면 짓기만 끝내고 멈추지 않는다(사용자 요청 — '짓기 끝' 뒤에 일시정지 화면이 떴다).
+     브라우저가 Esc 를 잠금 풀기로 먹어 keydown 이 안 올 수도 있어 여기서도 본다. 다시 누르면 잠긴다(mousedown) */
+  if(document.pointerLockElement!==cv && (BUILD.on||performance.now()-BUILD_ESC_T<800)){
+    if(BUILD.on){ exitBuild(); toast('짓기 끝'); }
+    BUILD_ESC_T=0; return;
+  }
   if(document.pointerLockElement!==cv && !paused && !flyMode && !busy && !touchOnly
      && !uiOpen()) pause();
 });
@@ -202,6 +209,7 @@ function start(){
   landed=true;
   if(PL.dead) revivePL();
   paused=false; initAudio(); audioPause(false);
+  fireWarm();                                       // 불꽃 셰이더를 미리 짠다(62-build.js — 놀이 때와 같은 광원 수에서 · 한 번만)
   document.getElementById('ov').style.display='none';
   if(!flyMode&&hasMouse) lockPointer();
 }

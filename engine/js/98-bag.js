@@ -194,12 +194,12 @@ function selRecipe(){
   const ok=canCraft(R), out=R.out&&ITEMS[R.out.id], busy=CRAFT.recipe===R, ico=out?itemIcon(R.out.id):'';
   const link=(U)=>'<button class="lk" data-act="rsel" data-arg="'+RECIPES.indexOf(U)+'">'+U.n+' →</button>';
   let h='<div class="sH">고른 제작법</div><div class="sT">'+(ico?'<img src="'+ico+'" alt="">':'')
-    +'<div><b>'+R.n+'</b>'+(R.out&&R.out.n>1?' <span class="q">×'+R.out.n+'</span>':'')
+    +'<div><b>'+R.n+'</b>'+(R.out?' <span class="qo">×'+R.out.n+'</span>':'')
     +'<div class="sK">'+TIER_LABEL[R.tier]+' · '+(R.time||0)+'초 · 기력 '+(R.stam||0)+(out?' · '+(out.kg*R.out.n).toFixed(1)+' kg':' · 설치')+'</div></div></div>'
     +'<div class="sU">'+R.note+'</div>'
     +'<div class="sA"><button data-act="rcraft" class="go'+(ok?'':' off')+'">'+(busy?'만드는 중…':ok?'만들기':'아직 못 만든다')+'</button></div>';
   h+='<div class="sS">재료</div><div class="sP">'+R.in.map(r=>{ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];
-      return '<div class="'+(hv>=r.n?'g':'b')+'">'+matName(r)+' '+hv+' / '+r.n+(hv<r.n&&mk.length?' '+link(mk[0]):'')+'</div>'; }).join('')+'</div>';
+      return '<div class="'+(hv>=r.n?'g':'b')+'">'+matName(r)+' <span class="cn"><b>'+hv+'</b> / '+r.n+'</span>'+(hv<r.n&&mk.length?' '+link(mk[0]):'')+'</div>'; }).join('')+'</div>';
   if(R.need&&R.need.length) h+='<div class="sS">도구(닳지 않는다)</div><div class="sP">'+R.need.map(r=>{ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];
       return '<div class="'+(hv>=r.n?'g':'b')+'">'+matName(r)+(hv<r.n&&mk.length?' '+link(mk[0]):'')+'</div>'; }).join('')+'</div>';
   if(R.station) h+='<div class="sS">작업 자리</div><div class="sP"><div class="'+(stationOK(R)?'g':'b')+'">'+STATION[R.station].n+' 곁에서</div></div>';

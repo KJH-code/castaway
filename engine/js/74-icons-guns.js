@@ -578,7 +578,10 @@ function castNet(w,T){
 const USE_DUR=0.45; let USE_T=0, DRILL_K=0;
 /* 좌클릭이 캐기가 되는 때 — 캘 것을 보고 있고, 빈손이거나 손의 것이 그 캐기 도구일 때.
    칼을 들고 덤불을 보면 캐지 않고 휘두른다. */
-function harvestByUse(){ return !!HARV.mode && (!equippedTool() || !!HARV.mode.tool); }
+/* 겨눈 낮은 식생(덤불·버섯·꽃 — 포기를 똑바로 본 것)이 있으면 그쪽이 먼저다. 예전엔 둘레의 풀(빈손 캐기)이 좌클릭을 가로채
+   덤불을 보고 눌러도 풀이 뽑히고 덤불 막대는 안 찼다 */
+function floraAimed(){ const e=equippedTool(), W=e&&ITEMS[e.id].tool; return !!(FLORA.look&&!FLORA.look.tree&&!(W&&W.gun)); }
+function harvestByUse(){ return !!HARV.mode && (!equippedTool() || !!HARV.mode.tool) && !floraAimed(); }
 function useHeld(){
   const e=equippedTool(), T=e&&ITEMS[e.id];
   if(SEA.look&&!(FISH.look&&T&&T.tool&&T.tool.harpoon)){ seaPick(); return; }   // 눈앞의 조개·굴·성게 — 작살로 물고기를 겨눈 게 아니면 줍는다

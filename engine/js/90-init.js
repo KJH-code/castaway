@@ -138,6 +138,7 @@ function initThree(){
   camera.userData.lightRole='recv';
   LIGHT.addSpot(camera,flash,true);      // 손전등은 그림자를 만든다
   camera.add(flash.target); scene.add(camera);
+  LIGHT.poolInit();                      // 불빛 풀 — 화덕·증기기관·제련로의 빛은 늘 서 있는 광원 몇 개가 옮겨 싣는다(광원 수가 안 바뀐다)
   LIGHT.setQuality(LIGHT.q);
   resize(); addEventListener('resize',resize);
 }
@@ -220,7 +221,7 @@ function precompPlan(){
   const P=PRECOMP, c=lightCensus(), Q=LIGHT.QUAL[LIGHT.q], sh=renderer.shadowMap.enabled;
   const lit=new Map(), unl=new Map(), fx=new Map(), dep=new Map(), dis=new Map(), lamp=new Set();
   const own=(tbl,side,mk)=>tbl[side]||(tbl[side]=Object.assign(mk(),{side}));
-  scene.traverse(o=>{ if(o.isPointLight&&o.parent&&o.parent!==camera) lamp.add(o.parent); });
+  scene.traverse(o=>{ if((o.isPointLight&&!o.userData.pool||o.isLightProxy)&&o.parent&&o.parent!==camera) lamp.add(o.parent); });
   scene.traverse(o=>{
     if(!o.material||o.isSkinnedMesh||!(o.isMesh||o.isPoints||o.isLine||o.isSprite)) return;
     const g=o.geometry, inst=!!o.isInstancedMesh, ic=inst&&!!o.instanceColor;
@@ -261,7 +262,7 @@ function precompPlan(){
      카메라의 횃불 · 보급선 광원 · 폭발 불빛은 늘 장면에 있다(세기로 끈다) */
   let dyn=0;
   scene.traverseVisible(o=>{ if(o.isPointLight&&o.layers.test(camera.layers)&&o.parent!==camera
-                               &&o!==BLAST_LIGHT&&o!==SHIP.light&&o!==SHIP.parked) dyn++; });
+                               &&o!==BLAST_LIGHT&&o!==SHIP.light&&o!==SHIP.parked&&!o.userData.pool) dyn++; });
   const bases=[c]; if(dyn||c.ps||c.ss) bases.push({p:c.p-dyn, ps:0, ss:0});
   job({},'DX',D.concat(X),false);                      // 그림자용 — 점광원 그림자가 처음 생길 때도 지금 상태(앞 프레임)다
   for(const b of bases){
