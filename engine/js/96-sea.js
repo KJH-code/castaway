@@ -367,7 +367,26 @@ function fishInit(){
     im.matrixAutoUpdate=false; im.updateMatrix(); scene.add(im);
     FISH.mesh[S.id]=im;
   }
+  /* 수면의 물고기 그림자 — 위에서 내려다보면 물고기 꼴의 어두운 얼룩이 수면에 비친다(사용자 요청 · 낚시할 때 떼를 찾게).
+     물고기마다 수면 바로 위에 납작한 판 하나 · 곱하기 섞음(밝기를 깎기만 한다) · 깊을수록 옅고 퍼진다 */
+  const sg=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
+  const sm=new THREE.ShaderMaterial({transparent:true, depthWrite:false, blending:THREE.MultiplyBlending,
+    vertexShader:`varying vec2 vUv; varying float vK;
+void main(){ vUv=uv; vK=1.0;
+  #ifdef USE_INSTANCING_COLOR
+    vK=instanceColor.r;
+  #endif
+  gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.0); }`,
+    fragmentShader:`varying vec2 vUv; varying float vK;
+void main(){ vec2 q=(vUv-0.5)*2.0; q.x+=0.18*q.y*q.y;                 // 머리 쪽이 둥글고 꼬리 쪽이 가는 물방울꼴
+  float w=mix(1.0,0.45,smoothstep(-0.2,1.0,-q.x)); float d=length(vec2(q.x,q.y/w));
+  float m=smoothstep(1.0,0.25,d)*vK;
+  gl_FragColor=vec4(mix(vec3(1.0),vec3(0.28,0.36,0.40),m),1.0); }`});
+  const sh=new THREE.InstancedMesh(sg,sm,FISH.max+20);
+  sh.setColorAt(0,new THREE.Color(1,1,1)); sh.count=0; sh.frustumCulled=false; sh.renderOrder=5; sh.userData.lightRole='none';
+  sh.matrixAutoUpdate=false; sh.updateMatrix(); scene.add(sh); FISH.shad=sh;
 }
+const _fC=new THREE.Color();
 /* 그 자리에 살 수 있는 종 */
 function fishZoneOK(S,x,z,dep){
   if(S.zone==='reef') return seaIsReef(x,z,dep)&&dep>1.4;
@@ -384,6 +403,7 @@ function fishClear(){
   for(const f of FISH.list){ const i=CREATURES.indexOf(f); if(i>=0) CREATURES.splice(i,1); }
   FISH.list.length=0; FISH.schools.length=0; FISH.look=null;
   for(const k in FISH.mesh) FISH.mesh[k].count=0;
+  if(FISH.shad) FISH.shad.count=0;
 }
 /* 떼 하나를 사람 둘레 어딘가에 푼다 — 한 번에 한 떼. 풀었으면 true */
 function fishSpawn(){
@@ -445,7 +465,7 @@ function updateFish(dt){
     if(g.t<=0) fishWaypoint(g);
   }
   // 한 마리씩
-  const cnt={}; FISH.look=null;
+  const cnt={}; FISH.look=null; let ns=0; const above=camera.position.y>seaSurfAt(camera.position.x,camera.position.z)+0.05;
   const cp=Math.cos(PL.pitch), fx=-Math.sin(PL.yaw)*cp, fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*cp;
   const ex=camera.position.x, ey=camera.position.y, ez=camera.position.z;
   let lookD=3.6;
@@ -454,7 +474,9 @@ function updateFish(dt){
     if(f.hp<=0){                                       // 잡혔다
       const near=Math.hypot(f.x-px,f.z-pz)<7;
       if(near){
-        let got=0; for(let k=0;k<S.drop[1];k++) if(invAdd(S.drop[0],1)) got++;
+        /* 몇 토막을 건지나는 무작위(사용자 요청) — 표의 수 ±1(작은 것은 1~2) */
+        const nd=Math.max(1,S.drop[1]+(Math.random()<0.35?1:0)-(S.drop[1]>1&&Math.random()<0.3?1:0));
+        let got=0; for(let k=0;k<nd;k++) if(invAdd(S.drop[0],1)) got++;
         toast(got?('잡았다 — '+ITEMS[S.drop[0]].n+' +'+got):(S.n+' — 무거워서 못 들고 놓쳤다'));
         invDirty=true;
       }
@@ -489,11 +511,19 @@ function updateFish(dt){
       _fV.set(f.x,f.y,f.z); _fS.set(f.sz,f.sz,f.sz); _fM.compose(_fV,_fQ,_fS); im.setMatrixAt(k,_fM);
       cnt[S.id]=k+1;
     }
+    // 수면 그림자 — 물 위에서, 40 m 안
+    if(above&&ns<FISH.shad.instanceMatrix.count&&Math.hypot(f.x-px,f.z-pz)<40){
+      const fd=Math.max(0,-f.y), L=S.len*f.sz*(1.3+fd*0.07), Wd=Math.max(S.thick,S.tall*0.5)*S.len*f.sz*(1.3+fd*0.1);
+      const k2=clamp(0.9*Math.exp(-fd/6)*(0.7+Math.min(1,S.len)*0.5),0,0.92);
+      _fE.set(0,-f.yaw,0); _fQ.setFromEuler(_fE); _fV.set(f.x,seaSurfAt(f.x,f.z)+0.04,f.z); _fS.set(L,1,Wd); _fM.compose(_fV,_fQ,_fS);
+      FISH.shad.setMatrixAt(ns,_fM); _fC.setRGB(k2,0,0); FISH.shad.setColorAt(ns,_fC); ns++;
+    }
     // 눈앞의 물고기(안내문)
     const lx=f.x-ex, ly=f.y-ey, lz=f.z-ez, ld=Math.hypot(lx,ly,lz);
     if(ld<lookD&&(lx*fx+ly*fy+lz*fz)/ld>0.72){ lookD=ld; FISH.look=f; }
   }
   for(const S of FISH_SP){ const im=FISH.mesh[S.id]; im.count=cnt[S.id]|0; im.instanceMatrix.needsUpdate=true; }
+  FISH.shad.count=ns; FISH.shad.instanceMatrix.needsUpdate=true; if(FISH.shad.instanceColor) FISH.shad.instanceColor.needsUpdate=true;
 }
 /* 그물 — 곁(6 m)의 잔고기(몸길이 0.5 m 밑)를 n 마리까지 건진다. 건진 종 이름과 수를 돌려준다 */
 function fishNet(n){

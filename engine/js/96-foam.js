@@ -25,10 +25,35 @@ const FOAM={mesh:null, geo:null, cap:8800, K:22, KS:8, KB:4, R:55, step:0.75, le
             useC:true, synced:false, ST:9, out:new Float32Array(2048*9),
             U:{uFT:{value:0}, uFP:WATER_U.uFP, uFR:WATER_U.uFR}};   // uFP·uFR 은 물 셰이더와 같이 쓴다 — 조각이 서는 데서는 칠한 거품이 옅어진다
 
+/* 조각 하나 = **사면체 뭉치**(사용자 요청 — 안에서 도는 사면체 뭉치 + 텍스처). 작은 사면체 넷을 반지름 0.55 안에 모아 두고,
+   뭉치가 통째로 구르는 동안 사면체 하나하나도 제 가운데를 축으로 따로 돈다(aSub — 제 가운데 xyz · 박자). */
+function foamCluster(){
+  const P=[], Nn=[], S=[], rnd=mulberry32(0xf0a3);
+  for(let k=0;k<4;k++){
+    const t0=new THREE.TetrahedronGeometry(0.34+rnd()*0.22,0), t=t0.index?t0.toNonIndexed():t0, p=t.attributes.position.array, n=t.attributes.normal.array;
+    const cx=k?(rnd()-0.5)*0.9:0, cy=k?(rnd()-0.5)*0.5:0, cz=k?(rnd()-0.5)*0.9:0, ph=rnd()*6.283;
+    for(let i=0;i<p.length;i+=3){ P.push(p[i]+cx,p[i+1]+cy,p[i+2]+cz); Nn.push(n[i],n[i+1],n[i+2]); S.push(cx,cy,cz,ph); }
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
+  g.setAttribute('aSub',new THREE.Float32BufferAttribute(S,4));
+  return g;
+}
+/* 거품 판의 무늬 — 크고 작은 거품 고리가 엉긴 레이스(캔버스 · 바깥으로 갈수록 옅다) */
+function foamLaceTex(){
+  const W=256, c=document.createElement('canvas'); c.width=c.height=W; const g=c.getContext('2d'), rnd=mulberry32(0x1ace);
+  g.clearRect(0,0,W,W);
+  for(let i=0;i<260;i++){ const a=rnd()*6.283, r=Math.sqrt(rnd())*W*0.46, x=W/2+Math.cos(a)*r, y=W/2+Math.sin(a)*r, br=2+rnd()*rnd()*16;
+    g.strokeStyle='rgba(255,255,255,'+(0.35+rnd()*0.55)+')'; g.lineWidth=1+rnd()*2.6; g.beginPath(); g.arc(x,y,br,0,6.283); g.stroke();
+    if(rnd()<0.35){ g.fillStyle='rgba(255,255,255,'+(0.25+rnd()*0.4)+')'; g.beginPath(); g.arc(x,y,br*0.5,0,6.283); g.fill(); } }
+  g.globalCompositeOperation='destination-in';                       // 가장자리를 녹인다
+  const gr=g.createRadialGradient(W/2,W/2,W*0.12,W/2,W/2,W*0.5); gr.addColorStop(0,'rgba(0,0,0,1)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=gr; g.fillRect(0,0,W,W);
+  const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;
+}
 function foamInit(){
-  const base=new THREE.TetrahedronGeometry(1,0), g=new THREE.InstancedBufferGeometry();
-  g.setAttribute('position',base.attributes.position); g.setAttribute('normal',base.attributes.normal);
-  if(base.attributes.uv) g.setAttribute('uv',base.attributes.uv);
+  const base=foamCluster(), g=new THREE.InstancedBufferGeometry();
+  g.setAttribute('position',base.attributes.position); g.setAttribute('normal',base.attributes.normal); g.setAttribute('aSub',base.attributes.aSub);
   /* 조각마다 — aA 물가의 점(x·z)과 뭍 쪽 방향(nx·nz) · aB 1/비탈 · 물가를 따라 비낀 거리 · 물머리보다 처지는 거리 · 크기
                  aC 씨앗 · 버티는 몫(물이 빠질 때 얼마나 오래 남나) · 구르는 빠르기 · 튀는 높이 */
   FOAM.aA=new THREE.InstancedBufferAttribute(new Float32Array(FOAM.cap*4),4);
@@ -39,10 +64,9 @@ function foamInit(){
   FOAM.aD=new THREE.InstancedBufferAttribute(new Float32Array(FOAM.cap*4),4);
   g.setAttribute('aA',FOAM.aA); g.setAttribute('aB',FOAM.aB); g.setAttribute('aC',FOAM.aC); g.setAttribute('aD',FOAM.aD);
   g.instanceCount=0;
-  const m=new THREE.MeshPhongMaterial({color:0xf3f7f5, emissive:0x1a1e20, specular:0x222222, shininess:12, flatShading:true});
-  m.onBeforeCompile=sh=>{
+  const mk=(m,sheet)=>{ m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,FOAM.U);
-    sh.vertexShader='attribute vec4 aA;\nattribute vec4 aB;\nattribute vec4 aC;\nattribute vec4 aD;\nuniform float uFT;\nuniform vec3 uFP;\nuniform float uFR;\n'
+    sh.vertexShader=(sheet?'#define FOAM_SHEET\n':'attribute vec4 aSub;\n')+'attribute vec4 aA;\nattribute vec4 aB;\nattribute vec4 aC;\nattribute vec4 aD;\nuniform float uFT;\nuniform vec3 uFP;\nuniform float uFR;\n'
       +sh.vertexShader.replace('#include <begin_vertex>',`
       /* **진짜 수면을 따른다** — 바닷물 판은 긴 파도 셋으로 오르내린다(20-terrain.js 물 셰이더의 wv(0~2)와 같은 수 · 같은 시계).
          물가의 그 점에서 수면 높이(fsurf)와 오르내리는 빠르기(fdv)를 풀면, 물머리가 뭍으로 얼마나 올라왔나는 (수면 − 물가 높이) ÷ 비탈이다 */
@@ -87,12 +111,31 @@ function foamInit(){
       /* 구르기 — 조각마다 다른 축으로 돈다(로드리게스 회전) */
       vec3 fax=normalize(vec3(sin(aC.x*91.7),cos(aC.x*37.3),sin(aC.x*53.1)));
       float fan=uFT*aC.z+aC.x*40.0, fc=cos(fan), fsn=sin(fan);
-      vec3 fv=position*fs;
-      vec3 frot=fv*fc+cross(fax,fv)*fsn+fax*dot(fax,fv)*(1.0-fc); frot.y*=fflat;
-      vec3 transformed=frot+fpos;`);
+      #ifdef FOAM_SHEET
+        /* 거품 판 — 조각 밑의 수면·젖은 모래에 누운 레이스. 조각보다 넓고 천천히 돈다 · 물에 반쯤 잠긴 높이 */
+        float fya=aC.x*40.0+uFT*0.15*(aC.x-0.5); vec2 fq=vec2(position.x*cos(fya)-position.z*sin(fya),position.x*sin(fya)+position.z*cos(fya))*fs*4.5;
+        vec3 transformed=vec3(fpos.x+fq.x, fy-aB.w*0.22+0.02, fpos.z+fq.y);
+      #else
+        /* 뭉치 속 사면체 하나하나가 제 가운데를 축으로 따로 돈다 */
+        vec3 fsc=aSub.xyz, flp=position-fsc;
+        vec3 fax2=normalize(vec3(sin(aSub.w*3.1+aC.x*11.0),0.6,cos(aSub.w*2.3)));
+        float fan2=uFT*(2.2+aSub.w)+aSub.w*5.0, fc2=cos(fan2), fs2=sin(fan2);
+        flp=flp*fc2+cross(fax2,flp)*fs2+fax2*dot(fax2,flp)*(1.0-fc2);
+        vec3 fv=(fsc+flp)*fs;
+        vec3 frot=fv*fc+cross(fax,fv)*fsn+fax*dot(fax,fv)*(1.0-fc); frot.y*=fflat;
+        vec3 transformed=frot+fpos;
+      #endif`);
   };
-  m.customProgramCacheKey=()=>'shorefoam';
+  m.customProgramCacheKey=()=>sheet?'shorefoamsheet':'shorefoam'; return m; };
+  const m=mk(new THREE.MeshPhongMaterial({color:0xf3f7f5, emissive:0x1a1e20, specular:0x222222, shininess:12, flatShading:true}),false);
   const mesh=new THREE.Mesh(g,m);
+  /* 거품 판 — 같은 조각 자료(aA~aD)를 나눠 쓰는 둘째 메시(판 하나 = 세모 둘) */
+  const pg=new THREE.InstancedBufferGeometry(), pl=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
+  pg.setAttribute('position',pl.attributes.position); pg.setAttribute('normal',pl.attributes.normal); pg.setAttribute('uv',pl.attributes.uv); pg.setIndex(pl.index);
+  pg.setAttribute('aA',FOAM.aA); pg.setAttribute('aB',FOAM.aB); pg.setAttribute('aC',FOAM.aC); pg.setAttribute('aD',FOAM.aD); pg.instanceCount=0;
+  const sm=mk(new THREE.MeshLambertMaterial({map:foamLaceTex(), transparent:true, depthWrite:false, opacity:0.9, emissive:0x161a1c}),true);
+  const sheet=new THREE.Mesh(pg,sm); sheet.frustumCulled=false; sheet.userData.lightRole='recv'; sheet.renderOrder=4;
+  sheet.matrixAutoUpdate=false; sheet.updateMatrix(); scene.add(sheet); FOAM.sheet=sheet; FOAM.pgeo=pg;
   mesh.frustumCulled=false; mesh.userData.lightRole='recv';   // 자리는 셰이더가 정한다 — 경계구로 거를 수 없다 · 그림자는 받기만
   mesh.matrixAutoUpdate=false; mesh.updateMatrix(); scene.add(mesh);
   FOAM.mesh=mesh; FOAM.geo=g;
@@ -187,7 +230,7 @@ function foamScatter(){
     }
   }
   U.aA.needsUpdate=U.aB.needsUpdate=U.aC.needsUpdate=U.aD.needsUpdate=true;
-  U.geo.instanceCount=k; U.n=k; U.anchors=n;
+  U.geo.instanceCount=k; if(U.pgeo) U.pgeo.instanceCount=k; U.n=k; U.anchors=n;
 }
 function updateFoam(){
   if(!scene) return;
@@ -196,9 +239,9 @@ function updateFoam(){
   if(dx*dx+dz*dz>64) foamScatter();
   FOAM.U.uFT.value=TERR_U.uShT?TERR_U.uShT.value:0;           // 젖은 띠·칠한 거품과 같은 시계
   FOAM.U.uFP.value.copy(PL.pos); FOAM.U.uFR.value=FOAM.R;
-  FOAM.mesh.visible=FOAM.n>0;
+  FOAM.mesh.visible=FOAM.n>0; if(FOAM.sheet) FOAM.sheet.visible=FOAM.n>0;
 }
-function foamReset(){ FOAM.cx=FOAM.cz=1e9; FOAM.n=0; if(FOAM.geo) FOAM.geo.instanceCount=0; foamSync(); }
+function foamReset(){ FOAM.cx=FOAM.cz=1e9; FOAM.n=0; if(FOAM.geo) FOAM.geo.instanceCount=0; if(FOAM.pgeo) FOAM.pgeo.instanceCount=0; foamSync(); }
 /* 물가 찾기를 두 말로 견준다 — 같은 자리에서 reps 번씩 돌려 한 번에 걸리는 시간(ms)과 찾은 수를 낸다 */
 function foamBench(reps){
   reps=reps||300; const px=PL.pos.x, pz=PL.pos.z, U=FOAM, max=Math.floor(U.cap/U.K), a=new Float32Array(2048*9), b=new Float32Array(2048*9);

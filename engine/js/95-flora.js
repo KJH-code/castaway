@@ -430,7 +430,10 @@ function floraShapes(rnd){
       const gq=rnd(); parts.push({g:SHP.tube(pts,rad,6,0.4),cell:FC.RING,c:[0.42+gq*0.2,0.62+gq*0.12,0.26],c2:[0.62+gq*0.2,0.78+gq*0.08,0.34]});
       for(let k=0;k<5;k++){ const f=(0.5+k*0.105+rnd()*0.04)*n, j=Math.min(n-1,Math.floor(f)), u=f-j,
           p=[pts[j][0]+(pts[j+1][0]-pts[j][0])*u,pts[j][1]+(pts[j+1][1]-pts[j][1])*u,pts[j][2]+(pts[j+1][2]-pts[j][2])*u];
-        parts.push(card(p,1.0+rnd()*0.4,0.9+rnd()*0.3,FC.BAMBOO,rnd()*6.283,0.9+rnd()*0.5,[0.95,1.05,0.8])); } }
+        parts.push(card(p,1.0+rnd()*0.4,0.9+rnd()*0.3,FC.BAMBOO,rnd()*6.283,0.9+rnd()*0.5,[0.95,1.05,0.8])); }
+      for(let k=0,nk=ri(0,2);k<nk;k++){ const t=0.25+rnd()*0.35, j=Math.min(n-1,Math.floor(t*n)), b=pts[j], ba=rnd()*6.283, L=0.5+rnd()*0.5;   // 마디에서 곁가지 — 대마다 0~2
+        parts.push({g:SHP.limb(b,unit(Math.cos(ba),0.5,Math.sin(ba)),L,r*0.25,r*0.12,2,4,0.08,0),cell:FC.RING,c:[0.5,0.66,0.3],c2:[0.62,0.74,0.36]});
+        parts.push(card([b[0]+Math.cos(ba)*L*0.9,b[1]+L*0.45,b[2]+Math.sin(ba)*L*0.9],0.6+rnd()*0.3,0.55,FC.BAMBOO,ba,1.0,[0.95,1.05,0.8])); } }
     return fin(parts); })();
   /* 야자 — 휘어 오른 마디 줄기, 꼭대기에서 사방으로 늘어지는 잎 열세 장, 열매 넷(키 6.4 m) */
   G.palm=(()=>{ const parts=[], pts=[], rad=[], n=7, lean=rf(0.45,1.35), H=6.4*rf(0.88,1.12), wob=rf(-0.15,0.15);
@@ -439,8 +442,15 @@ function floraShapes(rnd){
     const top=pts[n];
     for(let i=0,nf=ri(11,15);i<nf;i++){ const a=i/nf*6.283+rnd()*0.3, up=i%3===0?0.25:(i%3===1?0.75:1.15);
       parts.push({g:SHP.frond(2.7+rnd()*0.5,1.0,{segs:6,curl:1.0+rnd()*0.5,cup:0.22,p:0.3,tip:0.6}),x:top[0],y:top[1]-0.05,z:top[2],q:face(a,up),cell:FC.PALM,c:[0.95,1,0.9]}); }
-    for(let i=0;i<4;i++){ const a=i/4*6.283+0.4;
+    for(let i=0,nn=ri(0,5);i<nn;i++){ const a=i/Math.max(1,nn)*6.283+0.4;      // 열매 0~5
       parts.push({g:new THREE.SphereGeometry(0.13,8,6),x:top[0]+Math.cos(a)*0.16,y:top[1]-0.28,z:top[2]+Math.sin(a)*0.16,cell:FC.PLAIN,c:[0.36,0.27,0.15],c2:[0.50,0.40,0.22]}); }
+    /* 30% 는 밑동에서 줄기가 하나 더 — 다른 쪽으로 기울고 키가 0.6~0.85배 */
+    if(rnd()<0.30){ const k=rf(0.6,0.85), ba=rnd()*6.283, L2=rf(0.6,1.4), p2=[], r2=[];
+      for(let q=0;q<=n;q++){ const t=q/n; p2.push([0.12*Math.cos(ba)+Math.cos(ba)*L2*t*t,-0.2+H*k*t,0.12*Math.sin(ba)+Math.sin(ba)*L2*t*t]); r2.push((0.15-0.05*t)*k+0.04*Math.exp(-t*8)); }
+      parts.push({g:SHP.tube(p2,r2,7,0.6),cell:FC.RING,c:[0.50,0.42,0.33],c2:[0.66,0.57,0.45]});
+      const t2=p2[n];
+      for(let i=0,nf=ri(9,13);i<nf;i++){ const a=i/nf*6.283+rnd()*0.3, up=i%3===0?0.25:(i%3===1?0.75:1.15);
+        parts.push({g:SHP.frond((2.4+rnd()*0.5)*k,0.9*k,{segs:6,curl:1.0+rnd()*0.5,cup:0.22,p:0.3,tip:0.6}),x:t2[0],y:t2[1]-0.05,z:t2[2],q:face(a,up),cell:FC.PALM,c:[0.95,1,0.9]}); } }
     return fin(parts); })();
   /* 자작 — 흰 줄기에 가로 무늬, 가는 가지 여덟이 위로 뻗고 잎이 성기다(키 7.5 m) */
   G.birch=(()=>{ const parts=[], at=trunk(parts,7.5*rf(0.88,1.12),0.12,0.035,{flare:0.25,sway:0.18,cell:FC.BIRCH,c:[1.02,1.0,0.95],c2:[1.08,1.07,1.02],sides:6,segs:7});
@@ -448,17 +458,23 @@ function floraShapes(rnd){
     for(let i=0,nb=ri(7,9);i<nb;i++){ const a=i*2.4+rnd()*0.5;
       grow(parts,at(Math.min(0.98,0.42+i*0.56/nb)),unit(Math.cos(a),0.9,Math.sin(a)),1.5-i*0.64/nb+rnd()*0.3,0.035,1,S); }
     parts.push(card(at(1),0.9,1.0,FC.LEAF,0,0,[1.1,1.25,0.72]));
+    if(rnd()<0.25){ const a=rnd()*6.283; grow(parts,at(rf(0.35,0.5)),unit(Math.cos(a)*0.35,1,Math.sin(a)*0.35),rf(2.0,3.0),0.07,2,S); }   // 갈래 줄기
     return fin(parts); })();
   /* 어린 전나무 — 층층이 처진 솔가지 여덟 층(키 5.6 m) */
   G.pine=(()=>{ const parts=[], at=trunk(parts,5.6*rf(0.88,1.12),0.10,0.02,{flare:0.4,sway:0.05,sides:6,segs:5}), NC=[0.9,1,0.95];
-    for(let j=0;j<8;j++){ const t=0.14+j*0.105, L=1.75*(1-t*0.8), p=at(t);
-      for(let i=0,nk=ri(4,6);i<nk;i++) parts.push(card(p,L*0.85,L,FC.NEEDLE,i/nk*6.283+j*0.7+rnd()*0.3,1.25+rnd()*0.2,NC)); }
+    for(let j=0;j<8;j++){ const t=0.14+j*0.105, L=1.75*(1-t*0.8)*rf(0.8,1.15), p=at(t);
+      if(j<3&&rnd()<0.25) continue;                                                 // 아래층이 가끔 빠졌다(그늘에 말라 떨어짐)
+      for(let i=0,nk=ri(3,6);i<nk;i++) if(rnd()<0.9) parts.push(card(p,L*0.85,L,FC.NEEDLE,i/nk*6.283+j*0.7+rnd()*0.3,1.25+rnd()*0.2,NC)); }
     parts.push(card(at(0.93),0.5,0.75,FC.NEEDLE,0,0,NC));
+    if(rnd()<0.2){ const a=rnd()*6.283, b=at(0.8), d=unit(Math.cos(a)*0.4,1,Math.sin(a)*0.4);          // 쌍우듬지
+      parts.push({g:SHP.limb(b,d,1.0,0.03,0.012,2,5,0,0),cell:FC.BARK,c:BARK,c2:BARK2});
+      parts.push(card([b[0]+d[0],b[1]+d[1]*0.9,b[2]+d[2]],0.5,0.8,FC.NEEDLE,a,0.1,NC)); }
     return fin(parts); })();
   /* 어린 활엽수 — 가는 줄기에 가지 넷(키 3~4 m) */
   G.sapling=(()=>{ const parts=[], at=trunk(parts,3.0*rf(0.85,1.15),0.07,0.03,{flare:0.3,sway:0.15,sides:5,segs:4});
     const S={taper:0.62,split:[2],spread:1.3,up:0.8,lift:0.3,shrink:0.7,leafN:3,leafW:1.0,leafH:1.05,leafCell:FC.LEAF,leafTilt:0.8,leafC:[1,1.08,0.9]};
     for(let i=0,nb=ri(3,5);i<nb;i++){ const a=i/nb*6.283+rnd(); grow(parts,at(0.55+i*0.39/(nb-1)),unit(Math.cos(a),0.8,Math.sin(a)),0.9+rnd()*0.4,0.03,1,S); }
+    for(let i=0,nl=ri(0,2);i<nl;i++){ const a=rnd()*6.283; grow(parts,at(rf(0.25,0.45)),unit(Math.cos(a),0.45,Math.sin(a)),0.6+rnd()*0.4,0.02,1,S); }   // 낮은 곁가지 0~2
     return fin(parts); })();
   /* 바나나 — 풀빛 줄기에 크고 넓은 잎 여덟 장, 노란 송이(키 3 m) */
   G.banana=(()=>{ const parts=[{g:SHP.tube([[0,-0.2,0],[0.02,0.8,0],[0.05,1.7,0.02]],[0.11,0.09,0.06],7,0.5),cell:FC.STEM,c:[0.55,0.66,0.38],c2:[0.68,0.78,0.46]}];
@@ -466,11 +482,22 @@ function floraShapes(rnd){
       parts.push({g:SHP.frond(1.7+rnd()*0.5,0.62,{segs:5,curl:0.7+rnd()*0.6,cup:0.2,p:0.4,tip:0.55}),x:0.05,y:1.55,z:0.02,q:face(a,0.15+i/nl),cell:FC.BIG,c:[0.92,1,0.88]}); }
     for(let i=0;i<7;i++){ const a=i/7*6.283;
       parts.push({g:SHP.limb([0.16+Math.cos(a)*0.04,1.28,0.1+Math.sin(a)*0.04],unit(Math.cos(a)*0.5,-0.6,Math.sin(a)*0.5),0.16,0.022,0.016,2,5,0.5,1),cell:FC.PLAIN,c:[0.85,0.72,0.2],c2:[0.95,0.85,0.3]}); }
+    for(let j=0,ns=ri(0,2);j<ns;j++){ const a=rnd()*6.283, d=0.35+rnd()*0.25, x=Math.cos(a)*d, z=Math.sin(a)*d, h=0.6+rnd()*0.6;   // 곁순 — 밑동 둘레에 어린 줄기
+      parts.push({g:SHP.tube([[x,-0.2,z],[x,h*0.6,z],[x+0.02,h,z]],[0.06,0.05,0.035],6,0.5),cell:FC.STEM,c:[0.55,0.66,0.38],c2:[0.68,0.78,0.46]});
+      for(let i=0,nl=ri(3,5);i<nl;i++) parts.push({g:SHP.frond(0.8+rnd()*0.4,0.35,{segs:4,curl:0.6+rnd()*0.5,cup:0.2,p:0.4,tip:0.55}),x:x+0.02,y:h-0.05,z,q:face(a+i*2.4,0.2+i*0.25),cell:FC.BIG,c:[0.92,1,0.88]}); }
     return fin(parts); })();
   /* 나무고사리 — 짙은 줄기 끝에 고사리 잎이 우산처럼(키 3 m) */
-  G.treefern=(()=>{ const parts=[], at=trunk(parts,2.3*rf(0.85,1.2),0.12,0.09,{flare:0.2,sway:0.1,c:[0.26,0.2,0.15],c2:[0.36,0.28,0.2],sides:6,segs:3}), top=at(1);
-    for(let i=0,nf=ri(10,13);i<nf;i++){ const a=i/nf*6.283+rnd()*0.3;
-      parts.push({g:SHP.frond(1.6+rnd()*0.4,0.6,{segs:5,curl:1.1+rnd()*0.4,cup:0.15,p:0.35,tip:0.5}),x:top[0],y:top[1],z:top[2],q:face(a,0.5+rnd()*0.4),cell:FC.FERN,c:W}); }
+  /* 나무고사리 — **가지가 무작위다**(사용자 요청): 35% 는 줄기 중간에서 갈라져 머리가 둘(작은 쪽은 0.6~0.8배),
+     머리마다 잎 수·길이가 다르고, 밑에는 말라 늘어진 잎(치마)이 0~5장 */
+  G.treefern=(()=>{ const parts=[], H=2.3*rf(0.85,1.2), at=trunk(parts,H,0.12,0.09,{flare:0.2,sway:0.1,c:[0.26,0.2,0.15],c2:[0.36,0.28,0.2],sides:6,segs:3});
+    const crown=(top,k)=>{ for(let i=0,nf=ri(8,13);i<nf;i++){ const a=i/nf*6.283+rnd()*0.4;
+        parts.push({g:SHP.frond((1.6+rnd()*0.5)*k,0.6*k,{segs:5,curl:1.0+rnd()*0.5,cup:0.15,p:0.35,tip:0.5}),x:top[0],y:top[1],z:top[2],q:face(a,0.45+rnd()*0.5),cell:FC.FERN,c:W}); }
+      for(let i=0,nd=ri(0,5);i<nd;i++){ const a=rnd()*6.283;                       // 마른 잎 — 줄기를 따라 늘어진다
+        parts.push({g:SHP.frond((1.0+rnd()*0.4)*k,0.4*k,{segs:4,curl:0.4,cup:0.1,p:0.35,tip:0.4}),x:top[0],y:top[1]-0.15,z:top[2],q:face(a,2.3+rnd()*0.5),cell:FC.FERN,c:[0.62,0.46,0.28]}); } };
+    crown(at(1),1);
+    if(rnd()<0.35){ const a=rnd()*6.283, b=at(rf(0.45,0.7)), k=rf(0.6,0.8), d=unit(Math.cos(a)*0.55,1,Math.sin(a)*0.55), L=H*0.55*k;
+      parts.push({g:SHP.limb(b,d,L,0.085,0.065,3,6,0.05,0.5),cell:FC.BARK,c:[0.26,0.2,0.15],c2:[0.36,0.28,0.2]});
+      crown([b[0]+d[0]*L,b[1]+d[1]*L,b[2]+d[2]*L],k); }
     return fin(parts); })();
   /* 아카시아 — 낮은 줄기가 넓게 갈라져 납작한 우산 꼴(키 4 m) */
   G.acacia=(()=>{ const AB=[0.36,0.30,0.25], AB2=[0.50,0.43,0.35], parts=[], at=trunk(parts,2.4,0.14,0.10,{flare:0.4,sway:0.3,sides:6,segs:4,c:AB,c2:AB2});
@@ -481,6 +508,9 @@ function floraShapes(rnd){
   G.fern=(()=>{ const parts=[];
     for(let i=0,nf=ri(7,10);i<nf;i++){ const a=i/nf*6.283+rnd()*0.4;
       parts.push({g:SHP.frond(0.7+rnd()*0.3,0.30,{segs:5,curl:0.9+rnd()*0.5,cup:0.15,p:0.35,tip:0.5}),y:0.02,q:face(a,0.45+rnd()*0.4),cell:FC.FERN,c:W}); }
+    for(let i=0,nh=ri(0,2);i<nh;i++){ const a=rnd()*6.283, x=Math.cos(a)*0.05, z=Math.sin(a)*0.05, h=0.18+rnd()*0.14;   // 고사리 새순 — 끝이 말린 대
+      parts.push({g:SHP.limb([x,-0.02,z],unit(Math.cos(a)*0.2,1,Math.sin(a)*0.2),h,0.007,0.005,3,4,0.04,0),cell:FC.PLAIN,c:[0.36,0.52,0.20],c2:[0.48,0.62,0.26]});
+      parts.push({g:new THREE.TorusGeometry(0.022,0.007,4,8,4.6),x:x+Math.cos(a)*h*0.2,y:h+0.01,z:z+Math.sin(a)*h*0.2,ry:-a,cell:FC.PLAIN,c:[0.40,0.56,0.22]}); }
     return fin(parts); })();
   /* 덤불 — 잔가지 다섯에 잎 판때기 열한 장 */
   G.bush=(()=>{ const parts=[];
@@ -490,10 +520,23 @@ function floraShapes(rnd){
     for(let i=0,nc=ri(18,22);i<nc;i++){ const u=(i+rnd())/nc, a=i*2.399+rnd()*0.6, el=Math.acos(1-u*0.95), rr=0.20+0.34*Math.sin(el), y=0.10+0.50*Math.cos(el)*(0.8+0.4*rnd());
       parts.push(card1([Math.cos(a)*rr,y,Math.sin(a)*rr],0.42+rnd()*0.22,0.40+rnd()*0.20,FC.LEAF,a+(rnd()-0.5)*0.8,0.35+el*0.55+rnd()*0.25,[0.95,1.05,0.9])); }
     return fin(parts); })();
-  /* 들꽃 — 포기 하나에 꽃 판 일곱 장이 **사방으로 벌어진다**(키와 눕힘이 저마다 다르다). 예전엔 판 세 장이 한 점에 겹쳐 종이 같았다 */
-  G.flower=(()=>{ const parts=[];
-    for(let i=0,nf=ri(6,8);i<nf;i++){ const a=i*2.399+rnd()*0.7, rr=i?0.06+rnd()*0.16:0, sc=0.34+rnd()*0.26;
-      parts.push(card1([Math.cos(a)*rr,-0.02,Math.sin(a)*rr],sc,sc*(0.95+rnd()*0.3),FC.FLOWER,a,i?0.18+rnd()*0.42:0.05,W)); }
+  /* 들꽃 — **입체**(사용자 요청). 포기 하나에 꽃대 4~6, 꽃대마다 끝에 꽃잎 다섯(얕은 접시꼴로 위로 벌어진다) + 가운데 꽃술,
+     꽃대 밑에 잎 두 장. 꽃잎은 흰 바탕(PLAIN)이라 얼룩마다의 빛깔(인스턴스 색 · FLOWER_TINT)이 그대로 입혀진다.
+     예전엔 꽃 그림 판때기 일곱 장(14 세모)이었다 — 이제 포기당 300 세모 남짓이라 가까운 겹(46 m)에만 선다(원래 그랬다) */
+  G.flower=(()=>{ const parts=[], Y=new THREE.Vector3(0,1,0), Z=new THREE.Vector3(0,0,1);
+    const PET=new THREE.SphereGeometry(1,4,2).scale(0.030,0.0045,0.013).translate(0.026,0,0);   // 끝이 둥근 마름모꼴 꽃잎
+    const DISC=new THREE.SphereGeometry(0.011,5,3).scale(1,0.55,1);
+    for(let i=0,nf=ri(4,6);i<nf;i++){ const a=i*2.399+rnd()*0.7, rr=i?0.03+rnd()*0.11:0, H=0.20+rnd()*0.24;
+      const x=Math.cos(a)*rr, z=Math.sin(a)*rr, lx=Math.cos(a)*rf(0.08,0.30), lz=Math.sin(a)*rf(0.08,0.30), d=unit(lx,1,lz);
+      parts.push({g:SHP.limb([x,-0.02,z],d,H,0.0055,0.0035,2,3,0.02*(rnd()-0.3),0),cell:FC.PLAIN,c:[0.26,0.42,0.16],c2:[0.38,0.56,0.22]});
+      const top=[x+d[0]*H,-0.02+d[1]*H,z+d[2]*H];
+      const qh=new THREE.Quaternion().setFromUnitVectors(Y,new THREE.Vector3(d[0]*1.6,1,d[2]*1.6).normalize());   // 꽃은 바깥으로 조금 고개를 든다
+      const np=ri(5,6), cup=rf(0.25,0.55), s0=rf(1.1,1.6), r0=rnd()*6.283;
+      for(let k=0;k<np;k++){
+        const q=qh.clone().multiply(new THREE.Quaternion().setFromAxisAngle(Y,r0+k/np*6.283)).multiply(new THREE.Quaternion().setFromAxisAngle(Z,cup));
+        parts.push({g:PET,x:top[0],y:top[1],z:top[2],q,s:s0,cell:FC.PLAIN,c:[0.86,0.86,0.84],c2:[1,1,1]}); }
+      parts.push({g:DISC,x:top[0],y:top[1]+0.004,z:top[2],q:qh,s:s0,cell:FC.PLAIN,c:[0.62,0.42,0.06],c2:[0.92,0.70,0.14]});
+      if(i<2) parts.push(card1([x+lx*0.05,0.02,z+lz*0.05],0.14,0.12,FC.LEAF,a+1.2,0.9,[0.8,0.95,0.75])); }
     return fin(parts); })();
   /* 마른 덤불 — 잔가지 그림 판때기 넷 */
   G.dry=(()=>{ const parts=[];
@@ -875,7 +918,7 @@ function floraFindLook(){
 /* 손이 비었거나 든 것이 무기·도끼·곡괭이·그물이 아닐 때만 딴다 — 싸우거나 캐는 중에 좌클릭을 가로채지 않는다 */
 function floraHandOK(){
   const e=equippedTool(), W=e&&ITEMS[e.id].tool;
-  return !(W&&(W.weapon||W.gun||W.net||W.axe||W.pick||W.throw||W.harpoon||W.sling));
+  return !(W&&(W.weapon||W.gun||W.net||W.axe||W.pick||W.throw||W.harpoon||W.sling||W.bugnet));
 }
 /* 아직 다시 안 났으면 남은 시간(게임 시간), 딸 수 있으면 0 */
 function floraWait(p){

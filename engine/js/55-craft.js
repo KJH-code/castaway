@@ -31,6 +31,12 @@ const RECIPES=[
    note:'노끈을 한 뼘 간격으로 매듭지어 그물코를 뜬다. 물에 들어가 던지면 '
        +'물고기가 걸린다. 코가 굵어 작은 것은 빠져나간다.',
    in:[{id:'cord',n:8},{id:'branch',n:2}]},
+  {id:'bug_net', tier:'풀과 돌', n:'잠자리채', out:{id:'bug_net',n:1}, time:10, stam:8,
+   note:'가지를 휘어 테를 만들고 섬유로 촘촘한 자루를 뜬다. 나비·잠자리·반딧불이를 떠낸다 — 담을 유리병이 있어야 한다.',
+   in:[{id:'branch',n:2},{id:'fiber',n:6},{id:'cord',n:2}]},
+  {id:'jar', tier:'바다와 살림', n:'유리병', out:{id:'jar',n:2}, time:8, stam:4, station:'fire',
+   note:'유리를 타는 화덕에 다시 녹여 대롱으로 불어 병 둘을 만든다. 잡은 벌레를 담는다.',
+   in:[{id:'glass',n:1}]},
 
   {id:'tinder_bark', tier:'풀과 돌', n:'부싯깃(나무껍질)', out:{id:'tinder',n:2}, time:3, stam:3,
    note:'마른 나무껍질 안쪽을 손으로 비벼 솜처럼 풀어 낸다. 풀잎보다 잘 붙는다.',

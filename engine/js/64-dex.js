@@ -221,6 +221,7 @@ function obtainOf(id){
     if(X&&X.id===id) out.push('채굴 — '+RESOURCES.find(r=>r.k===k).n+' (떼어 낼 때 '+Math.round(X.p*100)+'% 로 딸려 나온다)'); }
   // 표에서 뽑히지 않는 부수 산출물
   if(id==='berry') out.push('채집 — 풀숲 (열매가 달린 덤불에서 가끔 딸려 나온다)');
+  if(/^jar_/.test(id)) out.push('잡기 — 잠자리채로 '+({jar_butterfly:'낮 풀밭의 나비',jar_dragonfly:'민물가의 잠자리',jar_firefly:'밤 숲·늪의 반딧불이'}[id])+'를 떠서 빈 유리병에 담는다');
   /* 식생·바닷가에서 따는 것(95-flora.js FLORA_PICK · 96-sea.js SEA_PICK) */
   for(const k in FLORA_PICK){ const D=FLORA_PICK[k];
     if(D.item===id) out.push('따기 — '+D.n+' ('+D.verb+(D.need?' · 날붙이를 지녀야':'')+')');
@@ -517,6 +518,7 @@ const CONTROLS_GUIDE=[
     ['전등','켜고 끄기(<b>L</b> 도 된다)'],
     ['횃불·등잔','켜고 끄기 — 불씨는 ① 3.5 m 안의 타는 불 ② 긴 라이터 ③ 활비비 + 부싯깃 차례로 찾는다 · 물속에선 못 붙인다'],
     ['그물','무릎 위까지 잠기는 물에 들어가서 던지기'],
+    ['잠자리채','벌레를 겨누고 좌클릭 — 빈 유리병에 담긴다(한 번에 1~3마리) · 벌레 병은 그물을 던질 때 미끼가 된다'],
     ['수류탄','던지기 — 3.5초 뒤 터진다'],
   ]],
   ['좌클릭 — 설비를 보고 있을 때',[

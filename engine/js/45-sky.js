@@ -950,7 +950,7 @@ function litQueue(ts){
 function cloudBounds(c){
   let x0=1e9,y0=1e9,z0=1e9,x1=-1e9,y1=-1e9,z1=-1e9,pad=0;
   for(let i=0;i<c.nb;i++){
-    const r=(c.rad[i]||0)*0.5; pad=Math.max(pad,r);
+    const r=(c.rad[i]||0)*0.75; pad=Math.max(pad,r);   // 판의 모서리(반지름의 0.71배)까지 — 0.5 였을 땐 화면 가장자리에서 덩이가 툭 잘려 사라지고 나타났다
     x0=Math.min(x0,c.off[i*3]);   x1=Math.max(x1,c.off[i*3]);
     y0=Math.min(y0,c.off[i*3+1]); y1=Math.max(y1,c.off[i*3+1]);
     z0=Math.min(z0,c.off[i*3+2]); z1=Math.max(z1,c.off[i*3+2]);
@@ -2381,7 +2381,7 @@ function updateSky(){
        주황·분홍으로 빛난다. 광원색 쪽으로 더 끌고, 어둡게 누르는 몫을 줄였다 */
     cloudTint.copy(cHz).lerp(cSun,0.55).multiplyScalar(0.72+day*0.58);
     if(sy>0.15) cloudTint.lerp(cTmp.setRGB(1,1,1),clamp((sy-0.15)*1.6,0,0.7));
-    cloudFade=(0.35+day*0.65)*(1-WEA.mist*0.9);
+    cloudFade=(0.82+day*0.18)*(1-WEA.mist*0.9);   // 밤에도 구름은 그대로 있다(사용자 요청 — 예전 0.35 라 밤하늘이 텅 비었다) · 별을 가린다
   }
   if(stars){
     stars.position.copy(camera.position);

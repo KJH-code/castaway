@@ -47,7 +47,7 @@ function _icoShape(id){
   else if(id==='drawplate'){ add(box(0.4,0.08,0.22),M,0,0,0); for(let i=0;i<5;i++) add(cyl(0.012+i*0.006,0.012+i*0.006,0.09,10),WMAT(0x111111),-0.14+i*0.07,0,0); }
   else if(id==='blade_polished'||id==='point'){ add(new THREE.ConeGeometry(0.12,0.42,4),M,0,0,0,0,0,0,1,1,0.3); }
   else if(id==='hammer_stone'){ add(cyl(0.02,0.025,0.55),WMAT(0x8a6a44),0,0,0); add(lump(0.12),M,0,0.28,0); }
-  else if(/^(lye|nitric|acid_sulfuric|alcohol)$/.test(id)) bottle(T.c);
+  else if(/^(lye|nitric|acid_sulfuric|alcohol|jar|jar_\w+)$/.test(id)) bottle(T.c);
   else if(id==='mercury') bottle(0xc8ccd0);
   else if(id==='bottle_empty') bottle(null);
   else if(/^(ash|saltpeter|gunpowder|fulminate|guncotton|powder_smokeless|li_carbonate|cathode_lfp)$/.test(id)) pile(T.c);
@@ -561,12 +561,16 @@ function castNet(w,T){
   NET.spent++;
   w.dur-=1;
   if(w.dur<=0){ toast(ITEMS[w.id].n+' 찢어졌다'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
-  const sea=fishNet(hi+1);                            // 곁에 잔고기 떼가 있으면 그 떼를 건진다(종류 그대로)
-  if(sea){ toast('그물에 걸렸다 — '+sea); invDirty=true; return; }
+  /* 미끼 — 벌레 병을 지녔으면 하나 풀어 던진다: 한두 마리 더 걸리고 빈 병은 돌아온다 */
+  const bi=INV.slots.findIndex(x=>ITEMS[x.id].bait);
+  let bait='';
+  if(bi>=0){ bait=ITEMS[INV.slots[bi].id].n; invRemove(bi,1); invAdd('jar',1); got+=1+(Math.random()<0.5?1:0); }
+  const sea=fishNet(hi+1+(bait?1:0));                            // 곁에 잔고기 떼가 있으면 그 떼를 건진다(종류 그대로)
+  if(sea){ toast('그물에 걸렸다 — '+sea+(bait?' (미끼: '+bait+')':'')); invDirty=true; return; }
   if(got<=0){ toast('그물이 비었다'); return; }
   let added=0;
   for(let i=0;i<got;i++) if(invAdd('fish',1)) added++;
-  toast(added?('물고기 '+added+'마리'):'무거워서 더 못 든다');
+  toast(added?('물고기 '+added+'마리'+(bait?' (미끼: '+bait+')':'')):'무거워서 더 못 든다');
   invDirty=true;
 }
 
@@ -598,6 +602,7 @@ function useHeld(){
   if(W.charger) return;                            // 손 충전기 — 누르고 있는 동안 updateCamcorder 가 돌린다
   if(W.lamp){ toggleLamp(); return; }
   if(W.torch){ toggleTorch(e); return; }
+  if(W.bugnet){ bugNetSwing(e,W); return; }        // 잠자리채 — 벌레를 떠서 유리병에(97-wildlife.js)
   if(W.weapon||W.net||W.throw){ attack(); return; }
   if(W.drill && e.dur<=0){ toast('전기가 없다 — 우클릭으로 축전지에서 채운다'); return; }
   if(W.axe) toast((HARV.near&&blockReason(HARV.near))||(T.n+' — 나무 줄기를 보고 좌클릭을 누르고 있으면 벤다(가지를 꺾으려면 손을 비울 것)'));
