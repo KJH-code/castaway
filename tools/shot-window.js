@@ -3,6 +3,7 @@
 
      desktop/node_modules/.bin/electron tools/shot-window.js <out.png> ["섬이 다 지어진 뒤 돌릴 JS(비동기 가능 · 값을 돌려주면 찍힌다)"] [너비=1280] [높이=800]
 
+   CASTAWAY_GAME=폴더(다른 자리의 판) · CASTAWAY_QUERY='ws=2'(주소 뒤에 붙일 것 — 작은 섬) · CASTAWAY_UNCAP=1(주사율에 안 묶는다).
    저장·설정은 건드리지 않는다(임시 폴더를 제 userData 로 쓴다). JS 가 돌려준 값은 SHOT {...} 한 줄로 찍힌다 */
 const { app, BrowserWindow } = require('electron');
 const path = require('path'), os = require('os'), fs = require('fs');
@@ -17,7 +18,7 @@ app.whenReady().then(async () => {
   win.showInactive();
   const fail = setTimeout(() => { console.log('SHOT {"error":"timeout"}'); app.exit(1); }, 150000);
   try {
-    await win.loadFile(path.join(process.env.CASTAWAY_GAME || path.join(__dirname, '..'), 'island_world.html'));
+    await win.loadFile(path.join(process.env.CASTAWAY_GAME || path.join(__dirname, '..'), 'island_world.html'), { search: process.env.CASTAWAY_QUERY || '' });   // CASTAWAY_QUERY='ws=2' — 주소 뒤에 붙일 것
     const out = await win.webContents.executeJavaScript(`(async()=>{
       const W=ms=>new Promise(r=>setTimeout(r,ms)); let t=0; window.__err=[];
       addEventListener('error',e=>__err.push(e.message+' @'+(e.filename||'').split('/').pop()+':'+e.lineno));

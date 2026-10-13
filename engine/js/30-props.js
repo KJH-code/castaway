@@ -448,6 +448,31 @@ function buildProps(){
     propGroup.children.forEach(m=>{ m.geometry.dispose(); m.material.dispose(); });
   }
   propGroup=new THREE.Group(); propGroup.matrixAutoUpdate=false; scene.add(propGroup);
+  /* 자식(칸 메시)이 수만 개다(6배 섬에서 7만) — Three 는 프레임마다 그 전부의 updateMatrixWorld 를 부른다. 굳힌 잎은 할 일이
+     없는데도 **7만 개를 한 번씩 건드리는 것만으로 5~7 ms** 다(물체마다 메모리를 새로 읽는다). 그래서 전부를 훑지 않는다:
+       · 새로 붙은 것(`_fresh`)은 다음 프레임에 한 번 센다. 굳힌 잎(자식이 없고 제 행렬을 스스로 안 고치는 것)이면 그것으로 끝이다.
+       · 움직이는 것(제 행렬을 스스로 고치는 것 · 자식을 가진 것)은 `_live` 에 두고 예전처럼 프레임마다 센다.
+       · 굳힌 잎을 뒤늦게 옮긴 것(updateMatrix 가 matrixWorldNeedsUpdate 를 세운다)은 프레임마다 1,500 개씩 돌아가며 살펴 잡는다
+         (7만 개면 0.8 초에 한 바퀴 — 지금 그런 코드는 없다. 안전망이다).
+     이 묶음도 장면도 안 움직인다(둘 다 제자리) — 그래서 위에서 내려오는 '강제'는 볼 필요가 없다 */
+  propGroup._fresh=[]; propGroup._live=[]; propGroup._scan=0;
+  { const add0=propGroup.add, rem0=propGroup.remove;
+    propGroup.add=function(o){ const r=add0.apply(this,arguments); if(arguments.length===1&&o&&o.isObject3D&&o.parent===this) this._fresh.push(o); return r; };
+    propGroup.remove=function(o){ const r=rem0.apply(this,arguments); if(arguments.length===1&&o&&o._mwLive){ const i=this._live.indexOf(o); if(i>=0) this._live.splice(i,1); o._mwLive=false; } return r; }; }
+  propGroup.updateMatrixWorld=function(){
+    const fr=this._fresh, lv=this._live, ch=this.children;
+    if(fr.length){ for(const c of fr){ if(c.parent!==this) continue; c.updateMatrixWorld(true);
+        if((c.matrixAutoUpdate||c.children.length)&&!c._mwLive){ c._mwLive=true; lv.push(c); } }
+      fr.length=0; }
+    for(let i=lv.length-1;i>=0;i--){ const c=lv[i]; c.updateMatrixWorld(true);
+      if(!c.matrixAutoUpdate&&!c.children.length){ c._mwLive=false; lv.splice(i,1); } }   // 그새 굳힌 것(freezeStatics)은 내려놓는다
+    const n=ch.length; let k=this._scan;
+    for(let i=Math.min(1500,n);i>0;i--){ if(k>=n) k=0; const c=ch[k++];
+      if(c._mwLive) continue;
+      if(c.matrixAutoUpdate||c.children.length){ c._mwLive=true; lv.push(c); }
+      else if(c.matrixWorldNeedsUpdate) c.updateMatrixWorld(true); }
+    this._scan=k;
+  };
   propGroup.visible=showProps;
   COLLIDERS.length=0;
 

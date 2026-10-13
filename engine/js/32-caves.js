@@ -29,7 +29,7 @@ void main(){ vec4 mv=modelViewMatrix*vec4(position,1.0); gl_Position=projectionM
   float s=aG.x*uPx/max(0.3,-mv.z);
   vA=aG.z*tw*clamp(s/2.0,0.0,1.0); gl_PointSize=clamp(s,2.0,96.0); }`,
     fragmentShader:`varying float vA;
-void main(){ float d=length(gl_PointCoord-0.5)*2.0, a=exp(-d*d*4.5)*vA; if(a<0.012) discard; gl_FragColor=vec4(vec3(0.40,1.0,0.84)*a,a); }`,
+void main(){ float d=length(gl_PointCoord-0.5)*2.0, a=(exp(-d*d*11.0)+0.38*exp(-d*d*2.6))*vA; if(a<0.012) discard; gl_FragColor=vec4(vec3(0.40,1.0,0.84)*a,a); }   // 밝은 알맹이 + 엷은 빛무리`,
     blending:THREE.AdditiveBlending, depthWrite:false, transparent:true}));
 }
 function buildCaves(){
@@ -55,7 +55,7 @@ function buildCaves(){
         if(rnd()>(col>0.5?(roof?0.90:0.30):0.10)) continue;
         let u=rnd(), w=rnd(); if(u+w>1){ u=1-u; w=1-w; } const q=1-u-w;
         GP.push(P[a]*q+P[b]*u+P[d]*w+nx*0.05, P[a+1]*q+P[b+1]*u+P[d+1]*w+ny*0.05, P[a+2]*q+P[b+2]*u+P[d+2]*w+nz*0.05);
-        GA.push(0.07+rnd()*0.09,rnd(),0.75+rnd()*0.25); } };
+        GA.push(0.16+rnd()*0.20,rnd(),0.75+rnd()*0.25); } };
     /* 빛나는 버섯 한 송이 — 대(여덟 모) + 갓(반구). 둥글게 빚는다 */
     const shroom=(x,y,z,r,h,lean,la)=>{ const o=SP.length/3, SG=10, lx=Math.cos(la)*lean, lz=Math.sin(la)*lean;
       for(let k=0;k<2;k++) for(let j=0;j<SG;j++){ const a=j/SG*6.283, rr=r*(k?0.22:0.34); SP.push(x+Math.cos(a)*rr+lx*k*h,y+k*h-0.02*(1-k),z+Math.sin(a)*rr+lz*k*h); SC.push(0.10+0.10*k,0.34+0.22*k,0.29+0.19*k); }
@@ -90,8 +90,8 @@ function buildCaves(){
         const d=R-0.5-rnd()*1.3, bx=rm.x+Math.cos(a)*d, bz=rm.z+Math.sin(a)*d;
         for(let j=0,m=4+((rnd()*6)|0);j<m;j++){ const x=bx+(rnd()-0.5)*0.9, z=bz+(rnd()-0.5)*0.9, r=0.06+rnd()*0.11;
           shroom(x,heightAt(x,z),z,r,0.10+rnd()*0.22+r,rnd()*0.35,rnd()*6.283); }
-        GP.push(bx,heightAt(bx,bz)+0.22,bz); GA.push(1.5,rnd(),0.30); }
-      lamps.push([rm.x,rm.y+2.5,rm.z,R+4.5]);
+        GP.push(bx,heightAt(bx,bz)+0.22,bz); GA.push(1.9,rnd(),0.34); }
+      lamps.push([rm.x,rm.y+2.6,rm.z,R+8]);
     }
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
@@ -102,7 +102,7 @@ function buildCaves(){
     if(SI.length){ const sg=new THREE.BufferGeometry(); sg.setAttribute('position',new THREE.Float32BufferAttribute(SP,3)); sg.setAttribute('color',new THREE.Float32BufferAttribute(SC,3)); sg.setIndex(SI);
       sg.computeBoundingSphere(); const sm=new THREE.Mesh(sg,CAVE_SHROOM||(CAVE_SHROOM=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide})));
       sm.matrixAutoUpdate=false; sm.userData.lightRole='none'; m.add(sm); }
-    for(const l of lamps) LIGHT.addFire(m,{color:0x58ffd0,intensity:0.62,dist:l[3],pos:[l[0],l[1],l[2]]});
+    for(const l of lamps) LIGHT.addFire(m,{color:0x58ffd0,intensity:2.3,dist:l[3],pos:[l[0],l[1],l[2]]});   // 한밤에도 광석과 벽이 분간된다(횃불 26 m·모닥불 22 m 에 견주면 어둑하다)
     c.glow=GP.length/3;
     scene.add(m); CAVE_MESH.push(m);
   }

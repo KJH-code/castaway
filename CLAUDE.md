@@ -213,6 +213,8 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `22-ground-textures.js` | 땅 사진을 배열 텍스처로 · 사진 결 땅 셰이더(물가 젖은 띠·거품) |
 | `24-shapes.js` | 땅 식물·바다 생물이 같이 쓰는 매끈한 모양 도구(관·혹·휘는 잎·돌림체·잎 판·합치기) |
 | `30-props.js` | 칸 보이기 `updateTileVis` 62 · 먼 나무 `buildFarTrees` 307 · **`buildProps` 360**(풀·나무·바위·`HABIT`) · 자갈 `RUBBLE` · 베리 · 보급선 |
+| `32-caves.js` | 동굴 — 바위 굴집 `buildCaves`(방 1~3 개) · 반딧불이 유충(빛나는 점)·빛나는 버섯·방마다 약한 불빛(불빛 풀) · `updateCaves` |
+| `33-crags.js` | 암벽 — 가파른 칸의 큰 바위 무리 `cragSites`/`cragGrow`(프랙털 세 단계 · 덩이마다 다른 빛깔) · 320 m 칸 메시 `cragMesh` · `updateCrags` |
 | `40-light.js` | **`LIGHT` 46**(배역 · 해 그림자 상자 · 점·집중광 예산) · `renderFrame` |
 | `45-sky.js` | `SKY` 8 · `updateWeather` 357 · 구름 명암 `litQueue` 905 · `updateClouds` 1476 · `SKY_LUT` 1967 · **`updateSky` 2107**(노을·달밤 색조 `SKYL.grade` 포함) — **`beta/cloud_arena.html` 의 원본** |
 | `46-camcorder.js` | 캠코더 화면(480줄 그림판 → 테이프 셰이더) · 배터리 · 손 발전기 |
@@ -337,9 +339,15 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 ## 규칙
 
 - **섬 배율(`P.ws`)** — 섬은 늘 칸 2.5 m(`GCELL`) · 1,920 m 로 만든 뒤 `worldRescale` 이 통째로(가로·세로·높이) ws 배로 키운다.
-  새 섬은 2(3,840 m) · 설정 '섬 넓이' 로 1·2·3. **`CELL` · `WORLD` · `HALF` 는 변수다**(`setWorldScale`) — 불러오는 순간 도는 코드에서
+  새 섬은 6(11,520 m — 예전 기본 2의 넓이 아홉 배) · 설정 '섬 넓이' 로 1~6 · 주소 `?ws=2` 로도(구동 검사가 쓴다). **`CELL` · `WORLD` · `HALF` 는 변수다**(`setWorldScale`) — 불러오는 순간 도는 코드에서
   이 셋으로 다른 상수를 만들어 두지 말 것(함수 안에서 읽는다). 지형 생성·침식·유량은 `GCELL` 로 센다. 배율이 없는 옛 저장은 1 로 읽는다.
   배율 1 의 섬은 자원 배치의 난수 차례가 예전과 같아야 한다(`placeResources` 의 `WS===1` 갈래를 건드리지 말 것).
+- **지형 판(`P.tv`)** — 2 는 침식 뒤에 피오르·골짜기·단구·절벽·산릉·탁상지를 새기고(`terrainFeatures`) 동굴(`caveSites` · 32-caves.js)과
+  암벽(33-crags.js)을 둔다. **판이 없는 옛 저장은 1 로 읽혀 예전 섬이 한 비트도 안 달라진다**(배율 2·판 1 의 표고·소품이 main 과 같음을
+  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` 가 주는 값도 올린다.
+  새 지형 코드는 제 난수(`mulberry32(seed^상수)`)만 쓴다 — `placeResources` 의 난수 차례를 건드리지 않는다.
+- **`propGroup` 의 자식은 수만 개다**(6배 섬 7만) — 프레임마다 전부를 훑는 코드를 새로 넣지 말 것(한 번씩 건드리기만 해도 5 ms 다).
+  세계 행렬은 새로 붙은 것만 한 번 센다(`propGroup.updateMatrixWorld` — 30-props.js). 굳힌 칸 메시를 뒤늦게 옮기면 `updateMatrix()` 를 부를 것.
 - **C 로 짠 침식(`engine/native/erosion.c` → `engine/js/data-native-wasm.js`)은 JS 판과 한 비트도 달라선 안 된다.**
   `thermal` · `hydraulic` · `smoothTerrain` 한쪽을 고치면 다른 쪽도 고치고 `nativeVerify()` 가 전부 same 인지 볼 것
   (`sh env/setup-zig.sh` → `sh engine/native/build.sh` → `node tools/probe.mjs island_world.html "nativeVerify()"`).
