@@ -15,38 +15,50 @@
      (`GIANT.ref` · `updateGiants` — 참나무·전나무의 기준 나무와 같은 방식). **뿌리는 나무마다 그 자리의 땅을 따라 따로 짓고** 200 m 안만 그린다.
    · 뿌리가 땅이다 — `giantRootAt(x,z)` 가 그 자리의 뿌리 높이를 돌려주고, 설 자리(`floorAt`)가 그만큼 높아진다.
      뿌리 끝에서 걸어 오르면 줄기 곁 허리 높이까지 올라선다. 옆구리는 턱이 높아 막힌다. 줄기는 충돌 원으로 막는다.
+   · 벤다 — **철 도끼 이상**(`tool.axe` 2 · 철·강철 도끼)으로만 날이 박힌다. 줄기를 보고 좌클릭을 누르고 있으면 통나무가 하나씩
+     나오고(캐기 틀 `HARV` 를 그대로 탄다 — 그루마다 단 `g.prop`), 다 베면 쓰러져 판근 그루터기만 남는다(아래 '베기').
    ========================================================================== */
-const GIANT={list:[], grid:new Map(), meshes:[], geo:null, G:26, cell:32, near:null, far:null, ref:null};
+const GIANT={list:[], grid:new Map(), meshes:[], geo:null, G:26, cell:32, near:null, far:null, ref:null, cut:new Map(), falls:[]};
 /* 종류마다 — r 줄기 반지름(가슴 높이) · nb 판근 수 · rootL 뿌리 길이 · rootH 줄기 곁 뿌리 높이 */
 const GIANT_KIND=[
   {n:'케이폭', r:1.5, nb:6, rootL:9.0, rootH:1.5},
   {n:'반얀',   r:1.9, nb:7, rootL:7.5, rootH:1.1},
   {n:'삼나무', r:1.7, nb:5, rootL:6.5, rootH:1.0}
 ];
+/* 줄기 — 종류마다 키 H(벌마다 hk 배) · 밑동 굵기 r0 · 꼭대기 r1 · 판근 수 nb · 판근 부풂 but · 껍질 빛깔(밑 c · 위 c2).
+   줄기(`giantShapes` 의 bole)와 그루터기(`giantStumpGeo`)가 같은 식(`giantBoleR`)을 쓴다 */
+const GIANT_BOLE=[
+  {H:19, r0:1.5, r1:0.9,  nb:6, but:1.7, c:[0.46,0.40,0.34], c2:[0.62,0.56,0.48]},
+  {H:11, r0:1.9, r1:1.3,  nb:7, but:1.2, c:[0.42,0.36,0.30], c2:[0.58,0.50,0.42]},
+  {H:38, r0:1.7, r1:0.25, nb:5, but:1.0, c:[0.52,0.33,0.24], c2:[0.66,0.44,0.32]}];
+function giantBoleR(B,th,y,H){
+  const t=clamp(y/H,0,1), ridge=Math.pow(0.5+0.5*Math.cos(B.nb*th),3);
+  return (B.r0+(B.r1-B.r0)*t)*(1+B.but*Math.exp(-Math.max(0,y)/2.2)*ridge+0.05*Math.sin(th*9+y*0.7));
+}
 /* 종류마다 생김새 벌 수 — 줄기(판근 수·굵기)는 종류마다 같고(충돌 테두리가 이걸 따른다) 높이·가지·공기뿌리·가지 층이 벌마다 다르다 */
 const GIANT_VARS=4;
 function giantGeos(){
-  GIANT.geo=[[],[],[]];
-  for(let w=0;w<GIANT_VARS;w++){ const G=giantShapes(mulberry32((0x61a47+w*0x9e3779b1)>>>0)); G.forEach((g,v)=>GIANT.geo[v].push(g)); }
+  GIANT.geo=[[],[],[]]; GIANT.hk=[[],[],[]];
+  for(let w=0;w<GIANT_VARS;w++){ const G=giantShapes(mulberry32((0x61a47+w*0x9e3779b1)>>>0)); G.forEach((g,v)=>{ GIANT.geo[v].push(g); GIANT.hk[v].push(G.hk[v]); }); }
 }
 function giantShapes(rnd){
   const K=floraKit(rnd), {unit,face,card,grow,fin}=K, rf=(a,b)=>a+(b-a)*rnd(), ri=(a,b)=>a+Math.floor(rnd()*(b-a+1));
   /* 줄기 — 밑동에서 판근이 날개처럼 벌어진다. 판근 방향은 뿌리(`giantRoots`)와 같은 각이다 */
-  const bole=(H,r0,r1,nb,but,c,c2,sway)=>({g:SHP.grid(22,11,(u,v)=>{
-      const th=u*6.2832, y=-0.8+(H+0.8)*Math.pow(v,1.7), t=clamp(y/H,0,1);
-      const ridge=Math.pow(0.5+0.5*Math.cos(nb*th),3);
-      const rad=(r0+(r1-r0)*t)*(1+but*Math.exp(-Math.max(0,y)/2.2)*ridge+0.05*Math.sin(th*9+y*0.7));
+  const HK=[];                                         // 벌마다의 키 배율 — 그루터기가 같은 굵기를 내려고 적어 둔다
+  const bole=(v,hk,sway)=>{ const B=GIANT_BOLE[v], H=B.H*hk; HK[v]=hk;
+    return {g:SHP.grid(22,11,(u,q)=>{
+      const th=u*6.2832, y=-0.8+(H+0.8)*Math.pow(q,1.7), t=clamp(y/H,0,1), rad=giantBoleR(B,th,y,H);
       return [Math.cos(th)*rad+sway*Math.sin(t*2.4)*t*H*0.04, y, Math.sin(th)*rad+sway*Math.sin(t*3.1+1)*t*H*0.03];
-    },true),cell:FC.BARK,c,c2});
-  const G=[];
+    },true),cell:FC.BARK,c:B.c,c2:B.c2}; };
+  const G=[]; G.hk=HK;
   { // 0 케이폭 — 줄기가 16 m 까지 매끈하고 그 위로 큰 가지 일곱이 우산처럼 퍼진다(키 30 m · 수관 지름 24 m)
-    const hk=rf(0.9,1.1), parts=[bole(19*hk,1.5,0.9,6,1.7,[0.46,0.40,0.34],[0.62,0.56,0.48],rf(0.5,1.5))];
+    const hk=rf(0.9,1.1), parts=[bole(0,hk,rf(0.5,1.5))];
     const S={taper:0.66,split:[2,3],spread:1.4,up:0.5,lift:0.30,shrink:0.70,bend:0.06,leafN:5,leafW:4.2,leafH:3.6,leafCell:FC.LEAF,leafTilt:0.9,leafC:[0.84,1,0.84],vine:0.25,vineH:4,bark:[0.46,0.40,0.34],bark2:[0.62,0.56,0.48]};
     for(let i=0,nb=ri(6,8);i<nb;i++){ const a=i/nb*6.283+rnd()*0.5;
       grow(parts,[Math.cos(a)*0.5,(16.5+rnd()*2.5)*hk,Math.sin(a)*0.5],unit(Math.cos(a),0.55,Math.sin(a)),7.5+rnd()*2.5,0.55,2,S); }
     G.push(fin(parts)); }
   { // 1 반얀 — 굵고 낮은 줄기, 넓게 누운 가지에서 공기뿌리가 땅까지 늘어진다(키 22 m · 수관 지름 28 m)
-    const BB=[0.42,0.36,0.30], BB2=[0.58,0.50,0.42], hk=rf(0.9,1.12), parts=[bole(11*hk,1.9,1.3,7,1.2,BB,BB2,rf(0.2,0.8))];
+    const BB=GIANT_BOLE[1].c, BB2=GIANT_BOLE[1].c2, hk=rf(0.9,1.12), parts=[bole(1,hk,rf(0.2,0.8))];
     const S={taper:0.68,split:[2,3],spread:1.5,up:0.4,lift:0.28,shrink:0.72,bend:0.03,leafN:5,leafW:3.8,leafH:3.2,leafCell:FC.MANG,leafTilt:1.0,leafC:[0.86,1,0.88],bark:BB,bark2:BB2};
     for(let i=0,nb=ri(7,9);i<nb;i++){ const a=i/nb*6.283+rnd()*0.5, y0=(8.5+rnd()*2.5)*hk, L=8+rnd()*3, d=unit(Math.cos(a),0.38,Math.sin(a));
       grow(parts,[Math.cos(a)*0.8,y0,Math.sin(a)*0.8],d,L,0.6,2,S);
@@ -54,7 +66,7 @@ function giantShapes(rnd){
         parts.push({g:SHP.tube([[x,y,z],[x+0.1,y*0.55,z-0.08],[x,y*0.15,z+0.05],[x,-0.8,z]],[0.10,0.08,0.09,0.13],5,0),cell:FC.BARK,c:BB,c2:BB2}); } }
     G.push(fin(parts)); }
   { // 2 삼나무 — 붉은 껍질의 곧은 줄기, 위로 갈수록 짧아지는 가지 층(키 40 m)
-    const RB=[0.52,0.33,0.24], RB2=[0.66,0.44,0.32], hk=rf(0.9,1.1), parts=[bole(38*hk,1.7,0.25,5,1.0,RB,RB2,rf(0.1,0.5))], NC=[0.86,1,0.92], nl=ri(10,12);
+    const RB=GIANT_BOLE[2].c, RB2=GIANT_BOLE[2].c2, hk=rf(0.9,1.1), parts=[bole(2,hk,rf(0.1,0.5))], NC=[0.86,1,0.92], nl=ri(10,12);
     for(let j=0;j<nl;j++){ const y=(13+j*25.3/nl)*hk, L=7.5*rf(0.9,1.1)*(1-j/(nl+2));
       for(let i=0,nk=ri(4,6);i<nk;i++){ const a=i/nk*6.283+j*0.9+rnd()*0.3, d=unit(Math.cos(a),-0.12,Math.sin(a));
         parts.push({g:SHP.limb([Math.cos(a)*0.4,y,Math.sin(a)*0.4],d,L*0.9,0.20*(1-j/14),0.05,2,5,-0.03,0.6),cell:FC.BARK,c:RB,c2:RB2});
@@ -85,6 +97,8 @@ function giantRootPt(g,r,t,out){
 function giantsBuild(){
   for(const m of GIANT.meshes){ scene.remove(m); if(m.userData.own) m.geometry.dispose(); if(m.isInstancedMesh) m.dispose(); }   // 인스턴스 버퍼도 돌려준다
   GIANT.meshes.length=0; GIANT.list.length=0; GIANT.grid.clear();
+  for(const f of GIANT.falls) giantFallEnd(f); GIANT.falls.length=0;
+  GIANT.cut.clear();                                   // 새 섬 — 벤 것은 없다(불러오기는 섬을 다 지은 뒤 `giantRestore` 가 채운다)
   if(!FLORA.m) floraBuild();                          // 그림 묶음·재질을 같이 쓴다
   if(!GIANT.geo) giantGeos();
   const S=GIANT.G, n=Math.floor(HALF/S)-1;
@@ -108,6 +122,9 @@ function giantsBuild(){
     }
     if(!placed) continue;
     placed.roots=giantRoots(placed);
+    /* 벨 거리 — 캐기 틀(HARV)이 다루는 소품처럼 생긴 것. logs 남은 통나무(크기만큼) */
+    placed.prop={k:'giant', giant:placed, x:placed.x, y:placed.y, z:placed.z, br:0, ore:0,
+                 logs:Math.round(GIANT_LOGS[placed.v]*placed.s), n:'노거수('+GIANT_KIND[placed.v].n+')'};
     placed.reach=GIANT_KIND[placed.v].r*placed.s+GIANT_KIND[placed.v].rootL*placed.s*1.3+1;
     GIANT.list.push(placed);
     /* 줄기의 충돌 테두리 — 눈높이(1.5 m)에서 판근이 날개처럼 나온 만큼 방위마다 다르다 */
@@ -174,7 +191,7 @@ function updateGiants(force){
     for(const a of GIANT.near) for(const im of a) if(im) im.count=0;
     for(const g of GIANT.list){
       if(g.rootM&&setVis(g.rootM,g.near)) LIGHT.dirtyAt(g.x,g.z,g.reach);
-      if(!g.near) continue;
+      if(!g.near||g.felled) continue;                  // 벤 그루는 그루터기만(giantStumpGeo)
       const im=GIANT.near[g.v][g.w]; _gM.fromArray(g.mat);
       im.setMatrixAt(im.count,_gM); im.setColorAt(im.count++,_gC.setRGB(g.tint,g.tint,g.tint*0.96));
     }
@@ -198,7 +215,7 @@ function updateGiants(force){
   if(sig===GIANT.farSig) return;
   GIANT.farSig=sig;
   for(const im of GIANT.far) if(im) im.count=0;
-  for(const g of GIANT.list){ if(g.near||!g.seen) continue;
+  for(const g of GIANT.list){ if(g.near||!g.seen||g.felled) continue;
     const im=GIANT.far[g.v], i=im.count++;
     im.instanceMatrix.array.set(g.mat,i*16);
     const c=im.instanceColor.array; c[i*3]=g.tint; c[i*3+1]=g.tint; c[i*3+2]=g.tint*0.96; }
@@ -229,4 +246,160 @@ function giantNear(x,z,R){
   let best=null, bd=R*R;
   for(const g of GIANT.list){ const dx=g.x-x, dz=g.z-z, d=dx*dx+dz*dz; if(d<bd){ bd=d; best=g; } }
   return best;
+}
+
+/* ── 베기 ───────────────────────────────────────────────────────────────────
+   **철 도끼 이상(`tool.axe` 2 — 철·강철 도끼)** 으로만 날이 박힌다(사용자 요청 — 돌·청동 도끼는 '날이 안 박힌다').
+   줄기를 보고 좌클릭을 누르고 있으면 통나무가 하나씩 나온다 — 캐기 틀(HARV)을 그대로 탄다: `findHarvestTarget` 이 줄기 겉
+   1.6 m 안의 노거수를 후보로 넣고(`giantChopTarget`), `pickMode` 가 그루마다 단 `g.prop`(k 'giant')을 `GIANT_CHOP` 으로 벤다.
+   통나무는 그루 크기만큼(`GIANT_LOGS` × 크기 — 10~21) · 한 개에 6초 ÷ 도끼 빠르기(철 1.9초 · 강철 1.5초).
+   다 베면 **쓰러진다**(`giantFallStart`) — 밑동 벤 자리를 축으로 사람 반대쪽으로 넘어가는 막대(각가속도 ∝ sinθ/L — 처음엔 천천히,
+   끝에 빠르게). 벤 자리 밑은 잘라 그린다(재질의 자르는 면). 땅에 닿으면 쿵 · 먼지 · 화면 흔들림, 옅어지며 먼지 속에 사라진다.
+   판근 그루터기(나이테)가 남고 충돌·뿌리 땅은 그대로다. 벤 것은 저장에 담는다(`GIANT.cut` — 'gx,gz' → 남은 통나무 · 0 이면 쓰러진 그루). */
+const GIANT_CHOP={item:'log', label:'거목 베기', dur:6.0, stam:10, yield:[1,1], tier:2};
+const GIANT_LOGS=[12,14,16];
+const GIANT_CUT=1.3;                                   // 벤 자리 높이(크기 1 일 때 m)
+const giantKey=g=>g.gx+','+g.gz;
+/* 눈앞의 노거수 — 줄기 겉(충돌 테두리)까지 1.6 m 안에서 그쪽을 보고 있으면 { prop, d(겉까지) } */
+function giantChopTarget(fx,fz){
+  if(!GIANT.list.length) return null;
+  const px=PL.pos.x, pz=PL.pos.z, cx=Math.floor(px/GIANT.cell), cz=Math.floor(pz/GIANT.cell);
+  let best=null, bd=1.6;
+  for(let az=-1;az<=1;az++) for(let ax=-1;ax<=1;ax++){
+    const a=GIANT.grid.get(cgKey(cx+ax,cz+az)); if(!a) continue;
+    for(const g of a){
+      if(g.felled) continue;
+      const dx=g.x-px, dz=g.z-pz, d=Math.hypot(dx,dz); if(d<1e-3||d>g.col.r+bd) continue;
+      if((dx/d)*fx+(dz/d)*fz<0.5) continue;                       // 보고 있어야 한다
+      const P=g.col.prof, K=P.length, q=(Math.atan2(-dz,-dx)/6.2832+1)%1*K, i=Math.floor(q), f=q-i;
+      const surf=d-(P[i%K]*(1-f)+P[(i+1)%K]*f);
+      if(surf<bd){ bd=surf; best=g; }
+    }
+  }
+  return best?{prop:best.prop, d:bd}:null;
+}
+/* 통나무를 하나 베어 냈다(updateHarvest) — 다 베었으면 쓰러뜨린다 */
+function giantChopped(t){
+  const g=t.giant;
+  GIANT.cut.set(giantKey(g),Math.max(0,t.logs));
+  if(t.logs<=0) giantFell(g,true);
+}
+function giantFell(g,anim){
+  if(g.felled) return;
+  g.felled=true; g.prop.logs=0; g.prop.felled=true;
+  GIANT.cut.set(giantKey(g),0);
+  giantStump(g);
+  if(anim) giantFallStart(g);
+  updateGiants(true);                                  // 서 있던 그루를 인스턴스에서 뺀다
+  LIGHT.dirtyAt(g.x,g.z,g.reach+30);
+}
+/* 판근 그루터기 — 줄기와 같은 식(giantBoleR)으로 벤 자리까지 · 윗면은 나이테(밝고 어두운 고리를 번갈아 · 가장자리는 껍질 띠) */
+function giantStumpGeo(g){
+  const B=GIANT_BOLE[g.v], H=B.H*((GIANT.hk[g.v]||[])[g.w]||1), cut=GIANT_CUT, NR=9, parts=[];
+  parts.push({g:SHP.grid(22,4,(u,q)=>{ const th=u*6.2832, y=-0.8+(cut+0.8)*q, r=giantBoleR(B,th,y,H); return [Math.cos(th)*r,y,Math.sin(th)*r]; },true),
+              cell:FC.BARK,c:B.c,c2:B.c2});
+  for(let i=0;i<NR;i++){
+    const a=i/NR, b=(i+1)/NR, rim=i===NR-1;
+    const col=rim?[B.c[0]*0.8,B.c[1]*0.8,B.c[2]*0.8]:(i&1)?[0.66,0.52,0.36]:[0.80,0.66,0.47];
+    parts.push({g:SHP.grid(22,1,(u,q)=>{ const th=u*6.2832, k=a+(b-a)*q, r=giantBoleR(B,th,cut,H)*k;
+        return [Math.cos(th)*r, cut+0.04*(1-k*k), Math.sin(th)*r]; },true),cell:rim?FC.BARK:FC.CAP,c:col});
+  }
+  return SHP.merge(parts,true);
+}
+function giantStump(g){
+  if(g.stumpM) return;
+  if(!GIANT.rootMat) GIANT.rootMat=FLORA.mat.clone();
+  const m=new THREE.Mesh(giantStumpGeo(g),GIANT.rootMat);
+  m.matrixAutoUpdate=false; m.matrix.fromArray(g.mat); m.matrixWorldNeedsUpdate=true;
+  m.geometry.computeBoundingSphere(); m.frustumCulled=true; m.userData.own=true;
+  scene.add(m); GIANT.meshes.push(m); g.stumpM=m;
+}
+/* 쓰러짐 — 밑동 벤 자리(축)를 중심으로 사람 반대쪽으로 넘어가는 막대. θ'' = 1.5·g'·sinθ / L (g' 는 보기 좋게 2.5배 — 실제 빠르기면
+   30 m 나무가 6~8초 걸린다). 땅에 닿으면(우듬지 쪽 점이 땅 밑) 쿵 · 먼지 · 흔들림, 1.2초 뒤부터 옅어져 2.6초에 사라진다 */
+const _gfQ=new THREE.Quaternion(), _gfA=new THREE.Vector3(), _gfP=new THREE.Vector3(), _gfS=new THREE.Vector3(), _gfM=new THREE.Matrix4(), _gfY=new THREE.Quaternion();
+function giantFallStart(g){
+  let dx=g.x-PL.pos.x, dz=g.z-PL.pos.z; const l=Math.hypot(dx,dz)||1; dx/=l; dz/=l;   // 사람 반대쪽으로
+  const mat=FLORA.mat.clone(); mat.transparent=true;
+  const pv=GIANT_CUT*g.s, plane=new THREE.Plane(new THREE.Vector3(0,1,0),-(g.y+pv));
+  mat.clippingPlanes=[plane];                          // 벤 자리 밑(그루터기 속)은 그리지 않는다
+  mat.color.setRGB(g.tint,g.tint,g.tint*0.96);
+  const m=new THREE.Mesh(GIANT.geo[g.v][g.w],mat);
+  m.matrixAutoUpdate=false; m.frustumCulled=false; m.customDepthMaterial=FLORA.depth;
+  scene.add(m);
+  renderer.localClippingEnabled=true;
+  const H=GIANT_BOLE[g.v].H*((GIANT.hk[g.v]||[])[g.w]||1)*g.s;
+  const f={g,m,mat,plane,dx,dz,th:0.10,w:0,t:0,land:-1,pv,L:H,dust:[]};
+  GIANT.falls.push(f); giantFallPose(f);
+  sfx('timber');
+  toast(g.prop.n+' — 넘어간다!');
+}
+function giantFallPose(f){
+  const g=f.g;
+  _gfA.set(f.dz,0,-f.dx); _gfQ.setFromAxisAngle(_gfA,f.th);          // 위(+y)를 넘어가는 쪽(dx,dz)으로 눕힌다
+  _gfY.setFromAxisAngle(_gfP.set(0,1,0),-g.yaw);
+  /* 행렬 = 축으로 옮김 · 눕힘 · 축에서 되돌림 · 그루의 돌림·크기 */
+  _gfM.compose(_gfP.set(0,0,0),_gfQ.multiply(_gfY),_gfS.set(g.s,g.s,g.s));
+  _gfA.set(0,-f.pv,0).applyQuaternion(_gfQ.setFromAxisAngle(_gfP.set(f.dz,0,-f.dx),f.th));
+  f.m.matrix.copy(_gfM); f.m.matrix.setPosition(g.x+_gfA.x, g.y+f.pv+_gfA.y, g.z+_gfA.z);
+  f.m.matrixWorldNeedsUpdate=true;
+  /* 자르는 면도 같이 눕는다 — 법선 = 눕힌 위쪽 · 축을 지난다 */
+  _gfA.set(0,1,0).applyQuaternion(_gfQ);
+  f.plane.normal.copy(_gfA); f.plane.constant=-(_gfA.x*g.x+_gfA.y*(g.y+f.pv)+_gfA.z*g.z);
+}
+const GIANT_FALL_G=1.5*9.8*2.5;                        // 막대 끝 축 넘어짐 1.5·g/L — g 는 보기 좋게 2.5배
+function updateGiantFalls(dt){
+  for(let i=GIANT.falls.length-1;i>=0;i--){
+    const f=GIANT.falls[i], g=f.g; f.t+=dt;
+    f.w+=GIANT_FALL_G*Math.sin(f.th)/f.L*dt; f.th+=f.w*dt;    // 땅에 닿은 뒤에도 — 튀었다가 다시 눕는다
+    if(f.land<0){
+      /* 우듬지 쪽(줄기 0.7 L) 점이 땅에 닿았나 */
+      const r=f.L*0.7, sn=Math.sin(f.th), tx=g.x+f.dx*sn*r, tz=g.z+f.dz*sn*r, ty=g.y+f.pv+Math.cos(f.th)*r;
+      if(ty<=heightAt(tx,tz)+1.2||f.th>=1.75){
+        f.land=f.t; f.thL=f.th; f.w=-f.w*0.12;          // 땅을 치고 살짝 튄다
+        sfx('thud'); giantDust(f);
+        const d=Math.hypot(PL.pos.x-tx,PL.pos.z-tz); GIANT.shake=Math.max(GIANT.shake||0,clamp(1-d/70,0,1)*0.6);
+      }
+    }else{
+      if(f.th>=f.thL){ f.th=f.thL; f.w=Math.abs(f.w)>0.05?-f.w*0.25:0; }
+      const k=f.t-f.land;
+      if(k>1.2) f.mat.opacity=Math.max(0.45,1-(k-1.2)/1.4*0.55);   // 알파 자르기(0.4) 밑으로 내리면 통째로 빠지므로 0.45 까지만
+      if(k>2.6) f.m.visible=false;                   // 먼지가 가장 짙을 때 사라진다
+      if(k>3.4){ giantFallEnd(f); GIANT.falls.splice(i,1); continue; }
+    }
+    giantFallPose(f);
+    LIGHT.dirtyAt(g.x,g.z,f.L+10);
+    for(const d of f.dust){ const k=(f.t-d.t0)/3.2; d.m.visible=k>=0&&k<=1; if(!d.m.visible) continue;
+      d.m.scale.set(d.w*(0.5+k*0.9),d.h*(0.4+k*0.8),1); d.m.position.y=d.y+k*2.5; }
+  }
+  if(GIANT.shake>0){                                    // 화면 흔들림 — 사람 시점(updatePlayer 다음)에 얹는다
+    const a=GIANT.shake; GIANT.shake=Math.max(0,a-dt*0.9);
+    camera.position.x+=(Math.random()-0.5)*a*0.5; camera.position.y+=(Math.random()-0.5)*a*0.6; camera.position.z+=(Math.random()-0.5)*a*0.5;
+  }
+}
+function giantDust(f){
+  const g=f.g, sm=fireMats().smoke;
+  for(let j=0;j<7;j++){
+    const r=f.L*(0.25+j*0.11), x=g.x+f.dx*r+(Math.random()-0.5)*4, z=g.z+f.dz*r+(Math.random()-0.5)*4, y=heightAt(x,z);
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1).translate(0,0.5,0),sm);
+    m.frustumCulled=false; m.userData.lightRole='none'; m.position.set(x,y,z); m.visible=false;
+    scene.add(m); f.dust.push({m,t0:f.t+j*0.05,w:8+f.L*0.25,h:6+f.L*0.12,y});
+  }
+}
+function giantFallEnd(f){
+  scene.remove(f.m); f.mat.dispose();
+  for(const d of f.dust){ scene.remove(d.m); d.m.geometry.dispose(); }
+}
+/* 저장 — 벤 그루의 남은 통나무(0 이면 쓰러졌다) */
+function giantSave(){ return [...GIANT.cut]; }
+function giantRestore(arr){
+  GIANT.cut.clear();
+  if(!Array.isArray(arr)) return;
+  const byKey=new Map(GIANT.list.map(g=>[giantKey(g),g]));
+  for(const e of arr){
+    if(!Array.isArray(e)||typeof e[0]!=='string') continue;
+    const g=byKey.get(e[0]); if(!g) continue;
+    const n=Math.max(0,e[1]|0); GIANT.cut.set(e[0],n);
+    if(n<=0) giantFell(g,false); else g.prop.logs=Math.min(g.prop.logs,n);
+  }
+  updateGiants(true);
 }

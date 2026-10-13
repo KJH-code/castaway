@@ -979,6 +979,12 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   단추·칸·창은 `box-shadow`, 그림은 `drop-shadow` 로 빨강·파랑을 양옆으로 어긋나게 + 주사선. **창 전체에 `filter:drop-shadow` 를 걸면 안 된다** —
   불투명한 창의 바깥 테만 번지고 안의 글은 그대로였다. 테이프 셰이더의 색수차도 1.7 → 2.4 화소. 캠코더 OSD 는 REC·배터리를 키우고
   둘째 줄에 '표류 N일째 오전/오후 h:mm'(`#camcD`).
+- **식생·바닷가 따기는 누르고 있는 동안 막대가 찬다**(`GATHER` · `updateGather` · `gatherLook` — 95-flora.js) — `FLORA_PICK`/`SEA_PICK` 의
+  `dur`(초)·`stam`(초당 기력) · 얻는 수는 `cnt` 안에서 무작위 · `extra` 는 딸려 나오는 것. 누른 순간(`floraPick`/`seaPick`)은 막힌 까닭만 알린다.
+  **덤불(`twig`)·마른 덤불(`drytwig`)에서 나뭇가지**(+부싯깃·베리 가끔). 덤불·버섯은 겨눈 쪽으로 고른다(`ay` · 거리 × (2 − cos)).
+- **노거수는 철 도끼 이상(`tool.axe` 2 — 철·강철 도끼)으로 벤다**(`GIANT_CHOP` · `giantChopTarget` · `g.prop` 이 HARV 틀을 탄다) — 통나무 10~21개,
+  다 베면 넘어가고(`giantFallStart` · 자르는 면 `clippingPlanes` → `renderer.localClippingEnabled`) 판근 그루터기(`giantStumpGeo`)가 남는다.
+  저장 `giants`(`GIANT.cut`). `findHarvestTarget` 은 손의 도구로 할 수 있는 대상을 1.2 m 앞세운다. **쓰러지는 장면은 아직 헤드리스로 눈으로 확인하지 못했다.**
 - **손 발전기는 기력을 안 쓴다**(사용자 요청 — 예전엔 돌리는 동안 기력이 닳고 모자라면 못 돌렸다).
 - **제작 창은 단계별 나무다**(`drawCraft` · `CRAFT_TIERS` 열두 단계 차례) — 단계 머리(만들 수 있는 수/전체 · 진척 막대 · 눌러 접고 펴기 `CRAFT_OPEN`) ·
   위에 단계 칩(누르면 그 단계로 감) · 줄마다 아이콘 · 재료 칩(모자란 것 빨강) · 도구 칩(지닌 것, 없으면 첫 후보 + '외 n') · 설비 칩 · 한 줄 설명(전문은 `title`).

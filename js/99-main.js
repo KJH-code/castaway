@@ -61,9 +61,11 @@ function loop(){
       }
       updateBuild();
       updateHarvest(dt);
+      updateGather(dt);           // 덩굴·덤불·열매·버섯·조개 — 누르고 있는 동안 막대가 찬다(95-flora.js)
       updateCraft(dt);
       updateRegrow();
       updatePlayer(dt);
+      updateGiantFalls(dt);       // 벤 노거수가 넘어간다 · 땅을 치면 화면이 흔들린다(사람 시점 다음에 얹는다 — 95-giants.js)
     }
     }                           // hold — 세상이 멈춘 동안은 위를 통째로 건너뛴다
     if(PO) tp=PERF.lap(4,tp);
