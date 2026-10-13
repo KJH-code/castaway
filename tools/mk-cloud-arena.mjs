@@ -1,12 +1,12 @@
-/* cloud_arena.html 을 island_world.html 에서 다시 만든다.
+/* beta/cloud_arena.html 을 island_world.html 에서 다시 만든다.
    본편의 하늘·달·구름·날씨·비 구역을 **줄 번호가 아니라 표지로 찾아** 통째로
    베끼고(줄 번호로 잡았다가 본편에 스무 줄 끼워 넣은 뒤 잘린 파일이 나왔다),
    시험장 손잡이 다섯만 낸다. 껍데기(조작판·조종·무대)는 tools/cloud-arena.tpl 이다.
    본편 구름 코드를 고쳤으면 이걸 다시 돌릴 것:  node tools/mk-cloud-arena.mjs */
 import {readFileSync, writeFileSync} from 'node:fs';
-// 본편은 js/ 로 나뉘었다 — island_world.html 이 불러오는 js/*.js 를 차례대로 이어 붙여 찾는다
+// 본편은 engine/js/ 로 나뉘었다 — island_world.html 이 불러오는 engine/js/*.js 를 차례대로 이어 붙여 찾는다
 const html = readFileSync('island_world.html', 'utf8');
-const src = [html, ...[...html.matchAll(/<script src="(js\/[^"]+)"><\/script>/g)]
+const src = [html, ...[...html.matchAll(/<script src="(engine\/js\/[^"]+)"><\/script>/g)]
   .map(m => readFileSync(m[1], 'utf8'))].join('\n').split('\n');
 const s = src.findIndex(l => l.includes('하늘 · 광원 · 시간'));
 const u = src.findIndex((l, i) => i > s && l.startsWith('function updateSky()'));
@@ -35,5 +35,5 @@ rep('    c.m.material.opacity=c.op*cloudFade',
 
 const tpl = readFileSync('tools/cloud-arena.tpl', 'utf8');
 if (!tpl.includes('/*@SKY@*/')) throw new Error('틀에 /*@SKY@*/ 자리가 없다');
-writeFileSync('cloud_arena.html', tpl.replace('/*@SKY@*/', blk));
-console.log(`cloud_arena.html — 하늘 구역 ${e - s + 1}줄 옮김`);
+writeFileSync('beta/cloud_arena.html', tpl.replace('/*@SKY@*/', blk));
+console.log(`beta/cloud_arena.html — 하늘 구역 ${e - s + 1}줄 옮김`);

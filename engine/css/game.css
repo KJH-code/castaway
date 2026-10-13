@@ -301,6 +301,7 @@
   #cfg{z-index:12;max-height:calc(100vh - 24px);overflow:auto}
   #cfg .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:var(--ink);font-size:11px;letter-spacing:.12em}
   #cfg select{width:100%;margin-bottom:5px;background:#0b1314;border:1px solid var(--line);color:var(--ink);font:inherit;font-size:10px;padding:4px}
+  #cfg .r select{flex:1;min-width:0;width:auto;margin-bottom:0}       /* 줄 안의 고름칸(프리셋) */
   #cfg button:disabled{opacity:.35;cursor:default}
   #bar{width:220px;height:3px;background:#0f1c1a;margin-top:16px}
   #bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .12s}

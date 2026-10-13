@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>CASTAWAY — 섬 생성 + 3D 월드</title>
-<link rel="stylesheet" href="css/game.css">
+<link rel="stylesheet" href="engine/css/game.css">
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -110,11 +110,13 @@
 <div class="pnl" id="cfg">
   <div class="ch"><b>설정</b><button id="bCfgX">닫기 · Tab</button></div>
   <div class="r"><label>시드</label><input type="text" id="pSeed" value="castaway"></div>
+  <div class="r"><label>섬 프리셋</label><select id="pIsle" aria-label="섬 프리셋"></select></div>
   <div class="r"><label>섬 크기</label><input type="range" id="pSize" min="0.45" max="0.95" step="0.01" value="0.7"><span class="v" id="vSize"></span></div>
   <div class="r"><label>산맥</label><input type="range" id="pRidge" min="0" max="1.4" step="0.02" value="0.85"><span class="v" id="vRidge"></span></div>
   <div class="r"><label>침식</label><input type="range" id="pEro" min="0" max="1" step="0.02" value="0.6"><span class="v" id="vEro"></span></div>
   <div class="r"><label>해수면</label><input type="range" id="pSea" min="-14" max="14" step="0.5" value="0"><span class="v" id="vSea"></span></div>
   <div class="r"><label>강수량</label><input type="range" id="pRain" min="0.3" max="1.6" step="0.02" value="1"><span class="v" id="vRain"></span></div>
+  <div class="r"><label>그래픽 프리셋</label><select id="pGfx" aria-label="그래픽 프리셋"></select></div>
   <div class="r"><label>해상도</label><input type="range" id="pRes" min="0.25" max="2" step="0.05" value="1"><span class="v" id="vRes"></span></div>
   <div class="r"><label>시야</label><input type="range" id="pFar" min="0.4" max="2.5" step="0.05" value="1"><span class="v" id="vFar"></span></div>
   <div class="r"><label>가지 밀도</label><input type="range" id="pLimb" min="0.25" max="1.6" step="0.05" value="0.8"><span class="v" id="vLimb"></span></div>
@@ -216,35 +218,36 @@
 </div>
 
 <!-- 스크립트는 이 차례로 읽는다(앞 파일이 만든 것을 뒤 파일이 쓴다). 묶음마다 무엇이 들었는지는 README.md 에 있다 -->
-<script src="three.min.js"></script>
-<script src="js/00-core.js"></script>
-<script src="js/10-worldgen.js"></script>
-<script src="js/20-terrain.js"></script>
-<script src="js/data-ground-textures.js"></script>
-<script src="js/22-ground-textures.js"></script>
-<script src="js/24-shapes.js"></script>
-<script src="js/30-props.js"></script>
-<script src="js/40-light.js"></script>
-<script src="js/45-sky.js"></script>
-<script src="js/46-camcorder.js"></script>
-<script src="js/50-items.js"></script>
-<script src="js/55-craft.js"></script>
-<script src="js/60-stations.js"></script>
-<script src="js/62-build.js"></script>
-<script src="js/64-dex.js"></script>
-<script src="js/70-weapons.js"></script>
-<script src="js/data-sentinel-mesh.js"></script>
-<script src="js/72-gear.js"></script>
-<script src="js/74-icons-guns.js"></script>
-<script src="js/80-player.js"></script>
-<script src="js/82-hud.js"></script>
-<script src="js/90-init.js"></script>
-<script src="js/92-save.js"></script>
-<script src="js/94-input.js"></script>
-<script src="js/95-flora.js"></script>
-<script src="js/95-giants.js"></script>
-<script src="js/96-sea.js"></script>
-<script src="js/98-bag.js"></script>
-<script src="js/99-main.js"></script>
+<script src="engine/three.min.js"></script>
+<script src="presets/presets.js"></script>
+<script src="engine/js/00-core.js"></script>
+<script src="engine/js/10-worldgen.js"></script>
+<script src="engine/js/20-terrain.js"></script>
+<script src="engine/js/data-ground-textures.js"></script>
+<script src="engine/js/22-ground-textures.js"></script>
+<script src="engine/js/24-shapes.js"></script>
+<script src="engine/js/30-props.js"></script>
+<script src="engine/js/40-light.js"></script>
+<script src="engine/js/45-sky.js"></script>
+<script src="engine/js/46-camcorder.js"></script>
+<script src="engine/js/50-items.js"></script>
+<script src="engine/js/55-craft.js"></script>
+<script src="engine/js/60-stations.js"></script>
+<script src="engine/js/62-build.js"></script>
+<script src="engine/js/64-dex.js"></script>
+<script src="engine/js/70-weapons.js"></script>
+<script src="engine/js/data-sentinel-mesh.js"></script>
+<script src="engine/js/72-gear.js"></script>
+<script src="engine/js/74-icons-guns.js"></script>
+<script src="engine/js/80-player.js"></script>
+<script src="engine/js/82-hud.js"></script>
+<script src="engine/js/90-init.js"></script>
+<script src="engine/js/92-save.js"></script>
+<script src="engine/js/94-input.js"></script>
+<script src="engine/js/95-flora.js"></script>
+<script src="engine/js/95-giants.js"></script>
+<script src="engine/js/96-sea.js"></script>
+<script src="engine/js/98-bag.js"></script>
+<script src="engine/js/99-main.js"></script>
 </body>
 </html>

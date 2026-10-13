@@ -13,8 +13,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
-      - name: 문법 검사(시험장 인라인 스크립트 · 본편 js/)
-        run: node tools/check-syntax.mjs *.html js/*.js
+      - name: 문법 검사(시험장 인라인 스크립트 · 본편 engine/js/ · presets/)
+        run: node tools/check-syntax.mjs *.html beta/*.html engine/js/*.js presets/*.js
 
   smoke:
     name: 구동 검사

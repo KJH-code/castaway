@@ -8,3 +8,10 @@ package.json
 desktop/dist/
 island_world_single.html
 __pycache__/
+# env/ — 받아 온 컴파일러와 파이썬 가상 환경은 담지 않는다(받는 법은 env/README.md)
+env/zig/
+env/py/
+env/.cache/
+# 학습 자료와 학습된 모델 가중치(크다) — 내보낸 결과만 presets/random_textures/ 에 담는다
+tools/ai/data/
+tools/ai/runs/

@@ -8,7 +8,7 @@ import {PAGES, pageInfo, launch, open} from './pages.mjs';
 
 const only = process.argv.slice(2);
 const list = only.length ? only.map(pageInfo)
-                         : PAGES.filter(p => p.f !== 'mimic_arena.html');
+                         : PAGES.filter(p => p.f !== 'beta/mimic_arena.html');
 
 const browser = await launch();
 let bad = 0;

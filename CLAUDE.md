@@ -4,11 +4,24 @@
 
 ## 스택
 
-- Three.js r128을 레포 안의 `three.min.js`(603KB)에서 `<script src>`로 로드.
+- Three.js r128을 레포 안의 `engine/three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 본편은 `island_world.html`(뼈대) + `css/game.css` + `js/*.js` 29개로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 211종 · 레시피 174개
+- 본편은 `island_world.html`(뼈대) + `engine/css/game.css` + `engine/js/*.js` 29개로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 211종 · 레시피 174개
 - 라이선스 GPL-3.0
+
+## 폴더
+
+| 폴더 | 무엇 |
+|---|---|
+| `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
+| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 29개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
+| `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) · `random_textures/`(텍스처 모델이 낸 그림이 들어갈 자리) |
+| `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
+| `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
+| `desktop/` | 데스크톱 판(Electron 껍데기) |
+| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `tools/ai/`(텍스처 모델 학습) |
+| `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
 
@@ -21,7 +34,7 @@ island_world.html
 ### 데스크톱 판(`desktop/`)
 
 브라우저를 벗어나 제 창으로 뜨는 게임. **게임 본체는 베끼지 않는다** — 개발 중엔 `../island_world.html` 을,
-묶은 판은 `extraResources` 로 `resources/game/` 에 넣어 둔 것을 연다(`island_world.html`·`three.min.js`·`css/`·`js/` — **본편에 파일 묶음을 새로 만들면 `desktop/package.json` 에도 더할 것**)(`main.js` 의 `GAME`). 그래서 게임을 고치면
+묶은 판은 `extraResources` 로 `resources/game/` 에 넣어 둔 것을 연다(`island_world.html` · `engine/` 의 `three.min.js`·`css/`·`js/` · `presets/` 의 `*.js`·`random_textures/` — **본편이 읽는 파일 묶음을 새로 만들면 `desktop/package.json` 의 `filter` 에도 더할 것**. 모델(`presets/models/`)과 `engine/native/` 의 C 원본은 안 넣는다)(`main.js` 의 `GAME`). 그래서 게임을 고치면
 데스크톱 판은 다시 묶기만 하면 된다.
 
 ```bash
@@ -29,7 +42,7 @@ cd desktop && npm ci && npm start          # 개발 — 창으로 띄우기(F12 
 npx electron-builder --linux               # 묶기 — dist/ (--win · --mac 은 그 OS 러너에서)
 ```
 
-- **빌드는 GitHub Actions `데스크톱 판`**(`.github/workflows/desktop.yml`) — `island_world.html`·`three.min.js`·`css/**`·`js/**`·`desktop/**` 가
+- **빌드는 GitHub Actions `데스크톱 판`**(`.github/workflows/desktop.yml`) — `island_world.html`·`engine/three.min.js`·`engine/css/**`·`engine/js/**`·`desktop/**` 가
   바뀐 푸시마다 Windows(NSIS 설치판 + 포터블 .exe) · macOS(universal .dmg) · Linux(.AppImage)를 묶어 Artifacts 에 30일 둔다.
   `v*` 태그를 밀면 Releases 에도 붙인다. 레포가 공개라 러너 시간은 공짜다. **서명은 없다**(Windows SmartScreen · macOS Gatekeeper 경고).
 - **`main.js` 가 더하는 것**: 전체 화면으로 시작(F11 · Alt+Enter — 상태는 `userData/window.json` 에 기억) · 메뉴 줄 없음(그래서
@@ -46,7 +59,7 @@ npx electron-builder --linux               # 묶기 — dist/ (--win · --mac �
   NSIS: 바탕 화면·시작 메뉴 바로가기 · 설치 끝나면 실행 · **지워도 저장(userData)은 남긴다**.
 - **게임이 아는 것은 `window.DESKTOP` 하나다**(`preload.js` — `saveHas/saveRead/saveWrite/info/openSaves/fullscreen/quit/gpu/setGpu/onBeforeClose/closeReady/onVisible/onUpdate`, 저장은 동기 IPC).
   `gpu()`/`setGpu(v)` 는 그래픽 백엔드(ANGLE) 고르기 — `userData/gpu.json` 에 적고 **다음에 켤 때** `use-angle` 로 넘긴다(Windows d3d11·d3d9·gl·vulkan · macOS metal·gl · Linux gl·vulkan).
-  본편(`js/92-save.js`)의 `DESK` 가 있으면 **저장 칸이 파일**(`userData/saves/slot1~3.json` · `auto.json` · Windows `%APPDATA%\CASTAWAY\saves` —
+  본편(`engine/js/92-save.js`)의 `DESK` 가 있으면 **저장 칸이 파일**(`userData/saves/slot1~3.json` · `auto.json` · Windows `%APPDATA%\CASTAWAY\saves` —
   임시 파일에 쓰고 바꿔 끼우며 바로 앞 것은 `.bak`), 없으면 `localStorage`(`castaway.save1~3` · `castaway.auto` — 슬롯 1 은 예전 키 그대로). 슬롯 이름은 `[a-z0-9._-]` 만 받는다.
   데스크톱 판에서만 보이는 것: 일시정지 화면의 **끝내기**(`#bQuit` — 상륙 전이면 바로, 상륙했으면 묻고 닫기 길(자동 저장)을 탄다) · 설정 창의 '전체 화면'·'저장·기록 폴더'(`#deskG` — userData 를 연다)·그래픽 백엔드 고르기(`#pAngle`) ·
   시작 화면 오른쪽 아래 판 번호(`#ovVer`).
@@ -86,19 +99,19 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` · `css/` · `js/` | 메인 게임(나뉜 판 — 아래 '파일 지도' · `CODEMAP.md`) |
+| `island_world.html` · `engine/css/` · `engine/js/` | 메인 게임(나뉜 판 — 아래 '파일 지도' · `CODEMAP.md`) |
 | `CODEMAP.md` | 나뉜 본편의 파일별 설명(영어) · 고칠 때 지킬 것 |
 | `tools/build_single.py` · `tools/serve.py` | 한 파일로 묶기 · 캐시 끈 로컬 서버 |
-| `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
-| `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
-| `wyvern_arena.html` | **애쉬스케일 시험장**(4.1MB). 상공 20 m 선회 → 5초 노려봄 →
+| `engine/three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
+| `beta/gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
+| `beta/wyvern_arena.html` | **애쉬스케일 시험장**(4.1MB). 상공 20 m 선회 → 5초 노려봄 →
   내리꽂기 → 3초 굳음 → 걸어서 추격 · 화염구(2초 젖힘 · 겨눈 방향 고정) ·
   팔과 물기는 뼈를 실제로 돌려 맞춘다(`solveClaw`/`solveBite` — 칠 때마다
   닿는 각을 풀고, 닿지 않을 자리면 안 휘두른다) · 집과 사람을 같은 표적으로 다룬다(`curTgt` — 집이 26 m 안이면 그쪽이 먼저) ·
   죽을 때 5초 부풀다 폭발, 사람과 집이 같이 다치고 2초 뒤 판이 닫힌다. 체력 700 ·
   날개폭 11 m. 무기 14자루(강철 포함)를 번호+Enter 로 바꿔 든다.
   모델은 파일에 내장(와이번 5만 · 화염구 1만 삼각형) |
-| `siege_arena.html` | **농성 시험장**(11MB). 한가운데 5×5칸·두 층 나무집에서 시작한다.
+| `beta/siege_arena.html` | **농성 시험장**(11MB). 한가운데 5×5칸·두 층 나무집에서 시작한다.
   집은 **본편의 짓기 코드를 그대로 옮겨 세운다**(`placeFound`/`placeWall`/`placeFit`/
   `placeRoof` · 토대25·벽40·지붕25 · 장마다 내구 300 · 문짝은 95°로 열리고
   닫으면 `addWallCols` 가 기둥을 도로 깐다). 밖에 아르크토스3·가고일1·와이번1. **문 닫고 집 안이면
@@ -110,7 +123,7 @@ python -m http.server 5173
   `pushOutOfSolids` 로 사람·곰·가고일을 다 막고, 짐승은 벽에 달려드는
   대신 `wayIn()` 으로 뚫린 데를 찾아 집을 두르고 돈다(모서리 → 구멍 정면 → 안쪽 순).
   몸이 들어가는 놈만 문을 쓴다(문 2.4 m · 곰 2.0 m). **건축물은 본편의 2배**(`BSCALE`) |
-| `battle_arena.html` | **편싸움 시험장**(18MB). 평지에 두 편을 마주 세우고 붙인다.
+| `beta/battle_arena.html` | **편싸움 시험장**(18MB). 평지에 두 편을 마주 세우고 붙인다.
   시작 화면에서 **1팀·2팀의 아르크토스(0~8)·가고일(0~8)·와이번(0~1) 마릿수**를 고르고
   사람의 편도 고른다(중립이면 구경만 한다). 곰·가고일은 `MAXB`/`MAXG` 만큼 미리
   만들어 두고 `deploy()` 가 쓸 만큼만 깨운다 — 시작할 때마다 모델을 새로 만들면
@@ -141,9 +154,9 @@ python -m http.server 5173
   **다지류도 선다**(`CRAWLS` · `MAXC` 2 · 1·2팀 각 0~2 · `updateCrawlers`) — 남들이 노릴 때는 머리가 아니라 **가장 가까운 마디**(`crwNearPt`)를, 다지류는 가장 가까운 적을 쫓는다. 마디 구에 닿은 적마다 0.5초마다 40(사람은 갑옷이 깎는다). `separateMobs` 에서는 빠지고 제 마디 구로 밀어낸다. 집 벽은 모른다. 몸길이 62 m 라 옆으로 눕혀 세운다.
   **몸끼리 겹치지 않는다**(`separateMobs` — 반반씩 밀어내고, 높이가 3.5 m 넘게
   차이 나면 안 부딪힌다. 곰 1.35 · 가고일 0.8 · 거미 2.2 · 와이번 2.6 m) |
-| `night_arena.html` | **밤 시험장**(23MB) — `battle_arena.html` 을 복사해 세 가지만 바꿨다: ① **언덕 지형**(`h()` = 큰 물결 + 가우스 봉우리 다섯 `HILLS` + 가운데 분지, 최고 약 7~12 m · 격자 선 없앰) ② **밤**(짙은 남색 하늘·안개 0.011 · 달빛 평행광 · 달 원판 · 별 900) ③ **편성 고정**(`readLineup` 이 애쉬스케일 2 · 스킨워커 1 · 다지류 1 을 모두 1팀, 사람을 2팀으로 — 몹끼리는 안 싸운다 · 시작 화면에는 무기·방어구·짐만). 나머지(총 꾸러미·다지류 모듈 포함)는 battle 과 글자 그대로라 **battle 을 고치면 여기도 고칠 것** |
-| `cloud_arena.html` | **구름 시험장**(60KB · 모델이 없어 **1.5초에 뜬다**).
-  본편의 하늘·달·구름·날씨·비 코드(`js/45-sky.js`)를 **그대로**
+| `beta/night_arena.html` | **밤 시험장**(23MB) — `beta/battle_arena.html` 을 복사해 세 가지만 바꿨다: ① **언덕 지형**(`h()` = 큰 물결 + 가우스 봉우리 다섯 `HILLS` + 가운데 분지, 최고 약 7~12 m · 격자 선 없앰) ② **밤**(짙은 남색 하늘·안개 0.011 · 달빛 평행광 · 달 원판 · 별 900) ③ **편성 고정**(`readLineup` 이 애쉬스케일 2 · 스킨워커 1 · 다지류 1 을 모두 1팀, 사람을 2팀으로 — 몹끼리는 안 싸운다 · 시작 화면에는 무기·방어구·짐만). 나머지(총 꾸러미·다지류 모듈 포함)는 battle 과 글자 그대로라 **battle 을 고치면 여기도 고칠 것** |
+| `beta/cloud_arena.html` | **구름 시험장**(60KB · 모델이 없어 **1.5초에 뜬다**).
+  본편의 하늘·달·구름·날씨·비 코드(`engine/js/45-sky.js`)를 **그대로**
   옮겨 놓고 손잡이 다섯만 냈다 — `COVER`(구름양) · `MANUAL`(갈래마다 못수) ·
   `MIST`(안개) · `FADE`(여닫는 시간, 본편 25초) · `OPMUL`(짙기 배율).
   전부 `// 시험장:` 으로 표시해 두었고 **나머지는 본편과 한 글자도 다르지 않다.**
@@ -151,16 +164,16 @@ python -m http.server 5173
   시각·배속·구름양·안개·짙기·여닫는 초·바람을 슬라이더로 잡는다.
   **여기서는 사진이 찍힌다** — 본편은 지형 생성에 5분이 걸려 헤드리스 사진이
   늘 타임아웃 났다. 구름·하늘을 만졌으면 **눈으로 확인할 길은 이것뿐이다**:
-  `node tools/probe.mjs cloud_arena.html --run 스크립트.js --shot 사진.png`
+  `node tools/probe.mjs beta/cloud_arena.html --run 스크립트.js --shot 사진.png`
   **사진을 찍을 때는 `PAUSE=true` 를 먼저 켤 것**(조작판의 '멈춤' · `P`).
   안 켜면 시험장의 제 루프가 계속 돌아, 제 반경 `R`×1.25 밖에 갖다 놓은
   구름을 곧바로 되굴려 치워 버린다 — 사진에 구름이 안 나온다.
   **본편 구름 코드를 고쳤으면 `node tools/mk-cloud-arena.mjs` 를 돌려 다시 만들 것.** 생성기는 `island_world.html` 이 불러오는
-  `js/*.js` 를 차례대로 이어 붙여 표지를 찾는다. 본편의 캠코더(`camcBegin`/`camcEnd`)는 틀(`cloud-arena.tpl`)에 빈 함수로 두었다.
+  `engine/js/*.js` 를 차례대로 이어 붙여 표지를 찾는다. 본편의 캠코더(`camcBegin`/`camcEnd`)는 틀(`cloud-arena.tpl`)에 빈 함수로 두었다.
   본편에서 하늘 구역을 **표지로 찾아** 통째로 베끼고 손잡이만 낸다(줄 번호로
   잡았다가 본편에 스무 줄 끼운 뒤 잘린 파일이 나왔다). 껍데기는
   `tools/cloud-arena.tpl` 이다 |
-| `crawler_arena.html` | **다지류 시험장**(4.8MB). 몸마디 67 · 다리 146 · 몸길이 약 62 m · 체력 1500. **다지류 코드는 모듈이다**(`CRW` · `crwBuild`(지오메트리·재질 한 번) · `makeCrawler(scene,hp)`(뼈는 마리마다 — 조인트 명세 `CRW.jspec` 를 {원본|복제 벌, 노드, 역묶음 행렬} 로 적어 두고 개체마다 뼈를 세워 끼운다) · `placeCrawler(cr,…)` · `stepCrawler(cr,dt,표적,opt)` · `crwNearest`) — `battle_arena.html` 에 **글자 그대로** 들어가 있으니 고치면 둘 다 고칠 것. 모델 이름은 `CRW_META`/`CRW_B64`. **무기는 번호+Enter · 방어구는 F 나 시작 화면**(ARMORS 는 trio 와 같은 표 · `armorMul`). 몸 닿기(40)도 폭발도 갑옷이 깎는다(`armorMul` — 강철 한 벌 7.7 · 철 비늘 10.5 · 맨몸 40). **크기 1.5배(`SIZE` — 정점·뼈 자리·역묶음 행렬의 이동 칸에 곱한다) · 몸마디는 불러올 때 복제해 늘린다**(`CL_A`~`CL_B` — 척추 3~11 아홉 마디의 정점·삼각형·척추·다리 뼈를 `CL_K`(6) 벌 복제해 11 뒤에 줄줄이 끼운다. 조인트는 (뼈, 역묶음 행렬) 짝이라 복제 뼈가 원본 행렬을 그대로 쓰고, 끊긴 자리(11 이하|12 이상 마디를 걸친 삼각형 — 꼬리 쪽 정점이 11 과 섞인 것도 있다)는 버리고 복제 쪽이 잇는다. 고친 뒤엔 뼈를 돌린 세계 좌표로 삼각형 변 길이를 재 볼 것 — 최대 0.38 m 여야 한다). Meshy 모델에 다리 관절을
+| `beta/crawler_arena.html` | **다지류 시험장**(4.8MB). 몸마디 67 · 다리 146 · 몸길이 약 62 m · 체력 1500. **다지류 코드는 모듈이다**(`CRW` · `crwBuild`(지오메트리·재질 한 번) · `makeCrawler(scene,hp)`(뼈는 마리마다 — 조인트 명세 `CRW.jspec` 를 {원본|복제 벌, 노드, 역묶음 행렬} 로 적어 두고 개체마다 뼈를 세워 끼운다) · `placeCrawler(cr,…)` · `stepCrawler(cr,dt,표적,opt)` · `crwNearest`) — `beta/battle_arena.html` 에 **글자 그대로** 들어가 있으니 고치면 둘 다 고칠 것. 모델 이름은 `CRW_META`/`CRW_B64`. **무기는 번호+Enter · 방어구는 F 나 시작 화면**(ARMORS 는 trio 와 같은 표 · `armorMul`). 몸 닿기(40)도 폭발도 갑옷이 깎는다(`armorMul` — 강철 한 벌 7.7 · 철 비늘 10.5 · 맨몸 40). **크기 1.5배(`SIZE` — 정점·뼈 자리·역묶음 행렬의 이동 칸에 곱한다) · 몸마디는 불러올 때 복제해 늘린다**(`CL_A`~`CL_B` — 척추 3~11 아홉 마디의 정점·삼각형·척추·다리 뼈를 `CL_K`(6) 벌 복제해 11 뒤에 줄줄이 끼운다. 조인트는 (뼈, 역묶음 행렬) 짝이라 복제 뼈가 원본 행렬을 그대로 쓰고, 끊긴 자리(11 이하|12 이상 마디를 걸친 삼각형 — 꼬리 쪽 정점이 11 과 섞인 것도 있다)는 버리고 복제 쪽이 잇는다. 고친 뒤엔 뼈를 돌린 세계 좌표로 삼각형 변 길이를 재 볼 것 — 최대 0.38 m 여야 한다). Meshy 모델에 다리 관절을
   새로 넣었다(다리마다 `Leg_[LR]NN_Hip/Knee/Ankle/Toe` — 뒤에서 앞으로 01~12 · 맨 뒤 한 쌍은 원래 뼈 `Bone_016~023`).
   모델은 바탕색 그림만 1024 JPEG 로 줄여 넣었다(`MODEL_META`/`MODEL_B64` — 위치·법선·uv·뼈 번호·가중치·역묶음 행렬).
   **머리가 앞장서고 뒤 마디는 머리가 지나간 길(`TRAIL`)을 따라간다** — 마디마다 쉼 자세의 머리로부터 길이 `s`
@@ -168,28 +181,28 @@ python -m http.server 5173
   걸음은 쌍마다 위상 0.9 씩 밀린 물결(간 거리로 민다). **닿으면 0.5초마다 40**(갑옷이 깎는다) — 마디 구 68개(반지름 1.1)에
   들어오면 밀어낸다. 맞히기도 같은 구다. 뼈 세계 자세를 부모 기준으로 되돌려 넣으므로 **머리→꼬리 차례로** 돌린다 |
 | (총 꾸러미) | **본편의 새 총·활·수류탄을 시험장에 옮긴 공용 코드**(`GUNS_NEW` · `GK` · `gkShoot`/`gkThrow`/`gkUpdate`/`gkSwitch`) — crawler·battle 두 곳에 **글자 그대로** 들어가 있다. 산탄총(알마다 선 · `pellets`/`spread`) · 반자동 · 기관단총(`auto` — 누르고 있으면 연사) · 대물 저격총(`scope` — **시험장은 우클릭**이 조준경, 본편은 좌클릭) · 바주카(로켓 초속 70 · 중력 1.5 · 반경 6 m 폭발) · 수류탄(16 m/s 포물선 · 3.5초 · 7 m) · 활 둘. 값은 본편 `ITEMS[].tool` 그대로. **탄창은 무기마다 따로 남는다**(`GK.mags`). 폭발은 (1−d/r)² 로 짐승·사람 모두(사람은 갑옷만 깎는다 — 본편 `explode` 와 같다). 시험장마다 갈고리 넷: `gkRay`·`gkBlast`·`gkHurtSelf`(·`gkNear` 는 안 쓴다). 총 생김새는 본편 `WEAPON_FX` 를 옮겼고 총구 불은 원뿔(`muzzleFlash` 대역)이다 |
-| `bear_arena.html` · `mixed_arena.html` | 곰 시험장. **캡슐 판정이 없다** — 총은
+| `beta/bear_arena.html` · `beta/mixed_arena.html` | 곰 시험장. **캡슐 판정이 없다** — 총은
   `bearSpheres()` 가 뼈마다 늘어놓은 공 18개로 맞히고, 근접은 여전히 평면 거리다 |
-| `trio_arena.html` | **셋 시험장** — 스킨워커1 · 아르크토스1 · 가고일2. mimic_arena 에
+| `beta/trio_arena.html` | **셋 시험장** — 스킨워커1 · 아르크토스1 · 가고일2. mimic_arena 에
   mixed_arena 의 곰·가고일을 옮겨 붙인 것(27MB). 이름 충돌은 BEAR_R·BSNAME·bSet·
   bWanderTarget·bearMesh·bearMat 로 피했다. 곰은 `bearCaps()` — 관절 여섯의
   pivot→tip 캡슐이다(곰 키 3.43 m · 머리 2.65 m · 치켜든 앞발 2.29 m) |
-| `CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
-| `CASTAWAY_전사_초반부.md`, `CASTAWAY_전사_2차.md` | 개발 대화 원문 |
-| `bear_high.glb`, `stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |
+| `docs/CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
+| `docs/CASTAWAY_전사_초반부.md`, `docs/CASTAWAY_전사_2차.md` | 개발 대화 원문 |
+| `presets/models/bear_high.glb`, `presets/models/stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |
 
-**본편은 나뉘어 있다** — `island_world.html`(250줄 · HTML 뼈대뿐) + `css/game.css` + `js/*.js` 29개.
+**본편은 나뉘어 있다** — `island_world.html`(250줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 29개.
 js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
 나누면서 고쳐 쓴 것이 없다). 번호가 곧 불러오는 차례다 — **불러오는 순간 바로 도는 코드는 위 파일 것만 쓸 수 있다**(함수 안에서
 부르는 것은 어느 파일 것이든 된다). 새 계통은 `99-main.js` 바로 위에 새 파일로 넣는 것이 쉽다. 파일별 설명(영어)은 `CODEMAP.md`.
-한 파일로 묶으려면 `python3 tools/build_single.py` → `island_world_single.html`(무시 목록에 있다 — 고치는 것은 늘 `js/`).
-로컬 서버로 볼 때는 `python3 tools/serve.py`(캐시를 끈다). 문법만 볼 때는 `node --check js/파일.js`.
+한 파일로 묶으려면 `python3 tools/build_single.py` → `island_world_single.html`(무시 목록에 있다 — 고치는 것은 늘 `engine/js/`).
+로컬 서버로 볼 때는 `python3 tools/serve.py`(캐시를 끈다). 문법만 볼 때는 `node --check engine/js/파일.js`.
 **나뉘기 전 한 파일 판은 커밋 `8ec7546` 까지다.**
 
 `data-ground-textures.js`(1.2 MB · 땅 사진 여덟 장)·`data-sentinel-mesh.js`(1.3 MB · 투구 모형)는 base64 한 줄이다 — **읽지 말 것.**
 나머지도 큰 파일(`45-sky.js` 2,342줄 · `30-props.js` 1,618줄)은 통째로 읽지 말고 아래 지도에서 줄을 집어 `sed -n '시작,끝p'` 로 뜰 것.
 
-### 파일 지도 — `js/`
+### 파일 지도 — `engine/js/`
 
 | 파일 | 무엇이 있나 (줄) |
 |---|---|
@@ -200,7 +213,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `24-shapes.js` | 땅 식물·바다 생물이 같이 쓰는 매끈한 모양 도구(관·혹·휘는 잎·돌림체·잎 판·합치기) |
 | `30-props.js` | 칸 보이기 `updateTileVis` 62 · 먼 나무 `buildFarTrees` 307 · **`buildProps` 360**(풀·나무·바위·`HABIT`) · 자갈 `RUBBLE` · 베리 · 보급선 |
 | `40-light.js` | **`LIGHT` 46**(배역 · 해 그림자 상자 · 점·집중광 예산) · `renderFrame` |
-| `45-sky.js` | `SKY` 8 · `updateWeather` 357 · 구름 명암 `litQueue` 905 · `updateClouds` 1476 · `SKY_LUT` 1967 · **`updateSky` 2107**(노을·달밤 색조 `SKYL.grade` 포함) — **`cloud_arena.html` 의 원본** |
+| `45-sky.js` | `SKY` 8 · `updateWeather` 357 · 구름 명암 `litQueue` 905 · `updateClouds` 1476 · `SKY_LUT` 1967 · **`updateSky` 2107**(노을·달밤 색조 `SKYL.grade` 포함) — **`beta/cloud_arena.html` 의 원본** |
 | `46-camcorder.js` | 캠코더 화면(480줄 그림판 → 테이프 셰이더) · 배터리 · 손 발전기 |
 | `50-items.js` | **`ITEMS` 13** · `INV` 624 · `dragPut` 748 · `HARVEST` 829 · `MINE` 851 · 먹기·마시기(물을 봐야) · 빠른 칸 |
 | `55-craft.js` | **`RECIPES` 13** · `startCraft` 995 · `drawCraft` 1062 |
@@ -222,7 +235,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `99-main.js` | **`loop`** 8 · 맨 끝에서 게임을 켜는 다섯 줄 |
 
 줄 번호는 커밋 때 다시 잴 것:
-`grep -n "^const ITEMS\|^function updateSky" js/*.js` 처럼 이름으로 찾는 편이 빠르다.
+`grep -n "^const ITEMS\|^function updateSky" engine/js/*.js` 처럼 이름으로 찾는 편이 빠르다.
 
 ### 아이템을 추가할 때 실제로 건드리는 곳
 
@@ -252,13 +265,13 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 3. **`attack()`(5301)은 그물을 특례로 가로챈다.** `equippedWeapon()` 이 무기 아닌
    걸 걸러내기 때문이다. "무기 칸에 들어가는데 무기가 아닌 것"을 또 만들면 특례가
    또 생긴다 — 필드 분기로 합치는 쪽을 먼저 볼 것.
-4. **`build_sandbox.html` 이 `ITEMS` 를 204줄 통째로 복사해 갖고 있다.**
+4. **`beta/build_sandbox.html` 이 `ITEMS` 를 204줄 통째로 복사해 갖고 있다.**
    이미 20줄 어긋나 있다. 본편 표를 고쳐도 저기는 안 따라간다.
 
 ## 읽지 말 것
 
-- **`CASTAWAY_전사_초반부.md`(96KB) · `CASTAWAY_전사_2차.md`(38KB) 는 개발 대화 원문이다.**
-  결론은 이미 코드와 `CASTAWAY_개발요약.md` 에 들어가 있다. 여기 적힌 건 역사일 뿐이니
+- **`docs/CASTAWAY_전사_초반부.md`(96KB) · `docs/CASTAWAY_전사_2차.md`(38KB) 는 개발 대화 원문이다.**
+  결론은 이미 코드와 `docs/CASTAWAY_개발요약.md` 에 들어가 있다. 여기 적힌 건 역사일 뿐이니
   **현재 동작의 근거로 삼지 말 것.** 왜 그렇게 정했는지가 정말 궁금할 때만 `grep` 으로
   해당 대목만 뽑아 볼 것 — 통독하면 13만 자를 그냥 태운다.
 - 현재 동작이 궁금하면 문서가 아니라 코드를 본다. 문서와 코드가 다르면 **코드가 맞다**
@@ -270,11 +283,11 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 
 | 표 | 정본 | 복사본 |
 |---|---|---|
-| `ITEMS` · `RECIPES` · 지형 생성 | `js/50-items.js` · `js/55-craft.js` · `js/10-worldgen.js` | `build_sandbox.html` (`ITEMS` 204줄 복제, 이미 20줄 어긋남) |
+| `ITEMS` · `RECIPES` · 지형 생성 | `engine/js/50-items.js` · `engine/js/55-craft.js` · `engine/js/10-worldgen.js` | `beta/build_sandbox.html` (`ITEMS` 204줄 복제, 이미 20줄 어긋남) |
 | 갑옷 성능 · 피해 감소 | `island_world.html` 의 `ITEMS[].wear` 와 `armorMul()` | `trio`·`siege`·`mixed` 아레나의 `ARMORS`/`armorMul()` (셋은 맞춰 두었다. `wyvern`·`battle`·`bear` 는 아직 갑옷이 없다) |
 | 무기 성능(피해·사거리·쿨) | `island_world.html` 의 `ITEMS[].tool` | 아레나 5개가 각자 인라인으로 들고 있다 |
 | 몹 거동 | 각 아레나 | 본편에는 아직 없다 |
-| 하늘 · 구름 · 날씨 | `js/45-sky.js` | `cloud_arena.html` (그대로 복사 + 손잡이 5개) |
+| 하늘 · 구름 · 날씨 | `engine/js/45-sky.js` | `beta/cloud_arena.html` (그대로 복사 + 손잡이 5개) |
 
 아레나는 시험장이라 갈라져도 되지만, **수치를 만졌으면 어느 쪽을 만졌는지 밝힐 것.**
 "철·키틴 무기 쿨을 4/5로" 같은 변경은 6개 파일을 전부 고쳐야 했다.
@@ -284,7 +297,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 빌드가 없으니 검사도 브라우저에 직접 띄워서 한다. 스크립트를 새로 짜지 말고 이걸 쓸 것.
 
 ```bash
-node tools/check-syntax.mjs *.html js/*.js   # html 은 <script> 를 뽑아, js 는 그대로 node --check
+node tools/check-syntax.mjs *.html beta/*.html engine/js/*.js presets/*.js   # html 은 <script> 를 뽑아, js 는 그대로 node --check
 node tools/smoke.mjs                        # 전부 띄워 오류 없이 뜨는지 (파일 이름을 주면 그것만)
 node tools/probe.mjs island_world.html PL.hp RECIPES.length
 node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
@@ -302,7 +315,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   (`FAR_REF`) — 상륙 자리는 이제 시드로 정해지므로(`LANDING`) 기준 나무는 같다. 별 자리는 켤 때마다 무작위다.
 - **사진(`--shot`)은 눈으로 봐야 할 때만.** 한 장이 1,500토큰쯤 된다. 수치로 확인되는
   건 수치로 확인한다.
-- `mimic_arena.html` 은 21MB 라 `smoke.mjs` 기본 목록에서 빠져 있다. 이름을 대면 검사한다.
+- `beta/mimic_arena.html` 은 21MB 라 `smoke.mjs` 기본 목록에서 빠져 있다. 이름을 대면 검사한다.
 - **본편은 헤드리스 섬 생성이 약 30초다**(예전 7~14분 — 짓는 동안·시작 화면에서 섬 전체 나무를 가까운 단계로 그리던 것을 막았다,
   아래 '성능 정리 3' ⑩) — `pages.mjs` 의 대기 한도를
   20분으로 잡았다(예전 5분이라 늘 시간 초과였다). 못 뜬 페이지는 `open` 이 닫고 던진다 — 예전엔 안 닫혀서 그 페이지가 섬을
@@ -1206,6 +1219,6 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 
 - **`flatShading: true`는 `MeshLambertMaterial`에서 무시된다.** r128에서 확인해 14곳을 걷어냈다.
   각진 면이 필요하면 정점을 분리해야지 이 플래그로는 안 된다.
-- **레포가 이미 ~15MB다** (GLB 10.1MB + `gargoyle_arena.html` 5MB). Git LFS를 쓰지 않는다.
+- **레포가 이미 ~15MB다** (GLB 10.1MB + `beta/gargoyle_arena.html` 5MB). Git LFS를 쓰지 않는다.
   모델을 더 커밋하기 전에 LFS 전환을 먼저 결정할 것 — 나중에 옮기려면 히스토리를 다시 써야 한다.
 - `.gitattributes`가 `* text=auto eol=lf`이므로 `*.glb binary`를 반드시 유지할 것.

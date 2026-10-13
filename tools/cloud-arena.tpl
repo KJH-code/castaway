@@ -77,7 +77,7 @@
 <div id="tip">마우스 눌러 둘러보기 · <b>WASD</b> 날기 · <b>Space/Shift</b> 위아래 ·
   <b>Esc</b> 마우스 풀기</div>
 <div id="toast"></div>
-<script src="three.min.js"></script>
+<script src="../engine/three.min.js"></script>
 <script>
 /* ══════════════════════════════════════════════════════════════════════════
    구름 시험장 — 본편(`island_world.html`)의 하늘·구름·날씨 코드를 그대로 옮겨
@@ -167,7 +167,7 @@ scene.add(amb,hemi,sun);
     scene.add(p);
   }
 }
-// 시험장: 본편의 캠코더(js/46-camcorder.js)는 안 옮긴다 — renderFrame 이 부르는 두 함수만 빈 것으로
+// 시험장: 본편의 캠코더(engine/js/46-camcorder.js)는 안 옮긴다 — renderFrame 이 부르는 두 함수만 빈 것으로
 function camcBegin(){ return false; } function camcEnd(){}
 /*@SKY@*/
 

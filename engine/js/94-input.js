@@ -379,6 +379,23 @@ function applySettings(){
   curSlot=(SET.slot==='2'||SET.slot==='3')?SET.slot:'1'; drawSlots();
 }
 document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.value);
+/* 프리셋(presets/presets.js) — 고르면 손잡이들이 그 값으로 옮겨 간다. 손잡이의 원래 처리기(input)를 그대로 타고,
+   그래픽 쪽은 change 도 쏴서 설정에 적힌다. 손잡이를 손으로 만지면 고름칸은 '직접 고름' 으로 돌아간다 */
+{
+  const fill=(id,list)=>{ const el=document.getElementById(id);
+    el.innerHTML='<option value="">직접 고름</option>'+list.map(p=>'<option value="'+p.id+'">'+p.n+'</option>').join(''); return el; };
+  const move=(id,v,save)=>{ const el=document.getElementById(id); if(!el||typeof v!=='number') return;
+    el.value=v; el.dispatchEvent(new Event('input')); if(save) el.dispatchEvent(new Event('change')); };
+  const gfx=fill('pGfx',GRAPHICS_PRESETS), isle=fill('pIsle',ISLAND_PRESETS);
+  gfx.addEventListener('change',()=>{ const p=GRAPHICS_PRESETS.find(q=>q.id===gfx.value); if(!p) return;
+    move('pRes',p.res,1); move('pFar',p.far,1); move('pShadow',p.shadow,1); move('pLimb',p.limb,1); move('pCam',p.cam,1);
+    toast('그래픽 프리셋 — '+p.n+(landed?' (가지 밀도는 새 섬부터)':'')); });
+  isle.addEventListener('change',()=>{ const p=ISLAND_PRESETS.find(q=>q.id===isle.value); if(!p) return;
+    move('pSize',p.size); move('pRidge',p.ridge); move('pEro',p.ero); move('pSea',p.sea); move('pRain',p.rain);
+    toast('섬 프리셋 — '+p.n+" · '새 섬' 을 누르면 이 모양으로 만든다"); });
+  for(const id of ['pRes','pFar','pShadow','pLimb','pCam']) document.getElementById(id).addEventListener('change',e=>{ if(e.isTrusted) gfx.value=''; });
+  for(const id of ['pSize','pRidge','pEro','pSea','pRain']) document.getElementById(id).addEventListener('input',e=>{ if(e.isTrusted) isle.value=''; });
+}
 /* 검색칸 — 글자를 칠 때마다 목록을 다시 그린다 */
 document.getElementById('crfS').addEventListener('input',e=>{
   craftQuery=e.target.value; craftDirty=true; drawCraft();
