@@ -4,12 +4,14 @@
 "use strict";
 
 /* 그래픽 프리셋 — 설정 창의 손잡이 값 한 벌. 고르면 손잡이가 그 값으로 옮겨 가고 저장된다.
-   res 해상도 배율 · far 시야 · shadow 그림자(0 끄기~3 높음) · limb 가지 밀도(새 섬부터) · cam 캠코더(0 끔 · 1 360줄 · 2 480줄 · 3 720줄) */
+   res 해상도 배율 · far 시야 · shadow 그림자(0 끄기~3 높음) · limb 가지 밀도(새 섬부터) · cam 캠코더(0 끔 · 1 360줄 · 2 480줄 · 3 720줄)
+   noise 화면 잡음(0 끔 · 1 보통 · 2 짙게) */
 const GRAPHICS_PRESETS=[
-  {id:'low',    n:'저사양',       res:0.75, far:0.7, shadow:1, limb:0.5, cam:1},
-  {id:'normal', n:'보통',         res:1.0,  far:1.0, shadow:2, limb:0.8, cam:2},
-  {id:'high',   n:'고사양',       res:1.0,  far:1.4, shadow:3, limb:1.1, cam:3},
-  {id:'clean',  n:'캠코더 끄기',  res:1.0,  far:1.0, shadow:2, limb:0.8, cam:0}
+  {id:'low',    n:'저사양',       res:0.75, far:0.7, shadow:1, limb:0.5, cam:1, noise:0},
+  {id:'normal', n:'보통',         res:1.0,  far:1.0, shadow:2, limb:0.8, cam:2, noise:1},
+  {id:'high',   n:'고사양',       res:1.0,  far:1.4, shadow:3, limb:1.1, cam:3, noise:1},
+  {id:'tape',   n:'낡은 테이프',  res:1.0,  far:1.0, shadow:2, limb:0.8, cam:1, noise:2},
+  {id:'clean',  n:'캠코더 끄기',  res:1.0,  far:1.0, shadow:2, limb:0.8, cam:0, noise:0}
 ];
 
 /* 섬 프리셋 — 새 섬을 만들 때의 인자 한 벌(시드는 그대로 둔다). 고른 뒤 '새 섬' 을 눌러야 섬이 바뀐다.

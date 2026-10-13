@@ -51,8 +51,14 @@ function ensureTreeTile(t){
   if(t.built) return;
   t.build(); t.built=true;
 }
+/* 칸의 긴 가지 메시를 촘촘한 판(48면) ↔ 성긴 판(18면)으로 바꾼다 — 인스턴스 자료(iA·iB)는 둘이 나눠 쓰고 밑 지오메트리만 다르다 */
+function limbLod(m,lo){
+  const U=m.userData; if(!U.gLo||U.isLo===lo) return;
+  U.isLo=lo; m.geometry=lo?U.gLo:U.gHi;
+}
 function dropTreeTile(t){
   if(!t.built) return;
+  if(t.lm&&t.lm.userData.gLo){ t.lm.geometry=t.lm.userData.gHi; t.lm.userData.gLo.dispose(); }
   for(const m of [t.lm,t.ls,t.fm]){ propGroup.remove(m); m.geometry.dispose(); }
   t.lm=t.ls=t.fm=null; t.built=false;
   for(const p of t.ps){ p._lb=p._ls=p._lf=null; p._lmap=null; }
@@ -79,7 +85,12 @@ function updateTileVis(){
   for(const t of TREE_TILES){
     const d=tileGap(t,px,pz), seen=tileSeen(t,d);
     const near=seen&&d<=NEAR_DIST, mid=seen&&d>NEAR_DIST&&d<=VIEW_DIST;
-    let full=near&&(d<=FULL_DIST||!t.cps);       // 25 m 안 칸만 제 나무 그대로
+    /* **제 가지를 그대로 그리는 칸은 사람이 선 칸과, 칸 테두리가 10 m 안인 이웃뿐이다.** 예전엔 칸의 경계구(반지름 57 m)가
+       25 m 안이면 — 곧 칸 가운데가 82 m 안이면 — 전부 제 가지였다. 그러면 칸 일곱이 한꺼번에 걸려 가지·잎만 540만 삼각형을
+       그렸다(성능 창으로 잰 값 — 한 프레임 790만 가운데). 눈에 다 보이지도 않는 40~80 m 밖 나무의 잔가지였다.
+       이제 한두 칸이고, 사람이 든 칸이 아닌 이웃은 가지를 성긴 판(18면)으로 그린다(아래 `limbLod`) */
+    const ex=Math.max(Math.abs(t.cx-px)-TILE/2,0), ez=Math.max(Math.abs(t.cz-pz)-TILE/2,0), de=Math.sqrt(ex*ex+ez*ez);
+    let full=near&&(de<=FULL_EDGE||!t.cps);
     /* 가지·잎은 이때 짓는다. 섬을 만드는 중(덮개 뒤)에는 몇 칸이든 바로, 노는 중에는 **한 프레임에 한 칸**만 —
        못 지은 칸은 이번엔 복제 나무로 보이고(아래 lv 0) 다음 프레임에 다시 본다 */
     if(full&&!t.built){
@@ -89,9 +100,11 @@ function updateTileVis(){
     /* 멀어진 칸은 도로 비운다 — 섬을 한 바퀴 돌면 결국 전부 지어져 메모리가 예전만큼 불어나는 것을 막는다 */
     else if(t.built&&!t.pin&&d>TREE_DROP&&_treeDrop>0){ _treeDrop--; dropTreeTile(t); }
     let f=false;
-    if(t.lm){ if(setVis(t.lm,full)) f=true; if(setVis(t.ls,full)) f=true; if(setVis(t.fm,full)) f=true; }
+    if(t.lm){ if(setVis(t.lm,full)) f=true; if(setVis(t.ls,full)) f=true; if(setVis(t.fm,full)) f=true;
+      if(full) limbLod(t.lm,de>0.01); }                // 사람이 든 칸만 촘촘한 가지(48면) — 이웃 칸은 성긴 가지(18면)
     const cp=mid && d<=COPY_DIST;              // 기준 나무 복제 · 150 m 밖은 같은 나무를 찍은 그림
-    if(t.cps){ const lv=near&&!full?0:cp?(d>COPY_MID?2:1):-1;   // 25~55 · 55~90 · 90~150 m
+    /* 복제 단계 — 0: 칸 테두리가 26 m 안인 이웃(제 가지를 안 그리는 가장 가까운 칸) · 1: 그 밖 ~ 90 m · 2: 90~150 m */
+    if(t.cps){ const lv=(near&&!full)?(de<=LOD0_EDGE?0:1):cp?(d>COPY_MID?2:1):-1;
       for(let k=0;k<3;k++){ if(setVis(t.cps[2*k],lv===k)) f=true; if(setVis(t.cps[2*k+1],lv===k)) f=true; } }
     if(t.bb && setVis(t.bb,mid && !(t.cps&&cp))) f=true;
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r);
@@ -196,7 +209,10 @@ function bakeTreeImpostor(list,kind){
    그 덩어리를 제 자리·크기(q.s/기준.s)·방향으로 한 번씩 찍는다(칸마다 가지·잎 인스턴스 메시 둘).
    줄기는 나무마다 제 것이 늘 그려진다. 기준 나무 자신은 복제본이 곧 제 모습이라 멀어져도 그대로다.
    삼각형: 참나무 한 그루 약 1.8만(가지 3각 기둥 6 · 잎 판 4) — 55~150 m 에 선 나무 수만큼 곱해진다. */
-const FAR_REF={}, FAR_LOD=[[0.6,0.6],[0.3,0.3],[0.1,0.1]], FULL_DIST=25, COPY_MID=90;   // [가지 몫, 잎 몫] — 25~55 · 55~90 · 90~150 m
+/* 복제 단계마다 [가지 몫, 잎 몫] — 가까운 것(칸 테두리 10 m 밖 ~ 55 m) · 55~90 m · 90~150 m.
+   예전 값(0.6·0.3·0.1)은 창 크기 그대로 그리던 때의 것이다. 캠코더 화면(세로 480줄)에서는 40 m 밖 나무가 100 화소 남짓이라
+   잔가지가 화소 하나보다 가늘다 — 몫을 절반쯤으로 줄여도 윤곽은 같다 */
+const FAR_REF={}, FAR_LOD=[[0.22,0.32],[0.08,0.13],[0.035,0.07]], FULL_EDGE=10, LOD0_EDGE=26, COPY_MID=90;
 function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
   const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
   const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
@@ -1007,6 +1023,12 @@ function buildProps(){
             m.frustumCulled=false; m.visible=false;
             propGroup.add(m); m.matrixAutoUpdate=false; m.updateMatrix(); boundMesh(m);
           }
+          /* 성긴 가지판 — 같은 인스턴스 자료(iA·iB)에 밑 지오메트리만 limbLo(18면) */
+          { const gl=new THREE.BufferGeometry(), gh=lm.geometry;
+            for(const k in limbLo.attributes) gl.setAttribute(k,limbLo.attributes[k]);
+            if(limbLo.index) gl.setIndex(limbLo.index);
+            gl.setAttribute('iA',lm.iA); gl.setAttribute('iB',lm.iB); gl.boundingSphere=gh.boundingSphere;
+            lm.userData.gHi=gh; lm.userData.gLo=gl; lm.userData.isLo=false; }
           tile.lm=lm; tile.ls=ls; tile.fm=fm;
           for(const p of b.ps) if(p.felled||p.br<p.brMax) shrinkFoliage(p);
         };

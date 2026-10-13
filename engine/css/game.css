@@ -11,13 +11,11 @@
   body.camc-on{text-shadow:.7px 0 rgba(255,70,60,.50),-.7px 0 rgba(70,200,255,.50),0 0 3px rgba(190,255,225,.28);letter-spacing:.035em}
   body.camc-on #hud,body.camc-on #bag,body.camc-on #ov,body.camc-on #cfg,body.camc-on #dex{animation:osdFlick 5.3s steps(1) infinite}
   @keyframes osdFlick{0%,100%{opacity:1}41%{opacity:1}42%{opacity:.82}43%{opacity:1}77%{opacity:.9}78%{opacity:1}}
-  /* 흰 잡음 · 주사선 — 화면 맨 위에 한 겹(글씨와 창 위에도 깔린다). 잡음 그림은 46-camcorder.js 가 한 번 만들어 붙이고,
-     자리를 네 박자로 옮겨 지직거리게 한다 */
-  #tvNoise,#tvScan{position:fixed;inset:0;z-index:70;pointer-events:none;display:none}
-  body.camc-on #tvNoise,body.camc-on #tvScan{display:block}
-  #tvNoise{opacity:.075;mix-blend-mode:screen;background-size:192px 192px;animation:tvShift .36s steps(1) infinite}
-  #tvScan{background:repeating-linear-gradient(to bottom,rgba(0,0,0,.13) 0 1px,transparent 1px 3px);opacity:.6}
-  @keyframes tvShift{0%{background-position:0 0}25%{background-position:-71px 43px}50%{background-position:37px -89px}75%{background-position:-113px -17px}100%{background-position:0 0}}
+  /* 흰 잡음 · 주사선 — **세상에는 캠코더 셰이더가 입힌다**(46-camcorder.js 의 uGrain — 그림판을 화면에 옮기는 그 한 번에 같이).
+     처음엔 화면 맨 위에 잡음 그림 한 겹을 mix-blend-mode 로 덮고 박자마다 자리를 옮겼는데, 그 한 겹 때문에 브라우저가 프레임마다
+     화면 전체를 따로 합성해 프레임이 크게 떨어졌다(사용자 지적: 잡음을 그리는 데 너무 오래 걸린다). 창(.pnl)에는 잡음·주사선 무늬를
+     **바탕 그림으로 한 번** 깐다(움직이지 않는다 — 다시 그릴 일이 없다). 설정의 '화면 잡음' 이 둘 다 끄고 켠다 */
+  body.camc-noise .pnl,body.camc-noise #bag{background-image:var(--tvn);background-size:128px 128px}
 
   #hud{position:fixed;inset:0;pointer-events:none}
   .pnl{position:absolute;background:var(--panel);border:1px solid var(--line);padding:8px 10px}

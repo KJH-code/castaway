@@ -51,7 +51,7 @@ function loop(){
       const h=document.getElementById('hint');
       if(h&&hasMouse&&!flyMode){
         const locked=document.pointerLockElement===cv;
-        const want=locked?'WASD 이동 · 좌클릭 쓰기·채집·열기 · E 창 닫기 · L 전등 · I 소지품 · C 제작 · B 사전'
+        const want=locked?'WASD 이동 · 좌클릭 쓰기·채집·열기 · E 창 닫기 · L 전등 · I 가방(소지품·제작) · B 사전'
                          :'화면을 클릭하면 시점 조작이 시작됩니다';
         if(h.textContent!==want) h.textContent=want;
       }
