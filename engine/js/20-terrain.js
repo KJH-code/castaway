@@ -477,7 +477,7 @@ float snoise(vec2 v){
 }`;
 /* ── 사람 둘레의 덧판 ───────────────────────────────────────────────────────
    땅 메시는 격자 칸마다 정점 하나다(6배 섬에서 15 m) — 그 안은 세모 두 장이라 발밑에 굴곡이 없고, 물체가 앉는 면
-   (`heightAt` — 쌍선형)과도 어긋나 험한 칸에서는 돌이 한 뼘씩 뜨거나 묻혔다. 사람 둘레 46 m 는 **촘촘한 판(0.75 m 격자)**
+   (`heightAt` — 쌍선형)과도 어긋나 험한 칸에서는 돌이 한 뼘씩 뜨거나 묻혔다. 사람 둘레 58 m 는 **촘촘한 판(0.75 m 격자)**
    으로 갈아 그린다:
      · 판의 정점은 셰이더가 놓는다 — 표고 텍스처(`uElev`)의 쌍선형 높이 + 잔 기복(10-worldgen.js `RELIEF` 와 같은 식:
        `uRel` 의 31 m 배율 × 가림막 `uTL`.a × 0.70 m). `heightAt` 과 같은 면이다(사람·물체가 이 면에 선다).
@@ -486,9 +486,9 @@ float snoise(vec2 v){
        (0.74~0.89 R) 높이가 본 땅의 세모 면으로 옮겨 가(0.89~0.985 R) 이음매에서 두 면이 만난다.
      · 그림자도 같아야 한다 — 깊이·거리 재질에 같은 정점 식과 같은 버림을 넣는다(`terrDepthMat`).
    조각 셰이더는 본 땅과 같다(바이옴·사진 결·화소 빛). 사진 결을 못 쓰는 장치(WebGL1)에서는 덧판을 끈다(`uPR` 0) */
-const TPATCH={m:null, R:46, S:0.75, G:128, on:true};
-TERR_U.uPC={value:new THREE.Vector2(1e9,1e9)}; TERR_U.uPR={value:0};
-const TPATCH_GLSL=()=>`uniform sampler2D uElev; uniform vec2 uGrid; uniform sampler2D uTL; uniform sampler2D uRel; uniform vec2 uPC; uniform float uPR;
+const TPATCH={m:null, R:58, S:0.75, G:160, on:true};
+TERR_U.uPC={value:new THREE.Vector2(1e9,1e9)}; TERR_U.uPR={value:0}; TERR_U.uTri={value:0};   // uTri 1: 바탕이 세모 면(지형 판 3 — heightAt 과 같다)
+const TPATCH_GLSL=()=>`uniform sampler2D uElev; uniform vec2 uGrid; uniform sampler2D uTL; uniform sampler2D uRel; uniform vec2 uPC; uniform float uPR; uniform float uTri;
 vec3 patchPos; vec3 patchNor;
 float pE(ivec2 g){ vec4 t=texelFetch(uElev,clamp(g,ivec2(0),ivec2(int(uGrid.x)-1)),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*1200.0-100.0; }
 float pB(vec2 g){ g=clamp(g,vec2(0.0),vec2(uGrid.x-1.001)); ivec2 i=ivec2(floor(g)); vec2 f=g-vec2(i);
@@ -497,8 +497,8 @@ void patchCalc(vec3 pos){
   vec2 w=pos.xz+uPC, g=clamp(w/uGrid.y+uGrid.x*0.5,vec2(0.0),vec2(uGrid.x-1.001));
   ivec2 i=ivec2(floor(g)); vec2 f=g-vec2(i);
   float h00=pE(i), h10=pE(i+ivec2(1,0)), h01=pE(i+ivec2(0,1)), h11=pE(i+ivec2(1,1));
-  float hb=mix(mix(h00,h10,f.x),mix(h01,h11,f.x),f.y);                                           // heightAt 의 면(쌍선형)
   float ht=(f.x+f.y<=1.0)?h00+(h10-h00)*f.x+(h01-h00)*f.y:h11+(h01-h11)*(1.0-f.x)+(h10-h11)*(1.0-f.y);   // 본 땅의 세모 면(빗금은 10–01)
+  float hb=mix(mix(mix(h00,h10,f.x),mix(h01,h11,f.x),f.y),ht,uTri);                              // heightAt 의 면 — 판 1·2 는 쌍선형, 판 3 은 세모 면
   float d=length(pos.xz);
   float m=textureLod(uTL,(g+0.5)/uGrid.x,0.0).a;
   float rel=(textureLod(uRel,(mat2(0.8253,-0.5646,0.5646,0.8253)*w+vec2(17.0,3.0))/31.0,0.0).r-0.5)*${RELIEF.amp.toFixed(3)}*m*(1.0-smoothstep(uPR*0.74,uPR*0.89,d));
@@ -513,7 +513,7 @@ function terrDepthMat(dist,patch){
   const m=dist?new THREE.MeshDistanceMaterial():new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
   m.onBeforeCompile=sh=>{
     sh.uniforms.uPC=TERR_U.uPC; sh.uniforms.uPR=TERR_U.uPR;
-    if(patch){ sh.uniforms.uElev=WATER_U.uElev; sh.uniforms.uGrid=WATER_U.uGrid; sh.uniforms.uTL=TERR_U.uTL; sh.uniforms.uRel=TERR_U.uRel;
+    if(patch){ sh.uniforms.uElev=WATER_U.uElev; sh.uniforms.uGrid=WATER_U.uGrid; sh.uniforms.uTL=TERR_U.uTL; sh.uniforms.uRel=TERR_U.uRel; sh.uniforms.uTri=TERR_U.uTri;
       sh.vertexShader='varying vec2 vHXZ;\n'+TPATCH_GLSL().replace('uniform vec2 uPC; uniform float uPR;','uniform vec2 uPC; uniform float uPR;')
         +sh.vertexShader.replace('#include <begin_vertex>','patchCalc(position);\nvec3 transformed=patchPos;\nvHXZ=transformed.xz;'); }
     else sh.vertexShader='varying vec2 vHXZ;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvHXZ=(modelMatrix*vec4(transformed,1.0)).xz;');

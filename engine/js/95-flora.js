@@ -587,6 +587,7 @@ function floraBuild(){
 }
 
 /* ── 깔기 ────────────────────────────────────────────────────────────────── */
+const _flN=new THREE.Vector3(), _flUP=new THREE.Vector3(0,1,0), _flQt=new THREE.Quaternion();
 const _flM=new THREE.Matrix4(), _flQ=new THREE.Quaternion(), _flE=new THREE.Euler(), _flV=new THREE.Vector3(),
       _flS=new THREE.Vector3(), _flC=new THREE.Color();
 /* 그 칸에서 30 m 안에 **하천** 칸이 있나 — 강어귀를 가린다. 예전엔 `F.dRiver` 를 봤는데 그 거리장은 하천과 **바다** 둘 다에서 재는
@@ -599,7 +600,7 @@ function floraNearRiver(ci){
 }
 /* 그 자리에 큰 나무·바위·설비·벽(충돌 원)이 있나 */
 function floraHit(wx,wz,pad){
-  if(caveAt(wx,wz,pad+2.5)) return true;               // 굴 속·굴 벽에는 안 선다(10-worldgen.js)
+  if(caveAt(wx,wz,pad+2.5)||cragNear(wx,wz,pad)) return true;   // 굴 속·굴 벽 · 벼랑의 큰 바위 속에는 안 선다(10-worldgen.js · 33-crags.js)
   const cgx=Math.floor(wx/CG), cgz=Math.floor(wz/CG);
   for(let az=-1;az<=1;az++) for(let ax=-1;ax<=1;ax++){
     const a=CGRID.get(cgKey(cgx+ax,cgz+az)); if(!a) continue;
@@ -650,7 +651,11 @@ function floraLayer(L,which){
     const v=(h2&1023)/1023, sc=(pick[2]+(pick[3]-pick[2])*v)*clamp((R-d)/L.fade,0.25,1);
     const tl=far?0.05:0.16;
     _flE.set(((h2>>>10)&31)/31*tl-tl/2,((h2>>>15)&1023)/1023*6.283,((h2>>>25)&31)/31*tl-tl/2); _flQ.setFromEuler(_flE);
-    _flV.set(wx,gy-0.03,wz); _flS.set(sc,sc*(0.9+0.2*((h>>>28)&15)/15),sc);
+    /* **비탈에 앉히기** — 곧추선 채 비탈에 놓으면 아래쪽 잎이 허공에 뜬다(사용자 지적). 덤불·고사리·꽃은 땅의 기울기대로 눕히고
+       (기울기의 0.85), 나무는 줄기 밑동이 아래쪽에서도 묻히게 내린다(밑동 반지름 × 기울기 · 0.7 m 까지) */
+    const gs=groundSlope(wx,wz,far?0.5:Math.max(0.35,(K.r||0.3)*sc)), gsl=Math.hypot(gs[0],gs[1]);
+    if(!far&&gsl>0.06){ _flN.set(-gs[0]*0.85,1,-gs[1]*0.85).normalize(); _flQ.premultiply(_flQt.setFromUnitVectors(_flUP,_flN)); }
+    _flV.set(wx,gy-0.03-(far?Math.min(0.7,((K.r||0.25)*sc+0.15)*gsl):0.05*gsl),wz); _flS.set(sc,sc*(0.9+0.2*((h>>>28)&15)/15),sc);
     _flM.compose(_flV,_flQ,_flS);
     if(kind==='flower'){ const t=FLOWER_TINT[patch%FLOWER_TINT.length]; _flC.setRGB(t[0],t[1],t[2]); }   // 꽃밭은 얼룩마다 한 빛깔
     else{ const g=0.86+0.26*((h2>>>3)&15)/15, w=((h2>>>7)&15)/15; _flC.setRGB(g*(0.94+0.14*w),g,g*(0.92+0.08*(1-w))); }
@@ -725,7 +730,8 @@ function floraPlantAll(){
     const h2=floraHash(gx,gz,salt+1), v=(h2&1023)/1023, sc=pick[2]+(pick[3]-pick[2])*v, tl=0.05, yaw=((h2>>>15)&1023)/1023*6.283;
     const sy=sc*(0.9+0.2*((h>>>28)&15)/15);
     _flE.set(((h2>>>10)&31)/31*tl-tl/2,yaw,((h2>>>25)&31)/31*tl-tl/2); _flQ.setFromEuler(_flE);
-    _flV.set(wx,gy-0.03,wz); _flS.set(sc,sy,sc); _flM.compose(_flV,_flQ,_flS);
+    { const gs=groundSlope(wx,wz,0.5); _flV.set(wx,gy-0.03-Math.min(0.7,((K.r||0.25)*sc+0.15)*Math.hypot(gs[0],gs[1])),wz); }   // 줄기 밑동을 비탈에 묻는다
+    _flS.set(sc,sy,sc); _flM.compose(_flV,_flQ,_flS);
     const g=0.86+0.26*((h2>>>3)&15)/15, w=((h2>>>7)&15)/15;
     const p={i:U.P.length, k:kind, v:floraHash(gx,gz,salt+7)%U.m[kind].length, x:wx, y:gy, z:wz, s:sc, sy, yaw,
              m:Float32Array.from(_flM.elements), c:[g*(0.94+0.14*w),g,g*(0.92+0.08*(1-w))], pm:null,

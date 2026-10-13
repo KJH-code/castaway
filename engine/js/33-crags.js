@@ -19,10 +19,12 @@
      먼 칸은 결 무늬 없이 빛깔만 칠한다(`matFar` — 화강암 셰이더는 화소마다 잡음을 스무 번 남짓 세는데 140 m 밖에서는 안 보인다).
    · 그리기: 섬을 320 m 칸으로 나눠 칸마다 메시 하나로 합친다. **사람이 다가갈 때** 짓는다 — 칸 가장자리가 140 m 안이면 세 단계 다(촘촘한 꼴),
      720 m 까지는 두 단계만(성긴 꼴), 그 밖은 안 그리고 1050 m 밖은 버린다. 산 너머의 칸은 거른다(tileOcc — 30-props.js).
-   · 몸이 막힌다 — 땅에 닿은 큰 바위·작은 바위에 충돌 원을 둔다(원 하나는 7 m 까지 — 충돌 격자 칸이 8 m 다. 더 큰 바위는 여러 원으로 덮는다).
+   · **몸은 바위의 진짜 꼴에 막히고, 낮은 데로는 올라선다**(아래 '바위를 딛기') — 예전의 충돌 원은 바위와 꼴이 달라, 원 밖으로
+     나온 바위는 걸어서 뚫렸고(속이 들여다보였다) 원 안의 빈 데는 보이지 않는 벽이었다(사용자 지적). 원(`cols`)은 이제
+     나무·덤불이 바위 속에 서지 않게 하는 데만 쓴다(`cragNear`).
    · 자리와 꼴은 시드가 정한다(저장에 안 넣는다). 지형 판 1(옛 저장)에는 없다.
    ========================================================================== */
-const CRAG={T:320, NEAR:140, FAR:720, DROP:1050, tiles:new Map(), cols:[], n:0, blobs:0, shapes:null, mat:null, matFar:null, t:0, F:15};
+const CRAG={T:320, NEAR:140, FAR:720, DROP:1050, tiles:new Map(), cols:[], cg:new Map(), ix:new Map(), n:0, blobs:0, shapes:null, mat:null, matFar:null, t:0, F:15, BK:10, slope:0};
 function cragMat(){
   if(CRAG.mat) return CRAG.mat;
   const m=rockMat('granite',0x7a7872); m.vertexColors=true;
@@ -58,7 +60,7 @@ function cragShapes(){
 }
 function cragClear(){
   for(const t of CRAG.tiles.values()) cragDrop(t);
-  CRAG.tiles.clear(); CRAG.cols.length=0; CRAG.n=0; CRAG.blobs=0;
+  CRAG.tiles.clear(); CRAG.cols.length=0; CRAG.cg.clear(); CRAG.ix.clear(); CRAG.n=0; CRAG.blobs=0;
 }
 function cragDrop(t){ for(const k of ['near','far']){ const m=t[k]; if(m){ scene.remove(m); m.geometry.dispose(); t[k]=null; } } }
 /* 충돌 원 — 반지름 7 m 까지는 하나, 더 크면 고리로 덮는다 */
@@ -100,13 +102,16 @@ function cragGrow(s,B){
     else{ sy=1.15+rnd()*0.5; sx=1.12; }                           // 뿔
     const gy=heightAt(px,pz); if(gy<-r*sy*0.8) continue;          // 물에 다 잠기면 안 세운다
     /* 벽 속으로 반지름의 1/4~1/2 을 들여 박는다 — 겉에 얹으면 비탈에 붙은 공으로 보인다 */
-    const inK=r*(0.25+0.25*rnd()), mx=px-dx*inK, mz=pz-dz*inK, y=gy+r*sy*(0.02+0.30*rnd());
+    /* 비탈 아래쪽이 뜨지 않게 — 내리막 쪽 발치(반지름의 0.7)의 땅을 재어, 바위 밑면이 거기서도 땅에 묻히는 높이까지만 올린다
+       (가파른 벽에 넓적한 바위를 수평으로 얹으면 아래쪽이 허공에 떴다 — 사용자 지적) */
+    const inK=r*(0.25+0.25*rnd()), mx=px-dx*inK, mz=pz-dz*inK, rh0=r*(sx+sz)*0.5;
+    const y=Math.min(gy+r*sy*(0.02+0.30*rnd()),heightAt(mx+dx*rh0*0.7,mz+dz*rh0*0.7)+r*sy*0.5);
     put(mx,y,mz,r*sx,r*sy,r*sz,0);
     cragCollide(px,pz,r*(sx+sz)*0.36);
     bud(mx,y,mz,r*(sx+sz)*0.5,r*sy,1,0.30,0.64,2+((rnd()*3)|0));
     if(type===2) for(let i=0,n=2+((rnd()*4)|0);i<n;i++){          // 발치에 굴러떨어진 돌
       const d=r*(0.9+1.3*rnd()), x=px+dx*d+tx*(rnd()-0.5)*r*1.6, z=pz+dz*d+tz*(rnd()-0.5)*r*1.6, q=r*(0.18+0.28*rnd()), gy2=heightAt(x,z); if(gy2<-q) continue;
-      put(x,gy2+q*0.35,z,q*(0.9+0.3*rnd()),q*(0.7+0.4*rnd()),q*(0.9+0.3*rnd()),1); if(q>1.2) cragCollide(x,z,q*0.8); }
+      put(x,Math.min(gy2+q*0.35,heightAt(x+dx*q*0.7,z+dz*q*0.7)+q*0.30),z,q*(0.9+0.3*rnd()),q*(0.7+0.4*rnd()),q*(0.9+0.3*rnd()),1); if(q>1.2) cragCollide(x,z,q*0.8); }
   }
 }
 /* 섬의 암벽 자리를 뽑고 무리를 기른다 — 자원을 다 놓은 뒤 한 번(placeResources). 그 칸에 서 있던 나무·바위는 치운다 */
@@ -127,9 +132,87 @@ function cragSites(seed){
     cragGrow({x:wx,z:wz,dx:-gx/gl,dz:-gz/gl,seed:sd},t.b); occ[i]=1; CRAG.n++;
   }
   PROPS=PROPS.filter(p=>p.cave||!occ[IDX(clamp(Math.round(p.x/CELL+N/2),0,N-1),clamp(Math.round(p.z/CELL+N/2),0,N-1))]);
+  { const C=CRAG.cols, G=CRAG.cg;                                                          // 원을 16 m 칸에 걸어 둔다(cragNear)
+    for(let i=0;i<C.length;i+=3){ const r=C[i+2], x0=Math.floor((C[i]-r)/16), x1=Math.floor((C[i]+r)/16), z0=Math.floor((C[i+1]-r)/16), z1=Math.floor((C[i+1]+r)/16);
+      for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const k=(gx+2048)*4096+(gz+2048); let a=G.get(k); if(!a) G.set(k,a=[]); a.push(i); } } }
 }
-/* 충돌 원을 건다 — 소품을 다 지은 뒤(buildProps 가 COLLIDERS 를 비운다 · 격자는 buildCaves 가 다시 짠다) */
-function buildCrags(){ const C=CRAG.cols; for(let i=0;i<C.length;i+=3) COLLIDERS.push({x:C[i],z:C[i+1],r:C[i+2]}); }
+/* 그 자리가 큰 바위의 발치(원 + pad) 안인가 — 나무·덤불·노거수가 바위 속에 서지 않게(95-flora.js · 95-giants.js) */
+function cragNear(x,z,pad){
+  if(!CRAG.n) return false;
+  const a=CRAG.cg.get((Math.floor(x/16)+2048)*4096+(Math.floor(z/16)+2048)); if(!a) return false;
+  const C=CRAG.cols; pad=pad||0;
+  for(const i of a){ const dx=x-C[i], dz=z-C[i+1], q=C[i+2]+pad; if(dx*dx+dz*dz<q*q) return true; }
+  return false;
+}
+function buildCrags(){}                 // (예전엔 여기서 충돌 원을 걸었다 — 이제 몸은 바위의 진짜 꼴로 막는다. 아래)
+
+/* ── 바위를 딛기 ────────────────────────────────────────────────────────────
+   사람이 선 자리의 수직선이 바위 덩이를 지나는 구간([밑, 꼭대기])을 **그려진 꼴 그대로** 구한다 — 덩이마다 수직선을 그 덩이의
+   제 좌표(돌림·늘림을 되돌린 단위 꼴)로 옮겨 단위 꼴의 세모들과 맞춰 본다(가까운 메시가 쓰는 촘촘한 꼴 — 덩이 하나에 세모 60~200).
+   `cragFloor(x,z,발높이,땅)` 이 그 구간들로 딛는 높이를 정한다:
+     · 밑이 (땅 또는 발)에서 1.9 m 안인 덩이는 **그 꼭대기가 바닥**이다 — 얹힌 덩이는 차례로 이어 올린다.
+       낮으면 올라서고(턱 0.55 m · 49° 까지 — 80-player.js `walkable`), 높으면 벽이다(오를 수 없는 턱).
+     · 밑이 머리 위(1.9 m 넘게)인 덩이는 지붕이다 — 그 밑으로 지나간다.
+   꼭대기 면의 비탈은 `CRAG.slope` 에 남긴다(가파른 바위 면은 못 오른다).
+   덩이는 10 m 칸에 걸어 두고 찾는다 — 사람이 다가간 320 m 칸만 그때 걸어 둔다(`cragIndex`) */
+const _cgS=[];                          // 수직선이 지나는 구간들 — {b,t,sl}
+function cragIndex(t){
+  if(t.ixd) return; t.ixd=true;
+  const B=t.b, S=cragShapes(), F_=CRAG.F, BK=CRAG.BK, IX=CRAG.ix;
+  for(let o=0;o<B.length;o+=F_){
+    _crE.set(B[o+6],B[o+7],B[o+8]); _crQ.setFromEuler(_crE); _crM.makeRotationFromQuaternion(_crQ); const e=_crM.elements;
+    const rx=B[o+3], ry=B[o+4], rz=B[o+5], br=Math.max(rx,ry,rz)*1.55;
+    const r={x:B[o],y:B[o+1],z:B[o+2],rx,ry,rz,br2:br*br,sh:S[B[o+9]][B[o+10]][1],
+             m:[e[0],e[1],e[2],e[4],e[5],e[6],e[8],e[9],e[10]]};                  // 돌림 행렬의 세 열
+    const x0=Math.floor((r.x-br)/BK), x1=Math.floor((r.x+br)/BK), z0=Math.floor((r.z-br)/BK), z1=Math.floor((r.z+br)/BK);
+    for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const k=(gx+4096)*8192+(gz+4096); let a=IX.get(k); if(!a) IX.set(k,a=[]); a.push(r); }
+  }
+}
+/* 수직선 (x,z) 이 지나는 덩이의 구간을 _cgS 에 모은다 — 개수를 돌려준다 */
+function cragSpan(x,z){
+  const T=CRAG.T, tx0=Math.floor((x-70)/T), tx1=Math.floor((x+70)/T), tz0=Math.floor((z-70)/T), tz1=Math.floor((z+70)/T);
+  /* 사람 둘레(400 m)의 칸만 걸어 둔다 — 섬을 지을 때 나무 수십만 그루가 묻는 것(floorAt)까지 다 걸면 섬 전체가 걸린다 */
+  if((x-PL.pos.x)*(x-PL.pos.x)+(z-PL.pos.z)*(z-PL.pos.z)<160000)
+  for(let a=tz0;a<=tz1;a++) for(let b=tx0;b<=tx1;b++){ const t=CRAG.tiles.get((b+512)*1024+(a+512)); if(t&&!t.ixd) cragIndex(t); }
+  const L=CRAG.ix.get((Math.floor(x/CRAG.BK)+4096)*8192+(Math.floor(z/CRAG.BK)+4096)); if(!L) return 0;
+  let n=0;
+  for(const r of L){
+    const wx=x-r.x, wz=z-r.z; if(wx*wx+wz*wz>r.br2) continue;
+    const m=r.m, wy=-r.y;                                 // 선의 한 점(세계 높이 0)과 방향(위)을 덩이 좌표로 — 돌림을 되돌리고 반지름으로 나눈다
+    const ox=(m[0]*wx+m[1]*wy+m[2]*wz)/r.rx, oy=(m[3]*wx+m[4]*wy+m[5]*wz)/r.ry, oz=(m[6]*wx+m[7]*wy+m[8]*wz)/r.rz;
+    const dx=m[1]/r.rx, dy=m[4]/r.ry, dz=m[7]/r.rz;
+    { const dd=dx*dx+dy*dy+dz*dz, od=ox*dx+oy*dy+oz*dz, c2=ox*ox+oy*oy+oz*oz-od*od/dd; if(c2>2.6) continue; }   // 단위 꼴(반지름 1.6 안)을 스치지도 않는다
+    const P=r.sh.pos, I=r.sh.idx; let lo=1e9, hi=-1e9, hn=1;
+    for(let q=0;q<I.length;q+=3){
+      const a=I[q]*3, b=I[q+1]*3, c=I[q+2]*3;
+      const e1x=P[b]-P[a], e1y=P[b+1]-P[a+1], e1z=P[b+2]-P[a+2], e2x=P[c]-P[a], e2y=P[c+1]-P[a+1], e2z=P[c+2]-P[a+2];
+      const px=dy*e2z-dz*e2y, py=dz*e2x-dx*e2z, pz=dx*e2y-dy*e2x, det=e1x*px+e1y*py+e1z*pz;
+      if(det>-1e-9&&det<1e-9) continue;
+      const inv=1/det, sx=ox-P[a], sy=oy-P[a+1], sz=oz-P[a+2], u=(sx*px+sy*py+sz*pz)*inv; if(u<-1e-4||u>1.0001) continue;
+      const qx=sy*e1z-sz*e1y, qy=sz*e1x-sx*e1z, qz=sx*e1y-sy*e1x, v=(dx*qx+dy*qy+dz*qz)*inv; if(v<-1e-4||u+v>1.0001) continue;
+      const tt=(e2x*qx+e2y*qy+e2z*qz)*inv;                // 세계 높이(선의 매개값이 곧 높이다)
+      if(tt<lo) lo=tt;
+      if(tt>hi){ hi=tt;                                    // 꼭대기 면의 법선(세계) — 돌림 · 반지름의 역수
+        const nx=(e1y*e2z-e1z*e2y)/r.rx, ny=(e1z*e2x-e1x*e2z)/r.ry, nz=(e1x*e2y-e1y*e2x)/r.rz;
+        const wxn=m[0]*nx+m[3]*ny+m[6]*nz, wyn=m[1]*nx+m[4]*ny+m[7]*nz, wzn=m[2]*nx+m[5]*ny+m[8]*nz, l=Math.hypot(wxn,wyn,wzn)||1;
+        hn=Math.abs(wyn)/l; }
+    }
+    if(hi>lo){ const s=_cgS[n]||(_cgS[n]={b:0,t:0,sl:0,u:false}); s.b=lo; s.t=hi; s.sl=Math.sqrt(Math.max(0,1-hn*hn))/Math.max(hn,0.02); s.u=false; n++; }
+  }
+  return n;
+}
+/* 딛는 높이 — g: 그 자리의 땅. fromY: 발 높이(안 주면 가장 높은 단단한 면) */
+function cragFloor(x,z,fromY,g){
+  CRAG.slope=0;
+  if(!CRAG.n) return g;
+  const n=cragSpan(x,z); if(!n) return g;
+  const ref=fromY===undefined?-1e9:fromY;
+  let top=g, more=true;
+  while(more){ more=false;
+    for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.u||s.t<=top) continue;
+      if(s.b<=Math.max(top,ref)+1.9){ top=s.t; CRAG.slope=s.sl+1e-4; s.u=true; more=true; } } }     // 0 보다 크면 '바위 위'라는 표시다
+  return top;
+}
 /* 칸 하나의 메시 — lod 1: 세 단계 다(촘촘한 꼴) · 0: 두 단계(성긴 꼴) */
 const _crM=new THREE.Matrix4(), _crQ=new THREE.Quaternion(), _crE=new THREE.Euler();
 function cragMesh(t,lod){

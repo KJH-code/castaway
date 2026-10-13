@@ -157,6 +157,12 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
       {
         vec2 p=vTW.xz;
         vec4 n1=texture2D(uNz,p/113.0), n2=texture2D(uNz,p/27.0+vec2(0.37,0.11));
+        /* **가파른 면은 옆에서 본 좌표로** — 위에서 내려다본 좌표(xz)만 쓰면 벽에서 무늬가 세로로 길게 늘어진다(벼랑의 줄무늬).
+           51°~68° 에 걸쳐 옆 투영 둘(xy · zy)을 면이 보는 쪽대로 섞은 것으로 옮겨 간다 — 얼룩 잡음과 바위 사진 결 */
+        vec3 aN=abs(normalize(vTN)); float stp=smoothstep(0.62,0.38,aN.y), wSx=aN.x/(aN.x+aN.z+1e-4);
+        vec2 tS1=vTW.xy/2.1, tS2=vTW.zy/2.1, gS1x=dFdx(tS1), gS1y=dFdy(tS1), gS2x=dFdx(tS2), gS2y=dFdy(tS2);
+        { vec4 s1=mix(texture2D(uNz,vTW.xy/113.0),texture2D(uNz,vTW.zy/113.0),wSx), s2=mix(texture2D(uNz,vTW.xy/27.0+vec2(0.37,0.11)),texture2D(uNz,vTW.zy/27.0+vec2(0.37,0.11)),wSx);
+          n1=mix(n1,s1,stp); n2=mix(n2,s2,stp); }
         /* 바이옴 색과 가림막 — 잡음으로 비튼 자리에서, 가운데 + 둘레 셋을 섞어 읽는다(경계가 굽이치고 부드럽다) */
         vec2 wp=p+(n1.rg-0.5)*7.5+(n2.rg-0.5)*2.4;
         vec2 bu=(wp/uCell+uBioN*0.5+0.5)/uBioN; float br=3.5/uCell/uBioN;
@@ -202,7 +208,9 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         if(wGrass>0.02) det+=wGrass*GL(1.0);
         if(wLeaf>0.02)  det+=wLeaf*GL(2.0);
         if(wNeed>0.02)  det+=wNeed*GL(3.0);
-        if(wRock>0.02)  det+=wRock*GL(4.0);
+        if(wRock>0.02){ vec3 rk=GL(4.0);
+          if(stp>0.0) rk=mix(rk,mix(textureGrad(uGnd,vec3(tS1,4.0),gS1x,gS1y).rgb,textureGrad(uGnd,vec3(tS2,4.0),gS2x,gS2y).rgb,wSx),stp);
+          det+=wRock*rk; }
         if(wGrav>0.02)  det+=wGrav*GL(5.0);
         if(wMud>0.02)   det+=wMud*GL(6.0);
         if(wDry>0.02)   det+=wDry*GL(7.0);
@@ -242,7 +250,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
           float RK=${(2*GND.relK).toFixed(3)};
           vec2 g=(t1.gb-0.5)*(RK*3.0/190.0)+((t2.gb-0.5)*M2)*(RK*0.50/31.0)+((t3.gb-0.5)*M3)*(RK*0.065/4.2);
           float hr=(t1.r-0.5)*0.45+(t2.r-0.5)*0.35+(t3.r-0.5)*0.20;             // 기복의 높낮이(−0.5~0.5 — 큰 것·가운데·잔 것)
-          g*=kR;
+          g*=kR*(1.0-0.65*stp);                                                 // 벽에서는 순하게(위로 미는 기복은 벽에서 세로 줄이 된다)
           float ny=max(Ng.y,0.3);
           vec3 Np=normalize(vec3(Ng.x/ny-g.x,1.0,Ng.z/ny-g.y));
           float lum=dot(det,vec3(0.3333)), nearB=1.0-smoothstep(6.0,34.0,vTD);

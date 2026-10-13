@@ -860,7 +860,7 @@ function reliefT(wx,wz){
 /* 가림막 — 물(바다·하천)에서 한 칸은 0 · 그다음 칸은 절반 · 그 밖은 1. 낮은 뭍(0.6~2.6 m)에서 차츰 선다 */
 function reliefMask(){
   const M=RELIEF.M||(RELIEF.M=new Uint8Array(N*N)), h=F.elev, W=new Uint8Array(N*N);
-  M.fill(0); RELIEF.on=false;
+  M.fill(0); RELIEF.on=false; TERR_U.uTri.value=0;
   if((P.tv|0)<3||typeof GND==='undefined'||!GND.relQ) return;
   for(let i=0;i<N*N;i++) W[i]=(h[i]<=0.3||F.river[i])?2:0;
   for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=z*N+x; if(W[i]) continue;
@@ -868,17 +868,22 @@ function reliefMask(){
   for(let z=2;z<N-2;z++) for(let x=2;x<N-2;x++){ const i=z*N+x; if(W[i]) continue;
     const near=W[i-1]===1||W[i+1]===1||W[i-N]===1||W[i+N]===1;
     M[i]=Math.round(255*(near?0.5:1)*smoothstep(0.6,2.6,h[i])); }
-  RELIEF.on=true;
+  RELIEF.on=true; TERR_U.uTri.value=1;
 }
 function heightAt(wx,wz){
   const gx=clamp(wx/CELL+N/2,0,N-1.001), gz=clamp(wz/CELL+N/2,0,N-1.001);
   const x=gx|0, z=gz|0, fx=gx-x, fz=gz-z, i=IDX(x,z);
   const h=F.elev, a=(1-fx)*(1-fz), b=fx*(1-fz), c=(1-fx)*fz, d=fx*fz;
-  const y=h[i]*a+h[i+1]*b+h[i+N]*c+h[i+N+1]*d;
-  if(!RELIEF.on) return y;
+  if(!RELIEF.on) return h[i]*a+h[i+1]*b+h[i+N]*c+h[i+N+1]*d;
+  /* 지형 판 3 — 바탕은 **그려지는 세모 면**이다(칸의 빗금은 10–01 — 20-terrain.js `terrainLodIndex`). 쌍선형 면은 칸이 뒤틀린 데서
+     메시와 한 뼘~1 m 어긋나, 먼 비탈의 나무·바위·풀이 뜨거나 묻혔다(사용자 지적). 사람 둘레의 덧판도 같은 면을 쓴다(`uTri`) */
+  const y=fx+fz<=1?h[i]+(h[i+1]-h[i])*fx+(h[i+N]-h[i])*fz:h[i+N+1]+(h[i+N]-h[i+N+1])*(1-fx)+(h[i+1]-h[i+N+1])*(1-fz);
   const M=RELIEF.M, m=M[i]*a+M[i+1]*b+M[i+N]*c+M[i+N+1]*d;
   return m>0?y+m*(RELIEF.amp/255)*(reliefT(wx,wz)-0.5):y;
 }
+/* 그 자리의 땅 기울기(∂h/∂x · ∂h/∂z) — heightAt 의 차분이라 잔 기복까지 든다. e: 재는 폭(m). 돌려주는 배열은 돌려 쓴다 */
+const _gSl=[0,0];
+function groundSlope(wx,wz,e){ _gSl[0]=(heightAt(wx+e,wz)-heightAt(wx-e,wz))/(2*e); _gSl[1]=(heightAt(wx,wz+e)-heightAt(wx,wz-e))/(2*e); return _gSl; }
 // 하도 수면 표고 (이중선형)
 function waterLevelAt(wx,wz){
   const gx=clamp(wx/CELL+N/2,0,N-1.001), gz=clamp(wz/CELL+N/2,0,N-1.001);
