@@ -16,6 +16,7 @@ const FUEL={branch:0.15, log:1.2, charcoal:2.0, coal_lump:2.5};   // 게임시�
 const FIRING={
   pot_raw:     {out:'pot',      hours:0.6, count:1},   // 게임 36분
   crucible_raw:{out:'crucible', hours:0.9, count:1},   // 게임 54분 — 두꺼워 오래 걸린다
+  brick_raw:   {out:'brick',    hours:0.5, count:1},   // 벽돌 — 가마를 짓는다
   // 숯가마: 흙을 덮어 산소를 막고 태우면 타 없어지지 않고 숯이 된다.
   // 통나무를 그대로 넣으면 연료로 쓸지 구울지 구분이 안 되므로 재료를 따로 둔다.
   charcoal_pile:{out:'charcoal', hours:1.5, count:4},
@@ -53,11 +54,16 @@ const needsTinder=e=>((e&&(ITEMS[e.id].tool||{}).fire)||1)<2;
 // 플레이어 앞 1.4 m 지점을 검사한다. 재료를 소모하기 전에 먼저 부른다.
 function campfireSpot(){
   const x=PL.pos.x-Math.sin(PL.yaw)*1.4, z=PL.pos.z-Math.cos(PL.yaw)*1.4;
-  const y=heightAt(x,z);
-  if(y<0.4) return {ok:false, why:'물가에는 놓을 수 없다'};
-  if(sampleAt(x,z).slope>0.6) return {ok:false, why:'너무 가파르다'};
-  for(const f of FIRES) if(Math.hypot(f.x-x,f.z-z)<3) return {ok:false, why:'이미 화덕이 있다'};
-  return {ok:true,x,y,z};
+  /* 토대·지붕 위에도 놓는다(사용자 요청) — 발 높이에서 닿는 바닥(floorAt)이 땅보다 높으면 그 판 위다(물가·비탈 검사는 땅일 때만) */
+  const g=heightAt(x,z), y=floorAt(x,z,PL.pos.y), onB=y>g+0.05;
+  if(!onB){
+    if(y<0.4) return {ok:false, why:'물가에는 놓을 수 없다'};
+    if(sampleAt(x,z).slope>0.6) return {ok:false, why:'너무 가파르다'};
+  }else if(Math.abs(floorAt(x+0.45,z,y+0.1)-y)>0.05||Math.abs(floorAt(x-0.45,z,y+0.1)-y)>0.05
+         ||Math.abs(floorAt(x,z+0.45,y+0.1)-y)>0.05||Math.abs(floorAt(x,z-0.45,y+0.1)-y)>0.05)
+    return {ok:false, why:'판 가장자리라 걸치지 않는다 — 조금 더 안쪽에'};
+  for(const f of FIRES) if(Math.hypot(f.x-x,f.z-z)<3&&Math.abs(f.y-y)<1.5) return {ok:false, why:'이미 화덕이 있다'};
+  return {ok:true,x,y,z,onB};
 }
 /* 제련로 — 돌과 점토로 쌓은 노. 송풍관으로 바람을 넣어야 광석이 녹는 온도가 된다.
    화덕과 마찬가지로 '안에 넣어두는' 설비다. 광석과 참숯을 넣고 도가니·송풍관을
@@ -130,6 +136,19 @@ const SMELT=[
    in:[{id:'iron_wrought',n:3},{id:'charcoal',n:6}],
    need:[{id:'crucible',n:1},{id:'blowpipe',n:1}]}
 ];
+/* ── 기술 나무에 설비 공정도 세운다(사용자 요청 — 도가니로 주석을 녹이는 것 같은 일이 나무에 없었다) ──
+   제련로(SMELT)와 화덕·가마 굽기(FIRING)를 제작법 꼴(`proc`)로 RECIPES 끝에 붙인다 — 맨 끝이라 예전 번호(고른 제작법 등)는 그대로다.
+   직접 만드는 것이 아니므로 `canCraft` 는 늘 거짓이고, 누르면 어디에 무엇을 넣으면 되는지 알린다(`procHow`).
+   그래서 재료 쪽에서 '이것을 만드는 법' 이 제련·굽기로 이어진다(주석 → 주석 제련 → 석석·참숯·도가니·송풍관). */
+const PROC_TIER=id=>/steel/.test(id)?'강철':/iron|bloom/.test(id)?'철기':/ingot_|mercury|bronze|brass/.test(id)?'금속':/glass/.test(id)?'금속':null;
+for(const S of SMELT) RECIPES.push({id:'proc_'+S.id, proc:'furnace', tier:PROC_TIER(S.out.id)||'금속', n:S.n, out:S.out, in:S.in, need:S.need,
+  station:'furnace', time:Math.round(S.hours*60), stam:0, note:'제련로에 재료'+(S.need?'와 '+S.need.map(r=>ITEMS[r.id].n).join('·'):'')+'를 넣고 불을 붙여 두면 저절로 된다(게임 '+Math.round(S.hours*60)+'분). '+(S.note||'')});
+for(const k in FIRING){ const F=FIRING[k]; if(!ITEMS[k]||!ITEMS[F.out]) continue;
+  RECIPES.push({id:'proc_fire_'+k, proc:'fire', tier:'불', n:ITEMS[F.out].n+' 굽기', out:{id:F.out,n:F.count||1}, in:[{id:k,n:1}],
+    station:'fire', time:Math.round(F.hours*60), stam:0, note:'타는 화덕·가마에 '+ITEMS[k].n+'을 넣어 두면 '+ITEMS[F.out].n+'이 된다(게임 '+Math.round(F.hours*60)+'분 · 가마는 두 배 빠르다).'}); }
+function procHow(R){ toast(R.proc==='furnace'?R.n+' — 제련로에 넣어 두는 일이다: '+R.in.concat(R.need||[]).map(r=>ITEMS[r.id].n+' '+r.n).join(' · ')
+                                            :R.n+' — 타는 화덕이나 가마에 '+ITEMS[R.in[0].id].n+'을 넣어 둔다'); }
+
 const FURNACES=[];
 const nearFurnace=()=>FURNACES.some(g=>Math.hypot(g.x-PL.pos.x,g.z-PL.pos.z)<3.4);
 function placeFurnace(){
@@ -222,7 +241,7 @@ function placeFurnaceAt(px,py,pz){
             x:px,y:py,z:pz, mesh:grp, glow:glow, light:li,
             lit:false, fuel:0, jobs:{}};
   FURNACES.push(fu);
-  COLLIDERS.push({x:px,z:pz,r:1.05}); buildColliderGrid();
+  COLLIDERS.push({x:px,z:pz,y0:py-0.1,y1:py+1.8,r:1.05}); buildColliderGrid();
   return fu;
 }
 
@@ -239,7 +258,7 @@ const STORE_DEF={
 function placeStore(kind){
   const spot=campfireSpot();
   if(!spot.ok){ toast(spot.why); return false; }
-  for(const g of STORES) if(Math.hypot(g.x-spot.x,g.z-spot.z)<1.6){
+  for(const g of STORES) if(Math.hypot(g.x-spot.x,g.z-spot.z)<1.6&&Math.abs(g.y-spot.y)<1.5){
     toast('너무 가깝다'); return false; }
   placeStoreAt(kind,spot.x,spot.y,spot.z);
   toast(eulReul(STORE_DEF[kind].n)+' 놓았다');
@@ -251,9 +270,9 @@ function placeStore(kind){
    이름표는 늘 화면을 보는 판(Sprite)이다 — 멀어져도 읽히게 거리에 맞춰 키우고, 28 m 밖에선 끈다. */
 function makeTagSprite(text){
   const cvs=document.createElement('canvas'), g=cvs.getContext('2d');
-  const FONT='600 44px "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif';
+  const FONT='700 64px "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif';
   g.font=FONT;
-  const tw=Math.ceil(g.measureText(text).width), W=Math.min(1024,tw+56), H=80;
+  const tw=Math.ceil(g.measureText(text).width), W=Math.min(1024,tw+72), H=104;
   cvs.width=W; cvs.height=H;
   const r=14;
   g.beginPath(); g.moveTo(r,3); g.lineTo(W-r,3); g.quadraticCurveTo(W-3,3,W-3,r); g.lineTo(W-3,H-r);
@@ -275,7 +294,7 @@ function storeSetLabel(st,name){
   if(st.tag){ st.mesh.remove(st.tag); st.tag.material.map.dispose(); st.tag.material.dispose(); st.tag=null; }
   if(name){
     st.tag=makeTagSprite(name);
-    st.tag.position.set(0,st.kind==='chest'?1.12:1.02,0);
+    st.tag.position.set(0,st.kind==='chest'?1.30:1.18,0);
     st.mesh.add(st.tag);
   }
   boxDirty=true;
@@ -286,7 +305,7 @@ function updateStoreTags(){
     const d=Math.hypot(st.x-PL.pos.x,st.z-PL.pos.z,(st.y+1)-(PL.pos.y+1.6));
     t.visible=d<28;
     if(!t.visible) continue;
-    const h=clamp(d*0.034,0.11,0.80);          // 가까우면 손바닥만 하게, 멀면 읽힐 만큼 키운다
+    const h=clamp(0.20+d*0.045,0.24,1.30);     // 가까이서도 또렷하게(사용자 요청 — 예전 0.11 m 는 너무 작았다), 멀면 읽힐 만큼 키운다
     t.scale.set(h*t.userData.aspect,h,1);
   }
 }
@@ -357,7 +376,7 @@ function placeStoreAt(kind,px,py,pz,slots,label,ry){
             cap:STORE_DEF[kind].cap,slots:slots||[]};
   if(label) storeSetLabel(st,label);
   STORES.push(st);
-  COLLIDERS.push({x:px,z:pz,r:kind==='chest'?0.62:0.45}); buildColliderGrid();
+  COLLIDERS.push({x:px,z:pz,y0:py-0.1,y1:py+1.8,r:kind==='chest'?0.62:0.45}); buildColliderGrid();
   return st;
 }
 /* ── 밀기 ──────────────────────────────────────────────────────────────
@@ -399,15 +418,16 @@ function pushCollider(c){
 /* 그 자리로 못 미는 까닭(밀 수 있으면 빈 글) */
 function pushBlocked(c,nx,nz){
   if(Math.abs(nx)>HALF-8||Math.abs(nz)>HALF-8) return '더는 밀 수 없다';
-  const ny=heightAt(nx,nz);
-  if(ny<0.4) return '물가로는 밀 수 없다';
-  if(sampleAt(nx,nz).slope>0.6) return '비탈이 가팔라 안 밀린다';
-  if(Math.abs(ny-c.y)>0.5) return '턱에 걸렸다';
+  const ny=floorAt(nx,nz,c.y+0.1), onB=ny>heightAt(nx,nz)+0.05;   // 토대·지붕 위에 놓인 것은 그 판 위로 민다
+  if(!onB&&ny<0.4) return '물가로는 밀 수 없다';
+  if(!onB&&sampleAt(nx,nz).slope>0.6) return '비탈이 가팔라 안 밀린다';
+  if(Math.abs(ny-c.y)>0.5) return onB||c.y>heightAt(c.x,c.z)+0.3?'판 끝이다':'턱에 걸렸다';
   const me=pushCollider(c), r=(me?me.r:0.5)*0.9;
   const gx=Math.floor(nx/CG), gz=Math.floor(nz/CG);
   for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){
     const a=CGRID.get(cgKey(gx+dx,gz+dz)); if(!a) continue;
     for(const o of a){ if(o===me) continue;
+      if(o.y0!==undefined&&(c.y>o.y1||c.y+1.2<o.y0)) continue;          // 다른 층의 것
       const dn=Math.hypot(nx-o.x,nz-o.z);
       /* 이미 겹친 채 놓인 것(바위 곁에 놓았다)은 **멀어지는 쪽으로는** 밀린다 — 예전엔 어느 쪽으로도 안 밀려 먹통이었다 */
       if(dn<o.r+r&&dn<=Math.hypot(c.x-o.x,c.z-o.z)) return '무엇인가에 막혔다'; }
@@ -431,9 +451,9 @@ function updatePush(dt){
   if(why){ if(PUSH.why!==why){ PUSH.why=why; toast(c.cname?c.cname+' — '+why:why); } return; }
   PUSH.why='';
   const col=pushCollider(c);
-  c.x=nx; c.z=nz; c.y=heightAt(nx,nz);
+  c.x=nx; c.z=nz; c.y=floorAt(nx,nz,c.y+0.1);
   c.mesh.position.set(c.x,c.y,c.z);
-  if(col) cgMove(col,nx,nz);                          // 충돌 칸은 그 하나만 옮긴다 — 예전엔 0.12초마다 충돌체 2만여 개로 격자를 통째로 다시 지어 멈칫했다
+  if(col){ cgMove(col,nx,nz); if(col.y0!==undefined){ col.y0=c.y-0.1; col.y1=c.y+1.8; } }                          // 충돌 칸은 그 하나만 옮긴다 — 예전엔 0.12초마다 충돌체 2만여 개로 격자를 통째로 다시 지어 멈칫했다
   PUSH.moved+=st; PUSH.gridT+=dt;
   if(PUSH.gridT>0.35){ PUSH.gridT=0; LIGHT.dirtyAt(c.x,c.z,4); }   // 그림자는 조금씩 따라온다
   PL.stam=clamp(PL.stam-(2.2/v)*dt,0,100);          // 무거울수록 힘이 든다

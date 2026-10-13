@@ -782,7 +782,7 @@ function placeWheelAt(px,py,pz){
   g.position.set(px,py,pz); scene.add(g);
   const obj={x:px,y:py,z:pz,mesh:g,rim:rim,flow:flowAt(px,pz)};
   WHEELS.push(obj);
-  COLLIDERS.push({x:px,z:pz,r:0.8}); buildColliderGrid();
+  COLLIDERS.push({x:px,z:pz,y0:py-0.1,y1:py+1.8,r:0.8}); buildColliderGrid();
   return obj;
 }
 
@@ -832,7 +832,7 @@ function placeSteamAt(x,y,z){
   const f={kind:'fire', cname:'증기기관', steam:true, cap:60, slotCap:10, slots:[],
            x,y,z,lit:false,fuel:0,cook:{},mesh:g,flame,light,t:0,wheel,rod};
   FIRES.push(f);
-  COLLIDERS.push({x,z,r:1.2}); buildColliderGrid();
+  COLLIDERS.push({x,z,y0:y-0.1,y1:y+1.8,r:1.2}); buildColliderGrid();
   return f;
 }
 
@@ -855,7 +855,7 @@ function placeDynamoAt(px,py,pz){
   /* kind:'power' — 숫돌(kind:'grind')과 같다. findContainer 가 같이 훑도록
      달아 두었을 뿐 slots 는 없다. 용기인 줄 알고 contWeight 를 부르면 터진다. */
   DYNAMOS.push({x:px,y:py,z:pz,mesh:g,kind:'power',cname:'발전기'});
-  COLLIDERS.push({x:px,z:pz,r:0.55}); buildColliderGrid();
+  COLLIDERS.push({x:px,z:pz,y0:py-0.1,y1:py+1.8,r:0.55}); buildColliderGrid();
 }
 function placeDynamo(){
   const sp=campfireSpot();
@@ -894,7 +894,7 @@ function placeLatheAt(px,py,pz){
   g.rotation.y=Math.random()*6.283;
   g.position.set(px,py,pz); scene.add(g);
   LATHES.push({x:px,y:py,z:pz,mesh:g});
-  COLLIDERS.push({x:px,z:pz,r:0.9}); buildColliderGrid();
+  COLLIDERS.push({x:px,z:pz,y0:py-0.1,y1:py+1.8,r:0.9}); buildColliderGrid();
 }
 function placeLathe(){
   const sp=campfireSpot();
@@ -927,7 +927,7 @@ function placeArcAt(px,py,pz){
   g.rotation.y=Math.random()*6.283;
   g.position.set(px,py,pz); scene.add(g);
   ARCS.push({x:px,y:py,z:pz,mesh:g,glow:gap,light:li});
-  COLLIDERS.push({x:px,z:pz,r:0.75}); buildColliderGrid();
+  COLLIDERS.push({x:px,z:pz,y0:py-0.1,y1:py+1.8,r:0.75}); buildColliderGrid();
 }
 function placeArc(){
   const sp=campfireSpot();
@@ -970,7 +970,7 @@ function placeAnvilAt(px,py,pz){
   grp.rotation.y=Math.random()*6.283;
   grp.position.set(px,py,pz); scene.add(grp);
   ANVILS.push({x:px,y:py,z:pz,mesh:grp});
-  COLLIDERS.push({x:px,z:pz,r:0.7}); buildColliderGrid();
+  COLLIDERS.push({x:px,z:pz,y0:py-0.1,y1:py+1.8,r:0.7}); buildColliderGrid();
 }
 
 /* 숫돌 — 마제 석기를 갈기 위한 작업대. 화덕과 같은 방식으로 설치한다. */
@@ -1003,7 +1003,7 @@ function placeGrindstoneAt(px,py,pz){
   grp.position.set(spot.x,spot.y,spot.z); scene.add(grp);
   /* 용기와 같은 자리에서 E 를 받는다 — 담는 곳은 아니지만 '눈앞의 설비'로는 같다 */
   GRINDS.push({kind:'grind', cname:'숫돌', x:spot.x,y:spot.y,z:spot.z, mesh:grp});
-  COLLIDERS.push({x:spot.x,z:spot.z,r:0.85}); buildColliderGrid();
+  COLLIDERS.push({x:spot.x,z:spot.z,y0:spot.y-0.1,y1:spot.y+1.8,r:0.85}); buildColliderGrid();
 }
 
 // 화덕 둘레 돌 하나 — 암석과 같은 방식으로 매번 새 형상을 만든다
@@ -1032,6 +1032,39 @@ function hearthStone(r){
     nor.setXYZ(i,Nv.x,Nv.y,Nv.z);
   }
   return g;
+}
+/* ── 가마 — 화덕을 구운 벽돌로 둘러 돔을 얹은 것(사용자 요청). 같은 불 용기(FIRES)인 채로 두 배 넓고 두 배 빨리 굽는다 ── */
+function kilnTarget(){ let best=null, bd=3.5;
+  for(const f of FIRES){ if(f.steam||f.kilnU) continue; const d=Math.hypot(f.x-PL.pos.x,f.z-PL.pos.z); if(d<bd){ bd=d; best=f; } }
+  return best; }
+function kilnSpot(){ return kilnTarget()?{ok:true}:{ok:false,why:'화덕 곁에서 짓는다 — 가마는 화덕을 벽돌로 두른 것이다'}; }
+let _brickTex=null;
+function brickTex(){
+  if(_brickTex) return _brickTex;
+  const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d'), rn=mulberry32(0xb51c);
+  g.fillStyle='#8a8070'; g.fillRect(0,0,128,128);                    // 줄눈
+  for(let r=0;r<8;r++) for(let k=-1;k<5;k++){ const x=k*32+(r&1?16:0)+1, y=r*16+1, v=0.8+rn()*0.35;
+    g.fillStyle='rgb('+((150*v)|0)+','+((72*v)|0)+','+((48*v)|0)+')'; g.fillRect(x,y,30,14);
+    g.fillStyle='rgba(0,0,0,'+(0.1+rn()*0.15)+')'; g.fillRect(x,y+10,30,4); }
+  _brickTex=new THREE.CanvasTexture(c); _brickTex.wrapS=_brickTex.wrapT=THREE.RepeatWrapping; return _brickTex;
+}
+function kilnify(f){
+  if(f.kilnU) return; f.kilnU=true; f.cname='가마'; f.cap=80; f.slotCap=20;
+  const tx=brickTex(), mat=new THREE.MeshLambertMaterial({map:tx,side:THREE.DoubleSide}), g=new THREE.Group();
+  const gap=1.1, th0=Math.PI/2+gap/2;                                // 앞(+z)에 아궁이 — 땔감을 넣는 구멍
+  const wall=new THREE.Mesh(new THREE.CylinderGeometry(0.92,1.0,0.75,24,1,true,th0,Math.PI*2-gap),mat); wall.position.y=0.375; g.add(wall);
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(0.92,24,10,0,Math.PI*2,0,Math.PI/2),mat); dome.position.y=0.75; dome.scale.y=0.78; g.add(dome);
+  const lip=new THREE.Mesh(new THREE.TorusGeometry(0.97,0.06,6,28),mat); lip.rotation.x=Math.PI/2; lip.position.y=0.76; g.add(lip);
+  const arch=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.07,6,14,Math.PI),mat); arch.position.set(0,0.0,0.93); g.add(arch);   // 아궁이 아치
+  const chim=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.16,0.55,10,1,true),mat); chim.position.set(0,1.62,0); g.add(chim);
+  for(const m of [wall,dome,lip,arch,chim]) m.material.map.repeat.set(3,2);
+  f.mesh.add(g); f.kilnM=g;
+  const col=COLLIDERS.find(o=>o.x===f.x&&o.z===f.z); if(col) col.r=1.05;
+  LIGHT.dirtyAt(f.x,f.z,4);
+}
+function placeKiln(){
+  const f=kilnTarget(); if(!f){ toast('화덕 곁에서 짓는다'); return false; }
+  kilnify(f); toast('가마를 지었다 — 화덕보다 두 배 넓고 두 배 빨리 굽는다'); boxDirty=true; return true;
 }
 function placeCampfire(){
   const spot=campfireSpot();
@@ -1273,7 +1306,7 @@ function placeCampfireAt(x,y,z){
   const fire={kind:'fire', cname:'화덕', cap:40, slotCap:10, slots:[],
     x,y,z,lit:false,fuel:0,cook:{},mesh:g,flame,light,t:Math.random()*10};
   FIRES.push(fire);
-  COLLIDERS.push({x,z,r:0.75}); buildColliderGrid();
+  COLLIDERS.push({x,z,y0:y-0.1,y1:y+1.8,r:0.75}); buildColliderGrid();
   return fire;
 }
 
@@ -1512,7 +1545,7 @@ function updateFires(dt,dh){
     if(f.lit && dh>0){
       for(const job of jobs){
         const R=FIRING[job];
-        f.cook[job]=(f.cook[job]||0)+dh;
+        f.cook[job]=(f.cook[job]||0)+dh*(f.kilnU?2:1);   // 가마는 두 배 빠르다
         while(f.cook[job]>=R.hours && contCount(f,job)>0){
           f.cook[job]-=R.hours;
           contTake(f,job,1);

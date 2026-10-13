@@ -26,7 +26,8 @@ function _icoShape(id){
     if(liq!=null) add(cyl(0.15,0.16,0.26),WMAT(liq),0,-0.04,0); };
   const pile=(c)=>{ add(new THREE.ConeGeometry(0.3,0.22,16),WMAT(c),0,0,0); };
   const strands=(c,n,len,w)=>{ const rn=mulberry32(hashStr(id)); for(let i=0;i<n;i++) add(box(w,len,w*0.4),WMAT(c),(rn()-0.5)*0.12,0,(rn()-0.5)*0.08,0,0,(rn()-0.5)*0.35); };
-  if(/^ingot_|bloom_iron|iron_wrought/.test(id)){ add(cyl(0.16,0.22,0.12,4),M,0,0,0,0,Math.PI/4,0,1.6,1,0.8); }
+  if(/^brick/.test(id)){ add(new THREE.BoxGeometry(0.34,0.12,0.17),M,0,0,0,0.3,0.6,0); add(new THREE.BoxGeometry(0.34,0.12,0.17),M,0.04,0.13,0.02,0.3,0.9,0); }
+  else if(/^ingot_|bloom_iron|iron_wrought/.test(id)){ add(cyl(0.16,0.22,0.12,4),M,0,0,0,0,Math.PI/4,0,1.6,1,0.8); }
   else if(/^cartridge|shell_buck/.test(id)){ const brass=WMAT(id==='shell_buck'?0xb03a2a:0xc8a050);
     for(let i=0;i<3;i++){ add(cyl(0.035,0.035,0.26),brass,(i-1)*0.1,0,0); add(new THREE.ConeGeometry(0.035,0.08,12),WMAT(id==='shell_buck'?0xc8a050:0x9a6a3a),(i-1)*0.1,0.17,0); } }
   else if(id==='rocket'){ add(cyl(0.06,0.06,0.5),WMAT(0x5a6a4a),0,0,0); add(new THREE.ConeGeometry(0.06,0.16,14),WMAT(0x8a8a7a),0,0.33,0);
@@ -584,7 +585,15 @@ const USE_DUR=0.45; let USE_T=0, DRILL_K=0;
    칼을 들고 덤불을 보면 캐지 않고 휘두른다. */
 /* 겨눈 낮은 식생(덤불·버섯·꽃 — 포기를 똑바로 본 것)이 있으면 그쪽이 먼저다. 예전엔 둘레의 풀(빈손 캐기)이 좌클릭을 가로채
    덤불을 보고 눌러도 풀이 뽑히고 덤불 막대는 안 찼다 */
-function floraAimed(){ const e=equippedTool(), W=e&&ITEMS[e.id].tool; return !!(FLORA.look&&!FLORA.look.tree&&!(W&&W.gun)); }
+/* 나무에 달린 것(꿀·껍질·송진·덩굴…)도 땅의 풀·갈대·모래·잔돌 캐기보다 먼저다(사용자 지적 — 벌집·노거수 껍질을 보고 눌러도 발밑 풀이 뽑혔다).
+   참나무·전나무 가지 꺾기와 겹치면 가까운 쪽 */
+const HARV_GROUND={grass:1,reed:1,sand:1,flint:1,pebble:1};
+function floraAimed(){ const e=equippedTool(), W=e&&ITEMS[e.id].tool, L=FLORA.look;
+  if(!L||(W&&W.gun)) return false;
+  if(!L.tree) return true;
+  const t=HARV.near; if(!t||HARV_GROUND[t.k]) return true;
+  if(HARV.mode&&HARV.mode.tool&&e) return false;               // 도끼를 들고 줄기를 보면 베기
+  return Math.hypot(L.x-PL.pos.x,L.z-PL.pos.z)-(L.r||0)<Math.hypot(t.x-PL.pos.x,t.z-PL.pos.z); }
 function harvestByUse(){ return !!HARV.mode && (!equippedTool() || !!HARV.mode.tool) && !floraAimed(); }
 function useHeld(){
   const e=equippedTool(), T=e&&ITEMS[e.id];

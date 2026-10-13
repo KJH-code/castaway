@@ -134,6 +134,12 @@ const RECIPES=[
    note:'통나무를 쪼개 널을 만들고 노끈으로 묶는다. 바구니보다 세 배를 담는다.',
    in:[{id:'log',n:3},{id:'cord',n:4}]},
 
+  {id:'brick_raw', tier:'나무와 점토', n:'벽돌 찍기', out:{id:'brick_raw',n:3}, time:10, stam:8,
+   note:'점토를 나무틀에 눌러 찍어 말린다. 타는 화덕에 넣어 두면 구운 벽돌이 된다.',
+   in:[{id:'clay_lump',n:2}]},
+  {id:'kiln', tier:'나무와 점토', n:'가마 짓기', out:null, place:'kiln', time:20, stam:20,
+   note:'곁의 화덕을 구운 벽돌로 둘러 돔을 얹는다 — 안이 두 배로 넓고(40 → 80 kg · 10 → 20 칸) 굽는 빠르기도 두 배다. 화덕 곁에서 짓는다.',
+   in:[{id:'brick',n:16},{id:'clay_lump',n:2}]},
   {id:'pot_raw', tier:'나무와 점토', n:'그릇 빚기', out:{id:'pot_raw',n:1}, time:25, stam:14,
    note:'점토를 가래로 말아 쌓아 올리고 표면을 다듬는다. 그늘에서 말린다.',
    in:[{id:'clay_lump',n:1}]},
@@ -1005,7 +1011,7 @@ const STATION={grind  :{n:'숫돌',      ok:()=>nearGrind()},
                arc    :{n:'아크로',    ok:()=>nearArc()},
                lathe  :{n:'선반',      ok:()=>nearLathe()}};
 const stationOK=R=>!R.station || STATION[R.station].ok();
-const canCraft=R=>R.in.every(r=>countMat(r)>=r.n)
+const canCraft=R=>!R.proc&&R.in.every(r=>countMat(r)>=r.n)
                  && (!R.need || R.need.every(r=>countMat(r)>=r.n))
                  && stationOK(R);
 function consumeMat(r){
@@ -1028,13 +1034,20 @@ function matWeight(r){
 }
 const CRAFT={recipe:null, t:0, sel:-1};          // sel — 기술 나무에서 고른 마디(RECIPES 의 번호)
 function startCraft(R){
+  if(R.proc){ procHow(R); return; }
   if(!canCraft(R)){ toast('재료가 모자란다'); return; }
   CRAFT.recipe=R; CRAFT.t=0; craftDirty=true;
+  /* 만드는 동안은 두 손이 다 바쁘다(사용자 요청 — 들고 있던 것을 내려놓고, 끝나면 다시 든다) */
+  if(EQUIP){ CRAFT.held=EQUIP; EQUIP=null; invDirty=true; }
 }
+/* 만드는 중이면 손에 들 수 없다 */
+function craftBusy(){ if(!CRAFT.recipe) return false; toast('만드는 중에는 손에 들 수 없다'); return true; }
+/* 다 만들었거나 그만두면 내려놓았던 것을 다시 든다(그새 버렸으면 빈손) */
+function craftRestoreHeld(){ const h=CRAFT.held; CRAFT.held=null; if(h&&!EQUIP&&INV.slots.indexOf(h)>=0){ EQUIP=h; invDirty=true; } }
 function updateCraft(dt){
   const R=CRAFT.recipe; if(!R) return;
-  if(PL.stam<2){ CRAFT.recipe=null; craftDirty=true; toast('기력이 없다'); return; }
-  if(!stationOK(R)){ CRAFT.recipe=null; craftDirty=true; toast(STATION[R.station].n+'에서 멀어졌다'); return; }
+  if(PL.stam<2){ CRAFT.recipe=null; craftDirty=true; craftRestoreHeld(); toast('기력이 없다'); return; }
+  if(!stationOK(R)){ CRAFT.recipe=null; craftDirty=true; craftRestoreHeld(); toast(STATION[R.station].n+'에서 멀어졌다'); return; }
   const prev=CRAFT.t;
   CRAFT.t+=dt;
   PL.stam=clamp(PL.stam-R.stam/R.time*dt,0,100);
@@ -1043,7 +1056,7 @@ function updateCraft(dt){
   if(Math.floor(prev/iv)!==Math.floor(CRAFT.t/iv) && CRAFT.t<R.time-0.2)
     sfx(R.need&&R.need.some(r=>r.tag==='hammer')?'knap':'bind');
   if(CRAFT.t<R.time) return;
-  CRAFT.recipe=null; CRAFT.t=0; craftDirty=true; invDirty=true;   // 어느 갈래로 끝나든 나무·고른 칸을 다시 그린다(예전엔 실패 갈래에서 '만드는 중' 이 남았다)
+  CRAFT.recipe=null; CRAFT.t=0; craftDirty=true; invDirty=true; craftRestoreHeld();   // 어느 갈래로 끝나든 나무·고른 칸을 다시 그린다(예전엔 실패 갈래에서 '만드는 중' 이 남았다)
   if(!canCraft(R)){ toast('재료가 모자란다'); return; }
   // 설치형은 자리부터 확인 — 실패하면 재료를 쓰지 않는다
   if(R.place==='build'){                       // 집 조각은 짓기 모드에서 놓는다
@@ -1052,14 +1065,14 @@ function updateCraft(dt){
     return;
   }
   if(R.place){
-    const spot=(R.place==='wheel')?wheelSpot():campfireSpot();
+    const spot=(R.place==='wheel')?wheelSpot():(R.place==='kiln')?kilnSpot():campfireSpot();
     if(!spot.ok){ toast(spot.why); return; }
   }
   if(!stationOK(R)){ toast(STATION[R.station].n+' 곁에서만 할 수 있다'); return; }
   /* 설치형 — **놓는 데 성공한 뒤에** 재료를 쓴다. 예전엔 재료부터 쓰고 놓았는데, 놓는 쪽이 한 번 더 따져서
      퇴짜를 놓으면(바구니가 '너무 가깝다' · 발전기가 '물레방아 곁이 아니다' …) 재료만 사라지고 아무것도 안 생겼다. */
   if(R.place){
-    const PLACE={campfire:placeCampfire, grind:placeGrindstone, furnace:placeFurnace, anvil:placeAnvil,
+    const PLACE={campfire:placeCampfire, kiln:placeKiln, grind:placeGrindstone, furnace:placeFurnace, anvil:placeAnvil,
                  wheel:placeWheel, steam:placeSteam, dynamo:placeDynamo, lathe:placeLathe, arc:placeArc,
                  basket:()=>placeStore('basket'), chest:()=>placeStore('chest'), trash:()=>placeStore('trash')};
     const fn=PLACE[R.place];
@@ -1168,7 +1181,7 @@ function drawCraft(){
       const col=list.filter(o=>o.R.tier===tier&&(!craftOnly||canCraft(o.R))); if(!col.length) continue;
       html+='<div class="tc"><div class="th">'+TIER_LABEL[tier]+'<span>'+col.filter(o=>canCraft(o.R)).length+'/'+col.length+'</span></div>'
         +col.map(o=>{ const R=o.R, ok=canCraft(R), busy=CRAFT.recipe===R;
-          return '<div class="nd '+(ok?'ok':'no')+(o.i===CRAFT.sel?' sel':'')+(busy?' busy':'')+'" data-i="'+o.i+'">'
+          return '<div class="nd '+(ok?'ok':'no')+(R.proc?' pr':'')+(o.i===CRAFT.sel?' sel':'')+(busy?' busy':'')+'" data-i="'+o.i+'"'+(R.proc?' title="'+(R.proc==='furnace'?'제련로':'화덕·가마')+'에 넣어 두는 일"':'')+'>'
             +(R.out?iconTagSoon(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')
             +'<span>'+R.n+'</span>'+(R.out&&R.out.n>1?'<em>×'+R.out.n+'</em>':'')+'</div>'; }).join('')+'</div>';
     }
@@ -1198,6 +1211,7 @@ function ctreeEl(){
     const i=+t.dataset.go; if(!RECIPES[i]) return;
     /* 나무 안의 물건을 누르면 **만들 수 있으면 바로 만든다**(사용자 요청) — 못 만들면 예전처럼 그 제작법으로 건너간다 */
     if(canCraft(RECIPES[i])&&CRAFT.recipe!==RECIPES[i]){ CRAFT.sel=i; startCraft(RECIPES[i]); craftDirty=true; ctreeRefresh(); return; }
+    if(RECIPES[i].proc&&i===CTREE.i){ procHow(RECIPES[i]); return; }
     if(i===CTREE.i){ toast('아직 못 만든다 — '+(typeof bagMissing==='function'?bagMissing(RECIPES[i]):'모자란 것이 있다')); return; }
     CRAFT.sel=i; craftTab=craftCat(RECIPES[i]); const q=document.getElementById('crfS'); q.value=''; craftQuery='';
     document.getElementById('crfL')._html=null; craftDirty=true; drawCraft(); ctreeHide(true); });
@@ -1272,7 +1286,7 @@ document.getElementById('crf').addEventListener('click',ev=>{
   const el=ev.target&&ev.target.closest?ev.target.closest('.nd'):null;
   if(!el) return;
   const i=+el.dataset.i;
-  if(CRAFT.sel===i){ if(canCraft(RECIPES[i])) startCraft(RECIPES[i]); else toast('아직 못 만든다 — 오른쪽 칸에 모자란 것이 적혀 있다'); }
+  if(CRAFT.sel===i){ if(RECIPES[i].proc) procHow(RECIPES[i]); else if(canCraft(RECIPES[i])) startCraft(RECIPES[i]); else toast('아직 못 만든다 — 오른쪽 칸에 모자란 것이 적혀 있다'); }
   else CRAFT.sel=i;
   document.getElementById('crfL')._html=null; craftDirty=true; drawCraft();
 });

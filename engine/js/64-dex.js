@@ -208,7 +208,7 @@ function mineralIcon(k,hex){
 function obtainOf(id){
   const out=[];
   for(const R of RECIPES){
-    if(R.out&&R.out.id===id)
+    if(R.out&&R.out.id===id&&!R.proc)
       out.push('제작 — '+R.in.map(r=>matName(r)+' '+r.n).join(' + ')
         +((R.need&&R.need.length)?' (도구: '+R.need.map(matName).join(', ')+')':''));
   }
