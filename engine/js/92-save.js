@@ -93,6 +93,7 @@ function snapshot(){
             w:[...WALLS.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.tier,WALLV.indexOf(o.v||'wall'),
                o.leaf?[o.leaf.kind,o.leaf.tier,o.leaf.open?1:0]:0]),
             r:[...ROOFS.values()].map(o=>[o.gx,o.gz,o.L,o.tier]),
+            po:[...POSTS.values()].map(o=>[o.gx,o.gz,o.L,o.tier]),                       // 기둥 틀
             sl:[...SLOPES.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.tier]),
             gb:[...GABLES.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.h,o.tier])},
     props:propDiff(),
@@ -198,6 +199,7 @@ async function restore(d){
       placeWall(gx,gz,L,s,tier|0,WALLV[v|0]);
       if(lf) placeFit(gx,gz,L,s,lf[0],lf[1]|0,!!lf[2]);
     });
+    for(const [gx,gz,L,tier] of d.builds.po||[]) safe('기둥 틀',()=>placePost(gx,gz,L,tier|0));
     for(const [gx,gz,L,tier] of d.builds.r||[]) safe('지붕',()=>placeRoof(gx,gz,L,tier|0));
     for(const [gx,gz,L,s,tier] of d.builds.sl||[]) safe('경사 지붕',()=>placeSlope(gx,gz,L,s,tier|0));
     for(const [gx,gz,L,s,h,tier] of d.builds.gb||[]) safe('박공',()=>placeGable(gx,gz,L,s,h,tier|0));

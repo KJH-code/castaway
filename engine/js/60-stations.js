@@ -69,7 +69,7 @@ function campfireSpot(){
 /* 그 자리가 집 바닥(토대나 그 위 지붕)인가 — 다진 터(시멘트)는 집 바닥이 아니다 */
 function onFound(x,z,y){
   const f=FOUNDS.get(fkey(Math.round(x/CELL_B),Math.round(z/CELL_B)));
-  return !!f&&y>=f.y-0.05;
+  return !!f&&!f.ghost&&y>=f.y-0.05;                  // 맨땅의 바탕(토대 없이 세운 칸)은 집 바닥이 아니다
 }
 const FIRE_ON_FOUND='불을 쓰는 설비는 집 바닥(토대) 위에 못 놓는다 — 맨땅이나 시멘트로 다진 터에 놓는다';
 /* 제련로 — 돌과 점토로 쌓은 노. 송풍관으로 바람을 넣어야 광석이 녹는 온도가 된다.
