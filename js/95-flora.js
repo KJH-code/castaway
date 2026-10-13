@@ -549,6 +549,7 @@ function updateFlora(force){
     if(force||dx*dx+dz*dz>=L.step*L.step) floraLayer(L,L===U.far?'far':'near');
   }
   floraFindLook();
+  updateGiants(force);                                 // 노거수 — 200 m 안팎으로 생김새를 가른다(95-giants.js)
 }
 /* 줄기에 몸이 막힌다 — updatePlayer 가 큰 나무·바위(resolveProps) 다음에 부른다 */
 function floraCollide(p,radius){
