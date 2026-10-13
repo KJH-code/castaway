@@ -42,14 +42,19 @@ const FLORA_KIND={
   jungle:{r:0.44,pick:'vine',cap:420}, mangrove:{r:1.0,cap:260}, bamboo:{r:0.75,pick:'bamboo',cap:320}, palm:{r:0.22,pick:'coconut',cap:220},
   birch:{r:0.16,cap:360}, pine:{r:0.14,cap:460}, sapling:{r:0.10,cap:360}, banana:{r:0.16,pick:'banana',cap:200},
   treefern:{r:0.16,cap:260}, acacia:{r:0.18,cap:200},
-  fern:{cap:800}, bush:{r:0.30,cap:520}, flower:{cap:700}, dry:{cap:420}, shroom:{pick:'mushroom',cap:120} };
-/* 얻는 것 — regrow 다시 나기까지(게임 시간) · cnt [아래, 위] · need 'sharp' 날붙이를 지녀야 · hide 따면 그 자리가 빈다 */
+  fern:{cap:800}, bush:{r:0.30,pick:'twig',cap:520}, flower:{cap:700}, dry:{pick:'drytwig',cap:420}, shroom:{pick:'mushroom',cap:120} };
+/* 얻는 것 — regrow 다시 나기까지(게임 시간) · cnt [아래, 위] 얻는 수(무작위) · need 'sharp' 날붙이를 지녀야 · hide 따면 그 자리가 빈다
+   dur 좌클릭을 누르고 있어야 하는 시간(초 · 진행 막대) · stam 그동안 드는 기력(초당) · extra [[아이템, 확률], …] 가끔 함께 딸려 나오는 것
+   low 키 작은 덤불 — 나무처럼 줄기 쪽을 보는 것이 아니라 버섯처럼 덤불 가운데(크기 × low 높이)를 겨눠야 한다 */
 const FLORA_PICK={
-  vine    :{item:'vine',    n:'덩굴',     verb:'끊기',        regrow:30, cnt:[1,2]},
-  bamboo  :{item:'bamboo',  n:'대나무',   verb:'베기',        regrow:60, cnt:[2,3], need:'sharp'},
-  coconut :{item:'coconut', n:'야자열매', verb:'흔들어 따기', regrow:48, cnt:[1,2]},
-  banana  :{item:'banana',  n:'바나나',   verb:'따기',        regrow:48, cnt:[2,3]},
-  mushroom:{item:'mushroom',n:'버섯',     verb:'따기',        regrow:36, cnt:[1,1], hide:1}
+  vine    :{item:'vine',    n:'덩굴',      verb:'끊기',        regrow:30, cnt:[1,2], dur:1.3, stam:4},
+  bamboo  :{item:'bamboo',  n:'대나무',    verb:'베기',        regrow:60, cnt:[2,3], dur:2.2, stam:6, need:'sharp'},
+  coconut :{item:'coconut', n:'야자열매',  verb:'흔들어 따기', regrow:48, cnt:[1,2], dur:1.8, stam:6},
+  banana  :{item:'banana',  n:'바나나',    verb:'따기',        regrow:48, cnt:[2,3], dur:1.1, stam:2.5},
+  mushroom:{item:'mushroom',n:'버섯',      verb:'따기',        regrow:36, cnt:[1,1], dur:0.5, stam:1, hide:1},
+  /* 덤불 — 잔가지를 꺾는다. 마른 잎·검불이 부싯깃이 되고, 열매가 달린 철이면 베리도 딸려 온다 */
+  twig    :{item:'branch',  n:'덤불',      verb:'가지 꺾기',   regrow:20, cnt:[1,2], dur:1.2, stam:4, low:0.45, extra:[['tinder',0.25],['berry',0.3]]},
+  drytwig :{item:'branch',  n:'마른 덤불', verb:'가지 꺾기',   regrow:24, cnt:[1,2], dur:1.0, stam:3.5, low:0.4, extra:[['tinder',0.6]]}
 };
 /* 바이옴마다의 군락 — w 얼룩이 그 군락이 될 몫 · far 나무 겹 · near 덤불 겹: [종류, 칸마다 설 확률, 크기 아래, 위]
    giant: 노거수가 서는 군락(1 활엽 · 2 침엽 — 95-giants.js) · low: 표고가 이보다 높으면 그 바이옴의 둘째 군락으로 바꾼다 */
@@ -547,7 +552,7 @@ function floraLayer(L,which){
       q.k=kind; q.m.set(_flM.elements); q.c[0]=_flC.r; q.c[1]=_flC.g; q.c[2]=_flC.b; }
     if(U.ref[kind]===undefined&&d<(near0[kind]??1e9)){ near0[kind]=d; nearV[kind]=vi; }   // 기준 벌을 아직 안 정한 종류 — 가장 가까운 그루
     if(K.r) L.cols.push({x:wx,z:wz,r:K.r*sc});
-    if(P) L.picks.push({kind:K.pick,x:wx,y:gy,z:wz,key,r:(K.r||0.12)*sc,tree:!P.hide});
+    if(P) L.picks.push({kind:K.pick,x:wx,y:gy,z:wz,key,r:(K.r||0.12)*sc,tree:!P.hide&&!P.low,ay:P.low?gy+P.low*sc:gy+0.06});
   }
   for(const k in nearV) U.ref[k]=nearV[k];
   for(let i=0;i<U.pendN;i++){ const q=U.pend[i], v=U.ref[q.k], im=U.m[q.k][v], nk=n[q.k]; if(nk[v]>=im.instanceMatrix.count) continue;
@@ -732,7 +737,7 @@ function floraFar(force){
         if(K.r) L.cols.push({x:p.x,z:p.z,r:p.r});
         if(K.pick){ const P=FLORA_PICK[K.pick];
           if(P.hide){ const tk=U.taken.get(p.key); if(tk!==undefined&&gameHours-tk<P.regrow) continue; }
-          L.picks.push({kind:K.pick,x:p.x,y:p.y,z:p.z,key:p.key,r:(K.r||0.12)*p.s,tree:!P.hide}); }
+          L.picks.push({kind:K.pick,x:p.x,y:p.y,z:p.z,key:p.key,r:(K.r||0.12)*p.s,tree:!P.hide&&!P.low,ay:P.low?p.y+P.low*p.s:p.y+0.06}); }
       } }
   }
   for(const k of L.kinds){ for(const im of U.m[k]) im.count=0; const f=U.fm[k]; if(f){ for(const im of f.lods) im.count=0; if(f.pm) f.pm.count=0; } }
@@ -770,7 +775,8 @@ function floraReset(seed){
 }
 
 /* ── 얻기 ────────────────────────────────────────────────────────────────── */
-/* 눈앞의 딸 것 — 나무는 줄기에서 1.7 m 안에서 그쪽을 보고 있을 때, 버섯은 눈에서 2.2 m 안 */
+/* 눈앞의 딸 것 — 나무는 줄기에서 1.7 m 안에서 그쪽을 보고 있을 때, 버섯·덤불은 눈에서 2.2 m(+덤불 반지름) 안에서 겨눈 것.
+   여럿이면 가깝고 겨눈 쪽에 가까운 것(거리 × (2 − 겨눈 cos)) — 덤불 옆 버섯을 내려다보면 버섯이다 */
 function floraFindLook(){
   FLORA.look=null;
   if(uiOpen()||PL.dead||PL.swim) return;
@@ -781,12 +787,12 @@ function floraFindLook(){
     const dx=p.x-ex, dz=p.z-ez;
     if(p.tree){
       const d=Math.sqrt(dx*dx+dz*dz); if(d>p.r+1.7||d<1e-3) continue;
-      if((dx*hx+dz*hz)/d<0.75) continue;
-      if(d<bd){ bd=d; FLORA.look=p; }
+      const c=(dx*hx+dz*hz)/d; if(c<0.75) continue;
+      const sc=d*(2-c); if(sc<bd){ bd=sc; FLORA.look=p; }
     }else{
-      const dy=p.y+0.06-ey, d=Math.sqrt(dx*dx+dy*dy+dz*dz); if(d>2.2||d<0.05) continue;
-      if((dx*fx+dy*fy+dz*fz)/d<0.6) continue;
-      if(d<bd){ bd=d; FLORA.look=p; }
+      const dy=p.ay-ey, d=Math.sqrt(dx*dx+dy*dy+dz*dz); if(d>2.2+(p.ay>p.y+0.1?p.r:0)||d<0.05) continue;   // 덤불은 몸 반지름만큼 더
+      const c=(dx*fx+dy*fy+dz*fz)/d; if(c<0.6) continue;
+      const sc=d*(2-c); if(sc<bd){ bd=sc; FLORA.look=p; }
     }
   }
 }
@@ -797,18 +803,62 @@ function floraWait(p){
   if(left<=0){ FLORA.taken.delete(p.key); return 0; }
   return left;
 }
-/* 좌클릭 — 눈앞의 것을 딴다. 땄거나 막혔으면 true(손의 것을 쓰지 않는다) */
+/* 날붙이를 지녔나 — 대나무 베기 · 굴 떼어 내기 */
+function hasSharp(){
+  return INV.slots.some(s=>{ const t=ITEMS[s.id], w=t.tool||{}; return (t.tags&&t.tags.indexOf('sharp')>=0)||w.weapon||w.axe||w.harpoon; });
+}
+/* 못 따는 까닭(없으면 null) */
+function floraBlock(p){
+  const D=FLORA_PICK[p.kind], left=floraWait(p);
+  if(left>0) return D.n+' — 아직 다시 나지 않았다(약 '+Math.ceil(left)+'시간 뒤)';
+  if(D.need==='sharp'&&!hasSharp()) return D.n+' — 맨손으로는 못 벤다. 날붙이(주먹도끼·칼·도끼)를 지녀야 한다';
+  return null;
+}
+/* 좌클릭을 누른 순간 — 따는 것은 누르고 있는 동안 updateGather 가 한다(진행 막대). 여기선 막혔으면 까닭만 알린다.
+   딸 것을 보고 있으면 true(손의 것을 쓰지 않는다) */
 function floraPick(){
   const p=FLORA.look; if(!p) return false;
-  const D=FLORA_PICK[p.kind], left=floraWait(p);
-  if(left>0){ toast(D.n+' — 아직 다시 나지 않았다(약 '+Math.ceil(left)+'시간 뒤)'); return true; }
-  if(D.need==='sharp'&&!INV.slots.some(s=>{ const t=ITEMS[s.id]; return (t.tags&&t.tags.indexOf('sharp')>=0)||(t.tool&&(t.tool.weapon||t.tool.axe)); })){
-    toast(D.n+' — 맨손으로는 못 벤다. 날붙이(주먹도끼·칼·도끼)를 지녀야 한다'); return true; }
-  const hh=floraHash(Math.round(p.x*3),Math.round(p.z*3),(gameHours|0)+9), n=D.cnt[0]+hh%(D.cnt[1]-D.cnt[0]+1);
+  const why=floraBlock(p); if(why) toast(why);
+  return true;
+}
+/* 막대가 다 찼다 — 얻는 수는 cnt 안에서 무작위 · extra 는 저마다 제 확률로 딸려 나온다 */
+function floraTake(p){
+  const D=FLORA_PICK[p.kind], n=D.cnt[0]+((Math.random()*(D.cnt[1]-D.cnt[0]+1))|0);
   let got=0; for(let i=0;i<n;i++) if(invAdd(D.item,1)) got++;
-  if(!got){ toast('무거워서 더 못 든다'); return true; }
+  if(!got){ toast('무거워서 더 못 든다'); return false; }
+  let msg=ITEMS[D.item].n+' +'+got;
+  if(D.extra) for(const [id,pr] of D.extra) if(Math.random()<pr&&invAdd(id,1)) msg+=' · '+ITEMS[id].n+' +1';
   FLORA.taken.set(p.key,gameHours); FLORA.look=null;
   if(D.hide) FLORA.near.cx=1e9;                        // 버섯은 그 자리가 빈다 — 다음 프레임에 다시 깐다
-  toast(D.n+' +'+got); sfx('bind'); invDirty=true;
+  toast(msg); sfx('bind'); invDirty=true;
   return true;
+}
+
+/* ── 누르고 있는 동안 따기 ──────────────────────────────────────────────────
+   덩굴·대나무·열매·버섯·덤불(FLORA_PICK)과 조개·굴·성게(SEA_PICK, 96-sea.js)는 예전엔 누르는 순간 바로 들어왔다 —
+   캐기(HARV)처럼 좌클릭을 누르고 있는 동안 막대가 차고(dur 초 · 기력 stam/초) 다 차면 딴다. 계속 누르고 있으면
+   다음 것으로 넘어간다. 눈을 돌리면 처음부터, 손을 떼면 막대가 천천히 줄어든다(다시 누르면 이어서). */
+const GATHER={p:null, t:0, dur:1, on:false};
+/* 지금 좌클릭이 딸 것 — useHeld 와 같은 차례(바다 → 캐기가 먼저 → 식생 · 작살로 물고기를 겨눴거나 총을 들면 안 딴다) */
+function gatherLook(){
+  const e=equippedTool(), T=e&&ITEMS[e.id], W=(T&&T.tool)||{};
+  if(SEA.look&&!(FISH.look&&W.harpoon)) return SEA.look;
+  if(harvestByUse()) return null;
+  if(FLORA.look&&!W.gun) return FLORA.look;
+  return null;
+}
+function updateGather(dt){
+  const p=gatherLook();
+  if(p!==GATHER.p){ GATHER.p=p; GATHER.t=0; }           // 다른 것으로 눈을 돌렸다 — 처음부터
+  GATHER.on=false;
+  if(!p) return;
+  const sea=p===SEA.look, D=sea?SEA_PICK[p.kind]:FLORA_PICK[p.kind];
+  GATHER.dur=D.dur||1;
+  const go=useDown&&!BUILD.on&&!facing()&&!PL.dead&&PL.stam>=2&&!(sea?seaBlock(p):floraBlock(p));
+  if(!go){ GATHER.t=Math.max(0,GATHER.t-dt*2.5); return; }
+  GATHER.on=true; GATHER.t+=dt;
+  PL.stam=clamp(PL.stam-(D.stam||2)*dt,0,100);
+  if(GATHER.t<GATHER.dur) return;
+  GATHER.t=0; GATHER.p=null;
+  if(sea) seaTake(p); else floraTake(p);
 }

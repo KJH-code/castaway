@@ -267,6 +267,12 @@ function hudH(el,s){ s=''+s; if(el&&el._hv!=='h'+s){ el._hv='h'+s; el.innerHTML=
 /* 스타일도 바뀔 때만 — 막대 폭·색·보이기를 프레임마다 다시 넣고 있었다. 요소마다 마지막 값을 적어 둔다
    (이 요소들의 스타일을 HUD 밖에서 바꾸는 곳은 없다 — 생기면 거기도 hudS 로 쓸 것) */
 function hudS(el,k,v){ if(!el) return; v=''+v; const c=el._hs||(el._hs={}); if(c[k]!==v){ c[k]=v; el.style[k]=v; } }
+/* 따기 진행 막대 — 보고 있는 것을 따는 중일 때만(GATHER · 95-flora.js) */
+function gatherBar(lb,lf,p){
+  const on=GATHER.p===p&&GATHER.t>0;
+  hudS(lb,'display',on?'block':'none');
+  if(on) hudS(lf,'width',Math.min(100,GATHER.t/GATHER.dur*100).toFixed(1)+'%');
+}
 function updateHUD(dt){
   fpsT+=dt; fpsN++;
   if(fpsT>0.5){ fps=Math.round(fpsN/fpsT); fpsT=0; fpsN=0; }
@@ -395,13 +401,16 @@ function updateHUD(dt){
     hudH(lt,'[좌클릭] '+S.n+' 찌르기<em>'+(hv>=S.tier?'더 다가가 찌른다 — 놀라면 달아난다':'이 작살로는 안 박힌다 — 등급 '+S.tier+' 작살')+'</em>');
   }else if(SEA.look){
     const D=SEA_PICK[SEA.look.kind];
-    hudS(look,'display','block'); hudS(lb,'display','none');
-    hudH(lt,'[좌클릭] '+D.n+' '+D.verb+'<em>'+(D.need?'날붙이를 지녀야 뗀다':D.prick?'맨손이면 가시에 찔린다':ITEMS[D.item].use)+'</em>');
-  }else if(FLORA.look){                           // 덩굴·대나무·야자열매·바나나·버섯(95-flora.js)
+    hudS(look,'display','block');
+    hudH(lt,'[좌클릭] '+D.n+' '+D.verb+'<em>'+(D.need&&!hasSharp()?'날붙이를 지녀야 뗀다':D.prick?'맨손이면 가시에 찔린다':ITEMS[D.item].use)+'</em>');
+    gatherBar(lb,lf,SEA.look);                     // 누르고 있는 동안 차는 막대(updateGather)
+  }else if(FLORA.look){                           // 덩굴·대나무·야자열매·바나나·버섯·덤불(95-flora.js)
     const D=FLORA_PICK[FLORA.look.kind], left=floraWait(FLORA.look);
-    hudS(look,'display','block'); hudS(lb,'display','none');
+    hudS(look,'display','block');
+    const got=ITEMS[D.item].n+(D.extra?' · 가끔 '+D.extra.map(x=>ITEMS[x[0]].n).join('·'):'');
     hudH(lt,left>0?(D.n+'<em>아직 다시 나지 않았다 — 약 '+Math.ceil(left)+'시간 뒤</em>')
-                  :('[좌클릭] '+D.n+' '+D.verb+'<em>'+(D.need?'날붙이를 지녀야 벤다':ITEMS[D.item].use)+'</em>'));
+                  :('[좌클릭] '+D.n+' '+D.verb+'<em>'+(D.need&&!hasSharp()?'날붙이를 지녀야 벤다':got)+'</em>'));
+    gatherBar(lb,lf,FLORA.look);
   }else if(FISH.look){
     const S=FISH.look.sp;
     hudS(look,'display','block'); hudS(lb,'display','none');
@@ -409,7 +418,7 @@ function updateHUD(dt){
   }else{
     const t=HARV.near;
     if(t){
-      const R=RESOURCES.find(r=>r.k===t.k), M=HARV.mode;
+      const R=RESOURCES.find(r=>r.k===t.k)||{n:t.n||t.k}, M=HARV.mode;     // 노거수(95-giants.js)는 자원 표에 없다 — 제 이름(t.n)
       hudS(look,'display','block');
       if(M){
         const left=M.field==='logs'?('통나무 '+t.logs):('남은 '+t[M.field]+'회');   // 캐기는 ore · 채집은 br — 예전엔 늘 br 을 보여 바위는 '남은 0회' 였다

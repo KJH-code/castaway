@@ -21,10 +21,11 @@
    ========================================================================== */
 const SEA={seed:0, cx:1e9, cz:1e9, R:52, cell:2.2, m:null, picks:[], taken:new Map(), look:null, dirty:false, clock:0};
 const SEA_REGROW=48;                               // 주운 자리가 다시 나기까지(게임 시간)
+/* dur 좌클릭을 누르고 있어야 하는 시간(초 · 진행 막대 — updateGather, 95-flora.js) · stam 그동안 드는 기력(초당) */
 const SEA_PICK={
-  clam  :{item:'clam',   n:'조개', verb:'줍기'},
-  oyster:{item:'oyster', n:'굴',   verb:'떼어 내기', need:'sharp'},
-  urchin:{item:'urchin', n:'성게', verb:'따기', prick:5}
+  clam  :{item:'clam',   n:'조개', verb:'줍기',      dur:0.7, stam:1.5},
+  oyster:{item:'oyster', n:'굴',   verb:'떼어 내기', dur:1.6, stam:4, need:'sharp'},
+  urchin:{item:'urchin', n:'성게', verb:'따기',      dur:0.9, stam:2, prick:5}
 };
 const SEA_U={uSeaT:{value:0}};
 function seaHash(gx,gz,salt){
@@ -255,13 +256,23 @@ function seaFindLook(){
     bd=d; SEA.look=p;
   }
 }
-/* 좌클릭 — 눈앞의 것을 줍는다. 주웠거나 막혔으면 true(손의 것을 쓰지 않는다) */
+/* 못 줍는 까닭(없으면 null) */
+function seaBlock(p){
+  const D=SEA_PICK[p.kind];
+  if(D.need==='sharp'&&!hasSharp()) return D.n+' — 바위에 단단히 붙었다. 날붙이(주먹도끼·작살 따위)를 지녀야 뗀다';
+  return null;
+}
+/* 좌클릭을 누른 순간 — 줍는 것은 누르고 있는 동안 updateGather 가 한다. 여기선 막혔으면 까닭만 알린다.
+   주울 것을 보고 있으면 true(손의 것을 쓰지 않는다) */
 function seaPick(){
   const p=SEA.look; if(!p) return false;
+  const why=seaBlock(p); if(why) toast(why);
+  return true;
+}
+/* 막대가 다 찼다 */
+function seaTake(p){
   const D=SEA_PICK[p.kind];
-  const sharp=INV.slots.some(s=>{ const t=ITEMS[s.id]; return (t.tags&&t.tags.indexOf('sharp')>=0)||(t.tool&&(t.tool.harpoon||t.tool.weapon)); });
-  if(D.need==='sharp'&&!sharp){ toast(D.n+' — 바위에 단단히 붙었다. 날붙이(주먹도끼·작살 따위)를 지녀야 뗀다'); return true; }
-  if(!invAdd(D.item,1)){ toast('무거워서 더 못 든다'); return true; }
+  if(!invAdd(D.item,1)){ toast('무거워서 더 못 든다'); return false; }
   SEA.taken.set(p.key,gameHours); SEA.dirty=true; SEA.look=null;
   if(D.prick&&!equippedTool()){ hurtPL(D.prick,'성게 가시에 찔렸다'); toast(D.n+' +1 — 맨손이라 가시에 찔렸다(손에 무엇이든 들고 따면 안 찔린다)'); }
   else toast(D.n+' +1');

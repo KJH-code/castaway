@@ -354,14 +354,14 @@ const ITEMS={
   iron_wrought:{n:'연철',      kg:1.8,  c:0x8a8078,
                use:'쇠똥을 짜낸 순한 철 — 두들겨 모양을 잡는다'},
   axe_iron:   {n:'철 도끼',    kg:2.4,  c:0x9a938c,
-               use:'벌목 — 날이 가장 잘 든다', tool:{axe:1,speed:3.2,wear:1}, durMax:900},
+               use:'벌목 — 날이 가장 잘 든다 · 노거수도 벤다', tool:{axe:2,speed:3.2,wear:1}, durMax:900},
   pick_iron:  {n:'철 곡괭이',  kg:3.2,  c:0x9a938c,
                use:'화강암까지 직접 캔다 — 불이 필요 없다',
                tool:{pick:3,speed:3.4,wear:1}, durMax:1000},
   /* 강철 연장 — 담금질한 날이라 무디어지는 속도가 철의 절반이다 */
   axe_steel:  {n:'강철 도끼',  kg:2.3,  c:0x74797f,
-               use:'벌목 — 한 번 벼려두면 오래 간다',
-               tool:{axe:1,speed:4.0,wear:1}, durMax:1800},
+               use:'벌목 — 한 번 벼려두면 오래 간다 · 노거수도 벤다',
+               tool:{axe:2,speed:4.0,wear:1}, durMax:1800},
   pick_steel: {n:'강철 곡괭이', kg:3.0,  c:0x74797f,
                use:'화강암을 철 곡괭이보다 빠르게 깬다',
                tool:{pick:3,speed:4.3,wear:1}, durMax:2000},
@@ -1018,6 +1018,11 @@ function pickMode(t){
   let T=e?ITEMS[e.id].tool:null;
   if(T && T.drill && e.dur<=0) T=null;             // 전기가 떨어진 드릴은 맨손과 같다(우클릭으로 채운다)
 
+  if(t.giant){                                     // 노거수 — 철 도끼 이상(axe 2)이라야 날이 박힌다(95-giants.js)
+    if(T && (T.axe|0)>=GIANT_CHOP.tier && t.logs>0)
+      return {H:GIANT_CHOP, field:'logs', tool:true, dur:GIANT_CHOP.dur/(T.speed||1), wear:T.wear||1};
+    return null;
+  }
   if(T && T.axe && CHOP[t.k] && t.logs>0){
     // 자루가 없는 주먹도끼는 느리고 빨리 닳는다
     return {H:CHOP[t.k], field:'logs', tool:true,
@@ -1050,6 +1055,12 @@ function josaRo(w){
 function blockReason(t){
   if(!t) return null;
   const e=equippedTool(), T=e?ITEMS[e.id].tool:null;
+  if(t.giant){
+    if(t.logs<=0) return null;
+    if(!T||!T.axe) return '줄기가 너무 굵다 — 철 도끼 이상을 들고 줄기를 보며 좌클릭을 누르고 있으면 벤다';
+    if((T.axe|0)<GIANT_CHOP.tier) return josaRo(ITEMS[e.id].n)+'는 이 줄기에 날이 안 박힌다 — 철 도끼 이상이라야 벤다';
+    return null;
+  }
   const M=MINE[t.k];
   if(M && t.ore>0 && e && T && T.drill && e.dur<=0)
     return '드릴 전기가 없다 — 우클릭으로 축전지에서 채우거나 발전기 곁에서 채워라';
@@ -1091,15 +1102,23 @@ function eachNearProp(x,z,fn){
 const isNode=k=>!!(HARVEST[k]||MINE[k]||CHOP[k]);
 function findHarvestTarget(){
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
-  let best=null, bd=2.8;
+  /* 손에 든 도구로 할 수 있는 것이 1.2 m 앞선다 — 도끼를 들고 줄기를 보는데 발밑 풀이 더 가까우면 풀을 골라서
+     (풀은 빈손 채집이라 도끼로는 아무것도 안 했다) 줄기를 못 베었다. 곡괭이와 광석도 같다 */
+  const e=equippedTool(), W=e?(ITEMS[e.id].tool||{}):{};
+  const fit=p=>(W.axe&&CHOP[p.k]&&p.logs>0)||(W.pick&&MINE[p.k]&&p.ore>0);
+  let best=null, bs=2.8;
   eachNearProp(PL.pos.x,PL.pos.z,p=>{
     if(!isNode(p.k)) return;
     const dx=p.x-PL.pos.x, dz=p.z-PL.pos.z;
     const d=Math.hypot(dx,dz);
-    if(d>bd||d<0.05) return;
+    if(d>2.8||d<0.05) return;
     if((dx/d)*fx+(dz/d)*fz < 0.5) return;      // 시야 밖이면 제외
-    bd=d; best=p;
+    const sc=d-(fit(p)?1.2:0);
+    if(sc<bs){ bs=sc; best=p; }
   });
+  /* 노거수 줄기 — 줄기 겉까지 1.6 m 안이면 후보(줄기가 굵어 가운데까지 재면 늘 멀다). 도끼를 들었으면 똑같이 앞선다 */
+  const gt=giantChopTarget(fx,fz);
+  if(gt){ const sc=gt.d-(W.axe?1.2:0); if(!best||sc<bs) best=gt.prop; }
   return best;
 }
 /* 화덕·제련로 상호작용 — 이제 여기서 하는 일은 '불'뿐이다.
@@ -1256,7 +1275,8 @@ function updateHarvest(dt){
     if(field==='logs' && t.logs<=0){ t.felled=true; t.br=0; }   // 다 베면 그루터기만
   }
   if(field==='br' && t.br<=0 && H.regrow!==undefined){ t.cut=gameHours; REGROW.push(t); }
-  shrinkFoliage(t);
+  if(t.giant) giantChopped(t);                       // 노거수 — 남은 통나무를 적고, 다 베면 쓰러뜨린다(95-giants.js)
+  else shrinkFoliage(t);
   invDirty=true;
   toast(msg);
   sfx(harvestSfx(t.k,field));
