@@ -40,6 +40,7 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/32-caves.js` | Caves: boulder-dome chambers (1–3 linked rooms) built on steep slopes, with glowworm points on the ceiling, glowing mushrooms on the floor and a faint pooled light per room |
 | `engine/js/33-crags.js` | Cliff rocks: on steep cells, huge rock clusters grown fractally (chained main rocks → smaller rocks → smaller still, sizes vary), each rock with its own shade; merged per 320 m tile and built as the player approaches, coarse shapes and a plain material far away |
 | `engine/js/40-light.js` | `LIGHT`: who casts/receives shadows, sun shadow box, point/spot shadow budget, `renderFrame()` |
+| `engine/js/41-terrain-light.js` | Island-wide light data in one texture: terrain sun shadow (heightfield sweep, redone in slices as the sun moves), sky openness (ambient occlusion from the horizon in eight directions), forest canopy cover, and the micro-relief mask. Read by every lit material through `envPatch` |
 | `engine/js/45-sky.js` | Time of day, moon, sun, clouds, weather, rain, cloud shadows + wind, atmospheric sky, and the light tints (orange/violet at sunset and dawn, blue under the moon) |
 | `engine/js/46-camcorder.js` | **Camcorder view**: the world is drawn to a small 480-line picture and shown through a tape/lens shader (colour bleed, grain, scan lines, sunset/moonlight grading, underwater look); battery and the hand charger |
 | `engine/js/50-items.js` | The `ITEMS` table, inventory + worn slots, drag and drop (incl. trash slot), bare-hand harvesting, eating, **drinking (must look at water)**, quick slots |
@@ -70,8 +71,14 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 - **World scale** — `GCELL` / `setWorldScale` in `00-core.js`, `worldRescale` in `10-worldgen.js`. Islands are generated at 1.92 km
   and scaled uniformly (`P.ws` 1–6; new islands use 6 = 11.5 km); `CELL`, `WORLD`, `HALF` are variables now.
   `island_world.html?ws=2` starts with a smaller island (the CI smoke test uses it).
-- **Terrain version** — `P.tv` in `00-core.js`. 2 adds the carved landforms, caves and cliff rocks; saves without it load as 1
-  and regenerate the exact old island. Anything that changes what the seed produces must sit behind this flag.
+- **Terrain version** — `P.tv` in `00-core.js`. 2 adds the carved landforms, caves and cliff rocks; 3 adds sub-cell ground relief
+  (`RELIEF` in `10-worldgen.js` — `heightAt()` returns it). Saves without it load as 1 and regenerate the exact old island.
+  Anything that changes what the seed produces must sit behind this flag.
+- **Near-field ground** — `terrainPatch` / `TPATCH` in `20-terrain.js`: a 0.75 m grid within 46 m of the camera, placed by the vertex
+  shader from the elevation texture plus the relief (the same surface `heightAt()` returns); the base terrain discards that disc.
+- **Ground lighting** — the ground shader (`gndTerrainFrag` in `22-ground-textures.js`) recomputes the sun term per pixel from relief
+  and photo-texture normals, with canopy shade, wetness and a specular sheen. Height-dependent haze is in the fog chunk (`90-init.js`);
+  the camcorder pass (`46-camcorder.js`) renders to a half-float target and rolls highlights off above 0.8.
 - **Level of detail and automatic quality** — `updateTileVis`, `limbLod`, `QUAL` in `30-props.js`.
 - **Bag screen** — `98-bag.js` (two tabs, tooltips, recipe detail), `drawInv` / `invChip` in `50-items.js` (categories, pockets),
   `drawCraft` / `craftEdges` in `55-craft.js` (skill tree).

@@ -1355,12 +1355,16 @@ function updateRubble(force){
     const d=Math.hypot(wx-px,wz-pz); if(d>R) continue;
     const ix=clamp(Math.round(wx/CELL+N/2),1,N-2), iz=clamp(Math.round(wz/CELL+N/2),1,N-2), ci=IDX(ix,iz);
     if(F.elev[ci]<=0.25) continue;                     // 물 밑·물가는 뺀다
-    const gk=GRAVEL_K[F.biome[ci]]; if(!(gk>0)) continue;
+    /* 벼랑 밑의 돌무더기(지형 판 3) — 가파른 칸과 그 이웃 칸에는 굴러떨어진 돌이 쌓인다(바이옴이 자갈밭이 아니어도).
+       가파를수록 촘촘하고, 큰 돌이 섞이는 비율도 는다(열여섯에 하나 → 여덟에 셋) */
+    let gk=GRAVEL_K[F.biome[ci]]||0, tal=0;
+    if((P.tv|0)>=3){ tal=smoothstep(0.42,0.95,Math.max(F.slope[ci],F.slope[ci-1],F.slope[ci+1],F.slope[ci-N],F.slope[ci+N])); if(tal*0.85>gk) gk=tal*0.85; }
+    if(!(gk>0)) continue;
     if(((h>>>16)&1023)/1023 > gk*0.66) continue;
     const u=((h>>>26)&63)/63;
     let r=0.09+0.22*u*u;                               // 주먹 ~ 수박
     let h2=Math.imul(h^0x9e3779b9,2246822519)>>>0;
-    if((h2&15)===0) r=0.36+0.34*((h2>>>5)&15)/15;      // 열여섯에 하나는 무릎~허리 높이 바위
+    if((h2&15)===0||(tal>0.5&&(h2&7)<3)) r=0.36+0.34*((h2>>>5)&15)/15;      // 열여섯에 하나는 무릎~허리 높이 바위(벼랑 밑은 더 자주)
     /* 주먹~수박만 한 돌은 주울 수 있다(95-flora.js 의 `floraPick` — 얻는 것은 돌멩이). 주운 자리는 사흘 뒤 다시 찬다 */
     const pk=r<0.34, key='S'+gx+','+gz;
     if(pk){ const tk=FLORA.taken.get(key); if(tk!==undefined){ if(gameHours-tk<72) continue; FLORA.taken.delete(key); } }

@@ -1727,6 +1727,7 @@ function envPatch(m){
   if(!m||m.userData._env) return;
   const lam=!!m.isMeshLambertMaterial, dep=!!m.isMeshDepthMaterial;
   const melt=lam&&m.userData.melt>0?+m.userData.melt:0, meltA=!!m.userData.meltAttr, meltT=!!m.userData.meltTex;
+  const leaf=lam&&(m.userData.wind==='leaf'||!!m.userData.leaf);   // 잎 — 해를 등진 면에 비쳐 드는 빛을 준다(아래 '잎에 비쳐 드는 빛')
   /* 바람 흔들림은 껐다(`WIND_ON`) — 풀·잎·베리·가지 정점마다 사인파를 셌는데, 정점이 한 프레임에
      수백만 개라 가장 비싼 축에 들었다. 켜려면 true 로(코드는 그대로 남아 있다). */
   const wind=WIND_ON&&m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';
@@ -1793,6 +1794,10 @@ float cloudSh(){
 `+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();')
       /* 간접광(하늘빛)에 하늘 트임을 곱한다 — 골짜기·벼랑 밑은 하늘이 좁다. 벽에서 되비치는 몫 0.45 는 남긴다 */
       .replace('reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb );','reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb ) * ( 0.45 + 0.55 * tlE().g );');
+    /* 잎에 비쳐 드는 빛 — 잎은 얇아 볕의 일부가 뒤로 샌다. 보이는 면이 해를 등졌으면 반대쪽 면이 받은 볕의 0.4 를 더한다
+       (양면 재질만 — 반대쪽 면의 몫 `vLambWB`/`vLambW` 가 이미 정점에서 세어져 있다). 잎 빛깔을 지나 나오니 연둣빛이다 */
+    if(leaf) sh.fragmentShader=sh.fragmentShader.replace('vec4 lambW = ( gl_FrontFacing ) ? vLambW : vLambWB;',
+      'vec4 lambW = ( gl_FrontFacing ) ? vLambW : vLambWB;\n\t\tlambW.x += ( ( gl_FrontFacing ) ? vLambWB.x : vLambW.x ) * 0.40;');
     if(melt){
       const fh=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.fragmentShader);
       sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')
@@ -1812,7 +1817,7 @@ float cloudSh(){
   /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
      다른 램버트 재질과 같은 프로그램으로 묶여 제 코드가 통째로 빠졌다 */
   const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
-  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(melt?'m'+melt+(meltA?'a':'')+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
+  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(leaf?'L':'')+(melt?'m'+melt+(meltA?'a':'')+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
   m.needsUpdate=true;
 }
 

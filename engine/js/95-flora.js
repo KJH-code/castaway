@@ -567,7 +567,7 @@ function floraBuild(){
   /* 잎 판때기의 그림자 — 깊이 재질도 그림의 알파로 잘라야 판 네모가 통째로 찍히지 않는다 */
   FLORA.depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:FLORA.tex,alphaTest:0.4});
   /* 땅에 녹아들기(envPatch) — 나무 줄기 밑동은 한 뼘 반, 덤불·고사리·꽃·버섯(matN)은 손가락 두 마디만(키가 작아 더 주면 통째로 땅빛이 된다) */
-  FLORA.mat.userData.melt=0.42;
+  FLORA.mat.userData.melt=0.42; FLORA.mat.userData.leaf=true;    // 잎에 비쳐 드는 빛(envPatch)
   FLORA.matN=FLORA.mat.clone(); FLORA.matN.userData.melt=0.06;
   FLORA.m={};
   for(const L of [FLORA.far,FLORA.near]) for(const k of L.kinds){
