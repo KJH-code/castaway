@@ -11,12 +11,12 @@
      큰 나무·바위와 줄기가 겹치면 자리를 조금 옮겨 보고, 안 되면 그 칸은 비운다.
    · 생김새 셋 — 0 판근이 높은 케이폭(우산 같은 수관) · 1 가지에서 공기뿌리가 늘어지는 반얀 · 2 붉은 껍질의 삼나무.
      종류마다 네 벌(`GIANT_VARS`) — 키 ±10% · 큰 가지 수 · 공기뿌리 수 · 가지 층이 벌마다 다르고 판근 짜임은 같다(충돌 테두리가 따른다).
-     줄기·수관은 종류마다 한 벌을 지어 인스턴스로 세우고(128 m 칸마다 묶어 화면 밖 칸을 거른다),
-     **뿌리는 나무마다 그 자리의 땅을 따라 따로 짓는다**.
+     줄기·수관은 종류 × 벌마다 한 벌을 지어 인스턴스로 세우고, **200 m 밖은 종류마다 가장 가까운 그루의 벌 하나로 찍는다**
+     (`GIANT.ref` · `updateGiants` — 참나무·전나무의 기준 나무와 같은 방식). **뿌리는 나무마다 그 자리의 땅을 따라 따로 짓고** 200 m 안만 그린다.
    · 뿌리가 땅이다 — `giantRootAt(x,z)` 가 그 자리의 뿌리 높이를 돌려주고, 설 자리(`floorAt`)가 그만큼 높아진다.
      뿌리 끝에서 걸어 오르면 줄기 곁 허리 높이까지 올라선다. 옆구리는 턱이 높아 막힌다. 줄기는 충돌 원으로 막는다.
    ========================================================================== */
-const GIANT={list:[], grid:new Map(), meshes:[], geo:null, G:26, cell:32, TILE:128};
+const GIANT={list:[], grid:new Map(), meshes:[], geo:null, G:26, cell:32, near:null, far:null, ref:null};
 /* 종류마다 — r 줄기 반지름(가슴 높이) · nb 판근 수 · rootL 뿌리 길이 · rootH 줄기 곁 뿌리 높이 */
 const GIANT_KIND=[
   {n:'케이폭', r:1.5, nb:6, rootL:9.0, rootH:1.5},
@@ -83,7 +83,7 @@ function giantRootPt(g,r,t,out){
 }
 /* 섬의 노거수를 전부 세운다 — 섬을 만들 때 한 번(generateWorld) */
 function giantsBuild(){
-  for(const m of GIANT.meshes){ scene.remove(m); if(m.userData.own) m.geometry.dispose(); }
+  for(const m of GIANT.meshes){ scene.remove(m); if(m.userData.own) m.geometry.dispose(); if(m.isInstancedMesh) m.dispose(); }   // 인스턴스 버퍼도 돌려준다
   GIANT.meshes.length=0; GIANT.list.length=0; GIANT.grid.clear();
   if(!FLORA.m) floraBuild();                          // 그림 묶음·재질을 같이 쓴다
   if(!GIANT.geo) giantGeos();
@@ -118,33 +118,91 @@ function giantsBuild(){
     let a=GIANT.grid.get(k); if(!a){ a=[]; GIANT.grid.set(k,a); } a.push(placed);
   }
   buildColliderGrid();
-  // ── 메시: 128 m 칸마다 종류별 인스턴스 + 그 칸의 뿌리를 한 덩이로
-  const bins=new Map();
-  for(const g of GIANT.list){ const k=Math.floor(g.x/GIANT.TILE)+'|'+Math.floor(g.z/GIANT.TILE); let b=bins.get(k); if(!b){ b=[]; bins.set(k,b); } b.push(g); }
-  const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), Sc=new THREE.Vector3(), o={x:0,z:0,h:0,w:0};
-  const add=(m,own)=>{ m.userData.own=own; m.matrixAutoUpdate=false; m.updateMatrix(); scene.add(m); GIANT.meshes.push(m); };
-  /* 뿌리는 인스턴스가 아닌 보통 메시다 — r128 은 재질 하나에 셰이더가 하나라, 인스턴스 메시와 재질을 나눠 쓰면 그릴 때마다
-     셰이더를 갈아 끼운다(인스턴스 색이 없는 메시가 섞이면 아예 죽는다). 그래서 뿌리는 제 재질을 쓴다 */
+  /* ── 메시 — 200 m(`GIANT_FAR`) 안은 그루마다 제 생김새(종류 × 벌마다 인스턴스 메시 하나), 밖은 **종류마다 사람에게서 가장 가까운
+     그루의 벌 하나**로 모두 찍는다(참나무·전나무의 기준 나무 `FAR_REF` 와 같은 방식 · `GIANT.ref`). 예전엔 128 m 칸 × 종류 × 벌로
+     나눠 섬 전체를 늘 그렸다(인스턴스 메시 62 · 뿌리 메시 33 — 그림자 패스까지 그리기 호출이 그 두 배). 이제 먼 노거수는 종류마다
+     한 번(셋)이고, 뿌리는 200 m 안의 그루만 그린다(땅에 누운 1 m 남짓한 등성이라 그 밖에선 안 보인다). 고르는 일은 `updateGiants` */
   if(!GIANT.rootMat) GIANT.rootMat=FLORA.mat.clone();
-  const tint=new THREE.Color();
-  for(const b of bins.values()){
-    for(let v=0;v<GIANT.geo.length;v++) for(let w=0;w<GIANT.geo[v].length;w++){
-      const ls=b.filter(g=>g.v===v&&g.w===w); if(!ls.length) continue;
-      const im=new THREE.InstancedMesh(GIANT.geo[v][w],FLORA.mat,ls.length);
-      ls.forEach((g,i)=>{ E.set(0,-g.yaw,0); Q.setFromEuler(E); V.set(g.x,g.y,g.z); Sc.set(g.s,g.s,g.s); M.compose(V,Q,Sc); im.setMatrixAt(i,M);
-        const k=0.88+0.2*((floraHash(g.gx,g.gz,94)&255)/255); im.setColorAt(i,tint.setRGB(k,k,k*0.96)); });   // 그루마다 살짝 다른 톤(인스턴스 색 칸이 꼭 있어야 한다)
-      im.instanceMatrix.needsUpdate=true; im.instanceColor.needsUpdate=true; im.customDepthMaterial=FLORA.depth; add(im,false); boundMesh(im);
-    }
-    const parts=[];
-    for(const g of b) for(const r of g.roots){
-      const RB=g.v===2?[0.52,0.33,0.24]:[0.44,0.38,0.32], RB2=g.v===2?[0.66,0.44,0.32]:[0.60,0.53,0.45];
+  const px=PL.pos.x, pz=PL.pos.z, cnt=GIANT.geo.map(a=>a.map(()=>0)), kcnt=GIANT.geo.map(()=>0);
+  GIANT.ref=GIANT.geo.map((a,v)=>{ let best=0, bd=Infinity;
+    for(const g of GIANT.list) if(g.v===v){ const d=(g.x-px)**2+(g.z-pz)**2; if(d<bd){ bd=d; best=g.w; } }
+    return best; });
+  { const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), Sc=new THREE.Vector3();
+    for(const g of GIANT.list){ cnt[g.v][g.w]++; kcnt[g.v]++; g.near=false;
+      g.tint=0.88+0.2*((floraHash(g.gx,g.gz,94)&255)/255);          // 그루마다 살짝 다른 톤(인스턴스 색 칸이 꼭 있어야 한다)
+      E.set(0,-g.yaw,0); Q.setFromEuler(E); V.set(g.x,g.y,g.z); Sc.set(g.s,g.s,g.s); M.compose(V,Q,Sc); g.mat=Float32Array.from(M.elements);
+      const bs=(GIANT.geo[g.v][GIANT.ref[g.v]].boundingSphere||(GIANT.geo[g.v][GIANT.ref[g.v]].computeBoundingSphere(),GIANT.geo[g.v][GIANT.ref[g.v]].boundingSphere));
+      g.fc=[g.x+bs.center.x*g.s, g.y+bs.center.y*g.s, g.z+bs.center.z*g.s]; g.fr=bs.radius*g.s+2; } }   // 먼 그루의 경계구(시야 거르기)
+  const add=(m,own)=>{ m.userData.own=own; m.matrixAutoUpdate=false; m.updateMatrix(); scene.add(m); GIANT.meshes.push(m); return m; };
+  const mk=(geo,n,far)=>{ const im=new THREE.InstancedMesh(geo,FLORA.mat,n);
+    im.setColorAt(0,new THREE.Color(1,1,1)); im.count=0; im.visible=false;          // 색 버퍼는 count 가 가득일 때 만든다
+    if(far){ im.frustumCulled=false; im.userData.lightRole='recv'; }               // 200 m 밖은 그림자를 안 드리운다(먼 참나무 복제와 같다)
+    else im.customDepthMaterial=FLORA.depth;
+    return add(im,false); };
+  /* 가까운 쪽은 제 경계구를 다는 감싸개 지오메트리(속성은 나눠 쓴다 — 밑 지오메트리는 먼 쪽과 다음 섬이 같이 쓰므로 버리지 않는다) */
+  const wrap=g=>{ const w=new THREE.BufferGeometry(); for(const k in g.attributes) w.setAttribute(k,g.attributes[k]); if(g.index) w.setIndex(g.index); return w; };
+  GIANT.near=GIANT.geo.map((a,v)=>a.map((geo,w)=>{ if(!cnt[v][w]) return null;
+    if(!geo.boundingSphere) geo.computeBoundingSphere();
+    const im=mk(wrap(geo),cnt[v][w],false); im.userData.k0=geo.boundingSphere.center.length()+geo.boundingSphere.radius; return im; }));
+  GIANT.far=GIANT.geo.map((a,v)=>kcnt[v]?mk(a[GIANT.ref[v]],kcnt[v],true):null);
+  /* 뿌리는 그루마다 보통 메시 하나 — r128 은 재질 하나에 셰이더가 하나라, 인스턴스 메시와 재질을 나눠 쓰면 그릴 때마다
+     셰이더를 갈아 끼운다(인스턴스 색이 없는 메시가 섞이면 아예 죽는다). 그래서 뿌리는 제 재질을 쓴다 */
+  const o={x:0,z:0,h:0,w:0};
+  for(const g of GIANT.list){
+    const parts=[], RB=g.v===2?[0.52,0.33,0.24]:[0.44,0.38,0.32], RB2=g.v===2?[0.66,0.44,0.32]:[0.60,0.53,0.45];
+    for(const r of g.roots)
       /* 땅을 따라 누운 등성이 — 단면 다섯 점(양 끝은 땅에 0.25 m 묻는다) */
       parts.push({g:SHP.grid(4,10,(u,t)=>{ giantRootPt(g,r,t,o);
           const k=u*2-1, ca=Math.cos(r.a), sa=Math.sin(r.a), x=o.x-sa*k*o.w, z=o.z+ca*k*o.w;
           return [x, heightAt(x,z)+(Math.abs(k)>0.99?-0.25:o.h*Math.cos(k*1.5708)), z]; }),cell:FC.BARK,c:RB,c2:RB2});
-    }
-    if(parts.length){ const m=new THREE.Mesh(SHP.merge(parts,true),GIANT.rootMat); m.frustumCulled=true; add(m,true); }
+    if(parts.length){ const m=new THREE.Mesh(SHP.merge(parts,true),GIANT.rootMat); m.frustumCulled=true; m.visible=false; g.rootM=add(m,true); }
   }
+  GIANT.farSig=null; updateGiants(true);
+}
+/* 200 m 안팎 가르기 — 매 프레임(updateFlora 가 부른다). 75그루 남짓의 거리만 재고, 안팎이 바뀐 그루가 있을 때만 인스턴스를 다시 채운다.
+   경계에서 오락가락하지 않게 나갈 때는 10 m 더 멀어져야 한다 */
+const GIANT_FAR=200, GIANT_HYST=10;
+const _gM=new THREE.Matrix4(), _gC=new THREE.Color(), _gPM=new THREE.Matrix4(), _gFr=new THREE.Frustum(), _gSp=new THREE.Sphere();
+function updateGiants(force){
+  if(!GIANT.list.length||!GIANT.near) return;
+  const px=PL.pos.x, pz=PL.pos.z; let ch=!!force;
+  for(const g of GIANT.list){
+    const dx=g.x-px, dz=g.z-pz, d=Math.sqrt(dx*dx+dz*dz), on=d<(g.near?GIANT_FAR+GIANT_HYST:GIANT_FAR);
+    if(on!==g.near){ g.near=on; ch=true; }
+  }
+  if(ch){
+    for(const a of GIANT.near) for(const im of a) if(im) im.count=0;
+    for(const g of GIANT.list){
+      if(g.rootM&&setVis(g.rootM,g.near)) LIGHT.dirtyAt(g.x,g.z,g.reach);
+      if(!g.near) continue;
+      const im=GIANT.near[g.v][g.w]; _gM.fromArray(g.mat);
+      im.setMatrixAt(im.count,_gM); im.setColorAt(im.count++,_gC.setRGB(g.tint,g.tint,g.tint*0.96));
+    }
+    for(const a of GIANT.near) for(const im of a){ if(!im) continue;
+      im.visible=im.count>0; im.instanceMatrix.needsUpdate=true; im.instanceColor.needsUpdate=true; if(!im.count) continue;
+      /* 경계구 — 서 있는 그루들의 가운데에서 가장 먼 그루 끝까지(밑 구 중심까지 + 반지름) × 크기 */
+      const E=im.instanceMatrix.array, n=im.count; let cx=0,cy=0,cz=0, R=0;
+      for(let i=0;i<n;i++){ cx+=E[i*16+12]; cy+=E[i*16+13]; cz+=E[i*16+14]; }
+      cx/=n; cy/=n; cz/=n;
+      for(let i=0;i<n;i++){ const o=i*16, s=Math.sqrt(E[o]*E[o]+E[o+1]*E[o+1]+E[o+2]*E[o+2]);
+        R=Math.max(R,Math.hypot(E[o+12]-cx,E[o+13]-cy,E[o+14]-cz)+im.userData.k0*s); }
+      im.geometry.boundingSphere=new THREE.Sphere(new THREE.Vector3(cx,cy,cz),R+2);
+    }
+  }
+  /* 먼 쪽 — 종류마다 메시 하나라 통째로는 화면 밖을 못 거른다(예전 칸 메시는 칸마다 걸렀다). 시야 안의 그루만 채운다.
+     그림자를 안 드리우므로(recv) 행렬을 배열에 바로 쓴다 — setMatrixAt 갈고리를 타면 몸을 돌릴 때마다 그림자 지도를 다시 그린다 */
+  camera.updateMatrixWorld(); _gPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _gFr.setFromProjectionMatrix(_gPM);
+  let sig=ch?-1:0, k=0;
+  for(const g of GIANT.list){ if(g.near) continue; _gSp.center.set(g.fc[0],g.fc[1],g.fc[2]); _gSp.radius=g.fr;
+    g.seen=_gFr.intersectsSphere(_gSp); if(g.seen) sig=(sig*31+k)|0; k++; }
+  if(sig===GIANT.farSig) return;
+  GIANT.farSig=sig;
+  for(const im of GIANT.far) if(im) im.count=0;
+  for(const g of GIANT.list){ if(g.near||!g.seen) continue;
+    const im=GIANT.far[g.v], i=im.count++;
+    im.instanceMatrix.array.set(g.mat,i*16);
+    const c=im.instanceColor.array; c[i*3]=g.tint; c[i*3+1]=g.tint; c[i*3+2]=g.tint*0.96; }
+  for(const im of GIANT.far) if(im){ im.visible=im.count>0; im.instanceMatrix.needsUpdate=true; im.instanceColor.needsUpdate=true; }
 }
 /* 그 자리의 뿌리 높이(땅 위로 얼마나 솟았나 · 뿌리가 없으면 0) — 설 자리(`floorAt`)가 부른다 */
 const _grP={x:0,z:0,h:0,w:0};
