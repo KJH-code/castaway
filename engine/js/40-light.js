@@ -76,6 +76,79 @@ const LIGHT={
     parent.add(l);
     return l;
   },
+  /* ── 불빛 풀 ──────────────────────────────────────────────────────────────
+     화덕·증기기관·제련로는 광원을 제 몸에 달지 않는다 — `addFire` 가 돌려주는 것은 **대역**(Object3D · 세기·빛깔·사거리·
+     visible 을 예전 광원처럼 적는다)이고, 진짜 광원은 장면에 늘 서 있는 `POOL_N` 개다. 매 프레임 켜진 대역 중 값이 나가는
+     것(세기 × 사거리 ÷ 거리)을 골라 풀 광원에 옮겨 싣는다. 쓰지 않는 풀 광원은 세기 0.
+     예전엔 불을 켜고 끌 때마다 광원 수가 바뀌어(그리고 다음 프레임에 그림자 수가 또 바뀌어) **모든 재질의 셰이더를
+     다시 짜느라** 불을 켜는 순간 멈칫했다(사용자 지적 — 어두울 때 불 켜면 버벅). 이제 광원 수는 늘 같다.
+     풀의 앞 `pts`(그림자 품질의 점광원 그림자 수) 개는 늘 그림자를 드리운다 — 그림자 수도 바뀌지 않는다.
+     맡은 불이 바뀔 때만 그림자 지도를 다시 그린다(불은 안 움직인다). */
+  POOL_N:3, pool:[], proxies:[],
+  addFire(parent,{color=0xffffff,intensity=1,dist=20,shadow=false,pos=null,decay=2}={}){
+    const o=new THREE.Object3D();
+    o.isLightProxy=true; o.color=new THREE.Color(color); o.intensity=intensity; o.distance=dist; o.decay=decay;
+    o.userData.wantShadow=!!shadow; o.userData.lightRole='none';
+    if(pos) o.position.set(pos[0],pos[1],pos[2]);
+    parent.add(o); this.proxies.push(o);
+    return o;
+  },
+  poolInit(){
+    if(this.pool.length) return;
+    for(let i=0;i<this.POOL_N;i++){
+      const l=new THREE.PointLight(0xffffff,0,10); l.decay=2; l.position.set(0,-5000,0);
+      l.userData.pool=true; l.userData.wantShadow=true; l.userData.who=null;
+      l.shadow.bias=0; l.shadow.normalBias=0.03; l.shadow.camera.near=0.25; l.shadow.autoUpdate=false;
+      scene.add(l); this.locals.push(l); this.pool.push(l);
+    }
+  },
+  poolShadows(){
+    const Q=this.QUAL[this.q], S=renderer.shadowMap.enabled?Math.min(Q.pts,this.POOL_N):0;
+    this.pool.forEach((l,i)=>{ const cast=i<S; if(l.castShadow===cast) return;
+      if(cast){ l.castShadow=true; l.shadow.mapSize.set(Q.psize,Q.psize); l.userData.moved=true; } else this.free(l); });
+    return S;
+  },
+  _onScene(o){ for(let p=o;p;p=p.parent){ if(!p.visible) return false; if(p===scene) return true; } return false; },
+  poolUpdate(dt){
+    if(!this.pool.length) return;
+    const S=this.poolShadows(), cam=camera.position;
+    // 다 떨어져 나간 대역은 버린다(불을 치웠다)
+    if((this._pr=(this._pr||0)+1)%120===0){ const root=o=>{ while(o.parent) o=o.parent; return o; };
+      this.proxies=this.proxies.filter(o=>root(o)===scene); }
+    const cand=[];
+    for(const o of this.proxies){
+      if(o.intensity<=0.01||!this._onScene(o)) { o.userData.sc=-1; continue; }
+      o.getWorldPosition(this._c); const d=this._c.distanceTo(cam);
+      if(d>o.distance+60){ o.userData.sc=-1; continue; }
+      o.userData.sc=o.intensity*o.distance/(4+d); cand.push(o);
+    }
+    cand.sort((a,b)=>b.userData.sc-a.userData.sc);
+    const pick=cand.slice(0,this.POOL_N);
+    /* 그림자 칸(앞 S 개)에는 그림자를 원하는 것 중 값이 큰 것부터 — 이미 맡은 것은 제자리를 지킨다(다시 그리지 않게) */
+    const want=pick.filter(o=>o.userData.wantShadow).slice(0,S), rest=pick.filter(o=>want.indexOf(o)<0);
+    const slots=this.pool, sh=slots.slice(0,S), plain=slots.slice(S);
+    const assign=(ls,os)=>{
+      const left=os.slice();
+      for(const l of ls){ const i=left.indexOf(l.userData.who); if(i>=0) left.splice(i,1); else l.userData.who=null; }
+      for(const l of ls) if(!l.userData.who&&left.length){ l.userData.who=left.shift(); l.userData.moved=true; }
+      return left;
+    };
+    const over=assign(sh,want);
+    assign(plain,rest.concat(over));
+    for(let i=0;i<slots.length;i++){
+      const l=slots[i], o=l.userData.who, cast=i<S;
+      if(!o){ l.intensity=0; continue; }
+      if(l.userData.moved){
+        o.getWorldPosition(l.position); l.distance=o.distance; l.decay=o.decay;
+        if(cast){ l.shadow.camera.far=o.distance+2; l.shadow.camera.updateProjectionMatrix(); l.shadow.needsUpdate=true; }
+        l.userData.moved=false; l.updateMatrixWorld();
+      }
+      l.color.copy(o.color); l.intensity=o.intensity;
+      if(cast){ l.userData.shAge=(l.userData.shAge||0)+(dt||0);
+        if(l.userData.shAge>SUN_AGE*2){ l.userData.shAge=0; l.shadow.needsUpdate=true; }
+        if(l.shadow.needsUpdate) this.stats.pts++; }
+    }
+  },
   addSpot(parent,l,shadow=false){
     l.decay=2;
     l.userData.wantShadow=!!shadow;
@@ -174,6 +247,8 @@ const LIGHT={
       }
     }
     for(const l of this.locals) this.free(l);
+    if(typeof _fireWarm!=='undefined') _fireWarm=false;
+    this.poolShadows();                           // 불빛 풀의 그림자 칸은 품질이 정해지는 즉시 — 첫 프레임에 그림자 수가 바뀌어 다 다시 짜지 않게   // 그림자 수가 바뀌면 불꽃 셰이더 열쇠도 바뀐다 — 다음 상륙·계속 때 다시 짠다
     this.refresh();
     renderer.shadowMap.needsUpdate=true;
   },
@@ -213,6 +288,7 @@ const LIGHT={
   update(dt){
     const Q=this.QUAL[this.q];
     this.flush();
+    this.poolUpdate(dt);                          // 불빛 풀 — 그림자를 꺼도 불빛은 난다
     if(!Q.size){ return; }
 
     /* ── 해: 낮은 각도에서는 그림자가 끝없이 길어져 얼룩만 남으므로 접는다.
@@ -252,12 +328,13 @@ const LIGHT={
     }
 
     // ── 점·집중 광원: 값이 나가는 순서로 K개
-    const K=Q.pts;
+    const K=Q.pts;                                // 손전등(집중광) — 불빛 풀과 따로 센다(점광원 그림자 · 집중광 그림자는 칸이 다르다)
     if(!this.locals.length) return;
     const cam=camera.position;
     let best=null, best2=null, s1=-1, s2=-1;
     for(const l of this.locals){
       let sc=-1;
+      if(l.userData.pool) continue;               // 불빛 풀은 제 규칙(poolUpdate)
       if(l.userData.wantShadow&&l.visible&&l.intensity>0.05){
         l.getWorldPosition(this._c);
         const d=this._c.distanceTo(cam);
@@ -269,6 +346,7 @@ const LIGHT={
     }
     const win1=K>=1?best:null, win2=K>=2?best2:null;
     for(const l of this.locals){
+      if(l.userData.pool) continue;
       const want=(l===win1&&s1>0)||(l===win2&&s2>0);
       if(want){
         if(!l.castShadow){

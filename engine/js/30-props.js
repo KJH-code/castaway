@@ -1525,6 +1525,13 @@ function buildColliderGrid(){
     let a=CGRID.get(k); if(!a){a=[];CGRID.set(k,a);} a.push(c);
   }
 }
+/* 충돌체 하나를 옮긴다 — 칸이 바뀌면 그 칸 목록만 고친다(밀기 · 60-stations.js) */
+function cgMove(c,x,z){
+  const k0=cgKey(Math.floor(c.x/CG),Math.floor(c.z/CG)), k1=cgKey(Math.floor(x/CG),Math.floor(z/CG));
+  c.x=x; c.z=z; if(k0===k1) return;
+  const a=CGRID.get(k0); if(a){ const i=a.indexOf(c); if(i>=0) a.splice(i,1); }
+  let b=CGRID.get(k1); if(!b){ b=[]; CGRID.set(k1,b); } b.push(c);
+}
 /* 충돌체는 원이다({x,z,r}). `prof`(방위별 반지름 표)가 있으면 그 방위의 반지름을 쓴다 — 바위는 길쭉하고 한쪽이 깎여 있어
    원 하나로는 넓은 쪽에서 **눈이 바위 속으로 들어가 안이 들여다보였다**(사용자 지적). 표는 실제 메시의 꼭짓점에서 뽑는다 */
 function resolveProps(p,radius){

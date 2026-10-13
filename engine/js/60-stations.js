@@ -213,7 +213,7 @@ function placeFurnaceAt(px,py,pz){
   pipe.position.set(0.95,0.86,0.70); grp.add(pipe);
 
   // 아치 안쪽의 잔열 — 제련이 돌아가는 동안에만 밝다
-  const li=LIGHT.addPoint(grp,{color:0xff7a26,intensity:1.0,dist:6,shadow:true,pos:[0,0.34,0.75]});
+  const li=LIGHT.addFire(grp,{color:0xff7a26,intensity:1.0,dist:6,shadow:true,pos:[0,0.34,0.75]});
   glow.visible=false; li.visible=false;
 
   grp.rotation.y=Math.random()*Math.PI*2;
@@ -408,12 +408,14 @@ function pushBlocked(c,nx,nz){
   for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){
     const a=CGRID.get(cgKey(gx+dx,gz+dz)); if(!a) continue;
     for(const o of a){ if(o===me) continue;
-      if(Math.hypot(nx-o.x,nz-o.z)<o.r+r) return '무엇인가에 막혔다'; }
+      const dn=Math.hypot(nx-o.x,nz-o.z);
+      /* 이미 겹친 채 놓인 것(바위 곁에 놓았다)은 **멀어지는 쪽으로는** 밀린다 — 예전엔 어느 쪽으로도 안 밀려 먹통이었다 */
+      if(dn<o.r+r&&dn<=Math.hypot(c.x-o.x,c.z-o.z)) return '무엇인가에 막혔다'; }
   }
   return '';
 }
 function pushEnd(){
-  if(PUSH.t&&PUSH.moved>0.01){ buildColliderGrid(); LIGHT.dirtyAt(PUSH.t.x,PUSH.t.z,4); }
+  if(PUSH.t&&PUSH.moved>0.01) LIGHT.dirtyAt(PUSH.t.x,PUSH.t.z,4);
   PUSH.t=null; PUSH.why=''; PUSH.moved=0;
 }
 function updatePush(dt){
@@ -431,9 +433,9 @@ function updatePush(dt){
   const col=pushCollider(c);
   c.x=nx; c.z=nz; c.y=heightAt(nx,nz);
   c.mesh.position.set(c.x,c.y,c.z);
-  if(col){ col.x=nx; col.z=nz; }
+  if(col) cgMove(col,nx,nz);                          // 충돌 칸은 그 하나만 옮긴다 — 예전엔 0.12초마다 충돌체 2만여 개로 격자를 통째로 다시 지어 멈칫했다
   PUSH.moved+=st; PUSH.gridT+=dt;
-  if(PUSH.gridT>0.12){ PUSH.gridT=0; buildColliderGrid(); LIGHT.dirtyAt(c.x,c.z,4); }   // 충돌 칸·그림자는 조금씩 따라온다
+  if(PUSH.gridT>0.35){ PUSH.gridT=0; LIGHT.dirtyAt(c.x,c.z,4); }   // 그림자는 조금씩 따라온다
   PL.stam=clamp(PL.stam-(2.2/v)*dt,0,100);          // 무거울수록 힘이 든다
   if(Math.floor((PUSH.moved-st)/0.6)!==Math.floor(PUSH.moved/0.6)) sfx('bind');
 }

@@ -30,6 +30,8 @@
 
   <div class="pnl" id="perf"><div id="perfT"></div><canvas id="perfG" width="240" height="48"></canvas></div>
 
+  <div id="blcol">  <!-- 왼쪽 아래 — 든 것(내구)이 상태창 위에 쌓인다(예전엔 따로 bottom:118px 이라 산소 칸이 생기면 겹쳤다) -->
+  <div class="pnl" id="tool"><div class="tn" id="toolN">–</div><div class="td"><i id="toolD"></i></div></div>
   <div class="pnl" id="vitals">
     <div class="bar"><div class="l"><span>체력</span><span id="hpT">100</span></div><div class="t"><div class="f" id="hpF"></div></div></div>
     <div class="bar"><div class="l"><span>기력</span><span id="stT">100</span></div><div class="t"><div class="f" id="stF"></div></div></div>
@@ -38,6 +40,7 @@
     <div class="bar" id="oxWrap" style="display:none"><div class="l"><span>산소</span><span id="oxT">100</span></div><div class="t"><div class="f" id="oxF"></div></div></div>
     <div class="bar"><div class="l"><span>적재</span><span id="wgT">0.0 / 70 kg</span></div><div class="t"><div class="f" id="wgF" style="width:0"></div></div></div>
   </div>
+  </div>
 
   <div class="pnl" id="mapw">
     <canvas id="map" width="768" height="768"></canvas>
@@ -45,7 +48,6 @@
   </div>
 
   <div id="look"><span id="lookT"></span><div id="lookB"><i id="lookF"></i></div></div>
-  <div class="pnl" id="tool"><div class="tn" id="toolN">–</div><div class="td"><i id="toolD"></i></div></div>
   <div class="pnl" id="bld">
     <div class="rw"><b>조각</b><span id="bldK"></span></div>
     <div class="rw"><b>등급</b><span id="bldT"></span></div>
@@ -171,27 +173,30 @@
   <div id="ovCrawl"><div id="ovRoll">
   <div class="s">보급선은 좌표만 남기고 떠났다. 섬은 시드 하나로 만들어진다 —
     융기, 침식, 하천, 기후, 식생, 광상이 그 순서대로 결정된다.</div>
-  <div class="k">
-    <div><span>WASD</span>이동 · Shift 달리기</div>
-    <div><span>Space</span>점프 · Ctrl 앉기 · <b>Ctrl+Space</b> 지붕에서 내려가기</div>
-    <div><span>L</span>전등 켜기 · V 자유 카메라</div>
-    <div><span>M</span>미니맵 크게 / 작게</div>
-    <div><span>I / B</span>가방(소지품·제작) · 사전</div>
-    <div><span>좌클릭</span>(설비를 보고) 상자·화덕·제련로·숫돌·발전기 열기 · 문 여닫기 · 길게 누르면 불 피우기</div>
-    <div><span>E</span>열린 상자·화덕·숫돌 창 닫기</div>
-    <div><span>I</span>소지품 — <b>끌어다 손·옷·입 칸에 놓는다</b> · G 버리기</div>
-    <div><span>좌클릭</span>손에 든 것을 쓴다 — 무기 공격 · 캘 것을 보고 누르고 있으면 캐기(빈손·도끼·곡괭이·드릴) · 먹기·마시기·감기 · 전등 켜기 · <b>횃불 켜고 끄기</b>(활비비+부싯깃 · 라이터 · 곁의 불) · 빈손이면 물가에서 마시기 · 짓기 중엔 조각 놓기</div>
-    <div><span>우클릭</span>저격총 조준경 · 전등·드릴을 지닌 축전지로 충전</div>
-    <div><span>체력</span>높은 데서 떨어지거나 · 숨이 다하거나 · 굶으면 깎인다</div>
-    <div><span>그물</span>무릎 위까지 잠기는 물에 들어가 좌클릭</div>
-    <div><span>1 ~ 5</span>빠른 칸 — 손의 것과 맞바꾼다</div>
-    <div><span>Z</span>집 짓기 — 1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽 좌우</div>
-    <div><span>Tab</span>설정 — 그래픽·음량·마우스 감도·저장 칸·섬 생성 · F3 진단</div>
-    <div><span>R</span>새 섬(묻고 나서 · 짓기 중엔 방향)</div>
-    <div><span>F5 / F9</span>고른 칸에 저장 · 불러오기 (F9 은 묻고 나서) · 놀이 5분마다 · 창을 닫거나 새로 고칠 때 자동 저장</div>
-    <div><span>F</span>(설비를 보고 누르고 있으면) 바구니·상자·화덕·제련로·숫돌·모루 <b>밀기</b></div>
-    <div><span>이름표</span>바구니·상자를 열고 <b>✎ 이름표</b> — 적은 이름이 상자 위에 뜬다</div>
-    <div><span>T</span>시간 가속 · Esc 일시정지</div>
+  <div class="k">  <!-- 한 줄에 글쇠 하나 — 자세한 것은 사전(B)의 '조작' 탭(CONTROLS_GUIDE) -->
+    <div><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><em>이동</em></div>
+    <div><span><kbd>Shift</kbd></span><em>달리기</em></div>
+    <div><span><kbd>Space</kbd></span><em>점프</em></div>
+    <div><span><kbd>Ctrl</kbd></span><em>앉기 · +Space 지붕에서 내려가기</em></div>
+    <div><span><kbd>좌클릭</kbd></span><em>쓰기 · 공격 · 먹기 · 캐기 · 설비 열기</em></div>
+    <div><span><kbd>우클릭</kbd></span><em>저격총 조준경 · 전등·드릴 충전</em></div>
+    <div><span><kbd>E</kbd></span><em>열린 상자·화덕·숫돌 창 닫기</em></div>
+    <div><span><kbd>F</kbd></span><em>설비 밀기(누르고 있기)</em></div>
+    <div><span><kbd>I</kbd></span><em>가방 — 소지품 · 제작</em></div>
+    <div><span><kbd>B</kbd></span><em>사전</em></div>
+    <div><span><kbd>1</kbd>~<kbd>5</kbd></span><em>빠른 칸 — 손의 것과 맞바꾸기</em></div>
+    <div><span><kbd>G</kbd></span><em>고른 것 버리기</em></div>
+    <div><span><kbd>L</kbd></span><em>전등 켜기 · 끄기</em></div>
+    <div><span><kbd>V</kbd></span><em>자유 카메라</em></div>
+    <div><span><kbd>M</kbd></span><em>미니맵 크게 · 작게</em></div>
+    <div><span><kbd>Z</kbd></span><em>집 짓기 — 1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽</em></div>
+    <div><span><kbd>R</kbd></span><em>새 섬(묻고 나서)</em></div>
+    <div><span><kbd>T</kbd></span><em>시간 가속</em></div>
+    <div><span><kbd>Tab</kbd></span><em>설정</em></div>
+    <div><span><kbd>F3</kbd></span><em>성능 창</em></div>
+    <div><span><kbd>F5</kbd></span><em>고른 칸에 저장</em></div>
+    <div><span><kbd>F9</kbd></span><em>불러오기(묻고 나서)</em></div>
+    <div><span><kbd>Esc</kbd></span><em>일시정지</em></div>
   </div>
   </div></div>
   <button id="bStart">상륙</button>

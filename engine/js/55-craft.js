@@ -1023,12 +1023,12 @@ function matWeight(r){
 const CRAFT={recipe:null, t:0, sel:-1};          // sel — 기술 나무에서 고른 마디(RECIPES 의 번호)
 function startCraft(R){
   if(!canCraft(R)){ toast('재료가 모자란다'); return; }
-  CRAFT.recipe=R; CRAFT.t=0;
+  CRAFT.recipe=R; CRAFT.t=0; craftDirty=true;
 }
 function updateCraft(dt){
   const R=CRAFT.recipe; if(!R) return;
-  if(PL.stam<2){ CRAFT.recipe=null; toast('기력이 없다'); return; }
-  if(!stationOK(R)){ CRAFT.recipe=null; toast(STATION[R.station].n+'에서 멀어졌다'); return; }
+  if(PL.stam<2){ CRAFT.recipe=null; craftDirty=true; toast('기력이 없다'); return; }
+  if(!stationOK(R)){ CRAFT.recipe=null; craftDirty=true; toast(STATION[R.station].n+'에서 멀어졌다'); return; }
   const prev=CRAFT.t;
   CRAFT.t+=dt;
   PL.stam=clamp(PL.stam-R.stam/R.time*dt,0,100);
@@ -1037,7 +1037,7 @@ function updateCraft(dt){
   if(Math.floor(prev/iv)!==Math.floor(CRAFT.t/iv) && CRAFT.t<R.time-0.2)
     sfx(R.need&&R.need.some(r=>r.tag==='hammer')?'knap':'bind');
   if(CRAFT.t<R.time) return;
-  CRAFT.recipe=null; CRAFT.t=0;
+  CRAFT.recipe=null; CRAFT.t=0; craftDirty=true; invDirty=true;   // 어느 갈래로 끝나든 나무·고른 칸을 다시 그린다(예전엔 실패 갈래에서 '만드는 중' 이 남았다)
   if(!canCraft(R)){ toast('재료가 모자란다'); return; }
   // 설치형은 자리부터 확인 — 실패하면 재료를 쓰지 않는다
   if(R.place==='build'){                       // 집 조각은 짓기 모드에서 놓는다
@@ -1172,6 +1172,7 @@ function drawCraft(){
     const sx=crfL.scrollLeft, sy=crfL.scrollTop; crfL.innerHTML=html; crfL._html=html; crfL.scrollLeft=sx; crfL.scrollTop=sy;
   }
   if(typeof drawSel==='function') drawSel();
+  ctreeRefresh();
 }
 /* ── 조합 나무 — 마디에 마우스를 올렸을 때만 뜬다 ───────────────────────────────
    예전엔 탭 안의 마디를 전부 줄로 이어 늘 그려 두었다 — 줄이 수십 가닥 겹쳐 무엇이 무엇에 이어지는지 읽을 수 없었다(사용자 지적).
@@ -1189,6 +1190,9 @@ function ctreeEl(){
   el.addEventListener('mouseleave',()=>ctreeHide());
   el.addEventListener('click',ev=>{ const t=ev.target.closest&&ev.target.closest('[data-go]'); if(!t) return;
     const i=+t.dataset.go; if(!RECIPES[i]) return;
+    /* 나무 안의 물건을 누르면 **만들 수 있으면 바로 만든다**(사용자 요청) — 못 만들면 예전처럼 그 제작법으로 건너간다 */
+    if(canCraft(RECIPES[i])&&CRAFT.recipe!==RECIPES[i]){ CRAFT.sel=i; startCraft(RECIPES[i]); craftDirty=true; ctreeRefresh(); return; }
+    if(i===CTREE.i){ toast('아직 못 만든다 — '+(typeof bagMissing==='function'?bagMissing(RECIPES[i]):'모자란 것이 있다')); return; }
     CRAFT.sel=i; craftTab=craftCat(RECIPES[i]); const q=document.getElementById('crfS'); q.value=''; craftQuery='';
     document.getElementById('crfL')._html=null; craftDirty=true; drawCraft(); ctreeHide(true); });
   return CTREE.el=el;
@@ -1196,7 +1200,12 @@ function ctreeEl(){
 function ctreeHide(now){
   clearTimeout(CTREE.hideT); clearTimeout(CTREE.showT);
   const go=()=>{ if(CTREE.el) CTREE.el.style.display='none'; CTREE.i=-1; };
-  if(now) go(); else CTREE.hideT=setTimeout(go,280);
+  if(now) go(); else CTREE.hideT=setTimeout(go,90);   // 커서가 떠나면 빨리 닫는다(사용자 요청 — 예전 0.28초)
+}
+/* 떠 있는 나무를 다시 그린다 — 만들거나 재료가 바뀐 뒤(예전엔 만들어도 나무의 가진 수·색이 그대로였다) */
+function ctreeRefresh(){
+  if(CTREE.i<0||!CTREE.el||CTREE.el.style.display==='none') return;
+  const nd=document.querySelector('#crfL .nd[data-i="'+CTREE.i+'"]'); if(nd) ctreeShow(CTREE.i,nd);
 }
 /* 가지들 — 다섯까지 보이고 나머지는 '… +N'(글 상자) */
 function ctreeBranches(items,side){
@@ -1210,7 +1219,7 @@ function ctreeShow(i,anchor){
   const R=RECIPES[i]; if(!R||!anchor||!anchor.isConnected) return;
   const el=ctreeEl(), needs=[], uses=[];
   for(const r of R.in){ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];
-    needs.push({cls:hv>=r.n?'g':'b', go:mk.length?RECIPES.indexOf(mk[0]):-1, html:_cEsc(matName(r))+' <small>'+Math.min(hv,99)+'/'+r.n+'</small>'}); }
+    needs.push({cls:hv>=r.n?'g':'b', go:mk.length?RECIPES.indexOf(mk[0]):-1, html:_cEsc(matName(r))+' <small class="n">'+Math.min(hv,99)+'/'+r.n+'</small>'}); }
   for(const r of (R.need||[])){ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];
     needs.push({cls:(hv>=r.n?'g':'b')+' t', go:mk.length?RECIPES.indexOf(mk[0]):-1, html:_cEsc(matName(r))+' <small>도구</small>'}); }
   if(R.station) needs.push({cls:(stationOK(R)?'g':'b')+' t', go:-1, html:_cEsc(STATION[R.station].n)+' <small>곁에서</small>'});
@@ -1218,9 +1227,9 @@ function ctreeShow(i,anchor){
   const ico=R.out?iconSoon(R.out.id):'';
   el.innerHTML='<div class="ctT">조합 나무</div><div class="ctR">'
     +'<div class="ctC l">'+ctreeBranches(needs,'l')+'</div>'
-    +'<div class="ctM '+(canCraft(R)?'ok':'')+'">'+(ico?'<img decoding="sync" src="'+ico+'" alt="">':'')+'<b>'+_cEsc(R.n)+'</b>'+(R.out&&R.out.n>1?'<small>×'+R.out.n+'</small>':'')+'</div>'
+    +'<div class="ctM '+(canCraft(R)?'ok':'')+'" data-go="'+i+'">'+(ico?'<img decoding="sync" src="'+ico+'" alt="">':'')+'<b>'+_cEsc(R.n)+'</b>'+(R.out?'<small>×'+R.out.n+'</small>':'')+'</div>'
     +'<div class="ctC r">'+(R.out?ctreeBranches(uses,'r'):'<div class="cb none">설치하는 것이다</div>')+'</div></div>'
-    +'<div class="ctF">가지를 누르면 그 제작법으로 간다</div>';
+    +'<div class="ctF">누르면 만든다 · 못 만드는 것은 그 제작법으로 간다</div>';
   el.style.display='block'; CTREE.i=i;
   /* 자리 — 마디 바로 아래에 2 px 겹쳐 붙인다(틈이 없어야 마우스가 건너가는 동안 안 닫힌다). 아래가 모자라면 위로 */
   const a=anchor.getBoundingClientRect(), w=el.offsetWidth, h=el.offsetHeight;

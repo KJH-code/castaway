@@ -933,7 +933,8 @@ function gatherLook(){
 }
 function updateGather(dt){
   const p=gatherLook();
-  if(p!==GATHER.p){ GATHER.p=p; GATHER.t=0; }           // 다른 것으로 눈을 돌렸다 — 처음부터
+  if(p!==GATHER.p&&!(p&&GATHER.p&&p.key!==undefined&&p.key===GATHER.p.key)){ GATHER.p=p; GATHER.t=0; }   // 다른 것으로 눈을 돌렸다 — 처음부터(같은 포기를 새 겹이 다시 만든 것이면 이어서)
+  else if(p) GATHER.p=p;
   GATHER.on=false;
   if(!p) return;
   const sea=p===SEA.look, D=sea?SEA_PICK[p.kind]:FLORA_PICK[p.kind];
