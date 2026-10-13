@@ -57,7 +57,7 @@ function _icoShape(id){
     else{ add(sph(0.2,16,12),WMAT(c),0,0,0,0,0,0,1,0.85,1); add(cyl(0.13,0.15,0.06),WMAT(c),0,0.17,0); }
     if(id==='pot_sand') add(cyl(0.12,0.12,0.01),WMAT(0xd8c890),0,0.2,0); }
   else if(id==='bucket_iron'){ add(cyl(0.2,0.16,0.34,16,1,true),WMAT(0x8a8e90),0,0,0); add(tor(0.2,0.012,Math.PI),WMAT(0x6a6e70),0,0.17,0); }
-  else if(id==='waterskin'){ add(sph(0.2,14,10),M,0,0,0,0,0,0,1,1.2,0.6); add(cyl(0.04,0.05,0.1),dark(T.c),0,0.26,0); }
+  else if(id==='waterskin'){ add(sph(0.2,14,10),M,0,0,0,0,0,0,1,1.2,0.6); add(cyl(0.04,0.05,0.1),WMAT(0x5a4028),0,0.26,0); }   // 마개(예전엔 없는 함수 dark() 를 불러 이 아이콘을 그리는 순간 죽었다)
   else if(id==='branch'){ add(cyl(0.03,0.045,0.8,8),M,0,0,0); add(cyl(0.015,0.025,0.3,6),M,0.08,0.1,0,0,0,-0.7); }
   else if(id==='log'){ add(cyl(0.16,0.16,0.6,14),WMAT(0x5a4430),0,0,0,0,0,Math.PI/2); add(cyl(0.155,0.155,0.61,14),WMAT(0xc8a676),0,0,0,0,0,Math.PI/2,0.98,1,0.98); }
   else if(id==='stone_block'){ add(box(0.36,0.26,0.26),M,0,0,0); }

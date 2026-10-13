@@ -1010,7 +1010,7 @@ function matWeight(r){
   }
   return w;
 }
-const CRAFT={recipe:null, t:0};
+const CRAFT={recipe:null, t:0, sel:-1};          // sel — 기술 나무에서 고른 마디(RECIPES 의 번호)
 function startCraft(R){
   if(!canCraft(R)){ toast('재료가 모자란다'); return; }
   CRAFT.recipe=R; CRAFT.t=0;
@@ -1078,58 +1078,100 @@ function craftMatch(R){
              ...(R.need||[]).map(r=>matName(r))].join(' ');
   return hay.indexOf(q)>=0;
 }
+/* ── 제작 화면 — 기술 나무 ─────────────────────────────────────────────────────
+   예전엔 제작법 180개를 한 줄로 늘어놓은 긴 목록이었다(사용자 요청: 기술 나무처럼, 탭으로 나눠서, 가리키면 쓰임이 뜨게).
+   ① **탭** — 만드는 것의 갈래(`craftCat`): 도구 · 무기 · 옷·갑옷 · 설비·건축 · 먹을 것·약 · 재료 · 화학·전기.
+   ② **나무** — 탭 안에서 단(`TIER_ORDER` — 간이 → 돌 → 청동 → 철 → 강철 …)이 왼쪽에서 오른쪽으로 서고, 단마다 마디(제작법)가
+      세로로 선다. 한 마디의 결과물이 다른 마디의 재료·도구면 둘을 **줄로 잇는다**(같은 탭 안에서만 — 탭을 건너는 것은
+      오른쪽 '고른 제작법' 칸의 '먼저 만들 것' 에 적힌다).
+   ③ 마디를 누르면 오른쪽 칸에 재료(가진 수/드는 수) · 도구 · 작업 자리 · '만들기' 단추가 뜬다. 고른 마디를 한 번 더 누르면 만든다.
+   ④ 마디에 마우스를 올리면 드는 것과 **이것으로 만드는 것**이 말풍선으로 뜬다(98-bag.js `bagTip`).
+   ⑤ 검색칸에 글자를 치면 탭과 상관없이 걸리는 것만 목록으로 보인다. */
+const CRAFT_TABS=[['tool','도구'],['weapon','무기'],['wear','옷·갑옷'],['build','설비·건축'],['food','먹을 것·약'],['mat','재료'],['chem','화학·전기']];
+const TIER_ORDER=['맨손','풀과 돌','불','옷','나무와 점토','간석기','바다와 살림','뼈와 키틴','금속','철기','강철','화학'];
+const TIER_LABEL={'맨손':'맨손','풀과 돌':'간이 · 풀과 돌','불':'불','옷':'옷','나무와 점토':'나무 · 점토','간석기':'돌 · 간석기',
+                  '바다와 살림':'바다 · 살림','뼈와 키틴':'뼈 · 키틴','금속':'청동 · 금속','철기':'철','강철':'강철','화학':'화학 · 전기'};
+let craftTab='tool';
+function craftCat(R){
+  if(R.place) return 'build';
+  const T=R.out&&ITEMS[R.out.id]; if(!T) return 'mat';
+  const W=T.tool;
+  if((W&&(W.weapon||W.gun||W.throw||W.harpoon))||T.ammo) return 'weapon';
+  if(W) return 'tool';
+  if(T.wear) return 'wear';
+  if(T.food||T.drink||T.heal) return 'food';
+  return R.tier==='화학'?'chem':'mat';
+}
+/* 그 물건을 만드는 제작법들 · 그 물건이 드는 제작법들(재료든 도구든) */
+const craftMakers=id=>RECIPES.filter(R=>R.out&&R.out.id===id);
+const craftUsers=id=>RECIPES.filter(R=>R.in.some(r=>r.id===id)||(R.need||[]).some(r=>r.id===id));
 function drawCraft(){
   if(!craftOpen) return;
-  let lastTier=null;
-  const hit=RECIPES.filter(craftMatch);
-  const nEl=document.getElementById('crfN');
-  if(nEl) nEl.textContent=craftQuery.trim()
-    ? hit.length+' / '+RECIPES.length : RECIPES.length+'개';
-  if(!hit.length){
-    const L0=document.getElementById('crfL');
-    L0.innerHTML='<div style="color:var(--dim);font-size:10px;padding:10px 2px">'
-      +'\''+craftQuery.trim()+'\' 에 걸리는 제작법이 없다</div>';
-    L0._html=null;
-    return;
+  const crfL=document.getElementById('crfL'), nEl=document.getElementById('crfN'), q=craftQuery.trim();
+  const tabs=document.getElementById('crfT');
+  /* 탭 줄 — 갈래마다 지금 만들 수 있는 수 / 전체 */
+  if(tabs){
+    const th=CRAFT_TABS.map(([k,n])=>{ const g=RECIPES.filter(R=>craftCat(R)===k), ok=g.filter(canCraft).length;
+      return '<button data-tab="'+k+'" class="'+(k===craftTab&&!q?'on':'')+'">'+n+'<span>'+ok+'/'+g.length+'</span></button>'; }).join('');
+    if(tabs._html!==th){ tabs.innerHTML=th; tabs._html=th; }
   }
-  const crfHtml=hit.map(R=>{
-    const i=RECIPES.indexOf(R);
-    let head='';
-    if(R.tier!==lastTier){
-      lastTier=R.tier;
-      const grp=RECIPES.filter(x=>x.tier===R.tier);
-      const ready=grp.filter(canCraft).length;
-      head='<div class="ch">'+R.tier+'<span>'+ready+' / '+grp.length+'</span></div>';
+  let html='';
+  if(q){                                            // ── 검색: 걸리는 것만 목록으로
+    const hit=RECIPES.filter(craftMatch);
+    if(nEl) nEl.textContent=hit.length+' / '+RECIPES.length;
+    html=hit.length?'<div class="tl">'+hit.map(R=>{ const i=RECIPES.indexOf(R);
+        return '<div class="nd row '+(canCraft(R)?'ok':'no')+(i===CRAFT.sel?' sel':'')+'" data-i="'+i+'" data-tipr="'+i+'">'
+          +(R.out?iconTag(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')+'<span>'+R.n+'</span><em>'+TIER_LABEL[R.tier]+'</em></div>'; }).join('')+'</div>'
+      :'<div style="color:var(--dim);font-size:10px;padding:10px 2px">\''+q+'\' 에 걸리는 제작법이 없다</div>';
+  }else{                                            // ── 나무: 단이 왼쪽에서 오른쪽으로
+    const list=RECIPES.map((R,i)=>({R,i})).filter(o=>craftCat(o.R)===craftTab);
+    if(nEl) nEl.textContent=list.filter(o=>canCraft(o.R)).length+' / '+list.length+' 가능';
+    html='<div class="tw"><svg class="te"></svg>';
+    for(const tier of TIER_ORDER){
+      const col=list.filter(o=>o.R.tier===tier); if(!col.length) continue;
+      html+='<div class="tc"><div class="th">'+TIER_LABEL[tier]+'<span>'+col.filter(o=>canCraft(o.R)).length+'/'+col.length+'</span></div>'
+        +col.map(o=>{ const R=o.R, ok=canCraft(R), busy=CRAFT.recipe===R;
+          return '<div class="nd '+(ok?'ok':'no')+(o.i===CRAFT.sel?' sel':'')+(busy?' busy':'')+'" data-i="'+o.i+'" data-tipr="'+o.i+'">'
+            +(R.out?iconTag(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')
+            +'<span>'+R.n+'</span>'+(R.out&&R.out.n>1?'<em>×'+R.out.n+'</em>':'')+'</div>'; }).join('')+'</div>';
     }
-    const ok=canCraft(R);
-    const mats=R.in.map(r=>{
-      const h=countMat(r);
-      return '<span class="'+(h>=r.n?'g':'b')+'">'+matName(r)+' '+h+'/'+r.n+'</span>';
-    }).join(' · ');
-    // 필요 도구는 후보 아이템을 하나씩 나열하고, 가진 것만 초록으로
-    const needs=(R.need||[]).map(r=>{
-      if(r.id) return '<span class="'+(haveId(r.id)>=r.n?'g':'b')+'">'+ITEMS[r.id].n+'</span>';
-      return tagItems(r.tag)
-        .map(k=>'<span class="'+(haveId(k)>0?'g':'b')+'">'+ITEMS[k].n+'</span>')
-        .join('<span style="color:var(--dim)"> 또는 </span>');
-    }).join(' · ');
-    const st=R.station
-      ? '<div class="cm"><span class="'+(stationOK(R)?'g':'b')+'">'
-        +STATION[R.station].n+' 곁에서 작업</span></div>' : '';
-    const pct='';
-    return head+'<div class="cr'+(ok?'':' no')+'" data-i="'+i+'">'
-      +'<div class="cn">'+R.n+'<span class="ck">'
-        +(R.out?ITEMS[R.out.id].kg+' kg':'설치')+'</span></div>'
-      +'<div class="cm">'+mats+(needs?'<div class="cm" style="margin-top:3px">'
-        +'<span style="color:var(--dim)">도구(소모 안 됨) </span>'+needs+'</div>':'')
-      +(pct?' · '+pct:'')+'</div>'+st
-      +'<div class="cd">'+R.note+'</div></div>';
-  }).join('');
-  const crfL=document.getElementById('crfL');
-  if(crfL._html!==crfHtml){ const sc=crfL.scrollTop; crfL.innerHTML=crfHtml; crfL._html=crfHtml; crfL.scrollTop=sc; }
+    html+='</div>';
+  }
+  if(crfL._html!==html){
+    const sx=crfL.scrollLeft, sy=crfL.scrollTop; crfL.innerHTML=html; crfL._html=html; crfL.scrollLeft=sx; crfL.scrollTop=sy;
+    if(!q) craftEdges(crfL);
+  }
+  if(typeof drawSel==='function') drawSel();
 }
-/* 제작법 누르기 — 목록 바탕에서 한 번에 받는다 */
-document.getElementById('crfL').addEventListener('click',ev=>{
-  const el=ev.target&&ev.target.closest?ev.target.closest('.cr'):null;
-  if(el) startCraft(RECIPES[+el.dataset.i]);
+/* 마디 사이의 줄 — 같은 탭 안에서 A 의 결과물이 B 의 재료·도구면 A → B. 마디를 다 놓은 뒤 자리를 재서 SVG 로 긋는다 */
+function craftEdges(root){
+  const tw=root.querySelector('.tw'), svg=root.querySelector('svg.te'); if(!tw||!svg) return;
+  const box=tw.getBoundingClientRect(), pos={};
+  tw.querySelectorAll('.nd').forEach(el=>{ const r=el.getBoundingClientRect(); pos[el.dataset.i]={x0:r.left-box.left,x1:r.right-box.left,y:r.top-box.top+r.height/2}; });
+  const W=tw.scrollWidth, H=tw.scrollHeight; let d='', ds='';
+  for(const k in pos){ const B=RECIPES[+k], pb=pos[k];
+    const ids=B.in.concat(B.need||[]).map(r=>r.id).filter(Boolean);
+    for(const id of ids) for(const A of craftMakers(id)){ const pa=pos[RECIPES.indexOf(A)]; if(!pa||pa===pb) continue;
+      let seg;
+      if(Math.abs(pa.x0-pb.x0)<2){                    // 같은 단 안 — 왼쪽으로 꺾쇠처럼 돌아 잇는다
+        const x=pa.x0, k=14+Math.min(18,Math.abs(pa.y-pb.y)*0.12);
+        seg='M'+x.toFixed(1)+' '+pa.y.toFixed(1)+' C'+(x-k).toFixed(1)+' '+pa.y.toFixed(1)+' '+(x-k).toFixed(1)+' '+pb.y.toFixed(1)+' '+x.toFixed(1)+' '+pb.y.toFixed(1)+' ';
+      }else{
+        const fwd=pa.x0<pb.x0, x1=fwd?pa.x1:pa.x0, x2=fwd?pb.x0:pb.x1, bend=Math.max(18,Math.abs(x2-x1)*0.45)*(fwd?1:-1);
+        seg='M'+x1.toFixed(1)+' '+pa.y.toFixed(1)+' C'+(x1+bend).toFixed(1)+' '+pa.y.toFixed(1)+' '+(x2-bend).toFixed(1)+' '+pb.y.toFixed(1)+' '+x2.toFixed(1)+' '+pb.y.toFixed(1)+' ';
+      }
+      if(+k===CRAFT.sel||RECIPES.indexOf(A)===CRAFT.sel) ds+=seg; else d+=seg; } }
+  svg.setAttribute('width',W); svg.setAttribute('height',H);
+  svg.innerHTML='<path d="'+d+'" class="e"/><path d="'+ds+'" class="e s"/>';
+}
+/* 마디·탭 누르기 — 목록 바탕에서 한 번에 받는다. 마디는 한 번 누르면 고르고, 고른 것을 다시 누르면 만든다 */
+document.getElementById('crf').addEventListener('click',ev=>{
+  const t=ev.target&&ev.target.closest?ev.target.closest('#crfT button'):null;
+  if(t){ craftTab=t.dataset.tab; const q=document.getElementById('crfS'); q.value=''; craftQuery=''; document.getElementById('crfL')._html=null; craftDirty=true; drawCraft(); return; }
+  const el=ev.target&&ev.target.closest?ev.target.closest('.nd'):null;
+  if(!el) return;
+  const i=+el.dataset.i;
+  if(CRAFT.sel===i){ if(canCraft(RECIPES[i])) startCraft(RECIPES[i]); else toast('아직 못 만든다 — 오른쪽 칸에 모자란 것이 적혀 있다'); }
+  else CRAFT.sel=i;
+  document.getElementById('crfL')._html=null; craftDirty=true; drawCraft();
 });

@@ -634,7 +634,19 @@ const ITEMS={
                food:10}
 };
 ITEMS.fish.tags=['fish']; ITEMS.fish.fishy=1; ITEMS.fish_cooked.fishy=1; ITEMS.fish_dried.fishy=1;   // 그물로 건진 '물고기'도 같은 분류다
-const INV={base:70, max:70, slots:[], sel:0};   // 기본 적재 70 kg + 등짐 보너스
+const INV={base:70, max:70, slots:[], sel:0,      // 기본 적재 70 kg + 등짐 보너스
+           view:'all', pockets:[], ren:0};         // 보는 갈래('all' · 'c:갈래' · 'p:칸 번호') · 내가 만든 칸 이름들 · 이름 고치는 중인 칸
+/* 물건의 갈래 — 소지품 목록을 이 차례로 묶는다 */
+const ITEM_CATS=[['tool','도구'],['weapon','무기'],['wear','옷·갑옷'],['food','먹을 것·약'],['mat','재료'],['etc','기타']];
+function itemCat(T){
+  const W=T.tool;
+  if(T.read||T===ITEMS.codex||T===ITEMS.ring_platinum) return 'etc';
+  if((W&&(W.weapon||W.gun||W.throw||W.harpoon))||T.ammo) return 'weapon';
+  if(W) return 'tool';
+  if(T.wear) return 'wear';
+  if(T.food||T.drink||T.heal) return 'food';
+  return 'mat';
+}
 /* 착용 칸. 각 칸은 인벤토리 슬롯을 가리킨다 — 입은 것도 무게에는 그대로 포함된다. */
 const WEAR={body:null, armor:null, head:null, back:null};
 const WEAR_N={body:'옷', armor:'갑옷', head:'머리', back:'등짐'};
@@ -728,11 +740,26 @@ function drawInv(){
   if(wornSum('carry')) wh+='<div class="ws"><span>적재 보너스</span><b>+'
     +wornSum('carry')+' kg</b></div>';
   wh+='</div>';
-  if(!INV.slots.length){ L.innerHTML=wh+'<div class="ie">비어 있음</div>'; wireDrag(L); if(typeof drawSel==='function') drawSel(); return; }
-  const keepScroll=L.scrollTop;                   // 다시 그려도 굴린 자리는 그대로
-  L.innerHTML=INV.slots.map((s,i)=>{
-    const t=ITEMS[s.id];
-    return '<div class="it'+(i===INV.sel?' sel':'')+'" data-i="'+i+'" draggable="true">'
+  if(INV.ren) return;                               // 칸 이름을 치는 중 — 목록을 다시 그리면 글칸이 사라진다
+  /* ── 갈래 · 내 칸(사용자 요청: 소지품을 갈래지어 보고, 내가 칸을 만들어 나눠 담는다) ──
+     위 줄의 단추로 본다: 전체 · 갈래(도구·무기·옷·먹을 것·재료·기타) · 내 칸. 물건을 **칸 단추에 끌어다 놓으면** 그 칸에 든다
+     (전체에 놓으면 칸에서 뺀다). 칸은 여섯까지 — '＋ 칸' 으로 만들고, 칸을 고른 채 '이름'·'칸 지우기'. 칸은 슬롯에 붙는다(`pk`) —
+     같은 물건을 더 주우면 그 칸에 그대로 쌓인다. 저장된다 */
+  const esc=t=>String(t).replace(/[<>&"]/g,'');
+  let view=INV.view||'all';
+  if(view[0]==='p'&&!INV.pockets[+view.slice(2)-1]) view=INV.view='all';
+  const cnt=k=>INV.slots.filter(sl=>itemCat(ITEMS[sl.id])===k).length;
+  const chip=(v,txt,cls)=>'<button data-v="'+v+'" class="'+(view===v?'on ':'')+(cls||'')+'">'+txt+'</button>';
+  let ch='<div class="ic">'+chip('all','전체 '+INV.slots.length,'drop');
+  for(const [k,n] of ITEM_CATS){ const c=cnt(k); if(c) ch+=chip('c:'+k,n+' '+c); }
+  ch+='<i class="sep"></i>';
+  INV.pockets.forEach((nm,i)=>{ ch+=chip('p:'+(i+1),'▣ '+esc(nm)+' '+INV.slots.filter(sl=>sl.pk===i+1).length,'pk drop'); });
+  if(INV.pockets.length<6) ch+='<button data-v="+" class="add">＋ 칸</button>';
+  if(view[0]==='p') ch+='<button data-v="ren" class="add">이름</button><button data-v="del" class="add">칸 지우기</button>';
+  ch+='</div>';
+  const row=i=>{
+    const s=INV.slots[i], t=ITEMS[s.id];
+    return '<div class="it'+(i===INV.sel?' sel':'')+'" data-i="'+i+'" data-tipi="'+s.id+'" draggable="true">'
       +iconTag(s.id,t)
       +'<span class="nm">'+t.n+' <span class="qt">×'+s.n+'</span>'
       +(s===EQUIP?'<span class="eq">장착</span>':'')
@@ -743,14 +770,54 @@ function drawInv(){
         +(s.lit?'타는 중 ':'꺼짐 ')+Math.round(s.fuel/t.burn*100)+'%</span>':'')
       +'<span class="u">'+t.use+'</span></span>'
       +'<span class="kg">'+(t.kg*s.n).toFixed(1)+' kg</span></div>';
-  }).join('');
-  L.innerHTML=wh+L.innerHTML;
+  };
+  const all=INV.slots.map((_,i)=>i);
+  const sect=(title,ids,cls,v)=>ids.length?'<div class="ig '+(cls||'')+'"'+(v?' data-v="'+v+'"':'')+'>'+title+'<span>'+ids.length+'</span></div><div class="igL">'+ids.map(row).join('')+'</div>':'';
+  let body='';
+  if(!INV.slots.length) body='<div class="ie">비어 있음</div>';
+  else if(view==='all'){
+    INV.pockets.forEach((nm,pi)=>{ body+=sect('▣ '+esc(nm),all.filter(i=>INV.slots[i].pk===pi+1),'pk drop','p:'+(pi+1)); });
+    for(const [k,n] of ITEM_CATS) body+=sect(n,all.filter(i=>!INV.slots[i].pk&&itemCat(ITEMS[INV.slots[i].id])===k));
+  }else{
+    const ids=view[0]==='p'?all.filter(i=>INV.slots[i].pk===+view.slice(2)):all.filter(i=>itemCat(ITEMS[INV.slots[i].id])===view.slice(2));
+    body=ids.length?'<div class="igL">'+ids.map(row).join('')+'</div>'
+        :'<div class="ie">'+(view[0]==='p'?'이 칸은 비었다 — 물건을 위의 칸 단추로 끌어다 놓는다':'이 갈래의 물건이 없다')+'</div>';
+  }
+  const keepScroll=L.scrollTop;                   // 다시 그려도 굴린 자리는 그대로
+  L.innerHTML=wh+ch+body;
   L.scrollTop=keepScroll;
   L.querySelectorAll('.it').forEach(el=>{
     el.onclick=()=>{ INV.sel=+el.dataset.i; invDirty=true; };
   });
+  L.querySelectorAll('.ic button').forEach(el=>{ el.onclick=()=>invChip(el.dataset.v,el); });
+  /* 칸 단추·칸 머리줄에 끌어다 놓으면 그 칸에 든다('전체' 에 놓으면 칸에서 뺀다) */
+  L.querySelectorAll('.drop').forEach(el=>{
+    el.ondragover=ev=>{ if(DRAG){ ev.preventDefault(); ev.stopPropagation(); el.classList.add('over'); } };
+    el.ondragleave=()=>el.classList.remove('over');
+    el.ondrop=ev=>{ ev.preventDefault(); ev.stopPropagation(); el.classList.remove('over');
+      const sl=DRAG; DRAG=null; if(!sl||INV.slots.indexOf(sl)<0) return;
+      const v=el.dataset.v, pk=v==='all'?0:+v.slice(2);
+      sl.pk=pk||undefined; invDirty=true; sfx('bind');
+      toast(pk?ITEMS[sl.id].n+' → ▣ '+INV.pockets[pk-1]:ITEMS[sl.id].n+' — 칸에서 뺐다'); };
+  });
   wireDrag(L);
   if(typeof drawSel==='function') drawSel();      // 가운데 '고른 물건' 칸(98-bag.js)
+}
+/* 소지품 윗줄의 단추 — 볼 갈래를 바꾸거나, 칸을 만들고 · 이름을 고치고 · 지운다 */
+function invChip(v,el){
+  if(v==='+'){ if(INV.pockets.length>=6) return; INV.pockets.push('칸 '+(INV.pockets.length+1)); INV.view='p:'+INV.pockets.length; invDirty=true; drawInv(); invChip('ren'); return; }
+  if(v==='del'){ const pi=+INV.view.slice(2);
+    for(const sl of INV.slots){ if(sl.pk===pi) sl.pk=undefined; else if(sl.pk>pi) sl.pk--; }
+    INV.pockets.splice(pi-1,1); INV.view='all'; invDirty=true; return; }
+  if(v==='ren'){                                   // 칸 단추 자리에 글칸을 세운다 — Enter 로 정하고 Esc 로 그만둔다
+    const pi=+INV.view.slice(2), chip=document.querySelector('#invL .ic button.pk.on'); if(!chip) return;
+    const inp=document.createElement('input'); inp.type='text'; inp.maxLength=10; inp.value=INV.pockets[pi-1]; inp.className='pkn';
+    INV.ren=pi; chip.replaceWith(inp); inp.focus(); inp.select();
+    const done=ok=>{ if(!INV.ren) return; INV.ren=0; const t=inp.value.trim(); if(ok&&t) INV.pockets[pi-1]=t; invDirty=true; };
+    inp.onkeydown=ev=>{ ev.stopPropagation(); if(ev.key==='Enter') done(true); else if(ev.key==='Escape') done(false); };
+    inp.onblur=()=>done(true);
+    return; }
+  INV.view=v; invDirty=true;
 }
 
 /* ── 끌어 놓기 ──────────────────────────────────────────────────────────

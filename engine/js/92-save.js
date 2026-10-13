@@ -13,7 +13,7 @@
 const SAVE_VER=1;
 /* 용기 속 슬롯은 소지품과 같은 모양으로 저장한다 */
 const saveSlots=a=>a.map(sl=>({id:sl.id,n:sl.n,dur:sl.dur,fuel:sl.fuel,lit:sl.lit,
-                               mag:sl.mag,ammoId:sl.ammoId,sip:sl.sip}));
+                               mag:sl.mag,ammoId:sl.ammoId,sip:sl.sip,pk:sl.pk}));
 const loadSlots=a=>(a||[]).filter(sl=>ITEMS[sl.id]).map(sl=>{
   const o={id:sl.id,n:sl.n};
   if(sl.dur!==undefined) o.dur=sl.dur;
@@ -21,6 +21,7 @@ const loadSlots=a=>(a||[]).filter(sl=>ITEMS[sl.id]).map(sl=>{
   if(sl.mag!==undefined) o.mag=sl.mag;
   if(sl.ammoId&&ITEMS[sl.ammoId]) o.ammoId=sl.ammoId;   // 탄창에 물린 탄 종류
   if(sl.sip!==undefined) o.sip=sl.sip;                  // 물통에 남은 모금
+  if(sl.pk>0&&sl.pk<=6) o.pk=sl.pk|0;                   // 소지품의 내 칸(가방 화면)
   return o;
 });
 
@@ -78,7 +79,7 @@ function snapshot(){
     pl:{x:PL.pos.x,y:PL.pos.y,z:PL.pos.z,yaw:PL.yaw,pitch:PL.pitch,
         hp:PL.hp,stam:PL.stam,oxy:PL.oxy,food:PL.food,water:PL.water,
         ill:PL.ill},
-    inv:saveSlots(INV.slots),
+    inv:saveSlots(INV.slots), pockets:INV.pockets.slice(0,6),
     sel:INV.sel, eq:EQUIP?INV.slots.indexOf(EQUIP):-1,
     wear:{body:WEAR.body?INV.slots.indexOf(WEAR.body):-1,
           armor:WEAR.armor?INV.slots.indexOf(WEAR.armor):-1,
@@ -220,6 +221,8 @@ async function restore(d){
   for(const sl of raw) remap.push(ITEMS[sl.id]?kept++:-1);
   INV.slots.length=0;
   for(const o of loadSlots(raw)) INV.slots.push(o);
+  INV.pockets=(Array.isArray(d.pockets)?d.pockets:[]).filter(t=>typeof t==='string').slice(0,6).map(t=>t.slice(0,10)); INV.view='all'; INV.ren=0;
+  for(const o of INV.slots) if(o.pk>INV.pockets.length) delete o.pk;
   const slotAt=ix=>(ix>=0&&remap[ix]>=0)?INV.slots[remap[ix]]:null;
 
   INV.sel=d.sel|0;

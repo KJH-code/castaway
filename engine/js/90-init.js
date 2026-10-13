@@ -350,7 +350,7 @@ async function generateWorld(){
                                     updateSky();   // 하늘 표(SKY_LUT)를 한 번 굽는다 — 시작 화면처럼 갱신이 멈춘 동안에도 하늘이 비지 않게
                                     propGroup.visible=showProps;           // 칸은 사람 자리로 한 번 골라 켠다(시작 화면도 가벼이)
                                     _tvForce=true; updateTileVis(); updateTerrainLOD();
-                                    INV.slots.length=0; INV.sel=0; invDirty=true;
+                                    INV.slots.length=0; INV.sel=0; invDirty=true; INV.pockets.length=0; INV.view='all'; INV.ren=0;
                                     for(const k in WEAR) WEAR[k]=null; INV.max=INV.base;
                                     invAdd('guide',1);        // 생존 안내서 — 가방에서 누르면 읽힌다
                                     invAdd('codex',1);        // 사전은 처음부터 지닌다

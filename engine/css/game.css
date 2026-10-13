@@ -86,6 +86,68 @@
   #bag .pnl{position:static;right:auto;top:auto;max-height:none;overflow:hidden;display:block;
     background:rgba(8,14,15,.9)}
   #bag #inv{flex:0 0 300px;width:auto;display:flex!important;flex-direction:column;min-height:0}
+  /* ── 가방의 두 탭 — 소지품(넓은 소지품 + 고른 물건) · 제작(기술 나무 + 고른 제작법) ── */
+  #bag .bagT{display:flex;gap:6px}
+  #bag .bagT button{font:inherit;font-size:12px;letter-spacing:.12em;padding:6px 16px;background:rgba(8,14,15,.9);border:1px solid var(--line);
+    border-bottom:0;color:var(--dim);cursor:pointer}
+  #bag .bagT button.on{color:var(--acc);border-color:var(--acc);background:rgba(143,214,180,.10)}
+  #bag.tab-inv #crf{display:none!important}
+  #bag.tab-craft #inv{display:none!important}
+  #bag.tab-inv #inv{flex:1.7 1 0}
+  #bag.tab-inv #sel{flex:1 1 0}
+  #bag.tab-craft #crf{flex:2.4 1 0;display:flex!important;flex-direction:column;overflow:hidden}
+  #bag.tab-craft #sel{flex:1 1 0;max-width:440px}
+  /* 소지품 — 갈래·칸 단추 줄 · 묶음 머리줄 · 두 줄로 흐르는 목록 */
+  #invL .ic{display:flex;flex-wrap:wrap;gap:4px;padding:7px 0 5px;align-items:center}
+  #invL .ic button{font:inherit;font-size:10px;padding:3px 9px;background:#0b1314;border:1px solid var(--line);color:var(--ink);cursor:pointer}
+  #invL .ic button.on{border-color:var(--acc);color:var(--acc)}
+  #invL .ic button.pk{border-style:dashed;color:#e8d9a0}
+  #invL .ic button.add{color:var(--dim)}
+  #invL .ic .sep{flex:0 0 1px;align-self:stretch;background:var(--line);margin:0 4px}
+  #invL .ic input.pkn{width:96px;font:inherit;font-size:10px;background:#0b1314;border:1px solid var(--acc);color:var(--ink);padding:2px 6px}
+  #invL .over{background:rgba(143,214,180,.22)!important;border-color:#8fd6b4!important}
+  #invL .ig{font-size:9px;letter-spacing:.14em;color:var(--dim);padding:9px 2px 3px;border-bottom:1px solid var(--line);
+    display:flex;justify-content:space-between;border-left:0;border-right:0;border-top:0}
+  #invL .ig.pk{color:#e8d9a0}
+  #invL .igL{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));column-gap:12px}
+  /* 제작 — 탭 줄 · 기술 나무(단 = 기둥 · 마디 · 잇는 줄) */
+  #crfT{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+  #crfT button{font:inherit;font-size:11px;padding:5px 11px;background:#0b1314;border:1px solid var(--line);color:var(--ink);cursor:pointer}
+  #crfT button span{margin-left:7px;font-size:9px;color:var(--dim)}
+  #crfT button.on{border-color:var(--acc);color:var(--acc);background:rgba(143,214,180,.10)}
+  #bag #crfL{flex:1;min-height:0;overflow:auto;position:relative;overscroll-behavior:contain}
+  #crfL .tw{position:relative;display:flex;gap:48px;align-items:flex-start;padding:6px 10px 24px 26px;min-width:max-content}
+  #crfL svg.te{position:absolute;left:0;top:0;pointer-events:none}
+  #crfL svg.te .e{fill:none;stroke:rgba(143,214,180,.20);stroke-width:1.2}
+  #crfL svg.te .e.s{stroke:#8fd6b4;stroke-width:1.9}
+  #crfL .tc{display:flex;flex-direction:column;gap:6px;min-width:150px;position:relative}
+  #crfL .th{font-size:10px;letter-spacing:.10em;color:#e8d9a0;border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px;
+    display:flex;justify-content:space-between;gap:10px}
+  #crfL .th span{color:var(--dim)}
+  #crfL .tl{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;padding:4px}
+  .nd{display:flex;align-items:center;gap:7px;padding:5px 8px;border:1px solid var(--line);background:rgb(10,18,19);font-size:10px;
+    cursor:pointer;white-space:nowrap;position:relative;color:var(--ink)}
+  .nd .sw{width:18px;height:18px;flex:0 0 18px;border:0;object-fit:contain}
+  .nd img.sw.ico{width:22px;height:22px;flex:0 0 22px}
+  .nd .sw.pl{background:rgba(232,217,160,.5);border-radius:2px;width:10px;height:10px;flex-basis:10px;margin:4px}
+  .nd em{font-style:normal;color:var(--acc);font-size:9px;margin-left:auto;padding-left:6px}
+  .nd.ok{border-color:rgba(143,214,180,.65);color:#e6f5ee}
+  .nd.no{opacity:.5}
+  .nd.sel{outline:1.5px solid #8fd6b4;background:rgb(22,40,36);opacity:1}
+  .nd.busy{border-color:#e8d9a0}
+  .nd:hover{background:rgb(18,32,30);opacity:1}
+  /* 고른 제작법 칸 */
+  #sel .go{font:inherit;font-size:12px;letter-spacing:.14em;padding:9px 22px;background:rgba(143,214,180,.16);border:1px solid var(--acc);color:var(--acc);cursor:pointer;width:100%}
+  #sel .go.off{border-color:var(--line);color:var(--dim);background:none;cursor:default}
+  #sel .sP .g,#tip .g{color:#8fd6b4} #sel .sP .b,#tip .b{color:#d8724a}
+  #sel .lk{font:inherit;font-size:9px;background:none;border:0;border-bottom:1px dotted var(--dim);color:inherit;cursor:pointer;padding:0 1px}
+  #sel .lk:hover{color:#e6f5ee}
+  /* 말풍선 */
+  #tip{position:fixed;z-index:80;display:none;max-width:320px;background:rgba(6,11,12,.97);border:1px solid var(--acc);padding:8px 11px;
+    font-size:10px;line-height:1.65;pointer-events:none;color:var(--ink)}
+  #tip b{color:#e6f5ee;font-size:11px}
+  #tip .tk{color:var(--dim);margin-top:6px;letter-spacing:.10em;font-size:9px}
+  #tip .d{color:var(--dim)}
   #bag #invL{flex:1;min-height:0;max-height:none}
   #bag #crf{flex:0 0 340px;width:auto;overflow-y:auto;overscroll-behavior:contain}
   #bag #sel{flex:1;min-width:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
