@@ -27,11 +27,11 @@ function camcInit(){
   CAMC.mat=new THREE.ShaderMaterial({
     depthTest:false, depthWrite:false, fog:false,
     uniforms:{tD:{value:null}, uRes:{value:new THREE.Vector2(640,480)}, uT:{value:0}, uBat:{value:1}, uUnder:{value:0},
-              uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}},
+              uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}, uHdr:{value:0}},
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
     fragmentShader:`
       precision highp float;
-      uniform sampler2D tD; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain;
+      uniform sampler2D tD; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr;
       varying vec2 vUv;
       float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
       void main(){
@@ -47,6 +47,9 @@ function camcInit(){
         vec3 a=texture2D(tD,uv).rgb, l=texture2D(tD,uv-vec2(px*2.4,0.0)).rgb, r=texture2D(tD,uv+vec2(px*2.4,0.0)).rgb;   // 색 번짐 — 사용자 요청으로 1.7 → 2.4 화소
         vec3 col=vec3(l.r*0.55+a.r*0.45, a.g*0.64+0.18*(l.g+r.g), r.b*0.55+a.b*0.45);   // 색 번짐 — 빨강·파랑이 옆으로 어긋난다
         if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0) col=vec3(0.0);
+        /* **밝은 데의 어깨** — 그림판이 반정밀 실수(uHdr)면 1 을 넘는 볕(한낮의 흰 바위·모래·물비늘)이 잘리지 않고 들어온다.
+           0.80 까지는 그대로 두고 그 위를 1.0 으로 서서히 눕힌다 — 하얗게 뭉개지던 면에 결이 남는다. 8비트 그림판이면 손대지 않는다 */
+        if(uHdr>0.5) col=mix(col,0.80+0.20*(1.0-exp(-(col-0.80)/0.20)),step(0.80,col));
         float Y=dot(col,vec3(0.299,0.587,0.114));
         /* 색조 — 노을·새벽: 밝은 데는 주황 · 어두운 데는 보라 / 달밤: 푸른빛 */
         col*=mix(vec3(1.0),mix(vec3(0.96,0.78,1.50),vec3(1.22,0.92,0.60),smoothstep(0.14,0.55,Y)),uLow*0.85);
@@ -98,7 +101,11 @@ function camcBegin(){
   const h=Math.min(CAMC.lines,ch), w=Math.max(64,Math.min(1600,Math.round(h*cw/ch)));
   if(!CAMC.rt||CAMC.rt.width!==w||CAMC.rt.height!==h){
     if(CAMC.rt) CAMC.rt.dispose();
-    CAMC.rt=new THREE.WebGLRenderTarget(w,h,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,depthBuffer:true,stencilBuffer:false});
+    /* 반정밀 실수 그림판 — 볕이 1 을 넘어도 안 잘린다(캠코더 셰이더가 어깨로 눕힌다). 실수 그림판에 못 그리는 장치는 예전 8비트 */
+    if(CAMC.hdr===undefined) CAMC.hdr=!!(renderer.capabilities.isWebGL2&&(renderer.extensions.get('EXT_color_buffer_float')||renderer.extensions.get('EXT_color_buffer_half_float')));
+    CAMC.rt=new THREE.WebGLRenderTarget(w,h,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,depthBuffer:true,stencilBuffer:false,
+      type:CAMC.hdr?THREE.HalfFloatType:THREE.UnsignedByteType});
+    CAMC.mat.uniforms.uHdr.value=CAMC.hdr?1:0;
     CAMC.mat.uniforms.tD.value=CAMC.rt.texture; CAMC.mat.uniforms.uRes.value.set(w,h);
   }
   renderer.setRenderTarget(CAMC.rt);

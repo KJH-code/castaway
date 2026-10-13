@@ -19,8 +19,19 @@
    한다(끝에서 74%) — 새로 나타나는 나무는 이미 하늘빛에 녹아 있다. 그 너머의 먼 산은 1.8 km 까지 조금 더 물러난다(92%) */
 const HAZE_GLSL=(()=>{ const V=(typeof VIEW_DIST!=='undefined'?VIEW_DIST:450);
   return 'fogT *= 1.0 - 0.74*smoothstep('+(V*0.30).toFixed(1)+','+V.toFixed(1)+',fogDepth) - 0.18*smoothstep('+V.toFixed(1)+',1800.0,fogDepth);'; })();
+/* **높이에 따라 옅어지는 공기** — 연무(에어로졸)는 땅 가까이에 몰려 있다(밀도 ∝ e^(−높이/380 m)). 눈에서 그 점까지 가는 길의
+   평균 밀도를 적분해 거리 대신 넣는다: 바닷가에서 수평으로 보면 예전과 같고(1배), 산꼭대기(380 m)에서 수평으로 보면 0.37배로
+   맑으며, 꼭대기에서 내려다본 바닷가는 0.63배 — 높은 데서는 가까운 봉우리가 또렷하고 낮은 땅이 뿌옇게 깔린다.
+   세계 높이는 정점에서 넘긴다(`vFogY` — 뷰 행렬의 둘째 열과 눈 좌표의 내적 + 눈높이). 물속(음수 높이)은 0 으로 본다.
+   그리는 거리 끝의 연무(`HAZE_GLSL`)는 높이와 상관없이 그대로다(나무가 툭 나타나는 것을 가리는 몫이라) */
+THREE.ShaderChunk.fog_pars_vertex=THREE.ShaderChunk.fog_pars_vertex.replace('varying float fogDepth;','varying float fogDepth;\n\tvarying float vFogY;');
+THREE.ShaderChunk.fog_vertex=THREE.ShaderChunk.fog_vertex.replace('fogDepth = - mvPosition.z;','fogDepth = - mvPosition.z;\n\tvFogY = dot( viewMatrix[ 1 ].xyz, mvPosition.xyz ) + cameraPosition.y;');
+THREE.ShaderChunk.fog_pars_fragment=THREE.ShaderChunk.fog_pars_fragment.replace('varying float fogDepth;','varying float fogDepth;\n\tvarying float vFogY;');
+const FOG_H_OK=/vFogY/.test(THREE.ShaderChunk.fog_pars_vertex)&&/vFogY/.test(THREE.ShaderChunk.fog_vertex)&&/vFogY/.test(THREE.ShaderChunk.fog_pars_fragment);
 THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
-  vec3 fogT = exp( - fogDensity * fogDepth * vec3( 0.93, 1.0, 1.12 ) );
+  ${FOG_H_OK?`float fogA = max( cameraPosition.y, 0.0 ) / 380.0, fogB = max( vFogY, 0.0 ) / 380.0, fogD = fogB - fogA;
+  float fogH = abs( fogD ) < 1e-3 ? exp( - fogA ) : ( exp( - fogA ) - exp( - fogB ) ) / fogD;`:'float fogH = 1.0;'}
+  vec3 fogT = exp( - fogDensity * fogDepth * fogH * vec3( 0.93, 1.0, 1.12 ) );
   ${HAZE_GLSL}
   gl_FragColor.rgb = gl_FragColor.rgb * fogT + fogColor * ( 1.0 - fogT );
 #endif`;
