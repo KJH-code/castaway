@@ -6,3 +6,5 @@ package.json
 !desktop/package.json
 !desktop/package-lock.json
 desktop/dist/
+island_world_single.html
+__pycache__/

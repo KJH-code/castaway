@@ -167,6 +167,8 @@ scene.add(amb,hemi,sun);
     scene.add(p);
   }
 }
+// 시험장: 본편의 캠코더(js/46-camcorder.js)는 안 옮긴다 — renderFrame 이 부르는 두 함수만 빈 것으로
+function camcBegin(){ return false; } function camcEnd(){}
 /*@SKY@*/
 
 /* 풀밭 한 뙈기 — 바람(envPatch 의 'grass')을 눈으로 보려고 깐다. 본편의 풀처럼

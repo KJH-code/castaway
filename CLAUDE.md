@@ -7,7 +7,7 @@
 - Three.js r128을 레포 안의 `three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 게임 전체가 `island_world.html` 한 파일(6,680줄) 안에 있다. 모듈 분할되어 있지 않다
+- 본편은 `island_world.html`(뼈대) + `css/game.css` + `js/*.js` 29개로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 211종 · 레시피 174개
 - 라이선스 GPL-3.0
 
 ## 실행
@@ -21,7 +21,7 @@ island_world.html
 ### 데스크톱 판(`desktop/`)
 
 브라우저를 벗어나 제 창으로 뜨는 게임. **게임 본체는 베끼지 않는다** — 개발 중엔 `../island_world.html` 을,
-묶은 판은 `extraResources` 로 `resources/game/` 에 넣어 둔 것을 연다(`main.js` 의 `GAME`). 그래서 게임을 고치면
+묶은 판은 `extraResources` 로 `resources/game/` 에 넣어 둔 것을 연다(`island_world.html`·`three.min.js`·`css/`·`js/` — **본편에 파일 묶음을 새로 만들면 `desktop/package.json` 에도 더할 것**)(`main.js` 의 `GAME`). 그래서 게임을 고치면
 데스크톱 판은 다시 묶기만 하면 된다.
 
 ```bash
@@ -29,7 +29,7 @@ cd desktop && npm ci && npm start          # 개발 — 창으로 띄우기(F12 
 npx electron-builder --linux               # 묶기 — dist/ (--win · --mac 은 그 OS 러너에서)
 ```
 
-- **빌드는 GitHub Actions `데스크톱 판`**(`.github/workflows/desktop.yml`) — `island_world.html`·`three.min.js`·`desktop/**` 가
+- **빌드는 GitHub Actions `데스크톱 판`**(`.github/workflows/desktop.yml`) — `island_world.html`·`three.min.js`·`css/**`·`js/**`·`desktop/**` 가
   바뀐 푸시마다 Windows(NSIS 설치판 + 포터블 .exe) · macOS(universal .dmg) · Linux(.AppImage)를 묶어 Artifacts 에 30일 둔다.
   `v*` 태그를 밀면 Releases 에도 붙인다. 레포가 공개라 러너 시간은 공짜다. **서명은 없다**(Windows SmartScreen · macOS Gatekeeper 경고).
 - **`main.js` 가 더하는 것**: 전체 화면으로 시작(F11 · Alt+Enter — 상태는 `userData/window.json` 에 기억) · 메뉴 줄 없음(그래서
@@ -46,7 +46,7 @@ npx electron-builder --linux               # 묶기 — dist/ (--win · --mac �
   NSIS: 바탕 화면·시작 메뉴 바로가기 · 설치 끝나면 실행 · **지워도 저장(userData)은 남긴다**.
 - **게임이 아는 것은 `window.DESKTOP` 하나다**(`preload.js` — `saveHas/saveRead/saveWrite/info/openSaves/fullscreen/quit/gpu/setGpu/onBeforeClose/closeReady/onVisible/onUpdate`, 저장은 동기 IPC).
   `gpu()`/`setGpu(v)` 는 그래픽 백엔드(ANGLE) 고르기 — `userData/gpu.json` 에 적고 **다음에 켤 때** `use-angle` 로 넘긴다(Windows d3d11·d3d9·gl·vulkan · macOS metal·gl · Linux gl·vulkan).
-  `island_world.html` 의 `DESK` 가 있으면 **저장 칸이 파일**(`userData/saves/slot1~3.json` · `auto.json` · Windows `%APPDATA%\CASTAWAY\saves` —
+  본편(`js/92-save.js`)의 `DESK` 가 있으면 **저장 칸이 파일**(`userData/saves/slot1~3.json` · `auto.json` · Windows `%APPDATA%\CASTAWAY\saves` —
   임시 파일에 쓰고 바꿔 끼우며 바로 앞 것은 `.bak`), 없으면 `localStorage`(`castaway.save1~3` · `castaway.auto` — 슬롯 1 은 예전 키 그대로). 슬롯 이름은 `[a-z0-9._-]` 만 받는다.
   데스크톱 판에서만 보이는 것: 일시정지 화면의 **끝내기**(`#bQuit` — 상륙 전이면 바로, 상륙했으면 묻고 닫기 길(자동 저장)을 탄다) · 설정 창의 '전체 화면'·'저장·기록 폴더'(`#deskG` — userData 를 연다)·그래픽 백엔드 고르기(`#pAngle`) ·
   시작 화면 오른쪽 아래 판 번호(`#ovVer`).
@@ -86,7 +86,9 @@ python -m http.server 5173
 
 | 파일 | 내용 |
 |---|---|
-| `island_world.html` | 메인 게임. 아이템 170종 · 레시피 163개 · 제련 10종 |
+| `island_world.html` · `css/` · `js/` | 메인 게임(나뉜 판 — 아래 '파일 지도' · `CODEMAP.md`) |
+| `CODEMAP.md` | 나뉜 본편의 파일별 설명(영어) · 고칠 때 지킬 것 |
+| `tools/build_single.py` · `tools/serve.py` | 한 파일로 묶기 · 캐시 끈 로컬 서버 |
 | `three.min.js` | Three.js r128 (npm three@0.128.0 의 build). **cdnjs 대신 이걸 쓴다** |
 | `gargoyle_arena.html` | 가고일 전투 시험장. 모델이 파일에 내장되어 5MB |
 | `wyvern_arena.html` | **애쉬스케일 시험장**(4.1MB). 상공 20 m 선회 → 5초 노려봄 →
@@ -141,7 +143,7 @@ python -m http.server 5173
   차이 나면 안 부딪힌다. 곰 1.35 · 가고일 0.8 · 거미 2.2 · 와이번 2.6 m) |
 | `night_arena.html` | **밤 시험장**(23MB) — `battle_arena.html` 을 복사해 세 가지만 바꿨다: ① **언덕 지형**(`h()` = 큰 물결 + 가우스 봉우리 다섯 `HILLS` + 가운데 분지, 최고 약 7~12 m · 격자 선 없앰) ② **밤**(짙은 남색 하늘·안개 0.011 · 달빛 평행광 · 달 원판 · 별 900) ③ **편성 고정**(`readLineup` 이 애쉬스케일 2 · 스킨워커 1 · 다지류 1 을 모두 1팀, 사람을 2팀으로 — 몹끼리는 안 싸운다 · 시작 화면에는 무기·방어구·짐만). 나머지(총 꾸러미·다지류 모듈 포함)는 battle 과 글자 그대로라 **battle 을 고치면 여기도 고칠 것** |
 | `cloud_arena.html` | **구름 시험장**(60KB · 모델이 없어 **1.5초에 뜬다**).
-  본편의 하늘·달·구름·날씨·비 코드(`island_world.html` 2528~3391줄)를 **그대로**
+  본편의 하늘·달·구름·날씨·비 코드(`js/45-sky.js`)를 **그대로**
   옮겨 놓고 손잡이 다섯만 냈다 — `COVER`(구름양) · `MANUAL`(갈래마다 못수) ·
   `MIST`(안개) · `FADE`(여닫는 시간, 본편 25초) · `OPMUL`(짙기 배율).
   전부 `// 시험장:` 으로 표시해 두었고 **나머지는 본편과 한 글자도 다르지 않다.**
@@ -153,7 +155,8 @@ python -m http.server 5173
   **사진을 찍을 때는 `PAUSE=true` 를 먼저 켤 것**(조작판의 '멈춤' · `P`).
   안 켜면 시험장의 제 루프가 계속 돌아, 제 반경 `R`×1.25 밖에 갖다 놓은
   구름을 곧바로 되굴려 치워 버린다 — 사진에 구름이 안 나온다.
-  **본편 구름 코드를 고쳤으면 `node tools/mk-cloud-arena.mjs` 를 돌려 다시 만들 것.**
+  **본편 구름 코드를 고쳤으면 `node tools/mk-cloud-arena.mjs` 를 돌려 다시 만들 것.** 생성기는 `island_world.html` 이 불러오는
+  `js/*.js` 를 차례대로 이어 붙여 표지를 찾는다. 본편의 캠코더(`camcBegin`/`camcEnd`)는 틀(`cloud-arena.tpl`)에 빈 함수로 두었다.
   본편에서 하늘 구역을 **표지로 찾아** 통째로 베끼고 손잡이만 낸다(줄 번호로
   잡았다가 본편에 스무 줄 끼운 뒤 잘린 파일이 나왔다). 껍데기는
   `tools/cloud-arena.tpl` 이다 |
@@ -175,51 +178,51 @@ python -m http.server 5173
 | `CASTAWAY_전사_초반부.md`, `CASTAWAY_전사_2차.md` | 개발 대화 원문 |
 | `bear_high.glb`, `stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |
 
-`island_world.html` 안은 `/* ===== 제목 ===== */` 배너로 구역이 나뉘어 있다.
-수정할 곳을 찾을 때 **파일을 통째로 읽지 말고 아래 지도에서 줄 번호를 집어
-`sed -n '시작,끝p'` 로 그 구역만 뜰 것.** 파일이 2.1MB(약 60만 토큰)라 통독은
-컨텍스트를 통째로 태운다. 구역 하나는 보통 2~5천 토큰이면 충분하다.
+**본편은 나뉘어 있다** — `island_world.html`(250줄 · HTML 뼈대뿐) + `css/game.css` + `js/*.js` 29개.
+js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
+나누면서 고쳐 쓴 것이 없다). 번호가 곧 불러오는 차례다 — **불러오는 순간 바로 도는 코드는 위 파일 것만 쓸 수 있다**(함수 안에서
+부르는 것은 어느 파일 것이든 된다). 새 계통은 `99-main.js` 바로 위에 새 파일로 넣는 것이 쉽다. 파일별 설명(영어)은 `CODEMAP.md`.
+한 파일로 묶으려면 `python3 tools/build_single.py` → `island_world_single.html`(무시 목록에 있다 — 고치는 것은 늘 `js/`).
+로컬 서버로 볼 때는 `python3 tools/serve.py`(캐시를 끈다). 문법만 볼 때는 `node --check js/파일.js`.
+**나뉘기 전 한 파일 판은 커밋 `8ec7546` 까지다.**
 
-### 구역 지도 — `island_world.html` (15,346줄)
+`data-ground-textures.js`(1.2 MB · 땅 사진 여덟 장)·`data-sentinel-mesh.js`(1.3 MB · 투구 모형)는 base64 한 줄이다 — **읽지 말 것.**
+나머지도 큰 파일(`45-sky.js` 2,342줄 · `30-props.js` 1,618줄)은 통째로 읽지 말고 아래 지도에서 줄을 집어 `sed -n '시작,끝p'` 로 뜰 것.
 
-| 줄 | 구역 | 무엇이 있나 |
-|---|---|---|
-| 622 | 1) 기반 지형 | 시드 PRNG · 높이맵 · **`N`=768 · `CELL`=2.5 · `WORLD`=1920 m** (537) |
-| 663 | 2) 열적 침식 | 안식각 초과분 이동 |
-| 686 | 3) 수적 침식 | 물방울 시뮬레이션 |
-| 772 | 4) 수문 | D8 흐름 누적 → 하천 |
-| 859 | 5) 경사 · 거리장 | |
-| 888 | 6) 기후 | 탁월풍 지형성 강수 |
-| 977 | 7) 바이옴 분류 | |
-| 1024 | 8) 자원 배치 | 지질 규칙 · 광물 분포 |
-| 1193 | 샘플링 API | 지형 조회 창구 |
-| 1217 | 9) 3D 월드 렌더링 | 압축 인스턴스 `instCompact` 1298 · 지형 `buildChunks` 1949 / LOD `updateTerrainLOD` 2007 · 칸 보이기 `updateTileVis` 2295 · 먼 나무 `buildFarTrees` 2518 · `buildProps` 2570 |
-| 3681 | 빛 · 하늘 · 날씨 · 구름 | **`LIGHT` 3721** · `SKY` 3993 · `updateWeather` 4340 · 구름 명암 `litQueue` 4888 · `updateClouds` 5459 · 하늘 표 `SKY_LUT` 5949 · `updateSky` 6089 |
-| 6309 | 10) 아이템 · 인벤토리 | **`ITEMS` 6316** · `INV` 6837 · 드래그 `dragPut` 6955 / `wireDrag` 6991 |
-| 7024 | 11) 맨손 채집 | `HARVEST` 7030 · `MINE` 7052 |
-| 7522 | 12) 제작 | **`RECIPES` 7529** · `startCraft` 8464 · `drawCraft` 8526 |
-| 8577 | 12-b) 불 | `FIRING` 8587 · `SMELT` 8617 |
-| 8940 | 집 짓기 | `BUILD` 9007 · `floorAt` 9052 · `BUILD_MESH` 9256 |
-| 10423 | 사전 | `GEO`/`MINERALS` · `obtainOf` — 표를 역으로 훑어 획득 경로를 만든다.
-  **`MINERALS` 에 넣은 것은 `GEO` 에도 있어야 한다** — 하나만 있으면 광물 탭이 통째로
-  안 그려진다(`sand` 가 그랬다). `obtainOf` 는 `RECIPES`·`HARVEST`·`CHOP`·`MINE`·
-  `FIRING`·`SMELT`·`MOBS[].drop` 을 다 훑는다 |
-| 10998 | 근접 공격 | `CREATURES` 11004 (비어 있음) |
-| 11007 | 손에 든 무기 | **`WEAPON_FX` 11187** — 손에 드는 것의 생김새를 id로 키잉한 조립 함수 |
-| 12792~ | 전투 진입점 | `equippedWeapon` 12792 · `shoot` 12879 · `castNet` 13064 · `attack` 13122 |
-| 13242 | 몹 스폰 | `rollSpawns` (**아직 아무도 부르지 않는다** · guard 200 마리) · `MOBS` · `DAY_POWER` |
-| 13337 | 13) 1인칭 플레이어 | `PL`(hp·stam·oxy·food·water·ill) · `hurtPL` · `diePL` · `revivePL` · `walkable` |
-| 13552 | 음향 | 물리 모델 합성 |
-| 13735 | HUD | `drawMap` 13758 · `drawCompass` 13798 · 성능 창 `PERF` 13827 · `updateHUD` 13999 |
-| 14191 | 초기화 · 루프 | `initThree` 14289 · `freezeStatics` 14342 · 셰이더 미리 짜기 `PRECOMP` 14368 · `start` 15054 · `loop` 15274 |
-| 14558 | 저장 / 불러오기 | `snapshot` 14591 · `saveLocal` 14803 · `loadFile` 14862 |
+### 파일 지도 — `js/`
 
-배너의 번호는 믿지 말 것 — 11)과 12-d)가 두 번씩 나오고 12-c)가 12-d) 뒤에 온다.
-**줄 번호가 정본이다.** 큰 삽입·삭제 뒤에는 이 표의 줄 번호도 같이 고칠 것:
+| 파일 | 무엇이 있나 (줄) |
+|---|---|
+| `00-core.js` | 오류 띠 · 시드 난수·잡음 · 격자 크기 · 지형 필드 `F` · 바이옴 표 · **`RESOURCES`** · 섬 인자 `P` |
+| `10-worldgen.js` | 1)~8) 섬 만들기(융기 → 열적·수적 침식 → 하천 → 경사·거리장 → 기후 → 바이옴 → 자원 배치) · 해저 굴곡 `shapeSeabed`(맨 끝 — 땅·저장에 안 닿는다) · `heightAt` 등 조회 창구 |
+| `20-terrain.js` | 가지·잎 인스턴스 · 압축 `instCompact` 87 · 나무껍질 · 땅 셰이더 · 암석 재질 · 지형 `buildChunks` 858 / LOD `updateTerrainLOD` 916 · 바다·하천 물 |
+| `22-ground-textures.js` | 땅 사진을 배열 텍스처로 · 사진 결 땅 셰이더(물가 젖은 띠·거품) |
+| `24-shapes.js` | 땅 식물·바다 생물이 같이 쓰는 매끈한 모양 도구(관·혹·휘는 잎·돌림체·잎 판·합치기) |
+| `30-props.js` | 칸 보이기 `updateTileVis` 62 · 먼 나무 `buildFarTrees` 307 · **`buildProps` 360**(풀·나무·바위·`HABIT`) · 자갈 `RUBBLE` · 베리 · 보급선 |
+| `40-light.js` | **`LIGHT` 46**(배역 · 해 그림자 상자 · 점·집중광 예산) · `renderFrame` |
+| `45-sky.js` | `SKY` 8 · `updateWeather` 357 · 구름 명암 `litQueue` 905 · `updateClouds` 1476 · `SKY_LUT` 1967 · **`updateSky` 2107**(노을·달밤 색조 `SKYL.grade` 포함) — **`cloud_arena.html` 의 원본** |
+| `46-camcorder.js` | 캠코더 화면(480줄 그림판 → 테이프 셰이더) · 배터리 · 손 발전기 |
+| `50-items.js` | **`ITEMS` 13** · `INV` 624 · `dragPut` 748 · `HARVEST` 829 · `MINE` 851 · 먹기·마시기(물을 봐야) · 빠른 칸 |
+| `55-craft.js` | **`RECIPES` 13** · `startCraft` 995 · `drawCraft` 1062 |
+| `60-stations.js` | `FIRING` 16 · `SMELT` 60 · 화덕·제련로·숫돌·모루·물레방아·발전기 · 바구니·상자·쓰레기통 · 이름표 · 설비 밀기(F) · 용기 공용 규칙 |
+| `62-build.js` | `BUILD` 73 · `floorAt` 118 · `BUILD_MESH` 322 · 짓기 모드 · 불꽃 · 횃불·등잔·전등 |
+| `64-dex.js` | `GEO` 12 · `obtainOf` 208 · **`CONTROLS_GUIDE` 497**(사전 '조작' 탭) · 상자 창 · 숫돌 창 |
+| `70-weapons.js` | `CREATURES` 12 · 근접 판정 · **`WEAPON_FX` 195** · `emberClad` 109 |
+| `72-gear.js` | 갑옷·투구·옷·짐(`GEAR` · `gScalesOnMesh` 363 · `gearModel` 850) |
+| `74-icons-guns.js` | `itemIcon` 95 · 손에 든 먹을것 · 휘두르기 · `shoot` 358 · 수류탄·조준경·로켓 · `castNet` 543 · 좌클릭 `useHeld` 579 · `attack` 607 |
+| `80-player.js` | `rollSpawns` 87 · **`PL` 119** · `hurtPL` 132 · `updatePlayer` 195(걷기·헤엄·기력·배고픔) · 음향 · 발소리 |
+| `82-hud.js` | `drawMap` 29 · `drawCompass` 69 · 성능 창 `PERF` 98 · `updateHUD` 270 · 벤치마크 |
+| `90-init.js` | 안개·그림자 셰이더 손질 · `initThree` 104 · `freezeStatics` 164 · `PRECOMP` 190 · `generateWorld`(만드는 차례) |
+| `92-save.js` | `snapshot` 67 · 불러오기 · 묻는 상자 · 저장 칸 · `saveLocal` 330 · `loadFile` 401 · 자동 저장 · `DESKTOP` 잇기 |
+| `94-input.js` | 키보드·마우스·터치 · 창 여닫기 · 일시정지 · 설정 창 |
+| `95-flora.js` | 군락 식생(정글·대숲·자작나무·소나무·맹그로브·야자·꽃밭 …) · 나무 열 갈래 · 덩굴·죽순·야자·바나나·버섯 · **종류마다 여러 벌**(`floraShapes` · `FLORA_VARS` — 칸 해시로 그루마다 고름 · `FLORA.m[종류]` 는 벌마다 메시 배열) |
+| `95-giants.js` | 30~40 m 노거수 · 걸을 수 있는 판근(`giantRootAt` — `floorAt` 이 쓴다) · 종류마다 네 벌(`GIANT_VARS` · `GIANT.geo[종류][벌]`) |
+| `96-sea.js` | 산호·말미잘·바닷말·불가사리·바위·조개·물고기 떼(작살·그물) · 먼 바다 공포 |
+| `98-bag.js` | 가방 화면(소지품 + 고른 것 + 제작) |
+| `99-main.js` | **`loop`** 8 · 맨 끝에서 게임을 켜는 다섯 줄 |
 
-```bash
-awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
-```
+줄 번호는 커밋 때 다시 잴 것:
+`grep -n "^const ITEMS\|^function updateSky" js/*.js` 처럼 이름으로 찾는 편이 빠르다.
 
 ### 아이템을 추가할 때 실제로 건드리는 곳
 
@@ -267,11 +270,11 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
 
 | 표 | 정본 | 복사본 |
 |---|---|---|
-| `ITEMS` · `RECIPES` · 지형 생성 | `island_world.html` | `build_sandbox.html` (`ITEMS` 204줄 복제, 이미 20줄 어긋남) |
+| `ITEMS` · `RECIPES` · 지형 생성 | `js/50-items.js` · `js/55-craft.js` · `js/10-worldgen.js` | `build_sandbox.html` (`ITEMS` 204줄 복제, 이미 20줄 어긋남) |
 | 갑옷 성능 · 피해 감소 | `island_world.html` 의 `ITEMS[].wear` 와 `armorMul()` | `trio`·`siege`·`mixed` 아레나의 `ARMORS`/`armorMul()` (셋은 맞춰 두었다. `wyvern`·`battle`·`bear` 는 아직 갑옷이 없다) |
 | 무기 성능(피해·사거리·쿨) | `island_world.html` 의 `ITEMS[].tool` | 아레나 5개가 각자 인라인으로 들고 있다 |
 | 몹 거동 | 각 아레나 | 본편에는 아직 없다 |
-| 하늘 · 구름 · 날씨 | `island_world.html` 2528~3391줄 | `cloud_arena.html` (그대로 복사 + 손잡이 5개) |
+| 하늘 · 구름 · 날씨 | `js/45-sky.js` | `cloud_arena.html` (그대로 복사 + 손잡이 5개) |
 
 아레나는 시험장이라 갈라져도 되지만, **수치를 만졌으면 어느 쪽을 만졌는지 밝힐 것.**
 "철·키틴 무기 쿨을 4/5로" 같은 변경은 6개 파일을 전부 고쳐야 했다.
@@ -281,7 +284,7 @@ awk '/^\/\* ={20,}/{s=NR; getline; print s"\t"$0}' island_world.html
 빌드가 없으니 검사도 브라우저에 직접 띄워서 한다. 스크립트를 새로 짜지 말고 이걸 쓸 것.
 
 ```bash
-node tools/check-syntax.mjs                 # <script> 를 뽑아 node --check
+node tools/check-syntax.mjs *.html js/*.js   # html 은 <script> 를 뽑아, js 는 그대로 node --check
 node tools/smoke.mjs                        # 전부 띄워 오류 없이 뜨는지 (파일 이름을 주면 그것만)
 node tools/probe.mjs island_world.html PL.hp RECIPES.length
 node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp

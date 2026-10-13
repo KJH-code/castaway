@@ -1,11 +1,15 @@
 # CASTAWAY
 
 리썰 컴퍼니 + 아크 서바이벌에서 영감을 받은 **무인도 생존 게임**.
-단일 HTML 파일 · Three.js r128 · 빌드 과정 없음.
+Three.js r128 · 빌드 과정 없음.
 
 ```
 island_world.html 을 브라우저로 열면 끝입니다.
 ```
+
+본편은 `island_world.html`(껍데기) + `css/game.css` + `js/*.js`(29개, 불러오는 차례대로 번호)로 나뉘어 있습니다.
+**`css/` · `js/` · `three.min.js` 를 `island_world.html` 곁에 같이 두세요.** 어느 파일에 무엇이 있는지는 [CODEMAP.md](CODEMAP.md).
+한 파일로 묶으려면 `python3 tools/build_single.py` → `island_world_single.html`.
 
 **브라우저 없이 제 창으로 하려면 데스크톱 판**을 받으세요 —
 [Actions → 데스크톱 판](https://github.com/KJH-code/castaway/actions/workflows/desktop.yml) 의 가장 최근 실행에서
@@ -26,7 +30,7 @@ Windows 는 "PC 보호" 창에서 **추가 정보 → 실행**, macOS 는 **우�
 |------|------|
 | **wyvern_arena.html** | 잿불 와이번 시험장 |
 | **trio_arena.html** | 셋 시험장 — 모방 거미 1 · 북극곰 1 · 가고일 2 |
-| **island_world.html** | 메인 게임. 아이템 110종 · 레시피 107개 · 제련 8종 |
+| **island_world.html** + `css/` · `js/` | 메인 게임(나뉜 판 — [CODEMAP.md](CODEMAP.md)) |
 | **build_sandbox.html** | 건축장 — 평평한 터에서 재료·무게 제한 없이 집만 지어 본다 |
 | **mixed_arena.html** | 섞인 시험장 — 북극곰 1 · 가고일 3 · 입장 전 장비와 짐을 정한다 |
 | **gargoyle_arena.html** | 곤충형 가고일 전투 시험장 — 무기 5종 · 모델 내장 5 MB |
