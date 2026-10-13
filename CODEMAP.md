@@ -38,8 +38,9 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/24-shapes.js` | Smooth shape toolkit shared by land plants and sea life: tubes (branches, roots, coral), lumpy blobs (stones), bending fronds (seaweed, ferns, palms), lathe shapes, leaf cards, and the part merger |
 | `engine/js/30-props.js` | Distance tiers and tile culling, far trees, `buildProps()` (grass, trees, rocks, mounds), scattered gravel stones (`RUBBLE`), berries, supply ship |
 | `engine/js/32-caves.js` | Caves: boulder-dome chambers (1–3 linked rooms) built on steep slopes, with glowworm points on the ceiling, glowing mushrooms on the floor and a faint pooled light per room |
-| `engine/js/33-crags.js` | Cliff rocks: on steep cells, huge rock clusters grown fractally (chained main rocks → smaller rocks → smaller still, sizes vary), each rock with its own shade; merged per 320 m tile and built as the player approaches, coarse shapes and a plain material far away |
+| `engine/js/33-crags.js` | Cliff rocks (collision follows the drawn shape — `cragSpan` / `cragFloor`: low rocks are walkable, tall ones are walls): on steep cells, huge rock clusters grown fractally (chained main rocks → smaller rocks → smaller still, sizes vary), each rock with its own shade; merged per 320 m tile and built as the player approaches, coarse shapes and a plain material far away |
 | `engine/js/40-light.js` | `LIGHT`: who casts/receives shadows, sun shadow box, point/spot shadow budget, `renderFrame()` |
+| `engine/js/41-terrain-light.js` | Island-wide light data in one texture: terrain sun shadow (heightfield sweep, redone in slices as the sun moves), sky openness (ambient occlusion from the horizon in eight directions), forest canopy cover, and the micro-relief mask. Read by every lit material through `envPatch` |
 | `engine/js/45-sky.js` | Time of day, moon, sun, clouds, weather, rain, cloud shadows + wind, atmospheric sky, and the light tints (orange/violet at sunset and dawn, blue under the moon) |
 | `engine/js/46-camcorder.js` | **Camcorder view**: the world is drawn to a small 480-line picture and shown through a tape/lens shader (colour bleed, grain, scan lines, sunset/moonlight grading, underwater look); battery and the hand charger |
 | `engine/js/50-items.js` | The `ITEMS` table, inventory + worn slots, drag and drop (incl. trash slot), bare-hand harvesting, eating, **drinking (must look at water)**, quick slots |
@@ -60,6 +61,7 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/95-flora.js` | Plants that grow in **groves**: each ~80 m patch of a biome gets one community (jungle, bamboo grove, birch stand, pine wood, mangrove swamp, palm grove, flower field …). Ten tree types with trunks you collide with, five kinds of undergrowth, and what you can pick from them (vines, bamboo, coconuts, bananas, mushrooms) |
 | `engine/js/95-giants.js` | Old-growth giants (30–40 m) whose buttress roots are walkable ground (`giantRootAt`, used by `floorAt`) |
 | `engine/js/96-sea.js` | Coral reefs (7 forms), anemones, kelp, starfish, seabed boulders, clams/oysters/urchins, fish schools (harpoon + net), and the **far-from-shore panic** |
+| `engine/js/98-dew.js` | Dew: droplet meshes on leaves within 3.2 m (dielectric shading — Fresnel, sun glint, refracted-light crescent); the dew amount itself is `TERR_U.uDew` (set in `41-terrain-light.js`) and drives leaf/grass sparkle in `envPatch` and the ground shader |
 | `engine/js/96-foam.js` | Shoreline foam: instanced fractal clusters of tetrahedra (three chained by an edge, a smaller one budding from every face, then smaller again) within 55 m of the player, animated in the vertex shader from the real wave height and the beach profile; the shoreline scan is C (`engine/native/shore.c`) |
 | `engine/js/97-wildlife.js` | Bird flocks, nests with eggs, beehives with honey, the slingshot, tree climbing, and ambient insects (butterflies, fireflies, dragonflies, bees) |
 | `engine/js/98-bag.js` | The full-screen **bag screen**: inventory + selected-item panel (actions, what it can make) + crafting, side by side |
@@ -70,8 +72,14 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 - **World scale** — `GCELL` / `setWorldScale` in `00-core.js`, `worldRescale` in `10-worldgen.js`. Islands are generated at 1.92 km
   and scaled uniformly (`P.ws` 1–6; new islands use 6 = 11.5 km); `CELL`, `WORLD`, `HALF` are variables now.
   `island_world.html?ws=2` starts with a smaller island (the CI smoke test uses it).
-- **Terrain version** — `P.tv` in `00-core.js`. 2 adds the carved landforms, caves and cliff rocks; saves without it load as 1
-  and regenerate the exact old island. Anything that changes what the seed produces must sit behind this flag.
+- **Terrain version** — `P.tv` in `00-core.js`. 2 adds the carved landforms, caves and cliff rocks; 3 adds sub-cell ground relief
+  (`RELIEF` in `10-worldgen.js` — `heightAt()` returns it). Saves without it load as 1 and regenerate the exact old island.
+  Anything that changes what the seed produces must sit behind this flag.
+- **Near-field ground** — `terrainPatch` / `TPATCH` in `20-terrain.js`: a 0.75 m grid within 46 m of the camera, placed by the vertex
+  shader from the elevation texture plus the relief (the same surface `heightAt()` returns); the base terrain discards that disc.
+- **Ground lighting** — the ground shader (`gndTerrainFrag` in `22-ground-textures.js`) recomputes the sun term per pixel from relief
+  and photo-texture normals, with canopy shade, wetness and a specular sheen. Height-dependent haze is in the fog chunk (`90-init.js`);
+  the camcorder pass (`46-camcorder.js`) renders to a half-float target and rolls highlights off above 0.8.
 - **Level of detail and automatic quality** — `updateTileVis`, `limbLod`, `QUAL` in `30-props.js`.
 - **Bag screen** — `98-bag.js` (two tabs, tooltips, recipe detail), `drawInv` / `invChip` in `50-items.js` (categories, pockets),
   `drawCraft` / `craftEdges` in `55-craft.js` (skill tree).

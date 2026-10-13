@@ -41,7 +41,7 @@ function buildCaves(){
   for(const c of CAVES){
     if(c.rooms.some(r=>inLanding(r.x,r.z,r.R+8))){ c.off=1; continue; }
     const rnd=mulberry32(c.seed>>>0), P=[], Nn=[], I=[], ML=[], CL=[], TB=0.74+0.34*rnd(), T0=CRAG_TINT[(rnd()*CRAG_TINT.length)|0];
-    const GP=[], GA=[], SP=[], SC=[], SI=[], lamps=[];   // 빛나는 점(자리 · 크기/위상/밝기) · 버섯(자리 · 빛깔 · 세모) · 방의 불빛
+    const GP=[], GA=[], SP=[], SC=[], SI=[], lamps=[], DRIP=[];   // DRIP: 종유석이 달릴 천장 자리   // 빛나는 점(자리 · 크기/위상/밝기) · 버섯(자리 · 빛깔 · 세모) · 방의 불빛
     /* 바위 한 덩이의 세모(I 의 i0~i1)에서 빛나는 점을 뿌린다 — roof: 아래를 보는 면(천장) · 아니면 방 가운데를 보는 면(벽 안쪽).
        고르게 뿌리지 않고 무리(col)를 짓는다 */
     const p1=rnd()*6.283, p2=rnd()*6.283;
@@ -52,6 +52,7 @@ function buildCaves(){
         if(roof){ if(ny>-0.3||dh>rm.R-0.3||up<1.9) continue; }
         else{ if(dh>rm.R+0.9||up<1.2||up>4.2||(nx*dx+nz*dz)/(dh||1)<0.45) continue; }
         const col=0.5+0.5*Math.sin(cx*1.1+p1)*Math.sin(cz*0.9+p2);
+        if(roof&&up>3.0&&dh<rm.R-1.2&&rnd()<0.045) DRIP.push(cx,cy,cz);             // 천장 높은 데 — 종유석 자리(물이 떨어지는 데)
         if(rnd()>(col>0.5?(roof?0.90:0.30):0.10)) continue;
         let u=rnd(), w=rnd(); if(u+w>1){ u=1-u; w=1-w; } const q=1-u-w;
         GP.push(P[a]*q+P[b]*u+P[d]*w+nx*0.05, P[a+1]*q+P[b+1]*u+P[d+1]*w+ny*0.05, P[a+2]*q+P[b+2]*u+P[d+2]*w+nz*0.05);
@@ -66,9 +67,9 @@ function buildCaves(){
       for(let k=0;k<RG;k++) for(let j=0;j<SG;j++){ const j1=(j+1)%SG, a=o2+k*SG+j, b=o2+k*SG+j1, e=a+SG, f=b+SG; SI.push(a,e,b, b,e,f); }
       const oc=SP.length/3; SP.push(tx,y+h-r*0.10,tz); SC.push(0.12,0.52,0.42);                       // 갓 밑(주름) — 한 톤 어둡다
       for(let j=0;j<SG;j++) SI.push(oc,o2+j,o2+(j+1)%SG); };
-    const rock=(x,y,z,r,sy,melt)=>{
+    const rock=(x,y,z,r,sy,melt,tone)=>{
       const g=SHP.blob(1,(rnd()*1e6)|0,{w:10,h:7,amp:0.26,nb:4}), pa=g.attributes.position.array, na=g.attributes.normal.array, o=P.length/3;
-      const cb=TB*(0.78+0.44*rnd());                  // 덩이마다 밝기가 다르다
+      const cb=(tone||TB)*(0.78+0.44*rnd());          // 덩이마다 밝기가 다르다(tone — 종유석은 밝은 석회빛)
       E.set(rnd()*0.5-0.25,rnd()*6.283,rnd()*0.5-0.25); Q.setFromEuler(E); V.set(x,y,z); S.set(r*(0.9+rnd()*0.3),r*sy,r*(0.9+rnd()*0.3)); M.compose(V,Q,S); nm.getNormalMatrix(M);
       for(let i=0;i<pa.length;i+=3){ v.set(pa[i],pa[i+1],pa[i+2]).applyMatrix4(M); P.push(v.x,v.y,v.z);
         v.set(na[i],na[i+1],na[i+2]).applyMatrix3(nm).normalize(); Nn.push(v.x,v.y,v.z); ML.push(melt); CL.push(cb*T0[0],cb*T0[1],cb*T0[2]); }
@@ -93,6 +94,12 @@ function buildCaves(){
         GP.push(bx,heightAt(bx,bz)+0.22,bz); GA.push(1.9,rnd(),0.34); }
       lamps.push([rm.x,rm.y+2.6,rm.z,R+8]);
     }
+    /* **종유석과 석순** — 천장에서 물이 떨어지는 자리마다 고드름 꼴의 돌이 달리고(길이 0.6~1.9 m), 그 밑 바닥에는 석순이 솟는다
+       (셋에 둘 — 더 굵고 짧다). 머리 위 2 m 는 비워 둔다. 밝은 석회빛이다. 몸은 안 막는다(천장에 달렸거나 발목~무릎 높이) */
+    for(let q=0,nd=Math.min(DRIP.length/3,14*c.rooms.length);q<nd;q++){ const x=DRIP[q*3], cy0=DRIP[q*3+1], z=DRIP[q*3+2], fy=heightAt(x,z);
+      const len=Math.min(0.6+1.3*rnd()*rnd(),Math.max(0.3,cy0-fy-2.0)), r=0.10+0.10*rnd();
+      rock(x,cy0-len*0.42,z,r,len*0.5/r,0.02,1.25);
+      if(rnd()<0.66){ const h2=0.25+0.5*rnd(), r2=0.14+0.12*rnd(); rock(x+(rnd()-0.5)*0.15,fy+h2*0.30,z+(rnd()-0.5)*0.15,r2,h2*0.6/r2,0.25,1.18); } }
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
     g.setAttribute('aMelt',new THREE.Float32BufferAttribute(ML,1)); g.setAttribute('color',new THREE.Float32BufferAttribute(CL,3)); g.setIndex(I); g.computeBoundingSphere();

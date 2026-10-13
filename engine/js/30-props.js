@@ -873,6 +873,8 @@ function buildProps(){
       };
       let off;
       if(R.k==='flint') off=0.15*p.s; else if(R.k==='pebble') off=0.11*p.s; else off=0.5*p.s;
+      /* 비탈에서는 더 묻는다 — 곧추 얹으면 아래쪽 밑면이 허공에 뜬다(사용자 지적). 반지름 × 기울기의 0.6, 반지름의 0.45 까지 */
+      { const gs=groundSlope(p.x,p.z,Math.max(0.4,r0*p.s*0.7)); off-=Math.min(0.45*r0*p.s,r0*p.s*Math.hypot(gs[0],gs[1])*0.6); }
       const oy=p.y+off, S0=p.s;
       p._vs=o/3; p._vn=SHELL_V; p._cy=oy; p._k=1;
       mel.fill(clamp(0.34*S0*r0,0.05,0.8),o/3,o/3+SHELL_V);
@@ -1355,12 +1357,16 @@ function updateRubble(force){
     const d=Math.hypot(wx-px,wz-pz); if(d>R) continue;
     const ix=clamp(Math.round(wx/CELL+N/2),1,N-2), iz=clamp(Math.round(wz/CELL+N/2),1,N-2), ci=IDX(ix,iz);
     if(F.elev[ci]<=0.25) continue;                     // 물 밑·물가는 뺀다
-    const gk=GRAVEL_K[F.biome[ci]]; if(!(gk>0)) continue;
+    /* 벼랑 밑의 돌무더기(지형 판 3) — 가파른 칸과 그 이웃 칸에는 굴러떨어진 돌이 쌓인다(바이옴이 자갈밭이 아니어도).
+       가파를수록 촘촘하고, 큰 돌이 섞이는 비율도 는다(열여섯에 하나 → 여덟에 셋) */
+    let gk=GRAVEL_K[F.biome[ci]]||0, tal=0;
+    if((P.tv|0)>=3){ tal=smoothstep(0.42,0.95,Math.max(F.slope[ci],F.slope[ci-1],F.slope[ci+1],F.slope[ci-N],F.slope[ci+N])); if(tal*0.85>gk) gk=tal*0.85; }
+    if(!(gk>0)) continue;
     if(((h>>>16)&1023)/1023 > gk*0.66) continue;
     const u=((h>>>26)&63)/63;
     let r=0.09+0.22*u*u;                               // 주먹 ~ 수박
     let h2=Math.imul(h^0x9e3779b9,2246822519)>>>0;
-    if((h2&15)===0) r=0.36+0.34*((h2>>>5)&15)/15;      // 열여섯에 하나는 무릎~허리 높이 바위
+    if((h2&15)===0||(tal>0.5&&(h2&7)<3)) r=0.36+0.34*((h2>>>5)&15)/15;      // 열여섯에 하나는 무릎~허리 높이 바위(벼랑 밑은 더 자주)
     /* 주먹~수박만 한 돌은 주울 수 있다(95-flora.js 의 `floraPick` — 얻는 것은 돌멩이). 주운 자리는 사흘 뒤 다시 찬다 */
     const pk=r<0.34, key='S'+gx+','+gz;
     if(pk){ const tk=FLORA.taken.get(key); if(tk!==undefined){ if(gameHours-tk<72) continue; FLORA.taken.delete(key); } }
@@ -1368,7 +1374,7 @@ function updateRubble(force){
     const sy=0.5+0.35*((h2>>>9)&15)/15;
     _rbE.set(((h2>>>13)&63)/63*0.7-0.35,((h2>>>19)&255)/255*6.283,((h2>>>27)&31)/31*0.7-0.35);
     _rbQ.setFromEuler(_rbE);
-    _rbV.set(wx,heightAt(wx,wz)+r*sy*0.42,wz);
+    { const gs=groundSlope(wx,wz,Math.max(0.25,r)); _rbV.set(wx,heightAt(wx,wz)+r*sy*0.42-r*Math.min(0.9,Math.hypot(gs[0],gs[1]))*0.55,wz); }   // 비탈에서는 더 묻는다(아래쪽이 뜨지 않게)
     _rbS.set(r*(0.85+0.4*((h>>>4)&15)/15),r*sy,r);
     _rbM.compose(_rbV,_rbQ,_rbS); im.setMatrixAt(n,_rbM);
     /* 주울 돌 여섯에 하나는 **석회석**(희다) — 구우면 석회, 시멘트의 바탕(사용자 요청). 자리의 해시로 정하니 섬의 생김새는 그대로다 */

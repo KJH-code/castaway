@@ -216,6 +216,8 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `32-caves.js` | 동굴 — 바위 굴집 `buildCaves`(방 1~3 개) · 반딧불이 유충(빛나는 점)·빛나는 버섯·방마다 약한 불빛(불빛 풀) · `updateCaves` |
 | `33-crags.js` | 암벽 — 가파른 칸의 큰 바위 무리 `cragSites`/`cragGrow`(프랙털 세 단계 · 덩이마다 다른 빛깔) · 320 m 칸 메시 `cragMesh` · `updateCrags` |
 | `40-light.js` | **`LIGHT` 46**(배역 · 해 그림자 상자 · 점·집중광 예산) · `renderFrame` |
+| `98-dew.js` | 이슬 — 가까운 잎 위의 물방울 메시 `updateDew`(양은 `TERR_U.uDew` — 41-terrain-light.js 가 정하고, 잎·풀밭의 반짝임은 envPatch·땅 셰이더가 그린다) |
+| `41-terrain-light.js` | 섬 크기의 빛 텍스처 `TLIT` — R 산 그림자(`tlitSweepStep`) · G 하늘 트임 · B 숲 덮임 · A 잔 기복 가림막 · `tlitBuild` · `updateTlit` |
 | `45-sky.js` | `SKY` 8 · `updateWeather` 357 · 구름 명암 `litQueue` 905 · `updateClouds` 1476 · `SKY_LUT` 1967 · **`updateSky` 2107**(노을·달밤 색조 `SKYL.grade` 포함) — **`beta/cloud_arena.html` 의 원본** |
 | `46-camcorder.js` | 캠코더 화면(480줄 그림판 → 테이프 셰이더) · 배터리 · 손 발전기 |
 | `50-items.js` | **`ITEMS` 13** · `INV` 624 · `dragPut` 748 · `HARVEST` 829 · `MINE` 851 · 먹기·마시기(물을 봐야) · 빠른 칸 |
@@ -344,8 +346,18 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   배율 1 의 섬은 자원 배치의 난수 차례가 예전과 같아야 한다(`placeResources` 의 `WS===1` 갈래를 건드리지 말 것).
 - **지형 판(`P.tv`)** — 2 는 침식 뒤에 피오르·골짜기·단구·절벽·산릉·탁상지를 새기고(`terrainFeatures`) 동굴(`caveSites` · 32-caves.js)과
   암벽(33-crags.js)을 둔다. **판이 없는 옛 저장은 1 로 읽혀 예전 섬이 한 비트도 안 달라진다**(배율 2·판 1 의 표고·소품이 main 과 같음을
-  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` 가 주는 값도 올린다.
+  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` 가 주는 값도 올린다(지금 3).
   새 지형 코드는 제 난수(`mulberry32(seed^상수)`)만 쓴다 — `placeResources` 의 난수 차례를 건드리지 않는다.
+- **지형 판 3 — 칸 안의 잔 기복(`RELIEF` · 10-worldgen.js)**: `heightAt` 이 둔덕·골(±0.35 m)을 더해 돌려준다. 그리는 쪽은 사람 둘레의
+  덧판(`terrainPatch` — 20-terrain.js · 0.75 m 격자 · 46 m)이 **같은 식**을 셰이더에서 푼다. 식을 바꾸면 세 군데를 같이 바꿀 것 —
+  `reliefT`(CPU) · `TPATCH_GLSL`(덧판 정점) · `gndTerrainFrag` 의 '화소마다의 빛'(법선). 표고장 `F.elev` 은 안 바뀐다(물·그림자·지도는 그대로).
+  본 땅은 덧판의 원 안 화소를 버린다(깊이·거리 재질도 — `terrDepthMat`). 땅을 새로 그리는 재질을 만들면 그 버림을 같이 넣을 것.
+- **땅의 빛은 화소에서 센다**(22-ground-textures.js) — 램버트의 정점 값 `lambW.x` 자리에 `gndSun` 을 넣는다. 램버트 조각 셰이더의
+  그 두 줄(`SUN` · `IND`)이 바뀌면 조용히 예전 방식으로 돌아간다(`PIX` 거짓). 섬 크기의 빛(산 그림자·하늘 트임)은 `envPatch` 가
+  빛을 받는 모든 재질에 곱한다(41-terrain-light.js). 캠코더 그림판은 되는 장치에서 반정밀 실수다(`CAMC.hdr`).
+- **큰 바위(33-crags.js)는 충돌 원이 아니라 그려진 꼴로 막는다** — `floorAt` 이 `cragFloor` 를 거친다(낮으면 딛고 높으면 벽). 바위 꼴(`cragShape`)이나
+  덩이의 돌림·늘림을 바꾸면 메시(`cragMesh`)와 충돌(`cragIndex`·`cragSpan`)이 같은 값을 쓰는지 볼 것. **비탈에 놓는 것은 묻거나 눕힌다**
+  (`groundSlope` — 풀·덤불은 기울기대로 눕히고 나무 밑동·바위·자갈은 아래쪽이 뜨지 않게 내린다). 곧추 얹으면 6배 섬의 가파른 비탈에서 뜬다.
 - **`propGroup` 의 자식은 수만 개다**(6배 섬 7만) — 프레임마다 전부를 훑는 코드를 새로 넣지 말 것(한 번씩 건드리기만 해도 5 ms 다).
   세계 행렬은 새로 붙은 것만 한 번 센다(`propGroup.updateMatrixWorld` — 30-props.js). 굳힌 칸 메시를 뒤늦게 옮기면 `updateMatrix()` 를 부를 것.
 - **C 로 짠 침식(`engine/native/erosion.c` → `engine/js/data-native-wasm.js`)은 JS 판과 한 비트도 달라선 안 된다.**

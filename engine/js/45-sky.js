@@ -1727,6 +1727,7 @@ function envPatch(m){
   if(!m||m.userData._env) return;
   const lam=!!m.isMeshLambertMaterial, dep=!!m.isMeshDepthMaterial;
   const melt=lam&&m.userData.melt>0?+m.userData.melt:0, meltA=!!m.userData.meltAttr, meltT=!!m.userData.meltTex;
+  const leaf=lam&&(m.userData.wind==='leaf'||!!m.userData.leaf);   // 잎 — 해를 등진 면에 비쳐 드는 빛을 준다(아래 '잎에 비쳐 드는 빛')
   /* 바람 흔들림은 껐다(`WIND_ON`) — 풀·잎·베리·가지 정점마다 사인파를 셌는데, 정점이 한 프레임에
      수백만 개라 가장 비싼 축에 들었다. 켜려면 true 로(코드는 그대로 남아 있다). */
   const wind=WIND_ON&&m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';
@@ -1736,7 +1737,7 @@ function envPatch(m){
   m.onBeforeCompile=(sh,r)=>{
     if(prev&&prev!==THREE.Material.prototype.onBeforeCompile) prev(sh,r);
     Object.assign(sh.uniforms,{csFine:CSH.fine, csCoarse:CSH.coarse, csC:CSH.ctr,
-      csS:CSH.size, csOn:CSH.on, uTime:CSH.time, uWind:CSH.wind});
+      csS:CSH.size, csOn:CSH.on, uTime:CSH.time, uWind:CSH.wind, uTLe:TERR_U.uTL, uTLg:TLIT.G, uDew:TERR_U.uDew});
     if(melt){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
       for(const k in MU) if(MU[k]&&!sh.uniforms[k]) sh.uniforms[k]=MU[k]; }
     const has=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.vertexShader+sh.fragmentShader);   // 제 셰이더가 이미 선언했으면 다시 안 한다
@@ -1745,7 +1746,7 @@ varying float vMeltT;
 float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.x-1.0))),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*1200.0-100.0; }
 `:'';
     const W=WIND_GLSL[wind]||'';
-    sh.vertexShader='uniform float uTime;\nuniform vec3 uWind;\nvarying vec2 vCsXZ;\n'+MV+
+    sh.vertexShader='uniform float uTime;\nuniform vec3 uWind;\nvarying vec2 vCsXZ;\n'+(leaf?'varying vec3 vDewW;\n':'')+MV+
       sh.vertexShader.replace('#include <project_vertex>',`
       vec4 wpos=vec4(transformed,1.0);
       vec4 wb4=vec4(0.0,0.0,0.0,1.0);
@@ -1773,6 +1774,7 @@ float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.
         vMeltH=mH; vMeltT=mT;
       }`:''}
       vCsXZ=wpos.xz;
+      ${leaf?'vDewW=wpos.xyz;':''}
       vec4 mvPosition=viewMatrix*wpos;
       gl_Position=projectionMatrix*mvPosition;`);
     if(lam) sh.fragmentShader=`uniform sampler2D csFine;
@@ -1781,13 +1783,32 @@ uniform vec2 csC;
 uniform float csS;
 uniform float csOn;
 varying vec2 vCsXZ;
+uniform sampler2D uTLe;
+uniform vec2 uTLg;
+vec4 tlE(){ return texture2D(uTLe,(vCsXZ/uTLg.y+uTLg.x*0.5+0.5)/uTLg.x); }
 float cloudSh(){
   vec2 uv=(vCsXZ-csC)/csS+0.5;
   vec2 e=smoothstep(0.0,0.08,uv)*smoothstep(0.0,0.08,1.0-uv);
   float t=(texture2D(csFine,uv).r+texture2D(csCoarse,uv).r)*${CS_TAU.toFixed(1)};
-  return mix(1.0,exp(-t),csOn*e.x*e.y);
+  return mix(1.0,exp(-t),csOn*e.x*e.y)*tlE().r;                 // × 산 그림자(41-terrain-light.js)
 }
-`+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();');
+`+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();')
+      /* 간접광(하늘빛)에 하늘 트임을 곱한다 — 골짜기·벼랑 밑은 하늘이 좁다. 벽에서 되비치는 몫 0.45 는 남긴다 */
+      .replace('reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb );','reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb ) * ( 0.45 + 0.55 * tlE().g );');
+    /* 잎에 비쳐 드는 빛 — 잎은 얇아 볕의 일부가 뒤로 샌다. 보이는 면이 해를 등졌으면 반대쪽 면이 받은 볕의 0.4 를 더한다
+       (양면 재질만 — 반대쪽 면의 몫 `vLambWB`/`vLambW` 가 이미 정점에서 세어져 있다). 잎 빛깔을 지나 나오니 연둣빛이다 */
+    if(leaf) sh.fragmentShader=sh.fragmentShader.replace('vec4 lambW = ( gl_FrontFacing ) ? vLambW : vLambWB;',
+      'vec4 lambW = ( gl_FrontFacing ) ? vLambW : vLambWB;\n\t\tlambW.x += ( ( gl_FrontFacing ) ? vLambWB.x : vLambW.x ) * 0.40;');
+    /* 이슬 맺힌 잎의 반짝임(98-dew.js ②) — 세계 좌표의 잔 칸(거리에 비례 — 화소 하나쯤)마다 난수 하나, 문턱을 넘는 칸이 해의 빛깔로 빛난다.
+       해의 몫(그림자·구름 그늘·산 그림자)에 곱하니 그늘에서는 안 반짝인다. 눈이 움직이면 자리가 바뀐다 */
+    if(leaf){ const OUT='vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;';
+      if(sh.fragmentShader.split(OUT).length===2) sh.fragmentShader='varying vec3 vDewW;\nuniform float uDew;\n'+sh.fragmentShader.replace(OUT,`vec3 dewG = vec3( 0.0 );
+	#if NUM_DIR_LIGHTS > 0
+	if( uDew > 0.01 ){ vec3 dv = cameraPosition - vDewW; float dd = length( dv ), cs = max( 0.010, dd * 0.0024 );
+		float hh = fract( sin( dot( floor( vDewW / cs ), vec3( 127.1, 311.7, 74.7 ) ) + floor( dot( dv / dd, vec3( 31.0, 17.0, 23.0 ) ) ) * 13.7 ) * 43758.5453 );
+		dewG = directionalLights[ 0 ].color * ( smoothstep( 0.988, 1.0, hh ) * smoothstep( 60.0, 12.0, dd ) * 6.0 + 0.05 ) * lambW.x * getShadowMask() * cloudSh() * uDew; }
+	#endif
+	vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance + dewG;`); }
     if(melt){
       const fh=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.fragmentShader);
       sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')
@@ -1807,7 +1828,7 @@ float cloudSh(){
   /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
      다른 램버트 재질과 같은 프로그램으로 묶여 제 코드가 통째로 빠졌다 */
   const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
-  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(melt?'m'+melt+(meltA?'a':'')+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
+  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(leaf?'L':'')+(melt?'m'+melt+(meltA?'a':'')+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
   m.needsUpdate=true;
 }
 
