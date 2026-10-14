@@ -180,6 +180,7 @@ const LIGHT={
     let r=on?this.roleOf(o):'none';
     if(r==='soft') r=(this.q>=2)?'full':'recv';
     o.castShadow   = (r==='full');
+    o._cast0=o.castShadow;                  // 배역이 준 값 — 칸 메시는 해 그림자 상자 밖이면 잠시 끈다(30-props.js `castNear`)
     o.receiveShadow= (r==='full'||r==='recv');
     // 구름 그림자 · 바람을 재질에 붙인다(한 번만 — envPatch 가 표시해 둔다)
     if(Array.isArray(o.material)) o.material.forEach(envPatch); else envPatch(o.material);

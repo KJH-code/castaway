@@ -570,6 +570,9 @@ function floraBuild(){
   /* 땅에 녹아들기(envPatch) — 나무 줄기 밑동은 한 뼘 반, 덤불·고사리·꽃·버섯(matN)은 손가락 두 마디만(키가 작아 더 주면 통째로 땅빛이 된다) */
   FLORA.mat.userData.melt=0.42; FLORA.mat.userData.leaf=true;    // 잎에 비쳐 드는 빛(envPatch)
   FLORA.matN=FLORA.mat.clone(); FLORA.matN.userData.melt=0.06;
+  /* 먼 단계(40 m 밖)는 땅에 녹아들기를 뺀다 — 그것이 정점마다 표고 텍스처를 네 번 읽는데(envPatch), 40 m 밖의 밑동 한 뼘은
+     한두 화소라 안 보인다. 숲에서 먼 나무 겹이 프레임의 4 ms 였다(FPS 측정) */
+  FLORA.matL=FLORA.mat.clone(); FLORA.matL.userData.melt=0; FLORA.matL.userData.leaf=true;
   FLORA.m={};
   for(const L of [FLORA.far,FLORA.near]) for(const k of L.kinds){
     const nv=FLORA_VARS[k]||1, cap=Math.ceil(FLORA_KIND[k].cap*2.5)+8;   // 벌마다 몫 — 기준 벌(`FLORA.ref`)이 먼 그루를 다 받으므로 예전 종류 전체 몫(평균의 2.5배)
@@ -610,6 +613,13 @@ function floraHit(wx,wz,pad){
   return false;
 }
 /* 덤불 겹(사람 둘레 46 m) — 사람을 따라 다시 깐다. 나무 겹은 아래 `floraFar` 가 섬 전체를 한 번 깔고 거리로 고른다 */
+/* 인스턴스 자료를 올린다 — **쓰는 앞부분(count)만**. 먼 나무 메시는 섬의 그 종류 나무를 다 담을 만큼 크다(160만~200만 바이트) —
+   통째로 올리면 고개를 돌릴 때마다 프레임당 1.4~2.2 MB 를 올리며 그래픽 장치를 기다렸다(FPS 프로파일). 0 개면 올릴 것이 없다 */
+function instUp(im){
+  const n=im.count; if(n<=0) return;
+  const M=im.instanceMatrix; M.updateRange.offset=0; M.updateRange.count=n*16; M.needsUpdate=true;
+  const C=im.instanceColor; if(C){ C.updateRange.offset=0; C.updateRange.count=n*3; C.needsUpdate=true; }
+}
 function floraLayer(L,which){
   const U=FLORA, px=PL.pos.x, pz=PL.pos.z, C=L.cell, R=L.R*QUAL.k, n=L.n, far=which==='far';   // 자동 품질이 반경을 당긴다(30-props.js)
   L.cx=px; L.cz=pz; L.cols.length=0; L.picks.length=0;
@@ -674,7 +684,7 @@ function floraLayer(L,which){
   for(let i=0;i<U.pendN;i++){ const q=U.pend[i], v=U.ref[q.k], im=U.m[q.k][v], nk=n[q.k]; if(nk[v]>=im.instanceMatrix.count) continue;
     _flM.fromArray(q.m); im.setMatrixAt(nk[v],_flM); _flC.setRGB(q.c[0],q.c[1],q.c[2]); im.setColorAt(nk[v]++,_flC); }
   for(const k of L.kinds) U.m[k].forEach((im,v)=>{ im.count=n[k][v]; im.visible=im.count>0;
-    im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true; });
+    instUp(im); });
   if(far) LIGHT.dirtyAt(px,pz,R);                      // 나무가 바뀌었다 — 그림자 지도를 다시 그린다
 }
 function updateFlora(force){
@@ -812,11 +822,11 @@ function floraFarBuild(){
     U.ref[k]=best.v;
     const base=U.m[k][best.v].geometry, n=U.kn[k];
     const mk=(geo,mat,cast)=>{ const im=new THREE.InstancedMesh(geo,mat,n);
-      if(mat===FLORA.mat) im.setColorAt(0,new THREE.Color(1,1,1));          // 색 버퍼는 count 가 가득일 때 만든다
+      if(mat===FLORA.mat||mat===FLORA.matL) im.setColorAt(0,new THREE.Color(1,1,1));          // 색 버퍼는 count 가 가득일 때 만든다
       im.count=0; im.visible=false; im.frustumCulled=false;
       if(cast) im.customDepthMaterial=FLORA.depth; else im.userData.lightRole='recv';   // 55 m 밖은 그림자를 안 드리운다
       im.matrixAutoUpdate=false; im.updateMatrix(); scene.add(im); return im; };
-    const lods=[FL_LOD[0][1],FL_LOD[1][1],0.1].map((f,i)=>mk(floraLodGeo(base,f),FLORA.mat,i===0));
+    const lods=[FL_LOD[0][1],FL_LOD[1][1],0.1].map((f,i)=>mk(floraLodGeo(base,f),FLORA.matL,i===0));
     const pic=floraBakePic(base);
     let pm=null;
     if(pic){ pm=mk(SHP.card(1,1),new THREE.MeshLambertMaterial({map:pic.tex,alphaTest:0.35,side:THREE.DoubleSide}),false); }
@@ -878,7 +888,7 @@ function floraFar(force){
       }
     } }
   for(const k of L.kinds){
-    const fin=im=>{ im.visible=im.count>0; im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true; };
+    const fin=im=>{ im.visible=im.count>0; instUp(im); };
     U.m[k].forEach(fin); const f=U.fm[k]; if(f){ f.lods.forEach(fin); if(f.pm) fin(f.pm); } }
   if(csig!==U.csig){ U.csig=csig; LIGHT.dirtyAt(px,pz,FL_LOD[0][0]); }   // 그림자를 드리우는 것(55 m 안)이 바뀌었다
 }

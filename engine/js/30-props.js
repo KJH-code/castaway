@@ -151,6 +151,7 @@ function updateTileVis(){
     nIn=act.length;
     for(const R of T.last) if(R.st!==T.fr) act.push(R);     // 방금 범위를 벗어난 구역 — 한 번 더 돌려 끈다
     T.last.length=0; for(let i=0;i<nIn;i++) T.last.push(act[i]); }
+  const SHR=(LIGHT.QUAL[LIGHT.q].R||40)+8;          // 해 그림자 상자 반경 + 8 m — 그 밖 칸은 그림자를 안 드리운다(castNear)
   let rockBudget=3;                                  // 노는 중에는 한 프레임에 바위 칸 셋까지만 빚는다
   for(const RG of act) for(const t of RG.rock){
     const g=tileGap(t,px,pz), want=g<=t.d;
@@ -161,11 +162,11 @@ function updateTileVis(){
       propGroup.remove(t.m); t.m.geometry.dispose(); t.m=null;
       for(const p of t.ps){ p._batch=null; p._k=1; }
     }
-    if(t.m&&setVis(t.m,want&&!tileOcc(t,8))) LIGHT.dirtyAt(t.cx,t.cz,t.r);   // 산 너머의 바위 칸은 거른다
+    if(t.m&&(setVis(t.m,want&&!tileOcc(t,8))|castNear(t.m,g<=SHR))) LIGHT.dirtyAt(t.cx,t.cz,t.r);   // 산 너머의 바위 칸은 거른다
   }
   const QK=QUAL.k;
   for(const RG of act) for(const t of RG.prop){ const d=tileGap(t,px,pz), v=d<=t.d*QK&&tileSeen(t,d,6);
-    let f=false; for(const m of t.ms) if(setVis(m,v)) f=true;
+    let f=false; for(const m of t.ms){ if(setVis(m,v)) f=true; if(castNear(m,d<=SHR)) f=true; }
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r); }
   _treeBudget=1; _treeDrop=1;
   for(let ri=0;ri<act.length;ri++){ if(ri===nIn) _treeDrop=1e9;          // 범위를 벗어난 구역의 칸은 한꺼번에 비운다
@@ -187,19 +188,26 @@ function updateTileVis(){
     /* 멀어진 칸은 도로 비운다 — 섬을 한 바퀴 돌면 결국 전부 지어져 메모리가 예전만큼 불어나는 것을 막는다 */
     else if(t.built&&!t.pin&&d>TREE_DROP&&_treeDrop>0){ _treeDrop--; dropTreeTile(t); }
     let f=false;
-    if(t.lm){ if(setVis(t.lm,full)) f=true; if(setVis(t.ls,full)) f=true; if(setVis(t.fm,full)) f=true;
-      if(full) limbLod(t.lm,de>0.01); }                // 사람이 든 칸만 촘촘한 가지(48면) — 이웃 칸은 성긴 가지(18면)
+    /* 자동 품질이 내려가면(0.7 밑 — 숲에서 50 FPS 를 못 지킬 때) 사람이 든 칸도 성긴 가지로 그리고 잔가지는 뺀다(36만 삼각형) */
+    if(t.lm){ if(setVis(t.lm,full)) f=true; if(setVis(t.ls,full&&QK>=0.7)) f=true; if(setVis(t.fm,full)) f=true;
+      if(full) limbLod(t.lm,de>0.01||QK<0.7); }                // 사람이 든 칸만 촘촘한 가지(48면) — 이웃 칸은 성긴 가지(18면)
     const cp=mid && d<=COPY_DIST*QK;           // 기준 나무 복제 · 150 m 밖은 같은 나무를 찍은 그림
     /* 복제 단계 — 0: 칸 테두리가 26 m 안인 이웃(제 가지를 안 그리는 가장 가까운 칸) · 1: 그 밖 ~ 90 m · 2: 90~150 m */
     if(t.cps){ const lv=(near&&!full)?(de<=LOD0_EDGE*QK?0:1):cp?(d>COPY_MID*QK?2:1):-1;
       for(let k=0;k<3;k++){ if(setVis(t.cps[2*k],lv===k)) f=true; if(setVis(t.cps[2*k+1],lv===k)) f=true; } }
     if(t.bb && setVis(t.bb,mid && !(t.cps&&cp))) f=true;
+    { const sn=d<=SHR; if(castNear(t.lm,sn)|castNear(t.ls,sn)|castNear(t.fm,sn)|castNear(t.bb,sn)) f=true; if(t.cps) for(const m of t.cps) if(castNear(m,sn)) f=true; }
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r);
   }
   }
 }
 /* 보이기를 바꿨으면 참 — 바뀐 칸만 그림자 지도를 다시 그리게 알린다 */
 function setVis(m,v){ if(m.visible===v) return false; m.visible=v; return true; }
+/* **해 그림자 상자 밖의 칸은 그림자를 안 드리운다** — 칸 메시는 화면 거르기를 꺼 두어(frustumCulled false — 인스턴스가 칸 밖으로
+   삐져나온다) 그림자 지도를 그릴 때도 보이는 칸 전부가 그려졌다. 상자는 사람 둘레 36~64 m 인데, 125 m 밖 나무 복제·200 m 밖
+   바위까지 그림자 지도에 그렸다(숲에서 그림자 한 번에 5 ms — FPS 측정). 칸 가장자리가 상자 반경 + 8 m 밖이면 드리우기를 끈다.
+   배역(LIGHT.apply)이 드리우게 한 것만 다시 켠다(`_cast0`). 바뀌었으면 참 */
+function castNear(m,near){ if(!m||m._cast0===undefined) return false; const v=near&&m._cast0; if(m.castShadow===v) return false; m.castShadow=v; return true; }
 /* 광물별 생김새 배합.
    amp  혹의 세기 · bump 혹의 잔주름 수(주파수 상한) · nb 혹 개수
    cuts 잘라 낼 평면 수 · deep 평면이 파고드는 깊이(0.72 면 반지름의 0.72 까지 깎는다)
@@ -300,7 +308,7 @@ function bakeTreeImpostor(list,kind){
 /* 복제 단계마다 [가지 몫, 잎 몫] — 가까운 것(칸 테두리 10 m 밖 ~ 55 m) · 55~90 m · 90~150 m.
    예전 값(0.6·0.3·0.1)은 창 크기 그대로 그리던 때의 것이다. 캠코더 화면(세로 480줄)에서는 40 m 밖 나무가 100 화소 남짓이라
    잔가지가 화소 하나보다 가늘다 — 몫을 절반쯤으로 줄여도 윤곽은 같다 */
-const FAR_REF={}, FAR_LOD=[[0.22,0.32],[0.08,0.13],[0.035,0.07]], FULL_EDGE=6, LOD0_EDGE=26, COPY_MID=72, FULL_DIST=25;   // FULL_DIST — 새 식물(95-flora.js)이 제 생김새로 서는 거리
+const FAR_REF={}, FAR_LOD=[[0.22,0.32],[0.08,0.13],[0.035,0.07]], FULL_EDGE=2.5, LOD0_EDGE=14, COPY_MID=72, FULL_DIST=25;   // FULL_DIST — 새 식물(95-flora.js)이 제 생김새로 서는 거리
 function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
   const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
   const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
@@ -577,13 +585,16 @@ function buildProps(){
      S 자로 굽힌다. 굽힘은 양 끝에서 0 이라 밑동·끝 자리는 그대로다(곁가지·잎이 붙는 자리가 안 바뀐다).
      굽는 폭은 가지 굵기 단위(인스턴스가 x·z 를 굵기로 늘린다) — 굵은 원가지일수록 크게 굽는다.
      단면은 4각, 마디마다 굵기를 ±8% 흔들어 옹이 진 결을 낸다. */
+  /* FPS: 마디 여섯 → 셋(48 → 24 삼각형). 숲에서 사람이 든 칸의 긴 가지만 81만 삼각형이었다(한 프레임 380만 가운데). 굽힘(활 · S 자)은
+     마디 셋의 네 고리로도 그대로 잡힌다. 단면 4각은 그대로라 가까이서의 모양은 같다 */
   const limbUnit=(()=>{
-    const g=new THREE.CylinderGeometry(0.5,1,1,4,6,true); g.translate(0,0.5,0);
+    const g=new THREE.CylinderGeometry(0.5,1,1,4,3,true); g.translate(0,0.5,0);
     return gnarl(g,(t,th,r)=>[r*(1+0.08*Math.sin(th*2+t*9)), 1.25*Math.sin(Math.PI*t), 0.5*Math.sin(2*Math.PI*t)]);
   })();
   /* 짧은 가지(SHORT_LIMB 밑) — 3각 2마디, 활 모양만. 12 삼각형 */
+  /* FPS: 마디 둘 → 하나(12 → 6 삼각형) — 사람이 든 칸에 2.6만 개다. 잔가지는 짧아 굽힘이 거의 안 보인다 */
   const limbShort=(()=>{
-    const g=new THREE.CylinderGeometry(0.5,1,1,3,2,true); g.translate(0,0.5,0);
+    const g=new THREE.CylinderGeometry(0.5,1,1,3,1,true); g.translate(0,0.5,0);
     return gnarl(g,(t,th,r)=>[r, 1.25*Math.sin(Math.PI*t), 0]);
   })();
   /* 먼 나무 복제(`bakeTreeGeo`)용 — 3각 3마디로 같은 활 모양만. 6 → 18 삼각형(가까운 것은 48) */
@@ -1207,7 +1218,7 @@ function buildProps(){
               _lbQ2.setFromEuler(_lbE);
               _lbQ.copy(quat).multiply(_lbQ2);
             }else _lbQ.copy(quat);
-            const ls=leafS*(LPB>1?0.85+lrnd()*0.35:1);
+            const ls=leafS*(LPB>1?(0.85+lrnd()*0.35)*1.2:1);     // 판이 둘이라 1.2배(셋일 때와 덮는 넓이가 같다)
             instPut(leafMesh,i,_lbB,_lbQ,ls,ls*0.82);
           }
         };

@@ -165,7 +165,7 @@ const LIMB_SPACE=0.8;
 /* 가지 하나에 달리는 잎 인스턴스 수. 참나무는 한 장씩 다섯을 가지 위에
    흩어 달고, 전나무는 바늘 한 다발을 끝에 하나 단다.
    참나무는 판때기 하나가 잎 아홉 장짜리 한 줌이라 다섯에서 셋으로 줄였다. */
-const LEAF_PER={oak:3, fir:1};
+const LEAF_PER={oak:2, fir:1};   // FPS: 참나무 가지마다 잎 판 셋 → 둘(판을 1.2배 키워 덮는 넓이는 같다 — 30-props.js putLeaf). 숲의 한 칸에 13만 장이었다
 const LEAF_BACK=0.10;                // 가지 끝에서 이만큼 앞부터 달기 시작한다 (m)
 const LIMB_DEPTH=4;                  // 안전장치 — 길이가 먼저 재귀를 멎게 한다
 function growLimbs(p,TR,emit){
