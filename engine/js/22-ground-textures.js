@@ -207,11 +207,10 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
            옆에서 본 좌표(가로 · 높이)로 그린다. 값은 아래 바위 빛깔과 '화소마다의 빛'이 쓴다 */
         if(stp>0.02){
           float wt=texture2D(uNz,p/310.0+vec2(0.13,0.71)).b; vec2 sp=mix(vTW.xy,vTW.zy,wSx);
-          float f1=abs(texture2D(uRel,sp/9.0).a-0.5), f2=abs(texture2D(uRel,sp.yx/5.3+0.37).a-0.5);
-          float crack=clamp((1.0-smoothstep(0.0,0.030,f1))+(1.0-smoothstep(0.0,0.026,f2))*0.7,0.0,1.0);
-          wallDark=1.0-crack*0.58*stp*(0.30+0.70*smoothstep(0.42,0.60,wt));
+          /* 금은 아래 사진 결 자리에서 **프랙털로** 긋는다(사용자 지적: 벼랑 결이 이상하다 — 예전엔 잡음 등고선 두 방향이 고리처럼 돌고,
+             점판암은 비스듬한 줄이 자로 잰 듯 나란해서 벼랑이 빗금 친 천 같았다). 점판암은 이제 얼룩으로만 다르다 */
           wallSleek=smoothstep(0.32,0.20,wt)*stp;
-          wallCol=vec3(0.15,0.18,0.22)*(0.80+0.34*(0.5+0.5*sin((sp.y+sp.x*0.45)*8.0+n2.g*2.5)));
+          wallCol=vec3(0.15,0.18,0.22)*(0.82+0.30*n2.g+0.12*(n1.b-0.5));
           wallWet=smoothstep(0.60,0.78,texture2D(uNz,vec2(sp.x/13.0,sp.y/85.0+uShT*0.0035)).r)*stp;
         }
         /* 바이옴 색과 가림막 — 잡음으로 비튼 자리에서, 가운데 + 둘레 셋을 섞어 읽는다(경계가 굽이치고 부드럽다) */
@@ -243,7 +242,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         c*=mix(1.0,0.70,mSand); c=mix(c,c*vec3(0.94,0.95,1.0)+vec3(0.0,0.004,0.008),mSand*0.5);   // 모래는 한 톤 낮추고 바탕 쪽으로 식힌다
         // 바위 — 가파를수록 드러나고, 높이를 따라 층이 진다
         float strata=0.5+0.5*sin(vTW.y*2.3+n2.a*5.0);
-        c=mix(c,vec3(0.36,0.34,0.31)*(0.82+0.26*strata),steep*0.85);
+        c=mix(c,vec3(0.36,0.34,0.31)*(0.93+0.10*strata),steep*0.85);       // 높이를 따른 층 — 옅게(진했을 땐 벼랑이 줄무늬 천처럼 보였다)
         if(wallCol.r>=0.0){ c=mix(c,wallCol,wallSleek*0.88)*wallDark*mix(1.0,0.60,wallWet); }   // 점판암 · 금 · 젖은 띠
         c=mix(c,c*vec3(0.60,0.80,0.70),subRock*0.6);                          // 물밑 바위에는 바닷말이 끼어 푸르스름하다
         /* 사진 결 — 그 자리에 있는 땅의 것만 읽는다. 한 장을 두 배율(2.1 m · 8.7 m)로 읽어 가까이는 잘게, 멀리는
@@ -268,7 +267,15 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
             float la=si>2.5?si+1.0:si, lb=si>1.5?si+2.0:si+1.0; const float K=0.55;
             vec3 sa=mix(textureGrad(uRk,vec3(tS1*K,la),gS1x*K,gS1y*K).rgb,textureGrad(uRk,vec3(tS2*K,la),gS2x*K,gS2y*K).rgb,wSx);
             vec3 sb=sf>0.01?mix(textureGrad(uRk,vec3(tS1*K,lb),gS1x*K,gS1y*K).rgb,textureGrad(uRk,vec3(tS2*K,lb),gS2x*K,gS2y*K).rgb,wSx):sa;
-            rk=mix(rk,mix(sa,sb,sf),stp); }`
+            vec3 sr=mix(sa,sb,sf); sr=mix(vec3(dot(sr,vec3(0.30,0.59,0.11))),sr,0.25);   // 사진의 빛깔은 4분의 1만 — 화산섬의 벼랑은 잿빛·잿갈색이고 빛깔은 풍화 얼룩뿐이다(사용자 지적: 벼랑이 너무 알록달록하다)
+            /* **프랙털 금**(사용자 요청) — 잡음 텍스처가 0.5 를 지나는 선을 세 겹(4.2 · 2.0 · 0.95 m)으로 · 다른 채널로 군데군데 끊는다 */
+            float ck=0.0, cf=1.0/8.5, cw=0.032;                                  // 8.5 · 4.0 · 1.9 m — 큰 금은 멀리서도 보인다
+            for(int i=0;i<3;i++){ vec2 t1=tS1*2.1*cf+float(i)*0.37, t2=tS2*2.1*cf+float(i)*0.53;
+              vec4 a1=textureGrad(uNz,t1,gS1x*2.1*cf,gS1y*2.1*cf), a2=textureGrad(uNz,t2,gS2x*2.1*cf,gS2y*2.1*cf), nz=mix(a1,a2,wSx);
+              float nv=nz.a-0.5, fw=fwidth(nv)+1e-4;
+              ck=max(ck,(1.0-smoothstep(0.0,cw+fw,abs(nv)))*smoothstep(0.38,0.56,nz.g)*(1.0-smoothstep(0.08,0.3,fw))*(1.0-0.18*float(i))); cf*=2.1; cw*=0.85; }
+            sr*=1.0-0.68*ck;
+            rk=mix(rk,sr,stp); }`
           :`if(stp>0.0) rk=mix(rk,mix(textureGrad(uGnd,vec3(tS1,4.0),gS1x,gS1y).rgb,textureGrad(uGnd,vec3(tS2,4.0),gS2x,gS2y).rgb,wSx),stp);`}
           det+=wRock*rk; }
         if(wGrav>0.02)  det+=wGrav*GL(5.0);
@@ -312,7 +319,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
           float RK=${(2*GND.relK).toFixed(3)};
           vec2 g=(t1.gb-0.5)*(RK*3.0/190.0)+((t2.gb-0.5)*M2)*(RK*0.50/31.0)+((t3.gb-0.5)*M3)*(RK*0.065/4.2);
           float hr=(t1.r-0.5)*0.45+(t2.r-0.5)*0.35+(t3.r-0.5)*0.20;             // 기복의 높낮이(−0.5~0.5 — 큰 것·가운데·잔 것)
-          g*=kR*(1.0-0.65*stp);                                                 // 벽에서는 순하게(위로 미는 기복은 벽에서 세로 줄이 된다)
+          g*=kR*(1.0-0.95*stp);                                                 // 벽에서는 거의 끈다(위에서 내리 비춘 기복이 벽에서는 비탈을 따라 늘어나 빗금 같은 긴 줄이 됐다 — 사용자 지적)
           /* **모래의 물결 자국** — 물밑 모래와 모래밭에는 물살·바람이 낸 잔 이랑이 진다. 마구잡이 혹이 아니라 **한 방향으로 나란한**
              이랑이다: 이랑은 물가와 나란히(비탈의 내리막에 수직으로) 눕는다. 방향이 다른 세 벌(60° 간격)을 두고 그 자리의 내리막 방향에
              가까운 벌이 이기게 섞는다(방향을 화소마다 돌리면 무늬가 뭉개진다). 간격은 얕은 데 30 cm · 깊은 데 90 cm(큰 이랑),

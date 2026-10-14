@@ -992,7 +992,7 @@ function buildProps(){
         let r=1+(f/wsum)*amp;
         /* 잔 울퉁불퉁 — 겹친 값잡음으로 겉을 거칠게(사용자 요청: 바위가 너무 매끈하다). 화강암 11% · 나머지 5% · 자갈·부싯돌 3% */
         const RG=H.rough!==undefined?H.rough:(R.k==='pebble'||R.k==='flint'?0.03:0.05);
-        r*=1+RG*SHP.rough(d[0],d[1],d[2],hh,1.9,4);
+        r*=1+RG*SHP.rough(d[0],d[1],d[2],hh,1.9,4)+RG*1.1*(SHP.jag(d[0],d[1],d[2],hh^0x3c,2.6,3)-0.25);   // + 날카로운 능선(들쭉날쭉한 모서리)
         if(H.jit) r*=1+(rnd()*2-1)*H.jit;           // 꼭짓점마다 들쭉날쭉 — 낮은 다각형 바위의 모난 결
         let ow=-1;
         // ③ 정벽 쪼개짐 — 정육면체 쪽으로 당긴다

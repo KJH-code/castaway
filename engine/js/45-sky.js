@@ -1822,18 +1822,25 @@ float cloudSh(){
 	vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance + dewG;`); }
     if(melt){
       const fh=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.fragmentShader);
+      const GP=typeof GND_OK==='function'&&GND_OK()&&TERR_U.uGnd;          // 땅 사진(22-ground-textures.js)을 읽을 수 있나
+      if(GP) sh.uniforms.uGnd=TERR_U.uGnd;
       sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')
-        +(fh('uNz')?'':'uniform sampler2D uNz;\n')+'varying float vMeltH;\nvarying float vMeltT;\n'
+        +(fh('uNz')?'':'uniform sampler2D uNz;\n')+(GP&&!fh('uGnd')?'uniform mediump sampler2DArray uGnd;\n':'')+'varying float vMeltH;\nvarying float vMeltT;\n'
         +sh.fragmentShader.replace('#include <alphatest_fragment>',`#include <alphatest_fragment>
       if(vMeltH<vMeltT*1.5){
-        /* 덮이는 금 — 굵은 잡음(1.9 m)이 혀처럼 올라오고 잔 잡음(0.4 m)이 톱니를 낸다. 금 자체는 좁게(그 높이의 45%) 넘어간다 */
-        float mN=texture2D(uNz,vCsXZ/1.9).r, mF=texture2D(uNz,vCsXZ/0.41+0.31).g;
-        float mE=vMeltT*(0.30+0.95*mN*mN+0.38*(mF-0.5));
-        float mk=1.0-smoothstep(mE*0.55,mE,vMeltH);
+        /* 덮이는 금 — **부드럽게**(사용자 요청: 바위와 땅이 만나는 데를 매끄럽게). 예전엔 잔 잡음(0.4 m)이 톱니를 내 좁게(그 높이의
+           45%) 넘어갔는데, 숲의 풀빛 땅에서는 그 톱니가 바위 밑동에 돋은 풀잎처럼 보였다(굴 속에 풀이 난 것처럼). 이제 굵은 잡음(1.9 m)만
+           높이를 흔들고 그 높이의 80% 에 걸쳐 천천히 넘어간다 */
+        float mN=texture2D(uNz,vCsXZ/1.9).r;
+        float mE=vMeltT*(0.50+0.70*mN);
+        float mk=1.0-smoothstep(mE*0.20,mE,vMeltH);
         if(mk>0.004){
           vec3 mg=texture2D(uBio,(vCsXZ/uCell+uBioN*0.5+0.5)/uBioN).rgb;
-          float md=0.84+0.42*(texture2D(uNz,vCsXZ/0.93+0.17).b-0.5)+0.26*(mF-0.5);          // 땅의 얼룩
-          diffuseColor.rgb=mix(diffuseColor.rgb,mg*md,mk*0.94); } }`);
+          ${GP?`/* 땅 사진 — 땅 셰이더처럼 풀빛이면 풀밭(1) · 아니면 마른 흙(7) 사진을 같은 배율(2.1 m)로 읽어 곱한다. 덮인 밑동과 옆의 땅이 같은 결이다 */
+          float mgr=clamp((mg.g-max(mg.r,mg.b))*8.0,0.0,1.0);
+          mg*=mix(texture(uGnd,vec3(vCsXZ/2.1,7.0)).rgb,texture(uGnd,vec3(vCsXZ/2.1,1.0)).rgb,mgr)*2.0;`
+          :`mg*=0.84+0.42*(texture2D(uNz,vCsXZ/0.93+0.17).b-0.5);          // 땅의 얼룩`}
+          diffuseColor.rgb=mix(diffuseColor.rgb,mg,mk*mk*(3.0-2.0*mk)*0.94); } }`);
     }
   };
   /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이

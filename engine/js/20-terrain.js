@@ -300,7 +300,7 @@ let LIMB_FAR_MAT=null, LIMB_MAT_C=null, LIMB_DEPTH_C=null, LIMB_DIST_C=null;
 function barkMat(col,kind){
   const m=new THREE.MeshLambertMaterial({color:col});
   m.onBeforeCompile=sh=>{
-    sh.vertexShader='varying vec3 vBk;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+    sh.vertexShader='varying vec3 vBk;\nvarying vec2 vBkP;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
       float bkLen=1.0, bkR=1.0;
       ${INST_GUARD}
       #ifdef USE_INSTANCING
@@ -318,30 +318,37 @@ function barkMat(col,kind){
         transformed.z+=(k2-0.5)*2.4*on;
       }
       #endif`:''}
-      vBk=vec3(atan(position.z,position.x), transformed.y*bkLen, length(position.xz)*bkR);`);
+      vBk=vec3(0.0, transformed.y*bkLen, length(position.xz)*bkR); vBkP=position.xz;`);
     sh.fragmentShader=`varying vec3 vBk;
+varying vec2 vBkP;
 float bh(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float bn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(bh(i),bh(i+vec2(1,0)),f.x),mix(bh(i+vec2(0,1)),bh(i+vec2(1,1)),f.x),f.y); }
 `+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       {
+        /* 둘레의 각은 **화소에서** 센다(사용자 지적: 나무껍질이 깨진다) — 정점에서 세어 넘기면 +π → −π 로 넘어가는 이음매의
+           세모 한 줄에서 각이 거꾸로 한 바퀴를 훑어, 줄기마다 결이 뭉개진 세로 금이 났다 */
+        float ang=atan(vBkP.y,vBkP.x);
         /* 둘레 길이(m) = 각 × 반지름 — 굵은 줄기는 골이 많고 가는 가지는 적다 */
         float circ=6.2832*max(vBk.z,0.02);
         float nAround=max(2.0,floor(circ/0.13));
-        vec2 q=vec2(vBk.x/6.2832*nAround, vBk.y);
+        vec2 q=vec2(ang/6.2832*nAround, vBk.y);
+        /* 멀어서 골 하나가 화소 하나보다 작아지면 무늬를 평균 밝기로 녹인다 — 그대로 두면 자글거리며 부서져 보였다 */
+        vec2 qd=fwidth(q); float aa=1.0-smoothstep(0.30,0.85,max(qd.x,qd.y*2.0));
         q.x+=(bn(vec2(q.y*1.3,q.x*0.4))-0.5)*1.4+(bn(vec2(q.y*4.1,q.x*1.7))-0.5)*0.35;   // 골이 구불구불
         float id=floor(q.x), col=fract(q.x);
         float fw=0.10+0.12*bn(vec2(id*3.1,q.y*2.0));                   // 골 너비도 자리마다 다르다
         float fis=smoothstep(0.0,fw,col)*smoothstep(1.0,1.0-fw,col);   // 0 = 골 · 1 = 판 가운데
-        float pl=0.35+0.6*bh(vec2(id,7.0));                            // 판 길이 — 골 줄마다 다르다
+        float pl=0.8+1.4*bh(vec2(id,7.0));                             // 판 길이 — 골 줄마다 다르다(길쭉해야 벽돌처럼 안 보인다)
         float qy=q.y/pl+bh(vec2(id,3.0))*5.0+(bn(vec2(id,q.y*2.0))-0.5)*0.6;
         float cut=fract(qy), plate=bh(vec2(id,floor(qy)));
         float br=0.70+0.40*plate;
         br*=mix(0.38,1.0,fis);
-        br*=mix(0.62,1.0,smoothstep(0.0,0.05,cut)*smoothstep(1.0,0.97,cut)*(0.6+0.4*fis)+ (1.0-fis)*0.0);
+        br*=mix(0.80,1.0,smoothstep(0.0,0.06,cut)*smoothstep(1.0,0.96,cut)*(0.6+0.4*fis));   // 판을 가로지르는 금은 옅게
         br*=1.0+0.22*(col-0.5)*fis;                                    // 판 한쪽 면이 밝다(요철 흉내)
-        br*=0.82+0.30*bn(vec2(vBk.x*14.0,vBk.y*24.0));                  // 잔 세로 결
-        br*=0.9+0.2*bn(vBk.xy*vec2(1.1,0.9));                          // 큰 얼룩
+        br*=0.82+0.30*bn(vec2(ang*14.0,vBk.y*24.0));                    // 잔 세로 결
+        br=mix(0.70,br,aa);                                            // 멀면 평균 밝기(골·판·잔 결의 평균)
+        br*=0.9+0.2*bn(vec2(ang,vBk.y)*vec2(1.1,0.9));                 // 큰 얼룩(멀어도 남긴다)
         diffuseColor.rgb*=br;
       }`);
   };
@@ -806,6 +813,7 @@ vec2 grain(vec3 p){
         float ia=floor(sel), fb=smoothstep(0.25,0.75,fract(sel)+(rn(p/1.3+2.2)-0.5)*0.55);
         float la=ia>2.5?ia+1.0:ia, lb=ia>1.5?ia+2.0:ia+1.0;
         vec3 rk=mix(rkTri(q,tw,la),rkTri(q2,tw,lb),fb);
+        rk=mix(vec3(dot(rk,vec3(0.30,0.59,0.11))),rk,${big?'0.45':'0.8'});   // 큰 바위는 사진 빛깔을 반쯤만(사암의 주황이 너무 셌다)
         c*=mix(vec3(1.0),rk*2.0,0.92);
         /* 결의 높낮이 — 법선 지도로 화소마다 면을 기울여, 볕이 금과 혹을 따라 갈리게 한다(45 m 안 · 많이 섞인 쪽 한 장만 읽는다).
            램버트는 빛을 정점에서 세므로 그 값을 '기울인 면 / 본래 면' 의 볕 차이만큼 밝히고 어둡게 고친다. 패인 데는 하늘을 덜 본다 */
@@ -819,6 +827,14 @@ vec2 grain(vec3 p){
           c*=1.0+clamp((dot(np,uSunDir)-dot(n,uSunDir))*1.5,-0.5,0.5)*nearN*sunK;
           c*=mix(1.0,0.70+0.30*clamp(dot(np,n),0.0,1.0),nearN);
         }
+        /* **프랙털 금**(사용자 요청) — 값잡음이 0 을 지나는 선을 세 겹(2.2 · 1.0 · 0.48 m)으로 겹친다. 겹마다 자리를 비틀어(구불구불)
+           다른 잡음으로 군데군데 끊어서 둥근 고리가 아니라 가지 친 금이 된다. 굵기는 화소에 맞추고 너무 잘아지면 뺀다(멀면 사라진다) */
+        if(nearK>0.0){ float ck=0.0, cf=0.45, cw=0.06;
+          for(int i=0;i<3;i++){ vec3 qp=p*cf+float(i)*13.7; qp+=(vec3(rn(qp*2.7),rn(qp*2.7+4.1),rn(qp*2.7+8.3))-0.5)*0.45;
+            float nv=rn(qp)-0.5, fw=fwidth(nv)+1e-4;
+            float ln=(1.0-smoothstep(0.0,cw+fw,abs(nv)))*smoothstep(0.34,0.56,rn(qp*0.37+5.1))*(1.0-smoothstep(0.08,0.28,fw));
+            ck=max(ck,ln*(1.0-0.2*float(i))); cf*=2.15; cw*=0.8; }
+          c*=1.0-0.75*ck*nearK; }
         /* 위를 보는 면에는 이끼 낀 바위 사진(3번)이 얼룩지게 앉는다(넓은 잡음으로 군데군데) */
         { float um=smoothstep(0.45,0.9,n.y)*${moss}.0*smoothstep(0.38,0.62,rn(p/3.3+5.5)+(rn(p/0.6)-0.5)*0.4);
           vec3 mz=texture(uRk,vec3(p.xz/(RS*0.9),3.0)).rgb;

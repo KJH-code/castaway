@@ -220,6 +220,17 @@ function toggleDev(on){
   else{ PL.pos.y=devGround(); PL.grounded=true; }
   toast(DEV.on?'개발자 모드 — 날아서 둘러본다 · 다치지 않는다 · ` 로 끈다':'개발자 모드 끔');
 }
+/* 개발자 모드 — 굴 둘러보기(사용자 요청: 굴이 제대로 지어졌나 보고 싶다). ] 다음 굴 · [ 앞 굴 — 입구 앞 6 m 에서 굴 속을 보고 선다.
+   지도에는 굴이 번호 붙은 청록 동그라미로 뜬다(개발자 모드일 때만 — 82-hud.js drawMap) */
+function devCave(step){
+  if(!DEV.on||typeof CAVES==='undefined'||!CAVES.length){ toast(CAVES&&CAVES.length?'개발자 모드에서만':'이 섬에는 굴이 없다(지형 판 '+(P.tv|0)+')'); return; }
+  DEV.cave=((DEV.cave===undefined?(step>0?-1:0):DEV.cave)+step+CAVES.length)%CAVES.length;
+  const c=CAVES[DEV.cave], r=c.rooms[0], ex=r.x+Math.cos(c.yaw)*(r.R+6), ez=r.z+Math.sin(c.yaw)*(r.R+6);
+  PL.pos.set(ex,heightAt(ex,ez)+0.4,ez); PL.vel.set(0,0,0); PL.camY=undefined;
+  PL.yaw=Math.atan2(-(r.x-ex),-(r.z-ez)); PL.pitch=-0.08;
+  let ore=0; for(const p of PROPS) if(p.cave&&c.rooms.some(q=>Math.hypot(p.x-q.x,p.z-q.z)<q.R+1)) ore++;   // 굴 속 광석(p.cave — 10-worldgen.js)
+  toast('굴 '+(DEV.cave+1)+'/'+CAVES.length+' — 방 '+c.rooms.length+'개 · 광석 '+ore+'개 · 높이 '+Math.round(r.y)+' m');
+}
 function devFly(dt){
   const p=PL.pos, K=(invOpen||craftOpen)?NO_KEYS:keys;
   PL.hp=HPMAX; PL.stam=100; PL.food=100; PL.water=100; PL.oxy=100; PL.ill=0; hurtFlash=0;
@@ -254,6 +265,13 @@ function eyeHit(x,y,z){
   }
   return false;
 }
+/* 발밑 바닥(땅 · 바위 윗면 · 지은 바닥)의 기울기 [∂h/∂x, ∂h/∂z] — 25 cm 옆을 잰다. 턱(60 cm 넘게 다른 높이 — 바위 가장자리 등)은
+   비탈로 치지 않고 그쪽 표본을 버린다(바위 끝에 섰다고 미끄러지지 않게) */
+function floorGrad(x,z,y){
+  const e=0.25, h0=floorAt(x,z,y+0.3), a=floorAt(x+e,z,y+0.3), b=floorAt(x-e,z,y+0.3), c=floorAt(x,z+e,y+0.3), d=floorAt(x,z-e,y+0.3);
+  const ok=v=>Math.abs(v-h0)<0.6, G=(p,m)=>ok(p)&&ok(m)?(p-m)/(2*e):ok(p)?(p-h0)/e:ok(m)?(h0-m)/e:0;
+  return [G(a,b),G(c,d)];
+}
 /* 그 점(높이 y)이 땅 속이나 큰 바위 속인가 */
 function solidAt(x,z,y){
   if(heightAt(x,z)>y) return true;
@@ -282,12 +300,15 @@ function climbFloor(x,z,y){
   if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.t<=y+0.3&&s.t>f) f=s.t; } }
   return f;
 }
-/* 마주 본 벽이 오를 벼랑인가 — 앞으로 걸어 갈 수 없고(walkable — 가파른 땅 · 바위 벽) 1.6 m 안에 가슴 높이까지 막혀 있다.
-   걸음은 2.5 m 폭으로 잰 비탈에서 멈추므로 벽이 아직 1 m 넘게 앞일 수 있다 — 매달리면 벽 쪽으로 끌려 붙는다(wallTick) */
+/* 마주 본 벽이 오를 벼랑인가 — 1.6 m 안에 ① 가슴 높이(발+0.8)의 큰 바위가 있거나 ② 땅이 가슴 높이를 넘게 솟고 거기가 45° 넘게 가파르다.
+   (가파른 데는 미끄러지므로 벽 바로 밑까지 걸어갈 수 없다 — 비탈 아래에서 벽을 보고 Space 를 누르면 끌려 붙는다(wallTick)) */
 function wallAhead(){
-  const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw), p=PL.pos;
-  if(walkable(p.x+fx*0.35,p.z+fz*0.35,p.y)) return false;
-  return wallDist(p.x,p.z,p.y,fx,fz,0.3,1.6)>=0;
+  const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw), p=PL.pos, yc=p.y+0.8;
+  for(let d=0.3;d<=1.6+1e-6;d+=0.1){ const x=p.x+fx*d, z=p.z+fz*d;
+    if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const sp=_cgS[i]; if(sp.b<yc&&sp.t>yc) return d; } }
+    if(heightAt(x,z)>yc){ const g=groundSlope(x,z,0.8); return Math.hypot(g[0],g[1])>MAXSLOPE*0.87?d:0; }
+  }
+  return 0;                                                          // 벽까지의 거리(m) — 없으면 0
 }
 function wallTick(dt){
   const sp=!!keys.Space, tap=sp&&!WALL.sp; WALL.sp=sp;
@@ -383,7 +404,19 @@ function updatePlayer(dt){
   let dx=(-s*fwd+c*str), dz=(-c*fwd-s*str);
   const l=Math.hypot(dx,dz)||1; dx/=l; dz/=l;
   const moving=!!(fwd||str);
-  const acc=(PL.grounded||PL.swim)?15:4;
+  /* **가파른 데서는 미끄러진다**(사용자 요청: 벼랑에서는 Space 로 매달려 있을 때만 버틴다 — 예전엔 옆으로 걸으면 벽을 가로질러 달렸다).
+     발밑(땅이든 바위 윗면이든)이 49°(MAXSLOPE) 넘게 기울었으면 걷기를 안 받고 내리막으로 끌려 내려간다. 바닥이 완만해지면 멈춘다 */
+  let slide=false;
+  if(PL.grounded&&!PL.swim&&depth<0.5){
+    const g=floorGrad(p.x,p.z,p.y), sl=Math.hypot(g[0],g[1]);
+    if(sl>MAXSLOPE){ slide=true;
+      const a=-GRAV*sl/Math.sqrt(1+sl*sl)*0.8;                    // 비탈을 따라 끄는 힘(마찰 20%)
+      PL.vel.x-=g[0]/sl*a*dt; PL.vel.z-=g[1]/sl*a*dt;
+      const v=Math.hypot(PL.vel.x,PL.vel.z); if(v>14){ PL.vel.x*=14/v; PL.vel.z*=14/v; }
+      if(!PL._slT||performance.now()-PL._slT>4000){ PL._slT=performance.now(); toast('미끄러진다 — 벼랑에서는 Space 를 누르고 매달려야 버틴다'); } }
+  }
+  PL.sliding=slide;
+  const acc=slide?0:(PL.grounded||PL.swim)?15:4;
   PL.vel.x+=((moving?dx*sp:0)-PL.vel.x)*clamp(acc*dt,0,1);
   PL.vel.z+=((moving?dz*sp:0)-PL.vel.z)*clamp(acc*dt,0,1);
 
@@ -409,7 +442,7 @@ function updatePlayer(dt){
     /* **돌진**(사용자 요청 — 예전의 위로 뛰기 대신) — Space 를 **누르는 순간** 가는 쪽(누른 방향 · 없으면 보는 쪽)으로 낮게 몸을 날린다
        (초속 12 m · 살짝 뜬다 — 2~3 m 를 나가고 0.8 m 턱까지는 넘는다). 기력 10(짐이 무거우면 더 · 멀리 못 간다) · 0.55초에 한 번.
        **물에서는 못 한다**(무릎 넘게 잠기면). 누르고 있는 Space 는 벼랑에 매달리는 데 쓴다(wallTick) — 돌진은 누르는 순간만 */
-    else if(spTap&&PL.grounded&&PL.lungeCd<=0){
+    else if(spTap&&PL.grounded&&PL.lungeCd<=0&&!slide){             // 미끄러지는 중에는 못 한다(벽을 돌진으로 건너지 않게)
       const cost=LUNGE_STAM*(1+load*1.6);
       if(depth>0.45){ if(!PL._jw||performance.now()-PL._jw>2500){ PL._jw=performance.now(); toast('물에서는 돌진할 수 없다'); } }
       else if(PL.stam>=cost){
@@ -474,7 +507,7 @@ function updatePlayer(dt){
   else if(PL.swim) PL.stam-=(moving?2.2:0.6)*(fins?0.5:1)*dt*drain;
   /* 짐이 무거우면(적재 60% 넘게) 걷기만 해도 지친다(사용자 요청) — 만재에서 초당 6 · 서 있으면 다시 찬다 */
   else if(moving&&PL.grounded&&load>0.6) PL.stam-=6*Math.pow((load-0.6)/0.4,1.3)*dt;
-  else if(!HARV.active&&PL.grounded) PL.stam+=12*dt*(1-load*0.5)        // 공중에서는 안 찬다(뛰는 동안 숨을 못 고른다)
+  else if(!HARV.active&&PL.grounded&&!slide) PL.stam+=12*dt*(1-load*0.5)        // 공중에서는 안 찬다(뛰는 동안 숨을 못 고른다)
                                 *(PL.food<=0?0:(PL.ill>0?0.45:1));
   if(PL.food<=0) PL.stam-=3.5*dt;                    // 굶으면 도로 빠진다
   if(PL.water<=0) PL.stam-=5*dt;                     // 목이 마르면 더 빨리 빠진다

@@ -50,8 +50,11 @@ function wildInit(){
           transformed.y+=abs(transformed.x)*sin(uWT*14.0+ph)*0.9; }`); };
     m.customProgramCacheKey=()=>'bird';
     WILD.birdIM=new THREE.InstancedMesh(g,m,80); }
+  /* 인스턴스 색 칸을 **전부 흰색으로** 채운다 — setColorAt(0) 하나만 부르면 r128 이 칸을 다 만들되 0번만 희고 나머지는 0(검정)이라,
+     둘째 벌집·둥지·새부터 새까맣게 보였다(사용자 지적: 검은 벌집) */
   for(const im of [WILD.nestIM,WILD.hiveIM,WILD.birdIM]){
-    im.setColorAt(0,new THREE.Color(1,1,1)); im.count=0; im.frustumCulled=false; im.userData.lightRole='recv';
+    const w=new THREE.Color(1,1,1); for(let i=0;i<im.instanceMatrix.count;i++) im.setColorAt(i,w);
+    im.count=0; im.frustumCulled=false; im.userData.lightRole='recv';
     im.matrixAutoUpdate=false; im.updateMatrix(); scene.add(im); }
   /* 벌레 — 점 한 무더기(나비 · 반딧불이 · 잠자리 · 벌). 반딧불이가 밤에 빛나야 해서 조명을 안 받는 점 재질이다 */
   { const g=new THREE.BufferGeometry(), n=WILD.bugN;
@@ -326,7 +329,8 @@ function climbLook(){
 function climbTick(dt){
   const sp=!!keys.Space, tap=sp&&!CLIMB.sp; CLIMB.sp=sp;
   if(!CLIMB.on){
-    if(tap&&PL.grounded&&!(invOpen||craftOpen)){ const p=climbLook();
+    if(tap&&PL.grounded&&!(invOpen||craftOpen)){ let p=climbLook();
+      if(p&&typeof wallAhead==='function'){ const wd=wallAhead(); if(wd&&wd<Math.hypot(p.x-PL.pos.x,p.z-PL.pos.z)) p=null; }   // 벼랑이 나무보다 가까우면 벼랑에 매달린다(80-player.js)
       /* 눈이 바위에 들지 않는 쪽에서 매달린다 — 바위에 붙어 선 나무면 줄기를 돌아 빈 쪽을 찾고, 없으면 못 오른다 */
       let ang=null; if(p){ const a0=Math.atan2(PL.pos.z-p.z,PL.pos.x-p.x), rad=((p.k==='oak'?0.46:0.40)*p.s)+0.34;
         for(let k=0;k<12&&ang===null;k++){ const a=a0+(k%2?1:-1)*Math.ceil(k/2)*0.52; if(!eyeHit(p.x+Math.cos(a)*rad,p.y+0.3+EYE,p.z+Math.sin(a)*rad)) ang=a; }

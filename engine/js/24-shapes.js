@@ -79,6 +79,12 @@ SHP.rough=function(x,y,z,s,f0,n){
     t+=v*a; sum+=a; a*=0.5; f*=2.03; }
   return t/sum;
 };
+/* 날카로운 능선 — 접힌 잡음(1−|v|)을 세제곱해 좁은 날만 세운다(사용자 요청: 바위 모서리를 들쭉날쭉하게). 0~1 · 평균 0.25 쯤 */
+SHP.jag=function(x,y,z,s,f0,n){
+  let a=1, f=f0, t=0, sum=0;
+  for(let i=0;i<n;i++){ const v=1-Math.abs(SHP.vn3(x*f+i*3.3,y*f-i*1.9,z*f+i*4.7,(s|0)+i*57)); t+=v*v*v*a; sum+=a; a*=0.5; f*=2.1; }
+  return t/sum;
+};
 /* 덩이 — 공을 큰 혹 몇 개로 밀고 당긴 것. 이웃 면끼리 법선이 이어져 둥글게 보인다.
    o: w·h 쪼갬 수 · amp 혹의 세기 · sx·sy·sz 축별 크기 · base 밑을 자를 높이(반지름 비 — 땅에 앉히는 것) · freq 혹의 잔 정도 */
 SHP.blob=function(r,seed,o){
