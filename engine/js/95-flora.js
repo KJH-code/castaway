@@ -621,7 +621,9 @@ function instUp(im){
   const C=im.instanceColor; if(C){ C.updateRange.offset=0; C.updateRange.count=n*3; C.needsUpdate=true; }
 }
 function floraLayer(L,which){
-  const U=FLORA, px=PL.pos.x, pz=PL.pos.z, C=L.cell, R=L.R*QUAL.k, n=L.n, far=which==='far';   // 자동 품질이 반경을 당긴다(30-props.js)
+  /* 자동 품질이 반경을 당긴다(30-props.js) — **덤불 겹은 0.85배(39 m) 밑으로는 안 당긴다**(사용자 지적: 프레임이 떨어지면 0.4배 → 18 m 라
+     12 m 밖 덤불이 줄어들다 사라졌다). 덤불 겹은 삼각형이 수만 개뿐이라 당겨 봐야 프레임에 거의 안 듣는다 */
+  const U=FLORA, px=PL.pos.x, pz=PL.pos.z, far=which==='far', C=L.cell, R=L.R*(far?QUAL.k:Math.max(QUAL.k,0.85)), n=L.n;
   L.cx=px; L.cz=pz; L.cols.length=0; L.picks.length=0;
   for(const k of L.kinds) n[k].fill(0);
   const near0={}, nearV={}; U.pendN=0;
