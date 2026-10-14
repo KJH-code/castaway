@@ -422,7 +422,6 @@ function pushCollider(c){
   c._col=COLLIDERS.find(o=>o.x===c.x&&o.z===c.z)||null;
   return c._col;
 }
-function pushEnd(){ moveCancel(); }
 /* ── 옮기기(F) — 아크 서바이벌처럼 집어 들고, 돌리고, 내려놓는다(사용자 요청 — 예전엔 F 를 누르고 있는 동안 밀기라 불편했다) ──
    설비를 보고 F → 그 설비가 눈앞에 떠서 시선을 따라온다(바닥 · 토대 · 지붕 위 — `floorAt`). 휠·R 로 15° 씩 돌리고 좌클릭으로 놓는다.
    F 다시·우클릭·Esc 는 그만두기(제자리로). 놓을 자리가 안 되면 발밑 고리가 붉고 까닭이 뜬다. 안에 든 것·불·이름표는 그대로 따라온다.
