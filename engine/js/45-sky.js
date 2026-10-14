@@ -2461,7 +2461,7 @@ function updateSky(){
   hemi.intensity=lerp(0.18,0.012+0.02*perc,nightK)+amb.intensity*0.5;
   /* **볕과 그늘의 대비를 세게**(사용자 요청 — 2026-10-14) — 낮에는 그늘을 채우는 환경광·하늘빛을 28% 줄이고 볕을 12% 올린다
      (밤은 그대로 — 이미 별빛 수준이다) */
-  { const CON=1-nightK; amb.intensity*=1-0.28*CON; hemi.intensity*=1-0.28*CON; if(moonFade<=0) sun.intensity*=1+0.12*CON; }
+  { const CON=1-nightK; amb.intensity*=1-0.20*CON; hemi.intensity*=1-0.20*CON; if(moonFade<=0) sun.intensity*=1+0.12*CON; }   // 28% 는 산그늘이 새까맸다
   /* **빛의 색조**(사용자 요청) — 산란식이 내는 색은 눈의 순응을 거쳐 거의 흰빛으로 눅는다. 그 위에 한 겹 더 물들인다.
        · 노을·새벽(해가 지평선에서 17° 안) — 볕이 닿는 데는 **주황**, 그늘을 채우는 하늘빛·환경광은 **보라**.
        · 달이 뜬 밤 — 달빛이 **은은한 푸른빛**이다.
