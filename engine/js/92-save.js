@@ -83,6 +83,7 @@ function snapshot(){
         hp:PL.hp,stam:PL.stam,oxy:PL.oxy,food:PL.food,water:PL.water,
         ill:PL.ill},
     inv:saveSlots(INV.slots), pockets:INV.pockets.slice(0,6),
+    boats:BOATS.map(b=>[+b.x.toFixed(2),+b.z.toFixed(2),+b.yaw.toFixed(3)]),   // 통나무배(96-sea.js)
     sel:INV.sel, eq:EQUIP?INV.slots.indexOf(EQUIP):-1,
     wear:{body:WEAR.body?INV.slots.indexOf(WEAR.body):-1,
           armor:WEAR.armor?INV.slots.indexOf(WEAR.armor):-1,
@@ -251,6 +252,7 @@ async function restore(d){
     QUICK[i]=slotAt(d.quick?d.quick[i]:-1);
   quickDirty=true;
   refreshWear();
+  safe('통나무배',()=>{ boatsClear(); for(const r of d.boats||[]) boatSpawn(+r[0],+r[1],+r[2]); });
   safe('지도 핀',()=>{ MAPPINS.length=0;
     for(const r of d.pins||[]) if(Array.isArray(r)&&isFinite(r[0])&&isFinite(r[1])&&MAPPINS.length<PIN_MAX)
       MAPPINS.push({x:+r[0],z:+r[1],c:(r[2]|0)%PIN_COL.length,n:(r[3]|0)||MAPPINS.length+1});

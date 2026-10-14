@@ -48,6 +48,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyL'){ toggleLamp(); }         // 전등은 들고 좌클릭해도 켜진다 · 충전은 우클릭
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
   if(e.code==='KeyE'&&boxOpen&&!e.repeat){ toggleBox(null); }
+  else if(e.code==='KeyE'&&!e.repeat&&!grindOpen&&!uiOpen()&&typeof boatToggle==='function') boatToggle();   // 배 타기 · 내리기(96-sea.js)
   if((e.code==='Escape'||e.code==='KeyE')&&grindOpen&&!e.repeat){ toggleGrind(); return; }
   /* I — 가방 화면(소지품 + 고른 물건 + 제작이 한 장에 선다 · 98-bag.js). 예전엔 C 로도 열렸고 그때는 검색칸에 바로 글자가
      쳐졌다 — C 를 누르고 I 를 누르면 가방이 닫히는 대신 검색칸에 'i' 가 쳐졌다(사용자 지적). 이제 여는 키는 I 하나고,

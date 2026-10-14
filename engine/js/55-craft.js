@@ -31,6 +31,9 @@ const RECIPES=[
    note:'노끈을 한 뼘 간격으로 매듭지어 그물코를 뜬다. 물에 들어가 던지면 '
        +'물고기가 걸린다. 코가 굵어 작은 것은 빠져나간다.',
    in:[{id:'cord',n:8},{id:'branch',n:2}]},
+  {id:'canoe', tier:'나무와 점토', n:'통나무배', out:{id:'canoe',n:1}, time:45, stam:30,
+   note:'통나무 둘을 이어 속을 불로 그을리고 돌로 긁어 파낸다. 이음매는 송진으로 메운다. 들고 물가에서 물을 보고 누르면 띄운다 — E 로 탄다.',
+   in:[{id:'log',n:4},{id:'cord',n:6},{id:'resin',n:3}]},
   {id:'rod_wood', tier:'풀과 돌', n:'낚싯대', out:{id:'rod_wood',n:1}, time:12, stam:8,
    note:'곧은 가지 끝에 노끈을 감고 부싯돌을 갈아 굽은 바늘을 단다. 물에 찌를 던져 기다리면 물고기 그림자가 다가온다 — 찌가 잠기면 바로 당긴다.',
    in:[{id:'branch',n:2},{id:'cord',n:4},{id:'flint',n:1}]},

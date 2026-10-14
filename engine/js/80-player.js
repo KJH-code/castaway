@@ -373,6 +373,7 @@ function updatePlayer(dt){
   if(DEV.on){ devFly(dt); return; }                // 개발자 모드 — 날기(위)
   if(climbTick(dt)) return;                        // 나무를 오르는 중 — 몸은 줄기에 붙어 있다(97-wildlife.js)
   if(wallTick(dt)) return;                         // 벼랑에 매달려 있다(위) — Space 를 누르고 있어야 한다
+  if(BOAT.on){ boatTick(dt); return; }             // 배를 탔다(96-sea.js)
   const p=PL.pos;
   /* 가방(소지품·제작)을 연 동안에는 세상은 흐르지만 몸은 선다 — 누르고 있던 걷기·뛰기 키를 안 받는다 */
   const K=(invOpen||craftOpen)?NO_KEYS:keys;

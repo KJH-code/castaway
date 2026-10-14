@@ -628,7 +628,8 @@ function chargeHeld(){
 function attack(){
   /* 그물은 무기가 아니라서 equippedWeapon() 이 걸러낸다 — 손에 든 것을 먼저 본다 */
   const hand=equippedTool(), HT=hand&&ITEMS[hand.id].tool;
-  if(HT&&HT.rod){ rodUse(hand,HT); return; }                                     // 낚싯대(96-sea.js)
+  if(HT&&HT.rod){ rodUse(hand,HT); return; }
+  if(HT&&HT.boat){ boatLaunch(hand); return; }                                   // 통나무배 띄우기(96-sea.js)                                     // 낚싯대(96-sea.js)
   if(HT&&HT.net){ if(ATK.cd<=0) castNet(hand,HT); return; }
   const w=equippedWeapon();
   const W=w&&ITEMS[w.id].tool;

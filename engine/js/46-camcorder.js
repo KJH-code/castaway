@@ -134,8 +134,9 @@ function camcInit(){
         vec2 C1=vec2(${CAMC_HIT[0][0]},${CAMC_HIT[0][1]}), C2=vec2(${CAMC_HIT[1][0]},${CAMC_HIT[1][1]}), C3=vec2(${CAMC_HIT[2][0]},${CAMC_HIT[2][1]});
         vec2 e1=(tc-C1)*vec2(2.0,1.0), e2=(tc-C2)*vec2(2.0,1.0), e3=(tc-C3)*vec2(2.0,1.0);
         vec3 dI=vec3(length(e1),length(e2),length(e3));
-        vec3 rI=vec3(smoothstep(0.0,0.5,uHurt)*1.5, smoothstep(0.32,0.82,uHurt)*1.05, smoothstep(0.58,0.95,uHurt)*0.85);
-        vec3 mI=1.0-smoothstep(rI-0.06,rI,dI);                                // 금이 드러난 곳(자라나는 끝은 부드럽게)
+        /* **금은 통째로** 나타나고 통째로 옅어진다(사용자 요청 — 예전엔 맞은 자리에서 반지름이 자라고 줄어 가장자리부터 사라지는 게 기괴했다).
+           맞은 자리 셋이 체력을 따라 차례로 짙어진다 */
+        vec3 mI=vec3(smoothstep(0.0,0.30,uHurt), smoothstep(0.32,0.60,uHurt), smoothstep(0.58,0.85,uHurt));
         vec4 ck=texture2D(tCrk,tc), ckS=texture2D(tCrk,tc+vec2(0.0016,-0.0032));   // 금 · 그 오른쪽 아래의 그늘
         float crk=max(max(ck.r*mI.x,ck.g*mI.y),ck.b*mI.z), crkS=max(max(ckS.r*mI.x,ckS.g*mI.y),ckS.b*mI.z);
         float hz=ck.a*max(max(mI.x,mI.y),mI.z);                              // 금 둘레(번짐) — 색이 갈라지고 조각이 어긋난다
@@ -272,7 +273,7 @@ function camcEnd(under){
   /* 깨진 렌즈 — 체력 90% 밑에서 금이 생겨 10% 에서 다 퍼진다. 맞으면 금이 0.3초쯤에 걸쳐 뻗고, 체력이 차면 천천히 줄어든다 */
   { const now=performance.now(), dt=Math.min(0.1,(now-(CAMC.tPrev||now))/1000); CAMC.tPrev=now;
     const want=PL.dead?1:clamp((0.9-PL.hp/HPMAX)/0.8,0,1);
-    CAMC.hurt+=(want-CAMC.hurt)*(1-Math.exp(-dt*(want>CAMC.hurt?9:1.5)));
+    CAMC.hurt+=(want-CAMC.hurt)*(1-Math.exp(-dt*(want>CAMC.hurt?9:0.35)));   // 체력이 차면 금이 천천히(3초쯤) 옅어진다
     U.uHurt.value=CAMC.hurt; U.uHit.value=Math.min(1,hurtFlash*1.4);
     U.uAsp.value=renderer.domElement.width/Math.max(1,renderer.domElement.height); }
   renderer.setRenderTarget(null);

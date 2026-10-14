@@ -417,7 +417,7 @@ async function generateWorld(){
                                     { const b=document.getElementById('box'); if(b) b.style.display='none'; }
                                     if(typeof CTREE!=='undefined') ctreeHide(true);
                                     if(typeof GATHER!=='undefined'){ GATHER.p=null; GATHER.t=0; GATHER.on=false; }
-                                    CREATURES.length=0; ATK.cd=0; ATK.swing=0;
+                                    CREATURES.length=0; ATK.cd=0; ATK.swing=0; if(typeof boatsClear==='function') boatsClear();
 
   document.getElementById('iSeed').textContent=P.seed;
   console.log('[생성]',P.seed,Math.round(performance.now()-t0)+'ms',
