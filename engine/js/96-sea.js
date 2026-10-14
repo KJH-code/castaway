@@ -558,7 +558,7 @@ function rodReset(){ ROD.st=0; if(ROD.bob){ ROD.bob.visible=ROD.line.visible=ROD
 /* 찌 자리에서 무는 고기 — 물의 깊이로 구역을 정하고 그 구역 고기 가운데 많은 것일수록 자주 */
 function rodPick(x,z){
   const g=heightAt(x,z), W=waterAt(x,z,g);
-  if(W.river) return null;                                          // 민물 — 그냥 물고기
+  if(W.river) return (typeof fallsNear==='function'&&fallsNear(x,z)&&Math.random()<0.7)?{n:'연어',len:0.75,tier:2,drop:['salmon',1]}:null;   // 민물 — 폭포 둘레면 연어(36-falls.js) · 아니면 그냥 물고기
   const dep=Math.max(0,-g), zone=dep>14?'deep':dep>4?'shelf':(Math.random()<0.5?'reef':'sand');
   const L=FISH_SP.filter(s=>s.zone===zone||(zone==='deep'&&s.zone==='shelf'&&Math.random()<0.3));
   let tot=0; for(const s of L) tot+=s.cap; let r=Math.random()*tot;
@@ -574,7 +574,7 @@ function rodUse(w,T){
       if(W.wl-g>0.7){ hit={x,z,y:W.river?W.wl:seaSurfAt(x,z),river:!!W.river}; break; } }
     if(!hit){ toast('물에 던져야 한다 — 무릎 넘게 깊은 물을 보고'); return; }
     PL.stam-=T.stam; ATK.cd=0.6; ATK.swing=0.4; ATK.swingMax=0.4; sfx('bind');
-    Object.assign(ROD,{st:1, x:hit.x, y:hit.y, z:hit.z, river:hit.river, t:3+Math.random()*6, sp:hit.river?null:rodPick(hit.x,hit.z), ang:Math.random()*6.2832});
+    Object.assign(ROD,{st:1, x:hit.x, y:hit.y, z:hit.z, river:hit.river, t:3+Math.random()*6, sp:rodPick(hit.x,hit.z), ang:Math.random()*6.2832});
     ROD.bob.position.set(ROD.x,ROD.y,ROD.z); ROD.bob.visible=ROD.line.visible=true;
     return;
   }

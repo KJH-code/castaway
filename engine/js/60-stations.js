@@ -38,6 +38,7 @@ const FIRING={
   eel:         {out:'eel_cooked', hours:0.20, count:1},
   flounder:    {out:'flounder_cooked', hours:0.18, count:1},
   mackerel:    {out:'mackerel_cooked', hours:0.15, count:1},
+  salmon:      {out:'salmon_cooked', hours:0.25, count:1},
   corvina:     {out:'corvina_cooked', hours:0.15, count:1},
   cod:         {out:'cod_cooked', hours:0.22, count:1},
   tuna:        {out:'tuna_cooked', hours:0.20, count:1},
