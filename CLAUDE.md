@@ -62,7 +62,7 @@ npx electron-builder --linux               # 묶기 — dist/ (--win · --mac �
   본편(`engine/js/92-save.js`)의 `DESK` 가 있으면 **저장 칸이 파일**(`userData/saves/slot1~3.json` · `auto.json` · Windows `%APPDATA%\CASTAWAY\saves` —
   임시 파일에 쓰고 바꿔 끼우며 바로 앞 것은 `.bak`), 없으면 `localStorage`(`castaway.save1~3` · `castaway.auto` — 슬롯 1 은 예전 키 그대로). 슬롯 이름은 `[a-z0-9._-]` 만 받는다.
   데스크톱 판에서만 보이는 것: 일시정지 화면의 **끝내기**(`#bQuit` — 상륙 전이면 바로, 상륙했으면 묻고 닫기 길(자동 저장)을 탄다) · 설정 창의 '전체 화면'·'저장·기록 폴더'(`#deskG` — userData 를 연다)·그래픽 백엔드 고르기(`#pAngle`) ·
-  시작 화면 오른쪽 아래 판 번호(`#ovVer`). **판 번호는 `desktop/package.json` 의 `version`**(지금 0.4.0 — `package-lock.json` 맨 위 두 곳도 같이) — 묶은 파일 이름에 들어가고 새 판 알림이 이것과 Releases 태그를 견준다.
+  시작 화면 오른쪽 아래 판 번호(`#ovVer`). **판 번호는 `desktop/package.json` 의 `version`**(지금 0.4.1 — `package-lock.json` 맨 위 두 곳도 같이) — 묶은 파일 이름에 들어가고 새 판 알림이 이것과 Releases 태그를 견준다.
 - **시험**: playwright 의 `_electron.launch` 로 xvfb 에서 띄운다(`xvfb-run -a node 시험.cjs`). 소프트웨어 GL 이라 섬 생성이 약 2분이고,
   `page.screenshot` 은 시간 초과가 난다 — 주 프로세스의 `webContents.capturePage()` 로 찍을 것.
 - 루트 `.gitignore` 가 `package.json` 을 무시한다(CI 가 맨 위에 playwright 를 깐다) — `desktop/` 것만 `!` 로 살려 두었다.
@@ -228,9 +228,9 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `55-craft.js` | **`RECIPES` 13** · `startCraft` 995 · `drawCraft` 1062 |
 | `60-stations.js` | `FIRING` 16 · `SMELT` 60 · 화덕·제련로·숫돌·모루·물레방아·발전기 · 바구니·상자·쓰레기통 · 이름표 · 설비 밀기(F) · 용기 공용 규칙 |
 | `62-build.js` | `BUILD` 73 · `floorAt` 118 · `BUILD_MESH` 322 · 짓기 모드 · 불꽃 · 횃불·등잔·전등 |
-| `64-dex.js` | `GEO` 12 · `obtainOf` 208 · **`CONTROLS_GUIDE` 497**(사전 '조작' 탭) · 상자 창 · 숫돌 창 |
+| `64-dex.js` | `GEO` 12 · `obtainOf` 220 · **`CONTROLS_GUIDE` 515**(사전 '조작' 탭) · `drawDex` · `dexShow`(가방에서 한 항목으로 건너가기) · 상자 창 · 숫돌 창 |
 | `70-weapons.js` | `CREATURES` 12 · 근접 판정 · **`WEAPON_FX` 195** · `emberClad` 109 |
-| `72-gear.js` | 갑옷·투구·옷·짐(`GEAR` · `gScalesOnMesh` 363 · `gearModel` 850) |
+| `72-gear.js` | 갑옷·투구·옷·짐(`GEAR` 463 · `gScalesOnMesh` 233 · `gearModel` 475) |
 | `74-icons-guns.js` | `itemIcon` 95 · 손에 든 먹을것 · 휘두르기 · `shoot` 358 · 수류탄·조준경·로켓 · `castNet` 543 · 좌클릭 `useHeld` 579 · `attack` 607 |
 | `80-player.js` | `rollSpawns` 87 · **`PL` 119** · `hurtPL` 132 · 개발자 모드 `DEV`·`devFly`(` 키 — 날기 · 안 다친다 · 끄면 바닥에 내려선다) · 눈의 경계 `eyeHit`(눈 둘레 0.26 m 에 바위·땅이 들면 그 걸음을 되돌린다 — 새 움직임을 만들면 이것을 거칠 것) · 벼랑 오르기 `WALL`·`wallTick`(Space 를 누르고 있어야 매달린다 · 기력) · 미끄러짐(발밑이 49° 넘으면 걷기를 안 받고 끌려 내려간다 — `floorGrad`) · 개발자 모드 굴 둘러보기 `devCave`(] [) · 돌진(Space 를 누르는 순간 · `LUNGE_V`) · `updatePlayer`(걷기·헤엄·기력·배고픔) · `eyeWater`(물속 안개) · 음향 · 발소리 |
 | `82-hud.js` | 지도 핀 `MAPPINS`·`toggleMap`(M — 펴면 `uiOpen` 이라 마우스가 풀린다 · 저장 `pins`) · `drawMap` · `drawCompass`(핀이 있으면 띠 위에 핀 줄 10 px) · 성능 창 `PERF` 98 · `updateHUD` 270 · 벤치마크 |
@@ -241,10 +241,11 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `95-flora.js` | 군락 식생(정글·대숲·자작나무·소나무·맹그로브·야자·꽃밭 …) · 나무 열 갈래 · 덩굴·죽순·야자·바나나·버섯 · **종류마다 여러 벌**(`floraShapes` · `FLORA_VARS` — 칸 해시로 그루마다 고름 · `FLORA.m[종류]` 는 벌마다 메시 배열) · **나무 갈래는 참나무·전나무와 같은 길**(`floraFar` — 섬 전체를 한 번 깔아 64 m 칸에 담고, 그루마다 50 m(`FL_FULL`) 안 제 벌 · 그 밖도 제 벌을 줄인 것 60 m 까지 65%(그림자 드리움) · 95 m 까지 30% · 160 m 까지 12%(`floraLodGeo` — 잎 판을 솎고 1/√몫 배로 키움 · 큰 줄기는 그대로) · 200(`FL_PIC`)~450 m 기준 그루를 찍은 그림(`floraBakePic`) · 화면 밖 칸은 거름 · 2 m 움직이거나 보이는 칸이 바뀔 때만 다시 채움 · 몸 원·딸 것은 60 m 안만) · 덤불 겹은 사람 둘레 46 m · 늘 제 벌 · 자동 품질은 이 반경을 0.85배(39 m) 밑으로 못 당긴다(0.4배 18 m 라 12 m 밖 덤불이 사라졌다 — 사용자 지적) · `SHP.merge` 가 부품마다 정점 구간을 `userData.parts` 에 적는다(줄인 복제가 쓴다) · 그림 묶음 `floraAtlas`(1024² · 칸 256 — 잎 판은 **작은 잎 수십 장이 붙은 잔가지 한 줌**, 껍질·자작·바나나 줄기·버섯 갓은 값잡음으로 칠함 · 칸 12 자작 · 14 바나나 줄기 · 15 버섯) · `fin` 이 잎 판마다 수관 속 그늘(가운데·아래일수록 어둡게)과 빛깔 흔들기를 곱하고 통째로 밑동을 짙게(`merge` grad 0.80→1.04) |
 | `95-giants.js` | 30~40 m 노거수 · 걸을 수 있는 판근(`giantRootAt` — `floorAt` 이 쓴다) · 종류마다 네 벌(`GIANT_VARS` · `GIANT.geo[종류][벌]`) · **200 m 밖은 종류마다 가장 가까운 그루의 벌 하나**(`GIANT.ref` · `updateGiants` — 참나무·전나무 `FAR_REF` 와 같은 방식 · 시야 안 그루만 채움 · 그림자 안 드리움 · 뿌리는 200 m 안만) |
 | `96-sea.js` | 산호·말미잘·바닷말·불가사리·바위·조개·물고기 떼(작살·그물) · 먼 바다 공포 |
+| `96-dishes.js` | 요리 스물 — 바다 것 갈래(생선 · 조개 · 게·새우 · 문어·오징어 · 날고기) · '요리' 단 · 돌판구이(현무암 판돌) · 온천 요리(`spring` 자리) · 그릇 모양(`dish`). 96-reef.js 다음에 읽는다 |
 | `96-reef.js` | 바다 생물 마흔 — 헤엄치는 것 21(FISH_SP 에 보탠다) · 바닥 14 · 떠다니는 것 5 · 그 아이템·굽기·조합 · 산호 폴립 결. `seaScatter` 를 감싼다 |
 | `96-foam.js` | **물가의 거품** — 사람 둘레 55 m 의 물가에 서는 사면체 조각(물머리 · 부서지는 물결 · 물가를 늘 덮는 띠). 움직임은 정점 셰이더(진짜 수면 = 물 셰이더의 긴 파도 셋 · 물가의 생김새 `aD`), 물가 찾기는 C(`engine/native/shore.c` — `foamBench()` 로 JS 판과 견준다). **물 셰이더의 파도 수를 바꾸면 여기 · 땅 셰이더의 젖은 띠(22) · `seaSurfAt`(20) 도 같이** |
 | `97-wildlife.js` | 새 떼(`wildFlocks`) · 둥지와 알 · 벌집과 꿀(`WILD.picks` — `FLORA_PICK` 의 egg·honey) · 새총(`slingShot` · 총·활도 `wildShot`) · 나무 오르기(`climbTick` — `updatePlayer` 가 맨 먼저 부른다) · 나비·반딧불이·잠자리·벌(`wildBugs`) |
-| `98-bag.js` | 가방 화면(소지품 + 고른 것 + 제작) |
+| `98-bag.js` | 가방 화면(소지품 + 고른 것 + 제작) — 가방에는 그림 · 이름 · 개수 · 할 수 있는 일만, 자세한 것은 사전(`dexShow`) |
 | `99-main.js` | **`loop`** 8 · 맨 끝에서 게임을 켜는 다섯 줄 |
 
 줄 번호는 커밋 때 다시 잴 것:
@@ -353,7 +354,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   배율 1 의 섬은 자원 배치의 난수 차례가 예전과 같아야 한다(`placeResources` 의 `WS===1` 갈래를 건드리지 말 것).
 - **지형 판(`P.tv`)** — 2 는 침식 뒤에 피오르·골짜기·단구·절벽·산릉·탁상지를 새기고(`terrainFeatures`) 동굴(`caveSites` · 32-caves.js)과
   암벽(33-crags.js)을 둔다. **판이 없는 옛 저장은 1 로 읽혀 예전 섬이 한 비트도 안 달라진다**(배율 2·판 1 의 표고·소품이 main 과 같음을
-  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` 가 주는 값도 올린다(지금 4 — 4 는 바다 골짜기 `seaTrenches`: 피오르 어귀에서 뻗는 해저 협곡 · 대륙붕을 가르는 틈).
+  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` 가 주는 값도 올린다(지금 6 — 4 는 바다 골짜기 `seaTrenches` · 5 는 바이옴 비탈 · 바닷가 · 지열 · 폭포 · 6 은 광석을 굴 속에만(`oreToCaves` — 늪철광만 늪에) · 바깥 광석과 낮은 땅 화강암 일부를 그 자리의 현무암 · 석회암(`karst`) · 사암으로(`surfaceRocks`) · 산허리가 방으로 솟는 굴 자리 버리기(`caveSites` 의 `bulge`)).
   새 지형 코드는 제 난수(`mulberry32(seed^상수)`)만 쓴다 — `placeResources` 의 난수 차례를 건드리지 않는다.
 - **지형 판 3 — 칸 안의 잔 기복(`RELIEF` · 10-worldgen.js)**: `heightAt` 이 둔덕·골(±0.35 m)을 더해 돌려준다. 그리는 쪽은 사람 둘레의
   덧판(`terrainPatch` — 20-terrain.js · 0.75 m 격자 · 46 m)이 **같은 식**을 셰이더에서 푼다. 식을 바꾸면 세 군데를 같이 바꿀 것 —
