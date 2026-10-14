@@ -21,7 +21,7 @@
   .pnl{position:absolute;background:var(--panel);border:1px solid var(--line);padding:8px 10px}
 
   #compass{left:50%;top:10px;transform:translateX(-50%);padding:4px 6px}
-  #compassC{display:block;width:230px;height:20px}
+  #compassC{display:block;width:230px;height:auto}
 
   #sel .sGk{padding:10px 12px;background:rgba(216,200,144,.07);border-left:2px solid #8a8058;color:#e0d8b8;font-size:14px;line-height:1.9}
   #sel .sGk div{display:grid;grid-template-columns:84px 1fr;gap:8px} #sel .sGk b{color:#f0e8c8;font-weight:600;text-align:right}
@@ -66,6 +66,9 @@
   #map{display:block;width:172px;height:172px;image-rendering:pixelated;border:1px solid var(--line)}
   #map.big{width:min(688px,82vh);height:min(688px,82vh)}   /* M — 4배(화면이 작으면 높이의 82% 까지) */
   #mapw .c{font-size:11px;color:var(--dim);margin-top:5px;display:flex;justify-content:space-between}
+  #mapw .h{display:none;font-size:11px;color:#cfe8de;margin-top:3px;max-width:min(688px,82vh)}   /* 지도를 폈을 때만 — 핀 안내 · 커서까지 거리 */
+  #mapw.open .h{display:block}
+  #mapw.open #map{cursor:crosshair}
 
   #scope{position:absolute;inset:0;pointer-events:none;display:none;
     background:radial-gradient(circle at 50% 50%,transparent 0,transparent 34vmin,#000 34.4vmin);}
@@ -221,7 +224,10 @@
   #sel .rk{margin-left:auto;font-size:11px;color:var(--dim)}
   #sel .rm{font-size:11px;margin-top:2px} #sel .rm .g{color:#8fd6b4} #sel .rm .b{color:#d8724a}
   /* 소지품·제작·사전 창이 열려 세상이 멈춘 동안 뜨는 표시 */
-  #holdTag{z-index:9;position:absolute;left:50%;top:44px;transform:translateX(-50%);font-size:12px;letter-spacing:.08em;
+  #devTag{z-index:9;position:absolute;left:50%;top:58px;transform:translateX(-50%);font-size:12px;letter-spacing:.06em;
+    color:#a8e8ff;background:var(--panel);border:1px solid rgba(168,232,255,.35);padding:4px 10px;display:none;white-space:nowrap}
+  #devTag b{color:#fff;font-weight:600}
+  #holdTag{z-index:9;position:absolute;left:50%;top:58px;transform:translateX(-50%);font-size:12px;letter-spacing:.08em;
     color:#e8d9a0;background:var(--panel);border:1px solid rgba(232,217,160,.35);padding:4px 10px;
     display:none;white-space:nowrap}
   #inv .ws.slot[data-slot=trash]{border-color:rgba(216,114,74,.45)}
@@ -450,7 +456,12 @@
   #ov.title #ovArt{display:block;margin:0 0 2px}
   #ov.title h1,#ov.title #ovCrawl{display:none}
   #ov.title button{margin-top:10px}
-  #ov.title.tland #bStart{display:none!important}      /* 여는 글 · '착륙' 차례에는 단추를 캔버스가 그린다 */
+  #ov.title #bStart, #ov.title.tland #bStart{display:none!important}      /* 여는 글 · '착륙' 차례에는 단추를 캔버스가 그린다 */
+  /* 설정 · 끝내기 단추와 진행 막대·글도 캔버스가 브라운관에 그린다(사용자 요청 — 바깥의 납작한 단추는 분위기가 달랐다).
+     HTML 쪽은 감추기만 하고 그대로 둔다(캔버스가 대신 누른다 · 90-init.js 가 진행을 적는다) */
+  #ov.title #bOpt, #ov.title #bQuit, #ov.title #bar, #ov.title #ovLoad{display:none!important}
+  #ov.title{background:#020202}
+  #ov.title #ovVer{color:#5e5e5e}
   #ov button{font-size:15px;letter-spacing:.14em;padding:10px 26px;margin-top:20px;color:var(--acc);border-color:var(--acc)}
   #ov #bQuit,#ov #bOpt{margin-top:10px;color:var(--dim);border-color:var(--dim)}
   #ovVer{position:absolute;right:14px;bottom:10px;font-size:12px;color:var(--dim);letter-spacing:.08em}

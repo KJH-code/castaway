@@ -764,8 +764,11 @@ function floraLodGeo(g,f){
   const P=g.attributes.position.array, Nn=g.attributes.normal.array, Cc=g.attributes.color.array, UV=g.attributes.uv?g.attributes.uv.array:null;
   const leafy=r=>r.n<=12&&r.cell>=FC.LEAF&&r.cell<=FC.VINE&&r.cell!==FC.BAMBOO;
   const keep=[], solid=[];
+  /* 잎 판이 적은 나무(야자 — 큰 잎 여덟 남짓)는 솎으면 잎 두어 장만 남아 부서져 보였다(사용자 지적) — 잎 판이 스물넷은 남게 */
+  let nLeafy=0; for(const r of R) if(leafy(r)) nLeafy++;
+  const fl=Math.min(1,Math.max(f,24/Math.max(1,nLeafy)));
   R.forEach((r,i)=>{
-    if(leafy(r)){ if((floraHash(i,r.n,57)%10000)/10000<f) keep.push([r,1/Math.sqrt(f)]); return; }
+    if(leafy(r)){ if((floraHash(i,r.n,57)%10000)/10000<fl) keep.push([r,1/Math.sqrt(fl)]); return; }
     let x0=1e9,y0=1e9,z0=1e9,x1=-1e9,y1=-1e9,z1=-1e9;
     for(let j=r.o;j<r.o+r.n;j++){ const x=P[j*3],y=P[j*3+1],z=P[j*3+2]; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; if(z<z0)z0=z; if(z>z1)z1=z; }
     solid.push([r,Math.hypot(x1-x0,y1-y0,z1-z0)]);

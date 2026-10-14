@@ -130,7 +130,7 @@ const fly={r:520,th:0.8,ph:0.95,tx:0,ty:0,tz:0};
    숨이 막히고 굶주리는 것은 갑옷이 막아 주지 못한다. */
 let hurtFlash=0, lastHurtMsg=0;
 function hurtPL(dmg,why,armored){
-  if(PL.dead||dmg<=0) return;
+  if(PL.dead||dmg<=0||DEV.on) return;               // 개발자 모드에서는 다치지 않는다
   if(armored) dmg*=armorMul();
   PL.hp-=dmg;
   hurtFlash=Math.min(1,hurtFlash+Math.min(0.9,dmg/30));
@@ -140,7 +140,7 @@ function hurtPL(dmg,why,armored){
   if(PL.hp<=0) diePL(why||'쓰러졌다');
 }
 function diePL(why){
-  if(PL.dead) return;
+  if(PL.dead||DEV.on) return;
   PL.hp=0; PL.dead=true; paused=true;
   try{ if(document.pointerLockElement===cv) document.exitPointerLock(); }catch(e){}
   const ov=document.getElementById('ov');
@@ -202,9 +202,50 @@ function walkable(x,z,fromH){
   return Math.hypot(gs[0],gs[1])<=MAXSLOPE;   // 지속적인 급사면만 막는다
 }
 
+/* ── 개발자 모드(` 키 · 설정 창 '개발자 모드') ─────────────────────────────────────
+   섬을 마음대로 둘러본다(사용자 요청). 보는 쪽으로 날고(W·S 앞뒤 · A·D 옆 · Space 위 · C/Ctrl 아래 · Shift 다섯 배 · 휠 빠르기),
+   땅 밑으로만 안 들어간다(바위·집은 뚫고 지나간다). 체력·기력·배고픔·목마름·숨이 늘 가득하고 다치지도 쓰러지지도 않는다.
+   끄면 그 자리 바닥에 내려선다(바다 위면 물 위에) — 떨어져 다치지 않게. 켠 채로 저장하면 그 바닥 높이가 적힌다(92-save.js) */
+const DEV={on:false, sp:1}, DEV_SP=18;
+function devGround(){
+  const p=PL.pos, fl=floorAt(p.x,p.z,p.y);
+  return fl<0?Math.max(fl,Math.min(p.y,-0.3)):fl;            // 바다 위 — 수면 바로 밑(헤엄으로 이어진다)
+}
+function toggleDev(on){
+  DEV.on=on===undefined?!DEV.on:!!on;
+  const b=document.getElementById('bDev'); if(b) b.classList.toggle('on',DEV.on);
+  hudS(document.getElementById('devTag'),'display',DEV.on?'block':'none');
+  PL.vel.set(0,0,0); PL.camY=undefined;
+  if(DEV.on){ hurtFlash=0; PL.dead=false; }
+  else{ PL.pos.y=devGround(); PL.grounded=true; }
+  toast(DEV.on?'개발자 모드 — 날아서 둘러본다 · 다치지 않는다 · ` 로 끈다':'개발자 모드 끔');
+}
+function devFly(dt){
+  const p=PL.pos, K=(invOpen||craftOpen)?NO_KEYS:keys;
+  PL.hp=HPMAX; PL.stam=100; PL.food=100; PL.water=100; PL.oxy=100; PL.ill=0; hurtFlash=0;
+  PL.swim=false; PL.grounded=false; PL.crouch=false; PL.run=false; PL.wade=0; PL.depth=0;
+  const fwd=(K.KeyW?1:0)-(K.KeyS?1:0), str=(K.KeyD?1:0)-(K.KeyA?1:0), up=(K.Space?1:0)-((K.ControlLeft||K.KeyC)?1:0);
+  const sy=Math.sin(PL.yaw), cy=Math.cos(PL.yaw), sp=Math.sin(PL.pitch), cp=Math.cos(PL.pitch);
+  let vx=-sy*cp*fwd+cy*str, vy=sp*fwd+up, vz=-cy*cp*fwd-sy*str;          // 앞 = 보는 쪽(고개를 든 만큼 위로)
+  const l=Math.hypot(vx,vy,vz), v=DEV_SP*DEV.sp*(K.ShiftLeft||K.ShiftRight?5:1);
+  if(l>0){ vx*=v/l; vy*=v/l; vz*=v/l; }
+  const k=clamp(7*dt,0,1);
+  PL.vel.x+=(vx-PL.vel.x)*k; PL.vel.y+=(vy-PL.vel.y)*k; PL.vel.z+=(vz-PL.vel.z)*k;
+  p.x=clamp(p.x+PL.vel.x*dt,-HALF+6,HALF-6); p.z=clamp(p.z+PL.vel.z*dt,-HALF+6,HALF-6);
+  p.y=Math.min(3000,p.y+PL.vel.y*dt);
+  const gy=heightAt(p.x,p.z);
+  if(p.y<gy+0.3){ p.y=gy+0.3; if(PL.vel.y<0) PL.vel.y=0; }                // 땅 밑으로는 안 들어간다
+  PL.eye=EYE; PL.camY=p.y;
+  camera.position.set(p.x,p.y+EYE,p.z);
+  camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
+  const WA=waterAt(p.x,p.z,gy);
+  eyeWater(camera.position.y, WA.river?WA.wl:(gy<0.3?seaSurfAt(p.x,p.z):-1e9), gy, WA.river);
+  hudT(document.getElementById('devTagV'),'×'+(DEV.sp*(K.ShiftLeft||K.ShiftRight?5:1)).toFixed(DEV.sp<1?2:1)+' · '+Math.round(p.y)+' m');
+}
 const NO_KEYS={};
 function updatePlayer(dt){
   if(PL.dead) return;                              // 쓰러져 있는 동안에는 아무것도 안 한다
+  if(DEV.on){ devFly(dt); return; }                // 개발자 모드 — 날기(위)
   if(climbTick(dt)) return;                        // 나무를 오르는 중 — 몸은 줄기에 붙어 있다(97-wildlife.js)
   const p=PL.pos;
   /* 가방(소지품·제작)을 연 동안에는 세상은 흐르지만 몸은 선다 — 누르고 있던 걷기·뛰기 키를 안 받는다 */
@@ -353,7 +394,9 @@ function updatePlayer(dt){
   // 수중이면 안개를 진하게 — 물 밖과 확실히 구분되게
   /* **화면이 물속으로 바뀌는 것은 눈이 수면 밑으로 내려갔을 때만**(사용자 요청: 물의 깊이로 정한다) — 눈(카메라)의 높이를
      그 자리의 수면과 견준다. 바다는 지금 그 자리의 물결 높이까지 본다. 눈높이보다 얕은 물(서서 0.3 m · 앉아도 눈 밑)에선 안 바뀐다 */
-  const head=camera.position.y, surf=inRiver?wl:(gy<0.3?seaSurfAt(p.x,p.z):-1e9);
+  eyeWater(camera.position.y, inRiver?wl:(gy<0.3?seaSurfAt(p.x,p.z):-1e9), gy, inRiver);
+}
+function eyeWater(head,surf,gy,inRiver){
   if(head<surf-0.04&&surf-gy>0.35){
     /* 물속 — 안개를 **물빛**으로 바꾼다. 예전엔 색은 그대로(지평선의 흰 잿빛) 두고 짙기만 올려, 물속이 잿빛 연기 속 같았다
        (사용자 지적: 물속이 진짜 같지 않다). 볕이 있는 만큼 밝은 청록, 밤에는 검푸르다. 물안경이 있으면 멀리까지 맑다 */

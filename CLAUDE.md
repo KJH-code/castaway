@@ -229,10 +229,10 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `70-weapons.js` | `CREATURES` 12 · 근접 판정 · **`WEAPON_FX` 195** · `emberClad` 109 |
 | `72-gear.js` | 갑옷·투구·옷·짐(`GEAR` · `gScalesOnMesh` 363 · `gearModel` 850) |
 | `74-icons-guns.js` | `itemIcon` 95 · 손에 든 먹을것 · 휘두르기 · `shoot` 358 · 수류탄·조준경·로켓 · `castNet` 543 · 좌클릭 `useHeld` 579 · `attack` 607 |
-| `80-player.js` | `rollSpawns` 87 · **`PL` 119** · `hurtPL` 132 · `updatePlayer` 195(걷기·헤엄·기력·배고픔) · 음향 · 발소리 |
-| `82-hud.js` | `drawMap` 29 · `drawCompass` 69 · 성능 창 `PERF` 98 · `updateHUD` 270 · 벤치마크 |
+| `80-player.js` | `rollSpawns` 87 · **`PL` 119** · `hurtPL` 132 · 개발자 모드 `DEV`·`devFly`(` 키 — 날기 · 안 다친다 · 끄면 바닥에 내려선다) · `updatePlayer`(걷기·헤엄·기력·배고픔) · `eyeWater`(물속 안개) · 음향 · 발소리 |
+| `82-hud.js` | 지도 핀 `MAPPINS`·`toggleMap`(M — 펴면 `uiOpen` 이라 마우스가 풀린다 · 저장 `pins`) · `drawMap` · `drawCompass`(핀이 있으면 띠 위에 핀 줄 10 px) · 성능 창 `PERF` 98 · `updateHUD` 270 · 벤치마크 |
 | `90-init.js` | 안개·그림자 셰이더 손질 · `initThree` 104 · `freezeStatics` 164 · `PRECOMP` 190 · `generateWorld`(만드는 차례) |
-| `91-title.js` | **여는 화면의 그림**(캔버스 `#ovArt` — 처음 여는 화면 `#ov.title` 에서만 돈다) — 스텐실 간판 CASTAWAY(글자를 직접 긋는다 · 위가 좁은 올려다본 꼴 · 소실점으로 가는 두께) · 뒤로 누워 올라가는 안내 글 · 깨진 금. 전부 흑백으로 평평하게 그린 뒤 통째로 볼록한 유리에 휘고(`titleBend`), 빨강·초록·파랑을 갈라 겹친다 |
+| `91-title.js` | **여는 화면의 그림**(캔버스 `#ovArt` — 처음 여는 화면 `#ov.title` 에서만 돈다) — 스텐실 간판 CASTAWAY(글자를 직접 긋는다 · 위가 좁은 올려다본 꼴 · 소실점으로 가는 두께) · 뒤로 누워 올라가는 안내 글 · 깨진 금. 전부 흑백으로 평평하게 그린 뒤 통째로 볼록한 유리에 휘고(`titleBend`), 빨강·초록·파랑을 갈라 겹친다. 단추(`titleButton` → `TITLE.btns` · 시작·착륙·설정·끝내기)와 진행 막대(`titleProgress` — `#barF`·`#ovLoad` 를 읽는다)도 캔버스가 그리고 HTML 쪽은 감춘 채 대신 누른다. 눈(잡음)·깜빡임·굴러가는 띠·비월 주사선·유리 반사 |
 | `92-save.js` | `snapshot` 67 · 불러오기 · 묻는 상자 · 저장 칸 · `saveLocal` 330 · `loadFile` 401 · 자동 저장 · `DESKTOP` 잇기 |
 | `94-input.js` | 키보드·마우스·터치 · 창 여닫기 · 일시정지 · 설정 창 |
 | `95-flora.js` | 군락 식생(정글·대숲·자작나무·소나무·맹그로브·야자·꽃밭 …) · 나무 열 갈래 · 덩굴·죽순·야자·바나나·버섯 · **종류마다 여러 벌**(`floraShapes` · `FLORA_VARS` — 칸 해시로 그루마다 고름 · `FLORA.m[종류]` 는 벌마다 메시 배열) · **나무 갈래는 참나무·전나무와 같은 길**(`floraFar` — 섬 전체를 한 번 깔아 64 m 칸에 담고, 그루마다 50 m(`FL_FULL`) 안 제 벌 · 그 밖도 제 벌을 줄인 것 60 m 까지 65%(그림자 드리움) · 95 m 까지 30% · 160 m 까지 12%(`floraLodGeo` — 잎 판을 솎고 1/√몫 배로 키움 · 큰 줄기는 그대로) · 200(`FL_PIC`)~450 m 기준 그루를 찍은 그림(`floraBakePic`) · 화면 밖 칸은 거름 · 2 m 움직이거나 보이는 칸이 바뀔 때만 다시 채움 · 몸 원·딸 것은 60 m 안만) · 덤불 겹은 사람 둘레 46 m, 12 m(층의 `own`) 밖은 가장 가까운 그루의 벌 하나 · `SHP.merge` 가 부품마다 정점 구간을 `userData.parts` 에 적는다(줄인 복제가 쓴다) · 그림 묶음 `floraAtlas`(1024² · 칸 256 — 잎 판은 **작은 잎 수십 장이 붙은 잔가지 한 줌**, 껍질·자작·바나나 줄기·버섯 갓은 값잡음으로 칠함 · 칸 12 자작 · 14 바나나 줄기 · 15 버섯) · `fin` 이 잎 판마다 수관 속 그늘(가운데·아래일수록 어둡게)과 빛깔 흔들기를 곱하고 통째로 밑동을 짙게(`merge` grad 0.80→1.04) |
@@ -347,7 +347,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   배율 1 의 섬은 자원 배치의 난수 차례가 예전과 같아야 한다(`placeResources` 의 `WS===1` 갈래를 건드리지 말 것).
 - **지형 판(`P.tv`)** — 2 는 침식 뒤에 피오르·골짜기·단구·절벽·산릉·탁상지를 새기고(`terrainFeatures`) 동굴(`caveSites` · 32-caves.js)과
   암벽(33-crags.js)을 둔다. **판이 없는 옛 저장은 1 로 읽혀 예전 섬이 한 비트도 안 달라진다**(배율 2·판 1 의 표고·소품이 main 과 같음을
-  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` 가 주는 값도 올린다(지금 3).
+  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` 가 주는 값도 올린다(지금 4 — 4 는 바다 골짜기 `seaTrenches`: 피오르 어귀에서 뻗는 해저 협곡 · 대륙붕을 가르는 틈).
   새 지형 코드는 제 난수(`mulberry32(seed^상수)`)만 쓴다 — `placeResources` 의 난수 차례를 건드리지 않는다.
 - **지형 판 3 — 칸 안의 잔 기복(`RELIEF` · 10-worldgen.js)**: `heightAt` 이 둔덕·골(±0.35 m)을 더해 돌려준다. 그리는 쪽은 사람 둘레의
   덧판(`terrainPatch` — 20-terrain.js · 0.75 m 격자 · 46 m)이 **같은 식**을 셰이더에서 푼다. 식을 바꾸면 세 군데를 같이 바꿀 것 —

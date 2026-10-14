@@ -52,8 +52,8 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/data-sentinel-mesh.js` | One 1.3 MB line of mesh data (helmet model). Not meant to be read |
 | `engine/js/72-gear.js` | Armour, helmets, clothes, packs modelled in body coordinates (icons + worn look) |
 | `engine/js/74-icons-guns.js` | Item icon rendering, held food models, swing animation, guns, grenade, scope, rocket, net fishing, left-click (`useHeld`) |
-| `engine/js/80-player.js` | Mob table, first-person player (walking, **swimming**, stamina, hunger, health), synthesized audio, footsteps |
-| `engine/js/82-hud.js` | Minimap, HUD (look prompt, bars), performance window (F3), benchmark |
+| `engine/js/80-player.js` | Mob table, first-person player (walking, **swimming**, stamina, hunger, health), developer mode (`DEV` — ` key: fly, no damage, needs stay full), synthesized audio, footsteps |
+| `engine/js/82-hud.js` | Minimap and map pins (`MAPPINS` — M opens the big map with a free cursor; pins show on the compass and are saved), HUD (look prompt, bars), performance window (F3), benchmark |
 | `engine/js/90-init.js` | Fog/shadow shader patches, shader precompile, `initThree()`, `generateWorld()` (the generation sequence) |
 | `engine/js/91-title.js` | The opening-screen art on one canvas: stencil CASTAWAY banner drawn from strokes, the receding crawl, and the crack — rendered flat in black and white, bent onto a curved screen, then split into red/green/blue. Also the opening text (words appear one at a time with a beep) and the glowing 착륙 button; restarts skip straight to the button |
 | `engine/js/92-save.js` | `snapshot()` / `restore()`, yes/no dialog, save slots (1–3, auto, previous-game backup), autosave |
@@ -74,7 +74,7 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
   and scaled uniformly (`P.ws` 1–6; new islands use 6 = 11.5 km); `CELL`, `WORLD`, `HALF` are variables now.
   `island_world.html?ws=2` starts with a smaller island (the CI smoke test uses it).
 - **Terrain version** — `P.tv` in `00-core.js`. 2 adds the carved landforms, caves and cliff rocks; 3 adds sub-cell ground relief
-  (`RELIEF` in `10-worldgen.js` — `heightAt()` returns it). Saves without it load as 1 and regenerate the exact old island.
+  (`RELIEF` in `10-worldgen.js` — `heightAt()` returns it); 4 adds sea trenches (`seaTrenches` — canyons out of fjord mouths and rifts across the shelf). Saves without it load as 1 and regenerate the exact old island.
   Anything that changes what the seed produces must sit behind this flag.
 - **Near-field ground** — `terrainPatch` / `TPATCH` in `20-terrain.js`: a 0.75 m grid within 46 m of the camera, placed by the vertex
   shader from the elevation texture plus the relief (the same surface `heightAt()` returns); the base terrain discards that disc.

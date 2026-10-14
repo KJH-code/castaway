@@ -21,7 +21,7 @@
    차례(TITLE.mode): 'banner' 간판과 올라가는 글(단추 '시작') → 'intro' 여는 글 세 줄 → 'land' 크고 빛나는 '착륙' 단추(아래 '여는 글과 착륙').
    값: 간판·금은 크기가 바뀔 때 한 번만 그려 두고, 프레임마다는 띠 수백 장을 옮겨 붙인다(초당 20번 · 여는 화면에서만).
    ========================================================================== */
-const TITLE={mode:'banner', first:true, intro:{t0:0,said:0,keep:false,text:false}, btn:null, ac:null, on:false, timer:0, t0:0, cv:null, cx:null, W:0, H:0, dpr:1, L:null, text:null,
+const TITLE={mode:'banner', first:true, intro:{t0:0,said:0,keep:false,text:false}, btns:[], hov:null, fr:0, nz:null, ac:null, on:false, timer:0, t0:0, cv:null, cx:null, W:0, H:0, dpr:1, L:null, text:null,
              ban:null, crk:null, txt:null, mid:null, flat:null, bA:null, bB:null, ch:null, out:null, band:null, rays:null, KA:0.22, KB:0.13};
 
 /* ── 스텐실 글자 — 높이 100 칸에 긋는다. w 너비 · draw(c) 줄기 · cuts 잘라 낼 이음매(네모) ── */
@@ -74,15 +74,17 @@ function titleBend(x,y,W,H){
 }
 
 /* ── 크기가 바뀌면 한 번 — 간판(두께까지) · 금 · 올라갈 글 · 일할 그림판들 ── */
+/* 판의 크기 — 설정·끝내기 단추와 진행 막대도 캔버스가 그리므로(사용자 요청) 화면 높이의 92% 까지 쓴다 */
+const titleSize=()=>[Math.min(1240,Math.round(innerWidth*0.98)), Math.round(clamp(innerHeight*0.92,340,940))];
 function titleLayout(){
   const T=TITLE, dpr=Math.min(2,window.devicePixelRatio||1);
-  const W=Math.min(1240,Math.round(innerWidth*0.98)), H=Math.round(clamp(innerHeight*0.70,340,760));
+  const [W,H]=titleSize();
   T.W=W; T.H=H; T.dpr=dpr; T.cv.width=W*dpr; T.cv.height=H*dpr; T.cv.style.width=W+'px'; T.cv.style.height=H+'px';
   /* 안에서는 화면 화소 그대로(배율 1)로 그린다 — 어차피 흐리게 번지는 그림이라 더 촘촘할 까닭이 없고, 띠 붙이기가 그만큼 싸다 */
   const capH=Math.round(Math.min(H*0.30,W/6.4)), by=Math.round(H*0.07);
   const face=titleKeystone(titleFace(capH),0.66), fw=face.width, bx=Math.round(W/2-fw/2);
   const vp={x:W/2, y:by+capH+Math.round(H*0.03)};                    // 소실점 — 간판 바로 밑 가운데
-  const sw=Math.min(W*0.76,880), sc={x:(W-sw)/2, y:vp.y+2, w:sw, h:H-vp.y-Math.round(H*0.05)};
+  const sw=Math.min(W*0.76,880), sc={x:(W-sw)/2, y:vp.y+2, w:sw, h:Math.round(H*0.73)-vp.y};
   T.L={capH, bx, by, fw, vp, sc};
   /* 간판 — 뒤(어두운 잿빛)에서 앞으로 소실점을 향해 줄여 가며 겹치고, 맨 앞에 흰 앞면 */
   const ban=titleCanvas(W,vp.y+4), b=ban.getContext('2d'), D=22;
@@ -98,14 +100,30 @@ function titleLayout(){
   const crk=titleCanvas(W,H), f=crk.getContext('2d'), rnd=mulberry32(0x7e1e), ix=W*0.70, iy=H*0.66, rays=[];
   for(let i=0;i<11;i++){ const big=i%3===0, a=i/11*6.283+rnd()*0.4, L=W*(big?0.34+rnd()*0.22:0.08+rnd()*0.16), n=7, pts=[[ix,iy]]; let x=ix,y=iy,aa=a;
     for(let s=0;s<n;s++){ aa+=(rnd()-0.5)*0.36; x+=Math.cos(aa)*L/n; y+=Math.sin(aa)*L/n; pts.push([x,y]); } pts.big=big; rays.push(pts); }
-  const line=(pts,w,al)=>{ f.strokeStyle='rgba(255,255,255,'+al+')'; f.lineWidth=w; f.lineJoin='round'; f.beginPath(); pts.forEach((p,i)=>i?f.lineTo(p[0],p[1]):f.moveTo(p[0],p[1])); f.stroke(); };
-  for(const pts of rays) line(pts,pts.big?1.8:1.1,0.95);
+  /* **금에도 명암이 있다**(사용자 요청) — 유리의 금은 한쪽 날이 빛을 받아 희고 맞은편 날은 그늘져 어둡다. 금마다 ① 어두운 그늘 줄(오른쪽
+     아래로 조금 비켜) ② 흰 날(가운데) ③ 그 곁의 엷은 빛 번짐을 겹친다. 맞은 자리에서 멀어질수록 가늘어지고 옅어진다(끝은 녹아 사라진다).
+     맞은 자리에는 잔금이 둥글게 몰리고 작은 빛점이 남는다 */
+  const seg=(pts,w0,a0)=>{ const n=pts.length-1;
+    for(let i=0;i<n;i++){ const t=i/n, w=w0*Math.pow(1-t,0.55)+0.35, al=a0*(1-0.75*t), p=pts[i], q=pts[i+1];
+      f.lineCap='round';
+      f.strokeStyle='rgba(0,0,0,'+(0.85*al).toFixed(3)+')'; f.lineWidth=w*2.6; f.beginPath(); f.moveTo(p[0]+1.4,p[1]+1.6); f.lineTo(q[0]+1.4,q[1]+1.6); f.stroke();
+      f.strokeStyle='rgba(255,255,255,'+(0.18*al).toFixed(3)+')'; f.lineWidth=w*4.5; f.beginPath(); f.moveTo(p[0],p[1]); f.lineTo(q[0],q[1]); f.stroke();
+      f.strokeStyle='rgba(255,255,255,'+al.toFixed(3)+')'; f.lineWidth=w; f.beginPath(); f.moveTo(p[0]-0.4,p[1]-0.5); f.lineTo(q[0]-0.4,q[1]-0.5); f.stroke(); } };
+  for(const pts of rays) seg(pts,pts.big?2.2:1.3,0.95);
   for(let k=1;k<=3;k++) for(let i=0;i<rays.length;i++){ if(rnd()<0.35) continue; const p=rays[i][k], q=rays[(i+1)%rays.length][k];    // 둘레를 도는 잔금
-    line([p,[(p[0]+q[0])/2+(rnd()-0.5)*5,(p[1]+q[1])/2+(rnd()-0.5)*5],q],0.8,0.7); }
-  f.fillStyle='#fff'; f.beginPath(); f.arc(ix,iy,2.6,0,6.283); f.fill();
+    seg([p,[(p[0]+q[0])/2+(rnd()-0.5)*5,(p[1]+q[1])/2+(rnd()-0.5)*5],q],0.9,0.65-k*0.12); }
+  { const g0=f.createRadialGradient(ix,iy,0,ix,iy,W*0.05); g0.addColorStop(0,'rgba(255,255,255,.55)'); g0.addColorStop(0.25,'rgba(255,255,255,.12)'); g0.addColorStop(1,'rgba(255,255,255,0)');
+    f.fillStyle=g0; f.beginPath(); f.arc(ix,iy,W*0.05,0,6.283); f.fill(); }
+  f.fillStyle='#fff'; f.beginPath(); f.arc(ix,iy,2.2,0,6.283); f.fill();
   T.crk=crk; T.rays=rays.filter(p=>p.big);                            // 굵은 금 — 그 둘레에서 색이 크게 갈라진다
   T.flat=titleCanvas(W,H); T.bA=titleCanvas(W,H); T.bB=titleCanvas(W,H); T.ch=titleCanvas(W,H); T.out=titleCanvas(W,H);
   T.band=T.rays.map(p=>p.map(q=>titleBend(q[0],q[1],W,H)));
+  /* 눈(잡음) — 안테나가 못 잡은 신호처럼 자글거리는 점. 거의 검고 가끔 흰 점(세제곱으로 눌러 둔다) · 가끔 한 줄이 통째로 밝다.
+     세 장을 돌려 가며 자리를 마구 옮겨 깐다 */
+  T.nz=[0,1,2].map(()=>{ const c=titleCanvas(160,160), x=c.getContext('2d'), im=x.createImageData(160,160), d=im.data;
+    for(let y=0;y<160;y++){ const row=Math.random()<0.04?0.35:0;
+      for(let i=y*640;i<(y+1)*640;i+=4){ const r=Math.random(), v=Math.min(255,(r*r*r+row*Math.random())*255); d[i]=d[i+1]=d[i+2]=v; d[i+3]=255; } }
+    x.putImageData(im,0,0); return c; });
   titleText();
 }
 /* 올라갈 글 — 시작 화면의 안내 글(#ov .s)과 조작 글쇠(#ov .k)를 긴 그림 한 장에(흰 글씨) */
@@ -139,7 +157,10 @@ function titleBeep(n){
 function titleIntroFlat(a,t,W,H){
   const T=TITLE, I=T.intro, el=(performance.now()-I.t0)/1000;
   const fs=Math.round(clamp(W/27,20,42)), lh=fs*2.0, FONT='"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif';
-  a.textBaseline='middle'; a.textAlign='left'; a.fillStyle='#fff';
+  a.textBaseline='middle'; a.textAlign='left';
+  /* **형광막의 결** — 글씨는 한 빛깔 흰색이 아니다: 위가 밝고 아래로 갈수록 조금 어둡고(전자총이 훑는 쪽), 둘레로 엷은 빛이 번진다 */
+  { const gr=a.createLinearGradient(0,H*0.10,0,H*0.90); gr.addColorStop(0,'#ffffff'); gr.addColorStop(0.55,'#e6e6e6'); gr.addColorStop(1,'#b4b4b4'); a.fillStyle=gr; }
+  a.shadowColor='rgba(255,255,255,.55)'; a.shadowBlur=fs*0.45;
   if(I.text){
     a.font='700 '+fs+'px '+FONT;
     let tt=0.45, shown=0, cx=0, cy=0; const y0=H*0.20;
@@ -152,20 +173,59 @@ function titleIntroFlat(a,t,W,H){
       if(el>tt+0.25){ I.keep=true; T.mode='land'; I.tl=performance.now(); }
     }
   }
+  a.shadowBlur=0;
   if(T.mode==='land'){
-    /* 크고 빛나는 '착륙' — 숨 쉬듯 밝아졌다 어두워진다. 누를 자리(T.btn)를 적어 둔다 */
-    const p=0.5+0.5*Math.sin(t*3.0), bw=clamp(W*0.30,230,430), bh=clamp(H*0.21,86,150), bx=W/2-bw/2, by=I.text?H*0.60:H*0.5-bh/2, r=bh*0.16;
+    /* 크고 빛나는 '착륙' — 숨 쉬듯 밝아졌다 어두워진다. 누를 자리는 T.btns 에 적힌다 */
+    const bw=clamp(W*0.30,230,430), bh=clamp(H*0.21,86,150);
+    titleButton(a,'착륙',W/2-bw/2,I.text?H*0.60:H*0.5-bh/2,bw,bh,t,'land');
+  }
+}
+/* 브라운관에 비친 단추 — 둥근 네모 · 위가 밝은 결 · 숨 쉬는 빛무리. 누를 자리를 돌려준다 */
+/* act — 누르면 할 일('start' · 'land' · 'opt' · 'quit'). 작은 단추(설정·끝내기)는 빛무리가 약하고 숨 쉬지 않는다 · 손이 올라가면 밝아진다 */
+function titleButton(a,label,bx,by,bw,bh,t,act,small){
+    const FONT='"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif', hot=TITLE.hov===act, r=bh*0.16;
+    const p=small?(hot?0.75:0.15):Math.min(1,0.5+0.5*Math.sin(t*3.0)+(hot?0.35:0)), k=small?0.5:1;
     const rr=()=>{ a.beginPath(); a.moveTo(bx+r,by); a.arcTo(bx+bw,by,bx+bw,by+bh,r); a.arcTo(bx+bw,by+bh,bx,by+bh,r); a.arcTo(bx,by+bh,bx,by,r); a.arcTo(bx,by,bx+bw,by,r); a.closePath(); };
-    a.save(); a.shadowColor='#fff'; a.shadowBlur=22+34*p; rr(); a.fillStyle='rgba(255,255,255,'+(0.10+0.10*p).toFixed(3)+')'; a.fill();
-    a.lineWidth=5; a.strokeStyle='#fff'; a.stroke(); a.shadowBlur=14+22*p;
-    a.fillStyle='#fff'; a.font='800 '+Math.round(bh*0.50)+'px '+FONT; a.textAlign='center'; a.fillText('착륙',W/2,by+bh*0.53); a.restore();
-    T.btn={x:bx,y:by,w:bw,h:bh};
-  }else T.btn=null;
+    a.save(); a.shadowColor='#fff'; a.shadowBlur=(22+34*p)*k; rr();
+    { const gf=a.createLinearGradient(0,by,0,by+bh); gf.addColorStop(0,'rgba(255,255,255,'+((0.20+0.12*p)*k).toFixed(3)+')'); gf.addColorStop(1,'rgba(255,255,255,'+((0.04+0.06*p)*k).toFixed(3)+')'); a.fillStyle=gf; } a.fill();   // 단추 안은 위가 밝다
+    a.lineWidth=small?3:5; { const gs=a.createLinearGradient(0,by,0,by+bh); gs.addColorStop(0,small&&!hot?'#d0d0d0':'#ffffff'); gs.addColorStop(1,small&&!hot?'#7a7a7a':'#a8a8a8'); a.strokeStyle=gs; } a.stroke(); a.shadowBlur=(14+22*p)*k;
+    { const gt=a.createLinearGradient(0,by+bh*0.25,0,by+bh*0.8); gt.addColorStop(0,small&&!hot?'#e2e2e2':'#ffffff'); gt.addColorStop(1,small&&!hot?'#9a9a9a':'#c4c4c4'); a.fillStyle=gt; }
+    a.font=(small?'700 ':'800 ')+Math.round(bh*0.50)+'px '+FONT; a.textAlign='center'; a.textBaseline='middle'; a.fillText(label,bx+bw/2,by+bh*0.53); a.restore();
+    const b={x:bx,y:by,w:bw,h:bh,act}; TITLE.btns.push(b); return b;
+}
+/* 아래 줄 — 작은 '설정'(· 데스크톱이면 '끝내기'). 바깥의 HTML 단추는 감추고(game.css) 누르면 그 단추를 대신 누른다 */
+function titleSmallRow(a,t,W,H){
+  const q=document.getElementById('bQuit'), hasQ=!!(q&&q.style.display!=='none');
+  const bw=clamp(W*0.11,96,150), bh=clamp(H*0.055,30,44), gap=bw*0.22, y=H*0.895-bh/2;
+  const x0=W/2-(hasQ?bw+gap/2:bw/2);
+  titleButton(a,'설정',x0,y,bw,bh,t,'opt',true);
+  if(hasQ) titleButton(a,'끝내기',x0+bw+gap,y,bw,bh,t,'quit',true);
+}
+/* 진행 막대 — 섬을 만드는 동안 '시작' 자리에. 텔레비전 화면 표시(OSD)처럼 칸 스물넷이 차오르고, 차오르는 칸은 깜빡인다.
+   위에 지금 하는 일(90-init.js phase 가 #ovLoad · #barF 에 적는 것)과 몇 % 인지 */
+function titleProgress(a,t,W,H){
+  const T=TITLE, FONT='"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif';
+  const bf=document.getElementById('barF'), ld=document.getElementById('ovLoad');
+  const tgt=clamp((parseFloat(bf&&bf.style.width)||0)/100,0,1);
+  T.pg=(T.pg===undefined||tgt<T.pg)?tgt:T.pg+(tgt-T.pg)*0.3;          // 새 섬이면 0 부터 · 아니면 부드럽게 따라간다
+  const n=24, bw=clamp(W*0.36,240,460), bh=Math.max(12,Math.round(H*0.022)), x=W/2-bw/2, y=H*0.80-bh/2, gap=3, cw=(bw-8-gap*(n-1))/n;
+  const fs=Math.round(clamp(W/52,14,22));
+  a.save(); a.shadowColor='rgba(255,255,255,.6)'; a.shadowBlur=fs*0.5;
+  { const gt=a.createLinearGradient(0,y-fs*2,0,y); gt.addColorStop(0,'#ffffff'); gt.addColorStop(1,'#bcbcbc'); a.fillStyle=gt; }
+  a.font='700 '+fs+'px '+FONT; a.textAlign='center'; a.textBaseline='bottom';
+  a.fillText(((ld&&ld.textContent)||'섬을 만드는 중')+'   '+Math.round(T.pg*100)+'%',W/2,y-fs*0.7);
+  a.lineWidth=2; a.strokeStyle='#bdbdbd'; a.strokeRect(x,y,bw,bh);
+  const lead=Math.floor(T.pg*n), blink=Math.floor(t*4)%2===0;
+  for(let i=0;i<n;i++){
+    const al=i<lead?1:(i===lead&&T.pg<1?(blink?0.55:0.2):0.06);
+    const g=a.createLinearGradient(0,y,0,y+bh); g.addColorStop(0,'rgba(255,255,255,'+al+')'); g.addColorStop(1,'rgba(170,170,170,'+al+')');
+    a.fillStyle=g; a.fillRect(x+4+i*(cw+gap),y+4,cw,bh-8); }
+  a.restore();
 }
 /* 차례를 바꾼다 — 'banner'(간판 · 시작 단추) · 'intro'(여는 글) · 'land'(착륙 단추). 멈춰 있었으면 다시 돈다 */
 function titleEnter(mode,text){
   const T=TITLE, ov=document.getElementById('ov'); if(!ov) return;
-  T.mode=mode; T.intro={t0:performance.now(), said:0, keep:mode==='land'&&!!text, text:mode==='intro'||!!text}; T.btn=null;
+  T.mode=mode; T.intro={t0:performance.now(), said:0, keep:mode==='land'&&!!text, text:mode==='intro'||!!text}; T.btns=[];
   ov.classList.add('title'); ov.classList.toggle('tland',mode!=='banner');
   titleStart();
 }
@@ -176,12 +236,14 @@ function titleAfterGen(){
   else{ b.textContent='착륙'; titleEnter('land',false); }
 }
 function titleLand(){ TITLE.first=false; titleStop(); start(); }
-/* 누른 자리가 '착륙' 단추 안인가 — 단추의 네 귀를 유리의 휨대로 옮겨 그 테두리 상자로 본다 */
+/* 누른 자리의 단추(없으면 null) — 단추의 네 귀를 유리의 휨대로 옮겨 그 테두리 상자로 본다 */
 function titleHit(ev){
-  const T=TITLE, b=T.btn; if(!b||!T.flat) return false;
+  const T=TITLE; if(!T.flat) return null;
   const r=T.cv.getBoundingClientRect(), x=(ev.clientX-r.left)/r.width*T.flat.width, y=(ev.clientY-r.top)/r.height*T.flat.height, W=T.flat.width, H=T.flat.height;
-  const c=[[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.h],[b.x+b.w,b.y+b.h]].map(q=>titleBend(q[0],q[1],W,H));
-  return x>=Math.min(c[0][0],c[2][0])-6&&x<=Math.max(c[1][0],c[3][0])+6&&y>=Math.min(c[0][1],c[1][1])-6&&y<=Math.max(c[2][1],c[3][1])+6;
+  for(const b of T.btns){
+    const c=[[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.h],[b.x+b.w,b.y+b.h]].map(q=>titleBend(q[0],q[1],W,H));
+    if(x>=Math.min(c[0][0],c[2][0])-6&&x<=Math.max(c[1][0],c[3][0])+6&&y>=Math.min(c[0][1],c[1][1])-6&&y<=Math.max(c[2][1],c[3][1])+6) return b; }
+  return null;
 }
 { const cv=document.getElementById('ovArt'), bs=document.getElementById('bStart'), titleUp=()=>{ const ov=document.getElementById('ov'); return TITLE.on&&ov&&ov.classList.contains('title')&&ov.style.display!=='none'; };
   /* '시작' — 처음 여는 화면에서만 가로챈다(멈춤 화면의 '계속' · 쓰러진 뒤의 '깨어나기'는 그대로 start 로 간다) */
@@ -190,9 +252,13 @@ function titleHit(ev){
     else titleEnter('intro'); });
   if(cv){
     cv.addEventListener('click',ev=>{ if(!titleUp()) return;
+      const b=titleHit(ev), act=b&&b.act;
+      if(act==='opt'||act==='quit'){ const e=document.getElementById(act==='opt'?'bOpt':'bQuit'); if(e) e.click(); return; }   // 화면 안의 '설정' · '끝내기'
       if(TITLE.mode==='intro'){ TITLE.intro.keep=true; TITLE.mode='land'; return; }       // 글이 찍히는 중에 누르면 건너뛴다
-      if(TITLE.mode==='land'&&titleHit(ev)) titleLand(); });
-    cv.addEventListener('mousemove',ev=>{ cv.style.cursor=(TITLE.mode==='land'&&titleHit(ev))?'pointer':'default'; });
+      if(act==='land') titleLand();
+      else if(act==='start'&&bs) bs.click(); });                                         // 화면 안의 '시작'
+    cv.addEventListener('mousemove',ev=>{ const b=titleHit(ev); TITLE.hov=b?b.act:null; cv.style.cursor=b?'pointer':'default'; });
+    cv.addEventListener('mouseleave',()=>{ TITLE.hov=null; });
   }
   addEventListener('keydown',ev=>{ if(!titleUp()||(ev.code!=='Enter'&&ev.code!=='NumpadEnter')) return;
     if(typeof busy!=='undefined'&&busy) return;
@@ -206,7 +272,10 @@ function titleHit(ev){
 function titleDraw(now){
   const T=TITLE, L=T.L, sc=L.sc, W=T.flat.width, H=T.flat.height, t=(now-T.t0)/1000;
   /* ① 평평한 그림 — 검은 바탕 위에, 차례(mode)에 따라: 간판과 올라가는 글 / 여는 글 / 큰 '착륙' 단추 */
-  const a=T.flat.getContext('2d'); a.setTransform(1,0,0,1,0,0); a.globalCompositeOperation='source-over'; a.shadowBlur=0; a.fillStyle='#000'; a.fillRect(0,0,W,H);
+  /* 꺼진 브라운관의 검정은 새까맣지 않다 — 아주 어두운 잿빛 유리(가운데가 조금 밝다). 색은 여전히 없다 */
+  const a=T.flat.getContext('2d'); a.setTransform(1,0,0,1,0,0); a.globalCompositeOperation='source-over'; a.shadowBlur=0;
+  T.btns=[]; T.fr++;                                                       // 단추는 프레임마다 다시 적는다(차례 · 크기 · 데스크톱 여부)
+  { const gb=a.createRadialGradient(W*0.5,H*0.46,0,W*0.5,H*0.5,Math.max(W,H)*0.62); gb.addColorStop(0,'#141414'); gb.addColorStop(1,'#030303'); a.fillStyle=gb; } a.fillRect(0,0,W,H);
   let g;
   if(T.mode==='banner'){
     const m=T.mid.getContext('2d'), mw=T.mid.width, mh=T.mid.height, K=0.24, span=T.txtH*0.66;
@@ -218,14 +287,24 @@ function titleDraw(now){
       m.drawImage(T.txt,0,sy,T.txt.width,2*z,(mw-wj)/2+off,j,wj,2); }
     m.globalCompositeOperation='destination-out';                      // 위로 갈수록 사라진다(간판 바로 밑)
     g=m.createLinearGradient(0,0,0,mh*0.42); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(0.4,'rgba(0,0,0,.8)'); g.addColorStop(1,'rgba(0,0,0,0)'); m.fillStyle=g; m.fillRect(0,0,mw,mh*0.42);
+    g=m.createLinearGradient(0,mh*0.78,0,mh); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,1)'); m.fillStyle=g; m.fillRect(0,mh*0.78,mw,mh*0.22);   // 아래(단추 줄 위)에서는 어둠에서 떠오른다
     a.drawImage(T.mid,sc.x,sc.y); a.drawImage(T.ban,0,0);
+    /* '시작'도 화면 안에 — 글은 전부 브라운관에 비친 것이다(사용자 요청). 바깥의 시작 단추는 감춘다(game.css) */
+    if(typeof busy!=='undefined'&&busy) titleProgress(a,t,W,H);
+    else{ const bw=clamp(W*0.16,130,220), bh=clamp(H*0.085,44,70); titleButton(a,'시작',W/2-bw/2,H*0.80-bh/2,bw,bh,t,'start');
+      const ld=document.getElementById('ovLoad'), msg=ld&&ld.textContent;          // 만들다 실패했으면 그 글을 단추 위에
+      if(msg){ a.save(); a.fillStyle='#e8e8e8'; a.font='700 '+Math.round(clamp(W/56,13,20))+'px "Apple SD Gothic Neo","Malgun Gothic",sans-serif'; a.textAlign='center'; a.fillText(msg,W/2,H*0.80-bh); a.restore(); } }
   }else titleIntroFlat(a,t,W,H);
+  titleSmallRow(a,t,W,H);
   /* 빛이 일렁인다 — 밝은 띠 둘이 서로 다른 빠르기로 훑고 내려간다(검은 데는 그대로 검다 — 흰 것만 더 밝거나 어두워진다) */
   a.globalCompositeOperation='multiply';
   { const base=0.80+0.05*Math.sin(t*9)+0.03*Math.sin(t*23), stops=[[0,base],[1,base]];
     for(const p of [((t*0.13)%1.3-0.15),((t*0.31+0.4)%1.3-0.15)]) stops.push([p-0.12,base],[p,1.0],[p+0.12,base]);
     g=a.createLinearGradient(0,0,0,H);
     stops.filter(s=>s[0]>=0&&s[0]<=1).sort((x,y)=>x[0]-y[0]).forEach(s=>{ const v=Math.round(255*Math.min(1,s[1])); g.addColorStop(s[0],'rgb('+v+','+v+','+v+')'); }); }
+  a.fillStyle=g; a.fillRect(0,0,W,H);
+  /* **관의 명암** — 가운데가 밝고 둘레로 갈수록 어두워진다(전자빔이 비스듬히 닿고 유리가 두꺼워진다). 글도 간판도 금도 같은 판이라 같이 어두워진다 */
+  g=a.createRadialGradient(W*0.5,H*0.44,Math.min(W,H)*0.10,W*0.5,H*0.5,Math.max(W,H)*0.64); g.addColorStop(0,'#ffffff'); g.addColorStop(0.6,'#c8c8c8'); g.addColorStop(1,'#6a6a6a');
   a.fillStyle=g; a.fillRect(0,0,W,H);
   a.globalCompositeOperation='source-over'; a.drawImage(T.crk,0,0);
   /* ② 통째로 볼록한 유리에 휘어 붙인다 — 세로 띠마다 높이를 줄이고(가로줄이 휜다), 이어서 가로 띠마다 너비를 줄인다(세로줄이 휜다) */
@@ -249,23 +328,50 @@ function titleDraw(now){
       O.drawImage(T.ch,pass?dx*5:dx,pass?(dx<0?3:dx>0?-3:0):0); }
     if(pass) O.restore();
   }
-  try{ O.filter='none'; }catch(e){} O.globalCompositeOperation='source-over';
-  O.fillStyle='rgba(0,0,0,.26)'; for(let y=0;y<H;y+=3) O.fillRect(0,y,W,1);                                                  // 주사선
+  try{ O.filter='none'; }catch(e){}
+  /* **형광막의 번짐** — 밝은 것 둘레로 엷은 빛이 퍼진다(흐리게 뜬 한 장을 더한다). 주사선보다 먼저라 빛도 줄무늬가 진다 */
+  O.globalCompositeOperation='lighter'; O.globalAlpha=0.30; try{ O.filter='blur(6px)'; }catch(e){} O.drawImage(T.bB,0,0); O.globalAlpha=1; try{ O.filter='none'; }catch(e){}
+  O.globalCompositeOperation='source-over';
+  /* **눈(잡음)** — 자글거리는 점을 마구 옮겨 깐다. 섬을 만드는 동안(신호를 찾는 중)은 더 짙다 */
+  { const busyNow=typeof busy!=='undefined'&&busy;
+    O.globalCompositeOperation='screen'; O.globalAlpha=busyNow?0.24:0.10;
+    O.save(); O.translate(-Math.floor(Math.random()*160),-Math.floor(Math.random()*160));
+    O.fillStyle=O.createPattern(T.nz[T.fr%3],'repeat'); O.fillRect(0,0,W+160,H+160); O.restore();
+    O.globalAlpha=1; O.globalCompositeOperation='source-over'; }
+  O.fillStyle='rgba(0,0,0,.26)'; for(let y=T.fr&1;y<H;y+=3) O.fillRect(0,y,W,1);                  // 주사선 — 홀짝 칸이 번갈아 그려져 줄이 떨린다(비월 주사)
+  /* **굴러가는 띠** — 전원 맥동(험 바)처럼 넓고 어두운 띠가 천천히 위로 올라간다 */
+  { const hy=(1.25-(t*0.09)%1.5)*H, hh=H*0.17; g=O.createLinearGradient(0,hy-hh,0,hy+hh);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(0.5,'rgba(0,0,0,.16)'); g.addColorStop(1,'rgba(0,0,0,0)'); O.fillStyle=g; O.fillRect(0,hy-hh,W,hh*2); }
+  /* **깜빡임** — 화면 전체의 밝기가 프레임마다 조금씩 흔들리고, 가끔 한 번 크게 꺼질 듯 어두워진다 */
+  O.fillStyle='rgba(0,0,0,'+(0.02+0.05*Math.random()+(Math.random()<0.035?0.18:0)).toFixed(3)+')'; O.fillRect(0,0,W,H);
+  /* **볼록한 유리의 반사** — 왼쪽 위에 방의 빛이 둥글게 비치고(아주 엷게), 위 가장자리를 따라 가는 빛줄이 휜다. 유리가 둥글다는 것은 이 명암이 말한다 */
+  O.globalCompositeOperation='screen';
+  /* 반사는 **깜빡이지 않는다**(방의 빛이라 화면 신호와 상관없다) — 그래서 흔들리는 화면 위에 유리가 따로 있는 것처럼 읽힌다 */
+  { const gr=O.createRadialGradient(W*0.28,H*0.18,0,W*0.28,H*0.18,Math.max(W,H)*0.42); gr.addColorStop(0,'rgba(255,255,255,.15)'); gr.addColorStop(0.45,'rgba(255,255,255,.045)'); gr.addColorStop(1,'rgba(255,255,255,0)'); O.fillStyle=gr; O.fillRect(0,0,W,H);
+    O.save(); O.translate(W*0.24,H*0.13); O.rotate(-0.52);                                       // 비스듬히 비친 창문 빛 한 줄기
+    { const gl=O.createLinearGradient(0,-H*0.06,0,H*0.06); gl.addColorStop(0,'rgba(255,255,255,0)'); gl.addColorStop(0.5,'rgba(255,255,255,.055)'); gl.addColorStop(1,'rgba(255,255,255,0)'); O.fillStyle=gl; O.fillRect(-W*0.28,-H*0.06,W*0.72,H*0.12); }
+    O.restore();
+    { const hs=O.createRadialGradient(W*0.80,H*0.13,0,W*0.80,H*0.13,W*0.05); hs.addColorStop(0,'rgba(255,255,255,.12)'); hs.addColorStop(1,'rgba(255,255,255,0)'); O.fillStyle=hs; O.fillRect(W*0.74,H*0.05,W*0.12,H*0.16); }   // 오른쪽 위 작은 빛점
+    try{ O.filter='blur(5px)'; }catch(e){} O.strokeStyle='rgba(255,255,255,.10)'; O.lineWidth=Math.max(3,H*0.02); O.beginPath(); O.ellipse(W*0.5,H*0.62,W*0.47,H*0.55,0,Math.PI*1.12,Math.PI*1.52); O.stroke(); try{ O.filter='none'; }catch(e){} }
+  O.globalCompositeOperation='source-over';
   /* 가장자리 어둠 — 볼록한 유리의 둘레는 어둡게 물러난다. 밖으로는 투명하게 녹여 네모난 판이 안 보이게 한다 */
   O.globalCompositeOperation='destination-in';
   g=O.createRadialGradient(W/2,H/2,Math.min(W,H)*0.30,W/2,H/2,Math.max(W,H)*0.60); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(0.75,'rgba(0,0,0,.82)'); g.addColorStop(1,'rgba(0,0,0,0)');
   O.fillStyle=g; O.fillRect(0,0,W,H);
   O.globalCompositeOperation='destination-out';                       // 네 변도 따로 녹인다(둥근 어둠만으로는 가까운 변이 칼같이 남는다)
-  for(const [x0,y0,x1,y1,rx,ry,rw,rh] of [[0,0,0,H*0.14,0,0,W,H*0.14],[0,H,0,H*0.86,0,H*0.86,W,H*0.14],[0,0,W*0.10,0,0,0,W*0.10,H],[W,0,W*0.90,0,W*0.90,0,W*0.10,H]]){
+  for(const [x0,y0,x1,y1,rx,ry,rw,rh] of [[0,0,0,H*0.14,0,0,W,H*0.14],[0,H,0,H*0.93,0,H*0.93,W,H*0.07],[0,0,W*0.10,0,0,0,W*0.10,H],[W,0,W*0.90,0,W*0.90,0,W*0.10,H]]){
     g=O.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(1,'rgba(0,0,0,0)'); O.fillStyle=g; O.fillRect(rx,ry,rw,rh); }
   O.globalCompositeOperation='source-over';
-  const c=T.cx; c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,T.cv.width,T.cv.height); c.imageSmoothingEnabled=true; c.drawImage(T.out,0,0,T.cv.width,T.cv.height);
+  const c=T.cx; c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,T.cv.width,T.cv.height); c.imageSmoothingEnabled=true;
+  { const jx=Math.random()<0.05?(Math.random()-0.5)*5:0, jy=(T.fr%157<2)?Math.round(H*0.01):0;      // 가로 떨림 · 세로 튐(수직 동기가 잠깐 놓친다)
+    c.drawImage(T.out,jx*T.dpr,jy*T.dpr,T.cv.width,T.cv.height); }
 }
 function titleTick(){
   const T=TITLE, ov=document.getElementById('ov');
   if(!ov||!ov.classList.contains('title')||ov.style.display==='none'){ titleStop(); return; }
   if(document.hidden) return;
-  if(!T.L||Math.abs(T.W-Math.min(1240,Math.round(innerWidth*0.98)))>2||Math.abs(T.H-Math.round(clamp(innerHeight*0.70,340,760)))>2){ try{ titleLayout(); }catch(e){ console.warn('[여는 화면]',e); titleStop(); return; } }
+  const [sw0,sh0]=titleSize();
+  if(!T.L||Math.abs(T.W-sw0)>2||Math.abs(T.H-sh0)>2){ try{ titleLayout(); }catch(e){ console.warn('[여는 화면]',e); titleStop(); return; } }
   try{ titleDraw(performance.now()); }catch(e){ console.warn('[여는 화면]',e); titleStop(); }
 }
 function titleStart(){

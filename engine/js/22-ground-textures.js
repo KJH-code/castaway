@@ -207,7 +207,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         c=mix(c,vec3(0.34,0.26,0.14),mLeaf*flat1*0.50);
         c=mix(c,vec3(0.30,0.22,0.13),mNeed*flat1*0.45);
         c=mix(c,vec3(0.14,0.13,0.10),mMud*flat1*0.50);
-        c*=mix(1.0,0.74,mSand);
+        c*=mix(1.0,0.70,mSand); c=mix(c,c*vec3(0.94,0.95,1.0)+vec3(0.0,0.004,0.008),mSand*0.5);   // 모래는 한 톤 낮추고 바탕 쪽으로 식힌다
         // 바위 — 가파를수록 드러나고, 높이를 따라 층이 진다
         float strata=0.5+0.5*sin(vTW.y*2.3+n2.a*5.0);
         c=mix(c,vec3(0.36,0.34,0.31)*(0.82+0.26*strata),steep*0.85);
@@ -237,7 +237,9 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         float wSum=(wSand>0.02?wSand:0.0)+(wGrass>0.02?wGrass:0.0)+(wLeaf>0.02?wLeaf:0.0)+(wNeed>0.02?wNeed:0.0)
                   +(wRock>0.02?wRock:0.0)+(wGrav>0.02?wGrav:0.0)+(wMud>0.02?wMud:0.0)+(wDry>0.02?wDry:0.0);
         det=wSum>0.0?det/wSum:vec3(0.5);
-        c*=mix(vec3(1.0),det*2.0,mix(1.0,0.6,smoothstep(50.0,160.0,vTD)));    // 멀리선 조금 옅게
+        /* 모래는 사진 결을 반만 — 모래밭이 혼자 튀었다(사용자 지적). 대신 넓은 얼룩(젖은 데·마른 데)으로 바탕과 섞는다 */
+        c*=mix(vec3(1.0),det*2.0,mix(1.0,0.6,smoothstep(50.0,160.0,vTD))*mix(1.0,0.50,wSand));    // 멀리선 조금 옅게
+        c*=mix(1.0,0.84+0.30*n1.r+0.10*(n2.g-0.5),wSand);
         /* 물가 — 젖은 띠와 밀려온 거품. 바닷물 셰이더의 거품과 같은 박자(uShT)로 오르내린다 */
         float h=vTW.y, wetS=0.0;
         if(h<1.3&&h>-0.8){
@@ -275,7 +277,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
              이랑이다: 이랑은 물가와 나란히(비탈의 내리막에 수직으로) 눕는다. 방향이 다른 세 벌(60° 간격)을 두고 그 자리의 내리막 방향에
              가까운 벌이 이기게 섞는다(방향을 화소마다 돌리면 무늬가 뭉개진다). 간격은 얕은 데 30 cm · 깊은 데 90 cm(큰 이랑),
              높이 1.2 cm. 잡음으로 굽이친다. 20 m 밖에서는 화소보다 잘아져 지운다 */
-          { float sandK=max(mSand*flat1,(h<0.3?(1.0-subRock)*(1.0-grav):0.0))*smoothstep(22.0,7.0,vTD);
+          { float sandK=max(mSand*flat1*0.35,(h<0.3?(1.0-subRock)*(1.0-grav):0.0))*smoothstep(22.0,7.0,vTD);   // 마른 모래밭의 이랑은 옅게(줄무늬로 튀었다) — 물밑은 그대로
             if(sandK>0.02){ vec2 dn=normalize(Ng.xz+vec2(0.021,0.013)); float lam=mix(0.32,0.90,smoothstep(0.3,-7.0,h)), kk=6.2832/lam, ws=0.0, hs=0.0; vec2 gr=vec2(0.0);
               for(int i=0;i<3;i++){ float an=float(i)*1.0472+0.35; vec2 d=vec2(cos(an),sin(an)); float w=pow(abs(dot(dn,d)),6.0)+0.02;
                 float ph=dot(p,d)*kk+(n2.r-0.5)*5.0+(n1.g-0.5)*9.0; gr+=w*d*(cos(ph)+0.35*cos(2.0*ph+1.0))*kk; hs+=w*sin(ph); ws+=w; }

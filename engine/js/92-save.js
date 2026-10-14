@@ -78,7 +78,8 @@ function snapshot(){
     nprops:PROPS.length,
     P:Object.assign({},P),
     t:{hour:hourOfDay, gh:gameHours, ts:timeScale},
-    pl:{x:PL.pos.x,y:PL.pos.y,z:PL.pos.z,yaw:PL.yaw,pitch:PL.pitch,
+    pl:{x:PL.pos.x,y:DEV.on?devGround():PL.pos.y,z:PL.pos.z,      // 개발자 모드로 떠 있으면 그 밑 바닥 높이로 적는다(불러와서 떨어지지 않게)
+       yaw:PL.yaw,pitch:PL.pitch,
         hp:PL.hp,stam:PL.stam,oxy:PL.oxy,food:PL.food,water:PL.water,
         ill:PL.ill},
     inv:saveSlots(INV.slots), pockets:INV.pockets.slice(0,6),
@@ -88,6 +89,7 @@ function snapshot(){
           head:WEAR.head?INV.slots.indexOf(WEAR.head):-1,
           back:WEAR.back?INV.slots.indexOf(WEAR.back):-1},
     quick:QUICK.map(sl=>sl?INV.slots.indexOf(sl):-1),
+    pins:MAPPINS.map(p=>[Math.round(p.x),Math.round(p.z),p.c,p.n]), pinAct,   // 지도 핀(82-hud.js)
     builds:{p:[...PADS.values()].map(o=>[o.gx,o.gz,+o.y.toFixed(2),+o.lo.toFixed(2)]),     // 다진 터(시멘트)
             f:[...FOUNDS.values()].map(o=>[o.gx,o.gz,o.tier,+o.y.toFixed(2)]),
             w:[...WALLS.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.tier,WALLV.indexOf(o.v||'wall'),
@@ -249,6 +251,10 @@ async function restore(d){
     QUICK[i]=slotAt(d.quick?d.quick[i]:-1);
   quickDirty=true;
   refreshWear();
+  safe('지도 핀',()=>{ MAPPINS.length=0;
+    for(const r of d.pins||[]) if(Array.isArray(r)&&isFinite(r[0])&&isFinite(r[1])&&MAPPINS.length<PIN_MAX)
+      MAPPINS.push({x:+r[0],z:+r[1],c:(r[2]|0)%PIN_COL.length,n:(r[3]|0)||MAPPINS.length+1});
+    const a=d.pinAct===undefined?-1:d.pinAct|0; pinAct=a<MAPPINS.length?a:-1; pinVer++; });
   invDirty=true; craftDirty=true;
 
   hourOfDay=d.t.hour; gameHours=d.t.gh; timeScale=d.t.ts||1;
@@ -404,7 +410,7 @@ function offerLoadOnStart(){
 /* 새 섬은 지금 섬을 버린다 — 상륙했으면 한 번 묻고 자동 저장에 남긴 뒤 만든다(예전엔 R 한 번에 그냥 사라졌다) */
 function newIsland(go,cancel){
   if(busy||askOpen){ if(cancel) cancel(); return; }
-  { const g0=go; go=()=>{ P.tv=3; g0(); }; }       // 새 섬은 늘 새 지형 판 — 옛 저장을 불러온 뒤(P.tv 1)에 만드는 섬도
+  { const g0=go; go=()=>{ P.tv=4; g0(); }; }       // 새 섬은 늘 새 지형 판 — 옛 저장을 불러온 뒤(P.tv 1)에 만드는 섬도
   if(!landed){ go(); return; }
   ask('새 섬을 만들겠습니까?','지금 섬은 자동 저장에 남깁니다(다음 자동 저장이 덮어씁니다) · Y 예 · N 아니오',
       ()=>{ autoSave('새 섬을 만들기 전'); go(); }, cancel);
