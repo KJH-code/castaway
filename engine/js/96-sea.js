@@ -641,7 +641,7 @@ async function farDrift(){
     const w=['tide','ashen','vireo','kelp','marrow','glass','hollow','ember','driftwood','saltgrave'];
     P.seed=w[(Math.random()*w.length)|0]+'-'+((Math.random()*9000+1000)|0);
     const se=document.getElementById('pSeed'); if(se) se.value=P.seed;
-    P.tv=3;                                            // 새 섬은 새 지형 판(옛 저장에서 떠나왔어도)
+    P.tv=4;                                            // 새 섬은 새 지형 판(옛 저장에서 떠나왔어도)
     await generateWorld();
     INV.slots.length=0; for(const o of loadSlots(keep.inv)) INV.slots.push(o);
     INV.sel=keep.sel|0; EQUIP=keep.eq>=0?INV.slots[keep.eq]||null:null;

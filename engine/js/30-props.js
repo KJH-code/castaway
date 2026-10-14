@@ -308,6 +308,9 @@ function bakeTreeImpostor(list,kind){
 /* 복제 단계마다 [가지 몫, 잎 몫] — 가까운 것(칸 테두리 10 m 밖 ~ 55 m) · 55~90 m · 90~150 m.
    예전 값(0.6·0.3·0.1)은 창 크기 그대로 그리던 때의 것이다. 캠코더 화면(세로 480줄)에서는 40 m 밖 나무가 100 화소 남짓이라
    잔가지가 화소 하나보다 가늘다 — 몫을 절반쯤으로 줄여도 윤곽은 같다 */
+/* **광석은 땅에 박혀 있다**(사용자 요청) — 노두가 땅 위에 얹힌 돌처럼 보였다. 가운데를 반지름의 0.20 높이까지만 올리고(예전 0.5),
+   밑동이 땅 빛깔로 녹아드는 띠를 두 배 가까이 높인다. 화강암 노두·자갈·부싯돌은 그대로 */
+const ORE_LODGE={iron:1,copper:1,tin:1,zinc:1,galena:1,coal:1,sulfur:1,cinnabar:1};
 const FAR_REF={}, FAR_LOD=[[0.22,0.32],[0.08,0.13],[0.035,0.07]], FULL_EDGE=2.5, LOD0_EDGE=14, COPY_MID=72, FULL_DIST=25;   // FULL_DIST — 새 식물(95-flora.js)이 제 생김새로 서는 거리
 function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
   const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
@@ -935,12 +938,12 @@ function buildProps(){
         out[0]=a2; out[1]=b*cx-c2*sxr; out[2]=b*sxr+c2*cx;
       };
       let off;
-      if(R.k==='flint') off=0.15*p.s; else if(R.k==='pebble') off=0.11*p.s; else off=0.5*p.s;
+      if(R.k==='flint') off=0.15*p.s; else if(R.k==='pebble') off=0.11*p.s; else if(ORE_LODGE[R.k]) off=0.20*p.s; else off=0.5*p.s;   // 광석은 땅에 박혀 있다(사용자 요청)
       /* 비탈에서는 더 묻는다 — 곧추 얹으면 아래쪽 밑면이 허공에 뜬다(사용자 지적). 반지름 × 기울기의 0.6, 반지름의 0.45 까지 */
       { const gs=groundSlope(p.x,p.z,Math.max(0.4,r0*p.s*0.7)); off-=Math.min(0.45*r0*p.s,r0*p.s*Math.hypot(gs[0],gs[1])*0.6); }
       const oy=p.y+off, S0=p.s;
       p._vs=o/3; p._vn=SHELL_V; p._cy=oy; p._k=1;
-      mel.fill(clamp(0.34*S0*r0,0.05,0.8),o/3,o/3+SHELL_V);
+      mel.fill(ORE_LODGE[R.k]?clamp(0.62*S0*r0,0.12,1.1):clamp(0.34*S0*r0,0.05,0.8),o/3,o/3+SHELL_V);   // 광석은 땅 빛깔이 더 높이 올라온다
 
       for(let i=0;i<SHELL_V;i++){
         const f=fac[vertU[i]];

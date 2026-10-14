@@ -1727,7 +1727,8 @@ function envPatch(m){
   if(!m||m.userData._env) return;
   const lam=!!m.isMeshLambertMaterial, dep=!!m.isMeshDepthMaterial;
   const melt=lam&&m.userData.melt>0?+m.userData.melt:0, meltA=!!m.userData.meltAttr, meltT=!!m.userData.meltTex;
-  const leaf=lam&&(m.userData.wind==='leaf'||!!m.userData.leaf);   // 잎 — 해를 등진 면에 비쳐 드는 빛을 준다(아래 '잎에 비쳐 드는 빛')
+  const leaf=lam&&(m.userData.wind==='leaf'||!!m.userData.leaf);
+  const amip=lam&&m.alphaTest>0&&!!m.map;             // 잘라 그리는 잎 판 — 멀어져도 안 성기게(아래 '잎 판의 덮개')   // 잎 — 해를 등진 면에 비쳐 드는 빛을 준다(아래 '잎에 비쳐 드는 빛')
   /* 바람 흔들림은 껐다(`WIND_ON`) — 풀·잎·베리·가지 정점마다 사인파를 셌는데, 정점이 한 프레임에
      수백만 개라 가장 비싼 축에 들었다. 켜려면 true 로(코드는 그대로 남아 있다). */
   const wind=WIND_ON&&m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';
@@ -1797,6 +1798,10 @@ float cloudSh(){
       .replace('reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb );','reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb ) * ( 0.45 + 0.55 * tlE().g );');
     /* 잎에 비쳐 드는 빛 — 잎은 얇아 볕의 일부가 뒤로 샌다. 보이는 면이 해를 등졌으면 반대쪽 면이 받은 볕의 0.4 를 더한다
        (양면 재질만 — 반대쪽 면의 몫 `vLambWB`/`vLambW` 가 이미 정점에서 세어져 있다). 잎 빛깔을 지나 나오니 연둣빛이다 */
+    /* **잎 판의 덮개** — 그림을 잘라 그리는 잎(alphaTest)은 멀어져 작은 밉맵을 읽으면 알파가 평균으로 묽어져 문턱 밑으로 떨어지고, 잎이
+       숭숭 빠져 나무가 부서져 보였다(사용자 지적). 읽는 밉맵 단계만큼 알파를 돋운다(단계마다 30%) — 가까이는 그대로 */
+    if(amip) sh.fragmentShader=sh.fragmentShader.replace('#include <alphatest_fragment>',
+      '#ifdef USE_MAP\n\t{ vec2 amS=vec2(textureSize(map,0)), amX=dFdx(vUv*amS), amY=dFdy(vUv*amS); diffuseColor.a*=1.0+0.30*max(0.0,0.5*log2(max(dot(amX,amX),dot(amY,amY)))); }\n#endif\n#include <alphatest_fragment>');
     if(leaf) sh.fragmentShader=sh.fragmentShader.replace('vec4 lambW = ( gl_FrontFacing ) ? vLambW : vLambWB;',
       'vec4 lambW = ( gl_FrontFacing ) ? vLambW : vLambWB;\n\t\tlambW.x += ( ( gl_FrontFacing ) ? vLambWB.x : vLambW.x ) * 0.40;');
     /* 이슬 맺힌 잎의 반짝임(98-dew.js ②) — 세계 좌표의 잔 칸(거리에 비례 — 화소 하나쯤)마다 난수 하나, 문턱을 넘는 칸이 해의 빛깔로 빛난다.
@@ -1828,7 +1833,7 @@ float cloudSh(){
   /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
      다른 램버트 재질과 같은 프로그램으로 묶여 제 코드가 통째로 빠졌다 */
   const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
-  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(leaf?'L':'')+(melt?'m'+melt+(meltA?'a':'')+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
+  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(leaf?'L':'')+(amip?'M':'')+(melt?'m'+melt+(meltA?'a':'')+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
   m.needsUpdate=true;
 }
 

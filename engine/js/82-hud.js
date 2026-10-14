@@ -25,7 +25,79 @@ function cacheMap(){
     d[o+2]=clamp(col.b*255*sh,0,255); d[o+3]=255;
   }
   mapImg=img; mapBaseT=-1e9;          // 새 섬이면 바탕을 다시 굽는다
+  MAPPINS.length=0; pinAct=-1; pinVer++;   // 핀은 그 섬 것 — 불러오기는 섬을 만든 **뒤에** 핀을 다시 꽂는다(92-save.js)
 }
+/* ── 지도 핀 ─────────────────────────────────────────────────────────────
+   M 으로 지도를 크게 펴면 마우스가 풀린다(uiOpen — 걷기는 된다). 빈 곳 좌클릭 = 핀 꽂기(그 핀을 따라간다) ·
+   핀 좌클릭 = 그 핀을 따라가기 · 핀 우클릭 = 뽑기 · M/Esc = 접기.
+   따라가는 핀은 나침반 띠에 방향 + 거리로 뜨고(시야 밖이면 띠 끝에 화살), 나머지 핀도 띠에 작은 표로 뜬다.
+   자리는 세계 좌표(m)로 적고 저장에 들어간다(92-save.js pins) */
+const MAPPINS=[], PIN_COL=['#ff5a4e','#ffc542','#58d0ff','#9dff6a','#e98bff'], PIN_MAX=24;
+let mapOpen=false, pinAct=-1, pinVer=0, pinHov=null;
+function toggleMap(on){
+  mapOpen=on===undefined?!mapOpen:!!on;
+  document.getElementById('map').classList.toggle('big',mapOpen);
+  document.getElementById('mapw').classList.toggle('open',mapOpen);
+  if(!mapOpen) pinHov=null;
+  syncLock(); drawMap();
+}
+/* 지도 캔버스 위 화면 크기(px) — 핀 크기를 화면에서 늘 비슷하게 보이게. clientWidth 를 읽으면 배치를 다시 재므로
+   CSS 와 같은 식으로 셈한다(#map · #map.big) */
+const mapPx=()=>mapOpen?Math.min(688,innerHeight*0.82):172;
+/* 캔버스 점(cx,cz) 아래 핀 — k = 화면 1 px 이 캔버스 몇 px 인가. 머리(꽂힌 점보다 2.1×9 px 위)나 바늘 끝, 가까운 쪽으로 잰다 */
+function pinAt(cx,cz,k){
+  let best=-1, bd=(12*k)**2;
+  MAPPINS.forEach((p,i)=>{
+    const dx=p.x/CELL+N/2-cx, dz=p.z/CELL+N/2-cz, hz=dz-2.1*9*k;
+    const d=Math.min(dx*dx+hz*hz, dx*dx+dz*dz);
+    if(d<bd){ bd=d; best=i; } });
+  return best;
+}
+{
+  const mc=document.getElementById('map');
+  const at=e=>{ const r=mc.getBoundingClientRect(); return [(e.clientX-r.left)/r.width*N,(e.clientY-r.top)/r.height*N,N/r.width]; };
+  mc.addEventListener('mousedown',e=>{
+    if(!mapOpen) return;
+    e.preventDefault(); e.stopPropagation();
+    const [cx,cz,k]=at(e), hit=pinAt(cx,cz,k);
+    if(e.button===2){
+      if(hit<0) return;
+      MAPPINS.splice(hit,1);
+      if(pinAct===hit) pinAct=-1; else if(pinAct>hit) pinAct--;
+      toast('핀을 뽑았다');
+    }else if(e.button===0){
+      if(hit>=0){ pinAct=pinAct===hit?-1:hit; toast(pinAct<0?'핀 따라가기를 멈췄다':'이 핀을 따라간다 — 나침반을 보라'); }
+      else{
+        if(MAPPINS.length>=PIN_MAX){ toast('핀은 '+PIN_MAX+'개까지 — 우클릭으로 하나 뽑아라'); return; }
+        const used=MAPPINS.reduce((a,p)=>Math.max(a,p.n),0);
+        MAPPINS.push({x:(cx-N/2)*CELL, z:(cz-N/2)*CELL, c:MAPPINS.length%PIN_COL.length, n:used+1});
+        pinAct=MAPPINS.length-1;
+      }
+    }
+    pinVer++; drawMap();
+  });
+  mc.addEventListener('contextmenu',e=>e.preventDefault());
+  mc.addEventListener('mousemove',e=>{
+    if(!mapOpen) return;
+    const [cx,cz,k]=at(e);
+    pinHov={x:(cx-N/2)*CELL, z:(cz-N/2)*CELL, pin:pinAt(cx,cz,k)};
+    mc.style.cursor=pinHov.pin>=0?'pointer':'crosshair';
+  });
+  mc.addEventListener('mouseleave',()=>{ pinHov=null; });
+}
+/* 핀 하나 — 꽂힌 점(cx,cz)에 바늘 끝, 위에 둥근 머리. s = 캔버스 화소로 친 머리 반지름 */
+function drawPin(ctx,p,i,s){
+  const cx=p.x/CELL+N/2, cz=p.z/CELL+N/2, hy=cz-s*2.1, act=i===pinAct;
+  ctx.lineWidth=s*0.32; ctx.strokeStyle='rgba(8,14,14,.92)';
+  ctx.beginPath(); ctx.moveTo(cx,cz); ctx.lineTo(cx-s*0.62,hy+s*0.55); ctx.arc(cx,hy,s,Math.PI*0.80,Math.PI*0.20); ctx.closePath();
+  const g=ctx.createRadialGradient(cx-s*0.35,hy-s*0.4,s*0.1,cx,hy,s*1.2);      // 위왼쪽에서 빛이 드는 둥근 머리
+  g.addColorStop(0,'#fff'); g.addColorStop(0.35,PIN_COL[p.c]); g.addColorStop(1,'rgba(0,0,0,.85)');
+  ctx.fillStyle=g; ctx.fill(); ctx.stroke();
+  if(act){ ctx.strokeStyle='#f4fff9'; ctx.lineWidth=s*0.22; ctx.beginPath(); ctx.arc(cx,hy,s*1.45,0,Math.PI*2); ctx.stroke(); }
+  if(mapOpen){ ctx.fillStyle='#071010'; ctx.font='bold '+Math.round(s*1.05)+'px ui-monospace,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.n,cx,hy+s*0.06); }
+}
+const pinDist=(p)=>{ const d=Math.hypot(p.x-PL.pos.x,p.z-PL.pos.z); return d<1000?Math.round(d)+' m':(d/1000).toFixed(d<10000?2:1)+' km'; };
 function drawMap(){
   if(!mapImg) return;
   const ctx=document.getElementById('map').getContext('2d');
@@ -51,6 +123,21 @@ function drawMap(){
     mapBaseProps=showProps; mapBaseT=now;
   }
   ctx.drawImage(mapBase,0,0);
+  /* 핀 — 화면에서 머리가 큰 지도 9 px · 작은 지도 4.5 px 쯤 되게(캔버스 768 을 172~688 px 로 줄여 보인다) */
+  const ps=(mapOpen?9:4.5)*N/mapPx();
+  if(pinAct>=0&&MAPPINS[pinAct]){                     // 따라가는 핀까지 점선
+    const p=MAPPINS[pinAct];
+    ctx.save(); ctx.setLineDash([ps*0.9,ps*0.7]); ctx.lineWidth=ps*0.28; ctx.strokeStyle='rgba(240,255,248,.75)';
+    ctx.beginPath(); ctx.moveTo(x,z); ctx.lineTo(p.x/CELL+N/2,p.z/CELL+N/2); ctx.stroke(); ctx.restore();
+  }
+  MAPPINS.forEach((p,i)=>{ if(i!==pinAct) drawPin(ctx,p,i,ps); });
+  if(pinAct>=0&&MAPPINS[pinAct]) drawPin(ctx,MAPPINS[pinAct],pinAct,ps);   // 따라가는 핀은 맨 위
+  if(mapOpen){
+    const h=document.getElementById('mHelp');
+    hudT(h,pinHov?(pinHov.pin>=0?'핀 '+MAPPINS[pinHov.pin].n+' · '+pinDist(MAPPINS[pinHov.pin])+' · 좌클릭 따라가기 · 우클릭 뽑기'
+                                 :'여기까지 '+pinDist(pinHov)+' · 좌클릭 핀 꽂기')
+                  :'핀 '+MAPPINS.length+'/'+PIN_MAX+' · 커서를 올리면 거리');
+  }
   /* 플레이어 — 보는 쪽을 **뾰족한 끝**으로 가리키는 화살 삼각형.
      예전엔 시야 부채꼴(꼭짓점이 사람, 넓은 쪽이 앞)만 그려서 꼭짓점이 뒤를 가리키는 삼각형으로 읽혔다.
      앞 = (−sin yaw, −cos yaw) · 지도는 x→오른쪽, z→아래 */
@@ -68,10 +155,15 @@ const COMPASS_LBL={0:'N',45:'NE',90:'E',135:'SE',180:'S',225:'SW',270:'W',315:'N
 let _compDeg=NaN;
 function drawCompass(){
   const deg=(-PL.yaw*180/Math.PI%360+360)%360;
-  if(deg===_compDeg) return;                          // 방위가 그대로면 그림도 그대로다 — 다시 안 그린다
-  _compDeg=deg;
+  /* 방위가 그대로면 그림도 그대로다 — 다시 안 그린다. 핀이 있으면 걸어서 거리·방향이 바뀌므로 자리(1 m)도 본다 */
+  const key=MAPPINS.length?deg+'|'+pinVer+'|'+pinAct+'|'+Math.round(PL.pos.x)+'|'+Math.round(PL.pos.z):deg;
+  if(key===_compDeg) return;
+  _compDeg=key;
   const cx=document.getElementById('compassC'), g=cx.getContext('2d');
-  g.clearRect(0,0,230,20);
+  const H=MAPPINS.length?32:20;                        // 핀이 있으면 띠 위에 10 px 핀 줄을 덧붙인다(CSS 높이는 auto)
+  if(cx.height!==H) cx.height=H;
+  g.clearRect(0,0,230,H);
+  g.save(); if(H>20) g.translate(0,10);
   const PX=230/120;                                   // 화면에 120° 표시
   g.strokeStyle='rgba(160,200,185,.28)'; g.fillStyle='#c2d6ce';
   g.font='9px ui-monospace,monospace'; g.textAlign='center';
@@ -85,6 +177,26 @@ function drawCompass(){
     if(major){ const L=LBL[near%360]; if(L) g.fillText(L,x,20); }
   }
   g.fillStyle='#8fd6b4'; g.fillRect(114.5,0,1.5,16);
+  g.restore();
+  /* 핀 줄 — 방위각 = atan2(dx, −dz)(북 = −z · 동 = +x, 나침반 글자와 같은 틀). 따라가는 핀은 크게 + 거리,
+     시야(±60°) 밖이면 띠 끝에 화살로 어느 쪽으로 돌지 알려 준다 */
+  for(let pass=0;pass<2;pass++) MAPPINS.forEach((p,i)=>{
+    const act=i===pinAct; if(act!==(pass===1)) return;
+    const b=Math.atan2(p.x-PL.pos.x,-(p.z-PL.pos.z))*180/Math.PI;
+    const a=((b-deg)%360+540)%360-180;
+    g.fillStyle=PIN_COL[p.c]; g.strokeStyle='rgba(6,12,12,.9)'; g.lineWidth=1.2;
+    if(Math.abs(a)<=60){
+      const x=115+a*PX, s=act?4.6:3;
+      g.beginPath(); g.moveTo(x,9.5); g.lineTo(x-s,9.5-s*1.5); g.lineTo(x+s,9.5-s*1.5); g.closePath(); g.stroke(); g.fill();
+      if(act){ g.font='9px ui-monospace,monospace'; g.textAlign=a>40?'right':'left'; g.fillStyle='#e8fff6';
+        g.fillText(pinDist(p),a>40?x-7:x+7,8); }
+    }else if(act){
+      const r=a>0, x=r?226:4;
+      g.beginPath(); g.moveTo(x+(r?4:-4),5); g.lineTo(x,1); g.lineTo(x,9); g.closePath(); g.stroke(); g.fill();
+      g.font='9px ui-monospace,monospace'; g.textAlign=r?'right':'left'; g.fillStyle='#e8fff6';
+      g.fillText(pinDist(p),r?x-3:x+3,8);
+    }
+  });
 }
 let fpsT=0,fpsN=0,fps=0;
 /* ── 성능 창(F3) ────────────────────────────────────────────────────────
@@ -290,8 +402,9 @@ function updateHUD(dt){
     hudT(hpT,Math.max(0,Math.round(PL.hp)));
   }
   // 맞으면 화면 가장자리가 붉어진다
-  if(hurtFlash>0){
-    hurtFlash=Math.max(0,hurtFlash-dt*1.6);
+  /* 다친 붉은 빛 — **늘** 맞춘다. 예전엔 hurtFlash>0 일 때만 고쳐, 쓰러졌다 깨어나며 hurtFlash 를 0 으로 놓으면(80-player.js)
+     붉은 막이 마지막 짙기로 화면에 남았다(사용자 지적: 떨어져 죽은 뒤 붉은 빛이 안 걷힌다) */
+  { if(hurtFlash>0) hurtFlash=Math.max(0,hurtFlash-dt*1.6);
     const hv=document.getElementById('hurt');
     if(hv){ hudS(hv,'opacity',hurtFlash*0.55); hudS(hv,'display',hurtFlash>0.01?'block':'none'); }
   }

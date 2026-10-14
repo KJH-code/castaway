@@ -45,6 +45,7 @@
   <div class="pnl" id="mapw">
     <canvas id="map" width="768" height="768"></canvas>
     <div class="c"><span id="mSpan">– m</span><span id="mDist">–</span></div>
+    <div class="h" id="mHelp"></div>
   </div>
 
   <div id="look"><span id="lookT"></span><div id="lookB"><i id="lookF"></i></div></div>
@@ -69,6 +70,7 @@
   </div>
   <div id="hurt"></div>
   <div id="needWarn"></div>
+  <div id="devTag">개발자 모드 <b id="devTagV"></b> · WASD 날기 · Space 위 · C 아래 · Shift 빠르게 · 휠 빠르기 · ` 끄기</div>
   <div id="holdTag">⏸ 멈춤 — 사전을 덮으면 시간이 다시 흐른다</div>
   <div id="hint">화면을 클릭하면 시점 조작이 시작됩니다</div>
 </div>
@@ -139,6 +141,7 @@
     <button class="on" id="bProps">자원</button>
     <button class="on" id="bGuar">자원 보장</button>
     <button id="bFly">자유 카메라</button>
+    <button id="bDev" title="` 키로도 켜고 끈다">개발자 모드</button>
     <button id="bTouch">터치 UI</button>
     <button id="bBench">벤치마크</button>
   </div>
@@ -188,7 +191,8 @@
     <div><span><kbd>G</kbd></span><em>고른 것 버리기</em></div>
     <div><span><kbd>L</kbd></span><em>전등 켜기 · 끄기</em></div>
     <div><span><kbd>V</kbd></span><em>자유 카메라</em></div>
-    <div><span><kbd>M</kbd></span><em>미니맵 크게 · 작게</em></div>
+    <div><span><kbd>`</kbd></span><em>개발자 모드 — 날아서 둘러보기 · 다치지 않는다</em></div>
+    <div><span><kbd>M</kbd></span><em>지도 펴기 · 접기 — 펴면 좌클릭 핀 꽂기 · 우클릭 뽑기</em></div>
     <div><span><kbd>Z</kbd></span><em>집 짓기 — 1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽</em></div>
     <div><span><kbd>R</kbd></span><em>새 섬(묻고 나서)</em></div>
     <div><span><kbd>T</kbd></span><em>시간 가속</em></div>

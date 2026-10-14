@@ -43,9 +43,8 @@ addEventListener('keydown',e=>{
   /* 그림판이 열려 있으면 게임 키는 받지 않는다 — Esc 로 닫기만 */
   keys[e.code]=true;
   if(e.code==='Space') e.preventDefault();
-  if(e.code==='KeyM'&&!e.repeat){                // 미니맵 크기 4배 ↔ 원래대로
-    document.getElementById('map').classList.toggle('big');
-  }
+  if(e.code==='KeyM'&&!e.repeat&&(landed||mapOpen)){ toggleMap(); }   // 지도 펴기(4배 · 마우스가 풀려 핀을 꽂는다 — 82-hud.js) ↔ 접기
+  if(e.code==='Escape'&&mapOpen){ toggleMap(false); return; }
   if(e.code==='KeyL'){ toggleLamp(); }         // 전등은 들고 좌클릭해도 켜진다 · 충전은 우클릭
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
   if(e.code==='KeyE'&&boxOpen&&!e.repeat){ toggleBox(null); }
@@ -87,6 +86,7 @@ addEventListener('keydown',e=>{
     }
     else if(!craftOpen && i<QUICK.length) quickSwap(i);
   }
+  if(e.code==='Backquote'&&!e.repeat){ toggleDev(); }   // 개발자 모드 — 날아서 둘러보기 · 다치지 않는다(80-player.js)
   if(e.code==='KeyV'){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
   /* T — 시간 배속. 20배를 넣어 두었다: 하늘과 날씨를 살펴볼 때 1배는 너무 느리고
      60배는 하루가 24초라 너무 빠르다. 20배면 게임 하루가 72초다.
@@ -164,7 +164,9 @@ addEventListener('mouseup',e=>{ dragF=false;
 /* 눈앞에 설비(문짝·상자·모닥불·제련로·숫돌·발전기)가 있나 — 그때 좌클릭은 공격·먹기가 아니라 설비 조작이다 */
 function facing(){ return !!(HARV.fit||HARV.cont); }
 addEventListener('blur',()=>{ mouseDown=false; useDown=false; });
-cv.addEventListener('wheel',e=>{ if(MOVE.t){ moveRotate(Math.sign(e.deltaY)); e.preventDefault(); return; } if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
+cv.addEventListener('wheel',e=>{ if(MOVE.t){ moveRotate(Math.sign(e.deltaY)); e.preventDefault(); return; }
+  if(DEV.on&&!flyMode){ DEV.sp=clamp(DEV.sp*(e.deltaY<0?1.25:0.8),0.25,8); e.preventDefault(); return; }   // 개발자 모드 — 휠로 나는 빠르기
+  if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
 let BUILD_ESC_T=0;
 document.addEventListener('pointerlockchange',()=>{
   /* **잠금이 늦게 걸리면 바로 푼다.** 잠금은 요청하고 한참 뒤(브라우저가 받아 줄 때) 걸린다 — 상륙하거나 창을 닫으며 요청해 둔 잠금이
@@ -184,7 +186,7 @@ document.addEventListener('pointerlockchange',()=>{
 /* 창(소지품·제작·사전·설정)이 열려 있으면 마우스를 풀어 줘야 클릭할 수 있다.
    포인터가 잠긴 채로는 커서가 없어 UI를 누를 방법이 없다. */
 let cfgOpen=false;
-const uiOpen=()=>invOpen||craftOpen||dexOpen||cfgOpen||boxOpen||grindOpen||askOpen;
+const uiOpen=()=>invOpen||craftOpen||dexOpen||cfgOpen||boxOpen||grindOpen||askOpen||mapOpen;
 /* 이 창들이 열려 있는 동안은 세상이 멈춘다(loop) */
 const uiHold=()=>dexOpen;
 function syncLock(){
@@ -452,6 +454,7 @@ for(const [bid,tab] of [['dexI','item'],['dexM','mineral'],['dexK','keys']])
     drawDex(); };
 tgl('bProps',v=>{ showProps=v; if(propGroup) propGroup.visible=v; });
 tgl('bGuar',v=>{ newIsland(()=>{ GUARANTEE=v; generateWorld(); },()=>document.getElementById('bGuar').classList.toggle('on',!v)); });
+tgl('bDev',v=>toggleDev(v));
 tgl('bFly',v=>{ flyMode=v; if(v&&document.pointerLockElement) document.exitPointerLock(); });
 tgl('bTouch',v=>setTouchUI(v));
 document.getElementById('boxRn').onclick=boxRenameStart;

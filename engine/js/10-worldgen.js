@@ -836,6 +836,36 @@ function shapeSeabed(seed){
     d-=clamp((-e-brk)/0.5,0,1)*(5.0+3.0*a(wx/120+9.3,wz/120+4.1));
     h[i]=Math.min(e+d*k,-0.9);
   }
+  if((P.tv|0)>=4) seaTrenches(seed);
+}
+/* ── 바다 밑의 갈라진 틈과 해구(지형 판 4 · 사용자 요청) ─────────────────────────────
+   피오르·골짜기를 판 것과 같은 도장으로 **바다 밑을 판다** — 물 밑 칸만, 더 깊게만 고친다(뭍과 해안선은 그대로).
+     ① **해저 협곡** — 피오르의 어귀에서 바깥 바다로 이어지는 깊고 좁은 골. 바깥으로 갈수록 깊어져(−12 → −95 m) 끝은 검푸른 낭떠러지다.
+     ② **갈라진 틈** — 섬 둘레의 대륙붕을 물가와 나란히 가르는 좁은 금(폭 10~20 m · 바닥 −95 m). 거의 곧게 뻗다 꺾이고, 가끔 가지를 친다.
+   깊이는 표고 텍스처의 밑(−100 m)에 맞춰 −95 m 에서 멈춘다. 물 셰이더가 깊이만큼 빛을 먹어 검게 가라앉는다 */
+function seaTrenches(seed){
+  const h=F.elev, rnd=mulberry32((seed^0x5ea7c1)>>>0), FLOOR=-95;
+  const stamp=(cx,cz,w0,wall,floor)=>{ const R=Math.ceil(w0+wall);
+    for(let dz=-R;dz<=R;dz++){ const z=Math.round(cz)+dz; if(z<1||z>=N-1) continue;
+      for(let dx=-R;dx<=R;dx++){ const x=Math.round(cx)+dx; if(x<1||x>=N-1) continue;
+        const i=IDX(x,z), e=h[i]; if(e>-1.5) continue;                                // 물 밑만
+        const d=Math.hypot(x-cx,z-cz); if(d>R) continue;
+        const t=d<=w0?0:(d-w0)/wall, tg=floor+(e-floor)*Math.pow(Math.min(1,t),0.55);   // 가파른 벽 — 둘레의 바닥에 이어진다
+        if(tg<e) h[i]=Math.max(FLOOR,tg); } } };
+  const line=(x,z,an,steps,w,f0,f1,zig,branch)=>{
+    for(let st=0;st<steps;st++){ const s=st/steps; if(x<4||z<4||x>N-5||z>N-5) break;
+      stamp(x,z,w*(1-0.4*s)+0.3,2.2,f0+(f1-f0)*Math.min(1,s*1.6));
+      an+=(rnd()-0.5)*zig; if(rnd()<0.03) an+=(rnd()<0.5?1:-1)*0.6;                     // 이따금 꺾인다
+      if(branch&&rnd()<0.012) line(x,z,an+(rnd()<0.5?1:-1)*(0.6+rnd()*0.5),(steps-st)*0.4|0,w*0.6,f0,f1,zig,false);
+      x+=Math.cos(an)*1.3; z+=Math.sin(an)*1.3; } };
+  /* ① 피오르 어귀에서 바깥으로 */
+  if(typeof LANDFORMS!=='undefined') for(const L of LANDFORMS){ if(L.k!=='fjord'||L.arm) continue;
+    const p0=L.pts[0], an=Math.atan2(p0[1]-N/2,p0[0]-N/2);
+    line(p0[0],p0[1],an,90+((rnd()*80)|0),1.6+rnd()*1.4,-14,FLOOR+3,0.25,true); }
+  /* ② 대륙붕을 가르는 틈 — 섬 둘레의 얕은 바다(−6~−45 m)에서 물가와 나란히 뻗는 좁고 깊은 금. 바깥 바다는 이미 깊어(−95 m 남짓)
+     거기 판 금은 안 보인다 */
+  for(let k=0,tries=0;k<9&&tries<8000;tries++){ const x=8+rnd()*(N-16), z=8+rnd()*(N-16), i=IDX(x|0,z|0); if(h[i]>-6||h[i]<-45) continue; k++;
+    line(x,z,Math.atan2(z-N/2,x-N/2)+(rnd()<0.5?1:-1)*(1.571+(rnd()-0.5)*0.6),40+((rnd()*60)|0),0.7+rnd()*0.5,FLOOR,FLOOR,0.12,true); }
 }
 
 /* ============================================================================
