@@ -82,7 +82,7 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 - **Ground lighting** — the ground shader (`gndTerrainFrag` in `22-ground-textures.js`) recomputes the sun term per pixel from relief
   and photo-texture normals, with canopy shade, wetness and a specular sheen. Height-dependent haze is in the fog chunk (`90-init.js`);
   the camcorder pass (`46-camcorder.js`) renders to a half-float target and rolls highlights off above 0.8.
-- **Level of detail and automatic quality** — `updateTileVis`, `limbLod`, `QUAL` in `30-props.js`.
+- **Level of detail and automatic quality** — `updateTileVis`, `QUAL` in `30-props.js`; oak/fir pick a level per tree by distance (`TL`, `tlEval`/`tlRepack`/`tlThin` — own limbs within 45 m, then the tree's own thinned limbs/leaves, picture beyond 125 m).
 - **Bag screen** — `98-bag.js` (two tabs, tooltips, recipe detail), `drawInv` / `invChip` in `50-items.js` (categories, pockets),
   `drawCraft` / `craftEdges` in `55-craft.js` (skill tree).
 - **Everything is interactable** — `FLORA_PICK` (`95-flora.js`), `SEA_PICK` (`96-sea.js`), `RUBBLE.picks` (`30-props.js`).
