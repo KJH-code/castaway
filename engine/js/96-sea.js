@@ -264,7 +264,8 @@ function seaFindLook(){
     /* 산호·바닷말·바위(그 자리에 남는 것)는 똑바로 겨눠야 잡히고, 작살·무기·그물을 들었으면 안 잡힌다 — 물고기를 찌르려는
        좌클릭을 가로채지 않게 */
     if(p.keep&&armed) continue;
-    if((dx*fx+dy*fy+dz*fz)/d<(p.keep?0.85:0.5)) continue;
+    { const t=dx*fx+dy*fy+dz*fz; if(t<0.1) continue;                   // **조준선이 그것을 지나야**(사용자 요청 — 예전엔 ±60° 원뿔)
+      const qx=dx-fx*t, qy=dy-fy*t, qz=dz-fz*t, rr=p.r||(p.keep?0.32:0.22); if(qx*qx+qy*qy+qz*qz>rr*rr) continue; }
     bd=d; SEA.look=p;
   }
 }
@@ -477,7 +478,8 @@ function updateFish(dt){
         /* 몇 토막을 건지나는 무작위(사용자 요청) — 표의 수 ±1(작은 것은 1~2) */
         const nd=Math.max(1,S.drop[1]+(Math.random()<0.35?1:0)-(S.drop[1]>1&&Math.random()<0.3?1:0));
         let got=0; for(let k=0;k<nd;k++) if(invAdd(S.drop[0],1)) got++;
-        toast(got?('잡았다 — '+ITEMS[S.drop[0]].n+' +'+got):(S.n+' — 무거워서 못 들고 놓쳤다'));
+        if(got&&S.drop2) for(let k=0;k<S.drop2[1];k++) invAdd(S.drop2[0],1);     // 덤(상어 이빨 · 쏠배감펭 가시 — 96-reef.js)
+        toast(got?('잡았다 — '+ITEMS[S.drop[0]].n+' +'+got+(S.drop2?' · '+ITEMS[S.drop2[0]].n+' +'+S.drop2[1]:'')):(S.n+' — 무거워서 못 들고 놓쳤다'));
         invDirty=true;
       }
       g.flee=3; fishKill(f); continue;
