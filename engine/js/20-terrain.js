@@ -750,7 +750,7 @@ function rockMat(k,col){
   const m=new THREE.MeshLambertMaterial({color:col});
   const L=LUSTRE[k]||{met:0.05,tex:'speck'};
   const TEX={speck:0,vein:1,crack:2,step:3,grain:4,botry:5,conch:6,smooth:7}[L.tex]||0;
-  const moss=(k==='sulfur'||k==='cinnabar')?0:1;
+  const moss=(k==='sulfur'||k==='cinnabar'||k==='pebble'||k==='flint')?0:1;   // 자갈·부싯돌엔 이끼가 없다(바닷가 자갈 윗면이 곰팡이 핀 것처럼 보였다 — 사용자 지적)
   const FACET=(HABIT[k]&&HABIT[k].smooth===0)?1:0;      // 면마다 각진 바위만 면별 톤을 준다
   const PHOTO=GND_OK();                                 // 사진 결을 쓸 수 있나(22-ground-textures.js)
   const RPH=PHOTO&&!!TERR_U.uRk;                        // 바위 사진 여섯 장 + 법선 지도(data-rock-textures.js · rockPhotoInit)

@@ -1745,7 +1745,7 @@ function envPatch(m){
       // 구름 시험장엔 땅이 없다(TERR_U·TLIT 없음) — 빈 값으로 세운다(예전엔 여기서 시험장이 통째로 멈췄다)
       uTLe:typeof TERR_U!=='undefined'?TERR_U.uTL:_noTL(), uTLg:typeof TLIT!=='undefined'?TLIT.G:{value:new THREE.Vector2(1,1)},
       uDew:typeof TERR_U!=='undefined'?TERR_U.uDew:{value:0}});
-    if(melt&&typeof TERR_U!=='undefined'){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
+    if(melt&&typeof TERR_U!=='undefined'){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBio2:TERR_U.uBio2, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
       for(const k in MU) if(MU[k]&&!sh.uniforms[k]) sh.uniforms[k]=MU[k]; }
     const has=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.vertexShader+sh.fragmentShader);   // 제 셰이더가 이미 선언했으면 다시 안 한다
     const MV=melt?(has('uElev')?'':'uniform sampler2D uElev;\n')+(has('uGrid')?'':'uniform vec2 uGrid;\n')+(meltA?'attribute float aMelt;\n':'')+`varying float vMeltH;
@@ -1824,7 +1824,7 @@ float cloudSh(){
       const fh=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.fragmentShader);
       const GP=typeof GND_OK==='function'&&GND_OK()&&TERR_U.uGnd;          // 땅 사진(22-ground-textures.js)을 읽을 수 있나
       if(GP) sh.uniforms.uGnd=TERR_U.uGnd;
-      sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')
+      sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(GP&&!fh('uBio2')?'uniform sampler2D uBio2;\n':'')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')
         +(fh('uNz')?'':'uniform sampler2D uNz;\n')+(GP&&!fh('uGnd')?'uniform mediump sampler2DArray uGnd;\n':'')+'varying float vMeltH;\nvarying float vMeltT;\n'
         +sh.fragmentShader.replace('#include <alphatest_fragment>',`#include <alphatest_fragment>
       if(vMeltH<vMeltT*1.5){
@@ -1836,11 +1836,19 @@ float cloudSh(){
         float mk=1.0-smoothstep(mE*0.20,mE,vMeltH);
         if(mk>0.004){
           vec3 mg=texture2D(uBio,(vCsXZ/uCell+uBioN*0.5+0.5)/uBioN).rgb;
-          ${GP?`/* 땅 사진 — 땅 셰이더처럼 풀빛이면 풀밭(1) · 아니면 마른 흙(7) 사진을 같은 배율(2.1 m)로 읽어 곱한다. 덮인 밑동과 옆의 땅이 같은 결이다 */
-          float mgr=clamp((mg.g-max(mg.r,mg.b))*8.0,0.0,1.0);
-          mg*=mix(texture(uGnd,vec3(vCsXZ/2.1,7.0)).rgb,texture(uGnd,vec3(vCsXZ/2.1,1.0)).rgb,mgr)*2.0;`
+          ${GP?`/* 땅 사진 — **그 자리 땅이 쓰는 장**을 같은 배율(2.1 m)로 읽어 곱한다(땅 셰이더의 가림막 uBio2: 모래 · 낙엽 · 솔잎 · 진흙 ·
+             없으면 풀빛이면 풀밭 · 아니면 마른 흙). 예전엔 풀밭·마른 흙만 읽어 모래밭의 돌 밑동이 푸르죽죽한 곰팡이처럼 보였다(사용자 지적) */
+          vec4 mm=texture2D(uBio2,(vCsXZ/uCell+uBioN*0.5+0.5)/uBioN);
+          float mS=smoothstep(0.2,0.7,mm.r), mLf=smoothstep(0.2,0.7,mm.g), mNd=smoothstep(0.2,0.7,mm.b), mMd=smoothstep(0.2,0.7,mm.a);
+          float mgr=clamp((mg.g-max(mg.r,mg.b))*8.0,0.0,1.0), mb=max(max(mS,mLf),max(mNd,mMd));
+          float mLy=mb<0.3?(mgr>0.5?1.0:7.0):(mb==mS?0.0:mb==mLf?2.0:mb==mNd?3.0:6.0);
+          vec3 mgd=texture(uGnd,vec3(vCsXZ/2.1,mLy)).rgb;
+          if(mLy<0.5){ mgd=mix(vec3(0.5),mgd,0.5); mg*=0.70; }                 // 모래는 땅 셰이더처럼 한 톤 낮추고 결을 반만
+          mg*=mgd*2.0;`
           :`mg*=0.84+0.42*(texture2D(uNz,vCsXZ/0.93+0.17).b-0.5);          // 땅의 얼룩`}
-          diffuseColor.rgb=mix(diffuseColor.rgb,mg,mk*mk*(3.0-2.0*mk)*0.94); } }`);
+          /* 이음은 필렛처럼 둥글게(smoothstep 두 번) · 작은 돌(녹는 높이 30 cm 밑)은 덜 덮는다 — 반쯤 덮인 자갈이 곰팡이 핀 것처럼 보였다 */
+          float mkk=mk*mk*(3.0-2.0*mk); mkk=mkk*mkk*(3.0-2.0*mkk);
+          diffuseColor.rgb=mix(diffuseColor.rgb,mg,mkk*mix(0.55,0.94,smoothstep(0.05,0.30,vMeltT))); } }`);
     }
   };
   /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
