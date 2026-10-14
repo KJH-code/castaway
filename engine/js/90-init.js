@@ -47,7 +47,9 @@ THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
      곱한다)도 해에만 걸린다. 그래서 구름 그늘이 불빛을 깎지 않는다(쓰는 곳은 램버트·물뿐 — ShadowMaterial 은 안 쓴다).
    · `getPointShadow` 는 그림자 거리 밖이면 1(볕) — 뒤 판 Three 가 그렇게 바꿨다.
    r128 은 그림자를 드리우는 광원을 광원 배열 앞에 둔다(`castShadow` 순 정렬) — 그래서 i 번째 그림자 지도가 i 번째 광원이다.
-   불을 안 켠 낮은 예전과 같다(곱하는 차례만 바뀌어 반올림이 몇 화소 다를 뿐). 셰이더 원문이 예상과 다르면 손대지 않는다. */
+   불을 안 켠 낮은 예전과 같다(곱하는 차례만 바뀌어 반올림이 몇 화소 다를 뿐). 셰이더 원문이 예상과 다르면 손대지 않는다.
+   **FPS: 그 빛이 이 점에 닿지 않으면(세기 0 — 불이 없거나 꺼졌다) 그림자 지도를 아예 안 읽는다** — 불빛 풀의 점광원 그림자는
+   늘 셰이더에 들어 있어(광원 수가 바뀌면 셰이더를 다시 짜야 해서), 불이 없는 한낮에도 모든 화소가 큐브 그림자를 여러 번 읽었다. */
 (function(){
   const C=THREE.ShaderChunk, L=THREE.ShaderLib.lambert;
   const ACC='\t\tvLightFront += saturate( dotNL ) * directLightColor_Diffuse;\n\t\t#ifdef DOUBLE_SIDED\n\t\t\tvLightBack += saturate( -dotNL ) * directLightColor_Diffuse;\n\t\t#endif\n';
@@ -82,15 +84,15 @@ THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
 	#endif
 	#if defined( USE_SHADOWMAP ) && NUM_POINT_LIGHT_SHADOWS > 0
 		PointLightShadow lambPS = pointLightShadows[ 0 ];
-		reflectedLight.directDiffuse += PI * pointLights[ 0 ].color * lambW.y * ( receiveShadow ? getPointShadow( pointShadowMap[ 0 ], lambPS.shadowMapSize, lambPS.shadowBias, lambPS.shadowRadius, vPointShadowCoord[ 0 ], lambPS.shadowCameraNear, lambPS.shadowCameraFar ) : 1.0 );
+		reflectedLight.directDiffuse += PI * pointLights[ 0 ].color * lambW.y * ( receiveShadow && lambW.y > 0.0 ? getPointShadow( pointShadowMap[ 0 ], lambPS.shadowMapSize, lambPS.shadowBias, lambPS.shadowRadius, vPointShadowCoord[ 0 ], lambPS.shadowCameraNear, lambPS.shadowCameraFar ) : 1.0 );
 		#if NUM_POINT_LIGHT_SHADOWS > 1
 		lambPS = pointLightShadows[ 1 ];
-		reflectedLight.directDiffuse += PI * pointLights[ 1 ].color * lambW.z * ( receiveShadow ? getPointShadow( pointShadowMap[ 1 ], lambPS.shadowMapSize, lambPS.shadowBias, lambPS.shadowRadius, vPointShadowCoord[ 1 ], lambPS.shadowCameraNear, lambPS.shadowCameraFar ) : 1.0 );
+		reflectedLight.directDiffuse += PI * pointLights[ 1 ].color * lambW.z * ( receiveShadow && lambW.z > 0.0 ? getPointShadow( pointShadowMap[ 1 ], lambPS.shadowMapSize, lambPS.shadowBias, lambPS.shadowRadius, vPointShadowCoord[ 1 ], lambPS.shadowCameraNear, lambPS.shadowCameraFar ) : 1.0 );
 		#endif
 	#endif
 	#if defined( USE_SHADOWMAP ) && NUM_SPOT_LIGHT_SHADOWS > 0
 		SpotLightShadow lambSS = spotLightShadows[ 0 ];
-		reflectedLight.directDiffuse += PI * spotLights[ 0 ].color * lambW.w * ( receiveShadow ? getShadow( spotShadowMap[ 0 ], lambSS.shadowMapSize, lambSS.shadowBias, lambSS.shadowRadius, vSpotShadowCoord[ 0 ] ) : 1.0 );
+		reflectedLight.directDiffuse += PI * spotLights[ 0 ].color * lambW.w * ( receiveShadow && lambW.w > 0.0 ? getShadow( spotShadowMap[ 0 ], lambSS.shadowMapSize, lambSS.shadowBias, lambSS.shadowRadius, vSpotShadowCoord[ 0 ] ) : 1.0 );
 	#endif
 	#if NUM_DIR_LIGHTS > 0
 		reflectedLight.directDiffuse += PI * directionalLights[ 0 ].color * lambW.x * getShadowMask();
@@ -181,7 +183,7 @@ let busy=false;
    **이걸 건 물체를 옮기려면 `updateMatrix()` 를 직접 부를 것** — 안 부르면 그 자리에 그대로 그려진다. */
 function freezeStatics(){
   const fr=o=>{ o.matrixAutoUpdate=false; o.updateMatrix(); };
-  if(propGroup) for(const o of propGroup.children) fr(o);
+  if(propGroup) for(const o of (propGroup._all||propGroup.children)) fr(o);      // 숨은 것까지(children 은 보이는 것만 — 30-props.js)
   for(const B of TERR_BLK) fr(B.m);          // 지형 묶음(청크는 그리는 단위가 아니다 — 20-terrain.js)
   if(riverMesh) fr(riverMesh);
 }
@@ -251,6 +253,13 @@ function precompPlan(){
       dis.set(xm.id+'|'+side+'|'+inst+'|'+ic,{m:xm,side,inst,ic,g});
     }
   });
+  /* 다가가야 생기는 것 — 벼랑 바위의 가까운·먼 재질(33-crags.js · 정점 색 3칸) · 이슬 방울(98-dew.js). 처음 다가갈 때 짜이며 멈칫했다
+     (벤치마크 한 바퀴에 셰이더 짜기가 프레임당 평균 1 ms — CPU 프로파일) */
+  if(!P.gc){ P.gc=new THREE.BufferGeometry(); const z9=new Float32Array(9);
+    P.gc.setAttribute('position',new THREE.Float32BufferAttribute(z9,3)); P.gc.setAttribute('normal',new THREE.Float32BufferAttribute(z9.slice(),3));
+    P.gc.setAttribute('color',new THREE.Float32BufferAttribute(z9.slice(),3)); P.gc.setAttribute('aMelt',new THREE.Float32BufferAttribute(new Float32Array(3),1)); }
+  if(typeof cragMat==='function') for(const m of [cragMat(),cragMatFar()]){ envPatch(m); lit.set(m.id+'|false|false|3',{m,inst:false,ic:false,g:P.gc}); }
+  if(typeof dewInit==='function'&&!DEWD.mesh&&scene) dewInit();
   /* 아직 장면에 없을 수 있는 것 — 모든 불이 나눠 쓰는 불꽃 재질(fireMats)과 총구 불. 첫 불·첫 발에 짜이던 것이다 */
   if(!P.g0) P.g0=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));
   const FM=fireMats();

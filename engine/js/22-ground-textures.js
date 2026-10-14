@@ -161,8 +161,11 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
            51°~68° 에 걸쳐 옆 투영 둘(xy · zy)을 면이 보는 쪽대로 섞은 것으로 옮겨 간다 — 얼룩 잡음과 바위 사진 결 */
         vec3 aN=abs(normalize(vTN)); float stp=smoothstep(0.62,0.38,aN.y), wSx=aN.x/(aN.x+aN.z+1e-4);
         vec2 tS1=vTW.xy/2.1, tS2=vTW.zy/2.1, gS1x=dFdx(tS1), gS1y=dFdy(tS1), gS2x=dFdx(tS2), gS2y=dFdy(tS2);
-        { vec4 s1=mix(texture2D(uNz,vTW.xy/113.0),texture2D(uNz,vTW.zy/113.0),wSx), s2=mix(texture2D(uNz,vTW.xy/27.0+vec2(0.37,0.11)),texture2D(uNz,vTW.zy/27.0+vec2(0.37,0.11)),wSx);
-          n1=mix(n1,s1,stp); n2=mix(n2,s2,stp); }
+        /* FPS: 가파른 데서만 읽는다(기울기는 갈래 밖에서 구해 넘긴다 — 갈래 안에서 밉맵을 고를 수 없어서) */
+        { vec2 q1=vTW.xy/27.0, q2=vTW.zy/27.0, d1x=dFdx(q1), d1y=dFdy(q1), d2x=dFdx(q2), d2y=dFdy(q2);
+          if(stp>0.0){ vec4 s1=mix(textureGrad(uNz,q1*(27.0/113.0),d1x*(27.0/113.0),d1y*(27.0/113.0)),textureGrad(uNz,q2*(27.0/113.0),d2x*(27.0/113.0),d2y*(27.0/113.0)),wSx),
+                            s2=mix(textureGrad(uNz,q1+vec2(0.37,0.11),d1x,d1y),textureGrad(uNz,q2+vec2(0.37,0.11),d2x,d2y),wSx);
+            n1=mix(n1,s1,stp); n2=mix(n2,s2,stp); } }
         float wallWet=0.0, wallSleek=0.0, wallDark=1.0; vec3 wallCol=vec3(-1.0);
         /* **벽의 결은 자리마다 다르다**(사용자 요청) — 큰 얼룩(300 m)이 그 벽의 암석을 정한다:
              · 금이 간 벽 — 절리. 잡음의 등고선을 가는 어두운 금으로 긋는다(두 방향 · 벽마다 촘촘하기가 다르다).
@@ -219,7 +222,8 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         vec2 ax=dFdx(uA), ay=dFdy(uA), bx=dFdx(uB), by=dFdy(uB);
         float fm=smoothstep(5.0,28.0,vTD);
         vec3 det=vec3(0.0);
-        #define GL(L) mix(hexT(L,uA,ax,ay),textureGrad(uGnd,vec3(uB,L),bx,by).rgb,fm)
+        /* FPS: 가까이(fm 0)는 육각 타일만, 멀리(fm 1)는 넓은 배율만 읽는다 — 예전엔 둘 다 읽고 섞었다(켜에 네 번 → 셋 또는 한 번) */
+        #define GL(L) (fm<0.005?hexT(L,uA,ax,ay):fm>0.995?textureGrad(uGnd,vec3(uB,L),bx,by).rgb:mix(hexT(L,uA,ax,ay),textureGrad(uGnd,vec3(uB,L),bx,by).rgb,fm))
         if(wSand>0.02)  det+=wSand*GL(0.0);
         if(wGrass>0.02) det+=wGrass*GL(1.0);
         if(wLeaf>0.02)  det+=wLeaf*GL(2.0);
