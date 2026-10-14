@@ -253,6 +253,13 @@ function precompPlan(){
       dis.set(xm.id+'|'+side+'|'+inst+'|'+ic,{m:xm,side,inst,ic,g});
     }
   });
+  /* 다가가야 생기는 것 — 벼랑 바위의 가까운·먼 재질(33-crags.js · 정점 색 3칸) · 이슬 방울(98-dew.js). 처음 다가갈 때 짜이며 멈칫했다
+     (벤치마크 한 바퀴에 셰이더 짜기가 프레임당 평균 1 ms — CPU 프로파일) */
+  if(!P.gc){ P.gc=new THREE.BufferGeometry(); const z9=new Float32Array(9);
+    P.gc.setAttribute('position',new THREE.Float32BufferAttribute(z9,3)); P.gc.setAttribute('normal',new THREE.Float32BufferAttribute(z9.slice(),3));
+    P.gc.setAttribute('color',new THREE.Float32BufferAttribute(z9.slice(),3)); P.gc.setAttribute('aMelt',new THREE.Float32BufferAttribute(new Float32Array(3),1)); }
+  if(typeof cragMat==='function') for(const m of [cragMat(),cragMatFar()]){ envPatch(m); lit.set(m.id+'|false|false|3',{m,inst:false,ic:false,g:P.gc}); }
+  if(typeof dewInit==='function'&&!DEWD.mesh&&scene) dewInit();
   /* 아직 장면에 없을 수 있는 것 — 모든 불이 나눠 쓰는 불꽃 재질(fireMats)과 총구 불. 첫 불·첫 발에 짜이던 것이다 */
   if(!P.g0) P.g0=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));
   const FM=fireMats();

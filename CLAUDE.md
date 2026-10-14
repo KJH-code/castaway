@@ -364,6 +364,15 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - **큰 바위(33-crags.js)는 충돌 원이 아니라 그려진 꼴로 막는다** — `floorAt` 이 `cragFloor` 를 거친다(낮으면 딛고 높으면 벽). 바위 꼴(`cragShape`)이나
   덩이의 돌림·늘림을 바꾸면 메시(`cragMesh`)와 충돌(`cragIndex`·`cragSpan`)이 같은 값을 쓰는지 볼 것. **비탈에 놓는 것은 묻거나 눕힌다**
   (`groundSlope` — 풀·덤불은 기울기대로 눕히고 나무 밑동·바위·자갈은 아래쪽이 뜨지 않게 내린다). 곧추 얹으면 6배 섬의 가파른 비탈에서 뜬다.
+- **`propGroup.children` 은 지금 보이는 칸 메시만이다** — 자식마다 `visible` 이 접근자라, 끄면 children 에서 빠지고 켜면 든다(30-props.js).
+  전부는 `propGroup._all`(Set) · `propGroup.traverse` 는 숨은 것까지 돈다. 자식을 다 돌아야 하는 코드는 `_all` 을 쓸 것.
+  칸 보이기(`updateTileVis`)는 512 m 구역(`TREG`)으로 묶어 사람 둘레 760 m 만 본다 — 새 칸 배열을 만들면 `tileRegions` 가 다시 묶는다.
+  칸 메시는 해 그림자 상자 밖이면 드리우지 않는다(`castNear` — 배역이 준 값은 `_cast0`).
+- **`engine/three.min.js` 에 한 줄 고친 데가 있다** — `bindingStates.setup` 의 `isInstancedMesh&&(_=!0)` 를, 그 VAO 를 마지막에 쓴 메시·
+  인스턴스 속성이 바뀌었을 때만 다시 묶게 했다(`c.io/c.ia/c.ic`). three 를 갈아 끼우면 이 고침도 다시 넣을 것.
+- **인스턴스 자료는 쓰는 앞부분만 올린다**(`instUp` — 95-flora.js). 섬 크기만큼 잡은 인스턴스 메시에 `needsUpdate` 만 세우면 통째로 올라간다.
+- **FPS 는 재고 고칠 것** — `tools/prof-window.js`(CPU 프로파일 · `CASTAWAY_NOINLINE=1` 이면 함수마다 제 시간) · `bench-window.js`.
+  다른 것이 그리는 중(크롬에 띄운 게임 · 시스템 갱신)이면 숫자가 반토막 난다 — 재기 전에 `ps -axo pcpu,comm | sort -rn | head` 로 볼 것.
 - **`propGroup` 의 자식은 수만 개다**(6배 섬 7만) — 프레임마다 전부를 훑는 코드를 새로 넣지 말 것(한 번씩 건드리기만 해도 5 ms 다).
   세계 행렬은 새로 붙은 것만 한 번 센다(`propGroup.updateMatrixWorld` — 30-props.js). 굳힌 칸 메시를 뒤늦게 옮기면 `updateMatrix()` 를 부를 것.
 - **C 로 짠 침식(`engine/native/erosion.c` → `engine/js/data-native-wasm.js`)은 JS 판과 한 비트도 달라선 안 된다.**
