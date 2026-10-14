@@ -164,7 +164,7 @@ function foamInit(){
   const sheet=new THREE.Mesh(pg,sm); sheet.frustumCulled=false; sheet.userData.lightRole='recv'; sheet.renderOrder=4;
   sheet.matrixAutoUpdate=false; sheet.updateMatrix(); scene.add(sheet); FOAM.sheet=sheet; FOAM.pgeo=pg;
   mesh.frustumCulled=false; mesh.userData.lightRole='recv';   // 자리는 셰이더가 정한다 — 경계구로 거를 수 없다 · 그림자는 받기만
-  mesh.matrixAutoUpdate=false; mesh.updateMatrix(); scene.add(mesh);
+  mesh.matrixAutoUpdate=false; mesh.updateMatrix();   // 사면체 뭉치는 장면에 안 넣는다(사용자 요청 — 세모 거품을 없앰 · 레이스 판만 그린다). 판이 같은 조각 자료를 쓴다
   FOAM.mesh=mesh; FOAM.geo=g;
 }
 
@@ -266,7 +266,7 @@ function updateFoam(){
   if(dx*dx+dz*dz>64) foamScatter();
   FOAM.U.uFT.value=TERR_U.uShT?TERR_U.uShT.value:0;           // 젖은 띠·칠한 거품과 같은 시계
   FOAM.U.uFP.value.copy(PL.pos); FOAM.U.uFR.value=FOAM.R;
-  FOAM.mesh.visible=FOAM.n>0; if(FOAM.sheet) FOAM.sheet.visible=FOAM.n>0;
+  if(FOAM.sheet) FOAM.sheet.visible=FOAM.n>0;
 }
 function foamReset(){ FOAM.cx=FOAM.cz=1e9; FOAM.n=0; if(FOAM.geo) FOAM.geo.instanceCount=0; if(FOAM.pgeo) FOAM.pgeo.instanceCount=0; foamSync(); }
 /* 물가 찾기를 두 말로 견준다 — 같은 자리에서 reps 번씩 돌려 한 번에 걸리는 시간(ms)과 찾은 수를 낸다 */
