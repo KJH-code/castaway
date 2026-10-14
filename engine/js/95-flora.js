@@ -33,7 +33,7 @@
    노거수(뿌리가 땅이 되는 큰 나무)는 95-giants.js 가 '노거수 숲' 군락에 세운다.
    ========================================================================== */
 const FLORA={seed:0, m:null, mat:null, depth:null, tex:null, patch:84, taken:new Map(), look:null, ref:{}, pend:[], pendN:0,
-  far :{cx:1e9,cz:1e9,R:110,cell:6,  step:12,fade:14,salt:3,own:FULL_DIST,cols:[],picks:[],n:{},kinds:['jungle','mangrove','bamboo','palm','birch','pine','sapling','banana','treefern','acacia']},
+  far :{cx:1e9,cz:1e9,R:110,cell:6,  step:12,fade:14,salt:3,own:35,cols:[],picks:[],n:{},kinds:['jungle','mangrove','bamboo','palm','birch','pine','sapling','banana','treefern','acacia']},
   near:{cx:1e9,cz:1e9,R:46, cell:2.4,step:6, fade:7, salt:1,own:12,cols:[],picks:[],n:{},kinds:['fern','bush','flower','dry','shroom']}};
 /* 그림 묶음의 칸 */
 const FC={BARK:0,RING:1,LEAF:2,BIG:3,FERN:4,PALM:5,BAMBOO:6,NEEDLE:7,FLOWER:8,TWIG:9,MANG:10,VINE:11,BIRCH:12,PLAIN:13,STEM:14,CAP:15};
@@ -570,7 +570,7 @@ function floraBuild(){
   /* 땅에 녹아들기(envPatch) — 나무 줄기 밑동은 한 뼘 반, 덤불·고사리·꽃·버섯(matN)은 손가락 두 마디만(키가 작아 더 주면 통째로 땅빛이 된다) */
   FLORA.mat.userData.melt=0.42; FLORA.mat.userData.leaf=true;    // 잎에 비쳐 드는 빛(envPatch)
   FLORA.matN=FLORA.mat.clone(); FLORA.matN.userData.melt=0.06;
-  /* 먼 단계(40 m 밖)는 땅에 녹아들기를 뺀다 — 그것이 정점마다 표고 텍스처를 네 번 읽는데(envPatch), 40 m 밖의 밑동 한 뼘은
+  /* 먼 단계(FL_FULL 50 m 밖)는 땅에 녹아들기를 뺀다 — 그것이 정점마다 표고 텍스처를 네 번 읽는데(envPatch), 40 m 밖의 밑동 한 뼘은
      한두 화소라 안 보인다. 숲에서 먼 나무 겹이 프레임의 4 ms 였다(FPS 측정) */
   FLORA.matL=FLORA.mat.clone(); FLORA.matL.userData.melt=0; FLORA.matL.userData.leaf=true;
   FLORA.m={};
@@ -670,10 +670,9 @@ function floraLayer(L,which){
     _flM.compose(_flV,_flQ,_flS);
     if(kind==='flower'){ const t=FLOWER_TINT[patch%FLOWER_TINT.length]; _flC.setRGB(t[0],t[1],t[2]); }   // 꽃밭은 얼룩마다 한 빛깔
     else{ const g=0.86+0.26*((h2>>>3)&15)/15, w=((h2>>>7)&15)/15; _flC.setRGB(g*(0.94+0.14*w),g,g*(0.92+0.08*(1-w))); }
-    if(d<=L.own){ const im=ms[vi]; if(nk[vi]>=im.instanceMatrix.count) continue;      // 가까우면 제 벌
+    /* 늘 제 벌(사용자 지적 — 예전엔 12 m 밖이면 '기준 벌' 로 갈아 끼워 다가가면 모양이 바뀌는 게 눈에 띄었다) */
+    { const im=ms[vi]; if(nk[vi]>=im.instanceMatrix.count) continue;
       im.setMatrixAt(nk[vi],_flM); im.setColorAt(nk[vi]++,_flC); }
-    else{ const q=U.pend[U.pendN]||(U.pend[U.pendN]={k:'',m:new Float32Array(16),c:new Float32Array(3)}); U.pendN++;   // 멀면 기준 벌로(아래에서)
-      q.k=kind; q.m.set(_flM.elements); q.c[0]=_flC.r; q.c[1]=_flC.g; q.c[2]=_flC.b; }
     if(U.ref[kind]===undefined&&d<(near0[kind]??1e9)){ near0[kind]=d; nearV[kind]=vi; }   // 기준 벌을 아직 안 정한 종류 — 가장 가까운 그루
     if(K.r) L.cols.push({x:wx,z:wz,r:K.r*sc});
     if(P) L.picks.push({kind:K.pick,x:wx,y:gy,z:wz,key,r:(K.r||0.12)*sc,tree:!P.hide&&!P.low,ay:P.low?gy+P.low*sc:gy+0.06});
@@ -708,7 +707,10 @@ function updateFlora(force){
    ④ 다시 채우는 때 — 사람이 2 m 움직였거나 보이는 칸이 바뀌었을 때만. 종류마다 메시가 단계별로 하나라 그리기 호출은
       종류 × (가까운 벌 몇 + 복제 셋 + 그림 하나)다. 행렬은 배열에 바로 쓰고 그림자 지도는 드리우는 것(55 m 안)이 바뀔 때만 다시 그린다.
    몸이 막히는 원(`cols`)·딸 것(`picks`)은 60 m 안의 그루만, 사람이 움직일 때 다시 센다(그때 그 둘레의 지은 바닥·설비도 다시 본다). */
-const FL_TILE=64, FL_LOD=[[40,0.5],[75,0.25]], FL_PIC=160, FL_STEP=2, FL_NEAR=60;   // 잰 값: 이 겹이 한 프레임의 4 ms 였다 — 단계를 당기고(55→40 · 90→75 · 200→160) 잎을 더 솎는다
+const FL_TILE=64, FL_LOD=[[60,0.65],[95,0.3]], FL_PIC=160, FL_STEP=2, FL_NEAR=60, FL_FULL=50;
+/* 사용자 지적 — 25 m 에서 '기준 그루' 의 복제로 갈아 끼워 모양이 바뀌는 게 너무 잘 보였다. 이제 ① 먼 단계도 **그루마다 제 벌**을 줄인 것이라
+   줄기·큰 가지 구조가 그대로이고(잎 판·잔가지만 솎는다) ② 제 생김새 그대로는 50 m(`FL_FULL`)까지 · 50~60 m 잎 65% · 60~95 m 30% · 95~160 m 12%.
+   그림 판때기(160 m 밖)만 기준 그루 하나다 */   // 잰 값: 이 겹이 한 프레임의 4 ms 였다 — 단계를 당기고(55→40 · 90→75 · 200→160) 잎을 더 솎는다
 const _ffPM=new THREE.Matrix4(), _ffFr=new THREE.Frustum(), _ffSp=new THREE.Sphere();
 function floraPlantAll(){
   const U=FLORA, L=U.far, C=L.cell, n=Math.floor(HALF/C)-1;
@@ -820,13 +822,14 @@ function floraFarBuild(){
     let best=null, bd=Infinity;
     for(const p of U.P) if(p.k===k){ const d=(p.x-px)**2+(p.z-pz)**2; if(d<bd){ bd=d; best=p; } }
     U.ref[k]=best.v;
-    const base=U.m[k][best.v].geometry, n=U.kn[k];
-    const mk=(geo,mat,cast)=>{ const im=new THREE.InstancedMesh(geo,mat,n);
+    const base=U.m[k][best.v].geometry, n=U.kn[k], nv=U.m[k].length, cnt=new Array(nv).fill(0);
+    for(const p of U.P) if(p.k===k) cnt[p.v]++;
+    const mk=(geo,mat,cast,cap)=>{ const im=new THREE.InstancedMesh(geo,mat,Math.max(1,cap||n));
       if(mat===FLORA.mat||mat===FLORA.matL) im.setColorAt(0,new THREE.Color(1,1,1));          // 색 버퍼는 count 가 가득일 때 만든다
       im.count=0; im.visible=false; im.frustumCulled=false;
       if(cast) im.customDepthMaterial=FLORA.depth; else im.userData.lightRole='recv';   // 55 m 밖은 그림자를 안 드리운다
       im.matrixAutoUpdate=false; im.updateMatrix(); scene.add(im); return im; };
-    const lods=[FL_LOD[0][1],FL_LOD[1][1],0.1].map((f,i)=>mk(floraLodGeo(base,f),FLORA.matL,i===0));
+    const lods=[FL_LOD[0][1],FL_LOD[1][1],0.12].map((f,i)=>U.m[k].map((m,v)=>cnt[v]?mk(floraLodGeo(m.geometry,f),FLORA.matL,i===0,cnt[v]):null));   // [단계][벌] · 먼 단계 재질(matL — 녹아들기 없음)
     const pic=floraBakePic(base);
     let pm=null;
     if(pic){ pm=mk(SHP.card(1,1),new THREE.MeshLambertMaterial({map:pic.tex,alphaTest:0.35,side:THREE.DoubleSide}),false); }
@@ -837,7 +840,7 @@ function floraFarBuild(){
 function floraFarDrop(){
   const U=FLORA; if(!U.fm){ U.P=null; return; }
   for(const k in U.fm){ const f=U.fm[k];
-    for(const im of f.lods){ scene.remove(im); if(im.geometry.userData.lod) im.geometry.dispose(); im.dispose(); }
+    for(const L of f.lods) for(const im of L){ if(!im) continue; scene.remove(im); if(im.geometry.userData.lod) im.geometry.dispose(); im.dispose(); }
     if(f.pm){ scene.remove(f.pm); f.pm.geometry.dispose(); f.pm.material.dispose(); f.pm.dispose(); }
     if(f.pic) f.pic.rt.dispose(); }
   U.fm=null; U.P=null; U.tl=null;
@@ -872,15 +875,16 @@ function floraFar(force){
           L.picks.push({kind:K.pick,x:p.x,y:p.y,z:p.z,key:p.key,r:(K.r||0.12)*p.s,tree:!P.hide&&!P.low,ay:P.low?p.y+P.low*p.s:p.y+0.06}); }
       } }
   }
-  for(const k of L.kinds){ for(const im of U.m[k]) im.count=0; const f=U.fm[k]; if(f){ for(const im of f.lods) im.count=0; if(f.pm) f.pm.count=0; } }
+  for(const k of L.kinds){ for(const im of U.m[k]) im.count=0; const f=U.fm[k]; if(f){ for(const Lv of f.lods) for(const im of Lv) if(im) im.count=0; if(f.pm) f.pm.count=0; } }
   const put=(im,p)=>{ const i=im.count++; im.instanceMatrix.array.set(p.m,i*16); const c=im.instanceColor.array; c[i*3]=p.c[0]; c[i*3+1]=p.c[1]; c[i*3+2]=p.c[2]; };
   let csig=0; const QK=QUAL.k;
   for(const t of U.tl){ if(!t.v) continue;
     for(const p of t.ps){ if(p.blk) continue;
       const dx=p.x-px, dz=p.z-pz, d=Math.sqrt(dx*dx+dz*dz); if(d>VIEW_DIST) continue;
       const f=U.fm[p.k];
-      if(d<=FULL_DIST){ const im=U.m[p.k][p.v]; if(im.count<im.instanceMatrix.count){ put(im,p); csig=(csig*31+p.i)|0; } }
-      else if(d<=FL_PIC*QK){ const lv=d<=FL_LOD[0][0]*QK?0:d<=FL_LOD[1][0]*QK?1:2; put(f.lods[lv],p); if(!lv) csig=(csig*31+p.i)|0; }   // 자동 품질(QUAL.k)이 단계를 당긴다
+      const full=d<=FL_FULL*Math.max(QK,0.75), fm=full&&U.m[p.k][p.v];
+      if(full&&fm.count<fm.instanceMatrix.count){ put(fm,p); csig=(csig*31+p.i)|0; }   // 칸이 차면 줄인 첫 단계로 넘긴다(그루가 빠지지 않게)
+      else if(d<=FL_PIC*QK){ const lv=d<=FL_LOD[0][0]*QK?0:d<=FL_LOD[1][0]*QK?1:2, im=f.lods[lv][p.v]; if(im&&im.count<im.instanceMatrix.count){ put(im,p); if(!lv) csig=(csig*31+p.i)|0; } }   // 자동 품질(QUAL.k)이 단계를 당긴다
       else if(f.pm){
         if(!p.pm){ const c=f.pic.can; _flE.set(0,p.yaw,0); _flQ.setFromEuler(_flE); _flV.set(p.x,p.y+c.y0*p.sy,p.z); _flS.set(c.w*p.s,(c.y1-c.y0)*p.sy,c.w*p.s);
           _flM.compose(_flV,_flQ,_flS); p.pm=Float32Array.from(_flM.elements); }
@@ -889,7 +893,7 @@ function floraFar(force){
     } }
   for(const k of L.kinds){
     const fin=im=>{ im.visible=im.count>0; instUp(im); };
-    U.m[k].forEach(fin); const f=U.fm[k]; if(f){ f.lods.forEach(fin); if(f.pm) fin(f.pm); } }
+    U.m[k].forEach(fin); const f=U.fm[k]; if(f){ for(const Lv of f.lods) for(const im of Lv) if(im) fin(im); if(f.pm) fin(f.pm); } }
   if(csig!==U.csig){ U.csig=csig; LIGHT.dirtyAt(px,pz,FL_LOD[0][0]); }   // 그림자를 드리우는 것(55 m 안)이 바뀌었다
 }
 /* 줄기에 몸이 막힌다 — updatePlayer 가 큰 나무·바위(resolveProps) 다음에 부른다 */
