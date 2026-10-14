@@ -175,6 +175,21 @@ varying float vTD;
    땅을 세모 칸으로 나눠 **칸마다 사진을 다른 자리로 밀어** 읽고, 한 점을 둘러싼 세 칸의 것을 가중해 섞는다 — 같은 사진인데
    되풀이 주기가 없어진다. 가중치를 5제곱해 섞이는 띠를 좁혀 무늬가 뭉개지지 않게 한다. 사진을 세 번 읽는 값이다 */
 vec2 hxo(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453); }
+/* 금 — 보로노이 칸의 경계(곧은 선이 모가 나게 꺾인다 — 사용자 지적: 금은 굽지 않는다). x = 경계까지(두 가까운 씨앗 거리의 차) · y = 그 경계의 난수
+   (경계마다 금이 될지 말지 — 몇 줄만 남겨 가지 친 금이 된다) */
+vec2 ckH(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453); }
+vec2 ckEdge(vec2 x){
+  vec2 n=floor(x), f=fract(x); float d1=8.0, d2=8.0; vec2 c1=vec2(0.0), c2=vec2(0.0);
+  for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){ vec2 g=vec2(float(i),float(j)), r=g+ckH(n+g)*0.9+0.05-f; float d=dot(r,r);
+    if(d<d1){ d2=d1; c2=c1; d1=d; c1=n+g; } else if(d<d2){ d2=d; c2=n+g; } }
+  return vec2(sqrt(d2)-sqrt(d1), fract(sin(dot(c1+c2,vec2(41.3,289.1))+dot(c1*c2,vec2(7.7,3.1)))*43758.5453)); }
+/* 금 한 장(2 차원) — 두 겹(k · 2.7k). keep: 남길 경계의 몫 */
+float ckNet(vec2 u,float k){
+  float c=0.0, kk=k, w=0.035;
+  for(int i=0;i<2;i++){ vec2 e=ckEdge(u*kk+float(i)*17.3); float fw=fwidth(e.x)+1e-4;
+    c=max(c,(1.0-smoothstep(0.0,w+fw,e.x))*step(i==0?0.55:0.45,e.y)*(1.0-smoothstep(0.15,0.45,fw))*(i==0?1.0:0.7)); kk*=2.7; w*=0.9; }
+  return c; }
+
 vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
   vec2 sk=mat2(1.0,0.0,-0.57735027,1.15470054)*(uv*1.7320508);
   vec2 b=floor(sk); vec3 t=vec3(fract(sk),0.0); t.z=1.0-t.x-t.y;
@@ -226,7 +241,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         // 큰 얼룩 — 밝기와 색조를 천천히 흔든다(마른 데는 누렇게, 젖은 데는 푸르게)
         c*=1.0+0.22*(n1.b-0.5)+0.12*(n2.b-0.5);
         c*=mix(vec3(0.96,0.99,1.04),vec3(1.05,1.01,0.93),n1.a);
-        float steep=1.0-smoothstep(0.62,0.82,normalize(vTN).y), flat1=1.0-steep;
+        float steep=1.0-smoothstep(0.56,0.88,normalize(vTN).y), flat1=1.0-steep;   // 넓게 넘어간다(사용자 요청: 결이 맞닿는 데에 그러데이션)
         /* 물밑 — **모래는 얕은 데까지만**. 수심 2~5 m(자리마다 다르다) 밑은 암반이고, 물밑에서는 조금만 가팔라도 바위가
            드러난다(사용자 지적: 물밑이 끝없는 모래라 기괴하다) */
         float subRock=0.0;
@@ -268,13 +283,10 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
             vec3 sa=mix(textureGrad(uRk,vec3(tS1*K,la),gS1x*K,gS1y*K).rgb,textureGrad(uRk,vec3(tS2*K,la),gS2x*K,gS2y*K).rgb,wSx);
             vec3 sb=sf>0.01?mix(textureGrad(uRk,vec3(tS1*K,lb),gS1x*K,gS1y*K).rgb,textureGrad(uRk,vec3(tS2*K,lb),gS2x*K,gS2y*K).rgb,wSx):sa;
             vec3 sr=mix(sa,sb,sf); sr=mix(vec3(dot(sr,vec3(0.30,0.59,0.11))),sr,0.25);   // 사진의 빛깔은 4분의 1만 — 화산섬의 벼랑은 잿빛·잿갈색이고 빛깔은 풍화 얼룩뿐이다(사용자 지적: 벼랑이 너무 알록달록하다)
-            /* **프랙털 금**(사용자 요청) — 잡음 텍스처가 0.5 를 지나는 선을 세 겹(4.2 · 2.0 · 0.95 m)으로 · 다른 채널로 군데군데 끊는다 */
-            float ck=0.0, cf=1.0/8.5, cw=0.032;                                  // 8.5 · 4.0 · 1.9 m — 큰 금은 멀리서도 보인다
-            for(int i=0;i<3;i++){ vec2 t1=tS1*2.1*cf+float(i)*0.37, t2=tS2*2.1*cf+float(i)*0.53;
-              vec4 a1=textureGrad(uNz,t1,gS1x*2.1*cf,gS1y*2.1*cf), a2=textureGrad(uNz,t2,gS2x*2.1*cf,gS2y*2.1*cf), nz=mix(a1,a2,wSx);
-              float nv=nz.a-0.5, fw=fwidth(nv)+1e-4;
-              ck=max(ck,(1.0-smoothstep(0.0,cw+fw,abs(nv)))*smoothstep(0.38,0.56,nz.g)*(1.0-smoothstep(0.08,0.3,fw))*(1.0-0.18*float(i))); cf*=2.1; cw*=0.85; }
-            sr*=1.0-0.68*ck;
+            /* **프랙털 금**(사용자 요청) — 보로노이 경계로 곧게 꺾이는 금을 두 겹(3 m · 1.1 m) · 옆 투영 둘을 면이 보는 쪽대로 섞는다.
+               진짜 벼랑(stp 0.4 넘게)에만 — 잡음 등고선으로 그었을 땐 강물 같은 굽은 선이 됐다(사용자 지적) */
+            float ck=mix(ckNet(tS1*2.1,1.0/3.0),ckNet(tS2*2.1,1.0/3.0),wSx);
+            sr*=1.0-0.50*ck*smoothstep(0.4,0.8,stp);
             rk=mix(rk,sr,stp); }`
           :`if(stp>0.0) rk=mix(rk,mix(textureGrad(uGnd,vec3(tS1,4.0),gS1x,gS1y).rgb,textureGrad(uGnd,vec3(tS2,4.0),gS2x,gS2y).rgb,wSx),stp);`}
           det+=wRock*rk; }

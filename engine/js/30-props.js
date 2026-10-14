@@ -555,6 +555,11 @@ function buildFarTrees(){
 }
 function buildProps(){
   _tvForce=true;
+  /* **비탈의 참나무·전나무는 밑동을 묻는다**(사용자 지적: 경사진 곳의 나무가 떠 있다) — 줄기 가운데의 땅 높이에 세우면 아래쪽 밑동이
+     허공에 뜬다. 줄기 반지름(뿌리 퍼짐 포함 1.4배) × 기울기만큼 나무째 내린다(가지·잎도 같이 — p.y 를 한 번만 고친다 · 1.2 m 까지) */
+  for(const p of PROPS) if((p.k==='oak'||p.k==='fir')&&p._sunk===undefined){
+    const g=groundSlope(p.x,p.z,Math.max(0.5,0.6*p.s)), sl=Math.hypot(g[0],g[1]);
+    p._sunk=Math.min(1.2*p.s,((p.k==='oak'?0.46:0.40)*p.s*1.4+0.1)*sl); p.y-=p._sunk; }
   TREE_TILES.length=0; ROCK_TILES.length=0; PROP_TILES.length=0;
   for(const k in ROCK_MAT) delete ROCK_MAT[k];
   if(propGroup){

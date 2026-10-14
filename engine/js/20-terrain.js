@@ -769,6 +769,21 @@ ${RPH?`uniform mediump sampler2DArray uRk;
 uniform mediump sampler2DArray uRkN;
 vec3 rkTri(vec3 q,vec3 tw,float L){ return texture(uRk,vec3(q.zy,L)).rgb*tw.x+texture(uRk,vec3(q.xz,L)).rgb*tw.y+texture(uRk,vec3(q.xy,L)).rgb*tw.z; }`:''}
 float rh(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
+/* 금 — 보로노이 칸의 경계(곧은 선이 모가 나게 꺾인다 — 사용자 지적: 금은 굽지 않는다). x = 경계까지(두 가까운 씨앗 거리의 차) · y = 그 경계의 난수
+   (경계마다 금이 될지 말지 — 몇 줄만 남겨 가지 친 금이 된다) */
+vec2 ckH(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453); }
+vec2 ckEdge(vec2 x){
+  vec2 n=floor(x), f=fract(x); float d1=8.0, d2=8.0; vec2 c1=vec2(0.0), c2=vec2(0.0);
+  for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){ vec2 g=vec2(float(i),float(j)), r=g+ckH(n+g)*0.9+0.05-f; float d=dot(r,r);
+    if(d<d1){ d2=d1; c2=c1; d1=d; c1=n+g; } else if(d<d2){ d2=d; c2=n+g; } }
+  return vec2(sqrt(d2)-sqrt(d1), fract(sin(dot(c1+c2,vec2(41.3,289.1))+dot(c1*c2,vec2(7.7,3.1)))*43758.5453)); }
+/* 금 한 장(2 차원) — 두 겹(k · 2.7k). keep: 남길 경계의 몫 */
+float ckNet(vec2 u,float k){
+  float c=0.0, kk=k, w=0.035;
+  for(int i=0;i<2;i++){ vec2 e=ckEdge(u*kk+float(i)*17.3); float fw=fwidth(e.x)+1e-4;
+    c=max(c,(1.0-smoothstep(0.0,w+fw,e.x))*step(i==0?0.55:0.45,e.y)*(1.0-smoothstep(0.15,0.45,fw))*(i==0?1.0:0.7)); kk*=2.7; w*=0.9; }
+  return c; }
+
 float rn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(mix(rh(i),rh(i+vec3(1,0,0)),f.x),mix(rh(i+vec3(0,1,0)),rh(i+vec3(1,1,0)),f.x),f.y),
              mix(mix(rh(i+vec3(0,0,1)),rh(i+vec3(1,0,1)),f.x),mix(rh(i+vec3(0,1,1)),rh(i+vec3(1,1,1)),f.x),f.y),f.z); }
@@ -827,14 +842,10 @@ vec2 grain(vec3 p){
           c*=1.0+clamp((dot(np,uSunDir)-dot(n,uSunDir))*1.5,-0.5,0.5)*nearN*sunK;
           c*=mix(1.0,0.70+0.30*clamp(dot(np,n),0.0,1.0),nearN);
         }
-        /* **프랙털 금**(사용자 요청) — 값잡음이 0 을 지나는 선을 세 겹(2.2 · 1.0 · 0.48 m)으로 겹친다. 겹마다 자리를 비틀어(구불구불)
-           다른 잡음으로 군데군데 끊어서 둥근 고리가 아니라 가지 친 금이 된다. 굵기는 화소에 맞추고 너무 잘아지면 뺀다(멀면 사라진다) */
-        if(nearK>0.0){ float ck=0.0, cf=0.45, cw=0.06;
-          for(int i=0;i<3;i++){ vec3 qp=p*cf+float(i)*13.7; qp+=(vec3(rn(qp*2.7),rn(qp*2.7+4.1),rn(qp*2.7+8.3))-0.5)*0.45;
-            float nv=rn(qp)-0.5, fw=fwidth(nv)+1e-4;
-            float ln=(1.0-smoothstep(0.0,cw+fw,abs(nv)))*smoothstep(0.34,0.56,rn(qp*0.37+5.1))*(1.0-smoothstep(0.08,0.28,fw));
-            ck=max(ck,ln*(1.0-0.2*float(i))); cf*=2.15; cw*=0.8; }
-          c*=1.0-0.75*ck*nearK; }
+        /* **프랙털 금**(사용자 요청) — 보로노이 경계로 곧게 꺾이는 금(굽지 않는다) 두 겹(2.5 m · 0.9 m)을 세 방향에서 읽어 면이 보는 쪽대로 섞는다.
+           60 m 안만 · 화소보다 잘아지면 뺀다 */
+        if(nearK>0.0){ float ck=ckNet(p.zy+3.7,0.4)*tw.x+ckNet(p.xz+1.3,0.4)*tw.y+ckNet(p.xy+5.9,0.4)*tw.z;
+          c*=1.0-0.72*ck*nearK; }
         /* 위를 보는 면에는 이끼 낀 바위 사진(3번)이 얼룩지게 앉는다(넓은 잡음으로 군데군데) */
         { float um=smoothstep(0.45,0.9,n.y)*${moss}.0*smoothstep(0.38,0.62,rn(p/3.3+5.5)+(rn(p/0.6)-0.5)*0.4);
           vec3 mz=texture(uRk,vec3(p.xz/(RS*0.9),3.0)).rgb;

@@ -280,7 +280,7 @@ function solidAt(x,z,y){
 }
 /* ── 벼랑 오르기(사용자 요청) ───────────────────────────────────────────
    걸어 못 오르는 벼랑(가파른 땅 · 큰 바위 벽)을 마주 보고 **Space 를 누르고 있으면 매달린다** — 손(Space)을 떼면 떨어진다.
-   W·S 오르내리기 · A·D 옆으로 · 매달려 있기만 해도 기력이 들고(초당 3) 움직이면 더 든다(초당 8 · 짐이 무거우면 더) · 기력이 다하면 떨어진다.
+   W·S 오르내리기 · A·D 옆으로 · 매달려 있기만 해도 기력이 들고(초당 6) 움직이면 더 든다(초당 13 · 짐이 무거우면 더) · 기력이 다하면 떨어진다.
    벼랑 위에 손이 닿으면 올라서고, 내려가다 발이 바닥에 닿으면 선다. 몸은 벽에서 0.5 m 떨어져 붙는다(눈이 벽을 뚫지 않게 — eyeHit) */
 const WALL={on:false, sp:false, dx:0, dz:0, hint:false, end:''};   // end — 마지막에 손을 놓은 까닭(시험용)
 /* 벽까지의 거리(몸에서 · d0~d1 m 를 0.1 m 걸음으로) — 가슴(발+0.8) · 손(발+1.5) · 눈 위(발+1.95) 가운데 가까운 쪽. 없으면 -1 */
@@ -327,7 +327,7 @@ function wallTick(dt){
   }
   const bag=invOpen||craftOpen, K=bag?NO_KEYS:keys, fx=WALL.dx, fz=WALL.dz;
   const up=(K.KeyW?1:0)-(K.KeyS?1:0), side=(K.KeyD?1:0)-(K.KeyA?1:0), load=invLoad();
-  PL.stam=clamp(PL.stam-((up||side)?8:3)*(1+load*0.8)*dt,0,100);
+  PL.stam=clamp(PL.stam-((up||side)?13:6)*(1+load*0.8)*dt,0,100);   // 매달리기 초당 6 · 오르내리기 13(사용자 요청: 매달리면 기력이 확 든다 — 가득에서 16초)
   const let_go=(why,push)=>{ WALL.on=false; WALL.end=why||'놓음'; if(why) toast(why); PL.vel.set(-fx*push,0,-fz*push); PL.grounded=false; return false; };
   if(!sp) return let_go('',1.2);                                                   // 손을 뗐다
   if(PL.stam<=0) return let_go('기력이 다해 손을 놓쳤다',0.8);
