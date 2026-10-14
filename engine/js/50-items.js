@@ -784,26 +784,15 @@ function drawInv(){
   f.style.width=(invLoad()*100)+'%';
   f.style.background=invLoad()>0.85?'#d8724a':(invLoad()>0.6?'#d8c96a':'#8fd6b4');
   if(!invOpen) return;
-  // 착용 칸 · 방어 · 보온 요약
-  let wh='<div class="wr">';
-  // 손 — 도구·무기·그물을 드는 자리
-  wh+='<div class="ws slot" data-slot="hand"><span>손</span>'
-    +(EQUIP?'<b draggable="true">'+ITEMS[EQUIP.id].n+'</b>':'<i>비어 있음</i>')+'</div>';
-  for(const k of ['body','armor','head','back']){
-    const sl=WEAR[k];
-    wh+='<div class="ws slot" data-slot="'+k+'"><span>'+WEAR_N[k]+'</span>'
-      +(sl?'<b draggable="true">'+ITEMS[sl.id].n+'</b>':'<i>비어 있음</i>')+'</div>';
-  }
-  // 입 — 먹을 것을 끌어다 놓으면 먹는다
-  wh+='<div class="ws slot" data-slot="eat"><span>쓰기</span>'
-    +'<i>먹을 것 · 마실 것 · 붕대를 여기로</i></div>';
-  // 버리기 — 끌어다 놓으면 그 칸을 통째로 버린다(Shift 를 누른 채 놓으면 1개만)
-  wh+='<div class="ws slot" data-slot="trash"><span>🗑 버리기</span>'
-    +'<i>끌어다 놓는다 · Shift=1개</i></div>';
-  wh+='<div class="ws"><span>방어 / 보온</span><b>'+armorTotal()+' / '+warmthTotal()+'</b></div>';
-  if(wornSum('carry')) wh+='<div class="ws"><span>적재 보너스</span><b>+'
-    +wornSum('carry')+' kg</b></div>';
-  wh+='</div>';
+  /* 착용 칸 — 글 줄 여덟이던 것을 **칸 일곱의 한 줄**로(사용자 요청: 가방이 어렵다). 손 · 옷 · 겉옷 · 머리 · 등짐 칸에는
+     든 것의 그림이, 먹기 · 버리기 칸은 끌어다 놓는 자리다(Shift 를 누른 채 놓으면 1개만 버린다) */
+  const tile=(slot,label,sl,hint)=>'<div class="ws slot" data-slot="'+slot+'"><span>'+label+'</span>'
+    +(sl?'<b draggable="true" title="'+ITEMS[sl.id].n+'">'+iconTag(sl.id,ITEMS[sl.id])+'<em>'+ITEMS[sl.id].n+'</em></b>':'<i>'+hint+'</i>')+'</div>';
+  let wh='<div class="wr">'+tile('hand','손',EQUIP,'—');
+  for(const k of ['body','armor','head','back']) wh+=tile(k,WEAR_N[k],WEAR[k],'—');
+  wh+=tile('eat','먹기',null,'여기로 끌기')+tile('trash','🗑 버리기',null,'Shift = 1개')+'</div>'
+    +'<div class="wsum">방어 <b>'+armorTotal()+'</b> · 보온 <b>'+warmthTotal()+'</b>'+(wornSum('carry')?' · 적재 <b>+'+wornSum('carry')+' kg</b>':'')
+    +'<span>물건을 누르면 오른쪽에 할 수 있는 일 · 자세한 것은 사전(B)</span></div>';
   if(INV.ren) return;                               // 칸 이름을 치는 중 — 목록을 다시 그리면 글칸이 사라진다
   /* ── 갈래 · 내 칸(사용자 요청: 소지품을 갈래지어 보고, 내가 칸을 만들어 나눠 담는다) ──
      위 줄의 단추로 본다: 전체 · 갈래(도구·무기·옷·먹을 것·재료·기타) · 내 칸. 물건을 **칸 단추에 끌어다 놓으면** 그 칸에 든다
@@ -833,8 +822,7 @@ function drawInv(){
       +(s.amt!==undefined?'<span class="eq" style="color:#c8c8c0">'+Math.round(s.amt*100)+'%</span>':'')+freshTag(s)
       +(s.fuel!==undefined?'<span class="eq" style="color:'+(s.lit?'#e08a3a':'#5d7a71')+'">'
         +(s.lit?'타는 중 ':'꺼짐 ')+Math.round(s.fuel/t.burn*100)+'%</span>':'')
-      +'<span class="u">'+t.use+'</span></span>'
-      +'<span class="kg">'+(t.kg*s.n).toFixed(1)+' kg</span></div>';
+      +'</span></div>';                               // 설명 · 무게는 고른 물건 칸과 사전에(목록에는 그림 · 이름 · 개수만)
   };
   const all=INV.slots.map((_,i)=>i);
   const sect=(title,ids,cls,v)=>ids.length?'<div class="ig '+(cls||'')+'"'+(v?' data-v="'+v+'"':'')+'>'+title+'<span>'+ids.length+'</span></div><div class="igL">'+ids.map(row).join('')+'</div>':'';

@@ -60,7 +60,7 @@ addEventListener('keydown',e=>{
   if(e.code==='F3'){ e.preventDefault(); PERF.toggle(); }
   if(e.code==='F5'){ e.preventDefault(); saveLocal(); }
   if(e.code==='F9'){ e.preventDefault(); askLoad(); }
-  if(e.code==='KeyB'){ toggleDex(); }
+  if(e.code==='KeyB'||(e.code==='Escape'&&dexOpen)){ e.preventDefault(); toggleDex(); return; }
   if(e.code==='KeyQ'&&BUILD.on){               // 삼각 벽 방향 뒤집기 (아크의 좌/우 경사벽)
     BUILD.hand=-BUILD.hand;
     toast('삼각 벽 방향 — '+(BUILD.hand>0?'오른쪽':'왼쪽'));
@@ -454,6 +454,7 @@ for(const [bid,tab] of [['dexI','item'],['dexM','mineral'],['dexK','keys']])
   document.getElementById(bid).onclick=()=>{ dexTab=tab;
     for(const b of ['dexI','dexM','dexK']) document.getElementById(b).classList.toggle('on',b===bid);
     drawDex(); };
+document.getElementById('dexS').oninput=()=>{ if(dexTab!=='item') document.getElementById('dexI').click(); else drawDex(); };
 tgl('bProps',v=>{ showProps=v; if(propGroup) propGroup.visible=v; });
 tgl('bGuar',v=>{ newIsland(()=>{ GUARANTEE=v; generateWorld(); },()=>document.getElementById('bGuar').classList.toggle('on',!v)); });
 tgl('bDev',v=>toggleDev(v));
