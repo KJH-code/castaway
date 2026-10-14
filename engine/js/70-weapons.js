@@ -85,6 +85,11 @@ function pickMesh(L,kind,col,wood){
   return {mesh:g, grip:0.10};
 }
 /* 그물 — 막대에 둘둘 말아 걸친 그물 뭉치. 그물코는 철사틀(wireframe)로 보인다 */
+function rodMesh(col,line){
+  const g=new THREE.Group(); g.add(haft(0.95,0.006,0.014,col));
+  const reel=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.03,10),WMAT(line)); reel.rotation.z=Math.PI/2; reel.position.set(0.02,0.16,0); g.add(reel);
+  return {mesh:g, grip:0.08, rest:{rx:-0.55, rz:0.18}};
+}
 function netMesh(col){
   const g=new THREE.Group();
   g.add(haft(0.40,0.014,0.017));
@@ -247,6 +252,8 @@ const WEAPON_FX={
   pick_steel(){ return pickMesh(0.80,'metal',0xb4b9be,0x5f4c3a); },
   net_cord(){ return netMesh(0xa89a68); },
   net_silk(){ return netMesh(0xe0dcd0); },
+  rod_wood(){ return rodMesh(0x8a6a44,0xd8d0b0); },   // 낚싯대 — 가늘어지는 긴 대 · 감긴 줄
+  rod_steel(){ return rodMesh(0x5a4a38,0xb8bcc2); },
   bug_net(){                                 // 잠자리채 — 긴 자루 끝에 둥근 테와 늘어진 자루
     const g=new THREE.Group(); g.add(haft(0.62,0.011,0.013,0x8a6a44));
     const ring=new THREE.Mesh(new THREE.TorusGeometry(0.12,0.006,5,18),WMAT(0x6a5a3a)); ring.position.set(0,0.74,0); ring.rotation.y=Math.PI/2; g.add(ring);
