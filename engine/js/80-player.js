@@ -255,15 +255,18 @@ function devFly(dt){
   hudT(document.getElementById('devTagV'),'×'+(DEV.sp*(K.ShiftLeft||K.ShiftRight?5:1)).toFixed(DEV.sp<1?2:1)+' · '+Math.round(p.y)+' m');
 }
 /* ── 눈의 경계 ───────────────────────────────────────────────────────────
-   화면 앞 평면(0.1 m)의 모서리는 눈에서 0.17 m 까지 나간다 — 그 안에 바위나 땅이 들면 속이 보인다. 눈 둘레 0.26 m 의 다섯 점에서
-   땅이 눈 밑 0.15 m 보다 높은지, 큰 바위 덩이(cragSpan — 그려진 꼴 그대로)가 눈높이 ±0.24 m 를 지나는지 본다 */
-const EYE_R=0.26, EYE_V=0.24, _eyeO=[[0,0],[EYE_R,0],[-EYE_R,0],[0,EYE_R],[0,-EYE_R]];
+   화면 앞 평면(0.1 m)의 모서리는 눈에서 0.17 m 까지 나간다 — 그 안에 바위나 땅이 들면 속이 보인다. 눈 둘레 0.26 m 의 아홉 점(가운데 · 여덟 방위)에서
+   땅이 눈 밑 0.15 m 보다 높은지, 큰 바위 덩이(cragSpan — 그려진 꼴 그대로)가 눈높이 ±0.24 m 를 지나는지,
+   굴 바위(caveSolid — 바위마다 적은 방향별 반지름)의 속인지 본다 */
+const EYE_R=0.26, EYE_V=0.24, _eyeO=[[0,0]];
+for(let k=0;k<8;k++) _eyeO.push([Math.cos(k*0.7854)*EYE_R,Math.sin(k*0.7854)*EYE_R]);   // 가운데 + 여덟 방위(넷이던 때는 대각선 쪽 바위 속을 못 봤다)
 function eyeHit(x,y,z){
   for(const o of _eyeO){
     const sx=x+o[0], sz=z+o[1];
     if(heightAt(sx,sz)>y-0.15) return true;
     if(CRAG.n){ const n=cragSpan(sx,sz); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y+EYE_V&&s.t>y-EYE_V) return true; } }
     if(coastSolid(sx,sz,y-EYE_V,y+EYE_V)) return true;                     // 주상절리 기둥
+    if(CAVE_SOL.size&&(caveSolid(sx,y,sz)||caveSolid(sx,y-EYE_V,sz)||caveSolid(sx,y+EYE_V,sz))) return true;   // 굴 바위(벽 · 처마 · 지붕 — 32-caves.js)
   }
   return false;
 }
