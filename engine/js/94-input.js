@@ -87,7 +87,7 @@ addEventListener('keydown',e=>{
     }
     else if(!craftOpen && i<QUICK.length) quickSwap(i);
   }
-  if(e.code==='Backquote'&&!e.repeat){ toggleDev(); }
+  if(e.code==='Semicolon'&&!e.repeat){ toggleDev(); }   // ; — 개발자 모드(사용자 요청 — ` 는 한글 자판에서 ₩ 라 안 눌렸다)
   if(DEV.on&&(e.code==='BracketRight'||e.code==='BracketLeft')&&!e.repeat){ devCave(e.code==='BracketRight'?1:-1); }   // 개발자 모드 — 굴 둘러보기   // 개발자 모드 — 날아서 둘러보기 · 다치지 않는다(80-player.js)
   if(e.code==='KeyV'){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
   /* T — 시간 배속. 20배를 넣어 두었다: 하늘과 날씨를 살펴볼 때 1배는 너무 느리고
