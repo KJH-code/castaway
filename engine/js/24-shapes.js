@@ -60,6 +60,25 @@ SHP.limb=function(o,d,len,r0,r1,segs,sides,bend,cap){
   return SHP.tube(pts,rad,sides||5,cap);
 };
 
+/* 3차원 값잡음 — 격자점 해시를 부드럽게 이은 것(−1~1). s 는 씨앗 */
+SHP.vn3=function(x,y,z,s){
+  const ix=Math.floor(x), iy=Math.floor(y), iz=Math.floor(z), fx=x-ix, fy=y-iy, fz=z-iz;
+  const u=fx*fx*(3-2*fx), v=fy*fy*(3-2*fy), w=fz*fz*(3-2*fz);
+  const h=(a,b,c)=>{ let n=(Math.imul(a,374761393)+Math.imul(b,668265263)+Math.imul(c,1274126177)+Math.imul(s|0,144269))|0;
+    n=Math.imul(n^(n>>>13),1274126177); return ((n^(n>>>16))>>>0)/4294967295*2-1; };
+  const l=(a,b,t)=>a+(b-a)*t;
+  return l(l(l(h(ix,iy,iz),h(ix+1,iy,iz),u),l(h(ix,iy+1,iz),h(ix+1,iy+1,iz),u),v),
+           l(l(h(ix,iy,iz+1),h(ix+1,iy,iz+1),u),l(h(ix,iy+1,iz+1),h(ix+1,iy+1,iz+1),u),v),w);
+};
+/* 바위 겉의 잔 울퉁불퉁(사용자 요청: 바위가 너무 매끈하다) — 값잡음을 n 겹(주파수 2배 · 세기 0.5배) 겹친 것(대략 −1~1).
+   둘째 겹부터는 접힌 잡음(0.5−|v|)을 반 섞어 능선과 패인 금이 진다. 단위 공 위의 방향(x,y,z)으로 부르면 이음매가 없다 */
+SHP.rough=function(x,y,z,s,f0,n){
+  let a=1, f=f0, t=0, sum=0;
+  for(let i=0;i<n;i++){ let v=SHP.vn3(x*f+i*7.1,y*f-i*3.7,z*f+i*5.3,(s|0)+i*31);
+    if(i>0) v=0.5*v+(0.5-Math.abs(v));
+    t+=v*a; sum+=a; a*=0.5; f*=2.03; }
+  return t/sum;
+};
 /* 덩이 — 공을 큰 혹 몇 개로 밀고 당긴 것. 이웃 면끼리 법선이 이어져 둥글게 보인다.
    o: w·h 쪼갬 수 · amp 혹의 세기 · sx·sy·sz 축별 크기 · base 밑을 자를 높이(반지름 비 — 땅에 앉히는 것) · freq 혹의 잔 정도 */
 SHP.blob=function(r,seed,o){
@@ -74,7 +93,7 @@ SHP.blob=function(r,seed,o){
   for(let i=0;i<p.count;i++){
     const x=p.getX(i), y=p.getY(i), z=p.getZ(i);
     let f=0; for(const l of L) f+=l[5]*Math.sin(l[3]*(x*l[0]+y*l[1]+z*l[2])+l[4]);
-    const k=r*(1+f/ws*amp);
+    const k=r*(1+f/ws*amp)*(o.rough?1+o.rough*SHP.rough(x,y,z,seed,2.2,3):1);   // 잔 울퉁불퉁(SHP.rough)
     let yy=y*k*sy; if(base!==undefined&&yy<-base*r) yy=-base*r;
     p.setXYZ(i,x*k*sx,yy,z*k*sz);
   }

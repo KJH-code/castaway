@@ -113,12 +113,12 @@ const HPMAX=100;
 const HP_FALL_V=17,  HP_FALL_K=6;    // 이보다 빨리 떨어지면 그 초과분만큼 다친다
                                      // 한 층 2.4 m — 세 층(7.2 m)에서 뛰어내려도 거의 안 다친다
 const HP_DROWN=14, HP_STARVE=0.8, HP_THIRST=1.2, HP_REGEN=0.7;   // 초당
-const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, JUMP=7.6, JUMP_STAM=9,
+const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, LUNGE_V=12, LUNGE_UP=3.0, LUNGE_STAM=10,   // 돌진(예전의 뛰기 자리 — 사용자 요청)
       EYE=1.66, EYE_C=0.98, PRAD=0.42, MAXSLOPE=1.15,   // 49° 넘는 사면은 오르지 못함
       STEPUP=0.55;                                      // 이 높이 이하 턱은 그냥 올라선다
 const PL={pos:new THREE.Vector3(),vel:new THREE.Vector3(),yaw:0,pitch:0,
   grounded:false,crouch:false,run:false,swim:false,wade:0,
-  hp:100,stam:100,oxy:100,food:100,water:100,ill:0,bob:0,dist:0,eye:EYE};
+  hp:100,stam:100,oxy:100,food:100,water:100,ill:0,bob:0,dist:0,eye:EYE,lungeCd:0};
 const keys={};
 /* 뚫고 내려가기 — 이 시간 동안에는 DROP.y 아래의 지은 바닥만 밟는다.
    Ctrl+Space 로 지붕을 뚫고 내려올 때 쓴다. */
@@ -242,14 +242,112 @@ function devFly(dt){
   eyeWater(camera.position.y, WA.river?WA.wl:(gy<0.3?seaSurfAt(p.x,p.z):-1e9), gy, WA.river);
   hudT(document.getElementById('devTagV'),'×'+(DEV.sp*(K.ShiftLeft||K.ShiftRight?5:1)).toFixed(DEV.sp<1?2:1)+' · '+Math.round(p.y)+' m');
 }
+/* ── 눈의 경계 ───────────────────────────────────────────────────────────
+   화면 앞 평면(0.1 m)의 모서리는 눈에서 0.17 m 까지 나간다 — 그 안에 바위나 땅이 들면 속이 보인다. 눈 둘레 0.26 m 의 다섯 점에서
+   땅이 눈 밑 0.15 m 보다 높은지, 큰 바위 덩이(cragSpan — 그려진 꼴 그대로)가 눈높이 ±0.24 m 를 지나는지 본다 */
+const EYE_R=0.26, EYE_V=0.24, _eyeO=[[0,0],[EYE_R,0],[-EYE_R,0],[0,EYE_R],[0,-EYE_R]];
+function eyeHit(x,y,z){
+  for(const o of _eyeO){
+    const sx=x+o[0], sz=z+o[1];
+    if(heightAt(sx,sz)>y-0.15) return true;
+    if(CRAG.n){ const n=cragSpan(sx,sz); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y+EYE_V&&s.t>y-EYE_V) return true; } }
+  }
+  return false;
+}
+/* 그 점(높이 y)이 땅 속이나 큰 바위 속인가 */
+function solidAt(x,z,y){
+  if(heightAt(x,z)>y) return true;
+  if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y&&s.t>y) return true; } }
+  return false;
+}
+/* ── 벼랑 오르기(사용자 요청) ───────────────────────────────────────────
+   걸어 못 오르는 벼랑(가파른 땅 · 큰 바위 벽)을 마주 보고 **Space 를 누르고 있으면 매달린다** — 손(Space)을 떼면 떨어진다.
+   W·S 오르내리기 · A·D 옆으로 · 매달려 있기만 해도 기력이 들고(초당 3) 움직이면 더 든다(초당 8 · 짐이 무거우면 더) · 기력이 다하면 떨어진다.
+   벼랑 위에 손이 닿으면 올라서고, 내려가다 발이 바닥에 닿으면 선다. 몸은 벽에서 0.5 m 떨어져 붙는다(눈이 벽을 뚫지 않게 — eyeHit) */
+const WALL={on:false, sp:false, dx:0, dz:0, hint:false, end:''};   // end — 마지막에 손을 놓은 까닭(시험용)
+/* 벽까지의 거리(몸에서 · d0~d1 m 를 0.1 m 걸음으로) — 가슴(발+0.8) · 손(발+1.5) · 눈 위(발+1.95) 가운데 가까운 쪽. 없으면 -1 */
+function wallDist(x,z,y,fx,fz,d0,d1){
+  for(let d=d0;d<=d1+1e-6;d+=0.1){ const sx=x+fx*d, sz=z+fz*d; if(solidAt(sx,sz,y+0.8)||solidAt(sx,sz,y+1.5)||solidAt(sx,sz,y+1.95)) return d; }
+  return -1;
+}
+/* 눈이 벽에 들면 벽에서 물러난다(8 cm 씩 · 40 cm 까지) — 그래도 들면 false */
+function wallBack(o,fx,fz){
+  for(let k=0;k<5&&eyeHit(o.x,o.y+EYE,o.z);k++){ o.x-=fx*0.08; o.z-=fz*0.08; }
+  return !eyeHit(o.x,o.y+EYE,o.z);
+}
+const _wO={x:0,y:0,z:0};
+/* 매달린 사람의 발밑 — 땅과, 발보다 낮은 바위 윗면만(머리 위로 튀어나온 바위를 '바닥'으로 치면 그 위로 순간 이동했다) */
+function climbFloor(x,z,y){
+  let f=heightAt(x,z);
+  if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.t<=y+0.3&&s.t>f) f=s.t; } }
+  return f;
+}
+/* 마주 본 벽이 오를 벼랑인가 — 앞으로 걸어 갈 수 없고(walkable — 가파른 땅 · 바위 벽) 1.6 m 안에 가슴 높이까지 막혀 있다.
+   걸음은 2.5 m 폭으로 잰 비탈에서 멈추므로 벽이 아직 1 m 넘게 앞일 수 있다 — 매달리면 벽 쪽으로 끌려 붙는다(wallTick) */
+function wallAhead(){
+  const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw), p=PL.pos;
+  if(walkable(p.x+fx*0.35,p.z+fz*0.35,p.y)) return false;
+  return wallDist(p.x,p.z,p.y,fx,fz,0.3,1.6)>=0;
+}
+function wallTick(dt){
+  const sp=!!keys.Space, tap=sp&&!WALL.sp; WALL.sp=sp;
+  const p=PL.pos;
+  if(!WALL.on){
+    if(tap&&!PL.swim&&!(invOpen||craftOpen)&&!BUILD.on&&!MOVE.t&&wallAhead()){
+      if(PL.stam<5){ toast('매달릴 기력이 없다'); return false; }
+      WALL.on=true; WALL.dx=-Math.sin(PL.yaw); WALL.dz=-Math.cos(PL.yaw); PL.vel.set(0,0,0);
+      _wO.x=p.x; _wO.y=p.y; _wO.z=p.z; if(wallBack(_wO,WALL.dx,WALL.dz)){ p.x=_wO.x; p.z=_wO.z; }
+      toast('벼랑에 매달렸다 — Space 를 누른 채 W·S 오르내리기 · A·D 옆으로 · 손을 떼면 떨어진다');
+    }
+    /* 처음 한 번 — 오를 벼랑 앞에 서면 알려 준다(0.5초마다만 본다) */
+    if(!WALL.on&&!WALL.hint&&landed&&PL.grounded&&(WALL.ht=(WALL.ht||0)+dt)>0.5){ WALL.ht=0;
+      if(wallAhead()){ WALL.hint=true; toast('벼랑을 보고 Space 를 누르고 있으면 매달려 오른다 — 기력이 든다'); } }
+    return WALL.on;
+  }
+  const bag=invOpen||craftOpen, K=bag?NO_KEYS:keys, fx=WALL.dx, fz=WALL.dz;
+  const up=(K.KeyW?1:0)-(K.KeyS?1:0), side=(K.KeyD?1:0)-(K.KeyA?1:0), load=invLoad();
+  PL.stam=clamp(PL.stam-((up||side)?8:3)*(1+load*0.8)*dt,0,100);
+  const let_go=(why,push)=>{ WALL.on=false; WALL.end=why||'놓음'; if(why) toast(why); PL.vel.set(-fx*push,0,-fz*push); PL.grounded=false; return false; };
+  if(!sp) return let_go('',1.2);                                                   // 손을 뗐다
+  if(PL.stam<=0) return let_go('기력이 다해 손을 놓쳤다',0.8);
+  const ox=p.x, oy=p.y, oz=p.z, spd=1.1*(1-0.4*load);
+  let ny=p.y+up*spd*dt, nx=p.x+(-fz)*side*spd*0.8*dt, nz=p.z+fx*side*spd*0.8*dt;
+  if(up>0&&solidAt(nx,nz,ny+1.95)) ny=p.y;                                         // 머리 위가 막혔다(튀어나온 바위)
+  /* 벼랑 위 — 손 높이에 벽이 없고 바로 앞의 바닥이 발보다 높지만 1.8 m 안이면 올라선다 */
+  const dw=wallDist(nx,nz,ny,fx,fz,0.2,1.3);
+  if(dw<0){
+    const tx=nx+fx*0.75, tz=nz+fz*0.75, top=floorAt(tx,tz,ny+1.8);
+    if(top>ny-0.3&&top<ny+1.8&&!solidAt(tx,tz,top+1.0)&&!eyeHit(tx,top+EYE,tz)){
+      p.set(tx,top,tz); PL.vel.set(0,0,0); PL.grounded=true; PL.camY=undefined; WALL.on=false; WALL.end='위'; toast('벼랑 위로 올라섰다'); return false; }
+    return let_go('손 닿을 데가 없다',0.5);
+  }
+  if(dw<0.45){ nx-=fx*(0.45-dw); nz-=fz*(0.45-dw); }                               // 벽에서 0.45~0.55 m 에 붙인다
+  else if(dw>0.55){ const k=Math.min(dw-0.5,1.5*dt); if(!eyeHit(nx+fx*k,ny+EYE,nz+fz*k)){ nx+=fx*k; nz+=fz*k; } }
+  /* 내려가다 발이 바닥에 닿았다 */
+  const fl=climbFloor(nx,nz,ny);
+  if(up<0&&fl>=ny-0.02){ p.set(nx,fl,nz); PL.vel.set(0,0,0); PL.grounded=true; WALL.on=false; WALL.end='바닥'; return false; }
+  if(ny<fl) ny=fl;
+  _wO.x=nx; _wO.y=ny; _wO.z=nz;
+  if(wallBack(_wO,fx,fz)){ nx=_wO.x; nz=_wO.z; }                                     // 눈이 바위에 들면 벽에서 물러난다
+  else{ nx=ox; ny=oy; nz=oz; }                                                       // 물러나도 안 되면 움직이지 않는다
+  p.set(nx,ny,nz); PL.vel.set(0,0,0); PL.grounded=false; PL.swim=false; PL.crouch=false;
+  PL.camY=p.y; PL.eye+=(EYE-PL.eye)*clamp(10*dt,0,1);
+  camera.position.set(p.x,p.y+PL.eye,p.z); camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
+  if((up||side)&&(PL._clT=(PL._clT||0)+dt)>0.55){ PL._clT=0; footstep(); }     // 손발 디디는 소리
+  return true;
+}
 const NO_KEYS={};
 function updatePlayer(dt){
   if(PL.dead) return;                              // 쓰러져 있는 동안에는 아무것도 안 한다
   if(DEV.on){ devFly(dt); return; }                // 개발자 모드 — 날기(위)
   if(climbTick(dt)) return;                        // 나무를 오르는 중 — 몸은 줄기에 붙어 있다(97-wildlife.js)
+  if(wallTick(dt)) return;                         // 벼랑에 매달려 있다(위) — Space 를 누르고 있어야 한다
   const p=PL.pos;
   /* 가방(소지품·제작)을 연 동안에는 세상은 흐르지만 몸은 선다 — 누르고 있던 걷기·뛰기 키를 안 받는다 */
   const K=(invOpen||craftOpen)?NO_KEYS:keys;
+  const spTap=!!K.Space&&!PL._sp0; PL._sp0=!!K.Space;            // Space 를 누르는 순간(돌진)
+  if(PL.lungeCd>0) PL.lungeCd-=dt;
+  const ox=p.x, oz=p.z, oy=p.y;                                   // 이번 프레임 앞의 자리(눈이 바위에 들면 되돌린다 — eyeHit)
   const fwd=(K.KeyW?1:0)-(K.KeyS?1:0);
   const str=(K.KeyD?1:0)-(K.KeyA?1:0);
   PL.crouch=!!(K.ControlLeft||K.KeyC)&&!PL.swim;
@@ -308,14 +406,17 @@ function updatePlayer(dt){
     if(K.Space&&K.ControlLeft&&PL.grounded&&p.y>heightAt(p.x,p.z)+0.9){
       DROP.t=0.45; DROP.y=p.y; PL.grounded=false; PL.vel.y=-1.2;
     }
-    /* 뛰기 — **기력을 쓴다**(한 번에 9 · 짐이 무거우면 더) · 기력이 모자라면 못 뛴다 · **물에서는 못 뛴다**(무릎 넘게 잠기면 —
-       예전엔 물에서 Space 를 연타하면 헤엄보다 빨리, 기력도 안 쓰고 건넜다. 사용자 지적) */
-    else if(K.Space&&PL.grounded){
-      /* 짐이 무거우면 낮게 뛰고 더 지친다(사용자 요청) — 만재에서 뛰는 빠르기 0.6배(높이 0.36배) · 기력 2.6배 */
-      const cost=JUMP_STAM*(1+load*1.6);
-      if(depth>0.45){ if(!PL._jw||performance.now()-PL._jw>2500){ PL._jw=performance.now(); toast('물에서는 뛸 수 없다'); } }
-      else if(PL.stam>=cost){ PL.vel.y=JUMP*(1-0.4*load); PL.grounded=false; DROP.t=0; PL.stam-=cost; }
-      else if(!PL._jt||performance.now()-PL._jt>2500){ PL._jt=performance.now(); toast(load>0.6?'짐이 무거워 뛸 기력이 없다':'뛸 기력이 없다'); }
+    /* **돌진**(사용자 요청 — 예전의 위로 뛰기 대신) — Space 를 **누르는 순간** 가는 쪽(누른 방향 · 없으면 보는 쪽)으로 낮게 몸을 날린다
+       (초속 12 m · 살짝 뜬다 — 2~3 m 를 나가고 0.8 m 턱까지는 넘는다). 기력 10(짐이 무거우면 더 · 멀리 못 간다) · 0.55초에 한 번.
+       **물에서는 못 한다**(무릎 넘게 잠기면). 누르고 있는 Space 는 벼랑에 매달리는 데 쓴다(wallTick) — 돌진은 누르는 순간만 */
+    else if(spTap&&PL.grounded&&PL.lungeCd<=0){
+      const cost=LUNGE_STAM*(1+load*1.6);
+      if(depth>0.45){ if(!PL._jw||performance.now()-PL._jw>2500){ PL._jw=performance.now(); toast('물에서는 돌진할 수 없다'); } }
+      else if(PL.stam>=cost){
+        const lx=moving?dx:-s, lz=moving?dz:-c, v=LUNGE_V*(1-0.45*load);
+        PL.vel.x=lx*v; PL.vel.z=lz*v; PL.vel.y=LUNGE_UP; PL.grounded=false; DROP.t=0; PL.stam-=cost; PL.lungeCd=0.55;
+        footstep(); }
+      else if(!PL._jt||performance.now()-PL._jt>2500){ PL._jt=performance.now(); toast(load>0.6?'짐이 무거워 돌진할 기력이 없다':'돌진할 기력이 없다'); }
     }
     PL.oxy=clamp(PL.oxy+18*dt,0,100);
   }
@@ -327,13 +428,14 @@ function updatePlayer(dt){
   if(walkable(p.x+mx,p.z,fh)) p.x+=mx; else PL.vel.x*=0.4;
   if(walkable(p.x,p.z+mz,fh)) p.z+=mz; else PL.vel.z*=0.4;
   resolveProps(p,PRAD);
+  rubbleCollide(p,PRAD);                       // 벼랑 밑 큰 돌(무릎 넘는 것 — 30-props.js)
   floraCollide(p,PRAD);                        // 어린 나무·자작·야자의 줄기(95-flora.js)
   const y0=p.y;
   p.y+=PL.vel.y*dt;
   shipCollide(p,PRAD,PL.eye+0.15,y0,PL.vel);   // 보급선 몸에 막힌다 · 머리가 밑면에 닿는다(30-props.js)
 
   if(DROP.t>0){ DROP.t-=dt; }
-  let ng=Math.max(floorAt(p.x,p.z,p.y),shipFloor(p.x,p.z,p.y));   // 지은 바닥 · 보급선 날개·몸 위에 선다
+  let ng=Math.max(floorAt(p.x,p.z,p.y),shipFloor(p.x,p.z,p.y),rubbleFloor(p.x,p.z,p.y));   // 지은 바닥 · 보급선 날개·몸 위 · 낮은 큰 돌 위에 선다
   if(DROP.t>0) ng=Math.min(ng, floorAt(p.x,p.z,DROP.y-1.0));   // 뚫고 내려가는 중
   if(p.y<=ng){
     if(PL.vel.y<-13 && !PL.swim && depth<0.5){
@@ -343,6 +445,16 @@ function updatePlayer(dt){
     }
     p.y=ng; PL.vel.y=0; PL.grounded=true; DROP.t=0;
   }else PL.grounded=false;
+  /* **눈이 바위·땅 속에 들지 않게**(사용자 요청: 카메라가 바위를 뚫는다 — 경계를 엄하게). 눈 둘레를 재 보고 걸리면 이번 프레임의
+     옆걸음을 되돌린다 · 오르던 중이면 높이도. 이미 걸린 채면(바위가 새로 생겼다 등) 걸리지 않는 쪽으로 조금씩 밀어낸다 */
+  { const e=PL.eye;
+    if(eyeHit(p.x,p.y+e,p.z)){
+      if(!eyeHit(ox,p.y+e,oz)){ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; }
+      else if(p.y>oy&&!eyeHit(ox,oy+e,oz)){ p.set(ox,oy,oz); PL.vel.set(0,Math.min(0,PL.vel.y),0); }
+      else{ let ok=false;                                        // 0.25 m 씩 1.5 m 까지 둘레를 찾아 눈도 몸도 바위 밖인 자리로
+        for(let rr=0.25;rr<=1.5&&!ok;rr+=0.25) for(let k=0;k<8&&!ok;k++){ const a=k/8*6.2832, tx=p.x+Math.cos(a)*rr, tz=p.z+Math.sin(a)*rr;
+          if(!eyeHit(tx,p.y+e,tz)&&!solidAt(tx,tz,p.y+0.3)){ p.x=tx; p.z=tz; ok=true; } } }
+    } }
 
   /* 배고픔 — 가만히 있어도 줄고, 움직이고 일할수록 빨리 준다.
      굶으면 기력 한도가 내려가고, 바닥나면 달리지 못하고 기력이 도로 빠진다. */

@@ -164,7 +164,7 @@ function seaBuildMeshes(){
     return SHP.merge(parts,false,[0.6,1.1]); })();
   // 물밑 바위 — 등성이에 놓인다(진짜 바위 사진의 결을 입는다)
   const rockG=SHP.merge([{g:SHP.blob(1,77,{w:14,h:10,amp:0.30,nb:5,sy:0.72})}]);
-  const rockIM=mk(rockG,260,false); gndDetailPatch(rockIM.material,4,0.9);
+  const rockIM=mk(rockG,260,false); rockDetailPatch(rockIM.material,1.1,0.0);   // 바다 바위 — 이끼는 없다
   SEA.m={ coral:[mk(branch,420,true),mk(dome,420,false),mk(fan,320,true),mk(tube,320,true),
                  mk(table,260,true),mk(pillar,260,false),mk(sponge,220,true)],
           anem:mk(anem,220,true,true), star:mk(star,160,true), kelp:mk(kelp,700,true,true), rock:rockIM,

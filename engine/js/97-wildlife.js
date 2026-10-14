@@ -327,15 +327,22 @@ function climbTick(dt){
   const sp=!!keys.Space, tap=sp&&!CLIMB.sp; CLIMB.sp=sp;
   if(!CLIMB.on){
     if(tap&&PL.grounded&&!(invOpen||craftOpen)){ const p=climbLook();
-      if(p){ CLIMB.on=true; CLIMB.p=p; CLIMB.h=0.3; CLIMB.top=nestH(p)+0.9; CLIMB.ang=Math.atan2(PL.pos.z-p.z,PL.pos.x-p.x);
+      /* 눈이 바위에 들지 않는 쪽에서 매달린다 — 바위에 붙어 선 나무면 줄기를 돌아 빈 쪽을 찾고, 없으면 못 오른다 */
+      let ang=null; if(p){ const a0=Math.atan2(PL.pos.z-p.z,PL.pos.x-p.x), rad=((p.k==='oak'?0.46:0.40)*p.s)+0.34;
+        for(let k=0;k<12&&ang===null;k++){ const a=a0+(k%2?1:-1)*Math.ceil(k/2)*0.52; if(!eyeHit(p.x+Math.cos(a)*rad,p.y+0.3+EYE,p.z+Math.sin(a)*rad)) ang=a; }
+        if(ang===null){ toast('바위가 막아 이 나무는 오를 수 없다'); keys.Space=false; return false; } }
+      if(p){ CLIMB.on=true; CLIMB.p=p; CLIMB.h=0.3; CLIMB.top=nestH(p)+0.9; CLIMB.ang=ang;
         keys.Space=false; toast('나무를 오른다 — W·S 오르내리기 · A·D 줄기 돌기 · Space 뛰어내리기'); } }
     return CLIMB.on;
   }
   const p=CLIMB.p, bag=invOpen||craftOpen;
   const up=bag?0:((keys.KeyW?1:0)-(keys.KeyS?1:0)), turn=bag?0:((keys.KeyD?1:0)-(keys.KeyA?1:0));
+  const h0=CLIMB.h, a0=CLIMB.ang;
   CLIMB.h=clamp(CLIMB.h+up*1.5*dt,0,CLIMB.top); CLIMB.ang+=turn*1.4*dt;
   PL.stam=clamp(PL.stam-(up?4.5:1.2)*dt,0,100);
   const rad=((p.k==='oak'?0.46:0.40)*p.s)+0.34;
+  /* 눈이 바위·땅에 들 자리로는 안 돈다·안 오른다(80-player.js eyeHit — 사용자 요청: 카메라 경계를 엄하게) */
+  if(eyeHit(p.x+Math.cos(CLIMB.ang)*rad,p.y+CLIMB.h+EYE,p.z+Math.sin(CLIMB.ang)*rad)){ CLIMB.h=h0; CLIMB.ang=a0; }
   PL.pos.set(p.x+Math.cos(CLIMB.ang)*rad,p.y+CLIMB.h,p.z+Math.sin(CLIMB.ang)*rad); PL.vel.set(0,0,0); PL.grounded=false; PL.swim=false;
   PL.camY=PL.pos.y; PL.eye+=(EYE-PL.eye)*clamp(10*dt,0,1);
   camera.position.set(PL.pos.x,PL.pos.y+PL.eye,PL.pos.z); camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');

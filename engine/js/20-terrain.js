@@ -746,6 +746,7 @@ function rockMat(k,col){
   const moss=(k==='sulfur'||k==='cinnabar')?0:1;
   const FACET=(HABIT[k]&&HABIT[k].smooth===0)?1:0;      // 면마다 각진 바위만 면별 톤을 준다
   const PHOTO=GND_OK();                                 // 사진 결을 쓸 수 있나(22-ground-textures.js)
+  const RPH=PHOTO&&!!TERR_U.uRk;                        // 바위 사진 여섯 장 + 법선 지도(data-rock-textures.js · rockPhotoInit)
   const big=!(k==='pebble'||k==='flint');
   m.userData.melt=big?0.5:0.1; m.userData.meltAttr=true;   // 높이는 바위마다(aMelt — buildProps 가 제 크기의 0.4배로 적는다)                        // 밑동이 땅 빛깔로 녹아든다(envPatch — 45-sky.js '땅에 녹아들기')
   m.onBeforeCompile=sh=>{
@@ -757,6 +758,9 @@ varying vec3 vRW;
 varying vec3 vRN;
 varying vec3 vRV;
 ${PHOTO?'uniform mediump sampler2DArray uGnd;':''}
+${RPH?`uniform mediump sampler2DArray uRk;
+uniform mediump sampler2DArray uRkN;
+vec3 rkTri(vec3 q,vec3 tw,float L){ return texture(uRk,vec3(q.zy,L)).rgb*tw.x+texture(uRk,vec3(q.xz,L)).rgb*tw.y+texture(uRk,vec3(q.xy,L)).rgb*tw.z; }`:''}
 float rh(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
 float rn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(mix(rh(i),rh(i+vec3(1,0,0)),f.x),mix(rh(i+vec3(0,1,0)),rh(i+vec3(1,1,0)),f.x),f.y),
@@ -790,7 +794,36 @@ vec2 grain(vec3 p){
         float f=rn(p/0.05+1.3);
         /* 알갱이(화강암·자갈) — 예전엔 3.5 cm 칸을 검정·흰색으로 빽빽이 칠해 QR 코드 같았다.
            이제 12 cm 칸에 **드문드문 둥근 점**만 찍는다(어두운 점 9% · 밝은 점 8%, 가장자리는 부드럽게) */
-        ${PHOTO?`/* 사진 결 — 진짜 바위 사진(4번 층)을 x·y·z 세 방향에서 읽어 면이 보는 쪽대로 섞는다(늘어짐 없이 감긴다).
+        vec3 c0=c;                                                          // 바탕색 × 덩이 빛깔(사진을 곱하기 전)
+        ${RPH?`/* **사진 결 — 바위 사진 여섯 장 가운데 둘을 골라 잡음으로 섞는다**(사용자 요청: 바위 무늬가 너무 평범하다 · data-rock-textures.js).
+           11 m 잡음이 다섯 장(이끼 낀 3번은 빼고 — 그것은 위를 보는 면에만) 사이의 자리를 정하고, 1.3 m 잡음이 두 장의 경계를 들쭉날쭉하게 한다 —
+           바위마다, 한 바위 안에서도 결이 바뀐다. x·y·z 세 방향에서 읽어 면이 보는 쪽대로 섞는다(늘어짐 없이 감긴다).
+           큰 바위는 1.7 m 에 한 장(예전 0.9 m 는 큰 벼랑에 같은 얼룩이 줄지어 보였다) · 둘째 장은 배율과 자리를 비켜 읽어 되풀이가 겹치지 않는다 */
+        float RS=${big?'1.7':'0.35'};
+        vec3 tw=pow(abs(n),vec3(4.0)); tw/=tw.x+tw.y+tw.z+1e-4;
+        vec3 q=p/RS, q2=q*0.83+vec3(0.37,0.11,0.59);
+        float sel=clamp(rn(p/11.0+vec3(3.1,0.7,7.7))*1.3-0.15,0.0,0.999)*4.0;
+        float ia=floor(sel), fb=smoothstep(0.25,0.75,fract(sel)+(rn(p/1.3+2.2)-0.5)*0.55);
+        float la=ia>2.5?ia+1.0:ia, lb=ia>1.5?ia+2.0:ia+1.0;
+        vec3 rk=mix(rkTri(q,tw,la),rkTri(q2,tw,lb),fb);
+        c*=mix(vec3(1.0),rk*2.0,0.92);
+        /* 결의 높낮이 — 법선 지도로 화소마다 면을 기울여, 볕이 금과 혹을 따라 갈리게 한다(45 m 안 · 많이 섞인 쪽 한 장만 읽는다).
+           램버트는 빛을 정점에서 세므로 그 값을 '기울인 면 / 본래 면' 의 볕 차이만큼 밝히고 어둡게 고친다. 패인 데는 하늘을 덜 본다 */
+        float nearN=clamp(1.0-dist/45.0,0.0,1.0);
+        if(nearN>0.0){
+          float L=fb<0.5?la:lb; vec3 qq=fb<0.5?q:q2;
+          vec3 tx=texture(uRkN,vec3(qq.zy,L)).rgb*2.0-1.0, ty=texture(uRkN,vec3(qq.xz,L)).rgb*2.0-1.0, tz=texture(uRkN,vec3(qq.xy,L)).rgb*2.0-1.0;
+          tx=vec3(tx.xy+n.zy,n.x); ty=vec3(ty.xy+n.xz,n.y); tz=vec3(tz.xy+n.xy,n.z);
+          vec3 np=normalize(mix(n,normalize(tx.zyx*tw.x+ty.xzy*tw.y+tz.xyz*tw.z),${big?'0.9':'0.6'}));
+          float sunK=smoothstep(0.0,0.25,uSunDir.y);
+          c*=1.0+clamp((dot(np,uSunDir)-dot(n,uSunDir))*1.5,-0.5,0.5)*nearN*sunK;
+          c*=mix(1.0,0.70+0.30*clamp(dot(np,n),0.0,1.0),nearN);
+        }
+        /* 위를 보는 면에는 이끼 낀 바위 사진(3번)이 얼룩지게 앉는다(넓은 잡음으로 군데군데) */
+        { float um=smoothstep(0.45,0.9,n.y)*${moss}.0*smoothstep(0.38,0.62,rn(p/3.3+5.5)+(rn(p/0.6)-0.5)*0.4);
+          vec3 mz=texture(uRk,vec3(p.xz/(RS*0.9),3.0)).rgb;
+          c=mix(c,c0*mz*2.0*vec3(0.95,1.03,0.88),um*0.85); }`
+        :PHOTO?`/* 사진 결 — 진짜 바위 사진(4번 층)을 x·y·z 세 방향에서 읽어 면이 보는 쪽대로 섞는다(늘어짐 없이 감긴다).
            큰 바위는 0.9 m 에 한 장, 자갈·부싯돌은 손바닥만 하니 0.3 m 에 한 장. 그린 점무늬(예전)는 모자이크 같았다 */
         { vec3 tw=pow(abs(n),vec3(4.0)); tw/=tw.x+tw.y+tw.z+1e-4; float RS=${big?'0.9':'0.3'};
           vec3 rk=texture(uGnd,vec3(p.zy/RS,4.0)).rgb*tw.x+texture(uGnd,vec3(p.xz/RS,4.0)).rgb*tw.y+texture(uGnd,vec3(p.xy/RS,4.0)).rgb*tw.z;
@@ -864,12 +897,16 @@ vec2 grain(vec3 p){
         float tuft=mix(0.8,0.55+0.7*rn(p/0.035+6.1),nearK);                 // 방석마다 도톰한 결
         vec3 mc=mix(vec3(0.24,0.34,0.13),vec3(0.33,0.40,0.15),rn(wq/1.6+7.7)); // 짙은 풀빛 ↔ 누런 풀빛
         mc*=0.75+0.35*smoothstep(0.50,0.75,mm);                               // 가장자리는 얇아 어둡다
-        c=mix(c,mc*tuft,lichen*0.92);
-        // 밑동 그늘 — 만화처럼 **단을 지어** 칠한다: 아래를 보는 면은 짙게, 위를 보는 면은 한 톤 밝게
+        c=mix(c,mc*tuft,lichen*${RPH?'0.45':'0.92'});                        // 사진 이끼가 있으면 그린 이끼는 옅게
+        ${RPH?`/* 사진처럼 — 예전의 만화풍(단을 지은 밑동 그늘 · 잉크 선 테두리)을 걷고 부드러운 그늘만 남긴다 */
+        c*=mix(0.72,1.0,smoothstep(-0.85,0.15,n.y))*mix(1.0,1.05,smoothstep(0.2,0.9,n.y));
+        { vec3 Vr=-normalize(vRV), nr=normalize(mat3(viewMatrix)*n);
+          c*=mix(0.86,1.0,smoothstep(0.0,0.45,abs(dot(nr,Vr)))); }`
+        :`// 밑동 그늘 — 만화처럼 **단을 지어** 칠한다: 아래를 보는 면은 짙게, 위를 보는 면은 한 톤 밝게
         c*=mix(0.64,1.0,smoothstep(-0.38,-0.22,n.y))*mix(1.0,1.10,smoothstep(0.42,0.56,n.y));
         // 테두리 — 눈에서 비껴 선 면(윤곽 쪽)을 어둡게 눌러 잉크 선 같은 가장자리를 낸다
         { vec3 Vr=-normalize(vRV), nr=normalize(mat3(viewMatrix)*n);
-          c*=mix(0.60,1.0,smoothstep(0.04,0.38,abs(dot(nr,Vr)))); }
+          c*=mix(0.60,1.0,smoothstep(0.04,0.38,abs(dot(nr,Vr)))); }`}
         // 금속 광택 — 해 쪽 반사
         vec3 V=-normalize(vRV), nv=normalize(mat3(viewMatrix)*n), sv=normalize(mat3(viewMatrix)*uSunDir);
         float sp=pow(max(dot(reflect(-sv,nv),V),0.0),24.0)*${L.met.toFixed(2)}*max(uSunDir.y,0.0);
@@ -877,7 +914,7 @@ vec2 grain(vec3 p){
         diffuseColor.rgb=c;
       }`);
   };
-  m.customProgramCacheKey=()=>'rock-'+k+(PHOTO?'-photo':'');
+  m.customProgramCacheKey=()=>'rock-'+k+(PHOTO?'-photo':'')+(RPH?'-rk':'');
   return m;
 }
 /* ── 지형 청크 · 거리 단계(LOD) ──────────────────────────────────────────
