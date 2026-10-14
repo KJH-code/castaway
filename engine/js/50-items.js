@@ -1517,7 +1517,6 @@ function shrinkFoliage(p){
         _V.set(p.x,p.y,p.z); _S.set(0,0,0);
         _M.compose(_V,_Q,_S);
         p._bb.setMatrixAt(p._bbi,_M); p._bb.instanceMatrix.needsUpdate=true;
-        if(p._cp) for(const m of p._cp){ m.setMatrixAt(p._bbi,_M); m.instanceMatrix.needsUpdate=true; }
       }
       /* 줄기는 접고 그 자리에 **그루터기**를 세운다(사용자 지적 — 예전엔 줄기를 22% 로 눌러 놓아 윗면이 뾰족한 우듬지 끝이었다) */
       _V.set(p.x,p.y,p.z); _S.set(0,0,0); _M.compose(_V,_Q.identity(),_S);
@@ -1528,6 +1527,7 @@ function shrinkFoliage(p){
     /* 남은 아래 가지는 0..br-1, 꺾인 것은 br..brMax-1 — **꺾인 것을 전부** 숨긴다(몇 번 불러도 같다).
        예전엔 '방금 꺾인 것' 하나(br 번)만 숨겨서 ① 저장을 불러오면(`restore` 가 한 번 부른다) 앞서 꺾은 가지가
        되살아났고 ② 도끼질(통나무)은 br 이 그대로라 br=brMax 번 — 꺾을 수 없는 **구조 가지** 하나 — 를 지웠다. */
+    tlTreeChanged(p);                                // 그루마다 단계(30-props.js 'TL') — 솎은 자료를 다시 짓고 칸을 다시 채운다
     return;
   }
   // 암석은 자기 정점 구간을 직접 오므린다 (인스턴스 행렬이 없다)

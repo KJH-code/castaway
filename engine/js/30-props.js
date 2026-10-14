@@ -10,7 +10,7 @@
    칸 반지름(대각선 절반 + 나무 가지가 칸 밖으로 나가는 여유 12 m)을 빼고 잰다. */
 /* 땅 안개가 물리값(가시거리 수십 km)이 되어 150 m 에서 나무가 사라지는 경계가 드러났다 —
    임포스터(나무당 판 4장)를 450 m 까지 그린다 */
-const VIEW_DIST=450, NEAR_DIST=55, TILE=64, COPY_DIST=125;   // 복제 나무는 125 m 까지(예전 150) — 그 밖은 그림 판때기. 연무가 차이를 가린다
+const VIEW_DIST=450, NEAR_DIST=55, TILE=64, COPY_DIST=125;   // 칸 가장자리가 125 m 안인 칸은 그루마다 입체(아래 'TL') — 그 밖은 그림 판때기. 연무가 차이를 가린다
 const TREE_TILES=[];
 const WIND_ON=false;
 /* 풀·갈대·자갈처럼 작은 것은 멀면 안 보인다 — 섬 전체를 한 인스턴스 메시로 들고 있으면 발밑 풀
@@ -25,14 +25,8 @@ const TRUNK_DIST=COPY_DIST+12;
    거리·시야와 상관없이 늘 그려서 본 패스·그림자 패스에 프레임마다 40만 삼각형이 들었다. 300 m 밖은 몇 화소다 */
 const PROP_DIST={grass:200, reed:110, pebble:90, flint:110, oak:TRUNK_DIST, fir:TRUNK_DIST, clay:300, sand:300};
 const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
-/* 칸마다 셋 중 하나를 고른다.
-     NEAR_DIST(55 m) 안   — 가지와 잎을 다 그린다
-     그 밖 ~ VIEW_DIST     — **수관 임포스터** 하나로 갈음한다(나무당 4면)
-     VIEW_DIST(150 m) 밖  — 아무것도 안 그린다
-   55 m 밖의 나무 한 그루는 가지 4,068면 + 잎 8,136면이었다. 판때기 4면이면
-   3천 배다. 보이는 나무의 87% 가 이 띠에 든다(넓이로 (150²-55²)/150²).
-   칸을 128 → 64 m 로 줄였다 — 칸이 크면 55 m 경계가 뭉툭해져 가까운 칸
-   안의 먼 나무까지 통째로 자세히 그리게 된다. */
+/* 참나무·전나무 칸 — 칸 가장자리가 COPY_DIST(125 m) 안이면 그루마다 거리로 단계를 고르고(아래 'TL'),
+   그 밖 VIEW_DIST(450 m) 까지는 **수관 그림 판때기** 하나로(나무당 4면), 그 밖은 안 그린다. */
 const ROCK_TILE=64, ROCK_DIST=200, ROCK_SMALL=70, ROCK_KEEP=90, ROCK_TILES=[], ROCK_MAT={};
 /* **자동 품질**(`QUAL`) — 프레임이 떨어지면 '어디까지 자세히 그리나' 를 스스로 당긴다(마인크래프트의 그리는 거리처럼).
    `QUAL.k`(0.45~1)가 나무의 제 가지·복제 단계 거리 · 풀과 소품이 보이는 거리 · 덤불·작은 나무를 까는 반경에 곱해진다.
@@ -98,24 +92,170 @@ function occBench(reps){
    칸 1,400개를 다시 볼 까닭이 없다. 칸이 새로 생기면(buildProps · buildFarTrees) `_tvForce` 로 다시 본다 */
 const _tvLast=new Float64Array(18); let _tvForce=true;
 /* 나무 칸의 가지·잎 — 가까워질 때 짓고(`build` 는 buildProps 가 칸마다 달아 둔다) 250 m 넘게 멀어지면 비운다 */
-let _treeBudget=1, _treeDrop=1;
+let _treeBudget=1;
 const TREE_DROP=250;
 function ensureTreeTile(t){
   if(t.built) return;
   t.build(); t.built=true;
 }
-/* 칸의 긴 가지 메시를 촘촘한 판(48면) ↔ 성긴 판(18면)으로 바꾼다 — 인스턴스 자료(iA·iB)는 둘이 나눠 쓰고 밑 지오메트리만 다르다 */
-function limbLod(m,lo){
-  const U=m.userData; if(!U.gLo||U.isLo===lo) return;
-  U.isLo=lo; m.geometry=lo?U.gLo:U.gHi;
-}
+/* 원본(그리지 않는 가지·잎 자료)을 비운다 — 장면에도 GPU 에도 안 올라가 있다 */
 function dropTreeTile(t){
   if(!t.built) return;
-  if(t.lm&&t.lm.userData.gLo){ t.lm.geometry=t.lm.userData.gHi; t.lm.userData.gLo.dispose(); }
-  for(const m of [t.lm,t.ls,t.fm]){ propGroup.remove(m); m.geometry.dispose(); }
   t.lm=t.ls=t.fm=null; t.built=false;
   for(const p of t.ps){ p._lb=p._ls=p._lf=null; p._lmap=null; }
+  if(t.lod){ tlFreeFull(t); t.lod.ev=true; }
 }
+/* ── 참나무·전나무 단계 — **그루마다 거리로** 고른다(새 식물 `floraFar` 와 같은 길) ──────────────────────
+   예전엔 64 m 칸이 통째로 단계를 바꿨고(칸 가장자리 2.5 m 안이면 칸 전부 제 가지 · 14 m 안 복제 22% · 72 m 30%…),
+   먼 단계는 **기준 나무 한 그루를 복제**한 것이었다 — 칸 가장자리를 넘는 순간 3~60 m 앞 나무 수십 그루가 한꺼번에 딴 나무로
+   바뀌었다(재 보니 화면의 18~26% 가 바뀜 · 사용자 요청 '식생처럼'). 이제
+   ① 그루마다 사람과의 거리로 단계를 고른다 — 18 m(`TL.hi`) 안 제 가지 그대로(촘촘한 판) · 45 m(`TL.full`) 안 제 가지(성긴 판 ·
+      잎·잔가지는 다) · 그 밖은 **그 나무 제 것을 솎은 것** — 58 · 75 · 95 m 까지 65 · 35 · 18% · 그 뒤 7%(`TL.F`). 긴 가지는 긴 차례로
+      남기고 잔가지는 뺀다 · 잎은 고루 남겨 1/√몫 배로 키운다(전나무는 1.45배까지 — 바늘 다발을 크게 키우면 가시가 섰다).
+      경계에서 오락가락하지 않게 2 m(`TL.hyst`) 넘어야 바뀐다. 125 m(`COPY_DIST`) 밖 칸은 예전처럼 그림 판때기.
+   ② 칸마다 단계별 **묶음 메시**(`tlPack` — 원본과 같은 압축 인스턴스·재질)를 두고, 그루의 단계가 바뀐 칸만 다시 채운다(`tlRepack`).
+      제 가지 단계는 원본(`tile.build`)에서 그루 몫을 그대로 베끼고, 솎은 단계는 그루마다 따로 지어 둔 자료(`p._thin` · `tlThin`)에서.
+   ③ 원본은 45 m 안 그루가 있는 칸만 짓고(한 프레임에 한 칸) 125 m 넘게 멀어지면 비운다. 솎은 자료는 그림이 되기 40 m 앞부터
+      프레임마다 3 ms 씩 그루마다 짓는다(섬을 지을 때는 한꺼번에). 원본·솎은 자료가 아직 없으면 한 단계 굵은 것(또는 그림)으로 선다. */
+const TL={hi:18, full:45, thin:[58,75,95], hyst:2, step:0.7, px:1e9, pz:1e9, qk:-1, noShort:false,
+  F:{oak:{L:[0.65,0.35,0.18,0.07], F:[0.65,0.35,0.18,0.08], cap:9},
+     fir:{L:[0.65,0.35,0.18,0.07], F:[0.75,0.5,0.32,0.18], cap:1.45}},
+  der:3, pack:3, stat:{derive:0, pack:0, packMs:0}};
+const _tlS={L:{iA:{array:null},iB:{array:null}}, S:{iA:{array:null},iB:{array:null}}, F:{iA:{array:null},iB:{array:null}}};
+const _tlZero={nL:[0,0,0,0], nF:[0,0,0,0], LA:null, LB:null, FA:null, FB:null};
+function _tlGrow(o,n){ if(!o.iA.array||o.iA.array.length<n*4){ o.iA.array=new Float32Array(n*4+256); o.iB.array=new Float32Array(n*4+256); } }
+/* 그루 하나를 빈 그릇에 다 채운 뒤(원본과 같은 `fillLimbs`) 꺾인 가지를 빼고 솎을 차례대로 담는다 */
+function tlThin(p,TR,LPB,fill,cfg){
+  if(p.felled) return _tlZero;
+  const sv=[p._lb,p._ls,p._lf,p._lbBase,p._lbL,p._lbS,p._lmap,p.limbN];
+  let n=0, ns=0; growLimbs(p,TR,(a,bq,len)=>{ n++; if(len<SHORT_LIMB) ns++; });
+  const N=p.brMax+n, S=_tlS;
+  _tlGrow(S.L,N-ns); _tlGrow(S.S,ns); _tlGrow(S.F,N*LPB);
+  p._lb=S.L; p._ls=S.S; p._lf=S.F; p._lbBase=0; p._lbL=0; p._lbS=0; p._lmap=new Int32Array(N); p.limbN=N;
+  fill(p);
+  const map=p._lmap;
+  [p._lb,p._ls,p._lf,p._lbBase,p._lbL,p._lbS,p._lmap,p.limbN]=sv;
+  const a=S.L.iA.array, b=S.L.iB.array, fa=S.F.iA.array, fb=S.F.iB.array, br=p.br===undefined?p.brMax:p.br;
+  const L=[], F=[];
+  for(let j=0;j<N;j++){
+    if(j>=br&&j<p.brMax) continue;                              // 꺾인 아래 가지 — 잎도 같이 없다
+    const v=map[j]; if(v>=0&&b[v*4+3]>0) L.push(v);
+    for(let q=0;q<LPB;q++){ const i=j*LPB+q; if(fa[i*4+3]>0) F.push(i); }
+  }
+  L.sort((x,y)=>b[y*4+3]-b[x*4+3]);                           // 긴 가지부터
+  const rk=new Float32Array(N*LPB); let h=(p._hash>>>0)^0x2c1b3c6d;
+  for(let i=0;i<rk.length;i++){ h=Math.imul(h^(h>>>15),0x2c1b3c6d)>>>0; h=(h+0x6d2b79f5)>>>0; rk[i]=h/4294967296; }
+  F.sort((x,y)=>rk[x]-rk[y]);                                 // 잎은 고루(씨앗 차례)
+  const nL=cfg.L.map(f=>Math.min(L.length,Math.ceil(L.length*f))), nF=cfg.F.map(f=>Math.min(F.length,Math.round(F.length*f)));
+  const o={nL, nF, LA:new Float32Array(nL[0]*4), LB:new Float32Array(nL[0]*4), FA:new Float32Array(nF[0]*4), FB:new Float32Array(nF[0]*4)};
+  for(let k=0;k<nL[0];k++){ const s=L[k]*4; for(let c=0;c<4;c++){ o.LA[k*4+c]=a[s+c]; o.LB[k*4+c]=b[s+c]; } }
+  for(let k=0;k<nF[0];k++){ const s=F[k]*4; for(let c=0;c<4;c++){ o.FA[k*4+c]=fa[s+c]; o.FB[k*4+c]=fb[s+c]; } }
+  return o;
+}
+/* 꺾기·벌목 뒤 — 그 그루의 솎은 자료를 다시 짓고 칸을 다시 채운다(shrinkFoliage 가 부른다) */
+function tlTreeChanged(p){
+  const t=p._tile; if(!t||!t.lod) return;
+  if(p._thin&&t.thin1) p._thin=t.thin1(p);
+  t.lod.sig={}; t.lod.pend=true; t.lod.ev=true; _tvForce=true;
+}
+function tlInit(t){
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9,z0=1e9,z1=-1e9,sm=0;
+  t.ps.forEach((p,i)=>{ p._ti=i; p._lv=null; x0=Math.min(x0,p.x); x1=Math.max(x1,p.x); z0=Math.min(z0,p.z); z1=Math.max(z1,p.z); y0=Math.min(y0,p.y); y1=Math.max(y1,p.y); sm=Math.max(sm,p.s); });
+  const c=new THREE.Vector3((x0+x1)/2,(y0+y1)/2+6*sm,(z0+z1)/2);
+  const R=Math.hypot(x1-x0,y1-y0+12*sm,z1-z0)/2+9*sm+BOUND_PAD;
+  t.lod={packs:{}, np:0, sig:{}, ready:false, ev:true, pend:false, want:false, seen:false, d:1e9, bs:new THREE.Sphere(c,R)};
+  return t.lod;
+}
+/* 묶음 메시 — 밑 지오메트리·재질은 원본과 같고 인스턴스 자료(iA·iB)만 제 것. 모자라면 1.3배로 다시 잡는다 */
+const TL_KEYS={hi:['hi','lm'], lo:['lo','lm'], sh:['sh','lm'], lf:['leaf','fm'],
+  L0:['lo','lm'], L1:['lo','lm'], L2:['lo','lm'], L3:['lo','lm'], F0:['leaf','fm'], F1:['leaf','fm'], F2:['leaf','fm'], F3:['leaf','fm']};
+function tlGeo(base,cap,bs){
+  const g=new THREE.BufferGeometry();
+  for(const k in base.attributes) g.setAttribute(k,base.attributes[k]);
+  if(base.index) g.setIndex(base.index);
+  g.setAttribute('iA',new THREE.InstancedBufferAttribute(new Float32Array(cap*4),4));
+  g.setAttribute('iB',new THREE.InstancedBufferAttribute(new Float32Array(cap*4),4));
+  g.boundingSphere=bs; return g;
+}
+/* 묶음 지오메트리를 버린다 — 밑 지오메트리의 정점·인덱스는 다른 칸과 나눠 쓰므로 떼고 나서 dispose(제 iA·iB 만 GPU 에서 지운다) */
+function tlDisposeGeo(g){ for(const k of Object.keys(g.attributes)) if(k!=='iA'&&k!=='iB') g.deleteAttribute(k); g.setIndex(null); g.dispose(); }
+function tlPack(t,key,n){
+  const L=t.lod, K=t.kit, [gk,mk]=TL_KEYS[key];
+  let m=L.packs[key];
+  if(m&&m.userData.cap>=n) return m;
+  const cap=Math.ceil(n*1.3)+64, g=tlGeo(K[gk],cap,L.bs);
+  if(m){ const old=m.geometry; m.geometry=g; tlDisposeGeo(old); }
+  else{
+    m=new THREE.InstancedMesh(g,K[mk],1);                       // 행렬 버퍼는 한 칸짜리(압축 — instMesh 와 같다)
+    m.userData.instC=true; m.userData.noCull=true; m.customDepthMaterial=mk==='lm'?K.ld:K.fd; m.customDistanceMaterial=mk==='lm'?K.lx:K.fx;   // noCull — 경계구는 칸 전체(L.bs) · boundTiles 가 지금 그루로 좁히면 나중에 든 그루가 잘린다
+    if(/[123]$/.test(key)) m.userData.lightRole='recv';        // 58 m 밖 솎은 단계는 그림자를 안 드리운다
+    m.count=0; m.visible=false; m.frustumCulled=true; m.matrixAutoUpdate=false; m.updateMatrix();
+    L.packs[key]=m; L.np++; propGroup.add(m);
+  }
+  m.iA=g.attributes.iA; m.iB=g.attributes.iB; m.userData.cap=cap;
+  return m;
+}
+function tlFree(t,key){ const m=t.lod.packs[key]; if(!m) return; propGroup.remove(m); tlDisposeGeo(m.geometry); delete t.lod.packs[key]; delete t.lod.sig[key]; t.lod.np--; }
+function tlFreeFull(t){ for(const k of ['hi','lo','sh','lf']) tlFree(t,k); }
+/* 칸을 통째로 놓는다 — 범위를 벗어났다. 솎은 자료도 버린다(all) */
+function tlDrop(t,all){
+  const L=t.lod; if(!L) return;
+  for(const k of Object.keys(L.packs)) tlFree(t,k);
+  L.sig={}; L.want=false; L.ev=true; L.pend=true;
+  if(all){ for(const p of t.ps){ p._thin=null; p._lv=null; } L.ready=false; if(t.built&&!t.pin) dropTreeTile(t); }
+}
+/* 그루마다 단계를 고른다 — 바뀐 그루가 있으면 참 */
+function tlEval(t,px,pz,QK){
+  const fk=Math.max(QK,0.6), hasM=!!t.lm, R0=QK<0.7?0:TL.hi*fk, R1=TL.full*fk, R2=TL.thin[0]*QK, R3=TL.thin[1]*QK, R4=TL.thin[2]*QK;
+  const lvOf=d=>d<R0?0:d<R1?1:d<R2?2:d<R3?3:d<R4?4:5;
+  let ch=false;
+  for(const p of t.ps){
+    if(p.felled){ if(p._lv!==-1){ p._lv=-1; ch=true; } continue; }
+    const dx=p.x-px, dz=p.z-pz, d=Math.sqrt(dx*dx+dz*dz), c=p._lv;
+    let v=lvOf(d);
+    if(c!=null&&c>=0&&v!==c){ if(v>c&&lvOf(d-TL.hyst)<=c) v=c; else if(v<c&&lvOf(d+TL.hyst)>=c) v=c; }
+    if(v<=1&&!hasM) v=2;                                       // 원본이 아직 없다 — 솎은 첫 단계로
+    if(v!==c){ p._lv=v; ch=true; }
+  }
+  return ch;
+}
+/* 칸의 묶음을 단계대로 다시 채운다 — 단계 모둠이 바뀐 묶음만 */
+function tlRepack(t){
+  const L=t.lod, LPB=LEAF_PER[t.kind]||1, cfg=TL.F[t.kind];
+  const mem={hi:[],lo:[],sh:[],lf:[],L0:[],L1:[],L2:[],L3:[]};
+  for(const p of t.ps){ const v=p._lv; if(v==null||v<0) continue;
+    if(v<=1){ if(!t.lm) continue; mem[v===0?'hi':'lo'].push(p); if(!TL.noShort) mem.sh.push(p); mem.lf.push(p); }
+    else if(p._thin) mem['L'+(v-2)].push(p); }
+  let cast=false;
+  for(const key in mem){
+    const ps=mem[key]; let sig=ps.length*7919+(TL.noShort?1:0); for(const p of ps) sig=(sig*31+p._ti+1)|0;
+    if(L.sig[key]===sig&&(key[0]!=='L'||L.sig['F'+key[1]]===sig)) continue;
+    if(key[0]!=='L'||key==='L0') cast=true;
+    if(!ps.length){ for(const k of key[0]==='L'?[key,'F'+key[1]]:[key]){ const m=L.packs[k]; if(m){ m.count=0; } L.sig[k]=sig; } continue; }
+    if(key[0]!=='L'){                                          // 제 가지 — 원본에서 그루 몫을 그대로
+      const src=key==='sh'?t.ls:key==='lf'?t.fm:t.lm;
+      const rng=p=>key==='sh'?[p._lbS,p._nS]:key==='lf'?[p._lbBase*LPB,p.limbN*LPB]:[p._lbL,p.limbN-p._nS];
+      let n=0; for(const p of ps) n+=rng(p)[1];
+      const m=tlPack(t,key,n), A=m.iA.array, B=m.iB.array, SA=src.iA.array, SB=src.iB.array; let w=0;
+      for(const p of ps){ const [o,c]=rng(p); A.set(SA.subarray(o*4,(o+c)*4),w*4); B.set(SB.subarray(o*4,(o+c)*4),w*4); w+=c; }
+      tlUp(m,w); L.sig[key]=sig;
+    }else{                                                     // 솎은 것 — 가지는 그대로 · 잎은 키워서
+      const k=+key[1], fs=Math.min(1/Math.sqrt(cfg.F[k]),cfg.cap);
+      let nl=0, nf=0; for(const p of ps){ nl+=p._thin.nL[k]; nf+=p._thin.nF[k]; }
+      const ml=tlPack(t,key,nl), mf=tlPack(t,'F'+k,nf);
+      let w=0; for(const p of ps){ const c=p._thin.nL[k]; if(!c) continue; ml.iA.array.set(p._thin.LA.subarray(0,c*4),w*4); ml.iB.array.set(p._thin.LB.subarray(0,c*4),w*4); w+=c; }
+      tlUp(ml,w); w=0;
+      const A=mf.iA.array, B=mf.iB.array;
+      for(const p of ps){ const c=p._thin.nF[k], SA=p._thin.FA, SB=p._thin.FB;
+        A.set(SA.subarray(0,c*4),w*4); B.set(SB.subarray(0,c*4),w*4);
+        for(let i=0;i<c;i++){ A[(w+i)*4+3]*=fs; B[(w+i)*4+3]*=fs; }
+        w+=c; }
+      tlUp(mf,w); L.sig[key]=L.sig['F'+k]=sig;
+    }
+  }
+  return cast;
+}
+function tlUp(m,n){ m.count=n; for(const A of [m.iA,m.iB]){ A.updateRange.offset=0; A.updateRange.count=n*4; A.needsUpdate=true; } }
 /* 사람에서 칸 가장자리까지 */
 function tileGap(t,px,pz){ const dx=t.cx-px, dz=t.cz-pz; return Math.sqrt(dx*dx+dz*dz)-t.r; }
 /* **칸을 512 m 구역으로 묶는다** — 섬의 칸은 4만 개(바위 1.4만 · 소품 1.9만 · 나무 0.7만)인데, 눈이 움직일 때마다 그 전부의 거리를
@@ -168,37 +308,46 @@ function updateTileVis(){
   for(const RG of act) for(const t of RG.prop){ const d=tileGap(t,px,pz), v=d<=t.d*QK&&tileSeen(t,d,6);
     let f=false; for(const m of t.ms){ if(setVis(m,v)) f=true; if(castNear(m,d<=SHR)) f=true; }
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r); }
-  _treeBudget=1; _treeDrop=1;
-  for(let ri=0;ri<act.length;ri++){ if(ri===nIn) _treeDrop=1e9;          // 범위를 벗어난 구역의 칸은 한꺼번에 비운다
+  /* 참나무·전나무 — 그루마다 단계(위 'TL'). 사람이 0.7 m 넘게 움직였거나 품질이 바뀌면 단계를 다시 고르고,
+     바뀐 칸만 다시 채운다(가까운 칸부터 · 노는 중엔 프레임마다 3 ms 남짓). 원본은 한 프레임에 한 칸, 솎은 자료는 3 ms 씩 짓는다 */
+  _treeBudget=1;
+  const tlMv=(px-TL.px)**2+(pz-TL.pz)**2>=TL.step*TL.step||QK!==TL.qk;
+  if(tlMv){ if(QK!==TL.qk||(QK<0.7)!==TL.noShort) for(const RG of act) for(const t of RG.tree) if(t.lod){ t.lod.sig={}; t.lod.pend=true; }
+    TL.px=px; TL.pz=pz; TL.qk=QK; TL.noShort=QK<0.7; }
+  const fk=Math.max(QK,0.6), tl0=performance.now(), rq=[];
+  for(let ri=0;ri<act.length;ri++){ const gone=ri>=nIn;
   for(const t of act[ri].tree){
-    const d=tileGap(t,px,pz), seen=tileSeen(t,d);
-    const near=seen&&d<=NEAR_DIST*QK, mid=seen&&d>NEAR_DIST*QK&&d<=VIEW_DIST;
-    /* **제 가지를 그대로 그리는 칸은 사람이 선 칸과, 칸 테두리가 10 m 안인 이웃뿐이다.** 예전엔 칸의 경계구(반지름 57 m)가
-       25 m 안이면 — 곧 칸 가운데가 82 m 안이면 — 전부 제 가지였다. 그러면 칸 일곱이 한꺼번에 걸려 가지·잎만 540만 삼각형을
-       그렸다(성능 창으로 잰 값 — 한 프레임 790만 가운데). 눈에 다 보이지도 않는 40~80 m 밖 나무의 잔가지였다.
-       이제 한두 칸이고, 사람이 든 칸이 아닌 이웃은 가지를 성긴 판(18면)으로 그린다(아래 `limbLod`) */
-    const ex=Math.max(Math.abs(t.cx-px)-TILE/2,0), ez=Math.max(Math.abs(t.cz-pz)-TILE/2,0), de=Math.sqrt(ex*ex+ez*ez);
-    let full=near&&(de<=(QK<0.8?0.5:FULL_EDGE)||!t.cps);      // 품질을 내렸으면 사람이 선 칸만 제 가지
-    /* 가지·잎은 이때 짓는다. 섬을 만드는 중(덮개 뒤)에는 몇 칸이든 바로, 노는 중에는 **한 프레임에 한 칸**만 —
-       못 지은 칸은 이번엔 복제 나무로 보이고(아래 lv 0) 다음 프레임에 다시 본다 */
-    if(full&&!t.built){
-      if(busy||_treeBudget>0){ _treeBudget--; ensureTreeTile(t); }
-      else{ full=false; _tvForce=true; }
+    const d=tileGap(t,px,pz), L=t.lod||tlInit(t);
+    L.seen=tileSeen(t,d); L.d=d;
+    if(gone||d>TREE_DROP){ if(L.ready||L.np||t.built) tlDrop(t,true); L.want=false; if(gone) L.seen=false; continue; }   // 범위를 벗어났다 — 통째로 비운다
+    /* 원본(제 가지 자료) — 45 m 안 그루가 있을 만한 칸만 짓고, 멀어지면 비운다 */
+    if(!t.built&&d<=TL.full*fk+16){ if(busy||_treeBudget>0){ _treeBudget--; ensureTreeTile(t); L.ev=true; } else _tvForce=true; }
+    else if(t.built&&!t.pin&&d>TL.full+80) dropTreeTile(t);
+    /* 솎은 자료 — 그림에서 입체로 넘어가기 40 m 앞부터(가까운 칸은 기다리지 않고 한꺼번에) */
+    if(!L.ready&&d<=COPY_DIST+40){
+      let done=true;
+      for(const p of t.ps){ if(p._thin) continue;
+        if(!busy&&d>TL.full&&performance.now()-tl0>TL.der){ done=false; _tvForce=true; break; }
+        p._thin=t.thin1(p); TL.stat.derive++; }
+      if(done){ L.ready=true; L.ev=true; }
     }
-    /* 멀어진 칸은 도로 비운다 — 섬을 한 바퀴 돌면 결국 전부 지어져 메모리가 예전만큼 불어나는 것을 막는다 */
-    else if(t.built&&!t.pin&&d>TREE_DROP&&_treeDrop>0){ _treeDrop--; dropTreeTile(t); }
-    let f=false;
-    /* 자동 품질이 내려가면(0.7 밑 — 숲에서 50 FPS 를 못 지킬 때) 사람이 든 칸도 성긴 가지로 그리고 잔가지는 뺀다(36만 삼각형) */
-    if(t.lm){ if(setVis(t.lm,full)) f=true; if(setVis(t.ls,full&&QK>=0.7)) f=true; if(setVis(t.fm,full)) f=true;
-      if(full) limbLod(t.lm,de>0.01||QK<0.7); }                // 사람이 든 칸만 촘촘한 가지(48면) — 이웃 칸은 성긴 가지(18면)
-    const cp=mid && d<=COPY_DIST*QK;           // 기준 나무 복제 · 150 m 밖은 같은 나무를 찍은 그림
-    /* 복제 단계 — 0: 칸 테두리가 26 m 안인 이웃(제 가지를 안 그리는 가장 가까운 칸) · 1: 그 밖 ~ 90 m · 2: 90~150 m */
-    if(t.cps){ const lv=(near&&!full)?(de<=LOD0_EDGE*QK?0:1):cp?(d>COPY_MID*QK?2:1):-1;
-      for(let k=0;k<3;k++){ if(setVis(t.cps[2*k],lv===k)) f=true; if(setVis(t.cps[2*k+1],lv===k)) f=true; } }
-    if(t.bb && setVis(t.bb,mid && !(t.cps&&cp))) f=true;
-    { const sn=d<=SHR; if(castNear(t.lm,sn)|castNear(t.ls,sn)|castNear(t.fm,sn)|castNear(t.bb,sn)) f=true; if(t.cps) for(const m of t.cps) if(castNear(m,sn)) f=true; }
-    if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r);
+    const was=L.want; L.want=L.ready&&d<=COPY_DIST*QK;
+    if(L.want&&!was) L.ev=true;                                  // 그림에서 입체로 — 단계를 새로 고른다
+    else if(!L.want&&L.np&&d>COPY_DIST+30) tlDrop(t,false);      // 그림이 된 지 오래 — 묶음(GPU)은 놓고 솎은 자료만 둔다
+    if(L.want){ if(tlMv||L.ev){ L.ev=false; if(tlEval(t,px,pz,QK)) L.pend=true; } if(L.pend) rq.push(t); }
   }
+  }
+  /* 다시 채우기 — 가까운 칸부터 */
+  if(rq.length){ rq.sort((a,b)=>a.lod.d-b.lod.d); const t1=performance.now();
+    for(const t of rq){ if(!busy&&rq[0]!==t&&performance.now()-t1>TL.pack){ _tvForce=true; break; }
+      t.lod.pend=false; if(tlRepack(t)) LIGHT.dirtyAt(t.cx,t.cz,t.r); TL.stat.pack++; }
+    TL.stat.packMs=performance.now()-t1; }
+  /* 보이기 — 입체 칸은 묶음을, 그 밖(또는 솎은 자료가 아직 없는 칸)은 그림 판때기를 */
+  for(const RG of act) for(const t of RG.tree){ const L=t.lod; if(!L) continue;
+    const show=L.want&&L.seen, sn=L.d<=SHR; let f=false;
+    for(const k in L.packs){ const m=L.packs[k]; if(setVis(m,show&&m.count>0)) f=true; if(castNear(m,sn)) f=true; }
+    if(t.bb){ if(setVis(t.bb,L.seen&&L.d<=VIEW_DIST&&!L.want)) f=true; if(castNear(t.bb,sn)) f=true; }
+    if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r);
   }
 }
 /* 보이기를 바꿨으면 참 — 바뀐 칸만 그림자 지도를 다시 그리게 알린다 */
@@ -311,55 +460,7 @@ function bakeTreeImpostor(list,kind){
 /* **광석은 땅에 박혀 있다**(사용자 요청) — 노두가 땅 위에 얹힌 돌처럼 보였다. 가운데를 반지름의 0.20 높이까지만 올리고(예전 0.5),
    밑동이 땅 빛깔로 녹아드는 띠를 두 배 가까이 높인다. 화강암 노두·자갈·부싯돌은 그대로 */
 const ORE_LODGE={iron:1,copper:1,tin:1,zinc:1,galena:1,coal:1,sulfur:1,cinnabar:1};
-const FAR_REF={}, FAR_LOD=[[0.22,0.32],[0.08,0.13],[0.035,0.07]], FULL_EDGE=2.5, LOD0_EDGE=14, COPY_MID=72, FULL_DIST=25;   // FULL_DIST — 새 식물(95-flora.js)이 제 생김새로 서는 거리
-function bakeTreeGeo(p,kind,FAR_LIMB,FAR_LEAF){
-  const LPB=LEAF_PER[kind]||1, M=new THREE.Matrix4(), off=new THREE.Matrix4().makeTranslation(-p.x,-p.y,-p.z);
-  const pt=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
-  /* 인덱스를 지킨다 — 예전엔 toNonIndexed() 로 풀어 굳혀서 가지(3각 3마디) 하나가 정점 16 → 54,
-     잎 판때기가 8 → 12 로 늘어 정점 셰이더가 그만큼 더 돌았다 */
-  const merge=(src,idxs,grow)=>{
-    const gs=src.userData.lo||src.geometry;           // 가지는 낮은 정점판으로 굳힌다
-    const g0=gs;
-    const P0=g0.attributes.position, N0=g0.attributes.normal, U0=g0.attributes.uv, I0=g0.index;
-    const keep=[];
-    for(const i of idxs){ src.getMatrixAt(i,M); M.decompose(pt,q,sc); if(sc.x*sc.y*sc.z>1e-9) { if(grow&&grow!==1){ M.decompose(pt,q,sc); sc.multiplyScalar(grow); M.compose(pt,q,sc); } keep.push(M.clone().premultiply(off)); } }
-    const nv=P0.count, pos=new Float32Array(keep.length*nv*3), nor=new Float32Array(keep.length*nv*3),
-          uv=U0?new Float32Array(keep.length*nv*2):null, v=new THREE.Vector3(), nm=new THREE.Matrix3();
-    keep.forEach((m,k)=>{
-      nm.getNormalMatrix(m);
-      for(let j=0;j<nv;j++){
-        const o=(k*nv+j)*3;
-        v.fromBufferAttribute(P0,j).applyMatrix4(m); pos[o]=v.x; pos[o+1]=v.y; pos[o+2]=v.z;
-        if(N0){ v.fromBufferAttribute(N0,j).applyMatrix3(nm).normalize(); nor[o]=v.x; nor[o+1]=v.y; nor[o+2]=v.z; }
-        if(uv){ uv[(k*nv+j)*2]=U0.getX(j); uv[(k*nv+j)*2+1]=U0.getY(j); }
-      }
-    });
-    const g=new THREE.BufferGeometry();
-    g.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
-    if(uv) g.setAttribute('uv',new THREE.BufferAttribute(uv,2));
-    if(I0){
-      const ni=I0.count, nvAll=keep.length*nv, ix=nvAll>65535?new Uint32Array(keep.length*ni):new Uint16Array(keep.length*ni);
-      for(let k=0;k<keep.length;k++){ const b=k*nv, o=k*ni; for(let j=0;j<ni;j++) ix[o+j]=b+I0.getX(j); }
-      g.setIndex(new THREE.BufferAttribute(ix,1));
-    }
-    g.computeBoundingSphere();
-    return g;
-  };
-  /* 줄인 복제(LOD): 55 m 밖이라 잔가지·잎 한 장은 몇 화소다 — 가지는 긴 것 `FAR_LIMB` 몫만,
-     잎은 온 수관에 고루 `FAR_LEAF` 몫만 남기고 그만큼 크게(1/√몫) 해 덮는 넓이를 맞춘다. */
-  const all=[];
-  for(let j=0;j<p.limbN;j++){ getLimbM(p,j,M); M.decompose(pt,q,sc); all.push([sc.y,j]); }
-  all.sort((a,b)=>b[0]-a[0]);
-  const li=all.slice(0,Math.max(1,Math.ceil(all.length*FAR_LIMB))).map(a=>a[1]);
-  const fi=[]; let h=p._hash>>>0;
-  for(let j=0;j<p.limbN;j++) for(let k=0;k<LPB;k++){
-    h=(h*1664525+1013904223)>>>0; if(h/4294967296<FAR_LEAF) fi.push((p._lbBase+j)*LPB+k);
-  }
-  const limbSrc={userData:p._lb.userData, geometry:p._lb.geometry, getMatrixAt:(j,m)=>getLimbM(p,j,m)};
-  const leafSrc={userData:p._lf.userData, geometry:p._lf.geometry, getMatrixAt:(i,m)=>instGetM(p._lf,i,m)};
-  return {limb:merge(limbSrc,li), leaf:merge(leafSrc,fi,1/Math.sqrt(FAR_LEAF))};
-}
+const FAR_REF={}, FULL_DIST=25;   // FAR_REF — 그림 판때기를 찍는 기준 나무 · FULL_DIST — 새 식물(95-flora.js) 머리말이 쓰는 이름
 /* ── 칸 메시의 경계구 ────────────────────────────────────────────────────
    r128 의 InstancedMesh 는 거르기(frustumCulled)를 끈 채 태어나고, 켜도 **밑 지오메트리 한 개**의 경계구로 잰다
    (인스턴스가 흩어진 넓이를 모른다). 그래서 칸 메시(나무 가지·잎·복제·판때기 · 풀·갈대·자갈·베리…)는 늘 통째로
@@ -420,9 +521,11 @@ function boundMesh(m){
   return true;
 }
 function buildFarTrees(){
-  _tvForce=true;                             // 칸에 복제가 새로 붙는다 — 보이기를 다시 센다
+  _tvForce=true;                             // 칸에 그림이 새로 붙는다 — 보이기를 다시 센다
   if(!TREE_TILES.length) return;
   const px=PL.pos.x, pz=PL.pos.z;
+  /* 125 m(`COPY_DIST`) 밖 칸은 **기준 나무 한 그루를 찍은 그림**(임포스터) — 450 m 까지 입체로 세우면 나무 수천 그루 ×
+     수천 삼각형으로 수천만이 되어 헤드리스가 죽었다(실제 그래픽 카드도 못 버틴다). 그 안은 그루마다 제 것(위 'TL') */
   for(const kind of ['oak','fir']){
     let best=null, bd=1e18;
     for(const t of TREE_TILES) if(t.kind===kind) for(const p of t.ps){
@@ -431,45 +534,23 @@ function buildFarTrees(){
     }
     if(!best) continue;
     ensureTreeTile(best._tile); best._tile.pin=true;   // 기준 나무의 칸은 가지가 있어야 본을 뜬다 — 비우지도 않는다
-    if(FAR_REF[kind]) for(const g of FAR_REF[kind].geos){ g.limb.dispose(); g.leaf.dispose(); }
-    FAR_REF[kind]={p:best, geos:FAR_LOD.map(([a,b])=>bakeTreeGeo(best,kind,a,b))};
+    FAR_REF[kind]={p:best};
   }
-  const M=new THREE.Matrix4(), V=new THREE.Vector3(), Q=new THREE.Quaternion(), S=new THREE.Vector3(), E=new THREE.Euler();
-  /* 100 m 밖은 **같은 기준 나무를 찍은 그림**(임포스터) — 450 m 까지 입체 복제를 세우면 나무 수천 그루 ×
-     1~2.5만 삼각형으로 수천만이 되어 헤드리스가 죽었다(실제 그래픽 카드도 못 버틴다). */
+  const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler();
   const bak={};
   if(renderer) for(const kind in FAR_REF){ const bk=bakeTreeImpostor([FAR_REF[kind].p],kind); if(bk) bak[kind]=bk; }
   for(const t of TREE_TILES){
-    const ref=FAR_REF[t.kind]; if(!ref) continue;
-    const n=t.ps.length, bk=bak[t.kind];
-    if(bk&&t.bb){
-      const bm=t.bb.material; bm.map=bk.tex; bm.alphaTest=0.35; bm.needsUpdate=true;
-      if(t.bb.customDepthMaterial){ const dm=t.bb.customDepthMaterial; dm.map=bk.tex; dm.alphaTest=0.35; dm.needsUpdate=true; }
+    const bk=bak[t.kind]; if(!bk||!t.bb) continue;
+    const bm=t.bb.material; bm.map=bk.tex; bm.alphaTest=0.35; bm.needsUpdate=true;
+    if(t.bb.customDepthMaterial){ const dm=t.bb.customDepthMaterial; dm.map=bk.tex; dm.alphaTest=0.35; dm.needsUpdate=true; }
+    for(const q of t.ps){                                     // 그림 판때기 — 그루마다 방향·크기
+      const yaw=q===FAR_REF[t.kind].p?0:((q._hash>>>9)%628)/100;
+      E.set(0,yaw,0); Q.setFromEuler(E);
+      _lbV.set(q.x, q.y+bk.can.y0*q.s, q.z);
+      _lbS.set(q.felled?0:bk.can.w*q.s, q.felled?0:(bk.can.y1-bk.can.y0)*q.s, q.felled?0:bk.can.w*q.s);
+      M.compose(_lbV,Q,_lbS); t.bb.setMatrixAt(q._bbi,M);
     }
-    if(t.cps) for(const m of t.cps){ propGroup.remove(m); m.dispose(); }
-    const cps=[];
-    for(const g of ref.geos){
-      // 복제는 예전 그대로의 인스턴스 메시 — 재질도 압축용이 아닌 원래 것(칸에 따로 적어 둠)
-      const a=new THREE.InstancedMesh(g.limb,LIMB_FAR_MAT,n), b=new THREE.InstancedMesh(g.leaf,t.leafStd,n);
-      if(t.leafDepthStd) b.customDepthMaterial=t.leafDepthStd;
-      a.frustumCulled=b.frustumCulled=false;
-      if(cps.length) a.userData.lightRole=b.userData.lightRole='recv';   // 55 m 밖 복제는 그림자를 안 드리운다
-      cps.push(a,b);
-    }
-    t.ps.forEach((q,i)=>{
-      const k=q.felled?0:q.s/ref.p.s, yaw=q===ref.p?0:((q._hash>>>9)%628)/100;
-      V.set(q.x,q.y,q.z); E.set(0,yaw,0); Q.setFromEuler(E); S.set(k,k,k);
-      M.compose(V,Q,S); for(const m of cps) m.setMatrixAt(i,M);
-      q._cp=cps;
-      if(bk&&t.bb){                                    // 그림 판때기도 같은 방향·크기로
-        _lbV.set(q.x, q.y+bk.can.y0*q.s, q.z);
-        _lbS.set(q.felled?0:bk.can.w*q.s, q.felled?0:(bk.can.y1-bk.can.y0)*q.s, q.felled?0:bk.can.w*q.s);
-        M.compose(_lbV,Q,_lbS); t.bb.setMatrixAt(q._bbi,M);
-      }
-    });
-    for(const m of cps) m.instanceMatrix.needsUpdate=true;
-    if(t.bb) t.bb.instanceMatrix.needsUpdate=true;
-    t.cps=cps; for(const m of cps){ m.visible=false; propGroup.add(m); }
+    t.bb.instanceMatrix.needsUpdate=true;
   }
 }
 function buildProps(){
@@ -600,7 +681,7 @@ function buildProps(){
     const g=new THREE.CylinderGeometry(0.5,1,1,3,1,true); g.translate(0,0.5,0);
     return gnarl(g,(t,th,r)=>[r, 1.25*Math.sin(Math.PI*t), 0]);
   })();
-  /* 먼 나무 복제(`bakeTreeGeo`)용 — 3각 3마디로 같은 활 모양만. 6 → 18 삼각형(가까운 것은 48) */
+  /* 성긴 가지판 — 3각 3마디로 같은 활 모양만(18 삼각형 · 촘촘한 것은 24). 18~45 m 의 제 가지와 솎은 단계가 쓴다(TL) */
   const limbLo=(()=>{
     const g=new THREE.CylinderGeometry(0.5,1,1,3,3,true); g.translate(0,0.5,0);
     return gnarl(g,(t,th,r)=>[r, 1.25*Math.sin(Math.PI*t), 0]);
@@ -1148,6 +1229,9 @@ function buildProps(){
         : {depthPacking:THREE.RGBADepthPacking}));
       const leafXC=instCompact(new THREE.MeshDistanceMaterial(leafMat.map?{map:leafMat.map, alphaTest:leafMat.alphaTest}:{}));
       const leafUnit=R.k==='oak'?leafUnitOak:leafUnitFir;
+      /* 단계 묶음(`tlPack`)이 쓰는 밑 지오메트리·재질 — 원본과 같은 압축 재질이라 셰이더가 늘지 않는다 */
+      const KIT={hi:limbUnit, lo:limbLo, sh:limbShort, leaf:leafUnit,
+                 lm:LIMB_MAT_C, ld:LIMB_DEPTH_C, lx:LIMB_DIST_C, fm:leafC, fd:leafDC, fx:leafXC};
       for(const b of bins.values()){
         const bb=new THREE.InstancedMesh(bbUnit,bbMat,b.ps.length);
         bb.frustumCulled=false;
@@ -1165,34 +1249,27 @@ function buildProps(){
         propGroup.add(bb);
         /* 이 칸의 가지·잎을 짓는다 — ① 곁가지 수를 세고(씨앗으로 한 번 헛돌린다) ② 그만큼 메시를 잡고 ③ 채운다
            ④ 이미 꺾었거나 벤 나무는 그 모습으로 맞춘다(지어지기 전에 불러온 저장) */
+        /* 칸의 가지·잎 **원본**(그루마다 제 가지 전부) — 그리지 않는다. 45 m 안 그루의 '제 생김새' 묶음(`tlRepack`)이
+           여기서 그루 몫을 베껴 간다. 꺾기·벌목(`hideLimb`)도 여기에 적는다 */
         tile.build=()=>{
           let total=0, tl=0, ts=0;
           for(const p of b.ps){
             let n=0, ns=0; growLimbs(p,TR,(a,bq,len)=>{ n++; if(len<SHORT_LIMB) ns++; });
-            p.limbN=p.brMax+n;
+            p.limbN=p.brMax+n; p._nS=ns;
             p._lbBase=total; total+=p.limbN;
             p._lbL=tl; tl+=p.limbN-ns; p._lbS=ts; ts+=ns; p._lmap=new Int32Array(p.limbN);
           }
           const lm=instMesh(limbUnit,LIMB_MAT_C,tl,LIMB_DEPTH_C,LIMB_DIST_C);
-          lm.userData.lo=limbLo;
           const ls=instMesh(limbShort,LIMB_MAT_C,ts,LIMB_DEPTH_C,LIMB_DIST_C);
           const fm=instMesh(leafUnit,leafC,total*LPB,leafDC,leafXC);
           for(const p of b.ps){ p._lb=lm; p._ls=ls; p._lf=fm; }
           for(const p of b.ps) fillLimbs(p);
-          for(const m of [lm,ls,fm]){
-            m.iA.needsUpdate=true; m.iB.needsUpdate=true;
-            m.frustumCulled=false; m.visible=false;
-            propGroup.add(m); m.matrixAutoUpdate=false; m.updateMatrix(); boundMesh(m);
-          }
-          /* 성긴 가지판 — 같은 인스턴스 자료(iA·iB)에 밑 지오메트리만 limbLo(18면) */
-          { const gl=new THREE.BufferGeometry(), gh=lm.geometry;
-            for(const k in limbLo.attributes) gl.setAttribute(k,limbLo.attributes[k]);
-            if(limbLo.index) gl.setIndex(limbLo.index);
-            gl.setAttribute('iA',lm.iA); gl.setAttribute('iB',lm.iB); gl.boundingSphere=gh.boundingSphere;
-            lm.userData.gHi=gh; lm.userData.gLo=gl; lm.userData.isLo=false; }
           tile.lm=lm; tile.ls=ls; tile.fm=fm;
           for(const p of b.ps) if(p.felled||p.br<p.brMax) shrinkFoliage(p);
         };
+        /* 그루 하나를 **솎은 것**(30 m 밖 단계) — 원본 칸을 짓지 않고 그 그루 몫만 빈 그릇에 채워 고른다(`tlThin`) */
+        tile.thin1=(p)=>tlThin(p,TR,LPB,fillLimbs,TL.F[R.k]);
+        tile.kit=KIT;
         TREE_TILES.push(tile);
       }
       /* 나무 한 그루의 가지·잎 행렬을 채운다(칸을 지을 때 그루마다 부른다) */
