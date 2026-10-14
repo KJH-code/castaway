@@ -96,11 +96,11 @@ function camcInit(){
     depthTest:false, depthWrite:false, fog:false,
     uniforms:{tD:{value:null}, uRes:{value:new THREE.Vector2(640,480)}, uT:{value:0}, uBat:{value:1}, uUnder:{value:0},
               uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}, uHdr:{value:0}, uIll:{value:0},
-              tCrk:{value:CAMC.crk}, tShd:{value:CAMC.shd}, uHurt:{value:0}, uHit:{value:0}, uAsp:{value:16/9}},
+              tCrk:{value:CAMC.crk}, tShd:{value:CAMC.shd}, uHurt:{value:0}, uHurtN:{value:0}, uHit:{value:0}, uAsp:{value:16/9}},
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
     fragmentShader:`
       precision highp float;
-      uniform sampler2D tD, tCrk, tShd; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurt,uHit,uAsp;
+      uniform sampler2D tD, tCrk, tShd; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurt,uHurtN,uHit,uAsp;
       varying vec2 vUv;
       float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
       float vn1(float x){ float i=floor(x), f=fract(x); f=f*f*(3.0-2.0*f); return mix(h21(vec2(i,0.37)),h21(vec2(i+1.0,0.37)),f)*2.0-1.0; }   // 1차원 값잡음(−1~1)
@@ -156,7 +156,7 @@ function camcInit(){
         if(cz>0.0){ vec3 vb=vorB(ce*42.0); cl=(1.0-smoothstep(0.02,0.07,vb.x))*cz; cc=h21(vb.yz);
           uv+=(vec2(h21(vb.yz+1.3),h21(vb.yz+7.1))-0.5)*0.010*cz; }
         /* 지직거림의 세기 — 체력 + 맞는 순간 */
-        float S=uHurt*0.75+uHit, fr=floor(uT*30.0), rb=floor(uv.y*uRes.y);      // rb — 아래에서 몇째 줄(그림판 줄)
+        float S=uHurtN*0.75+uHit, fr=floor(uT*30.0), rb=floor(uv.y*uRes.y);     // rb — 아래에서 몇째 줄 · 지직거림은 **지금 체력**을 따른다(금은 천천히 옅어지지만 줄무늬는 체력이 차면 바로 걷힌다)
         /* **헤드 스위칭**(ntsc-rs 'head_switching') — 맨 아래 몇 줄이 옆으로 밀린다. 아래로 갈수록 (k)^1.5 로 크게 · 줄마다 ±0.5 화소 흔들림 ·
            맨 윗줄은 가운데 어디쯤부터만 밀리고 그 자리에 밝은 끌림이 남는다 */
         float hsN=floor(2.0+10.0*S), hsT=0.0;
@@ -273,8 +273,9 @@ function camcEnd(under){
   /* 깨진 렌즈 — 체력 90% 밑에서 금이 생겨 10% 에서 다 퍼진다. 맞으면 금이 0.3초쯤에 걸쳐 뻗고, 체력이 차면 천천히 줄어든다 */
   { const now=performance.now(), dt=Math.min(0.1,(now-(CAMC.tPrev||now))/1000); CAMC.tPrev=now;
     const want=PL.dead?1:clamp((0.9-PL.hp/HPMAX)/0.8,0,1);
-    CAMC.hurt+=(want-CAMC.hurt)*(1-Math.exp(-dt*(want>CAMC.hurt?9:0.35)));   // 체력이 차면 금이 천천히(3초쯤) 옅어진다
-    U.uHurt.value=CAMC.hurt; U.uHit.value=Math.min(1,hurtFlash*1.4);
+    /* 금은 **맞는 순간 한꺼번에** 생기고, 체력이 차도 **아주 천천히**(25초쯤) 옅어진다(사용자 요청). 지직거림(uHurtN)은 지금 체력 그대로 */
+    if(want>CAMC.hurt) CAMC.hurt=want; else CAMC.hurt+=(want-CAMC.hurt)*(1-Math.exp(-dt*0.04));
+    U.uHurt.value=CAMC.hurt; U.uHurtN.value=PL.dead?0:clamp((0.9-PL.hp/HPMAX)/0.8,0,1); U.uHit.value=Math.min(1,hurtFlash*1.4);
     U.uAsp.value=renderer.domElement.width/Math.max(1,renderer.domElement.height); }
   renderer.setRenderTarget(null);
   renderer.render(CAMC.scene,CAMC.cam);

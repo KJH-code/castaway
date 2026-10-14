@@ -1255,16 +1255,35 @@ function findHarvestTarget(){
   const e=equippedTool(), W=e?(ITEMS[e.id].tool||{}):{};
   const fit=p=>(W.axe&&CHOP[p.k]&&p.logs>0)||(W.pick&&MINE[p.k]&&p.ore>0);
   let best=null, bs=2.8;
+  /* **겨눈 것만**(사용자 요청: 조준점이 겨우 스치거나 아무것도 없는데 채집 안내가 뜬다) — 예전엔 2.8 m 안 · 수평으로 ±60° 안이면
+     다 후보였다. 이제 눈에서 보는 쪽으로 뻗은 선(고개 숙임까지)이 **그 물건의 꼴(타원체)을 지나야** 한다. 나무는 줄기(굵기 + 15 cm ·
+     밑동에서 줄기 높이까지)를 지나야 한다. 거리(선을 따라) 2.8 m 안 */
+  const ex=camera.position.x, ey=camera.position.y, ez=camera.position.z, cp=Math.cos(PL.pitch);
+  const vx=-Math.sin(PL.yaw)*cp, vy=Math.sin(PL.pitch), vz=-Math.cos(PL.yaw)*cp;
+  const ray=(px,py,pz,r,rv)=>{ const k=r/rv, dx=px-ex, dy=(py-ey)*k, dz=pz-ez, wy=vy*k, wl=Math.sqrt(vx*vx+wy*wy+vz*vz);
+    const ux=vx/wl, uy=wy/wl, uz=vz/wl, t=dx*ux+dy*uy+dz*uz; if(t<0.1) return -1;
+    const qx=dx-ux*t, qy=dy-uy*t, qz=dz-uz*t; if(qx*qx+qy*qy+qz*qz>r*r) return -1;
+    return t/wl*Math.sqrt(vx*vx+vy*vy+vz*vz); };                                     // 선을 따라 잰 거리(m)
   eachNearProp(PL.pos.x,PL.pos.z,p=>{
     if(!isNode(p.k)) return;
     /* **다 주운 자리는 건드릴 것이 없다**(사용자 요청) — 돌을 줍고 나면 다시 날 때까지 그 자리를 보지도 잡지도 않는다.
        예전엔 빈 자리가 계속 잡혀 '더 얻을 게 없다' 가 뜨고, 곁의 다른 것을 가렸다. 벤 나무의 그루터기는 그대로 본다 */
     if(!p.felled&&(p.ore|0)<=0&&(p.br|0)<=0&&(p.logs|0)<=0) return;
     const dx=p.x-PL.pos.x, dz=p.z-PL.pos.z;
-    const d=Math.hypot(dx,dz);
-    if(d>2.8||d<0.05) return;
-    if((dx/d)*fx+(dz/d)*fz < 0.5) return;      // 시야 밖이면 제외
-    const sc=d-(fit(p)?1.2:0);
+    if(dx*dx+dz*dz>16) return;
+    let t;
+    if(p.k==='oak'||p.k==='fir'){                       // 줄기 — 수평으로 줄기 원을 지나고, 그 자리의 높이가 밑동~줄기 높이 안
+      const tr=(p.k==='oak'?0.46:0.40)*p.s+0.15, hx=-Math.sin(PL.yaw), hz=-Math.cos(PL.yaw), ox=p.x-ex, oz=p.z-ez, th=ox*hx+oz*hz;
+      const px2=ox-hx*th, pz2=oz-hz*th; if(th<0.1||px2*px2+pz2*pz2>tr*tr) return;
+      const yh=ey+Math.tan(PL.pitch)*th, top=p.felled?p.y+0.9:p.y+(p.k==='oak'?2.6:3.4)*p.s; if(yh<p.y-0.3||yh>top) return;
+      t=th/Math.max(0.2,cp);
+    }else{
+      const flat=PROP_FLAT[p.k], soft=PROP_SOFT[p.k], r=Math.max(0.18,(PROP_FOOT[p.k]||0.3)*p.s*(flat?0.85:soft?1:0.8));
+      const rv=flat?0.35:soft?0.45:r*0.7, cy=p.y+(flat?0.05:soft?0.25:rv*0.6);
+      t=ray(p.x,cy,p.z,r,rv);
+    }
+    if(t<0||t>2.8) return;
+    const sc=t-(fit(p)?1.2:0);
     if(sc<bs){ bs=sc; best=p; }
   });
   /* 노거수 줄기 — 줄기 겉까지 1.6 m 안이면 후보(줄기가 굵어 가운데까지 재면 늘 멀다). 도끼를 들었으면 똑같이 앞선다 */

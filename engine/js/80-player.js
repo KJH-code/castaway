@@ -150,6 +150,7 @@ function diePL(why){
     +'가진 것은 그대로지만 배는 절반만 차 있다.';
   document.getElementById('bStart').textContent='깨어나기';
   ov.style.display='flex';
+  if(typeof titleDeath==='function') titleDeath(why);   // 브라운관을 끄듯 꺼지고 빨간 DEAD(91-title.js) — 글자 화면은 그 밑의 대비책
 }
 /* 깨어나기 — 짐은 그대로 두고 표류물 곁으로 돌려보낸다. 죽음이 가벼우면
    높이도 물도 무섭지 않으니, 배를 절반으로 깎아 대가를 남긴다. */

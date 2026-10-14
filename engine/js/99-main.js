@@ -82,6 +82,7 @@ function loop(){
   const tr=PO?performance.now():0;
   if(PO) PERF.gpuBegin();
   try{ LIGHT.flush(); renderFrame(); }catch(e){ showErr('렌더',e); }   // 새로 붙은 물체는 그리기 전에 배역을 받는다
+  if(TITLE.snapWant) titleSnapTake();                                   // 쓰러진 순간의 그림 — 그린 직후에 떠 둔다(91-title.js)
   if(PO){ PERF.gpuEnd(); PERF.lap(6,tr); PERF.frame(now); }
 }
 
