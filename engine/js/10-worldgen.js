@@ -544,6 +544,12 @@ function caveSites(seed){
   let hi=0; for(let i=0;i<F.elev.length;i++) if(F.elev[i]>hi) hi=F.elev[i];
   const okAt=(x,z)=>{ const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2); if(gx<4||gz<4||gx>N-5||gz>N-5) return false;
     const i=IDX(gx,gz); return F.elev[i]>2.5&&!F.river[i]&&F.slope[i]<0.6; };
+  /* 지형 판 6: 방 안으로 비탈이 솟아 들어오는 자리는 버린다 — 87 굴 중 4 개에서 산허리가 방 바닥을 뚫고 올라왔다(사용자 지적).
+     방 가운데 바닥보다 0.55R 고리에서 1.2 m · 0.85R 고리에서 2.0 m 넘게 높은 데가 있으면 그 방은 안 된다 */
+  const TV6=(P.tv|0)>=6;
+  const bulge=rm=>{ for(let k=0;k<16;k++){ const a=k/16*6.283, c=Math.cos(a), s=Math.sin(a);
+      if(heightAt(rm.x+c*rm.R*0.55,rm.z+s*rm.R*0.55)-rm.y>1.2||heightAt(rm.x+c*rm.R*0.85,rm.z+s*rm.R*0.85)-rm.y>2.0) return true; }
+    return false; };
   for(let tries=0;tries<90000&&CAVES.length<want;tries++){
     const gx=6+((rnd()*(N-12))|0), gz=6+((rnd()*(N-12))|0), i=IDX(gx,gz), h=F.elev[i];
     if(h<3*WS||h>hi*0.8||F.river[i]||F.slope[i]<0.14||F.slope[i]>0.46) continue;
@@ -553,9 +559,11 @@ function caveSites(seed){
     /* 굴 하나는 방 1~3 개가 등고선을 따라 이어진 것이다. 방마다 터진 데(open): 입구 · 이웃 방 쪽 */
     const rooms=[{x,z,y:heightAt(x,z),R:5.4+rnd()*1.6,open:[yaw]}], nR=1+((rnd()*3)|0);
     let dir=yaw+(rnd()<0.5?1:-1)*(1.45+rnd()*0.25);
+    if(TV6&&bulge(rooms[0])) continue;
     for(let k=1;k<nR;k++){ const a=rooms[k-1], R=4.6+rnd()*1.6, D=a.R+R+0.8, bx=a.x+Math.cos(dir)*D, bz=a.z+Math.sin(dir)*D;
       if(!okAt(bx,bz)) break;
-      a.open.push(dir); rooms.push({x:bx,z:bz,y:heightAt(bx,bz),R,open:[dir+Math.PI]}); dir+=(rnd()-0.5)*1.1; }
+      const rm={x:bx,z:bz,y:heightAt(bx,bz),R,open:[dir+Math.PI]}; if(TV6&&bulge(rm)) break;
+      a.open.push(dir); rooms.push(rm); dir+=(rnd()-0.5)*1.1; }
     CAVES.push({x,z,y:rooms[0].y,yaw,rooms,seed:(rnd()*1e9)|0});
   }
   for(const c of CAVES) for(const r of c.rooms){ const k=caveKey(Math.floor(r.x/CAVE_G),Math.floor(r.z/CAVE_G)); let a=CAVE_GRID.get(k); if(!a) CAVE_GRID.set(k,a=[]); a.push(r); r.cave=c; }
@@ -570,7 +578,50 @@ function caveSites(seed){
       put.push([px,pz]); p.x=px; p.z=pz; p.y=heightAt(px,pz); p.s=Math.min(p.s,0.95); p.cave=1; }
     c.ore=n;
   }
+  if(TV6) oreToCaves(rnd);
   PROPS=PROPS.filter(p=>p.cave||!caveAt(p.x,p.z,4.4));   // 굴 자리에 서 있던 나무·바위는 치운다(지붕을 뚫고 나온다)
+  if(TV6) surfaceRocks();
+}
+/* 지형 판 6 — **광석은 굴 속에만**(늪철광은 늪에). 굴마다 가까운 것을 채우고도 남은 바깥 광석 중 굴에 너무 적게 든 광종(열둘
+   아래)은 가장 가까운 굴 방으로 더 옮기고, 나머지는 surfaceRocks 가 그 자리의 바위로 바꾼다 */
+function oreToCaves(rnd){
+  const rooms=[]; for(const c of CAVES) for(const r of c.rooms) rooms.push(r);
+  if(!rooms.length) return;
+  for(const k of CAVE_ORE){
+    let have=0; const out=[];
+    for(const p of PROPS) if(p.k===k){ if(p.cave) have++; else if(!(k==='iron'&&bogAt(p.x,p.z))) out.push(p); }
+    for(let j=0;have<12&&j<out.length;j++,have++){ const p=out[j];
+      let best=rooms[0], bd=1e18; for(const r of rooms){ const d=(r.x-p.x)*(r.x-p.x)+(r.z-p.z)*(r.z-p.z); if(d<bd){ bd=d; best=r; } }
+      const a=rnd()*6.283, rr=0.8+rnd()*(best.R-2.4);
+      p.x=best.x+Math.cos(a)*rr; p.z=best.z+Math.sin(a)*rr; p.y=heightAt(p.x,p.z); p.s=Math.min(p.s,0.95); p.cave=1; best.cave.ore=(best.cave.ore|0)+1; }
+  }
+}
+function bogAt(x,z){ const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2);
+  return gx>=0&&gz>=0&&gx<N&&gz<N&&F.biome[IDX(gx,gz)]===B.MARSH; }
+/* 바깥에 남은 광석 · 낮은 데 화강암을 그 자리의 바위로 — 어느 바위인지는 땅이 정한다.
+   · 분기공 언저리(fuma · 분기공 중심에서 반지름의 2.4 배 안) → 현무암: 화산이 흘린 용암이 식은 검은 돌. 기둥 결로 쪼개진다
+   · 바다 가까운 낮은 모래땅(해빈·사구 · 물에서 25 m 안) → 사암: 모래가 굳어 켜가 진 돌
+   · 낮은 땅(높이 0.35 아래 · 바위밭이 아니면 0.5 아래) → 석회암: 얕은 바다 밑에 쌓인 조개껍데기가 굳어 솟은 흰 돌
+   · 그 밖은 화강암. 크기는 원래 몸 반지름을 넘지 않게 줄인다(겹침 정리를 다시 하지 않아도 이웃과 안 부딪힌다).
+   화강암은 섬에 예순 개 넘게 남긴다(화입법 · 석재가 끊기지 않게) */
+function surfaceRocks(){
+  let hi=0; for(let i=0;i<F.elev.length;i++) if(F.elev[i]>hi) hi=F.elev[i];
+  let gran=0; for(const p of PROPS) if(p.k==='granite') gran++;
+  for(const p of PROPS){
+    if(p.cave||!(CAVE_ORE.indexOf(p.k)>=0||p.k==='granite')) continue;
+    if(p.k==='iron'&&bogAt(p.x,p.z)) continue;                       // 늪철광은 늪에 그대로
+    const gx=Math.round(p.x/CELL+N/2), gz=Math.round(p.z/CELL+N/2); if(gx<0||gz<0||gx>=N||gz>=N) continue;
+    const i=IDX(gx,gz), b=F.biome[i], h=F.elev[i];
+    const fd=Math.hypot(p.x-fumaCenter.x,p.z-fumaCenter.z)/Math.max(1,fumaCenter.r);
+    const k = (F.fuma[i]>0.10||fd<2.4) ? 'basalt'
+            : (h<hi*0.20&&(b===B.BEACH||b===B.DUNE||F.dWater[i]<25)) ? 'sandstone'
+            : (h<hi*0.35||(h<hi*0.50&&b!==B.ROCK&&b!==B.SCREE)) ? 'karst' : 'granite';
+    if(k===p.k) continue;
+    /* 화강암은 일부만 바꾼다 — 현무암 지대 넷에 셋 · 낮은 땅 넷에 하나 · 바닷가 여덟에 하나(바닷가 벼랑 밑 바위가 몽땅 사암이 되면 화강암 섬이 아니다) */
+    if(p.k==='granite'){ if(gran<=60||(hashStr('rk|'+Math.round(p.x)+'|'+Math.round(p.z))&7)>=(k==='basalt'?6:k==='karst'?2:1)) continue; gran--; }
+    else if(k==='granite') gran++;
+    p.s=Math.min(p.s,p.s*PROP_FOOT[p.k]/PROP_FOOT[k]); p.k=k;
+  }
 }
 function worldRescale(S){
   S=(S>=1&&S<=6)?Math.round(S):1;                      // 1~6배(6배 = 한 변 11.5 km)
@@ -662,7 +713,7 @@ function placeResources(seed){
   const occ=new Uint8Array(N*N);          // 노드 과밀 방지 격자
   // 암석류는 크기 편차를 훨씬 크게 준다 — 자갈부터 큰 바위까지 섞여야 자연스럽다
   const ROCKY={granite:1,pebble:1,flint:1,copper:1,iron:1,coal:1,zinc:1,galena:1,
-               cinnabar:1};
+               cinnabar:1,basalt:1,karst:1,sandstone:1};
   const push=(k,x,z)=>{
     const i=IDX(x,z);
     let sc=0.75+rnd()*0.6;                 // 공통 편차 0.75~1.35
@@ -683,6 +734,7 @@ function placeResources(seed){
   for(const R of RESOURCES){
     const fn=suit[R.k], isTree=(R.k==='oak'||R.k==='fir');
     let placed=0;
+    if(!fn){ counts[R.k]=0; continue; }                 // 현무암 · 석회암 · 사암은 흩뿌리지 않는다 — surfaceRocks 가 바꿔 세운다
     /* 키운 섬(배율 2·3)은 칸 하나가 4·9배 넓다 — 넓이당 밀도를 지키려면 칸에 여럿이 서야 하고(DSCALE 이 확률을 그만큼 올린다 ·
        1 을 넘는 몫은 그 수만큼 세운다), 상한(max)도 넓이만큼 는다. 배율 1 은 예전 코드 그대로다(난수 차례가 같아야 같은 섬이다) */
     /* 지형 판 2: 금속 광석은 겉에 절반만 나고(나머지는 굴 속에 모인다 — caveSites) 화강암이 그만큼 흔하다 */
@@ -778,6 +830,7 @@ function placeResources(seed){
    ========================================================================== */
 /* 바위는 다 빚은 뒤 울퉁불퉁한 겉이 `ROCK_R` 보다 최대 1.25배(방연석은 정육면체로 당겨 1.67배) 나간다 — 섬 하나에서 잰 몸 반지름의 최댓값 */
 const PROP_FOOT={granite:2.25,copper:1.31,iron:1.19,coal:1.19,zinc:1.06,galena:1.42,cinnabar:1.0,tin:1.0,sulfur:0.73,
+                 basalt:1.75,karst:1.9,sandstone:1.9,
                  flint:0.18,pebble:0.13, oak:0.6,fir:0.5, clay:1.9,sand:2.0};
 const PROP_FLAT={clay:1,sand:1}, PROP_SOFT={grass:1,reed:1};
 let PROP_ORIG=[];

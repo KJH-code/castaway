@@ -389,7 +389,14 @@ const HABIT={
   iron    :{amp:0.16,bump:3.2,nb:3,cuts:3,deep:0.84,cube:0.00,smooth:0.92,flat:0.82,st:0.34,sh:2},
   copper  :{amp:0.18,bump:3.6,nb:3,cuts:2,deep:0.86,cube:0.00,smooth:0.94,flat:0.80,st:0.36,sh:2},
   tin     :{amp:0.15,bump:3.0,nb:3,cuts:4,deep:0.82,cube:0.00,smooth:0.92,flat:0.84,st:0.34,sh:2},
-  zinc    :{amp:0.14,bump:3.0,nb:3,cuts:4,deep:0.80,cube:0.20,smooth:0.92,flat:0.82,st:0.32,sh:2}
+  zinc    :{amp:0.14,bump:3.0,nb:3,cuts:4,deep:0.80,cube:0.20,smooth:0.92,flat:0.82,st:0.32,sh:2},
+  /* 지형 판 6 의 바위(10-worldgen.js surfaceRocks)
+     현무암 — 용암이 식으며 오그라들어 기둥 결로 갈라진다. 모난 면이 많고 위가 평평하다
+     석회암 — 빗물에 녹아 둥글게 닳고 잔 구멍이 숭숭하다
+     사암   — 모래가 켜로 굳었다. 납작한 판이 포개진 꼴 */
+  basalt  :{amp:0.07,bump:2.4,nb:2,cuts:6,deep:0.80,cube:0.35,smooth:0.86,flat:0.92,st:0.24,sh:3},
+  karst   :{amp:0.20,bump:4.2,nb:5,cuts:2,deep:0.86,cube:0.00,smooth:0.96,flat:0.72,st:0.36,sh:3,rough:0.12},
+  sandstone:{amp:0.10,bump:2.2,nb:3,cuts:3,deep:0.80,cube:0.15,smooth:0.90,flat:0.55,st:0.40,sh:3}
 };
 const HABIT0={amp:0.24,bump:5.0,nb:3,cuts:0,deep:1,cube:0,smooth:0.90,flat:1,st:0.36};
 
@@ -896,7 +903,10 @@ function buildProps(){
     coal:   [new THREE.IcosahedronGeometry(0.95,0)],
     zinc:   [new THREE.IcosahedronGeometry(0.85,0)],
     galena: [new THREE.BoxGeometry(0.95,0.85,0.95)],  // 방연석은 정육면체로 쪼개진다
-    cinnabar:[new THREE.DodecahedronGeometry(0.75,0)]
+    cinnabar:[new THREE.DodecahedronGeometry(0.75,0)],
+    basalt: [new THREE.IcosahedronGeometry(1.4,0)],
+    karst:  [new THREE.IcosahedronGeometry(1.5,0)],
+    sandstone:[new THREE.IcosahedronGeometry(1.5,0)]
   };
   /* 둔덕 — 반구를 눌러 만든 **매끈한** 언덕. 예전엔 면마다 각진 다각형이라 볕을 받으면 종이접기처럼 조각조각 나뉘어
      흰 모래 위에 둥둥 떠 보였다(사용자 지적: 모래가 기괴하다). 색인 있는 구라 법선이 이웃 면끼리 이어진다.
@@ -923,7 +933,7 @@ function buildProps(){
      같은 돌이 두 번 나오지 않는다.
      인스턴싱 대신 종류별로 정점을 한 버퍼에 이어 붙여 드로우콜은 1개로 유지한다. */
   const ROCK_R={granite:1.8,copper:1.05,iron:0.95,coal:0.95,zinc:0.85,galena:0.85,
-               cinnabar:0.8,tin:0.8,
+               cinnabar:0.8,tin:0.8,basalt:1.4,karst:1.5,sandstone:1.5,
                 sulfur:0.55,flint:0.18,pebble:0.13};
   // 기준 껍질의 '중복 없는 꼭짓점' 목록을 한 번만 뽑아 둔다 (80면 → 꼭짓점 42개)
   function makeShell(detail){

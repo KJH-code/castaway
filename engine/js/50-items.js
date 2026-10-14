@@ -273,6 +273,9 @@ const ITEMS={
                sips:4, drink:{n:40, empty:'bucket_iron'}},
   /* 석회석 — 자갈밭에 드문드문 섞인 흰 돌(30-props.js RUBBLE). 구우면 석회, 석회·재·모래·점토를 물에 개면 시멘트 */
   limestone:  {n:'석회석',     kg:0.8,  c:0xd9d5c6, use:'흰 돌 — 불에 구우면 석회가 된다(시멘트의 바탕)'},
+  /* 현무암 판돌 — 분기공 언저리의 현무암 노두(지형 판 6). 열을 오래 품는다 — 모닥불가에 두면 돌판구이를 한다 */
+  basalt_slab:{n:'현무암 판돌', kg:3.2,  c:0x3c3d3f, use:'열을 오래 품는 검은 판돌 — 모닥불에 달궈 돌판구이 · 석축',
+               tags:['slab']},
   /* 시멘트 — 통마다 남은 양(amt 0~1)이 다르다. 터를 다질 때 든 만큼만 줄어든다(통 다섯에 0.3 통이면 530%) */
   cement:     {n:'시멘트',     kg:5.2,  c:0x9c9d98, frac:1, tool:{level:1},
                use:'터 다지기 — 들고 땅을 보며 좌클릭. 집의 토대는 다진 터 위에만 선다'},
@@ -1010,7 +1013,12 @@ const MINE={
   // 화강암은 불에 달궈 균열이 생긴 뒤에야(tier 3 → 2) 떼어낼 수 있다
   granite:{item:'stone_block',label:'화강암 떼기', dur:6.0, stam:11, tier:3, uses:[3,6],
            fireset:0.35,   // 게임시간 21분 — 횃불이면 35분
-           extra:{id:'spodumene', p:0.25}}   // 페그마타이트 맥 — 네 번에 한 번꼴 리튬휘석이 딸려 나온다
+           extra:{id:'spodumene', p:0.25}},  // 페그마타이트 맥 — 네 번에 한 번꼴 리튬휘석이 딸려 나온다
+  /* 지형 판 6 의 바위 — 광석이 굴로 들어간 자리(10-worldgen.js surfaceRocks) */
+  basalt: {item:'basalt_slab',label:'현무암 떼기', dur:5.0, stam:10, tier:2, uses:[2,4]},
+  karst:  {item:'limestone',  label:'석회암 깨기', dur:3.0, stam:7,  tier:1, uses:[3,6],
+           extra:{id:'flint', p:0.30}},      // 백악·석회암에 박힌 처트 단괴
+  sandstone:{item:'stone_block',label:'사암 떼기', dur:4.2, stam:9, tier:2, uses:[2,3]}
 };
 const CHOP={
   oak:{item:'log', label:'나무 베기', dur:5.0, stam:10, yield:[1,1], logs:[2,3]},

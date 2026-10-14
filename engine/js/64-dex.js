@@ -43,11 +43,20 @@ const GEO={
                 +'다루기 쉽다 — 축전지의 극판이 여기서 나온다.'},
   cinnabar:{tier:'간이 곡괭이', where:'분기공 둘레에만 — 유황과 같은 자리',
            note:'열수가 식으며 앉은 붉은 딱지. 구우면 수은이 김으로 날아오른다. '
-                +'그 김은 마시면 안 된다. 뇌관의 뇌홍이 여기서 시작한다.'}
+                +'그 김은 마시면 안 된다. 뇌관의 뇌홍이 여기서 시작한다.'},
+  basalt: {tier:'경도 2', where:'분기공 언저리 — 화산이 흘린 용암',
+           note:'용암이 식으며 오그라들어 육각 기둥 결로 갈라진 검은 돌. 결을 따라 판돌로 떨어진다. '
+                +'열을 오래 품어 달궈 두면 고기·생선을 굽는 돌판이 된다.'},
+  karst:  {tier:'경도 1', where:'낮은 초지 · 숲 · 덤불',
+           note:'얕은 바다 밑에 쌓인 조개껍데기와 산호가 굳어 솟은 흰 돌. 빗물에 녹아 구멍이 숭숭하다. '
+                +'구우면 석회가 되고, 그 속에 박힌 부싯돌 단괴가 딸려 나온다.'},
+  sandstone:{tier:'경도 2', where:'바닷가 가까운 낮은 모래땅',
+           note:'모래가 켜켜이 쌓여 굳은 돌. 켜를 따라 쐐기를 박으면 반듯한 석재로 떨어진다 — '
+                +'화강암처럼 불로 달굴 필요가 없지만 무르다.'}
 };
 /* 사전 광물 탭에 싣는 차례 — 캐는 단계가 얕은 것부터 */
 const MINERALS=['flint','pebble','clay','sand','sulfur','iron','tin','coal','copper',
-                'granite','zinc','galena','cinnabar'];
+                'granite','basalt','karst','sandstone','zinc','galena','cinnabar'];
 
 /* 광물 삽화 — 게임 안 암석과 같은 배합표(`HABIT`)를 2차원으로 옮긴다.
    ① 혹으로 윤곽을 흔들고 ② 무작위 직선으로 잘라 내고(모난 면) ③ 정사각형 쪽으로
@@ -69,7 +78,10 @@ const LUSTRE={
   sulfur  :{met:0.18,tex:'botry'},  // 포도송이 혹
   cinnabar:{met:0.25,tex:'botry'},
   clay    :{met:0.00,tex:'smooth'},
-  sand    :{met:0.00,tex:'speck'}
+  sand    :{met:0.00,tex:'speck'},
+  basalt  :{met:0.05,tex:'crack'},  // 기둥 결
+  karst   :{met:0.02,tex:'smooth'},
+  sandstone:{met:0.00,tex:'step'}   // 켜
 };
 function mineralIcon(k,hex){
   if(ICONS[k]) return ICONS[k];

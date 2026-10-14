@@ -735,7 +735,8 @@ function harvestSfx(kind,field){
     case 'clay': case 'sand':  return 'dig';
     case 'iron': case 'tin':  return 'gravel';
     case 'coal':              return 'brittle';
-    case 'copper': case 'granite': return 'hardrock';
+    case 'copper': case 'granite': case 'basalt': return 'hardrock';
+    case 'karst': case 'sandstone': return 'brittle';
   }
   return 'stone';
 }
