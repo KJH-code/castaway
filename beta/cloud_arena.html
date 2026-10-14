@@ -1892,10 +1892,15 @@ const WIND_GLSL={
      ③ 조각 셰이더가 그 높이 안을 **그 자리의 땅 그림**으로 덮는다 — 땅 셰이더가 읽는 바이옴 색(`uBio`)에 땅의 얼룩(잡음 `uNz`)을
         곱한 것. 덮이는 금은 굵은 잡음이 혀처럼 올라오고 잔 잡음이 톱니를 내서 **들쭉날쭉**하다.
    값: 정점마다 덧셈 몇 번(통짜 메시는 텍스처 네 번) · 화소는 그 높이 안팎에서 텍스처 두 번(+ 덮이는 데서 두 번). 미리 구운 그림은 없다 */
+/* 땅 빛 텍스처가 없을 때(구름 시험장) 쓰는 '다 트인 볕' 한 화소 */
+let _noTLu=null;
+function _noTL(){ if(!_noTLu){ const t=new THREE.DataTexture(new Uint8Array([255,255,0,255]),1,1,THREE.RGBAFormat); t.needsUpdate=true; _noTLu={value:t}; } return _noTLu; }
 function envPatch(m){
   if(!m||m.userData._env) return;
   const lam=!!m.isMeshLambertMaterial, dep=!!m.isMeshDepthMaterial;
   const melt=lam&&m.userData.melt>0?+m.userData.melt:0, meltA=!!m.userData.meltAttr, meltT=!!m.userData.meltTex;
+  const leaf=lam&&(m.userData.wind==='leaf'||!!m.userData.leaf);
+  const amip=lam&&m.alphaTest>0&&!!m.map;             // 잘라 그리는 잎 판 — 멀어져도 안 성기게(아래 '잎 판의 덮개')   // 잎 — 해를 등진 면에 비쳐 드는 빛을 준다(아래 '잎에 비쳐 드는 빛')
   /* 바람 흔들림은 껐다(`WIND_ON`) — 풀·잎·베리·가지 정점마다 사인파를 셌는데, 정점이 한 프레임에
      수백만 개라 가장 비싼 축에 들었다. 켜려면 true 로(코드는 그대로 남아 있다). */
   const wind=WIND_ON&&m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';
@@ -1905,16 +1910,19 @@ function envPatch(m){
   m.onBeforeCompile=(sh,r)=>{
     if(prev&&prev!==THREE.Material.prototype.onBeforeCompile) prev(sh,r);
     Object.assign(sh.uniforms,{csFine:CSH.fine, csCoarse:CSH.coarse, csC:CSH.ctr,
-      csS:CSH.size, csOn:CSH.on, uTime:CSH.time, uWind:CSH.wind});
-    if(melt){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
+      csS:CSH.size, csOn:CSH.on, uTime:CSH.time, uWind:CSH.wind,
+      // 구름 시험장엔 땅이 없다(TERR_U·TLIT 없음) — 빈 값으로 세운다(예전엔 여기서 시험장이 통째로 멈췄다)
+      uTLe:typeof TERR_U!=='undefined'?TERR_U.uTL:_noTL(), uTLg:typeof TLIT!=='undefined'?TLIT.G:{value:new THREE.Vector2(1,1)},
+      uDew:typeof TERR_U!=='undefined'?TERR_U.uDew:{value:0}});
+    if(melt&&typeof TERR_U!=='undefined'){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
       for(const k in MU) if(MU[k]&&!sh.uniforms[k]) sh.uniforms[k]=MU[k]; }
     const has=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.vertexShader+sh.fragmentShader);   // 제 셰이더가 이미 선언했으면 다시 안 한다
     const MV=melt?(has('uElev')?'':'uniform sampler2D uElev;\n')+(has('uGrid')?'':'uniform vec2 uGrid;\n')+(meltA?'attribute float aMelt;\n':'')+`varying float vMeltH;
 varying float vMeltT;
-float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.x-1.0))),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*300.0-100.0; }
+float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.x-1.0))),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*1200.0-100.0; }
 `:'';
     const W=WIND_GLSL[wind]||'';
-    sh.vertexShader='uniform float uTime;\nuniform vec3 uWind;\nvarying vec2 vCsXZ;\n'+MV+
+    sh.vertexShader='uniform float uTime;\nuniform vec3 uWind;\nvarying vec2 vCsXZ;\n'+(leaf?'varying vec3 vDewW;\n':'')+MV+
       sh.vertexShader.replace('#include <project_vertex>',`
       vec4 wpos=vec4(transformed,1.0);
       vec4 wb4=vec4(0.0,0.0,0.0,1.0);
@@ -1942,6 +1950,7 @@ float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.
         vMeltH=mH; vMeltT=mT;
       }`:''}
       vCsXZ=wpos.xz;
+      ${leaf?'vDewW=wpos.xyz;':''}
       vec4 mvPosition=viewMatrix*wpos;
       gl_Position=projectionMatrix*mvPosition;`);
     if(lam) sh.fragmentShader=`uniform sampler2D csFine;
@@ -1950,13 +1959,36 @@ uniform vec2 csC;
 uniform float csS;
 uniform float csOn;
 varying vec2 vCsXZ;
+uniform sampler2D uTLe;
+uniform vec2 uTLg;
+vec4 tlE(){ return texture2D(uTLe,(vCsXZ/uTLg.y+uTLg.x*0.5+0.5)/uTLg.x); }
 float cloudSh(){
   vec2 uv=(vCsXZ-csC)/csS+0.5;
   vec2 e=smoothstep(0.0,0.08,uv)*smoothstep(0.0,0.08,1.0-uv);
   float t=(texture2D(csFine,uv).r+texture2D(csCoarse,uv).r)*${CS_TAU.toFixed(1)};
-  return mix(1.0,exp(-t),csOn*e.x*e.y);
+  return mix(1.0,exp(-t),csOn*e.x*e.y)*tlE().r;                 // × 산 그림자(41-terrain-light.js)
 }
-`+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();');
+`+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh();')
+      /* 간접광(하늘빛)에 하늘 트임을 곱한다 — 골짜기·벼랑 밑은 하늘이 좁다. 벽에서 되비치는 몫 0.45 는 남긴다 */
+      .replace('reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb );','reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb ) * ( 0.45 + 0.55 * tlE().g );');
+    /* 잎에 비쳐 드는 빛 — 잎은 얇아 볕의 일부가 뒤로 샌다. 보이는 면이 해를 등졌으면 반대쪽 면이 받은 볕의 0.4 를 더한다
+       (양면 재질만 — 반대쪽 면의 몫 `vLambWB`/`vLambW` 가 이미 정점에서 세어져 있다). 잎 빛깔을 지나 나오니 연둣빛이다 */
+    /* **잎 판의 덮개** — 그림을 잘라 그리는 잎(alphaTest)은 멀어져 작은 밉맵을 읽으면 알파가 평균으로 묽어져 문턱 밑으로 떨어지고, 잎이
+       숭숭 빠져 나무가 부서져 보였다(사용자 지적). 읽는 밉맵 단계만큼 알파를 돋운다(단계마다 30%) — 가까이는 그대로 */
+    if(amip) sh.fragmentShader=sh.fragmentShader.replace('#include <alphatest_fragment>',
+      '#ifdef USE_MAP\n\t{ vec2 amS=vec2(textureSize(map,0)), amX=dFdx(vUv*amS), amY=dFdy(vUv*amS); diffuseColor.a*=1.0+0.30*max(0.0,0.5*log2(max(dot(amX,amX),dot(amY,amY)))); }\n#endif\n#include <alphatest_fragment>');
+    if(leaf) sh.fragmentShader=sh.fragmentShader.replace('vec4 lambW = ( gl_FrontFacing ) ? vLambW : vLambWB;',
+      'vec4 lambW = ( gl_FrontFacing ) ? vLambW : vLambWB;\n\t\tlambW.x += ( ( gl_FrontFacing ) ? vLambWB.x : vLambW.x ) * 0.40;');
+    /* 이슬 맺힌 잎의 반짝임(98-dew.js ②) — 세계 좌표의 잔 칸(거리에 비례 — 화소 하나쯤)마다 난수 하나, 문턱을 넘는 칸이 해의 빛깔로 빛난다.
+       해의 몫(그림자·구름 그늘·산 그림자)에 곱하니 그늘에서는 안 반짝인다. 눈이 움직이면 자리가 바뀐다 */
+    if(leaf){ const OUT='vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;';
+      if(sh.fragmentShader.split(OUT).length===2) sh.fragmentShader='varying vec3 vDewW;\nuniform float uDew;\n'+sh.fragmentShader.replace(OUT,`vec3 dewG = vec3( 0.0 );
+	#if NUM_DIR_LIGHTS > 0
+	if( uDew > 0.01 ){ vec3 dv = cameraPosition - vDewW; float dd = length( dv ), cs = max( 0.010, dd * 0.0024 );
+		float hh = fract( sin( dot( floor( vDewW / cs ), vec3( 127.1, 311.7, 74.7 ) ) + floor( dot( dv / dd, vec3( 31.0, 17.0, 23.0 ) ) ) * 13.7 ) * 43758.5453 );
+		dewG = directionalLights[ 0 ].color * ( smoothstep( 0.988, 1.0, hh ) * smoothstep( 60.0, 12.0, dd ) * 6.0 + 0.05 ) * lambW.x * getShadowMask() * cloudSh() * uDew; }
+	#endif
+	vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance + dewG;`); }
     if(melt){
       const fh=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.fragmentShader);
       sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')
@@ -1976,7 +2008,7 @@ float cloudSh(){
   /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
      다른 램버트 재질과 같은 프로그램으로 묶여 제 코드가 통째로 빠졌다 */
   const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
-  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(melt?'m'+melt+(meltA?'a':'')+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
+  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(leaf?'L':'')+(amip?'M':'')+(melt?'m'+melt+(meltA?'a':'')+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
   m.needsUpdate=true;
 }
 
@@ -2010,8 +2042,17 @@ const _cl=[0,0,0];
    세 점(위·가운데·아래)을 평균해 반그림자를 낸다. 지평선 가까이에선 공기가 빛을
    굽혀(굴절, 지평선에서 0.57°) 해가 실제보다 높이 보이므로 그만큼 올려 계산한다.
    빛줄기에서 가장 낮은 곳(접점) 둘레가 가장 짙으므로 거기로 걸음을 몰아 준다. */
+/* 수치는 실측·표준값이다 —
+   · 레일리·오존 · 높이 척도 8 km / 1.2 km · 오존 천막(25 km ± 15 km): Bruneton 2017 · Hillaire 2020(언리얼 하늘) 지구 대기 값 그대로
+   · 에어로졸은 **섬의 바다 공기**(AERONET 섬 관측 — 전 지구 바다 평균 광학 두께 500 nm 0.11 · 옹스트룀 지수 0.6 ·
+     바다 에어로졸 단일 산란 알베도 0.97 · 비대칭 g 0.76). 550 nm 로 옮기면 0.11×(550/500)^−0.6 = 0.104.
+     예전엔 옹스트룀 1.3(도시·대륙 공기)·흡수 10% 였다. Bruneton 기본값(0.0053)은 산꼭대기처럼 깨끗한 공기라 바다엔 너무 맑다
+   · 땅 반사율 0.08(바다 0.06 · 섬 땅 0.15 — 섬은 대부분 바다에 둘러싸였다) — 다중 산란 표가 쓴다 */
 const ATM={Re:6371e3, Rt:6471e3, HR:8000, HM:1200,
-  bR:[5.802e-6,13.558e-6,33.1e-6], bO:[0.650e-6,1.881e-6,0.085e-6], ang:[0.76,1,1.34]};
+  bR:[5.802e-6,13.558e-6,33.1e-6], bO:[0.650e-6,1.881e-6,0.085e-6],
+  aod:0.104, ang:[Math.pow(680/550,-0.6),1,Math.pow(440/550,-0.6)], mx:1/0.97, alb:0.08};
+/* 땅 높이 에어로졸 산란계수(550 nm, 1/m) — 탁도 2.6 이 맑은 바다 공기 */
+const atmBM=turb=>ATM.aod/ATM.HM*turb/2.6;
 function _atmOD(h,el,turb,od){
   od[0]=od[1]=od[2]=0;
   const r0=ATM.Re+h, dx=Math.cos(el), dy=Math.sin(el);
@@ -2020,7 +2061,7 @@ function _atmOD(h,el,turb,od){
   if(disG>=0 && -b-Math.sqrt(disG)>0) return false;
   const cT=r0*r0-ATM.Rt*ATM.Rt, L=-b+Math.sqrt(Math.max(0,b*b-cT));   // 대기 끝까지
   const tT=clamp(-b,0,L);                                            // 접점
-  const bM=0.1/ATM.HM*turb/2.6;             // 550 nm 에어로졸 광학 두께 0.1 × 탁도/2.6
+  const bM=atmBM(turb);                     // 550 nm 에어로졸(바다 공기) × 탁도/2.6
   /* 접점이 앞에 있으면 두 토막(접점까지 거꾸로 · 접점부터 끝까지), 없으면 한 토막 —
      토막을 배열로 담아 돌던 것을 숫자로 푼다(부를 때마다 배열 셋이 버려졌다) */
   for(let sg=tT>0?0:1;sg<2;sg++){
@@ -2033,7 +2074,7 @@ function _atmOD(h,el,turb,od){
       if(alt<0) return false;
       const dR=Math.exp(-alt/ATM.HR)*ds, dM=Math.exp(-alt/ATM.HM)*ds,
             dO=Math.max(0,1-Math.abs(alt-25000)/15000)*ds;
-      for(let i=0;i<3;i++) od[i]+=ATM.bR[i]*dR+bM*ATM.ang[i]*1.1*dM+ATM.bO[i]*dO;
+      for(let i=0;i<3;i++) od[i]+=ATM.bR[i]*dR+bM*ATM.ang[i]*ATM.mx*dM+ATM.bO[i]*dO;
     }
   }
   return true;
@@ -2107,7 +2148,7 @@ function cloudLight(h,out){
    밤에는 달빛이 같은 식으로 흩어진다(밝은 면적에 비례해 아주 어둡게).
    **해가 빛을 끊는 각은 95° 로 늦췄다**(원래 식 92.3°) — 그대로 두면 해 지고 6분
    (게임시간)만에 하늘이 깜깜했다. 실제 시민박명은 해가 6° 아래로 갈 때까지다. */
-const SKYP={turb:2.6, exp:0.44, sun:22, gM:0.76, eye:1, ms:1.0};
+const SKYP={turb:2.6, exp:0.44, sun:22, gM:0.76, eye:1};
 /* 하늘도 구름·햇빛과 **같은 둥근 대기**(`ATM`)로 센다 — 단일 산란 레이마칭.
    눈(2 m)에서 보는 방향으로 대기 끝까지 걸어가며, 걸음마다 ① 그 점까지 오며 빛이
    잃는 몫(보는 쪽 광학 두께) ② 그 점에 해가 닿는 몫(해 쪽 광학 두께 — 땅에 막히면
@@ -2116,17 +2157,8 @@ const SKYP={turb:2.6, exp:0.44, sun:22, gM:0.76, eye:1, ms:1.0};
    해 쪽 지평선의 노랑·주황, 그 위 분홍, 반대편 지평선 위 분홍 띠(비너스 띠)와 그
    밑 검푸른 지구 그림자, 해 진 뒤 오존이 주황을 먹어 생기는 푸른·보랏빛 천정.
    예전 프리섬 식은 해가 지평선 밑이면 맞지 않는 식이라 이 띠들이 없었다.
-   여러 번 흩어지는 빛(다중 산란)은 따로 안 센다 — 레일리 쪽에만 등방 위상 2·`SKYP.ms`배를 얹어
-   어림한다(여러 번 튕겨 온 빛은 하늘빛이라 푸르다 — 에어로졸 쪽에 얹었더니 한낮 지평선이 누렜다)
-   (0.25 로 두었더니 공기가 두꺼운 지평선이 누렇게 어두웠다 — 실제 한낮 지평선은 천정보다 밝고 희다).
+   여러 번 흩어지는 빛(다중 산란)은 아래 다중 산란 표(`MSL` — Hillaire 2020)로 센다.
    셰이더(`SKY_FS`)와 **같은 식**이다(걸음 수만 적다) — 둘을 같이 고칠 것. */
-/* 다중 산란 어림 — 공기 한 점은 해만이 아니라 **둘레 하늘 전체**에 비춰진다. 그 빛(하늘빛,
-   푸르다: `SKYC`)이 그 점에서 등방으로 흩어져 눈까지 오는 몫을 더한다. 세기는 해 높이를
-   따른다(`_skyIll` — 해가 낮으면 빨리 준다, 해 진 뒤 −6° 까지는 2% 가 남는다(시민박명의 짙은 파랑). 느슨하게 두었더니 노을의
-   주황 띠를 파란 빛이 덮고 해 진 뒤 하늘이 한낮처럼 파랬다). 공기가 두꺼운 지평선이 이 몫으로 밝고 희어진다
-   (실제 한낮 지평선은 천정보다 밝다). 하나만 쓰면 지평선이 누런 갈색 띠였다. */
-const SKYC=[0.55,0.75,1.0];
-const _skyIll=y=>Math.pow(clamp((y+0.02)/1.02,0,1),1.2)+0.02*clamp((y+0.1)/0.1,0,1);
 /* 공과 만나는 두 거리를 `_hs` 에 적고 만났는지만 돌려준다 — 예전엔 [가까운, 먼] 배열을 새로 만들어
    돌려줬는데, 하늘 한 프레임에 400번(산란 17번 × 12걸음 × 2)이라 그대로 쓰레기였다 */
 const _hs=[0,0];
@@ -2141,37 +2173,127 @@ function _odSun(px,py,pz,sx,sy,sz,bM,od){
   for(let k=1;k<=N;k++){ const u=k/N, tt=L*u*u, ds=tt-prev, tm=(tt+prev)/2; prev=tt;
     const alt=Math.hypot(px+sx*tm,py+sy*tm,pz+sz*tm)-ATM.Re;
     const r=Math.exp(-alt/ATM.HR)*ds, m=Math.exp(-alt/ATM.HM)*ds, o=Math.max(0,1-Math.abs(alt-25000)/15000)*ds;
-    for(let i=0;i<3;i++) od[i]+=ATM.bR[i]*r+bM*ATM.ang[i]*1.1*m+ATM.bO[i]*o; }
+    for(let i=0;i<3;i++) od[i]+=ATM.bR[i]*r+bM*ATM.ang[i]*ATM.mx*m+ATM.bO[i]*o; }
 }
-const _oS=[0,0,0], _oV=[0,0,0];
+const _oS=[0,0,0], _oV=[0,0,0], _ms3=[0,0,0];
+/* ── 다중 산란 표(MSL) — Hillaire 2020 「A Scalable and Production Ready Sky and Atmosphere Rendering Technique」 ──
+   하늘빛의 상당 몫(낮 지평선의 흰 기운 · 해 진 뒤 박명의 푸른빛 대부분)은 **두 번 이상 흩어진 빛**이다.
+   예전엔 이걸 '푸른 하늘빛 × 해 높이로 줄인 세기(_skyIll)' 라는 눈대중 식으로 얹었다(색·세기 모두 손으로 맞춘 값).
+   이제 논문 식 그대로 센다: 높이 h · 해 천정각 cos μs 마다, 그 점에서 64 방향(8×8 고른 구면)으로 대기를 20 걸음 걸어
+     L₂ = 한 번 흩어져 그 점으로 돌아오는 빛(등방 위상 1/4π · 지구 그림자 · 땅 반사 `ATM.alb`)
+     f  = 그 점에서 나간 빛 1 이 다시 그 점으로 흩어져 돌아오는 몫
+   을 평균하고, 차수를 무한히 더해 Ψ = L₂ / (1 − f)(등비급수 — 논문 식 10). 하늘을 걸을 때 걸음마다 Ψ(h, μs) × 산란계수를 더한다.
+   표는 32(μs, −1~1) × 16(√높이, 0~100 km), 탁도마다 다르다 — 탁도를 0.5 칸으로 끊어 담아 두고(`MSL.cache`), 새 칸은
+   프레임마다 3 ms 씩 나눠 짓는다(다 지을 때까지는 가까운 칸 것을 쓴다). 셰이더엔 RGBE(8비트 셋 + 공통 지수)로 올린다
+   — 실수 텍스처는 헤드리스가 못 읽는다. **JS(`skyScatter`)와 셰이더(`scat`)가 같은 표를 쓴다.** */
+const MSL={NM:32, NH:16, cur:null, curT:-1, cache:new Map(), job:null, tex:null, bytes:null};
+function _msCell(data,im,ih,turb){
+  const NM=MSL.NM, NH=MSL.NH, mu=im/(NM-1)*2-1, hv=ih/(NH-1), h=hv*hv*(ATM.Rt-ATM.Re-1)+1;
+  const sx=Math.sqrt(Math.max(0,1-mu*mu)), sy=mu, oy=ATM.Re+h, bM=atmBM(turb), N=20, SQ=8;
+  let L0=0,L1=0,L2=0,F0=0,F1=0,F2=0;
+  for(let a=0;a<SQ;a++) for(let b=0;b<SQ;b++){
+    const th=2*Math.PI*(a+0.5)/SQ, cph=1-2*(b+0.5)/SQ, sph=Math.sqrt(1-cph*cph);
+    const dx=Math.cos(th)*sph, dz=Math.sin(th)*sph, dy=cph;
+    let tMax, ground=false;
+    if(_hitS(0,oy,0,dx,dy,dz,ATM.Re)&&_hs[0]>0){ tMax=_hs[0]; ground=true; }
+    else tMax=_hitS(0,oy,0,dx,dy,dz,ATM.Rt)?Math.max(0,_hs[1]):0;
+    let t0=1,t1=1,t2=1, t=0;
+    for(let k=0;k<N;k++){
+      const nt=tMax*(k+0.3)/N, dt=nt-t; t=nt;
+      const px=dx*t, py=oy+dy*t, pz=dz*t, alt=Math.hypot(px,py,pz)-ATM.Re;
+      const r=Math.exp(-alt/ATM.HR), m=Math.exp(-alt/ATM.HM), o=Math.max(0,1-Math.abs(alt-25000)/15000);
+      _odSun(px,py,pz,sx,sy,0,bM,_oS);
+      const shade=_oS[0]>=60?0:1;
+      for(let c=0;c<3;c++){
+        const ss=ATM.bR[c]*r+bM*ATM.ang[c]*m, se=ATM.bR[c]*r+bM*ATM.ang[c]*ATM.mx*m+ATM.bO[c]*o;
+        const Ts=Math.exp(-se*dt), thr=c===0?t0:c===1?t1:t2;
+        const S=shade*Math.exp(-_oS[c])*ss*0.0795775, k2=(1-Ts)/Math.max(se,1e-12);
+        if(c===0){ L0+=thr*S*k2; F0+=thr*ss*k2; t0*=Ts; } else if(c===1){ L1+=thr*S*k2; F1+=thr*ss*k2; t1*=Ts; } else { L2+=thr*S*k2; F2+=thr*ss*k2; t2*=Ts; }
+      }
+    }
+    if(ground){   // 땅에서 튕긴 빛 — 람베르트, 반사율 ATM.alb
+      const px=dx*tMax, py=oy+dy*tMax, pz=dz*tMax, R=Math.hypot(px,py,pz), ndl=Math.max(0,(px*sx+py*sy)/R);
+      _odSun(px*(1+1e-6),py*(1+1e-6),pz*(1+1e-6),sx,sy,0,bM,_oS);
+      if(_oS[0]<60){ const g=ndl*ATM.alb/Math.PI; L0+=t0*Math.exp(-_oS[0])*g; L1+=t1*Math.exp(-_oS[1])*g; L2+=t2*Math.exp(-_oS[2])*g; }
+    }
+  }
+  const n=SQ*SQ, j=(ih*NM+im)*3;
+  data[j]=(L0/n)/(1-Math.min(0.99,F0/n)); data[j+1]=(L1/n)/(1-Math.min(0.99,F1/n)); data[j+2]=(L2/n)/(1-Math.min(0.99,F2/n));
+}
+const msKey=turb=>Math.round(clamp(turb,1,30)*2)/2;
+/* 탁도의 표를 갖춘다 — sync 면 그 자리에서 다 짓고, 아니면 프레임마다 budget ms 씩 짓는다 */
+function msEnsure(turb,sync,budget){
+  const key=msKey(turb);
+  if(MSL.curT===key&&MSL.cur) return;
+  let d=MSL.cache.get(key);
+  if(!d){
+    if(!MSL.job||MSL.job.key!==key) MSL.job={key, data:new Float32Array(MSL.NM*MSL.NH*3), i:0};
+    const J=MSL.job, t0=performance.now(), all=MSL.NM*MSL.NH;
+    while(J.i<all){ _msCell(J.data,J.i%MSL.NM,(J.i/MSL.NM)|0,key); J.i++;
+      if(!sync&&MSL.cur&&performance.now()-t0>(budget||3)) return; }
+    d=J.data; MSL.cache.set(key,d); MSL.job=null;
+    if(MSL.cache.size>24) MSL.cache.delete(MSL.cache.keys().next().value);
+  }
+  MSL.cur=d; MSL.curT=key; msUpload();
+}
+/* RGBE — 셋을 공통 지수로 8비트에 담는다(상대 오차 0.4%) */
+function msUpload(){
+  if(!MSL.tex||!MSL.cur) return;
+  const d=MSL.cur, b=MSL.bytes, n=MSL.NM*MSL.NH;
+  for(let i=0;i<n;i++){
+    const r=d[i*3], g=d[i*3+1], bl=d[i*3+2], m=Math.max(r,g,bl);
+    if(m<1e-30){ b[i*4]=b[i*4+1]=b[i*4+2]=b[i*4+3]=0; continue; }
+    const e=Math.ceil(Math.log2(m)), sc=Math.pow(2,-e)*255;
+    b[i*4]=Math.min(255,Math.round(r*sc)); b[i*4+1]=Math.min(255,Math.round(g*sc)); b[i*4+2]=Math.min(255,Math.round(bl*sc));
+    b[i*4+3]=clamp(e+136,0,255);
+  }
+  MSL.tex.needsUpdate=true;
+}
+/* 표 읽기(쌍선형) — h: 높이(m) · mu: 그 자리의 해 천정각 cos */
+function msAt(h,mu,out){
+  const d=MSL.cur; if(!d){ out[0]=out[1]=out[2]=0; return out; }
+  const NM=MSL.NM, NH=MSL.NH;
+  let fx=(clamp(mu,-1,1)*0.5+0.5)*(NM-1), fy=Math.sqrt(clamp(h/(ATM.Rt-ATM.Re),0,1))*(NH-1);
+  const ix=Math.min(NM-2,Math.floor(fx)), iy=Math.min(NH-2,Math.floor(fy)); fx-=ix; fy-=iy;
+  for(let c=0;c<3;c++){
+    const a=d[(iy*NM+ix)*3+c], b=d[(iy*NM+ix+1)*3+c], e=d[((iy+1)*NM+ix)*3+c], f=d[((iy+1)*NM+ix+1)*3+c];
+    out[c]=(a*(1-fx)+b*fx)*(1-fy)+(e*(1-fx)+f*fx)*fy;
+  }
+  return out;
+}
 /* dir·sun: 단위벡터(y 위). k: 광원 세기 배율(달이면 작다). 돌려주는 값은 톤 매핑 전(선형) */
 function skyScatter(dir,sun,turb,k,out){
   const ox=0, oy=ATM.Re+2, oz=0, dx=dir.x, dy=Math.max(dir.y,0), dz=dir.z;
   const nl=Math.hypot(dx,dy,dz), ux=dx/nl, uy=dy/nl, uz=dz/nl;
-  const tEnd=_hitS(ox,oy,oz,ux,uy,uz,ATM.Rt)?_hs[1]:0, bM=0.1/ATM.HM*turb/2.6, N=12;
-  _oV[0]=_oV[1]=_oV[2]=0; let sR0=0,sR1=0,sR2=0,sM0=0,sM1=0,sM2=0,aR0=0,aR1=0,aR2=0,aM0=0,aM1=0,aM2=0, prev=0;
+  const tEnd=_hitS(ox,oy,oz,ux,uy,uz,ATM.Rt)?_hs[1]:0, bM=atmBM(turb), N=12;
+  _oV[0]=_oV[1]=_oV[2]=0; let sR0=0,sR1=0,sR2=0,sM0=0,sM1=0,sM2=0,a0=0,a1=0,a2=0, prev=0;
   for(let k2=1;k2<=N;k2++){
     const u=k2/N, t=tEnd*u*u, ds=t-prev, tm=(t+prev)/2; prev=t;
-    const px=ox+ux*tm, py=oy+uy*tm, pz=oz+uz*tm, alt=Math.hypot(px,py,pz)-ATM.Re;
+    const px=ox+ux*tm, py=oy+uy*tm, pz=oz+uz*tm, R=Math.hypot(px,py,pz), alt=R-ATM.Re;
     const r=Math.exp(-alt/ATM.HR)*ds, m=Math.exp(-alt/ATM.HM)*ds, o=Math.max(0,1-Math.abs(alt-25000)/15000)*ds;
-    for(let i=0;i<3;i++) _oV[i]+=ATM.bR[i]*r+bM*ATM.ang[i]*1.1*m+ATM.bO[i]*o;
+    for(let i=0;i<3;i++) _oV[i]+=ATM.bR[i]*r+bM*ATM.ang[i]*ATM.mx*m+ATM.bO[i]*o;
     _odSun(px,py,pz,sun.x,sun.y,sun.z,bM,_oS);
     const T0=Math.exp(-(_oV[0]+_oS[0])), T1=Math.exp(-(_oV[1]+_oS[1])), T2=Math.exp(-(_oV[2]+_oS[2]));
     sR0+=T0*r; sR1+=T1*r; sR2+=T2*r; sM0+=T0*m; sM1+=T1*m; sM2+=T2*m;
-    const V0=Math.exp(-_oV[0]), V1=Math.exp(-_oV[1]), V2=Math.exp(-_oV[2]);
-    aR0+=V0*r; aR1+=V1*r; aR2+=V2*r; aM0+=V0*m; aM1+=V1*m; aM2+=V2*m;
+    msAt(alt,(px*sun.x+py*sun.y+pz*sun.z)/R,_ms3);              // 그 자리의 다중 산란 Ψ × 산란계수
+    a0+=Math.exp(-_oV[0])*_ms3[0]*(ATM.bR[0]*r+bM*ATM.ang[0]*m);
+    a1+=Math.exp(-_oV[1])*_ms3[1]*(ATM.bR[1]*r+bM*ATM.ang[1]*m);
+    a2+=Math.exp(-_oV[2])*_ms3[2]*(ATM.bR[2]*r+bM*ATM.ang[2]*m);
   }
   const mu=ux*sun.x+uy*sun.y+uz*sun.z, g=SKYP.gM, g2=g*g;
   const pR=0.0596831*(1+mu*mu);
   const pM=0.1193662*((1-g2)*(1+mu*mu))/((2+g2)*Math.pow(1+g2-2*g*mu,1.5));
-  const E=SKYP.sun*k, A=E*SKYP.ms*0.0795775*_skyIll(sun.y);
-  out[0]=E*(sR0*ATM.bR[0]*pR+sM0*bM*ATM.ang[0]*pM)+A*SKYC[0]*(aR0*ATM.bR[0]+aM0*bM*ATM.ang[0]);
-  out[1]=E*(sR1*ATM.bR[1]*pR+sM1*bM*ATM.ang[1]*pM)+A*SKYC[1]*(aR1*ATM.bR[1]+aM1*bM*ATM.ang[1]);
-  out[2]=E*(sR2*ATM.bR[2]*pR+sM2*bM*ATM.ang[2]*pM)+A*SKYC[2]*(aR2*ATM.bR[2]+aM2*bM*ATM.ang[2]);
+  const E=SKYP.sun*k;
+  out[0]=E*(sR0*ATM.bR[0]*pR+sM0*bM*ATM.ang[0]*pM+a0);
+  out[1]=E*(sR1*ATM.bR[1]*pR+sM1*bM*ATM.ang[1]*pM+a1);
+  out[2]=E*(sR2*ATM.bR[2]*pR+sM2*bM*ATM.ang[2]*pM+a2);
   return out;
 }
 /* 톤 매핑(ACES 어림) — 셰이더와 같은 식 */
-function skyTone(v){ v*=SKYP.exp*SKYP.eye; return clamp((v*(2.51*v+0.03))/(v*(2.43*v+0.59)+0.14),0,1); }
+/* 톤 매핑(ACES 어림) 뒤 **sRGB 감마**를 건다 — 이 게임의 색은 전부 화면값(감마 공간)인데 하늘만 선형 값을 그대로 냈다.
+   그래서 중간 밝기가 어둡고 짙게 나와 한낮 하늘이 탁한 남색, 노을이 지나치게 짙었다(사진기·모니터는 늘 이 곡선을 건다) */
+const _srgb=x=>x<=0.0031308?12.92*x:1.055*Math.pow(x,1/2.4)-0.055;
+function skyTone(v){ v*=SKYP.exp*SKYP.eye; return _srgb(clamp((v*(2.51*v+0.03))/(v*(2.43*v+0.59)+0.14),0,1)); }
 const SKY_VS=`varying vec3 vDir;
 void main(){ vDir=normalize((modelMatrix*vec4(position,1.0)).xyz-cameraPosition);
   vec4 p=projectionMatrix*modelViewMatrix*vec4(position,1.0); gl_Position=p.xyww; }`;
@@ -2185,15 +2307,21 @@ void main(){ vDir=normalize((modelMatrix*vec4(position,1.0)).xyz-cameraPosition)
    **해가 4.5° 넘게 떠 있으면 달 몫은 안 센다**(`uMoonOn`) — 달빛 산란이 해의 1/300 이라 8비트에 안 잡힌다.
    표는 톤 매핑을 마친 0~1 색이라 8비트(RGBA)로 담는다 — 실수 텍스처는 헤드리스가 못 읽는다. */
 const SKY_LUT={W:256, H:96, rt:null, scene:null, cam:null, mat:null};
-const SKY_ATM=`uniform vec3 uSun, uMoon; uniform float uMoonK, uTurb, uExp, uSunI, uGM, uMS, uMoonOn;
-uniform vec3 uNight;
+const SKY_ATM=`uniform vec3 uSun, uMoon; uniform float uMoonK, uTurb, uExp, uSunI, uGM, uMoonOn, uAOD, uMX;
+uniform vec3 uNight, uANG; uniform sampler2D uMSL;
 const float RE=6371e3, RT=6471e3, HR=8000.0, HM=1200.0;
-const vec3 BR=vec3(5.802e-6,13.558e-6,33.1e-6), BO=vec3(0.650e-6,1.881e-6,0.085e-6), ANG=vec3(0.76,1.0,1.34);
+const vec3 BR=vec3(5.802e-6,13.558e-6,33.1e-6), BO=vec3(0.650e-6,1.881e-6,0.085e-6);
 vec2 hitS(vec3 o, vec3 d, float r){ float b=dot(o,d), c=dot(o,o)-r*r, h=b*b-c;
   if(h<0.0) return vec2(-1.0); h=sqrt(h); return vec2(-b-h,-b+h); }
 vec3 dens(vec3 p, float bM, out float r, out float m){ float alt=length(p)-RE;
   r=exp(-alt/HR); m=exp(-alt/HM); float o=max(0.0,1.0-abs(alt-25000.0)/15000.0);
-  return BR*r+bM*ANG*1.1*m+BO*o; }
+  return BR*r+bM*uANG*uMX*m+BO*o; }
+/* 다중 산란 표(RGBE · 32×16) — 손으로 쌍선형(RGBE 는 섞어 읽으면 틀린다) */
+vec3 msTex(vec2 i){ vec4 c=texture2D(uMSL,(i+0.5)/vec2(32.0,16.0)); return c.rgb*exp2(floor(c.a*255.0+0.5)-136.0); }
+vec3 msAt(float h, float mu){
+  vec2 f=vec2((clamp(mu,-1.0,1.0)*0.5+0.5)*31.0, sqrt(clamp(h/(RT-RE),0.0,1.0))*15.0);
+  vec2 i=min(floor(f),vec2(30.0,14.0)); f-=i;
+  return mix(mix(msTex(i),msTex(i+vec2(1.0,0.0)),f.x), mix(msTex(i+vec2(0.0,1.0)),msTex(i+vec2(1.0,1.0)),f.x), f.y); }
 vec3 odSun(vec3 p, vec3 s, float bM){
   if(hitS(p,s,RE).x>0.0) return vec3(60.0);
   float L=hitS(p,s,RT).y, prev=0.0; vec3 od=vec3(0.0); float r,m;
@@ -2202,21 +2330,20 @@ vec3 odSun(vec3 p, vec3 s, float bM){
   return od; }
 vec3 scat(vec3 dir, vec3 sun, float k){
   vec3 o=vec3(0.0,RE+2.0,0.0);
-  float tEnd=hitS(o,dir,RT).y, bM=0.1/HM*uTurb/2.6, prev=0.0, r, m;
-  vec3 odV=vec3(0.0), sR=vec3(0.0), sM=vec3(0.0), aR=vec3(0.0), aM=vec3(0.0);
+  float tEnd=hitS(o,dir,RT).y, bM=uAOD/HM*uTurb/2.6, prev=0.0, r, m;
+  vec3 odV=vec3(0.0), sR=vec3(0.0), sM=vec3(0.0), aS=vec3(0.0);
   for(int i=1;i<=10;i++){ float u=float(i)/10.0,   // 16×6 → 10×4 걸음(u² 간격이라 지평선·노을 띠는 거의 그대로, 화소당 반복 96 → 40)
   t=tEnd*u*u, ds=t-prev, tm=(t+prev)*0.5; prev=t;
     vec3 p=o+dir*tm; odV+=dens(p,bM,r,m)*ds;
     vec3 T=exp(-(odV+odSun(p,sun,bM)));
-    sR+=T*r*ds; sM+=T*m*ds; vec3 V=exp(-odV); aR+=V*r*ds; aM+=V*m*ds; }
+    sR+=T*r*ds; sM+=T*m*ds; aS+=exp(-odV)*msAt(length(p)-RE,dot(normalize(p),sun))*(BR*r+bM*uANG*m)*ds; }
   float mu=dot(dir,sun), g2=uGM*uGM;
   float pR=0.0596831*(1.0+mu*mu);
   float pM=0.1193662*((1.0-g2)*(1.0+mu*mu))/((2.0+g2)*pow(1.0+g2-2.0*uGM*mu,1.5));
-  float ill=pow(clamp((sun.y+0.02)/1.02,0.0,1.0),1.2)+0.02*clamp((sun.y+0.1)/0.1,0.0,1.0);
-  return uSunI*k*(sR*BR*pR+sM*bM*ANG*pM)
-       + uSunI*k*uMS*0.0795775*ill*vec3(0.55,0.75,1.0)*(aR*BR+aM*bM*ANG);
+  return uSunI*k*(sR*BR*pR+sM*bM*uANG*pM+aS);
 }
-vec3 tone(vec3 v){ v*=uExp; return clamp((v*(2.51*v+0.03))/(v*(2.43*v+0.59)+0.14),0.0,1.0); }`;
+vec3 tone(vec3 v){ v*=uExp; v=clamp((v*(2.51*v+0.03))/(v*(2.43*v+0.59)+0.14),0.0,1.0);
+  return mix(12.92*v, 1.055*pow(v,vec3(1.0/2.4))-0.055, step(vec3(0.0031308),v)); }`;
 /* 표 굽기 — 화소 자리(가로 방위 · 세로 √고도)에서 방향을 되살려 산란을 건다 */
 const SKY_LUT_FS=SKY_ATM+`
 uniform vec2 uSize;
@@ -2242,13 +2369,18 @@ void main(){
 function initSky(){
   // 산란 표 — 한 바퀴 이어지도록 가로는 되감기, 세로는 끝에서 멈춤. 밉맵 없이 쌍선형
   const L=SKY_LUT;
+  MSL.bytes=new Uint8Array(MSL.NM*MSL.NH*4);
+  MSL.tex=new THREE.DataTexture(MSL.bytes,MSL.NM,MSL.NH,THREE.RGBAFormat,THREE.UnsignedByteType);
+  MSL.tex.minFilter=MSL.tex.magFilter=THREE.NearestFilter; MSL.tex.generateMipmaps=false;
+  msEnsure(SKYP.turb,true); msUpload();
   L.rt=new THREE.WebGLRenderTarget(L.W,L.H,{format:THREE.RGBAFormat,depthBuffer:false,stencilBuffer:false,
     minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,generateMipmaps:false});
   L.rt.texture.wrapS=THREE.RepeatWrapping; L.rt.texture.wrapT=THREE.ClampToEdgeWrapping;
   L.mat=new THREE.ShaderMaterial({
     vertexShader:'void main(){ gl_Position=vec4(position.xy,0.0,1.0); }', fragmentShader:SKY_LUT_FS,
     uniforms:{uSun:{value:new THREE.Vector3(0,1,0)}, uMoon:{value:new THREE.Vector3(0,-1,0)},
-      uMoonK:{value:0}, uTurb:{value:SKYP.turb}, uSunI:{value:SKYP.sun}, uGM:{value:SKYP.gM}, uMS:{value:SKYP.ms},
+      uMoonK:{value:0}, uTurb:{value:SKYP.turb}, uSunI:{value:SKYP.sun}, uGM:{value:SKYP.gM},
+      uAOD:{value:ATM.aod}, uMX:{value:ATM.mx}, uANG:{value:new THREE.Vector3(ATM.ang[0],ATM.ang[1],ATM.ang[2])}, uMSL:{value:MSL.tex},
       uExp:{value:SKYP.exp}, uMoonOn:{value:1}, uNight:{value:new THREE.Color(0x02040b)},
       uSize:{value:new THREE.Vector2(L.W,L.H)}},
     depthTest:false, depthWrite:false});
@@ -2349,6 +2481,7 @@ function updateSky(){
   const turb=SKYP.turb+WEA.cover*2.2+WEA.mist*5+WEA.rain*2;
   const moonK=0.0035*MOON.bright;
   _t3turb=turb; _t3mk=moonK;
+  msEnsure(turb,!MSL.cur,3);         // 다중 산란 표 — 탁도가 바뀌면 프레임마다 3 ms 씩 새로 짓는다
   /* 눈의 순응(노출) — 해가 지면 하늘이 수십 배 어두워지는데 눈은 그만큼 열린다.
      천정 밝기를 해 60° 일 때의 밝기와 견줘 제곱근만큼(최대 16배) 노출을 올린다 */
   if(!SKYP.Lref){ skyScatter(_dv3.set(0,1,0),new THREE.Vector3(0.5,0.866,0),SKYP.turb,1,_c3);
@@ -2431,7 +2564,7 @@ function updateSky(){
      구름양으로 깎는다(달빛이 흐린 날에도 밝으면 안 된다). */
   /* 땅 높이의 소광계수(550 nm, 1/m) — 레일리 1.36e-5 + 에어로졸(탁도에 비례, 맑은 바다 공기
      가시거리 약 40 km) + 비(3 km 가시) + 안개(짙을 때 가시 200 m). 가시거리 V = 3.9/β(코시미더). */
-  scene.fog.density=(1.36e-5+0.1/ATM.HM*turb/2.6*1.1+WEA.rain*3.9/3000+WEA.mist*3.9/200)/farScale;
+  scene.fog.density=(1.36e-5+atmBM(turb)*ATM.mx+WEA.rain*3.9/3000+WEA.mist*3.9/200)/farScale;
   amb.intensity=lerp(A.a,Bk.a,t)*(1-WEA.rain*0.25)*(1-(1-CSH.sunVis)*0.25);
   sun.color.copy(cSun);
   const sunK=lerp(WEA.light,WEA.lightSun,CSH.on.value);
