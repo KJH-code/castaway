@@ -152,6 +152,6 @@ const RESOURCES=[
 /* ---------------- 파라미터 ---------------- */
 const P = { seed:'castaway', size:0.70, ridge:0.85, ero:0.60, sea:0, rain:1.0, limb:0.8,
             ws:6,     // ws 섬 배율(1 = 1.9 km · 2 = 3.8 km · 3 = 5.8 km · 6 = 11.5 km) — 새 섬은 6배로 시작한다(예전 기본 2배의 넓이 아홉 배)
-            tv:4 };   // tv 지형 판 — 4: + 바다 밑의 갈라진 틈과 해구(seaTrenches) · — 2: 피오르·골짜기·절벽·단구·산릉·동굴(10-worldgen.js terrainFeatures) · 3: + 칸 안의 잔 기복(`RELIEF`) · 없으면(옛 저장) 1
+            tv:5 };   // tv 지형 판 — 5: + 바이옴마다 비탈 · 바닷가 지형(주상절리·해식 아치·시스택·염습지) · 지열 지대(온천·간헐천·진흙 웅덩이·석회화 단구) · 폭포 — 4: + 바다 밑의 갈라진 틈과 해구(seaTrenches) · — 2: 피오르·골짜기·절벽·단구·산릉·동굴(10-worldgen.js terrainFeatures) · 3: + 칸 안의 잔 기복(`RELIEF`) · 없으면(옛 저장) 1
 let windDir={x:1,z:0,name:'서풍'};
 let stats={};

@@ -412,7 +412,7 @@ function offerLoadOnStart(){
 /* 새 섬은 지금 섬을 버린다 — 상륙했으면 한 번 묻고 자동 저장에 남긴 뒤 만든다(예전엔 R 한 번에 그냥 사라졌다) */
 function newIsland(go,cancel){
   if(busy||askOpen){ if(cancel) cancel(); return; }
-  { const g0=go; go=()=>{ P.tv=4; g0(); }; }       // 새 섬은 늘 새 지형 판 — 옛 저장을 불러온 뒤(P.tv 1)에 만드는 섬도
+  { const g0=go; go=()=>{ P.tv=5; g0(); }; }       // 새 섬은 늘 새 지형 판 — 옛 저장을 불러온 뒤(P.tv 1)에 만드는 섬도
   if(!landed){ go(); return; }
   ask('새 섬을 만들겠습니까?','지금 섬은 자동 저장에 남깁니다(다음 자동 저장이 덮어씁니다) · Y 예 · N 아니오',
       ()=>{ autoSave('새 섬을 만들기 전'); go(); }, cancel);

@@ -366,6 +366,7 @@ async function generateWorld(){
   await phase('광상 탐사',82);      worldRescale(P.ws);     // 섬 배율 — 통째로 키운다(1 이면 그대로 · 00-core.js)
                                     camera.far=Math.max(3000,WORLD*1.15); camera.updateProjectionMatrix();
                                     document.getElementById('mSpan').textContent=Math.round(WORLD)+' m';
+                                    if((P.tv|0)>=5) biomeSlopes();   // 바이옴마다 비탈을 다스린다(지형 판 5 · 10-worldgen.js)
                                     reliefMask();           // 잔 기복의 가림막(지형 판 3) — 이 뒤로 heightAt 이 둔덕·골을 안다
                                     placeResources(seed);
                                     shapeSeabed(seed);      // 바다 바닥의 기복 — 뭍·자원을 다 정한 **뒤에**(같은 시드의 섬은 그대로다)

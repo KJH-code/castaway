@@ -395,7 +395,10 @@ function classify(){
     if(F.river[i]){ b[i]=B.RIVER; continue; }
     const sl=s[i], mo=m[i];
 
-    if(e<3.5 && sl<0.42)                       b[i]=B.BEACH;
+    /* **염습지**(지형 판 5 · 사용자 요청) — 바닷가의 낮고 평평한 땅(1.8 m 밑 · 비탈 0.08 밑) 가운데 큰 잡음이 높은 데는 모래 해변 대신
+       갯벌·갈대의 습지다(진흙 결 · 갈대 — 바이옴이 정한다) */
+    if((P.tv|0)>=5 && e<1.8 && sl<0.08 && F.dWater[i]<=8 && SHP.vn3(x*0.045,z*0.045,0.5,hashStr(String(P.seed))&0xffff)>0.18) b[i]=B.MARSH;
+    else if(e<3.5 && sl<0.42)                  b[i]=B.BEACH;
     else if(e<8 && sl<0.25 && mo<0.35)         b[i]=B.DUNE;
     else if(sl>rockSlope)                      b[i]= e>HI*0.65 ? B.SCREE : B.ROCK;
     else if(e>HI*0.90)                         b[i]=B.SCREE;
@@ -408,6 +411,22 @@ function classify(){
   stats.hi=HI; stats.rockSlope=rockSlope;
 }
 
+/* ── 바이옴마다 비탈을 다스린다(지형 판 5 · 사용자 요청) ─────────────────────────────
+   바이옴마다 버틸 수 있는 비탈(높이/거리)이 다르다 — 모래 해변 12% · 습지 4% · 사구 30% · 풀밭 35% · 덤불 50% · 활엽수림 60% ·
+   침엽수림 85% · 바위·너덜은 그대로. 그보다 가파른 칸은 이웃 낮은 칸으로 흙을 넘겨(열 침식처럼) 고르게 한다(여섯 번).
+   하천과 그 둑(이웃 칸) · 바다는 손대지 않는다(물높이가 하천 판과 어긋나지 않게). 섬 배율을 키운 **뒤에** 부른다(CELL 이 m 다) */
+function biomeSlopes(){
+  const MAXS={}; MAXS[B.BEACH]=0.12; MAXS[B.MARSH]=0.04; MAXS[B.DUNE]=0.30; MAXS[B.MEADOW]=0.35; MAXS[B.SCRUB]=0.50;
+  MAXS[B.BROADLEAF]=0.60; MAXS[B.CONIFER]=0.85; MAXS[B.FUMAROLE]=0.45;
+  const h=F.elev, b=F.biome, R=F.river, keep=new Uint8Array(N*N);
+  for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=IDX(x,z); if(R[i]||R[i-1]||R[i+1]||R[i-N]||R[i+N]||h[i]<=0.3) keep[i]=1; }
+  for(let pass=0;pass<6;pass++){
+    for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=IDX(x,z); if(keep[i]) continue; const m=MAXS[b[i]]; if(m===undefined) continue;
+      const lim=m*CELL;
+      for(const j of [i-1,i+1,i-N,i+N]){ if(keep[j]&&h[j]<=0.3) continue; const d=h[i]-h[j]; if(d>lim){ const mv=(d-lim)*0.25; h[i]-=mv; if(!R[j]) h[j]+=mv; } } }
+  }
+  computeSlope();
+}
 /* ============================================================================
    8) 자원 배치 — 지질 규칙
    ========================================================================== */
