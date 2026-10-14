@@ -323,8 +323,15 @@ function climbLook(){
     if((p.k!=='oak'&&p.k!=='fir')||p.felled) return;
     const dx=p.x-PL.pos.x, dz=p.z-PL.pos.z, d=Math.sqrt(dx*dx+dz*dz);
     if(d<bd&&d>0.05&&(dx*hx+dz*hz)/d>0.6){ bd=d; best=p; } });
+  /* **노거수도 오른다**(사용자 지적: 노거수는 안 타진다) — 줄기 겉에서 1.7 m 안 · 보는 쪽. 높이는 줄기가 갈라지는 데(종류 높이의 45%)까지 */
+  if(typeof GIANT!=='undefined') for(const g of GIANT.list){
+    if(GIANT.cut.has(giantKey(g))) continue;                                  // 벤 그루는 그루터기뿐
+    const dx=g.x-PL.pos.x, dz=g.z-PL.pos.z, dc=Math.sqrt(dx*dx+dz*dz), R=GIANT_KIND[g.v].r*g.s, d=dc-R;
+    if(d<bd&&dc>0.05&&(dx*hx+dz*hz)/dc>0.6){ bd=d; best=g.cl||(g.cl={k:'giant',g,x:g.x,y:g.y,z:g.z,s:g.s,felled:false,R}); } }
   return best;
 }
+const climbTop=p=>p.k==='giant'?GIANT_BOLE[p.g.v].H*p.s*0.45:nestH(p)+0.9;     // 오를 수 있는 높이
+const climbRad=p=>p.k==='giant'?p.R*1.12+0.40:((p.k==='oak'?0.46:0.40)*p.s)+0.34;   // 줄기에서 몸까지(노거수는 판근 · 혹이 있어 조금 더)
 /* 프레임마다 — 오르는 중이면 몸과 눈을 줄기에 붙여 옮기고 true(걷기 처리를 건너뛴다). updatePlayer 가 맨 먼저 부른다 */
 function climbTick(dt){
   const sp=!!keys.Space, tap=sp&&!CLIMB.sp; CLIMB.sp=sp;
@@ -332,10 +339,10 @@ function climbTick(dt){
     if(tap&&PL.grounded&&!(invOpen||craftOpen)){ let p=climbLook();
       if(p&&typeof wallAhead==='function'){ const wd=wallAhead(); if(wd&&wd<Math.hypot(p.x-PL.pos.x,p.z-PL.pos.z)) p=null; }   // 벼랑이 나무보다 가까우면 벼랑에 매달린다(80-player.js)
       /* 눈이 바위에 들지 않는 쪽에서 매달린다 — 바위에 붙어 선 나무면 줄기를 돌아 빈 쪽을 찾고, 없으면 못 오른다 */
-      let ang=null; if(p){ const a0=Math.atan2(PL.pos.z-p.z,PL.pos.x-p.x), rad=((p.k==='oak'?0.46:0.40)*p.s)+0.34;
+      let ang=null; if(p){ const a0=Math.atan2(PL.pos.z-p.z,PL.pos.x-p.x), rad=climbRad(p);
         for(let k=0;k<12&&ang===null;k++){ const a=a0+(k%2?1:-1)*Math.ceil(k/2)*0.52; if(!eyeHit(p.x+Math.cos(a)*rad,p.y+0.3+EYE,p.z+Math.sin(a)*rad)) ang=a; }
         if(ang===null){ toast('바위가 막아 이 나무는 오를 수 없다'); keys.Space=false; return false; } }
-      if(p){ CLIMB.on=true; CLIMB.p=p; CLIMB.h=0.3; CLIMB.top=nestH(p)+0.9; CLIMB.ang=ang;
+      if(p){ CLIMB.on=true; CLIMB.p=p; CLIMB.h=0.3; CLIMB.top=climbTop(p); CLIMB.ang=ang;
         keys.Space=false; toast('나무를 오른다 — W·S 오르내리기 · A·D 줄기 돌기 · Space 뛰어내리기'); } }
     return CLIMB.on;
   }
@@ -344,7 +351,7 @@ function climbTick(dt){
   const h0=CLIMB.h, a0=CLIMB.ang;
   CLIMB.h=clamp(CLIMB.h+up*1.5*dt,0,CLIMB.top); CLIMB.ang+=turn*1.4*dt;
   PL.stam=clamp(PL.stam-(up?4.5:1.2)*dt,0,100);
-  const rad=((p.k==='oak'?0.46:0.40)*p.s)+0.34;
+  const rad=climbRad(p);
   /* 눈이 바위·땅에 들 자리로는 안 돈다·안 오른다(80-player.js eyeHit — 사용자 요청: 카메라 경계를 엄하게) */
   if(eyeHit(p.x+Math.cos(CLIMB.ang)*rad,p.y+CLIMB.h+EYE,p.z+Math.sin(CLIMB.ang)*rad)){ CLIMB.h=h0; CLIMB.ang=a0; }
   PL.pos.set(p.x+Math.cos(CLIMB.ang)*rad,p.y+CLIMB.h,p.z+Math.sin(CLIMB.ang)*rad); PL.vel.set(0,0,0); PL.grounded=false; PL.swim=false;

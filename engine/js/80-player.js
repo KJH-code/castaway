@@ -282,7 +282,7 @@ function solidAt(x,z,y){
    걸어 못 오르는 벼랑(가파른 땅 · 큰 바위 벽)을 마주 보고 **Space 를 누르고 있으면 매달린다** — 손(Space)을 떼면 떨어진다.
    W·S 오르내리기 · A·D 옆으로 · 매달려 있기만 해도 기력이 들고(초당 6) 움직이면 더 든다(초당 13 · 짐이 무거우면 더) · 기력이 다하면 떨어진다.
    벼랑 위에 손이 닿으면 올라서고, 내려가다 발이 바닥에 닿으면 선다. 몸은 벽에서 0.5 m 떨어져 붙는다(눈이 벽을 뚫지 않게 — eyeHit) */
-const WALL={on:false, sp:false, dx:0, dz:0, hint:false, end:''};   // end — 마지막에 손을 놓은 까닭(시험용)
+const WALL={on:false, sp:false, sh:false, lt:0, lc:0, lu:0, ls:0, dx:0, dz:0, hint:false, end:''};   // end — 마지막에 손을 놓은 까닭(시험용)
 /* 벽까지의 거리(몸에서 · d0~d1 m 를 0.1 m 걸음으로) — 가슴(발+0.8) · 손(발+1.5) · 눈 위(발+1.95) 가운데 가까운 쪽. 없으면 -1 */
 function wallDist(x,z,y,fx,fz,d0,d1){
   for(let d=d0;d<=d1+1e-6;d+=0.1){ const sx=x+fx*d, sz=z+fz*d; if(solidAt(sx,sz,y+0.8)||solidAt(sx,sz,y+1.5)||solidAt(sx,sz,y+1.95)) return d; }
@@ -318,7 +318,7 @@ function wallTick(dt){
       if(PL.stam<5){ toast('매달릴 기력이 없다'); return false; }
       WALL.on=true; WALL.dx=-Math.sin(PL.yaw); WALL.dz=-Math.cos(PL.yaw); PL.vel.set(0,0,0);
       _wO.x=p.x; _wO.y=p.y; _wO.z=p.z; if(wallBack(_wO,WALL.dx,WALL.dz)){ p.x=_wO.x; p.z=_wO.z; }
-      toast('벼랑에 매달렸다 — Space 를 누른 채 W·S 오르내리기 · A·D 옆으로 · 손을 떼면 떨어진다');
+      WALL.sh=true; toast('벼랑에 매달렸다 — Space 를 누른 채 W·S 오르내리기 · A·D 옆으로 · Shift 몸 던지기 · 손을 떼면 떨어진다');
     }
     /* 처음 한 번 — 오를 벼랑 앞에 서면 알려 준다(0.5초마다만 본다) */
     if(!WALL.on&&!WALL.hint&&landed&&PL.grounded&&(WALL.ht=(WALL.ht||0)+dt)>0.5){ WALL.ht=0;
@@ -332,8 +332,18 @@ function wallTick(dt){
   if(!sp) return let_go('',1.2);                                                   // 손을 뗐다
   if(PL.stam<=0) return let_go('기력이 다해 손을 놓쳤다',0.8);
   const ox=p.x, oy=p.y, oz=p.z, spd=1.1*(1-0.4*load);
-  let ny=p.y+up*spd*dt, nx=p.x+(-fz)*side*spd*0.8*dt, nz=p.z+fx*side*spd*0.8*dt;
-  if(up>0&&solidAt(nx,nz,ny+1.95)) ny=p.y;                                         // 머리 위가 막혔다(튀어나온 바위)
+  /* **매달려 돌진**(사용자 요청: 오르기에 돌진이 빠졌다) — 매달린 채 Shift 를 톡 누르면 누른 쪽(W·A·D · 없으면 위)으로 1.4 m 를 몸을 던져
+     다음 손잡이를 잡는다(0.25초 · 기력 18 · 0.8초에 한 번) */
+  const sh=!!(K.ShiftLeft||K.ShiftRight), shTap=sh&&!WALL.sh; WALL.sh=sh;
+  if(WALL.lc>0) WALL.lc-=dt;
+  if(shTap&&!(WALL.lt>0)&&!(WALL.lc>0)){
+    if(PL.stam>=18){ const u=up>=0?(up||(side?0:1)):-1, l=Math.hypot(u,side)||1; WALL.lu=u/l; WALL.ls=side/l; WALL.lt=0.25; WALL.lc=0.8; PL.stam-=18; footstep(); }
+    else if(!WALL._lw||performance.now()-WALL._lw>2000){ WALL._lw=performance.now(); toast('몸을 던질 기력이 없다'); } }
+  let ny, nx, nz;
+  if(WALL.lt>0){ WALL.lt-=dt; const v=1.4/0.25;
+    ny=p.y+WALL.lu*v*dt; nx=p.x+(-fz)*WALL.ls*v*dt; nz=p.z+fx*WALL.ls*v*dt; }
+  else{ ny=p.y+up*spd*dt; nx=p.x+(-fz)*side*spd*0.8*dt; nz=p.z+fx*side*spd*0.8*dt; }
+  if((up>0||(WALL.lt>0&&WALL.lu>0))&&solidAt(nx,nz,ny+1.95)) ny=p.y;                                         // 머리 위가 막혔다(튀어나온 바위)
   /* 벼랑 위 — 손 높이에 벽이 없고 바로 앞의 바닥이 발보다 높지만 1.8 m 안이면 올라선다 */
   const dw=wallDist(nx,nz,ny,fx,fz,0.2,1.3);
   if(dw<0){

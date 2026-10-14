@@ -566,7 +566,7 @@ const ITEMS={
                food:12},
   /* ── 소금 · 상한 것 · 소금으로 만드는 먹을 것(사용자 요청) ── */
   salt:       {n:'소금',       kg:0.15, c:0xf0efe8, use:'바닷가의 소금 더께를 곡괭이로 캔다 — 절이면 오래가고, 음식에 넣으면 맛이 난다'},
-  rot_food:   {n:'상한 음식',  kg:0.2,  c:0x5a6a3a, use:'상했다 — 먹으면 크게 탈이 난다. 버릴 것(파리가 꼬인다)', food:2, raw:true, spoiled:1},
+  rot_food:   {n:'상한 음식',  kg:0.2,  c:0x5a6a3a, use:'상한 날생선 — 먹으면 크게 탈이 난다. 버릴 것', food:2, raw:true, spoiled:1},
   fish_salted:{n:'소금절이 생선', kg:0.3, c:0xc8b89a, use:'소금에 절여 오래간다 — 날것이 아니다(허기 14)', food:14, fishy:1},
   meat_salted:{n:'염장 고기',  kg:0.45, c:0x8a4a3a, use:'소금에 절인 고기 — 오래 두고 먹는다(허기 22)', food:22},
   fish_grill_salt:{n:'소금구이', kg:0.28, c:0xd6a45a, use:'소금을 쳐 구운 생선 — 그냥 구운 것보다 든든하다(허기 24)', food:24, fishy:1},
