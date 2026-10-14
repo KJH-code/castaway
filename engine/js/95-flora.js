@@ -697,9 +697,9 @@ function updateFlora(force){
    ④ 다시 채우는 때 — 사람이 2 m 움직였거나 보이는 칸이 바뀌었을 때만. 종류마다 메시가 단계별로 하나라 그리기 호출은
       종류 × (가까운 벌 몇 + 복제 셋 + 그림 하나)다. 행렬은 배열에 바로 쓰고 그림자 지도는 드리우는 것(55 m 안)이 바뀔 때만 다시 그린다.
    몸이 막히는 원(`cols`)·딸 것(`picks`)은 60 m 안의 그루만, 사람이 움직일 때 다시 센다(그때 그 둘레의 지은 바닥·설비도 다시 본다). */
-const FL_TILE=64, FL_LOD=[[60,0.65],[95,0.3]], FL_PIC=160, FL_STEP=2, FL_NEAR=60, FL_FULL=35;
+const FL_TILE=64, FL_LOD=[[60,0.65],[95,0.3]], FL_PIC=160, FL_STEP=2, FL_NEAR=60, FL_FULL=50;
 /* 사용자 지적 — 25 m 에서 '기준 그루' 의 복제로 갈아 끼워 모양이 바뀌는 게 너무 잘 보였다. 이제 ① 먼 단계도 **그루마다 제 벌**을 줄인 것이라
-   줄기·큰 가지 구조가 그대로이고(잎 판·잔가지만 솎는다) ② 제 생김새 그대로는 35 m(`FL_FULL`)까지 · 35~60 m 잎 65% · 60~95 m 30% · 95~160 m 12%.
+   줄기·큰 가지 구조가 그대로이고(잎 판·잔가지만 솎는다) ② 제 생김새 그대로는 50 m(`FL_FULL`)까지 · 50~60 m 잎 65% · 60~95 m 30% · 95~160 m 12%.
    그림 판때기(160 m 밖)만 기준 그루 하나다 */   // 잰 값: 이 겹이 한 프레임의 4 ms 였다 — 단계를 당기고(55→40 · 90→75 · 200→160) 잎을 더 솎는다
 const _ffPM=new THREE.Matrix4(), _ffFr=new THREE.Frustum(), _ffSp=new THREE.Sphere();
 function floraPlantAll(){
@@ -872,7 +872,8 @@ function floraFar(force){
     for(const p of t.ps){ if(p.blk) continue;
       const dx=p.x-px, dz=p.z-pz, d=Math.sqrt(dx*dx+dz*dz); if(d>VIEW_DIST) continue;
       const f=U.fm[p.k];
-      if(d<=FL_FULL*Math.max(QK,0.75)){ const im=U.m[p.k][p.v]; if(im.count<im.instanceMatrix.count){ put(im,p); csig=(csig*31+p.i)|0; } }
+      const full=d<=FL_FULL*Math.max(QK,0.75), fm=full&&U.m[p.k][p.v];
+      if(full&&fm.count<fm.instanceMatrix.count){ put(fm,p); csig=(csig*31+p.i)|0; }   // 칸이 차면 줄인 첫 단계로 넘긴다(그루가 빠지지 않게)
       else if(d<=FL_PIC*QK){ const lv=d<=FL_LOD[0][0]*QK?0:d<=FL_LOD[1][0]*QK?1:2, im=f.lods[lv][p.v]; if(im&&im.count<im.instanceMatrix.count){ put(im,p); if(!lv) csig=(csig*31+p.i)|0; } }   // 자동 품질(QUAL.k)이 단계를 당긴다
       else if(f.pm){
         if(!p.pm){ const c=f.pic.can; _flE.set(0,p.yaw,0); _flQ.setFromEuler(_flE); _flV.set(p.x,p.y+c.y0*p.sy,p.z); _flS.set(c.w*p.s,(c.y1-c.y0)*p.sy,c.w*p.s);
