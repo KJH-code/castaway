@@ -33,6 +33,29 @@ function cragMat(){
 function cragMatFar(){
   if(CRAG.matFar) return CRAG.matFar;
   const m=new THREE.MeshLambertMaterial({color:0x6f6d66,vertexColors:true}); m.userData.melt=0.5; m.userData.meltAttr=true;
+  /* 먼 바위(140 m 밖)도 **바위 사진**을 입는다(사용자 요청) — 가까운 재질(rockMat)과 같은 잡음으로 같은 장을 고르되, 섞지 않고 많이 섞인 쪽
+     한 장만 세 방향으로 읽는다(법선 지도 · 이끼 · 금은 없다 — 멀어서 안 보인다). 메시는 세계 좌표로 합쳐져 있어 정점의 자리·법선이 곧 세계 값이다 */
+  if(TERR_U.uRk){
+    m.onBeforeCompile=sh=>{
+      sh.uniforms.uRk=TERR_U.uRk;
+      sh.vertexShader='varying vec3 vFW;\nvarying vec3 vFN;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvFW=(modelMatrix*vec4(transformed,1.0)).xyz; vFN=normal;');
+      sh.fragmentShader=`uniform mediump sampler2DArray uRk;
+varying vec3 vFW;
+varying vec3 vFN;
+float frh(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
+float frn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(frh(i),frh(i+vec3(1,0,0)),f.x),mix(frh(i+vec3(0,1,0)),frh(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(frh(i+vec3(0,0,1)),frh(i+vec3(1,0,1)),f.x),mix(frh(i+vec3(0,1,1)),frh(i+vec3(1,1,1)),f.x),f.y),f.z); }
+`+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+        { vec3 p=vFW, n=normalize(vFN), tw=pow(abs(n),vec3(4.0)); tw/=tw.x+tw.y+tw.z+1e-4;
+          float sel=clamp(frn(p/11.0+vec3(3.1,0.7,7.7))*1.3-0.15,0.0,0.999)*4.0, ia=floor(sel);
+          float L=fract(sel)<0.5?(ia>2.5?ia+1.0:ia):(ia>1.5?ia+2.0:ia+1.0); vec3 q=fract(sel)<0.5?p/1.7:(p/1.7)*0.83+vec3(0.37,0.11,0.59);
+          vec3 rk=texture(uRk,vec3(q.zy,L)).rgb*tw.x+texture(uRk,vec3(q.xz,L)).rgb*tw.y+texture(uRk,vec3(q.xy,L)).rgb*tw.z;
+          rk=mix(vec3(dot(rk,vec3(0.30,0.59,0.11))),rk,0.45);                // 가까운 재질과 같이 빛깔을 반쯤만
+          diffuseColor.rgb*=mix(vec3(1.0),rk*2.0,0.85)*0.93; }`);
+    };
+    m.customProgramCacheKey=()=>'cragfar-rk';
+  }
   return CRAG.matFar=m;
 }
 /* 바위 꼴 하나 — 같은 시드는 쪼갬 수(w·h)가 달라도 같은 꼴이다(먼 것은 성기게 짓는다) */
@@ -45,7 +68,8 @@ function cragShape(seed,w,h){
   for(let i=0;i<p.count;i++){ let x=p.getX(i), y=p.getY(i), z=p.getZ(i);
     const k=Math.pow(Math.max(Math.abs(x),Math.abs(y),Math.abs(z)),-box); x*=k; y*=k; z*=k;            // 네모지게(모서리가 선다)
     let f=0; for(const l of L) f+=l[5]*Math.sin(l[3]*(x*l[0]+y*l[1]+z*l[2])+l[4]);
-    const s=(1+0.055*f+0.020*Math.sin(y*st+sp))*(1+0.075*SHP.rough(p.getX(i),p.getY(i),p.getZ(i),seed,1.7,4)); x*=s; y*=s; z*=s;   // 큰 혹 · 가는 층리 · 잔 울퉁불퉁(SHP.rough — 사용자 요청: 바위가 너무 매끈하다)
+    const ux=p.getX(i), uy=p.getY(i), uz=p.getZ(i);
+    const s=(1+0.055*f+0.020*Math.sin(y*st+sp))*(1+0.075*SHP.rough(ux,uy,uz,seed,1.7,4))*(1+0.16*(SHP.jag(ux,uy,uz,seed^0x6a,2.3,3)-0.25)); x*=s; y*=s; z*=s;   // + 날카로운 능선(SHP.jag)   // 큰 혹 · 가는 층리 · 잔 울퉁불퉁(SHP.rough — 사용자 요청: 바위가 너무 매끈하다)
     for(const c of C){ const d=x*c[0]+y*c[1]+z*c[2]-c[3]; if(d>0){ x-=c[0]*d; y-=c[1]*d; z-=c[2]*d; } }  // 쪼개진 면
     p.setXYZ(i,x,y,z); }
   g.computeVertexNormals(); SHP.weldSeam(g,w);

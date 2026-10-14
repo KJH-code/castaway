@@ -130,6 +130,13 @@ function drawMap(){
     ctx.save(); ctx.setLineDash([ps*0.9,ps*0.7]); ctx.lineWidth=ps*0.28; ctx.strokeStyle='rgba(240,255,248,.75)';
     ctx.beginPath(); ctx.moveTo(x,z); ctx.lineTo(p.x/CELL+N/2,p.z/CELL+N/2); ctx.stroke(); ctx.restore();
   }
+  /* 개발자 모드 — 굴(번호 붙은 청록 동그라미 · ] [ 로 건너간다 — 80-player.js devCave) */
+  if(typeof DEV!=='undefined'&&DEV.on&&typeof CAVES!=='undefined'){
+    ctx.save(); ctx.lineWidth=ps*0.3; ctx.font='bold '+Math.round(ps*1.4)+'px ui-monospace,monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    CAVES.forEach((c,i)=>{ const cx=c.x/CELL+N/2, cz=c.z/CELL+N/2, cur=i===DEV.cave;
+      ctx.strokeStyle=cur?'#ffffff':'#5ff0d0'; ctx.beginPath(); ctx.arc(cx,cz,ps*(cur?1.5:1.0),0,6.2832); ctx.stroke();
+      if(mapOpen){ ctx.fillStyle='#5ff0d0'; ctx.fillText(i+1,cx,cz-ps*2.2); } });
+    ctx.restore(); }
   MAPPINS.forEach((p,i)=>{ if(i!==pinAct) drawPin(ctx,p,i,ps); });
   if(pinAct>=0&&MAPPINS[pinAct]) drawPin(ctx,MAPPINS[pinAct],pinAct,ps);   // 따라가는 핀은 맨 위
   if(mapOpen){

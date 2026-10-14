@@ -48,6 +48,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyL'){ toggleLamp(); }         // 전등은 들고 좌클릭해도 켜진다 · 충전은 우클릭
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
   if(e.code==='KeyE'&&boxOpen&&!e.repeat){ toggleBox(null); }
+  else if(e.code==='KeyE'&&!e.repeat&&!grindOpen&&!uiOpen()&&typeof boatToggle==='function') boatToggle();   // 배 타기 · 내리기(96-sea.js)
   if((e.code==='Escape'||e.code==='KeyE')&&grindOpen&&!e.repeat){ toggleGrind(); return; }
   /* I — 가방 화면(소지품 + 고른 물건 + 제작이 한 장에 선다 · 98-bag.js). 예전엔 C 로도 열렸고 그때는 검색칸에 바로 글자가
      쳐졌다 — C 를 누르고 I 를 누르면 가방이 닫히는 대신 검색칸에 'i' 가 쳐졌다(사용자 지적). 이제 여는 키는 I 하나고,
@@ -86,7 +87,8 @@ addEventListener('keydown',e=>{
     }
     else if(!craftOpen && i<QUICK.length) quickSwap(i);
   }
-  if(e.code==='Backquote'&&!e.repeat){ toggleDev(); }   // 개발자 모드 — 날아서 둘러보기 · 다치지 않는다(80-player.js)
+  if(e.code==='Backquote'&&!e.repeat){ toggleDev(); }
+  if(DEV.on&&(e.code==='BracketRight'||e.code==='BracketLeft')&&!e.repeat){ devCave(e.code==='BracketRight'?1:-1); }   // 개발자 모드 — 굴 둘러보기   // 개발자 모드 — 날아서 둘러보기 · 다치지 않는다(80-player.js)
   if(e.code==='KeyV'){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
   /* T — 시간 배속. 20배를 넣어 두었다: 하늘과 날씨를 살펴볼 때 1배는 너무 느리고
      60배는 하루가 24초라 너무 빠르다. 20배면 게임 하루가 72초다.

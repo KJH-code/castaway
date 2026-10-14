@@ -535,9 +535,152 @@ function fishNet(n){
     got[f.sp.n]=(got[f.sp.n]||0)+1; c++; f.g.flee=3; fishKill(f); }
   return c?Object.keys(got).map(k=>k+' '+got[k]+'마리').join(' · '):'';
 }
+/* ── 낚시(사용자 요청) ─────────────────────────────────────────────────────
+   낚싯대를 들고 좌클릭 — 보는 쪽 3~16 m 의 물(바다 · 하천 · 무릎 넘는 깊이)에 찌를 던진다. 3~9초 뒤 물고기 **그림자**가 멀리서
+   다가와 찌 밑에 서고, 찌가 잠긴다(입질) — 1.1초 안에 다시 좌클릭하면 걸린다. 너무 일찍 당기면 헛챔질 · 늦으면 미끼만 뜯긴다.
+   무엇이 무는지는 찌 자리 물의 깊이가 정한다(얕은 데 산호·모래 고기 · 4~14 m 얕은 바다 · 14 m 넘게 먼바다 · 하천은 민물고기).
+   큰 고기(몸길이 1 m 넘게)는 끌어올리는 데 기력이 들고, 바늘 등급(나무 2 · 쇠 3)보다 센 고기는 줄을 끊고 달아난다.
+   그물은 잔고기(50 cm 밑)만 건진다(fishNet) — 큰 고기는 낚싯대로만 */
+const ROD={st:0, x:0, y:0, z:0, t:0, win:0, sp:null, river:false, bob:null, line:null, shad:null, ang:0};
+function rodInit(){
+  ROD.bob=new THREE.Mesh(new THREE.SphereGeometry(0.05,10,8),new THREE.MeshLambertMaterial({color:0xe84a2a}));
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(0.03,8,6),new THREE.MeshLambertMaterial({color:0xf2f0e8})); cap.position.y=0.045; ROD.bob.add(cap);
+  const lg=new THREE.BufferGeometry(); lg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(6),3));
+  ROD.line=new THREE.Line(lg,new THREE.LineBasicMaterial({color:0xd8d4c8,transparent:true,opacity:0.7})); ROD.line.frustumCulled=false;
+  const c=document.createElement('canvas'); c.width=128; c.height=64; const g=c.getContext('2d');
+  const gr=g.createRadialGradient(64,32,4,64,32,62); gr.addColorStop(0,'rgba(0,0,0,0.75)'); gr.addColorStop(0.55,'rgba(0,0,0,0.45)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=gr; g.save(); g.translate(64,32); g.scale(1,0.42); g.beginPath(); g.arc(0,0,62,0,6.2832); g.restore(); g.fill();   // 길쭉한 그림자
+  ROD.shad=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthWrite:false}));
+  ROD.shad.rotation.x=-Math.PI/2; ROD.shad.renderOrder=4;
+  for(const o of [ROD.bob,ROD.line,ROD.shad]){ o.visible=false; scene.add(o); }
+}
+function rodReset(){ ROD.st=0; if(ROD.bob){ ROD.bob.visible=ROD.line.visible=ROD.shad.visible=false; } }
+/* 찌 자리에서 무는 고기 — 물의 깊이로 구역을 정하고 그 구역 고기 가운데 많은 것일수록 자주 */
+function rodPick(x,z){
+  const g=heightAt(x,z), W=waterAt(x,z,g);
+  if(W.river) return null;                                          // 민물 — 그냥 물고기
+  const dep=Math.max(0,-g), zone=dep>14?'deep':dep>4?'shelf':(Math.random()<0.5?'reef':'sand');
+  const L=FISH_SP.filter(s=>s.zone===zone||(zone==='deep'&&s.zone==='shelf'&&Math.random()<0.3));
+  let tot=0; for(const s of L) tot+=s.cap; let r=Math.random()*tot;
+  for(const s of L){ r-=s.cap; if(r<=0) return s; }
+  return L[0]||null;
+}
+function rodUse(w,T){
+  if(!ROD.bob) rodInit();
+  if(ROD.st===0){
+    if(PL.stam<T.stam){ toast('기력이 없다'); return; }
+    const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
+    let hit=null; for(let d=3;d<=16;d+=0.5){ const x=PL.pos.x+fx*d, z=PL.pos.z+fz*d, g=heightAt(x,z), W=waterAt(x,z,g);
+      if(W.wl-g>0.7){ hit={x,z,y:W.river?W.wl:seaSurfAt(x,z),river:!!W.river}; break; } }
+    if(!hit){ toast('물에 던져야 한다 — 무릎 넘게 깊은 물을 보고'); return; }
+    PL.stam-=T.stam; ATK.cd=0.6; ATK.swing=0.4; ATK.swingMax=0.4; sfx('bind');
+    Object.assign(ROD,{st:1, x:hit.x, y:hit.y, z:hit.z, river:hit.river, t:3+Math.random()*6, sp:hit.river?null:rodPick(hit.x,hit.z), ang:Math.random()*6.2832});
+    ROD.bob.position.set(ROD.x,ROD.y,ROD.z); ROD.bob.visible=ROD.line.visible=true;
+    return;
+  }
+  if(ROD.st===1){ toast('너무 일찍 당겼다 — 헛챔질'); rodReset(); return; }
+  /* 걸렸다 — 큰 고기는 끌어올리는 데 기력이 들고, 바늘보다 센 고기는 줄을 끊는다 */
+  const sp=ROD.sp, big=sp?sp.len:0.3, need=Math.round(4+big*9);
+  rodReset(); w.dur-=1;
+  if(w.dur<=0){ toast(ITEMS[w.id].n+' 부러졌다'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
+  if(sp&&sp.tier>T.rod){ toast(sp.n+'! — 너무 세서 줄이 끊어졌다('+(T.rod<3?'쇠바늘 낚싯대가 있어야 한다':'')+')'); return; }
+  if(PL.stam<need){ toast((sp?sp.n:'물고기')+'가 끌고 가 버렸다 — 끌어올릴 기력이 없다'); PL.stam=0; return; }
+  PL.stam-=need;
+  const id=sp?sp.drop[0]:'fish', n=sp?sp.drop[1]:1;
+  let got=0; for(let i=0;i<n;i++) if(invAdd(id,1)) got++;
+  toast(got?((sp?sp.n:'물고기')+'를 낚았다'+(n>1?' — '+ITEMS[id].n+' +'+got:'')):'무거워서 못 든다'); invDirty=true;
+}
+function updateRod(dt){
+  if(!ROD.st) return;
+  const e=equippedTool(), T=e&&ITEMS[e.id].tool;
+  if(!(T&&T.rod)||PL.dead||Math.hypot(PL.pos.x-ROD.x,PL.pos.z-ROD.z)>20){ rodReset(); return; }   // 낚싯대를 내려놓았거나 멀어졌다
+  const now=SEA.clock; let bobY=ROD.y+Math.sin(now*2.1)*0.015;
+  if(ROD.st===1){
+    ROD.t-=dt;
+    /* 그림자 — 마지막 4초 동안 멀리(6 m)에서 찌 밑으로 다가온다. 크기는 그 고기 몸길이대로 */
+    const k=clamp(ROD.t/4,0,1), L=ROD.sp?ROD.sp.len:0.35, a=ROD.ang;
+    ROD.shad.visible=ROD.t<4;
+    ROD.shad.position.set(ROD.x+Math.cos(a)*k*6+Math.sin(now*1.3)*0.15*k,ROD.y-0.22,ROD.z+Math.sin(a)*k*6);
+    ROD.shad.rotation.z=-a; ROD.shad.scale.set(Math.max(0.3,L*1.5),Math.max(0.12,L*0.5),1);
+    if(ROD.t<=0){ ROD.st=2; ROD.win=1.1; sfx('bind'); toast('입질! 지금 당겨라 — 좌클릭'); }
+  }else if(ROD.st===2){
+    ROD.win-=dt; bobY=ROD.y-0.07-Math.abs(Math.sin(now*14))*0.04;    // 찌가 잠긴다
+    if(ROD.win<=0){ toast('놓쳤다 — 미끼만 뜯겼다'); rodReset(); return; }
+  }
+  ROD.bob.position.set(ROD.x,bobY,ROD.z);
+  /* 줄 — 낚싯대 끝(눈앞 오른쪽 위)에서 찌까지 */
+  const a=ROD.line.geometry.attributes.position.array, fx=-Math.sin(PL.yaw)*Math.cos(PL.pitch), fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*Math.cos(PL.pitch);
+  a[0]=camera.position.x+fx*1.1+Math.cos(PL.yaw)*0.25; a[1]=camera.position.y+fy*1.1+0.35; a[2]=camera.position.z+fz*1.1-Math.sin(PL.yaw)*0.25;
+  a[3]=ROD.x; a[4]=bobY+0.03; a[5]=ROD.z; ROD.line.geometry.attributes.position.needsUpdate=true;
+}
+/* ── 통나무배(사용자 요청) ─────────────────────────────────────────────────
+   들고 물을 보고 좌클릭 — 4.5 m 안의 바다(무릎 넘게 깊은 데)에 띄운다. 배를 보고 E — 타고(가운데 앉는다) · 다시 E — 내린다
+   (2.4 m 안에 뭍이 있으면 뭍에 · 없으면 물에). 탄 동안: W·S 노 젓기(초속 4.5 m 까지 · 기력 조금) · A·D 방향 · 마우스로 둘러본다.
+   물결을 따라 오르내리고 기울며, 얕은 데(배 밑 40 cm)에 닿으면 멈춘다. 배는 저장에 들어간다(92-save.js boats) */
+const BOATS=[], BOAT={on:false, b:null, v:0, w:0, geo:null, mat:null};
+function boatGeo(){
+  if(BOAT.geo) return BOAT.geo;
+  /* 통나무를 파낸 꼴 — 반구를 길게 늘인 선체(바깥) + 조금 작은 안쪽(뒤집어 안을 보게) + 가로 앉을 판 둘 */
+  const outer=new THREE.SphereGeometry(1,20,8,0,6.2832,Math.PI/2,Math.PI/2); outer.scale(0.48,0.34,2.3);
+  const inner=new THREE.SphereGeometry(1,20,8,0,6.2832,Math.PI/2,Math.PI/2); inner.scale(0.42,0.29,2.18);
+  { const ix=inner.index.array; for(let i=0;i<ix.length;i+=3){ const t=ix[i]; ix[i]=ix[i+1]; ix[i+1]=t; } inner.computeVertexNormals(); }
+  const parts=[{g:outer,c:[0.46,0.33,0.21]},{g:inner,c:[0.30,0.21,0.13]}];
+  for(const z of [-0.7,0.6]){ const b=new THREE.BoxGeometry(0.80,0.04,0.22); b.translate(0,-0.06,z); parts.push({g:b,c:[0.52,0.38,0.24]}); }
+  BOAT.geo=SHP.merge(parts); BOAT.mat=new THREE.MeshLambertMaterial({vertexColors:true});
+  return BOAT.geo;
+}
+function boatSpawn(x,z,yaw){
+  const m=new THREE.Mesh(boatGeo(),BOAT.mat); m.castShadow=true; scene.add(m);
+  const b={x,z,yaw:yaw||0,m,roll:0,y:0}; BOATS.push(b); boatPose(b,0); return b;
+}
+function boatsClear(){ for(const b of BOATS) scene.remove(b.m); BOATS.length=0; BOAT.on=false; BOAT.b=null; }
+/* 물결 위의 자세 — 앞뒤 두 점의 물 높이로 기울고 좌우로 살짝 흔들린다 */
+function boatPose(b,t){
+  const fx=-Math.sin(b.yaw), fz=-Math.cos(b.yaw), h0=seaSurfAt(b.x,b.z), hf=seaSurfAt(b.x+fx*1.6,b.z+fz*1.6), hb=seaSurfAt(b.x-fx*1.6,b.z-fz*1.6);
+  b.y=h0+0.10; b.m.position.set(b.x,b.y,b.z);
+  b.m.rotation.set(Math.atan2(hf-hb,3.2),b.yaw,Math.sin(t*1.3+b.x)*0.03+b.roll,'YXZ');
+}
+function boatLaunch(w){
+  const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
+  for(let d=1.5;d<=4.5;d+=0.25){ const x=PL.pos.x+fx*d, z=PL.pos.z+fz*d, g=heightAt(x,z);
+    if(seaSurfAt(x,z)-g>0.9&&!waterAt(x,z,g).river){ boatSpawn(x,z,PL.yaw); invRemove(INV.slots.indexOf(w),1); EQUIP=null; invDirty=true;
+      toast('배를 띄웠다 — 배를 보고 E 로 탄다'); sfx('bind'); return; } }
+  toast('바다를 보고 — 4.5 m 안에 무릎 넘게 깊은 물이 있어야 띄운다');
+}
+function boatNear(){ let best=null, bd=3.2; for(const b of BOATS){ const d=Math.hypot(b.x-PL.pos.x,b.z-PL.pos.z); if(d<bd){ bd=d; best=b; } } return best; }
+function boatToggle(){
+  if(BOAT.on){
+    const b=BOAT.b; BOAT.on=false; BOAT.b=null; BOAT.v=BOAT.w=0;
+    let best=null; for(let k=0;k<16;k++){ const a=k/16*6.2832, x=b.x+Math.cos(a)*2.4, z=b.z+Math.sin(a)*2.4, g=heightAt(x,z); if(g>seaSurfAt(x,z)-0.3&&(!best||g<best.g)) best={x,z,g}; }
+    if(best) PL.pos.set(best.x,floorAt(best.x,best.z,best.g+1),best.z); else PL.pos.set(b.x+Math.cos(b.yaw)*1.2,b.y-0.4,b.z-Math.sin(b.yaw)*1.2);
+    PL.vel.set(0,0,0); PL.camY=undefined; toast(best?'뭍에 내렸다':'물에 내렸다'); return;
+  }
+  const b=boatNear(); if(!b||PL.dead||DEV.on) return;
+  BOAT.on=true; BOAT.b=b; BOAT.v=0; BOAT.w=0; PL.vel.set(0,0,0);
+  toast('배에 탔다 — W·S 노 젓기 · A·D 방향 · E 내리기');
+}
+function boatTick(dt){
+  const b=BOAT.b, K=(invOpen||craftOpen)?NO_KEYS:keys;
+  const fwd=(K.KeyW?1:0)-(K.KeyS?1:0), turn=(K.KeyD?1:0)-(K.KeyA?1:0);
+  BOAT.v+=((fwd>0?4.5:fwd<0?-1.8:0)-BOAT.v)*clamp((fwd?0.8:0.35)*dt,0,1);
+  BOAT.w+=(-turn*0.9-BOAT.w)*clamp(2.5*dt,0,1); b.yaw+=BOAT.w*dt*(0.35+0.65*Math.min(1,Math.abs(BOAT.v)/2));
+  PL.stam=clamp(PL.stam+(fwd?-1.2:6)*dt,0,100);
+  const fx=-Math.sin(b.yaw), fz=-Math.cos(b.yaw), nx=b.x+fx*BOAT.v*dt, nz=b.z+fz*BOAT.v*dt;
+  const tip=Math.sign(BOAT.v||1)*1.9, hx=nx+fx*tip, hz=nz+fz*tip;                    // 뱃머리(또는 고물)
+  if(heightAt(hx,hz)>seaSurfAt(hx,hz)-0.4||heightAt(nx,nz)>seaSurfAt(nx,nz)-0.4){ if(Math.abs(BOAT.v)>1.5) toast('배가 얕은 데에 닿았다'); BOAT.v=0; }
+  else{ b.x=nx; b.z=nz; }
+  b.roll+=(-BOAT.w*0.08-b.roll)*clamp(3*dt,0,1);
+  boatPose(b,SEA.clock);
+  const sx=b.x-fx*0.75, sz=b.z-fz*0.75;                                              // 고물 쪽 자리에 앉는다(뱃머리가 눈앞에 보이게)
+  PL.pos.set(sx,b.y+0.05,sz); PL.vel.set(0,0,0); PL.grounded=true; PL.swim=false; PL.oxy=100;
+  PL.camY=PL.pos.y; PL.eye+=(0.95-PL.eye)*clamp(8*dt,0,1);                              // 앉은 눈높이
+  camera.position.set(sx,PL.pos.y+PL.eye,sz); camera.rotation.set(PL.pitch,PL.yaw,b.m.rotation.z*0.6,'YXZ');
+}
 /* 매 프레임 — 바다 가까이 있을 때만 일한다 */
 function updateSea(dt){
+  for(const b of BOATS) if(b!==BOAT.b) boatPose(b,SEA.clock);
   SEA.clock+=dt; SEA_U.uSeaT.value=SEA.clock;
+  updateRod(dt);
   const px=PL.pos.x, pz=PL.pos.z;
   if(SEA.dirty||Math.hypot(px-SEA.cx,pz-SEA.cz)>6) seaScatter();
   seaFindLook();

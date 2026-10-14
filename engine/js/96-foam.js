@@ -69,6 +69,27 @@ function foamCluster(){
   FOAM.tets=P.length/36;
   return g;
 }
+/* **입체 거품 뭉치**(사용자 요청 — 둥근 판 거품이 이상하다 · 더 입체로). 사면체 뭉치는 세모로 보여 걷어졌었다(#29) — 이제
+   **거품 방울**이 엉긴 뭉치다: 큰 방울 하나(20면) 둘레에 가운데 방울 셋(20면)이 반쯤 묻혀 붙고, 잔 방울 넷(8면)이 그 겉에 돋는다.
+   법선은 방울 가운데에서 바깥으로(둥글게 보인다). 짜임은 사면체 뭉치와 같다 — 방울마다 aSub(붙은 자리 · 박자) · aLv(대) */
+function foamBubbles(){
+  const P=[], Nn=[], S=[], L=[], rnd=mulberry32(0xb0b1);
+  const ball=(cx,cy,cz,r,detail,lv,ax,ay,az)=>{ const g=detail?new THREE.IcosahedronGeometry(r,0):new THREE.OctahedronGeometry(r,0), p=g.attributes.position, ph=rnd()*6.283;
+    for(let i=0;i<p.count;i++){ const x=p.getX(i), y=p.getY(i), z=p.getZ(i), l=Math.hypot(x,y,z)||1;
+      P.push(cx+x,cy+y*0.85,cz+z); Nn.push(x/l,y/l,z/l); S.push(ax,ay,az,ph); L.push(lv); }
+    g.dispose(); };
+  ball(0,0,0,0.20,1,0,0,0,0);                                            // 큰 방울
+  const mids=[];
+  for(let k=0;k<3;k++){ const a=k/3*6.283+rnd()*0.8, e=(rnd()-0.3)*0.9, r=0.10+rnd()*0.06, d=0.20+r*0.35;
+    const c=[Math.cos(a)*Math.cos(e)*d,Math.sin(e)*d*0.8,Math.sin(a)*Math.cos(e)*d]; mids.push([c,r]); ball(c[0],c[1],c[2],r,1,1,c[0],c[1],c[2]); }
+  for(let k=0;k<4;k++){ const [m,mr]=mids[k%3], a=rnd()*6.283, e=rnd()*1.2-0.2, r=0.035+rnd()*0.035, d=mr+r*0.4;
+    const c=[m[0]+Math.cos(a)*Math.cos(e)*d,m[1]+Math.sin(e)*d,m[2]+Math.sin(a)*Math.cos(e)*d]; ball(c[0],c[1],c[2],r,0,2,c[0],c[1],c[2]); }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
+  g.setAttribute('aSub',new THREE.Float32BufferAttribute(S,4)); g.setAttribute('aLv',new THREE.Float32BufferAttribute(L,1));
+  FOAM.tets=P.length/3/3;
+  return g;
+}
 /* 거품 판의 무늬 — 크고 작은 거품 고리가 엉긴 레이스(캔버스 · 바깥으로 갈수록 옅다) */
 function foamLaceTex(){
   const W=256, c=document.createElement('canvas'); c.width=c.height=W; const g=c.getContext('2d'), rnd=mulberry32(0x1ace);
@@ -82,7 +103,7 @@ function foamLaceTex(){
   const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;
 }
 function foamInit(){
-  const base=foamCluster(), g=new THREE.InstancedBufferGeometry();
+  const base=foamBubbles(), g=new THREE.InstancedBufferGeometry();   // 거품 방울 뭉치(사면체 뭉치 foamCluster 는 남겨 둔다)
   g.setAttribute('position',base.attributes.position); g.setAttribute('normal',base.attributes.normal); g.setAttribute('aSub',base.attributes.aSub); g.setAttribute('aLv',base.attributes.aLv);
   /* 조각마다 — aA 물가의 점(x·z)과 뭍 쪽 방향(nx·nz) · aB 1/비탈 · 물가를 따라 비낀 거리 · 물머리보다 처지는 거리 · 크기
                  aC 씨앗 · 버티는 몫(물이 빠질 때 얼마나 오래 남나) · 구르는 빠르기 · 튀는 높이 */
@@ -154,7 +175,7 @@ function foamInit(){
       #endif`);
   };
   m.customProgramCacheKey=()=>sheet?'shorefoamsheet':'shorefoam'; return m; };
-  const m=mk(new THREE.MeshPhongMaterial({color:0xf3f7f5, emissive:0x1a1e20, specular:0x222222, shininess:12, flatShading:true}),false);
+  const m=mk(new THREE.MeshPhongMaterial({color:0xf3f7f5, emissive:0x2a2e30, specular:0x3a3a3a, shininess:30}),false);   // 둥근 방울 — 매끈한 명암 · 살짝 반짝인다
   const mesh=new THREE.Mesh(g,m);
   /* 거품 판 — 같은 조각 자료(aA~aD)를 나눠 쓰는 둘째 메시(판 하나 = 세모 둘) */
   const pg=new THREE.InstancedBufferGeometry(), pl=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
@@ -164,7 +185,7 @@ function foamInit(){
   const sheet=new THREE.Mesh(pg,sm); sheet.frustumCulled=false; sheet.userData.lightRole='recv'; sheet.renderOrder=4;
   sheet.matrixAutoUpdate=false; sheet.updateMatrix(); scene.add(sheet); FOAM.sheet=sheet; FOAM.pgeo=pg;
   mesh.frustumCulled=false; mesh.userData.lightRole='recv';   // 자리는 셰이더가 정한다 — 경계구로 거를 수 없다 · 그림자는 받기만
-  mesh.matrixAutoUpdate=false; mesh.updateMatrix();   // 사면체 뭉치는 장면에 안 넣는다(사용자 요청 — 세모 거품을 없앰 · 레이스 판만 그린다). 판이 같은 조각 자료를 쓴다
+  mesh.matrixAutoUpdate=false; mesh.updateMatrix(); scene.add(mesh);   // 입체 거품 방울 뭉치(사용자 요청 — 판만으로는 둥근 무늬처럼 납작했다) + 그 밑의 레이스 판
   FOAM.mesh=mesh; FOAM.geo=g;
 }
 
@@ -267,6 +288,7 @@ function updateFoam(){
   FOAM.U.uFT.value=TERR_U.uShT?TERR_U.uShT.value:0;           // 젖은 띠·칠한 거품과 같은 시계
   FOAM.U.uFP.value.copy(PL.pos); FOAM.U.uFR.value=FOAM.R;
   if(FOAM.sheet) FOAM.sheet.visible=FOAM.n>0;
+  if(FOAM.mesh) FOAM.mesh.visible=FOAM.n>0;
 }
 function foamReset(){ FOAM.cx=FOAM.cz=1e9; FOAM.n=0; if(FOAM.geo) FOAM.geo.instanceCount=0; if(FOAM.pgeo) FOAM.pgeo.instanceCount=0; foamSync(); }
 /* 물가 찾기를 두 말로 견준다 — 같은 자리에서 reps 번씩 돌려 한 번에 걸리는 시간(ms)과 찾은 수를 낸다 */

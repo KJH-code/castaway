@@ -555,6 +555,11 @@ function buildFarTrees(){
 }
 function buildProps(){
   _tvForce=true;
+  /* **비탈의 참나무·전나무는 밑동을 묻는다**(사용자 지적: 경사진 곳의 나무가 떠 있다) — 줄기 가운데의 땅 높이에 세우면 아래쪽 밑동이
+     허공에 뜬다. 줄기 반지름(뿌리 퍼짐 포함 1.4배) × 기울기만큼 나무째 내린다(가지·잎도 같이 — p.y 를 한 번만 고친다 · 1.2 m 까지) */
+  for(const p of PROPS) if((p.k==='oak'||p.k==='fir')&&p._sunk===undefined){
+    const g=groundSlope(p.x,p.z,Math.max(0.5,0.6*p.s)), sl=Math.hypot(g[0],g[1]);
+    p._sunk=Math.min(1.2*p.s,((p.k==='oak'?0.46:0.40)*p.s*1.4+0.1)*sl); p.y-=p._sunk; }
   TREE_TILES.length=0; ROCK_TILES.length=0; PROP_TILES.length=0;
   for(const k in ROCK_MAT) delete ROCK_MAT[k];
   if(propGroup){
@@ -977,6 +982,10 @@ function buildProps(){
       }
       let wsum=0; for(const l of lobe) wsum+=Math.abs(l[5]);
       wsum=wsum||1;
+      /* ①' 움푹 팬 자리(사용자 요청: 바위가 늘 둥글지는 않다 — 금과 팬 데가 있다) — 큰 돌은 1~3 군데, 사발처럼 부드럽게 판다 */
+      const dent=[];
+      if(r0>=0.4) for(let c=0,nd=1+((rnd()*3)|0);c<nd;c++){ let ax=rnd()*2-1, ay=rnd()*2-1, az=rnd()*2-1; const L=Math.sqrt(ax*ax+ay*ay+az*az)||1;
+        dent.push([ax/L,ay/L,az/L, 0.80+rnd()*0.13, 0.06+rnd()*0.09]); }
       // ② 쪼개진 면 — 중심에서 deep 쯤 떨어진 평면으로 잘라 낸다(볼록 다면체)
       const cut=[];
       for(let c=0;c<H.cuts;c++){
@@ -992,7 +1001,7 @@ function buildProps(){
         let r=1+(f/wsum)*amp;
         /* 잔 울퉁불퉁 — 겹친 값잡음으로 겉을 거칠게(사용자 요청: 바위가 너무 매끈하다). 화강암 11% · 나머지 5% · 자갈·부싯돌 3% */
         const RG=H.rough!==undefined?H.rough:(R.k==='pebble'||R.k==='flint'?0.03:0.05);
-        r*=1+RG*SHP.rough(d[0],d[1],d[2],hh,1.9,4);
+        r*=1+RG*SHP.rough(d[0],d[1],d[2],hh,1.9,4)+RG*1.1*(SHP.jag(d[0],d[1],d[2],hh^0x3c,2.6,3)-0.25);   // + 날카로운 능선(들쭉날쭉한 모서리)
         if(H.jit) r*=1+(rnd()*2-1)*H.jit;           // 꼭짓점마다 들쭉날쭉 — 낮은 다각형 바위의 모난 결
         let ow=-1;
         // ③ 정벽 쪼개짐 — 정육면체 쪽으로 당긴다
@@ -1009,6 +1018,7 @@ function buildProps(){
           if(dot>1e-3){ const lim=c[3]/dot; if(lim<r){ r=lim; ow=ci; } }
         }
         if(ow>=0&&ow<100) r*=1+RG*0.35*SHP.vn3(d[0]*7.0,d[1]*7.0,d[2]*7.0,hh^0x55);   // 쪼개진 면도 판판하지만은 않다
+        for(const dd of dent){ const q=d[0]*dd[0]+d[1]*dd[1]+d[2]*dd[2]; if(q>dd[3]){ const t=(q-dd[3])/(1-dd[3]); r*=1-dd[4]*t*t*(3-2*t); } }
         fac[u]=r; own[u]=ow;
       }
       // 개체별 회전 · 축별 신축
@@ -1023,12 +1033,12 @@ function buildProps(){
         out[0]=a2; out[1]=b*cx-c2*sxr; out[2]=b*sxr+c2*cx;
       };
       let off;
-      if(R.k==='flint') off=0.15*p.s; else if(R.k==='pebble') off=0.11*p.s; else if(ORE_LODGE[R.k]) off=0.20*p.s; else off=0.5*p.s;   // 광석은 땅에 박혀 있다(사용자 요청)
+      if(R.k==='flint') off=0.15*p.s; else if(R.k==='pebble') off=0.11*p.s; else if(R.k==='sulfur') off=0.02*p.s; else if(ORE_LODGE[R.k]) off=0.20*p.s; else off=0.5*p.s;   // 유황은 더 깊이(사용자 요청 — 겉만 드러난 딱지)   // 광석은 땅에 박혀 있다(사용자 요청)
       /* 비탈에서는 더 묻는다 — 곧추 얹으면 아래쪽 밑면이 허공에 뜬다(사용자 지적). 반지름 × 기울기의 0.6, 반지름의 0.45 까지 */
       { const gs=groundSlope(p.x,p.z,Math.max(0.4,r0*p.s*0.7)); off-=Math.min(0.45*r0*p.s,r0*p.s*Math.hypot(gs[0],gs[1])*0.6); }
       const oy=p.y+off, S0=p.s;
       p._vs=o/3; p._vn=SHELL_V; p._cy=oy; p._k=1;
-      mel.fill(ORE_LODGE[R.k]?clamp(0.62*S0*r0,0.12,1.1):clamp(0.34*S0*r0,0.05,0.8),o/3,o/3+SHELL_V);   // 광석은 땅 빛깔이 더 높이 올라온다
+      mel.fill(R.k==='sulfur'?clamp(0.95*S0*r0,0.15,1.3):ORE_LODGE[R.k]?clamp(0.62*S0*r0,0.12,1.1):clamp(0.34*S0*r0,0.05,0.8),o/3,o/3+SHELL_V);   // 유황은 땅 빛깔이 더 높이(넓게 녹아든다)   // 광석은 땅 빛깔이 더 높이 올라온다
 
       for(let i=0;i<SHELL_V;i++){
         const f=fac[vertU[i]];
@@ -1063,6 +1073,10 @@ function buildProps(){
         for(let e=0;e<3;e++){
           const j=t+e, u=vertU[j]*3;
           let mx=nx,my=ny,mz=nz;
+          if(isFlat[ti]){                             // **필렛** — 깎인 면의 가장자리 꼭짓점은 몸통 쪽 법선과 35% 섞어 모서리를 둥글린다(속은 판판한 그대로)
+            const al=Math.sqrt(acc[u]*acc[u]+acc[u+1]*acc[u+1]+acc[u+2]*acc[u+2]);
+            if(al>1e-6){ mx=nx+(acc[u]/al-nx)*0.35; my=ny+(acc[u+1]/al-ny)*0.35; mz=nz+(acc[u+2]/al-nz)*0.35; }
+          }
           if(!isFlat[ti]){
             const al=Math.sqrt(acc[u]*acc[u]+acc[u+1]*acc[u+1]+acc[u+2]*acc[u+2]);
             if(al>1e-6){                              // 면 법선 ↔ 이은 법선 사이를 smooth 로

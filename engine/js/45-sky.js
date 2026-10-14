@@ -1745,7 +1745,7 @@ function envPatch(m){
       // 구름 시험장엔 땅이 없다(TERR_U·TLIT 없음) — 빈 값으로 세운다(예전엔 여기서 시험장이 통째로 멈췄다)
       uTLe:typeof TERR_U!=='undefined'?TERR_U.uTL:_noTL(), uTLg:typeof TLIT!=='undefined'?TLIT.G:{value:new THREE.Vector2(1,1)},
       uDew:typeof TERR_U!=='undefined'?TERR_U.uDew:{value:0}});
-    if(melt&&typeof TERR_U!=='undefined'){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
+    if(melt&&typeof TERR_U!=='undefined'){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBio2:TERR_U.uBio2, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
       for(const k in MU) if(MU[k]&&!sh.uniforms[k]) sh.uniforms[k]=MU[k]; }
     const has=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.vertexShader+sh.fragmentShader);   // 제 셰이더가 이미 선언했으면 다시 안 한다
     const MV=melt?(has('uElev')?'':'uniform sampler2D uElev;\n')+(has('uGrid')?'':'uniform vec2 uGrid;\n')+(meltA?'attribute float aMelt;\n':'')+`varying float vMeltH;
@@ -1822,18 +1822,45 @@ float cloudSh(){
 	vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance + dewG;`); }
     if(melt){
       const fh=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.fragmentShader);
-      sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')
-        +(fh('uNz')?'':'uniform sampler2D uNz;\n')+'varying float vMeltH;\nvarying float vMeltT;\n'
+      const GP=typeof GND_OK==='function'&&GND_OK()&&TERR_U.uGnd;          // 땅 사진(22-ground-textures.js)을 읽을 수 있나
+      if(GP) sh.uniforms.uGnd=TERR_U.uGnd;
+      sh.fragmentShader=(fh('uBio')?'':'uniform sampler2D uBio;\n')+(GP&&!fh('uBio2')?'uniform sampler2D uBio2;\n':'')+(fh('uBioN')?'':'uniform float uBioN;\n')+(fh('uCell')?'':'uniform float uCell;\n')
+        +(fh('uNz')?'':'uniform sampler2D uNz;\n')+(GP&&!fh('uGnd')?'uniform mediump sampler2DArray uGnd;\n':'')+'varying float vMeltH;\nvarying float vMeltT;\n'
         +sh.fragmentShader.replace('#include <alphatest_fragment>',`#include <alphatest_fragment>
       if(vMeltH<vMeltT*1.5){
-        /* 덮이는 금 — 굵은 잡음(1.9 m)이 혀처럼 올라오고 잔 잡음(0.4 m)이 톱니를 낸다. 금 자체는 좁게(그 높이의 45%) 넘어간다 */
-        float mN=texture2D(uNz,vCsXZ/1.9).r, mF=texture2D(uNz,vCsXZ/0.41+0.31).g;
-        float mE=vMeltT*(0.30+0.95*mN*mN+0.38*(mF-0.5));
-        float mk=1.0-smoothstep(mE*0.55,mE,vMeltH);
+        /* 덮이는 금 — **부드럽게**(사용자 요청: 바위와 땅이 만나는 데를 매끄럽게). 예전엔 잔 잡음(0.4 m)이 톱니를 내 좁게(그 높이의
+           45%) 넘어갔는데, 숲의 풀빛 땅에서는 그 톱니가 바위 밑동에 돋은 풀잎처럼 보였다(굴 속에 풀이 난 것처럼). 이제 굵은 잡음(1.9 m)만
+           높이를 흔들고 그 높이의 80% 에 걸쳐 천천히 넘어간다 */
+        float mN=texture2D(uNz,vCsXZ/1.9).r;
+        float mE=vMeltT*(0.50+0.70*mN);
+        float mk=1.0-smoothstep(mE*0.20,mE,vMeltH);
         if(mk>0.004){
-          vec3 mg=texture2D(uBio,(vCsXZ/uCell+uBioN*0.5+0.5)/uBioN).rgb;
-          float md=0.84+0.42*(texture2D(uNz,vCsXZ/0.93+0.17).b-0.5)+0.26*(mF-0.5);          // 땅의 얼룩
-          diffuseColor.rgb=mix(diffuseColor.rgb,mg*md,mk*0.94); } }`);
+          vec3 mg;
+          ${GP?`/* **땅 셰이더와 같은 순서로 땅 빛깔을 낸다**(사용자 요청: 필렛이 땅의 결·빛깔과 같아야 한다 — 22-ground-textures.js 의 평지 갈래를 옮겼다):
+             큰 잡음으로 비튼 바이옴 색 → 큰 얼룩의 밝기·빛깔 → 낙엽·솔잎·진흙·모래의 덧칠 → 그 자리 땅 사진들을 가림막 무게대로 섞어 곱한다.
+             (땅의 육각 타일 · 젖은 띠 · 물가 · 화소마다의 빛은 뺐다 — 띠가 좁아 안 보인다) 땅을 바꾸면 여기도 같이 바꿀 것 */
+          { vec2 gp=vCsXZ; vec4 g1=texture2D(uNz,gp/113.0), g2=texture2D(uNz,gp/27.0+vec2(0.37,0.11));
+            vec2 gw=gp+(g1.rg-0.5)*7.5+(g2.rg-0.5)*2.4, gu=(gw/uCell+uBioN*0.5+0.5)/uBioN;
+            mg=texture2D(uBio,gu).rgb; vec4 mm=texture2D(uBio2,gu);
+            mg*=1.0+0.22*(g1.b-0.5)+0.12*(g2.b-0.5);
+            mg*=mix(vec3(0.96,0.99,1.04),vec3(1.05,1.01,0.93),g1.a);
+            float mS=smoothstep(0.2,0.7,mm.r), mLf=smoothstep(0.2,0.7,mm.g), mNd=smoothstep(0.2,0.7,mm.b), mMd=smoothstep(0.2,0.7,mm.a);
+            float mgr=clamp((mg.g-max(mg.r,mg.b))*8.0,0.0,1.0);
+            mg=mix(mg,vec3(0.34,0.26,0.14),mLf*0.50); mg=mix(mg,vec3(0.30,0.22,0.13),mNd*0.45); mg=mix(mg,vec3(0.14,0.13,0.10),mMd*0.50);
+            mg*=mix(1.0,0.70,mS); mg=mix(mg,mg*vec3(0.94,0.95,1.0)+vec3(0.0,0.004,0.008),mS*0.5);
+            float wO=max(0.0,1.0-mS-mLf-mNd-mMd), wG=wO*mgr, wD=wO*(1.0-mgr), wT=mS+mLf+mNd+mMd+wO+1e-4;
+            vec2 ua=gp/2.1; vec3 det=vec3(0.0);
+            if(mS>0.02) det+=mS*texture(uGnd,vec3(ua,0.0)).rgb;  if(wG>0.02) det+=wG*texture(uGnd,vec3(ua,1.0)).rgb;
+            if(mLf>0.02) det+=mLf*texture(uGnd,vec3(ua,2.0)).rgb; if(mNd>0.02) det+=mNd*texture(uGnd,vec3(ua,3.0)).rgb;
+            if(mMd>0.02) det+=mMd*texture(uGnd,vec3(ua,6.0)).rgb; if(wD>0.02) det+=wD*texture(uGnd,vec3(ua,7.0)).rgb;
+            float wU=(mS>0.02?mS:0.0)+(wG>0.02?wG:0.0)+(mLf>0.02?mLf:0.0)+(mNd>0.02?mNd:0.0)+(mMd>0.02?mMd:0.0)+(wD>0.02?wD:0.0);
+            det=wU>0.0?det/wU:vec3(0.5);
+            mg*=mix(vec3(1.0),det*2.0,mix(1.0,0.50,mS));
+            mg*=mix(1.0,0.84+0.30*g1.r+0.10*(g2.g-0.5),mS); }`
+          :`mg=texture2D(uBio,(vCsXZ/uCell+uBioN*0.5+0.5)/uBioN).rgb*(0.84+0.42*(texture2D(uNz,vCsXZ/0.93+0.17).b-0.5));`}
+          /* 이음은 필렛처럼 둥글게(smoothstep 두 번) · 작은 돌(녹는 높이 30 cm 밑)은 덜 덮는다 — 반쯤 덮인 자갈이 곰팡이 핀 것처럼 보였다 */
+          float mkk=mk*mk*(3.0-2.0*mk); mkk=mkk*mkk*(3.0-2.0*mkk);
+          diffuseColor.rgb=mix(diffuseColor.rgb,mg,mkk*mix(0.55,0.94,smoothstep(0.05,0.30,vMeltT))); } }`);
     }
   };
   /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
@@ -2432,6 +2459,9 @@ function updateSky(){
   /* 밤의 그늘은 거의 0 이다(사용자 요청: 달그림자는 광도 0) — 하늘빛·환경광을 달빛만큼 올리지 않고 별빛 수준에 묶는다 */
   amb.intensity*=lerp(1,0.5*perc,nightK);
   hemi.intensity=lerp(0.18,0.012+0.02*perc,nightK)+amb.intensity*0.5;
+  /* **볕과 그늘의 대비를 세게**(사용자 요청 — 2026-10-14) — 낮에는 그늘을 채우는 환경광·하늘빛을 28% 줄이고 볕을 12% 올린다
+     (밤은 그대로 — 이미 별빛 수준이다) */
+  { const CON=1-nightK; amb.intensity*=1-0.28*CON; hemi.intensity*=1-0.28*CON; if(moonFade<=0) sun.intensity*=1+0.12*CON; }
   /* **빛의 색조**(사용자 요청) — 산란식이 내는 색은 눈의 순응을 거쳐 거의 흰빛으로 눅는다. 그 위에 한 겹 더 물들인다.
        · 노을·새벽(해가 지평선에서 17° 안) — 볕이 닿는 데는 **주황**, 그늘을 채우는 하늘빛·환경광은 **보라**.
        · 달이 뜬 밤 — 달빛이 **은은한 푸른빛**이다.
