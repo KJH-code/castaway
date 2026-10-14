@@ -208,7 +208,18 @@ function heldConsumable(id){
         put(C(0.038,0.038,0.07,18),M,0,0.035,0,1,1,1,0,Math.PI/2);
         put(C(0.012,0.012,0.072,10),WMAT(shade(T.c,0.75)),0,0.035,0,1,1,1,0,Math.PI/2);
         put(new THREE.BoxGeometry(0.068,0.09,0.004),M,0,-0.01,0.036);
-      }else if(T.drink) pot(T.c);
+      }else if(T.drink||T.empty==='pot') pot(T.c);     // 국·탕은 토기째(96-dishes.js)
+      else if(T.dish){                                // 요리(96-dishes.js) — 그릇 위에 음식 빛깔 더미
+        const D=T.dish;
+        if(D==='skewer'){ put(C(0.005,0.005,0.26,6),WMAT(0x8a6a40),0,0.10,0);
+          for(let i=0;i<3;i++) put(S(0.032,10,8),WMAT(shade(T.c,i%2?0.78:1.05)),(i%2?0.008:-0.006),0.04+i*0.06,0,1,0.85,1); }
+        else if(D==='leaf'){ put(S(0.07,14,10),WMAT(0x3a4a2a),0,0.06,0,1.15,0.55,1);
+          put(S(0.05,12,8),WMAT(T.c),0,0.085,0,1,0.45,0.9); }
+        else{ const bowl=D==='bowl';
+          put(C(bowl?0.075:0.09,bowl?0.05:0.085,bowl?0.05:0.012,18),WMAT(bowl?0xa8724a:0x6a5a48),0,bowl?0.025:0.006,0);
+          put(S(bowl?0.062:0.06,14,10),M,0,bowl?0.05:0.03,0,1,bowl?0.4:0.5,bowl?1:0.8);
+          put(S(0.02,8,6),WMAT(shade(T.c,1.3)),0.02,bowl?0.07:0.05,0.01); }
+      }
       else if(T.fishy){                               // 바다 물고기 — 종마다 길이·키만 달리한다
         fishBody(T.c);
         const k={clownfish:[1,0.62],angelfish:[1.5,0.6],pufferfish:[1.6,0.55],eel:[0.5,1.25],flounder:[1.7,0.8],
