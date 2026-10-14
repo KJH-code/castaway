@@ -170,7 +170,7 @@ function cragNear(x,z,pad){
   for(const i of a){ const dx=x-C[i], dz=z-C[i+1], q=C[i+2]+pad; if(dx*dx+dz*dz<q*q) return true; }
   return false;
 }
-function buildCrags(){ if(typeof coastBuild==='function') coastBuild(); }   // 주상절리 기둥 메시(34-coast.js)                 // (예전엔 여기서 충돌 원을 걸었다 — 이제 몸은 바위의 진짜 꼴로 막는다. 아래)
+function buildCrags(){ if(typeof coastBuild==='function') coastBuild(); if(typeof geoBuild==='function') geoBuild(); }   // 주상절리 기둥(34-coast.js) · 지열 지대(35-geo.js)                 // (예전엔 여기서 충돌 원을 걸었다 — 이제 몸은 바위의 진짜 꼴로 막는다. 아래)
 
 /* ── 바위를 딛기 ────────────────────────────────────────────────────────────
    사람이 선 자리의 수직선이 바위 덩이를 지나는 구간([밑, 꼭대기])을 **그려진 꼴 그대로** 구한다 — 덩이마다 수직선을 그 덩이의

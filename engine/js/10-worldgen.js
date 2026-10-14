@@ -757,6 +757,7 @@ function placeResources(seed){
   resolveOverlaps();
   caveSites(seed);                                     // 동굴 자리를 잡고 광석을 그 안으로 옮긴다(지형 판 2)
   cragSites(seed);                                     // 벼랑에 박힌 큰 바위 무리(33-crags.js)
+  if(typeof geoSites==='function') geoSites(seed);     // 지열 지대 — 온천 · 간헐천 · 진흙 웅덩이 · 석회화 단구(35-geo.js · 지형 판 5)
   for(const k in counts) counts[k]=0; for(const p of PROPS) counts[p.k]=(counts[p.k]||0)+1;
   stats.props=PROPS.length; stats.counts=counts; stats.forced=forced;
 }

@@ -34,7 +34,7 @@ function loop(){
     gameHours+=dh; hourOfDay=(hourOfDay+dh)%24;
     updateShip(dt);                            // 보급선이 내려놓고 떠난다
     updateTorch(dt,dh); updateLamp(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh); updateStoreTags(); updateRubble(); updateFlora(); updateSea(dt); updateFoam(); updateWildlife(dt); updatePush(dt); updateCamcorder(dt);
-    updateWeapon(dt); updatePower(dt); updateDecay(dh);
+    updateWeapon(dt); updatePower(dt); updateDecay(dh); updateGeo(dt);
     updateOcean(now*0.001);
     if(PO) tp=PERF.lap(4,tp);
     updateSky();
