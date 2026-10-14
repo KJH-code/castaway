@@ -41,6 +41,34 @@ function gndNoiseTex(){
   t.generateMipmaps=true; t.needsUpdate=true;
   return t;
 }
+/* 땅의 잔 기복 — 높이와 그 기울기를 한 장에(R 높이 · G·B 기울기 ∂/∂u·∂/∂v · A 다른 잡음). 되풀이되는 256² 한 장을
+   세 배율(190 m · 31 m · 4.2 m 에 한 장)로 읽어 둔덕·골·잔 울퉁불퉁을 만든다. 기울기를 같이 담아 두면 화소에서 한 번 읽어
+   법선을 바로 기울일 수 있다(이웃을 두 번 더 읽지 않는다). 가운데 한 겹은 접힌 잡음(능선·골의 금)이다.
+   `GND.relQ`(높이 · 0~1 · 텍스처의 8비트 값) · `GND.relK`(기울기 눈금)는 CPU 쪽 셈에도 쓴다(10-worldgen.js `reliefT`) */
+function gndReliefTex(){
+  const S=256, H=new Float32Array(S*S), d=new Uint8Array(S*S*4), rnd=mulberry32(0x51f15e);
+  const lat=n=>({n,g:Float32Array.from({length:n*n},()=>rnd())});
+  const smp=(o,x,y)=>{ const n=o.n, fx=x/S*n, fy=y/S*n, ix=Math.floor(fx), iy=Math.floor(fy), tx=fx-ix, ty=fy-iy,
+      sx=tx*tx*tx*(tx*(tx*6-15)+10), sy=ty*ty*ty*(ty*(ty*6-15)+10);
+    const a=o.g[(iy%n)*n+(ix%n)], b=o.g[(iy%n)*n+((ix+1)%n)], c=o.g[((iy+1)%n)*n+(ix%n)], e=o.g[((iy+1)%n)*n+((ix+1)%n)];
+    return (a+(b-a)*sx)*(1-sy)+(c+(e-c)*sx)*sy; };
+  const A=lat(4), B=lat(8), C=lat(16), D=lat(32), E=lat(8);
+  let lo=1e9, hi=-1e9;
+  for(let y=0;y<S;y++) for(let x=0;x<S;x++){ const r=1-Math.abs(2*smp(C,x,y)-1), v=0.42*smp(A,x,y)+0.28*smp(B,x,y)+0.20*r*r+0.10*smp(D,x,y);
+    H[y*S+x]=v; if(v<lo) lo=v; if(v>hi) hi=v; }
+  for(let i=0;i<S*S;i++) H[i]=(H[i]-lo)/(hi-lo);
+  let K=1e-6; const G=new Float32Array(S*S*2);
+  for(let y=0;y<S;y++) for(let x=0;x<S;x++){ const i=y*S+x;
+    const gx=(H[y*S+((x+1)%S)]-H[y*S+((x+S-1)%S)])*S/2, gy=(H[((y+1)%S)*S+x]-H[((y+S-1)%S)*S+x])*S/2;
+    G[i*2]=gx; G[i*2+1]=gy; K=Math.max(K,Math.abs(gx),Math.abs(gy)); }
+  for(let y=0;y<S;y++) for(let x=0;x<S;x++){ const i=y*S+x;
+    d[i*4]=Math.round(H[i]*255); d[i*4+1]=Math.round(127.5+127.5*G[i*2]/K); d[i*4+2]=Math.round(127.5+127.5*G[i*2+1]/K); d[i*4+3]=Math.round(smp(E,x,y)*255); }
+  GND.relQ=Float32Array.from(H,v=>Math.round(v*255)/255); GND.relK=K;      // CPU 가 읽는 높이 — 텍스처에 든 8비트 값 그대로(heightAt 과 덧판 셰이더가 같은 값을 본다)
+  const t=new THREE.DataTexture(d,S,S,THREE.RGBAFormat);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.minFilter=THREE.LinearMipmapLinearFilter; t.magFilter=THREE.LinearFilter;
+  t.generateMipmaps=true; t.needsUpdate=true;
+  return t;
+}
 function gndArrayTex(data,S,n){
   const t=new THREE.DataTexture2DArray(data,S,S,n);
   t.format=THREE.RGBAFormat; t.type=THREE.UnsignedByteType;
@@ -56,6 +84,7 @@ function gndInit(){
   GND.nz=gndNoiseTex();
   TERR_U.uNz={value:GND.nz}; WATER_U.uNz=TERR_U.uNz;
   TERR_U.uShT={value:0};
+  TERR_U.uRel={value:gndReliefTex()};
   if(typeof THREE.DataTexture2DArray!=='function') return;
   GND.tex=gndArrayTex(new Uint8Array(4*n).fill(128),1,n);
   TERR_U.uGnd={value:GND.tex};
@@ -85,9 +114,24 @@ function gndInit(){
 /* ── 땅 셰이더(사진 판) ─────────────────────────────────────────────────
    terrainMat 이 정점 쪽(vTW · vTN · vTD)을 붙인 뒤 이 함수로 조각 쪽을 갈아 끼운다.
    화소 하나의 일: 잡음 텍스처 2번 → 바이옴 색·가림막 8번(가운데+둘레 셋씩) → 사진 결 2~6번(그 자리에 있는 땅의 것만)
-   → 물가면 거품 무늬 2번. 수식 잡음은 하나도 안 센다. */
+   → 물가면 거품 무늬 2번. 수식 잡음은 하나도 안 센다.
+
+   **화소마다의 빛**(끝머리 '화소마다의 빛' 토막) — 램버트는 빛을 정점에서 센다. 땅의 정점은 칸마다 하나(6배 섬에서 15 m)라
+   비탈이 밋밋한 판으로 보였다. 땅만은 해의 몫을 화소에서 다시 센다:
+     ① 잔 기복(`uRel` — 세 배율)의 기울기로 법선을 기울인다. 모래·진흙은 순하게, 바위는 거칠게.
+     ② 사진 결의 밝기를 높이로 보고 한 번 더 기울인다(가까이서만 — 화면 미분으로 구한다. 더 읽는 것은 없다).
+     ③ 그 법선으로 N·L 을 세어 정점에서 온 값(`lambW.x`) 자리에 넣는다(`gndSun`). 그림자·구름 그늘·산 그림자는 그대로 곱해진다.
+     ④ 그림자 지도 밖(`uShR`)에서는 숲 덮임(`uTL` 의 B)만큼 햇빛을 깎는다 — 먼 숲 바닥이 어둡다. 하늘빛도 조금.
+     ⑤ 기복의 낮은 데는 하늘빛을 덜 받는다(`gndAmb`).
+     ⑥ 젖은 데(물가 · 진흙 · 비 `uWet`)는 짙어지고 번들거린다(블린-퐁 — 마른 흙은 넓고 흐리게, 젖으면 좁고 밝게) */
 function gndTerrainFrag(frag){
+  const SUN='reflectedLight.directDiffuse += PI * directionalLights[ 0 ].color * lambW.x * getShadowMask();',
+        IND='reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb );';
+  const PIX=frag.split(SUN).length===2&&frag.split(IND).length===2;      // 램버트 조각 셰이더가 예상과 같을 때만 화소 빛으로 간다
+  if(PIX) frag=frag.replace(SUN,SUN.replace('lambW.x','gndSun')).replace(IND,IND+'\n\treflectedLight.indirectDiffuse *= gndAmb;');
   return `uniform vec3 uSunDir;
+uniform sampler2D uRel; uniform sampler2D uTL; uniform float uShR, uWet, uDew;
+float gndSun=1.0, gndAmb=1.0;
 uniform sampler2D uBio; uniform sampler2D uBio2; uniform sampler2D uNz; uniform float uBioN, uCell, uShT;
 uniform mediump sampler2DArray uGnd;
 varying vec3 vTW;
@@ -113,6 +157,27 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
       {
         vec2 p=vTW.xz;
         vec4 n1=texture2D(uNz,p/113.0), n2=texture2D(uNz,p/27.0+vec2(0.37,0.11));
+        /* **가파른 면은 옆에서 본 좌표로** — 위에서 내려다본 좌표(xz)만 쓰면 벽에서 무늬가 세로로 길게 늘어진다(벼랑의 줄무늬).
+           51°~68° 에 걸쳐 옆 투영 둘(xy · zy)을 면이 보는 쪽대로 섞은 것으로 옮겨 간다 — 얼룩 잡음과 바위 사진 결 */
+        vec3 aN=abs(normalize(vTN)); float stp=smoothstep(0.62,0.38,aN.y), wSx=aN.x/(aN.x+aN.z+1e-4);
+        vec2 tS1=vTW.xy/2.1, tS2=vTW.zy/2.1, gS1x=dFdx(tS1), gS1y=dFdy(tS1), gS2x=dFdx(tS2), gS2y=dFdy(tS2);
+        { vec4 s1=mix(texture2D(uNz,vTW.xy/113.0),texture2D(uNz,vTW.zy/113.0),wSx), s2=mix(texture2D(uNz,vTW.xy/27.0+vec2(0.37,0.11)),texture2D(uNz,vTW.zy/27.0+vec2(0.37,0.11)),wSx);
+          n1=mix(n1,s1,stp); n2=mix(n2,s2,stp); }
+        float wallWet=0.0, wallSleek=0.0, wallDark=1.0; vec3 wallCol=vec3(-1.0);
+        /* **벽의 결은 자리마다 다르다**(사용자 요청) — 큰 얼룩(300 m)이 그 벽의 암석을 정한다:
+             · 금이 간 벽 — 절리. 잡음의 등고선을 가는 어두운 금으로 긋는다(두 방향 · 벽마다 촘촘하기가 다르다).
+             · **점판암** — 매끈하고 검푸르다. 얇은 쪽(벽개)이 비스듬히 나란하고, 볕을 좁고 밝게 되비친다.
+             · **스미는 물** — 위에서 아래로 길게 젖은 띠가 천천히 흘러내린다. 짙고, 물처럼 번들거린다.
+           옆에서 본 좌표(가로 · 높이)로 그린다. 값은 아래 바위 빛깔과 '화소마다의 빛'이 쓴다 */
+        if(stp>0.02){
+          float wt=texture2D(uNz,p/310.0+vec2(0.13,0.71)).b; vec2 sp=mix(vTW.xy,vTW.zy,wSx);
+          float f1=abs(texture2D(uRel,sp/9.0).a-0.5), f2=abs(texture2D(uRel,sp.yx/5.3+0.37).a-0.5);
+          float crack=clamp((1.0-smoothstep(0.0,0.030,f1))+(1.0-smoothstep(0.0,0.026,f2))*0.7,0.0,1.0);
+          wallDark=1.0-crack*0.58*stp*(0.30+0.70*smoothstep(0.42,0.60,wt));
+          wallSleek=smoothstep(0.32,0.20,wt)*stp;
+          wallCol=vec3(0.15,0.18,0.22)*(0.80+0.34*(0.5+0.5*sin((sp.y+sp.x*0.45)*8.0+n2.g*2.5)));
+          wallWet=smoothstep(0.60,0.78,texture2D(uNz,vec2(sp.x/13.0,sp.y/85.0+uShT*0.0035)).r)*stp;
+        }
         /* 바이옴 색과 가림막 — 잡음으로 비튼 자리에서, 가운데 + 둘레 셋을 섞어 읽는다(경계가 굽이치고 부드럽다) */
         vec2 wp=p+(n1.rg-0.5)*7.5+(n2.rg-0.5)*2.4;
         vec2 bu=(wp/uCell+uBioN*0.5+0.5)/uBioN; float br=3.5/uCell/uBioN;
@@ -143,6 +208,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         // 바위 — 가파를수록 드러나고, 높이를 따라 층이 진다
         float strata=0.5+0.5*sin(vTW.y*2.3+n2.a*5.0);
         c=mix(c,vec3(0.36,0.34,0.31)*(0.82+0.26*strata),steep*0.85);
+        if(wallCol.r>=0.0){ c=mix(c,wallCol,wallSleek*0.88)*wallDark*mix(1.0,0.60,wallWet); }   // 점판암 · 금 · 젖은 띠
         c=mix(c,c*vec3(0.60,0.80,0.70),subRock*0.6);                          // 물밑 바위에는 바닷말이 끼어 푸르스름하다
         /* 사진 결 — 그 자리에 있는 땅의 것만 읽는다. 한 장을 두 배율(2.1 m · 8.7 m)로 읽어 가까이는 잘게, 멀리는
            크게 — 타일이 되풀이되는 것이 덜 보인다. 갈래 안에서 읽으므로 기울기는 밖에서 구해 넘긴다(textureGrad). */
@@ -158,7 +224,9 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         if(wGrass>0.02) det+=wGrass*GL(1.0);
         if(wLeaf>0.02)  det+=wLeaf*GL(2.0);
         if(wNeed>0.02)  det+=wNeed*GL(3.0);
-        if(wRock>0.02)  det+=wRock*GL(4.0);
+        if(wRock>0.02){ vec3 rk=GL(4.0);
+          if(stp>0.0) rk=mix(rk,mix(textureGrad(uGnd,vec3(tS1,4.0),gS1x,gS1y).rgb,textureGrad(uGnd,vec3(tS2,4.0),gS2x,gS2y).rgb,wSx),stp);
+          det+=wRock*rk; }
         if(wGrav>0.02)  det+=wGrav*GL(5.0);
         if(wMud>0.02)   det+=wMud*GL(6.0);
         if(wDry>0.02)   det+=wDry*GL(7.0);
@@ -167,7 +235,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         det=wSum>0.0?det/wSum:vec3(0.5);
         c*=mix(vec3(1.0),det*2.0,mix(1.0,0.6,smoothstep(50.0,160.0,vTD)));    // 멀리선 조금 옅게
         /* 물가 — 젖은 띠와 밀려온 거품. 바닷물 셰이더의 거품과 같은 박자(uShT)로 오르내린다 */
-        float h=vTW.y;
+        float h=vTW.y, wetS=0.0;
         if(h<1.3&&h>-0.8){
           /* **진짜 수면** — 바닷물 판을 오르내리게 하는 긴 파도 셋(물 셰이더의 wv(0~2))을 같은 식 · 같은 시계로 푼다. 예전엔 여기만
              제 박자(sin 하나)로 오르내려, 물이 빠졌는데 흰 물자국이 남거나 물이 덮었는데 마른 모래로 보였다 */
@@ -177,7 +245,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
           /* 젖은 띠 — 예전엔 반 미터 높이까지 고르게 짙어 물가에 띠를 칠한 것 같았다(사용자 지적). 물결이 닿는 데까지만,
              가장자리는 잡음으로 들쭉날쭉하게, 짙기도 한 단계만 */
           float wet=smoothstep(0.52+0.14*sw+(n2.r-0.5)*0.18,0.02,h)*step(-0.6,h);   // 물결이 가장 높이 닿는 데(0.6 m)까지 젖어 있다
-          c*=mix(1.0,0.76,wet);                                               // 젖은 모래·자갈은 짙다
+          c*=mix(1.0,0.76,wet); wetS=wet;                                     // 젖은 모래·자갈은 짙다
           c+=vec3(0.10,0.11,0.12)*wet*pow(max(uSunDir.y,0.0),2.0)*smoothstep(0.25,0.0,h);   // 물 먹은 자리의 번들거림
           float lace=texture2D(uNz,p/2.3+vec2(uShT*0.013,0.0)).r*0.6+texture2D(uNz,p/0.83).g*0.4;
           float top=sea;                                                      // 지금 물이 닿은 높이
@@ -189,6 +257,49 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
           float ca=1.0-abs(texture2D(uNz,p/3.3+vec2(uShT*0.031,uShT*0.017)).r-texture2D(uNz,p/2.6-vec2(uShT*0.023,-uShT*0.029)).g)*2.6;
           c+=c*pow(clamp(ca,0.0,1.0),6.0)*1.7*smoothstep(0.25,1.2,-h)*smoothstep(14.0,3.0,-h)*max(uSunDir.y,0.0);
         }
+        ${PIX?`/* ── 화소마다의 빛 ── */
+        {
+          vec3 Ng=normalize(vTN);
+          float kR=mix(1.0,0.32,mSand*flat1)*mix(1.0,0.55,mMud*flat1)*(1.0+0.9*steep);
+          mat2 M2=mat2(0.8253,-0.5646,0.5646,0.8253), M3=mat2(-0.3233,-0.9463,0.9463,-0.3233);
+          vec4 t1=texture2D(uRel,p/190.0), t2=texture2D(uRel,(M2*p+vec2(17.0,3.0))/31.0), t3=texture2D(uRel,(M3*p+vec2(5.0,41.0))/4.2);
+          float RK=${(2*GND.relK).toFixed(3)};
+          vec2 g=(t1.gb-0.5)*(RK*3.0/190.0)+((t2.gb-0.5)*M2)*(RK*0.50/31.0)+((t3.gb-0.5)*M3)*(RK*0.065/4.2);
+          float hr=(t1.r-0.5)*0.45+(t2.r-0.5)*0.35+(t3.r-0.5)*0.20;             // 기복의 높낮이(−0.5~0.5 — 큰 것·가운데·잔 것)
+          g*=kR*(1.0-0.65*stp);                                                 // 벽에서는 순하게(위로 미는 기복은 벽에서 세로 줄이 된다)
+          /* **모래의 물결 자국** — 물밑 모래와 모래밭에는 물살·바람이 낸 잔 이랑이 진다. 마구잡이 혹이 아니라 **한 방향으로 나란한**
+             이랑이다: 이랑은 물가와 나란히(비탈의 내리막에 수직으로) 눕는다. 방향이 다른 세 벌(60° 간격)을 두고 그 자리의 내리막 방향에
+             가까운 벌이 이기게 섞는다(방향을 화소마다 돌리면 무늬가 뭉개진다). 간격은 얕은 데 30 cm · 깊은 데 90 cm(큰 이랑),
+             높이 1.2 cm. 잡음으로 굽이친다. 20 m 밖에서는 화소보다 잘아져 지운다 */
+          { float sandK=max(mSand*flat1,(h<0.3?(1.0-subRock)*(1.0-grav):0.0))*smoothstep(22.0,7.0,vTD);
+            if(sandK>0.02){ vec2 dn=normalize(Ng.xz+vec2(0.021,0.013)); float lam=mix(0.32,0.90,smoothstep(0.3,-7.0,h)), kk=6.2832/lam, ws=0.0, hs=0.0; vec2 gr=vec2(0.0);
+              for(int i=0;i<3;i++){ float an=float(i)*1.0472+0.35; vec2 d=vec2(cos(an),sin(an)); float w=pow(abs(dot(dn,d)),6.0)+0.02;
+                float ph=dot(p,d)*kk+(n2.r-0.5)*5.0+(n1.g-0.5)*9.0; gr+=w*d*(cos(ph)+0.35*cos(2.0*ph+1.0))*kk; hs+=w*sin(ph); ws+=w; }
+              g+=gr/ws*(0.012*sandK); hr+=hs/ws*0.10*sandK; } }
+          float ny=max(Ng.y,0.3);
+          vec3 Np=normalize(vec3(Ng.x/ny-g.x,1.0,Ng.z/ny-g.y));
+          float lum=dot(det,vec3(0.3333)), nearB=1.0-smoothstep(6.0,34.0,vTD);
+          if(nearB>0.0){                                                          // 사진 결의 밝기를 높이로(밝은 데가 솟았다 · 3 cm)
+            vec3 sx=dFdx(vTW), sy=dFdy(vTW), r1=cross(sy,Np), r2=cross(Np,sx); float dt=dot(sx,r1);
+            Np=normalize(Np-(dFdx(lum)*r1+dFdy(lum)*r2)*(sign(dt)/max(abs(dt),1e-7))*0.03*nearB); }
+          float ndl=clamp(dot(Np,uSunDir),0.0,1.0);
+          vec2 tu=(p/uCell+uBioN*0.5+0.5)/uBioN;
+          float can=texture2D(uTL,tu+uSunDir.xz/max(uSunDir.y,0.22)*(7.0/uCell/uBioN)).b;   // 나무 키(7 m)만큼 해 쪽의 숲이 여기에 그늘을 드리운다
+          float canK=smoothstep(uShR*0.72,uShR,vTD);
+          float wetK=clamp(max(max(wetS,wallWet),mMud*flat1*0.55)+uWet*(0.55+0.45*(1.0-hr*2.0))+uDew*0.30*wGrass,0.0,1.0);   // 비는 낮은 데부터 고인다 · 이슬은 풀밭에
+          c*=mix(1.0,0.74,uWet*(1.0-mSand*0.5));                                  // 비 맞은 땅은 짙다
+          vec3 Vv=normalize(cameraPosition-vTW), Hh=normalize(Vv+uSunDir);
+          float gl=mix(mix(mix(7.0,22.0,wRock),150.0,wallSleek),96.0,wetK), f0=mix(mix(0.022,0.075,wallSleek),0.05,wetK);   // 점판암은 매끈하다
+          if(wallWet>0.01){ float rp=texture2D(uNz,vTW.xy/1.7+vec2(0.0,uShT*0.06)).g+texture2D(uNz,vTW.zy/1.7+vec2(0.0,uShT*0.06)).g-1.0;
+            Np=normalize(Np+vec3(rp,0.0,rp)*0.10*wallWet); }                         // 흘러내리는 물의 잔 일렁임 — 반짝임이 살아 움직인다
+          float spec=f0*(gl+8.0)*0.125*pow(max(dot(Np,Hh),0.0),gl)*ndl*(0.35+0.65*smoothstep(0.35,0.65,lum))*mix(1.0,0.5,wetK);   // 젖은 데는 좁고 밝되 하얗게 뭉개지지 않게
+          /* 이슬 맺힌 풀밭의 반짝임 — 잎 재질과 같은 식(98-dew.js ②) */
+          if(uDew>0.01&&wGrass>0.05){ float cs=max(0.010,vTD*0.0024);
+            float hh=fract(sin(dot(floor(vTW/cs),vec3(127.1,311.7,74.7))+floor(dot(Vv,vec3(31.0,17.0,23.0)))*13.7)*43758.5453);
+            spec+=smoothstep(0.990,1.0,hh)*smoothstep(60.0,12.0,vTD)*6.0*uDew*wGrass*ndl; }
+          gndSun=ndl*(1.0-0.62*can*canK)+spec/max(dot(c,vec3(0.3333)),0.03);
+          gndAmb=(0.86+0.28*smoothstep(-0.30,0.30,hr))*(1.0-0.18*can)*(0.90+0.10*Np.y/ny*Ng.y);
+        }`:''}
         diffuseColor.rgb=c;
       }`);
 }

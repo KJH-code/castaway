@@ -50,9 +50,9 @@ const ITEMS={
   honey:      {n:'꿀단지',     kg:1.6,  c:0xd8a020, use:'토기에 받은 꿀 — 먹으면 허기와 기력이 찬다. 빈 토기가 남는다',
                food:22, water:4, empty:'pot'},
   /* ── 바다에서 얻는 것(96-sea.js) ── */
-  seaweed:    {n:'바닷말',     kg:0.2,  c:0x4a5a2a, use:'그냥 먹는다(허기 5) · 화덕에 태우면 재가 된다', food:5},
-  coral:      {n:'산호 조각',  kg:0.3,  c:0xe0a090, use:'화덕에 구우면 석회가 된다'},
-  starfish:   {n:'불가사리',   kg:0.15, c:0xd86a3a, use:'화덕에 구우면 석회가 된다'},
+  seaweed:    {n:'바닷말',     kg:0.2,  c:0x4a5a2a, use:'그냥 먹는다(허기 5) · 모닥불에 태우면 재가 된다', food:5},
+  coral:      {n:'산호 조각',  kg:0.3,  c:0xe0a090, use:'모닥불에 구우면 석회가 된다'},
+  starfish:   {n:'불가사리',   kg:0.15, c:0xd86a3a, use:'모닥불에 구우면 석회가 된다'},
   lime:       {n:'석회',       kg:0.3,  c:0xe8e4d8, use:'유리를 구울 때 넣으면 더 많이 나온다'},
   vine:       {n:'덩굴',       kg:0.25, c:0x4f6a30, use:'그대로 밧줄 대신 묶는다 · 새총 · 사다리'},
   bamboo:     {n:'대나무',     kg:0.9,  c:0x8aa04a, use:'속이 빈 마디 줄기 — 물통 · 창 · 낚싯대 · 통발'},
@@ -67,7 +67,7 @@ const ITEMS={
                food:4, water:3},
   flint:      {n:'부싯돌',     kg:0.6,  c:0x33383d, use:'뗀석기 원석 · 긁개 · 발화',
                tags:['stone','sharp','knappable']},
-  pebble:     {n:'돌멩이',     kg:0.4,  c:0x8a8880, use:'망치돌 · 화덕 · 도끼날',
+  pebble:     {n:'돌멩이',     kg:0.4,  c:0x8a8880, use:'망치돌 · 모닥불 · 도끼날',
                tags:['stone','hammer']},
   reed_stalk: {n:'갈대',       kg:0.12, c:0x8d9a5c, use:'긁어서 섬유 · 지붕 잇기 · 바구니'},
   fiber:      {n:'섬유',       kg:0.10, c:0x9aa86a, use:'꼬아서 노끈'},
@@ -82,8 +82,8 @@ const ITEMS={
 
   // 채굴 산출물
   clay_lump:  {n:'점토',       kg:2.0,  c:0x8a7150, use:'토기 · 도가니 · 화로 내벽'},
-  brick_raw:  {n:'날벽돌',     kg:1.6,  c:0x9a7a58, use:'점토를 틀에 찍어 말린 벽돌 — 화덕에 구우면 벽돌'},
-  brick:      {n:'벽돌',       kg:1.4,  c:0xa4553a, use:'구운 벽돌 — 화덕을 둘러 가마를 짓는다'},
+  brick_raw:  {n:'날벽돌',     kg:1.6,  c:0x9a7a58, use:'점토를 틀에 찍어 말린 벽돌 — 모닥불에 구우면 벽돌'},
+  brick:      {n:'벽돌',       kg:1.4,  c:0xa4553a, use:'구운 벽돌 — 모닥불을 둘러 가마를 짓는다'},
   // 사냥물 — 잡은 몹에서 나온다. 철보다 무르지만 훨씬 가볍다.
   chitin:     {n:'키틴',       kg:0.5,  c:0x4a5a4e,
                use:'가고일 껍질 — 철보다 무르지만 절반 무게다'},
@@ -143,15 +143,15 @@ const ITEMS={
   bowdrill:   {n:'활비비',     kg:1.0,  c:0x8a7a52, use:'마찰 발화 — 힘이 많이 든다',
                tool:{fire:1}, durMax:25},
   /* 긴 라이터 — 철관 끝에 부싯돌 톱니를 물려 방아쇠로 긁는다. 팔 길이만큼 떨어져
-     화덕 속에 바로 불꽃을 떨어뜨리므로 부싯깃을 따로 받쳐 둘 필요가 없다.
+     모닥불 속에 바로 불꽃을 떨어뜨리므로 부싯깃을 따로 받쳐 둘 필요가 없다.
      tool.fire 가 클수록 빨리 붙고, 2 이상이면 부싯깃 없이도 붙는다. */
   igniter:    {n:'긴 라이터',   kg:0.45, c:0xb9bec4,
-               use:'부싯깃 없이 한 번에 불을 붙인다 — 화덕 속까지 닿는다',
+               use:'부싯깃 없이 한 번에 불을 붙인다 — 모닥불 속까지 닿는다',
                tool:{fire:3}, durMax:120},
   stone_block:{n:'석재',       kg:5.0,  c:0x7a7a74, use:'숫돌 축조 · 마제 석기날 · 석축'},
-  // 토기 — 빚어 말린 생것을 화덕에 구워야 비로소 그릇이 된다
+  // 토기 — 빚어 말린 생것을 모닥불에 구워야 비로소 그릇이 된다
   pot_raw:    {n:'마르지 않은 그릇', kg:1.8, c:0x8a7150,
-               use:'아직 물에 풀린다 — 화덕에 구워야 한다'},
+               use:'아직 물에 풀린다 — 모닥불에 구워야 한다'},
   pot:        {n:'토기',       kg:1.6,  c:0xa8724a,
                use:'물 저장 · 조리 · 보관 (물·허기 체계가 붙으면 쓰인다)'},
   crucible_raw:{n:'마르지 않은 도가니', kg:3.6, c:0x7d6647,
@@ -160,7 +160,7 @@ const ITEMS={
                use:'광석 제련용 내화 그릇 (제련이 붙으면 쓰인다)'},
   // 제련
   charcoal_pile:{n:'흙 덮은 장작', kg:7.0, c:0x5d4a35,
-               use:'화덕에 묻어 구우면 참숯이 된다'},
+               use:'모닥불에 묻어 구우면 참숯이 된다'},
   charcoal:   {n:'참숯',       kg:0.5,  c:0x2b2b2e,
                use:'장작보다 훨씬 뜨겁다 — 제련 연료'},
   blowpipe:   {n:'송풍관',     kg:0.3,  c:0x8d9a5c,
@@ -259,6 +259,13 @@ const ITEMS={
   bucket_water:{n:'물 담은 양동이', kg:12.4, c:0x5a86a2,
                use:'하천에서 길어 온 물 — 나눠 마신다',
                sips:4, drink:{n:40, empty:'bucket_iron'}},
+  /* 석회석 — 자갈밭에 드문드문 섞인 흰 돌(30-props.js RUBBLE). 구우면 석회, 석회·재·모래·점토를 물에 개면 시멘트 */
+  limestone:  {n:'석회석',     kg:0.8,  c:0xd9d5c6, use:'흰 돌 — 불에 구우면 석회가 된다(시멘트의 바탕)'},
+  /* 시멘트 — 통마다 남은 양(amt 0~1)이 다르다. 터를 다질 때 든 만큼만 줄어든다(통 다섯에 0.3 통이면 530%) */
+  cement:     {n:'시멘트',     kg:5.2,  c:0x9c9d98, frac:1, tool:{level:1},
+               use:'터 다지기 — 들고 땅을 보며 좌클릭. 집의 토대는 다진 터 위에만 선다'},
+  camc_pack:  {n:'캠코더 전지 팩', kg:0.6, c:0x3a6f9a, camc:1,
+               use:'리튬이온 전지를 캠코더에 맞게 다시 짠 것 — 쓰면 낡은 전지를 갈아 끼운다(오래가고 더디게 닳는다)'},
   ash:        {n:'재',         kg:0.3,  c:0x9a958c, use:'물에 우리면 잿물이 된다'},
   lye:        {n:'잿물',       kg:3.4,  c:0xc9c9a8, use:'질산과 만나면 초석이 된다'},
   // 화약
@@ -509,7 +516,7 @@ const ITEMS={
                tool:{weapon:1, dmg:41, reach:2.1, rate:0.96, stam:17, swing:'smash',
                      stun:0.2},
                durMax:420},
-  torch:      {n:'횃불',       kg:0.8,  c:0xc07a30, use:'휴대 조명 · 화덕 점화 · 약한 화입 — 들고 좌클릭으로 켜고 끈다',
+  torch:      {n:'횃불',       kg:0.8,  c:0xc07a30, use:'휴대 조명 · 모닥불 점화 · 약한 화입 — 들고 좌클릭으로 켜고 끈다',
                tool:{torch:1}, burn:3.0},   // burn = 게임시간(h)
   /* 기름 등잔 — 횃불과 같은 불(tool.torch)이되 곰 기름을 먹여 네 배 오래 탄다.
      토기에 기름을 붓고 섬유 심지를 세웠다. 불을 옮겨 붙이는 것도 횃불과 같다. */
@@ -557,6 +564,18 @@ const ITEMS={
                food:20},
   fish_dried: {n:'말린 생선',  kg:0.25, c:0x9a8060, use:'배를 갈라 불가에 말렸다 — 가볍게 들고 다닌다',
                food:12},
+  /* ── 소금 · 상한 것 · 소금으로 만드는 먹을 것(사용자 요청) ── */
+  salt:       {n:'소금',       kg:0.15, c:0xf0efe8, use:'바닷가의 소금 더께를 곡괭이로 캔다 — 절이면 오래가고, 음식에 넣으면 맛이 난다'},
+  rot_food:   {n:'상한 음식',  kg:0.2,  c:0x5a6a3a, use:'상했다 — 먹으면 크게 탈이 난다. 버릴 것(파리가 꼬인다)', food:2, raw:true, spoiled:1},
+  fish_salted:{n:'소금절이 생선', kg:0.3, c:0xc8b89a, use:'소금에 절여 오래간다 — 날것이 아니다(허기 14)', food:14, fishy:1},
+  meat_salted:{n:'염장 고기',  kg:0.45, c:0x8a4a3a, use:'소금에 절인 고기 — 오래 두고 먹는다(허기 22)', food:22},
+  fish_grill_salt:{n:'소금구이', kg:0.28, c:0xd6a45a, use:'소금을 쳐 구운 생선 — 그냥 구운 것보다 든든하다(허기 24)', food:24, fishy:1},
+  soup_seaweed:{n:'바닷말국',  kg:3.4,  c:0x5a6a3a, use:'바닷말과 소금을 끓였다 — 배와 목을 함께 채운다', food:22, water:34, empty:'pot'},
+  soup_mushroom:{n:'버섯국',   kg:3.4,  c:0x9a8060, use:'버섯과 고사리를 소금으로 간해 끓였다', food:30, water:30, empty:'pot'},
+  namul:      {n:'고사리 무침', kg:0.12, c:0x5a7034, use:'익힌 고사리에 소금 — 쌉쌀한 맛이 가신다(허기 16)', food:16},
+  egg_mush:   {n:'버섯 알찜',  kg:0.16, c:0xe8d090, use:'새알에 구운 버섯과 소금(허기 28)', food:28},
+  skewer:     {n:'꼬치구이',   kg:0.35, c:0xa86a3a, use:'새고기와 버섯을 나뭇가지에 꿰어 소금을 쳤다(허기 34)', food:34},
+  banana_baked:{n:'구운 바나나', kg:0.14, c:0xb8903a, use:'불에 구워 달다(허기 16)', food:16, water:1},
   fat:        {n:'곰 기름',    kg:0.5,  c:0xe0d4a8, use:'곰 고기를 토기에 졸여 받은 기름 — 등잔을 밝힌다'},
 
   /* ── 감는 것 · 달인 것 ─────────────────────────────────────────────────── */
@@ -715,6 +734,7 @@ function invAdd(id,n){
   if(T.tool||T.sips||T.durMax){
     for(let k=0;k<n;k++){
       const sl={id,n:1};
+      if(T.frac){ sl.amt=1; INV.slots.push(sl); continue; }       // 시멘트 — 통에 남은 양(1 = 가득)
       if(T.sips) sl.sip=T.sips;                                 // 남은 모금
       else if(T.burn!==undefined){ sl.fuel=T.burn; sl.lit=false; }   // 횃불
       else sl.dur=T.cell?0:T.durMax;   // 축전지(cell)는 비어서 나온다
@@ -723,7 +743,7 @@ function invAdd(id,n){
     }
   }else{
     const s=INV.slots.find(x=>x.id===id&&x.dur===undefined&&x.sip===undefined);
-    if(s) s.n+=n; else INV.slots.push({id,n:n});
+    if(s){ freshMerge(s,s.n,n,DECAY.carry); s.n+=n; } else { const o={id,n:n}; freshMerge(o,0,n,DECAY.carry); INV.slots.push(o); }   // 들어온 때(66-decay.js)
   }
   invDirty=true; return true;
 }
@@ -791,6 +811,7 @@ function drawInv(){
       +(t.wear&&WEAR[t.wear.slot]===s?'<span class="eq">착용</span>':'')
       +(s.dur!==undefined?'<span class="eq" style="color:#8fd6b4">'+(Math.round(s.dur*10)/10)+'/'+t.durMax+'</span>':'')
       +(s.sip!==undefined?'<span class="eq" style="color:#6f9ec9">'+s.sip+'모금</span>':'')
+      +(s.amt!==undefined?'<span class="eq" style="color:#c8c8c0">'+Math.round(s.amt*100)+'%</span>':'')+freshTag(s)
       +(s.fuel!==undefined?'<span class="eq" style="color:'+(s.lit?'#e08a3a':'#5d7a71')+'">'
         +(s.lit?'타는 중 ':'꺼짐 ')+Math.round(s.fuel/t.burn*100)+'%</span>':'')
       +'<span class="u">'+t.use+'</span></span>'
@@ -980,7 +1001,7 @@ const CHOP={
   fir:{item:'log', label:'나무 베기', dur:4.0, stam:8.5, yield:[1,1], logs:[2,4]}
 };
 const HARV={near:null, t:0, active:false, mode:null, cont:null, fire:null, fit:null};
-/* 좌클릭 짧게 = 용기 열기 / 길게 = 화덕 다루기 */
+/* 좌클릭 짧게 = 용기 열기 / 길게 = 모닥불 다루기 */
 const EK={hold:0, tgt:null};
 const E_TAP=0.35;
 let EQUIP=null;                                     // 장착 중인 도구 슬롯
@@ -997,6 +1018,11 @@ let EQUIP=null;                                     // 장착 중인 도구 슬�
 function eatSlot(sl){
   if(!sl) return drinkSource();
   const T=ITEMS[sl.id];
+  if(T&&T.camc){                                    // 캠코더 전지 팩 — 낡은 전지를 갈아 끼운다(46-camcorder.js)
+    const i=INV.slots.indexOf(sl); if(i>=0) invRemove(i,1);
+    CAMC.health=1; CAMC.li=true; CAMC.bat=100; CAMC.warned=false; CAMC.hsaid=0;
+    toast('캠코더 전지를 리튬이온으로 갈아 끼웠다 — 가득 찬 새 전지다'); sfx('bind'); invDirty=true; return true;
+  }
   if(T&&T.drink){
     if(PL.water>=99.5){ toast('더는 들어가지 않는다'); return false; }
     const D=T.drink;
@@ -1032,6 +1058,8 @@ function eatSlot(sl){
   if(i>=0) invRemove(i,1);
   if(T.empty && !invAdd(T.empty,1)) toast('빈 '+ITEMS[T.empty].n+'을 들 자리가 없어 버렸다');
   if(T.poison){ PL.ill=Math.max(PL.ill,90); hurtPL(T.poison,T.n+'의 독'); toast(T.n+' — 독이 온몸에 퍼진다! 반드시 구워 먹어야 한다'); }
+  else if(T.spoiled){ PL.ill=Math.max(PL.ill,120); hurtPL(5,'상한 음식'); toast('상한 것을 먹었다 — 크게 탈이 났다'); }
+  else if(T.raw&&T.fishy){ PL.ill=Math.max(PL.ill,75); toast(T.n+' — 날로 먹었다. 먹을 수는 있지만 탈이 났다(눈앞이 보랏빛으로 출렁인다) — 구워 먹을 것'); }
   else if(T.raw){ PL.ill=Math.max(PL.ill,45); toast(T.n+' — 날로 먹어 속이 뒤집힌다'); }
   else toast(T.n+' 먹었다');
   sfx('bind'); invDirty=true; return true;
@@ -1108,9 +1136,9 @@ function drawQuick(){
 }
 
 /* 손에 들 수 있는 것 — 도구, 그리고 먹고 마시고 감는 것. 드는 것은 좌클릭으로 쓴다. */
-const consumable=T=>!!(T&&(T.food||T.drink||T.heal));
+const consumable=T=>!!(T&&(T.food||T.drink||T.heal||T.camc));
 const holdable=T=>!!(T&&(T.tool||consumable(T)));
-const useVerb=T=>T.drink?'마시기':T.heal?'감기':'먹기';
+const useVerb=T=>T.camc?'갈아 끼우기':T.drink?'마시기':T.heal?'감기':'먹기';
 function equippedTool(){
   if(EQUIP && (INV.slots.indexOf(EQUIP)<0)) EQUIP=null;
   return EQUIP;
@@ -1172,10 +1200,10 @@ function blockReason(t){
     const tier=t.cracked?2:M.tier;
     if(T && T.pick>=tier) return null;
     if(!T||!T.pick) return tier===3
-      ? '돌로는 깨지지 않는다 — 옆에 화덕을 피우거나 횃불을 들고 서 있어야 한다'
+      ? '돌로는 깨지지 않는다 — 옆에 모닥불을 피우거나 횃불을 들고 서 있어야 한다'
       : '곡괭이가 필요하다';
     if(tier===3) return t.heat>0
-      ? '달궈지는 중 ('+Math.round(t.heat/M.fireset*100)+'%) — 화덕이나 횃불을 더 대야 한다'
+      ? '달궈지는 중 ('+Math.round(t.heat/M.fireset*100)+'%) — 모닥불이나 횃불을 더 대야 한다'
       : josaRo(ITEMS[e.id].n)+'는 안 된다 — 불로 달구거나 철 곡괭이가 있어야 한다';
     return josaRo(ITEMS[e.id].n)+'는 어림없다 — 돌 곡괭이가 필요하다';
   }
@@ -1213,6 +1241,9 @@ function findHarvestTarget(){
   let best=null, bs=2.8;
   eachNearProp(PL.pos.x,PL.pos.z,p=>{
     if(!isNode(p.k)) return;
+    /* **다 주운 자리는 건드릴 것이 없다**(사용자 요청) — 돌을 줍고 나면 다시 날 때까지 그 자리를 보지도 잡지도 않는다.
+       예전엔 빈 자리가 계속 잡혀 '더 얻을 게 없다' 가 뜨고, 곁의 다른 것을 가렸다. 벤 나무의 그루터기는 그대로 본다 */
+    if(!p.felled&&(p.ore|0)<=0&&(p.br|0)<=0&&(p.logs|0)<=0) return;
     const dx=p.x-PL.pos.x, dz=p.z-PL.pos.z;
     const d=Math.hypot(dx,dz);
     if(d>2.8||d<0.05) return;
@@ -1225,10 +1256,10 @@ function findHarvestTarget(){
   if(gt){ const sc=gt.d-(W.axe?1.2:0); if(!best||sc<bs) best=gt.prop; }
   return best;
 }
-/* 화덕·제련로 상호작용 — 이제 여기서 하는 일은 '불'뿐이다.
+/* 모닥불·제련로 상호작용 — 이제 여기서 하는 일은 '불'뿐이다.
    땔감·구울 것·구워진 것은 모두 안(용기)에 넣고 뺀다. E를 짧게 누르면
    창이 열리고, 길게 누르면 아래의 점화 동작이 이어진다.
-   제련로도 불을 붙여야 돌아간다 — 켜는 방법은 화덕과 똑같다. */
+   제련로도 불을 붙여야 돌아간다 — 켜는 방법은 모닥불과 똑같다. */
 function updateFireInteract(dt,f){
   const e=equippedTool(), canFire=e&&(ITEMS[e.id].tool||{}).fire;
   const isTorch=e&&(ITEMS[e.id].tool||{}).torch;
@@ -1244,7 +1275,7 @@ function updateFireInteract(dt,f){
     toast('횃불로 불을 옮겼다'); sfx('ignite'); invDirty=true;
     return;
   }
-  // 꺼진 횃불은 타는 화덕에서 불을 얻는다
+  // 꺼진 횃불은 타는 모닥불에서 불을 얻는다
   if(f.lit && isTorch && !e.lit && e.fuel>0){
     if(!useDown){ IGNITE.t=Math.max(0,IGNITE.t-dt*2); return; }
     IGNITE.t+=dt;
@@ -1284,7 +1315,7 @@ function lightFire(f){
   if(!id) return false;
   contTake(f,id,1); f.fuel+=FUEL[id];
   f.lit=true;
-  if(f.flame) f.flame.visible=true;      // 화덕은 불꽃, 제련로는 아치 속 잔열
+  if(f.flame) f.flame.visible=true;      // 모닥불은 불꽃, 제련로는 아치 속 잔열
   if(f.glow)  f.glow.visible=true;
   f.light.visible=true;
   boxDirty=true; return true;
@@ -1292,7 +1323,7 @@ function lightFire(f){
 const fmtFuel=h=>Math.floor(h)+'시간 '+Math.round((h%1)*60)+'분';
 
 function updateHarvest(dt){
-  // 용기(상자·화덕·제련로)와 채집 대상 중 가장 가까운 쪽을 상호작용 대상으로 삼는다
+  // 용기(상자·모닥불·제련로)와 채집 대상 중 가장 가까운 쪽을 상호작용 대상으로 삼는다
   if(boxOpen||grindOpen){                        // 열려 있는 동안은 세상 쪽 조작을 멈춘다
     HARV.cont=HARV.fire=HARV.near=HARV.mode=HARV.fit=null;
     HARV.active=false; EK.hold=0; EK.tgt=null; IGNITE.t=0;
@@ -1327,6 +1358,17 @@ function updateHarvest(dt){
   /* 보는 것이나 하는 일이 바뀌면 진행을 처음부터 — 예전엔 나무를 베다 만 몫(몇 초)이 그대로 남아, 곁의 풀(0.8초짜리)을 보는 순간
      막대가 칸 밖으로 몇 배나 뻗었다(사용자 지적) */
   { const hm=HARV.mode?HARV.mode.H:null; if(HARV._lt!==t||HARV._lm!==hm){ HARV._lt=t; HARV._lm=hm; HARV.t=0; } }
+  /* **맞지 않는 도구로도 내리칠 수는 있다 — 얻는 것 없이 날만 닳는다**(사용자 요청). 곡괭이로 나무를, 도끼로 바위를 치는 식.
+     0.9초에 한 번 내구가 2 닳고 기력이 든다. 다 닳으면 부서진다 */
+  if(t&&!HARV.mode&&useDown&&!PL.swim&&PL.stam>=3&&!uiOpen()){
+    const e=equippedTool(), T=e&&ITEMS[e.id].tool;
+    if(e&&T&&e.dur!==undefined&&(T.pick||T.axe)&&!T.drill){
+      HARV.active=true; HARV.wr=(HARV.wr||0)+dt; PL.stam=clamp(PL.stam-5*dt,0,100);
+      if(HARV.wr>=0.9){ HARV.wr=0; e.dur-=2; sfx('knap'); invDirty=true;
+        toast(ITEMS[e.id].n+' — 여기에 쓰는 도구가 아니다. 얻는 것 없이 날만 상한다');
+        if(e.dur<=0){ toast(ITEMS[e.id].n+' 파손'); invRemove(INV.slots.indexOf(e),1); EQUIP=null; } }
+      return; } }
+  HARV.wr=0;
   const want=useDown && harvestByUse() && !PL.swim;     // 캐기는 좌클릭(누르고 있는 동안)뿐 — E 는 안 쓴다
   if(!want || PL.stam<3){
     HARV.t=Math.max(0,HARV.t-dt*2.5); HARV.active=false; return;
@@ -1379,7 +1421,7 @@ function updateHarvest(dt){
         invRemove(INV.slots.indexOf(e), 1); EQUIP=null;
       }
     }
-    if(field==='logs' && t.logs<=0){ t.felled=true; t.br=0; }   // 다 베면 그루터기만
+    if(field==='logs' && t.logs<=0){ t.felled=true; t.br=0; if(typeof wildTreeFelled==='function') wildTreeFelled(t); }   // 다 베면 그루터기만 · 벌집이 달렸으면 떨어진다(97-wildlife.js)
   }
   if(field==='br' && t.br<=0 && H.regrow!==undefined){ t.cut=gameHours; REGROW.push(t); }
   if(t.giant) giantChopped(t);                       // 노거수 — 남은 통나무를 적고, 다 베면 쓰러뜨린다(95-giants.js)
@@ -1505,6 +1547,7 @@ function shrinkFoliage(p){
       arr[i+2]=p.z  +(arr[i+2]-p.z )*f;
     }
     a.needsUpdate=true;
+    propColScale(p,k);                         // 몸이 막히는 테두리도 같이 줄인다
     LIGHT.dirtyAt(p.x,p.z,3);                  // 오므라든 바위 그림자
     return;
   }
@@ -1518,6 +1561,15 @@ function shrinkFoliage(p){
   _M.compose(_V,_Q,_S);
   p._fm.setMatrixAt(p._fi,_M);
   p._fm.instanceMatrix.needsUpdate=true;
+  propColScale(p,k);
+}
+/* 캐서 줄어든 바위는 **몸이 막히는 테두리도 줄어든다** — 예전엔 메시만 오므라들고 충돌 원·방위별 테두리는 다 큰 때 그대로라,
+   반쯤 캔 바위 둘레에 보이지 않는 벽이 남았다(사용자 지적). k: 지금 크기의 비율(다 사라지면 0 — 안 막는다) */
+function propColScale(p,k){
+  const c=p._col; if(!c) return;
+  if(c.r0===undefined) c.r0=c.r;
+  c.r=c.r0*k;
+  if(c.p0){ if(!c.prof) c.prof=new Float32Array(c.p0.length); for(let i=0;i<c.p0.length;i++) c.prof[i]=c.p0[i]*k; }
 }
 /* 알림 — 채취 표시(#look) 밑의 따로 된 칸(#toast)에 최대 세 줄 쌓는다. 같은 말이 잇달아 오면 한 줄에 ×n 으로 센다.
    예전엔 #look 의 글을 빌려 써서, 캐는 동안 '+1' 이 뜰 때마다 1.4초씩 진행 막대가 가려졌다(사용자 지적) */

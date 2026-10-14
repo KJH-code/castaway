@@ -14,7 +14,7 @@ import {resolve} from 'node:path';
 
    beta/mimic_arena.html 은 21MB 라 smoke 기본 목록에서 빠진다. probe 로는 이름을 직접 대면 열린다. */
 export const PAGES = [
-  {f: 'island_world.html',  ready: 'busy === false',                      ms: 1200000},   // 섬 생성 — 헤드리스 7~14분
+  {f: 'island_world.html',  ready: 'busy === false',                      ms: 1200000, q: '?ws=2'},   // 섬 생성 — 헤드리스 7~14분(배율 2 로 — 기본 6배 섬은 소품이 아홉 배라 시간 안에 못 짓는다. 새 지형·동굴·암벽 코드는 그대로 돈다)
   {f: 'beta/build_sandbox.html', ready: 'busy === false',                      ms: 300000},
   {f: 'beta/cloud_arena.html',   ready: 'CLOUDS.length > 0 && !!skyDome',      ms: 120000},
   {f: 'beta/bear_arena.html',    ready: '!!bMesh',                             ms: 180000},
@@ -40,7 +40,7 @@ export const launch = () => chromium.launch({
 });
 
 /* 페이지를 열고 준비될 때까지 기다린다. 잡아둔 오류 배열을 함께 돌려준다. */
-export async function open(browser, f, {ready, ms} = pageInfo(f)) {
+export async function open(browser, f, {ready, ms, q} = pageInfo(f)) {
   const page = await browser.newPage({viewport: {width: 900, height: 600}});
   const errs = [];
   page.on('pageerror', e => errs.push('PAGEERROR: ' + e.message));
@@ -50,7 +50,7 @@ export async function open(browser, f, {ready, ms} = pageInfo(f)) {
   /* 못 뜨면 페이지를 닫고 던진다 — 안 닫으면 그 페이지가 (섬을 계속 지으며) 브라우저를 붙잡아
      다음 대상까지 시간 초과로 떨어졌다. 그때까지 잡힌 페이지 오류도 같이 알린다 */
   try {
-    await page.goto(pathToFileURL(resolve(f)).href, {timeout: ms, waitUntil: 'load'});
+    await page.goto(pathToFileURL(resolve(f)).href + (q || ''), {timeout: ms, waitUntil: 'load'});
     await page.waitForFunction(
       `(() => { try { return ${ready}; } catch (e) { return false; } })()`,
       null, {timeout: ms, polling: 500});

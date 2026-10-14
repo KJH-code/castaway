@@ -19,6 +19,7 @@
    ========================================================================== */
 const CAMC={on:true, lines:480, rt:null, scene:null, cam:null, mat:null,
             bat:100, DRAIN:100/(14*60), CRANK:6.5, crank:0, under:0, warned:false, el:null,
+            health:1, li:false, hsaid:0,           // 전지의 늙음(1 새것 → 채울수록 준다) · 리튬이온으로 갈았나
             noise:1};                              // 화면 잡음(0 끔 · 1 보통 · 2 짙게) — 설정 · 프리셋
 const CAMC_LINES=[0,360,480,720];                   // 설정 칸의 0~3 → 줄 수(0 = 끄기)
 function camcInit(){
@@ -26,17 +27,18 @@ function camcInit(){
   CAMC.mat=new THREE.ShaderMaterial({
     depthTest:false, depthWrite:false, fog:false,
     uniforms:{tD:{value:null}, uRes:{value:new THREE.Vector2(640,480)}, uT:{value:0}, uBat:{value:1}, uUnder:{value:0},
-              uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}},
+              uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}, uHdr:{value:0}, uIll:{value:0}},
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
     fragmentShader:`
       precision highp float;
-      uniform sampler2D tD; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain;
+      uniform sampler2D tD; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll;
       varying vec2 vUv;
       float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
       void main(){
         vec2 c=vUv-0.5, uv=0.5+c*(1.0+0.045*dot(c,c));                     // 렌즈 — 가장자리가 살짝 볼록하다
         float weak=smoothstep(0.15,0.0,uBat), dead=smoothstep(0.012,0.0,uBat);
         uv+=uUnder*vec2(sin(uv.y*17.0+uT*1.7),cos(uv.x*13.0+uT*1.3))*0.0045;   // 물속 — 일렁인다
+        uv+=uIll*vec2(sin(uv.y*7.0+uT*1.1),cos(uv.x*5.0+uT*0.8))*0.0060;        // 탈이 났다 — 눈앞이 느리게 출렁인다
         float ln=floor(uv.y*uRes.y);
         float jit=(h21(vec2(ln,floor(uT*24.0)))-0.5)*0.0011*(1.0+9.0*weak);    // 테이프 — 줄마다 살짝 밀린다
         float band=fract(uv.y*0.9-uT*0.07);                                    // 천천히 내려오는 트래킹 띠
@@ -46,6 +48,9 @@ function camcInit(){
         vec3 a=texture2D(tD,uv).rgb, l=texture2D(tD,uv-vec2(px*2.4,0.0)).rgb, r=texture2D(tD,uv+vec2(px*2.4,0.0)).rgb;   // 색 번짐 — 사용자 요청으로 1.7 → 2.4 화소
         vec3 col=vec3(l.r*0.55+a.r*0.45, a.g*0.64+0.18*(l.g+r.g), r.b*0.55+a.b*0.45);   // 색 번짐 — 빨강·파랑이 옆으로 어긋난다
         if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0) col=vec3(0.0);
+        /* **밝은 데의 어깨** — 그림판이 반정밀 실수(uHdr)면 1 을 넘는 볕(한낮의 흰 바위·모래·물비늘)이 잘리지 않고 들어온다.
+           0.80 까지는 그대로 두고 그 위를 1.0 으로 서서히 눕힌다 — 하얗게 뭉개지던 면에 결이 남는다. 8비트 그림판이면 손대지 않는다 */
+        if(uHdr>0.5) col=mix(col,0.80+0.20*(1.0-exp(-(col-0.80)/0.20)),step(0.80,col));
         float Y=dot(col,vec3(0.299,0.587,0.114));
         /* 색조 — 노을·새벽: 밝은 데는 주황 · 어두운 데는 보라 / 달밤: 푸른빛 */
         col*=mix(vec3(1.0),mix(vec3(0.96,0.78,1.50),vec3(1.22,0.92,0.60),smoothstep(0.14,0.55,Y)),uLow*0.85);
@@ -55,6 +60,8 @@ function camcInit(){
            어두우니 반만 건다(안 그러면 밤이 온통 보라다) */
         { float shd=(1.0-smoothstep(0.02,0.21,Y))*(1.0-0.5*uNight);
           col=mix(col,col*vec3(0.74,0.52,1.42)+vec3(0.024,0.0,0.056),shd*0.9); }
+        /* **탈이 났다**(날것·상한 것을 먹었다 — 사용자 요청) — 화면이 보랏빛으로 물든다. 가장자리가 더 짙다 */
+        col=mix(col,vec3(Y)*vec3(0.80,0.52,1.25)+col*vec3(0.30,0.10,0.42)+vec3(0.030,0.0,0.065),uIll*(0.55+0.35*smoothstep(0.15,0.6,length(c))));
         /* 물속 — 청록으로 가라앉고, 낮에는 수면에서 빛줄기가 비껴 내려온다 */
         col=mix(col,col*vec3(0.50,0.92,1.04)+vec3(0.0,0.025,0.04),uUnder*0.65);
         if(uUnder>0.01){
@@ -97,7 +104,11 @@ function camcBegin(){
   const h=Math.min(CAMC.lines,ch), w=Math.max(64,Math.min(1600,Math.round(h*cw/ch)));
   if(!CAMC.rt||CAMC.rt.width!==w||CAMC.rt.height!==h){
     if(CAMC.rt) CAMC.rt.dispose();
-    CAMC.rt=new THREE.WebGLRenderTarget(w,h,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,depthBuffer:true,stencilBuffer:false});
+    /* 반정밀 실수 그림판 — 볕이 1 을 넘어도 안 잘린다(캠코더 셰이더가 어깨로 눕힌다). 실수 그림판에 못 그리는 장치는 예전 8비트 */
+    if(CAMC.hdr===undefined) CAMC.hdr=!!(renderer.capabilities.isWebGL2&&(renderer.extensions.get('EXT_color_buffer_float')||renderer.extensions.get('EXT_color_buffer_half_float')));
+    CAMC.rt=new THREE.WebGLRenderTarget(w,h,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,depthBuffer:true,stencilBuffer:false,
+      type:CAMC.hdr?THREE.HalfFloatType:THREE.UnsignedByteType});
+    CAMC.mat.uniforms.uHdr.value=CAMC.hdr?1:0;
     CAMC.mat.uniforms.tD.value=CAMC.rt.texture; CAMC.mat.uniforms.uRes.value.set(w,h);
   }
   renderer.setRenderTarget(CAMC.rt);
@@ -108,6 +119,7 @@ function camcEnd(under){
   const U=CAMC.mat.uniforms, G=SKYL.grade;
   CAMC.under+=((under?1:0)-CAMC.under)*0.25;
   U.uT.value=(performance.now()/1000)%1000; U.uBat.value=CAMC.bat/100; U.uUnder.value=CAMC.under;
+  U.uIll.value+=((PL.ill>0?clamp(PL.ill/6,0,1):0)-U.uIll.value)*0.06;      // 탈 — 서서히 물들고 서서히 걷힌다
   U.uLow.value=G.low; U.uMoon.value=G.moon; U.uNight.value=G.night; U.uDay.value=clamp(1-G.night*1.2,0,1); U.uGrain.value=CAMC.noise;
   renderer.setRenderTarget(null);
   renderer.render(CAMC.scene,CAMC.cam);
@@ -119,16 +131,25 @@ function updateCamcorder(dt){
   if(cranking){
     if(CAMC.bat>=100){ if(CAMC.crank<=0) toast('캠코더 배터리 — 가득 찼다'); CAMC.crank=1.5; }
     else{
+      const b0=CAMC.bat;
       CAMC.bat=Math.min(100,CAMC.bat+CAMC.CRANK*dt);   // 손잡이 돌리기는 기력을 안 쓴다(사용자 요청 — 예전엔 초당 3.5씩 깎였다)
+      /* **채울수록 전지가 늙는다**(사용자 요청) — 가득 한 번 채울 때마다 쓸 수 있는 시간이 같은 비율(×0.946)로 준다.
+         켜 둔 채 지내면 열흘째에 한 시간(처음 14시간의 1/14)을 못 넘긴다: 14·rⁿ = 1 · 그동안 쓴 시간 13/(1−r) = 240시간 → r = 0.946.
+         그때가 리튬이온 전지 팩으로 갈아 끼울 때다 — 갈면 새것이 되고, 리튬이온은 한 번에 0.4%만 준다(×0.996) */
+      CAMC.health=Math.max(0.04,CAMC.health*Math.pow(CAMC.li?0.996:0.946,(CAMC.bat-b0)/100));
       CAMC.crank-=dt; if(CAMC.crank<=0){ CAMC.crank=0.22; sfx('bind'); }       // 손잡이 돌아가는 소리
       if(typeof weaponFx!=='undefined'&&weaponFx&&weaponFx.userData.spin) weaponFx.userData.spin.rotation.z-=dt*10;
     }
   }else{
     CAMC.crank=Math.max(0,CAMC.crank-dt);
-    if(CAMC.on&&CAMC.lines) CAMC.bat=Math.max(0,CAMC.bat-CAMC.DRAIN*dt);
+    if(CAMC.on&&CAMC.lines) CAMC.bat=Math.max(0,CAMC.bat-CAMC.DRAIN/CAMC.health*dt);   // 늙은 전지는 그만큼 빨리 닳는다
   }
   if(CAMC.bat<15&&!CAMC.warned){ CAMC.warned=true; toast('캠코더 배터리가 얼마 없다 — 손 충전기를 들고 좌클릭을 누르고 있으면 찬다'); }
   if(CAMC.bat>30) CAMC.warned=false;
+  { const hrs=14*CAMC.health, step=hrs<1.2?3:hrs<3.5?2:hrs<7?1:0;       // 전지가 늙어 가는 것을 세 번 알린다(7 · 3.5 · 1.2시간)
+    if(step>CAMC.hsaid){ CAMC.hsaid=step;
+      toast(step===3?'캠코더 전지가 다 됐다 — 가득 채워도 한 시간 남짓이다. 리튬이온 전지로 전지 팩을 짜서 갈아 끼워야 한다(선반)'
+           :'캠코더 전지가 늙어 간다 — 가득 채워도 '+hrs.toFixed(1)+'시간쯤이다'); } }
   // 화면 위의 표시
   const L=CAMC.el, show=CAMC.on&&CAMC.lines>0;
   camcBody(show);

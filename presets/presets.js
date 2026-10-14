@@ -15,13 +15,14 @@ const GRAPHICS_PRESETS=[
 ];
 
 /* 섬 프리셋 — 새 섬을 만들 때의 인자 한 벌(시드는 그대로 둔다). 고른 뒤 '새 섬' 을 눌러야 섬이 바뀐다.
-   ws 섬 넓이(배율 1 = 1.9 km · 2 = 3.8 km · 3 = 5.8 km) · size 섬 크기(바다에 대한 뭍의 몫) · ridge 산맥 · ero 침식 · sea 해수면(m) · rain 강수량 */
+   ws 섬 넓이(배율 1 = 1.9 km · 2 = 3.8 km · 3 = 5.8 km · 6 = 11.5 km) · size 섬 크기(바다에 대한 뭍의 몫) · ridge 산맥 · ero 침식 · sea 해수면(m) · rain 강수량 */
 const ISLAND_PRESETS=[
-  {id:'default', n:'기본 섬(3.8 km)',      ws:2, size:0.70, ridge:0.85, ero:0.60, sea:0,  rain:1.0},
-  {id:'huge',    n:'아주 큰 섬(5.8 km)',   ws:3, size:0.72, ridge:0.90, ero:0.60, sea:0,  rain:1.0},
+  {id:'default', n:'기본 섬(11.5 km)',     ws:6, size:0.70, ridge:0.85, ero:0.60, sea:0,  rain:1.0},
+  {id:'huge',    n:'가운데 섬(5.8 km)',    ws:3, size:0.72, ridge:0.90, ero:0.60, sea:0,  rain:1.0},
+  {id:'mid',     n:'작은 섬(3.8 km)',      ws:2, size:0.70, ridge:0.85, ero:0.60, sea:0,  rain:1.0},
   {id:'old',     n:'예전 크기(1.9 km)',    ws:1, size:0.70, ridge:0.85, ero:0.60, sea:0,  rain:1.0},
-  {id:'peaks',   n:'험한 산악',            ws:2, size:0.75, ridge:1.30, ero:0.35, sea:0,  rain:0.9},
-  {id:'low',     n:'낮고 넓은 섬',         ws:2, size:0.90, ridge:0.40, ero:0.80, sea:-2, rain:1.1},
-  {id:'atoll',   n:'잠긴 섬(얕은 바다)',   ws:2, size:0.60, ridge:0.70, ero:0.60, sea:6,  rain:1.3},
-  {id:'dry',     n:'메마른 섬',            ws:2, size:0.70, ridge:0.90, ero:0.50, sea:0,  rain:0.45}
+  {id:'peaks',   n:'험한 산악',            ws:6, size:0.75, ridge:1.30, ero:0.35, sea:0,  rain:0.9},
+  {id:'low',     n:'낮고 넓은 섬',         ws:6, size:0.90, ridge:0.40, ero:0.80, sea:-2, rain:1.1},
+  {id:'atoll',   n:'잠긴 섬(얕은 바다)',   ws:6, size:0.60, ridge:0.70, ero:0.60, sea:6,  rain:1.3},
+  {id:'dry',     n:'메마른 섬',            ws:6, size:0.70, ridge:0.90, ero:0.50, sea:0,  rain:0.45}
 ];

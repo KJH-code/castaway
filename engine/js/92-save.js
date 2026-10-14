@@ -13,7 +13,7 @@
 const SAVE_VER=1;
 /* 용기 속 슬롯은 소지품과 같은 모양으로 저장한다 */
 const saveSlots=a=>a.map(sl=>({id:sl.id,n:sl.n,dur:sl.dur,fuel:sl.fuel,lit:sl.lit,
-                               mag:sl.mag,ammoId:sl.ammoId,sip:sl.sip,pk:sl.pk}));
+                               mag:sl.mag,ammoId:sl.ammoId,sip:sl.sip,pk:sl.pk,amt:sl.amt,t:sl.t}));
 const loadSlots=a=>(a||[]).filter(sl=>ITEMS[sl.id]).map(sl=>{
   const o={id:sl.id,n:sl.n};
   if(sl.dur!==undefined) o.dur=sl.dur;
@@ -21,6 +21,8 @@ const loadSlots=a=>(a||[]).filter(sl=>ITEMS[sl.id]).map(sl=>{
   if(sl.mag!==undefined) o.mag=sl.mag;
   if(sl.ammoId&&ITEMS[sl.ammoId]) o.ammoId=sl.ammoId;   // 탄창에 물린 탄 종류
   if(sl.sip!==undefined) o.sip=sl.sip;                  // 물통에 남은 모금
+  if(sl.amt!==undefined) o.amt=clamp(+sl.amt||0,0,1);   // 시멘트 통에 남은 양
+  if(typeof sl.t==='number') o.t=sl.t;                  // 먹을 것이 들어온 때(66-decay.js)
   if(sl.pk>0&&sl.pk<=6) o.pk=sl.pk|0;                   // 소지품의 내 칸(가방 화면)
   return o;
 });
@@ -86,14 +88,16 @@ function snapshot(){
           head:WEAR.head?INV.slots.indexOf(WEAR.head):-1,
           back:WEAR.back?INV.slots.indexOf(WEAR.back):-1},
     quick:QUICK.map(sl=>sl?INV.slots.indexOf(sl):-1),
-    builds:{f:[...FOUNDS.values()].map(o=>[o.gx,o.gz,o.tier,+o.y.toFixed(2)]),
+    builds:{p:[...PADS.values()].map(o=>[o.gx,o.gz,+o.y.toFixed(2),+o.lo.toFixed(2)]),     // 다진 터(시멘트)
+            f:[...FOUNDS.values()].map(o=>[o.gx,o.gz,o.tier,+o.y.toFixed(2)]),
             w:[...WALLS.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.tier,WALLV.indexOf(o.v||'wall'),
                o.leaf?[o.leaf.kind,o.leaf.tier,o.leaf.open?1:0]:0]),
             r:[...ROOFS.values()].map(o=>[o.gx,o.gz,o.L,o.tier]),
+            po:[...POSTS.values()].map(o=>[o.gx,o.gz,o.L,o.tier]),                       // 기둥 틀
             sl:[...SLOPES.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.tier]),
             gb:[...GABLES.values()].map(o=>[o.gx,o.gz,o.L,o.s,o.h,o.tier])},
     props:propDiff(),
-    fires:FIRES.map(f=>({x:f.x,y:f.y,z:f.z,lit:f.lit,fuel:f.fuel,st:f.steam?1:0,kl:f.kilnU?1:0,ry:+f.mesh.rotation.y.toFixed(3),
+    fires:FIRES.map(f=>({x:f.x,y:f.y,z:f.z,lit:f.lit,fuel:f.fuel,st:f.steam?1:0,kl:f.kilnU?1:0,hu:f.hearthU?1:0,ry:+f.mesh.rotation.y.toFixed(3),
       cook:Object.assign({},f.cook), slots:saveSlots(f.slots)})),
     grinds:GRINDS.map(g=>({x:g.x,y:g.y,z:g.z,ry:+g.mesh.rotation.y.toFixed(3)})),
     furnaces:FURNACES.map(g=>({x:g.x,y:g.y,z:g.z,ry:+g.mesh.rotation.y.toFixed(3),lit:g.lit,fuel:g.fuel,
@@ -104,7 +108,7 @@ function snapshot(){
        전부 이 넷 위에 서 있으므로(황산·질산·강선·충전) 같이 담는다. */
     ),
     sea:[...SEA.taken].filter(e=>gameHours-e[1]<SEA_REGROW).map(e=>[e[0],+e[1].toFixed(2)]),   // 주운 조개·굴·성게 자리
-    cam:+CAMC.bat.toFixed(1),                       // 캠코더 배터리
+    cam:+CAMC.bat.toFixed(1), camh:+CAMC.health.toFixed(4), camli:CAMC.li?1:0,                       // 캠코더 배터리
     flora:[...FLORA.taken].filter(e=>gameHours-e[1]<72).map(e=>[e[0],+e[1].toFixed(2)]),        // 딴 덩굴·대나무·열매·버섯 자리
     giants:giantSave(),                             // 벤 노거수 — 'gx,gz' → 남은 통나무(0 이면 쓰러진 그루)
     power:{wheels:WHEELS.map(g=>[g.x,g.y,g.z]),
@@ -121,9 +125,9 @@ async function restore(d){
   /* 한 군데가 틀려도 나머지는 살린다 — 예전엔 중간에 하나만 터져도 그 뒤(집·상자·소지품)가 통째로 안 돌아왔다 */
   const bad=[];
   const safe=(what,fn)=>{ try{ fn(); }catch(e){ console.error('[불러오기] '+what,e); bad.push(what); } };
-  P.ws=1;                                      // 섬 배율이 없는 옛 저장은 1(1.9 km 섬) — 예전 섬 그대로 열린다
+  P.ws=1; P.tv=1;                              // 섬 배율·지형 판이 없는 옛 저장은 1(1.9 km 섬 · 예전 지형) — 예전 섬 그대로 열린다
   Object.assign(P,d.P);
-  if(P.ws!==2&&P.ws!==3) P.ws=1;
+  if(!(P.ws>=1&&P.ws<=6)) P.ws=1; P.ws=Math.round(P.ws);
   if(d.guar!==undefined){ GUARANTEE=!!d.guar; const bg=document.getElementById('bGuar'); if(bg) bg.classList.toggle('on',GUARANTEE); }
   // 슬라이더도 저장값에 맞춘다
   const setv=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
@@ -162,10 +166,11 @@ async function restore(d){
   _propGrid=null;
   if(lostProps) console.warn('[불러오기] 자리를 못 찾은 자원 '+lostProps+'개 — 건너뛰었다');
   safe('베리',()=>refreshAllBerries());        // 따 놓은 만큼 덤불에서 빼 둔다
-  for(const f of d.fires||[]) safe('화덕',()=>{
+  for(const f of d.fires||[]) safe('모닥불',()=>{
     PL.pos.set(f.x,f.y,f.z); PL.yaw=Math.PI;   // 설치 지점을 앞에 두기 위한 임시 위치
     if(f.st) placeSteamAt(f.x,f.y,f.z); else placeCampfireAt(f.x,f.y,f.z);   // 증기기관도 불 용기다
     const nf=FIRES[FIRES.length-1];
+    if(f.hu) hearthify(nf);                     // 화덕(모닥불에 돌을 쌓아 올린 것)
     if(f.kl) kilnify(nf);                       // 가마
     if(f.ry!==undefined) nf.mesh.rotation.y=f.ry;
     nf.lit=f.lit; nf.fuel=f.fuel;
@@ -177,7 +182,7 @@ async function restore(d){
       if(f.cook.id!==undefined){ if(FIRING[f.cook.id]) nf.cook[f.cook.id]=f.cook.t||0; }
       else for(const k of Object.keys(f.cook)) if(FIRING[k]) nf.cook[k]=f.cook[k]||0;
     }
-    // 가마 방식으로 저장된 옛 파일 — 굽던 것과 다 구운 것을 화덕 안으로 옮겨 준다
+    // 가마 방식으로 저장된 옛 파일 — 굽던 것과 다 구운 것을 모닥불 안으로 옮겨 준다
     if(f.kiln){
       const K=f.kiln;
       if(K.done>0) contAdd(nf,K.out,K.done*(K.count||1));
@@ -188,11 +193,13 @@ async function restore(d){
   });
   clearBuilds();
   if(d.builds){                                // 토대 → 벽 → 지붕 순서로 되살린다
+    for(const [gx,gz,y,lo] of d.builds.p||[]) safe('터',()=>placePad(gx,gz,y,lo));
     for(const [gx,gz,tier,y] of d.builds.f||[]) safe('토대',()=>placeFound(gx,gz,tier|0,y));
     for(const [gx,gz,L,s,tier,v,lf] of d.builds.w||[]) safe('벽',()=>{
       placeWall(gx,gz,L,s,tier|0,WALLV[v|0]);
       if(lf) placeFit(gx,gz,L,s,lf[0],lf[1]|0,!!lf[2]);
     });
+    for(const [gx,gz,L,tier] of d.builds.po||[]) safe('기둥 틀',()=>placePost(gx,gz,L,tier|0));
     for(const [gx,gz,L,tier] of d.builds.r||[]) safe('지붕',()=>placeRoof(gx,gz,L,tier|0));
     for(const [gx,gz,L,s,tier] of d.builds.sl||[]) safe('경사 지붕',()=>placeSlope(gx,gz,L,s,tier|0));
     for(const [gx,gz,L,s,h,tier] of d.builds.gb||[]) safe('박공',()=>placeGable(gx,gz,L,s,h,tier|0));
@@ -246,7 +253,7 @@ async function restore(d){
 
   hourOfDay=d.t.hour; gameHours=d.t.gh; timeScale=d.t.ts||1;
   safe('바다',()=>{ SEA.taken=new Map((d.sea||[]).filter(e=>Array.isArray(e)&&typeof e[0]==='string')); SEA.dirty=true; });
-  safe('캠코더',()=>{ CAMC.bat=typeof d.cam==='number'?clamp(d.cam,0,100):100; });
+  safe('캠코더',()=>{ CAMC.bat=typeof d.cam==='number'?clamp(d.cam,0,100):100; CAMC.health=typeof d.camh==='number'?clamp(d.camh,0.04,1):1; CAMC.li=!!d.camli; CAMC.hsaid=0; });
   safe('식생',()=>{ FLORA.taken=new Map((d.flora||[]).filter(e=>Array.isArray(e)&&typeof e[0]==='string')); FLORA.near.cx=FLORA.far.cx=1e9; });
   safe('노거수',()=>giantRestore(d.giants));
   PL.pos.set(d.pl.x,d.pl.y,d.pl.z); PL.vel.set(0,0,0);
@@ -397,6 +404,7 @@ function offerLoadOnStart(){
 /* 새 섬은 지금 섬을 버린다 — 상륙했으면 한 번 묻고 자동 저장에 남긴 뒤 만든다(예전엔 R 한 번에 그냥 사라졌다) */
 function newIsland(go,cancel){
   if(busy||askOpen){ if(cancel) cancel(); return; }
+  { const g0=go; go=()=>{ P.tv=3; g0(); }; }       // 새 섬은 늘 새 지형 판 — 옛 저장을 불러온 뒤(P.tv 1)에 만드는 섬도
   if(!landed){ go(); return; }
   ask('새 섬을 만들겠습니까?','지금 섬은 자동 저장에 남깁니다(다음 자동 저장이 덮어씁니다) · Y 예 · N 아니오',
       ()=>{ autoSave('새 섬을 만들기 전'); go(); }, cancel);

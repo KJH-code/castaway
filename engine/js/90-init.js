@@ -19,8 +19,19 @@
    한다(끝에서 74%) — 새로 나타나는 나무는 이미 하늘빛에 녹아 있다. 그 너머의 먼 산은 1.8 km 까지 조금 더 물러난다(92%) */
 const HAZE_GLSL=(()=>{ const V=(typeof VIEW_DIST!=='undefined'?VIEW_DIST:450);
   return 'fogT *= 1.0 - 0.74*smoothstep('+(V*0.30).toFixed(1)+','+V.toFixed(1)+',fogDepth) - 0.18*smoothstep('+V.toFixed(1)+',1800.0,fogDepth);'; })();
+/* **높이에 따라 옅어지는 공기** — 연무(에어로졸)는 땅 가까이에 몰려 있다(밀도 ∝ e^(−높이/380 m)). 눈에서 그 점까지 가는 길의
+   평균 밀도를 적분해 거리 대신 넣는다: 바닷가에서 수평으로 보면 예전과 같고(1배), 산꼭대기(380 m)에서 수평으로 보면 0.37배로
+   맑으며, 꼭대기에서 내려다본 바닷가는 0.63배 — 높은 데서는 가까운 봉우리가 또렷하고 낮은 땅이 뿌옇게 깔린다.
+   세계 높이는 정점에서 넘긴다(`vFogY` — 뷰 행렬의 둘째 열과 눈 좌표의 내적 + 눈높이). 물속(음수 높이)은 0 으로 본다.
+   그리는 거리 끝의 연무(`HAZE_GLSL`)는 높이와 상관없이 그대로다(나무가 툭 나타나는 것을 가리는 몫이라) */
+THREE.ShaderChunk.fog_pars_vertex=THREE.ShaderChunk.fog_pars_vertex.replace('varying float fogDepth;','varying float fogDepth;\n\tvarying float vFogY;');
+THREE.ShaderChunk.fog_vertex=THREE.ShaderChunk.fog_vertex.replace('fogDepth = - mvPosition.z;','fogDepth = - mvPosition.z;\n\tvFogY = dot( viewMatrix[ 1 ].xyz, mvPosition.xyz ) + cameraPosition.y;');
+THREE.ShaderChunk.fog_pars_fragment=THREE.ShaderChunk.fog_pars_fragment.replace('varying float fogDepth;','varying float fogDepth;\n\tvarying float vFogY;');
+const FOG_H_OK=/vFogY/.test(THREE.ShaderChunk.fog_pars_vertex)&&/vFogY/.test(THREE.ShaderChunk.fog_vertex)&&/vFogY/.test(THREE.ShaderChunk.fog_pars_fragment);
 THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
-  vec3 fogT = exp( - fogDensity * fogDepth * vec3( 0.93, 1.0, 1.12 ) );
+  ${FOG_H_OK?`float fogA = max( cameraPosition.y, 0.0 ) / 380.0, fogB = max( vFogY, 0.0 ) / 380.0, fogD = fogB - fogA;
+  float fogH = abs( fogD ) < 1e-3 ? exp( - fogA ) : ( exp( - fogA ) - exp( - fogB ) ) / fogD;`:'float fogH = 1.0;'}
+  vec3 fogT = exp( - fogDensity * fogDepth * fogH * vec3( 0.93, 1.0, 1.12 ) );
   ${HAZE_GLSL}
   gl_FragColor.rgb = gl_FragColor.rgb * fogT + fogColor * ( 1.0 - fogT );
 #endif`;
@@ -138,7 +149,7 @@ function initThree(){
   camera.userData.lightRole='recv';
   LIGHT.addSpot(camera,flash,true);      // 손전등은 그림자를 만든다
   camera.add(flash.target); scene.add(camera);
-  LIGHT.poolInit();                      // 불빛 풀 — 화덕·증기기관·제련로의 빛은 늘 서 있는 광원 몇 개가 옮겨 싣는다(광원 수가 안 바뀐다)
+  LIGHT.poolInit();                      // 불빛 풀 — 모닥불·증기기관·제련로의 빛은 늘 서 있는 광원 몇 개가 옮겨 싣는다(광원 수가 안 바뀐다)
   LIGHT.setQuality(LIGHT.q);
   resize(); addEventListener('resize',resize);
 }
@@ -319,6 +330,7 @@ async function generateWorld(){
   GAME_ID=newGameId(); _propGrid=null;  // 새 판 번호(불러오기는 restore 가 저장의 번호로 되돌린다)
   paused=true;                          // 덮개('상륙')가 떠 있는 동안 세상이 뒤에서 흘러가지 않게 — 놀다가 불러와도(F9) 상륙을 눌러야 시간이 간다
   LIGHT.live=false;                     // 짓는 동안은 배역을 안 준다(LIGHT.flush) — 다 지은 뒤 refresh 한 번
+  RELIEF.on=false;                      // 잔 기복은 섬을 키운 뒤에 켠다(reliefMask — 10-worldgen.js)
   try{
   document.getElementById('ov').style.display='flex';
   document.getElementById('bStart').style.display='none';
@@ -331,6 +343,7 @@ async function generateWorld(){
   await phase('하천 침식',34);      hydraulic(seed,Math.round(38000*P.ero*(16/(CELL*CELL))));
   await phase('사면 안정화',48);    thermal(8,1.45*(CELL/4),0.45);
                                     smoothTerrain(3,0.6);   // 표면 잡티 제거
+                                    if((P.tv|0)>=2) terrainFeatures(seed); else LANDFORMS=[];   // 피오르·골짜기·절벽·단구·산릉(지형 판 2 — 10-worldgen.js)
                                     computeSlope();
   await phase('수계 추출',58);      hydrology(); computeSlope(); computeTWI();
                                     distanceField(F.dWater,i=>F.elev[i]<=0);
@@ -344,6 +357,7 @@ async function generateWorld(){
   await phase('광상 탐사',82);      worldRescale(P.ws);     // 섬 배율 — 통째로 키운다(1 이면 그대로 · 00-core.js)
                                     camera.far=Math.max(3000,WORLD*1.15); camera.updateProjectionMatrix();
                                     document.getElementById('mSpan').textContent=Math.round(WORLD)+' m';
+                                    reliefMask();           // 잔 기복의 가림막(지형 판 3) — 이 뒤로 heightAt 이 둔덕·골을 안다
                                     placeResources(seed);
                                     shapeSeabed(seed);      // 바다 바닥의 기복 — 뭍·자원을 다 정한 **뒤에**(같은 시드의 섬은 그대로다)
   await phase('지형 메시',90);      buildBioTex(); buildChunks(); buildWater();
@@ -356,6 +370,7 @@ async function generateWorld(){
                                     RUBBLE.seed=seed|0; updateRubble(true);     // 자갈밭의 돌을 사람 둘레에 깐다
                                     floraReset(seed); giantsBuild();             // 노거수 — 뿌리가 땅이 되는 큰 나무(군락이 정한 자리)
                                     updateFlora(true);                           // 군락의 나무·덤불을 사람 둘레에 깐다
+                                    tlitBuild();                                 // 섬 크기의 빛 — 산 그림자·하늘 트임·숲 덮임(41-terrain-light.js)
                                     foamReset();                                 // 물가의 사면체 거품 — 새 섬의 표고를 C 쪽에 비춘다(96-foam.js)
                                     wildReset();                                 // 새·둥지·벌집·벌레(97-wildlife.js)
                                     seaReset(seed);                              // 바다 — 주운 자리·물고기를 비우고 새 섬의 산호밭을 깐다
@@ -368,7 +383,7 @@ async function generateWorld(){
                                     invAdd('guide',1);        // 생존 안내서 — 가방에서 누르면 읽힌다
                                     invAdd('codex',1);        // 사전은 처음부터 지닌다
                                     invAdd('hand_charger',1); // 캠코더 배터리를 채우는 손 충전기
-                                    CAMC.bat=100; CAMC.warned=false;
+                                    CAMC.bat=100; CAMC.warned=false; CAMC.health=1; CAMC.li=false; CAMC.hsaid=0;
                                     invAdd('ring_platinum',1); // 표류 전부터 끼고 있던 반지
                                     invAdd('can_food',2);     // 보급선이 쥐여 준 비상식량
                                     invAdd('bottle_water',1); // 물 한 병 — 비면 다시 채운다
@@ -386,6 +401,13 @@ async function generateWorld(){
                                     ARCS.forEach(g=>scene.remove(g.mesh)); ARCS.length=0;
                                     LATHES.forEach(g=>scene.remove(g.mesh)); LATHES.length=0;
                                     boxOpen=false; curStore=null;
+                                    /* 열려 있던 창은 전부 닫는다 — 가방을 연 채 새 섬을 만들면 가방이 열린 채로 시작했다(사용자 지적) */
+                                    try{ if(typeof closeBag==='function') closeBag(); }catch(e){}
+                                    invOpen=craftOpen=false;
+                                    if(typeof dexOpen!=='undefined'&&dexOpen){ dexOpen=false; const d=document.getElementById('dex'); if(d) d.style.display='none'; }
+                                    { const b=document.getElementById('box'); if(b) b.style.display='none'; }
+                                    if(typeof CTREE!=='undefined') ctreeHide(true);
+                                    if(typeof GATHER!=='undefined'){ GATHER.p=null; GATHER.t=0; GATHER.on=false; }
                                     CREATURES.length=0; ATK.cd=0; ATK.swing=0;
 
   document.getElementById('iSeed').textContent=P.seed;
@@ -393,7 +415,8 @@ async function generateWorld(){
               '육지',(stats.landCells/(N*N)*100).toFixed(1)+'%','자원',stats.props);
   ovLoad.textContent='';
   document.getElementById('bStart').style.display='';
-  document.getElementById('bStart').textContent='상륙';
+  document.getElementById('bStart').textContent='착륙';
+  if(typeof titleAfterGen==='function') titleAfterGen();     // 처음이면 간판과 '시작' · 다시 만든 섬이면 곧장 '착륙' 단추(91-title.js)
   offerLoadOnStart();                  // 저장된 것이 있으면 상륙 전에 한 번 물어본다
   }catch(e){
     showErr('생성',e);
@@ -402,4 +425,4 @@ async function generateWorld(){
   }
   busy=false;                           // 실패해도 잠기지 않게 반드시 해제
 }
-function placeProps_(seed){ placePod(seed); buildProps(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다
+function placeProps_(seed){ placePod(seed); buildProps(); buildCrags(); buildCaves(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다

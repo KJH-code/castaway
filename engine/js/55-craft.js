@@ -35,7 +35,7 @@ const RECIPES=[
    note:'가지를 휘어 테를 만들고 섬유로 촘촘한 자루를 뜬다. 나비·잠자리·반딧불이를 떠낸다 — 담을 유리병이 있어야 한다.',
    in:[{id:'branch',n:2},{id:'fiber',n:6},{id:'cord',n:2}]},
   {id:'jar', tier:'바다와 살림', n:'유리병', out:{id:'jar',n:2}, time:8, stam:4, station:'fire',
-   note:'유리를 타는 화덕에 다시 녹여 대롱으로 불어 병 둘을 만든다. 잡은 벌레를 담는다.',
+   note:'유리를 타는 모닥불에 다시 녹여 대롱으로 불어 병 둘을 만든다. 잡은 벌레를 담는다.',
    in:[{id:'glass',n:1}]},
 
   {id:'tinder_bark', tier:'풀과 돌', n:'부싯깃(나무껍질)', out:{id:'tinder',n:2}, time:3, stam:3,
@@ -64,12 +64,12 @@ const RECIPES=[
    note:'휜 나뭇가지에 노끈을 매어 활을 만들고, 곧은 가지를 송곳으로 삼는다.',
    in:[{id:'branch',n:2},{id:'cord',n:1}]},
 
-  {id:'campfire', tier:'불', n:'화덕 짓기', out:null, place:'campfire', time:10, stam:12,
+  {id:'campfire', tier:'불', n:'모닥불 짓기', out:null, place:'campfire', time:10, stam:12,
    note:'돌을 둘러 바람을 막고 가운데 땔감을 쌓는다. 발밑에 설치된다.',
    in:[{id:'branch',n:5},{id:'pebble',n:6}]},
 
   {id:'torch', tier:'불', n:'횃불', out:{id:'torch',n:1}, time:4, stam:5,
-   note:'나뭇가지 끝에 섬유를 두툼히 감는다. 불붙은 화덕에 대면 옮겨 붙는다.',
+   note:'나뭇가지 끝에 섬유를 두툼히 감는다. 불붙은 모닥불에 대면 옮겨 붙는다.',
    in:[{id:'branch',n:1},{id:'fiber',n:2}]},
 
   {id:'bow_wood', tier:'불', n:'나무 활', out:{id:'bow_wood',n:1}, time:16, stam:14,
@@ -95,6 +95,31 @@ const RECIPES=[
   {id:'stew_fish', tier:'불', n:'생선국', out:{id:'stew_fish',n:1}, time:14, stam:4, station:'fire',
    note:'물 담은 토기에 물고기 두 마리를 넣고 끓인다.',
    in:[{tag:'fish',n:2},{id:'pot_water',n:1}]},
+  /* ── 소금으로 만드는 것(사용자 요청 — 소금은 바닷가의 흰 더께를 곡괭이로 캔다) ── */
+  {id:'fish_salted', tier:'불', n:'소금절이 생선', out:{id:'fish_salted',n:2}, time:8, stam:3,
+   note:'배를 가른 물고기를 소금에 묻어 둔다. 불이 없어도 되고, 오래간다(상하지 않는다).',
+   in:[{tag:'fish',n:2},{id:'salt',n:1}]},
+  {id:'meat_salted', tier:'불', n:'염장 고기', out:{id:'meat_salted',n:1}, time:8, stam:3,
+   note:'고기를 소금에 절인다. 오래 두고 먹는다.',
+   in:[{id:'meat_bear',n:1},{id:'salt',n:1}]},
+  {id:'fish_grill_salt', tier:'불', n:'소금구이', out:{id:'fish_grill_salt',n:1}, time:10, stam:3, station:'fire',
+   note:'소금을 쳐서 불에 굽는다.',
+   in:[{tag:'fish',n:1},{id:'salt',n:1}]},
+  {id:'soup_seaweed', tier:'불', n:'바닷말국', out:{id:'soup_seaweed',n:1}, time:12, stam:4, station:'fire',
+   note:'물 담은 토기에 바닷말과 소금을 넣고 끓인다.',
+   in:[{id:'seaweed',n:2},{id:'salt',n:1},{id:'pot_water',n:1}]},
+  {id:'soup_mushroom', tier:'불', n:'버섯국', out:{id:'soup_mushroom',n:1}, time:14, stam:4, station:'fire',
+   note:'버섯과 고사리를 소금으로 간해 끓인다 — 끓이면 날것의 탈이 없다.',
+   in:[{id:'mushroom',n:2},{id:'fern',n:1},{id:'salt',n:1},{id:'pot_water',n:1}]},
+  {id:'namul', tier:'불', n:'고사리 무침', out:{id:'namul',n:2}, time:5, stam:2,
+   note:'익힌 고사리를 소금에 무친다.',
+   in:[{id:'fern_cooked',n:2},{id:'salt',n:1}]},
+  {id:'egg_mush', tier:'불', n:'버섯 알찜', out:{id:'egg_mush',n:1}, time:10, stam:3, station:'fire',
+   note:'새알에 구운 버섯을 넣고 소금으로 간해 익힌다.',
+   in:[{id:'egg',n:1},{id:'mushroom_cooked',n:1},{id:'salt',n:1}]},
+  {id:'skewer', tier:'불', n:'꼬치구이', out:{id:'skewer',n:1}, time:12, stam:4, station:'fire',
+   note:'새고기와 버섯을 나뭇가지에 꿰어 소금을 치고 굽는다.',
+   in:[{id:'bird_raw',n:1},{id:'mushroom',n:1},{id:'branch',n:1},{id:'salt',n:1}]},
   {id:'fish_dried', tier:'불', n:'말린 생선', out:{id:'fish_dried',n:2}, time:24, stam:4, station:'fire',
    note:'물고기 배를 갈라 펴서 불가에 말린다.',
    in:[{id:'fish',n:2}], need:[{tag:'sharp',n:1}]},
@@ -135,10 +160,20 @@ const RECIPES=[
    in:[{id:'log',n:3},{id:'cord',n:4}]},
 
   {id:'brick_raw', tier:'나무와 점토', n:'벽돌 찍기', out:{id:'brick_raw',n:3}, time:10, stam:8,
-   note:'점토를 나무틀에 눌러 찍어 말린다. 타는 화덕에 넣어 두면 구운 벽돌이 된다.',
+   note:'점토를 나무틀에 눌러 찍어 말린다. 타는 모닥불에 넣어 두면 구운 벽돌이 된다.',
    in:[{id:'clay_lump',n:2}]},
+  {id:'hearth', tier:'나무와 점토', n:'화덕 올리기', out:null, place:'hearth', time:16, stam:16,
+   note:'곁의 모닥불 둘레에 돌을 허리 높이로 쌓고 점토로 틈을 메운다 — 안이 두 배로 넓고(40 → 80 kg · 10 → 20 칸) 두 배 빨리 익는다. 땔감도 두 배로 먹는다. 모닥불 곁에서 짓는다.',
+   in:[{id:'pebble',n:10},{id:'clay_lump',n:3}]},
+  {id:'lime_burn', tier:'나무와 점토', n:'석회 굽기', out:{id:'lime',n:2}, time:20, stam:8, station:'fire',
+   note:'석회석을 불에 달궈 부순다. 자갈밭의 흰 돌이 석회석이다.',
+   in:[{id:'limestone',n:2}]},
+  {id:'cement', tier:'나무와 점토', n:'시멘트 개기', out:{id:'cement',n:1}, time:26, stam:18, station:'fire',
+   ret:[{id:'pot',n:1}],
+   note:'석회와 재, 모래, 점토를 물에 갠다(로마 시멘트 — 재가 석회와 굳는다). 통 하나로 평평한 땅 세 칸쯤, 비탈은 메울 깊이만큼 더 든다. 들고 땅을 보며 좌클릭하면 터를 다진다.',
+   in:[{id:'lime',n:2},{id:'ash',n:3},{id:'pot_sand',n:1},{id:'clay_lump',n:1},{id:'pot_water',n:1}]},
   {id:'kiln', tier:'나무와 점토', n:'가마 짓기', out:null, place:'kiln', time:20, stam:20,
-   note:'곁의 화덕을 구운 벽돌로 둘러 돔을 얹는다 — 안이 두 배로 넓고(40 → 80 kg · 10 → 20 칸) 굽는 빠르기도 두 배다. 화덕 곁에서 짓는다.',
+   note:'곁의 모닥불을 구운 벽돌로 둘러 돔을 얹는다 — 안이 두 배로 넓고(40 → 80 kg · 10 → 20 칸) 굽는 빠르기도 두 배다. 모닥불 곁에서 짓는다.',
    in:[{id:'brick',n:16},{id:'clay_lump',n:2}]},
   {id:'pot_raw', tier:'나무와 점토', n:'그릇 빚기', out:{id:'pot_raw',n:1}, time:25, stam:14,
    note:'점토를 가래로 말아 쌓아 올리고 표면을 다듬는다. 그늘에서 말린다.',
@@ -184,6 +219,58 @@ const RECIPES=[
    build:'pane', btier:0, time:0, stam:0,
    note:'창틀에 다는 유리 여닫이. 규사를 녹여 만든 유리판을 창살에 끼운다. 좌클릭으로 여닫는다. 내구 80.',
    in:[{id:'glass',n:2},{id:'branch',n:3},{id:'cord',n:2}]},
+  {id:'b_thatch_post', tier:'불', n:'초가 기둥 틀', out:null, place:'build',
+   build:'post', btier:0, time:0, stam:0,
+   note:'네 귀퉁이 기둥과 도리 — 토대도 벽도 없이 맨땅에 서고, 그 위에 지붕을 얹으면 차양이 된다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'branch',n:4},{id:'cord',n:2}]},
+  {id:'b_wood_post', tier:'나무와 점토', n:'나무 기둥 틀', out:null, place:'build',
+   build:'post', btier:1, time:0, stam:0,
+   note:'네 귀퉁이 기둥과 도리 — 토대도 벽도 없이 맨땅에 서고, 그 위에 지붕을 얹으면 차양이 된다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'log',n:2},{id:'cord',n:2}]},
+  {id:'b_stone_post', tier:'간석기', n:'돌 기둥 틀', out:null, place:'build',
+   build:'post', btier:2, time:0, stam:0,
+   note:'네 귀퉁이 기둥과 도리 — 토대도 벽도 없이 맨땅에 서고, 그 위에 지붕을 얹으면 차양이 된다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'stone_block',n:2},{id:'clay_lump',n:1}]},
+  {id:'b_brick_found', tier:'나무와 점토', n:'벽돌 토대', out:null, place:'build',
+   build:'found', btier:3, time:0, stam:0,
+   note:'구운 벽돌을 점토로 붙여 쌓는다. 내구 1400 — 가장 튼튼하다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'brick',n:6},{id:'clay_lump',n:2}]},
+  {id:'b_brick_wall', tier:'나무와 점토', n:'벽돌 벽', out:null, place:'build',
+   build:'wall', btier:3, time:0, stam:0,
+   note:'구운 벽돌을 점토로 붙여 쌓는다. 내구 1400 — 가장 튼튼하다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'brick',n:5},{id:'clay_lump',n:1}]},
+  {id:'b_brick_roof', tier:'나무와 점토', n:'벽돌 지붕', out:null, place:'build',
+   build:'roof', btier:3, time:0, stam:0,
+   note:'구운 벽돌을 점토로 붙여 쌓는다. 내구 1400 — 가장 튼튼하다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'brick',n:4},{id:'log',n:1},{id:'clay_lump',n:1}]},
+  {id:'b_brick_slope', tier:'나무와 점토', n:'벽돌 경사 지붕', out:null, place:'build',
+   build:'slope', btier:3, time:0, stam:0,
+   note:'구운 벽돌을 점토로 붙여 쌓는다. 내구 1400 — 가장 튼튼하다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'brick',n:5},{id:'log',n:1},{id:'clay_lump',n:1}]},
+  {id:'b_brick_gable', tier:'나무와 점토', n:'벽돌 삼각 벽', out:null, place:'build',
+   build:'gable', btier:3, time:0, stam:0,
+   note:'구운 벽돌을 점토로 붙여 쌓는다. 내구 1400 — 가장 튼튼하다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'brick',n:3},{id:'clay_lump',n:1}]},
+  {id:'b_brick_door', tier:'나무와 점토', n:'벽돌 문', out:null, place:'build',
+   build:'door', btier:3, time:0, stam:0,
+   note:'구운 벽돌을 점토로 붙여 쌓는다. 내구 1400 — 가장 튼튼하다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'brick',n:4},{id:'log',n:1},{id:'clay_lump',n:1}]},
+  {id:'b_brick_window', tier:'나무와 점토', n:'벽돌 창문', out:null, place:'build',
+   build:'window', btier:3, time:0, stam:0,
+   note:'구운 벽돌을 점토로 붙여 쌓는다. 내구 1400 — 가장 튼튼하다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'brick',n:4},{id:'log',n:1},{id:'clay_lump',n:1}]},
+  {id:'b_brick_leaf', tier:'나무와 점토', n:'벽돌 문짝', out:null, place:'build',
+   build:'leaf', btier:3, time:0, stam:0,
+   note:'구운 벽돌을 점토로 붙여 쌓는다. 내구 1400 — 가장 튼튼하다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'log',n:2},{id:'branch',n:4},{id:'cord',n:4}]},
+  {id:'b_brick_pane', tier:'나무와 점토', n:'벽돌 창짝', out:null, place:'build',
+   build:'pane', btier:3, time:0, stam:0,
+   note:'구운 벽돌을 점토로 붙여 쌓는다. 내구 1400 — 가장 튼튼하다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'glass',n:3},{id:'log',n:1},{id:'cord',n:2}]},
+  {id:'b_brick_post', tier:'나무와 점토', n:'벽돌 기둥 틀', out:null, place:'build',
+   build:'post', btier:3, time:0, stam:0,
+   note:'네 귀퉁이 기둥과 도리 — 토대도 벽도 없이 맨땅에 서고, 그 위에 지붕을 얹으면 차양이 된다. 누르면 짓기 모드로 들어간다.',
+   in:[{id:'brick',n:4},{id:'clay_lump',n:1}]},
   {id:'b_wood_found', tier:'나무와 점토', n:'나무 토대', out:null, place:'build',
    build:'found', btier:1, time:0, stam:0,
    note:'바닥 널을 깔고 네 귀퉁이에 기둥을 받친다. 옆에 붙여 놓으면 높이가 저절로 맞는다. 내구 300. 누르면 짓기 모드로 들어간다.',
@@ -258,7 +345,7 @@ const RECIPES=[
    in:[{id:'glass',n:3},{id:'log',n:1},{id:'cord',n:2}]},
 
   {id:'charcoal_pile', tier:'나무와 점토', n:'숯가마 쌓기', out:{id:'charcoal_pile',n:1}, time:20, stam:14,
-   note:'통나무를 쌓고 점토와 흙으로 덮어 공기를 막는다. 화덕에 묻으면 숯이 된다.',
+   note:'통나무를 쌓고 점토와 흙으로 덮어 공기를 막는다. 모닥불에 묻으면 숯이 된다.',
    in:[{id:'log',n:1},{id:'clay_lump',n:1}]},
 
   {id:'grindstone', tier:'간석기', n:'숫돌 놓기', out:null, place:'grind', time:14, stam:16,
@@ -283,7 +370,7 @@ const RECIPES=[
    in:[{id:'reed_stalk',n:2}]},
 
   {id:'furnace', tier:'금속', n:'제련로 쌓기', out:null, place:'furnace', time:26, stam:26,
-   note:'석재를 원통으로 쌓고 점토로 이겨 붙인다. 화덕 열로는 광석이 녹지 않는다.',
+   note:'석재를 원통으로 쌓고 점토로 이겨 붙인다. 모닥불 열로는 광석이 녹지 않는다.',
    in:[{id:'stone_block',n:4},{id:'clay_lump',n:3}]},
 
   /* 제련은 더 이상 제작창에서 하지 않는다 — 제련로 안에 넣어두면 알아서 된다.
@@ -531,7 +618,7 @@ const RECIPES=[
   {id:'igniter', tier:'철기', n:'긴 라이터', out:{id:'igniter',n:1},
    time:30, stam:24, station:'anvil',
    note:'철관 끝에 부싯돌 톱니와 쇠 줄을 물린다. 방아쇠를 당기면 관 끝에서 불꽃이 튄다. '
-       +'팔 길이만큼 떨어져 화덕 속에 바로 떨어뜨리므로 부싯깃을 받쳐 둘 필요가 없다.',
+       +'팔 길이만큼 떨어져 모닥불 속에 바로 떨어뜨리므로 부싯깃을 받쳐 둘 필요가 없다.',
    in:[{id:'iron_wrought',n:1},{id:'flint',n:3},{id:'cord',n:2}],
    need:[{id:'hammer_stone',n:1}]},
 
@@ -593,7 +680,7 @@ const RECIPES=[
    in:[{id:'wire_copper',n:8},{id:'magnet',n:2},{id:'log',n:2}]},
 
   /* 증기기관 — 보일러에 석탄·숯을 때면 증기가 피스톤을 밀어 바퀴를 돌린다.
-     물레방아와 달리 하천이 필요 없다 — 7 m 안의 발전기를 돌린다. 화덕처럼 불을 붙이고 땔감을 넣는다. */
+     물레방아와 달리 하천이 필요 없다 — 7 m 안의 발전기를 돌린다. 모닥불처럼 불을 붙이고 땔감을 넣는다. */
   {id:'steam', tier:'화학', n:'증기기관 세우기', out:null, place:'steam',
    time:60, stam:44,
    note:'철판을 말아 보일러를 두드려 잇고, 구리관으로 증기를 실린더에 보낸다. 강철 피스톤이 '
@@ -670,6 +757,9 @@ const RECIPES=[
    in:[{id:'li_carbonate',n:1},{id:'fish',n:3},{id:'iron_wrought',n:1},
        {id:'acid_sulfuric',n:1},{id:'charcoal',n:1}]},
 
+  {id:'camc_pack', tier:'화학', n:'캠코더 전지 팩 짜기', out:{id:'camc_pack',n:1}, time:40, stam:14, station:'lathe',
+   note:'리튬이온 전지를 풀어 캠코더에 들어갈 크기로 다시 감고, 구리선으로 단자를 낸다. 가방에서 쓰면 캠코더의 낡은 전지를 갈아 끼운다 — 손 충전기로 채울수록 줄던 사용 시간이 처음으로 돌아가고, 훨씬 더디게 닳는다.',
+   in:[{id:'battery_li',n:1},{id:'wire_copper',n:2},{id:'resin',n:1}]},
   {id:'battery_li', tier:'화학', n:'리튬이온 전지 말기', out:{id:'battery_li',n:1},
    time:80, stam:30, station:'lathe',
    note:'구리 박에 흑연을, 다른 박에 인산철리튬을 바르고 사이에 얇은 막을 끼워 감는다. '
@@ -1004,7 +1094,7 @@ function nearFreshWater(){
   return false;
 }
 const STATION={grind  :{n:'숫돌',      ok:()=>nearGrind()},
-               fire   :{n:'타는 화덕', ok:()=>nearLitFire()},
+               fire   :{n:'타는 모닥불', ok:()=>nearLitFire()},
                furnace:{n:'제련로',    ok:()=>nearFurnace()},
                anvil  :{n:'모루',      ok:()=>nearAnvil()},
                water  :{n:'담수',      ok:()=>nearFreshWater()},
@@ -1048,9 +1138,14 @@ function updateCraft(dt){
   const R=CRAFT.recipe; if(!R) return;
   if(PL.stam<2){ CRAFT.recipe=null; craftDirty=true; craftRestoreHeld(); toast('기력이 없다'); return; }
   if(!stationOK(R)){ CRAFT.recipe=null; craftDirty=true; craftRestoreHeld(); toast(STATION[R.station].n+'에서 멀어졌다'); return; }
+  /* **손을 다른 데 쓰면 만들던 것을 놓는다**(사용자 요청) — 캐기·베기·따기·휘두르기·작살질을 시작하면 그만둔다 */
+  if(HARV.active||(typeof GATHER!=='undefined'&&GATHER.on)||ATK.swing>0){
+    CRAFT.recipe=null; CRAFT.t=0; craftDirty=true; craftRestoreHeld(); toast(R.n+' — 손을 다른 데 써서 만들기를 멈췄다'); return; }
+  /* **걸으면 더디다 · 빨리 갈수록 더 더디다** — 가만히 1배 · 걷기(4.3 m/s) 0.4배 · 달리기(7.4 m/s) 0.28배. 기력도 그만큼만 든다 */
+  const hs=Math.hypot(PL.vel.x,PL.vel.z), mv=1/(1+0.35*hs), d2=dt*mv;
   const prev=CRAFT.t;
-  CRAFT.t+=dt;
-  PL.stam=clamp(PL.stam-R.stam/R.time*dt,0,100);
+  CRAFT.t+=d2;
+  PL.stam=clamp(PL.stam-R.stam/R.time*d2,0,100);
   // 작업 중 반복음 — 뗀석기는 망치질, 나머지는 손으로 엮는 소리
   const iv=R.need&&R.need.some(r=>r.tag==='hammer')?0.42:0.7;
   if(Math.floor(prev/iv)!==Math.floor(CRAFT.t/iv) && CRAFT.t<R.time-0.2)
@@ -1065,20 +1160,26 @@ function updateCraft(dt){
     return;
   }
   if(R.place){
-    const spot=(R.place==='wheel')?wheelSpot():(R.place==='kiln')?kilnSpot():campfireSpot();
+    const spot=(R.place==='wheel')?wheelSpot():(R.place==='kiln')?kilnSpot():(R.place==='hearth')?hearthSpot():campfireSpot();
     if(!spot.ok){ toast(spot.why); return; }
   }
   if(!stationOK(R)){ toast(STATION[R.station].n+' 곁에서만 할 수 있다'); return; }
   /* 설치형 — **놓는 데 성공한 뒤에** 재료를 쓴다. 예전엔 재료부터 쓰고 놓았는데, 놓는 쪽이 한 번 더 따져서
      퇴짜를 놓으면(바구니가 '너무 가깝다' · 발전기가 '물레방아 곁이 아니다' …) 재료만 사라지고 아무것도 안 생겼다. */
   if(R.place){
-    const PLACE={campfire:placeCampfire, kiln:placeKiln, grind:placeGrindstone, furnace:placeFurnace, anvil:placeAnvil,
+    const PLACE={campfire:placeCampfire, kiln:placeKiln, hearth:placeHearth, grind:placeGrindstone, furnace:placeFurnace, anvil:placeAnvil,
                  wheel:placeWheel, steam:placeSteam, dynamo:placeDynamo, lathe:placeLathe, arc:placeArc,
                  basket:()=>placeStore('basket'), chest:()=>placeStore('chest'), trash:()=>placeStore('trash')};
     const fn=PLACE[R.place];
+    const arrs=[FIRES,FURNACES,ANVILS,GRINDS,STORES,DYNAMOS,LATHES,ARCS], n0=arrs.map(a=>a.length);
     if(!fn||!fn()){ craftDirty=true; return; }       // 못 놓았다 — 까닭은 놓는 쪽이 알렸고, 재료는 그대로 남는다
     R.in.forEach(consumeMat);
-    craftDirty=true; invDirty=true; return;
+    craftDirty=true; invDirty=true;
+    /* **놓을 자리를 보여 주고 고르게 한다**(사용자 요청) — 방금 지은 것을 곧바로 집어 든 꼴로 넘긴다(옮기기와 같은 틀 · 60-stations.js):
+       시선을 따라 자리가 보이고(발밑 고리가 초록이면 놓인다), 휠·R 로 돌리고, 좌클릭으로 놓는다. 그만두면 처음 선 자리에 남는다 */
+    { const k=arrs.findIndex((a,i)=>a.length>n0[i]), c=k>=0?arrs[k][arrs[k].length-1]:null;
+      if(c&&pushKind(c)){ closeBag(); syncLock(); if(moveBegin(c)) toast(c.cname+' — 놓을 자리를 보고 [좌클릭] · [휠·R] 돌리기 · [우클릭] 지금 자리에 둔다'); } }
+    return;
   }
   /* 만들어도 들 수 없으면 **시작하지 않는다** — 예전엔 재료를 다 쓴 뒤에야 '완성했지만 들 수 없다'며 결과물을 버렸다.
      쓸 재료의 무게를 빼고 결과물(과 돌려받는 그릇)의 무게를 더해 미리 따진다 */
@@ -1181,7 +1282,7 @@ function drawCraft(){
       const col=list.filter(o=>o.R.tier===tier&&(!craftOnly||canCraft(o.R))); if(!col.length) continue;
       html+='<div class="tc"><div class="th">'+TIER_LABEL[tier]+'<span>'+col.filter(o=>canCraft(o.R)).length+'/'+col.length+'</span></div>'
         +col.map(o=>{ const R=o.R, ok=canCraft(R), busy=CRAFT.recipe===R;
-          return '<div class="nd '+(ok?'ok':'no')+(R.proc?' pr':'')+(o.i===CRAFT.sel?' sel':'')+(busy?' busy':'')+'" data-i="'+o.i+'"'+(R.proc?' title="'+(R.proc==='furnace'?'제련로':'화덕·가마')+'에 넣어 두는 일"':'')+'>'
+          return '<div class="nd '+(ok?'ok':'no')+(R.proc?' pr':'')+(o.i===CRAFT.sel?' sel':'')+(busy?' busy':'')+'" data-i="'+o.i+'"'+(R.proc?' title="'+(R.proc==='furnace'?'제련로':'모닥불·가마')+'에 넣어 두는 일"':'')+'>'
             +(R.out?iconTagSoon(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')
             +'<span>'+R.n+'</span>'+(R.out&&R.out.n>1?'<em>×'+R.out.n+'</em>':'')+'</div>'; }).join('')+'</div>';
     }

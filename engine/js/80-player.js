@@ -188,9 +188,18 @@ function slopeAt(wx,wz){
 function walkable(x,z,fromH){
   if(Math.abs(x)>HALF-6||Math.abs(z)>HALF-6) return false;
   const rise=floorAt(x,z,fromH)-fromH;         // 토대·지붕 윗면도 바닥으로 친다
-  if(rise<=0.02) return true;                 // 평지·내리막은 항상 통과
+  const rock=CRAG.slope;                      // 그 자리가 큰 바위 위면 그 면의 비탈(33-crags.js — floorAt 이 남긴다)
   if(rise>STEPUP) return false;               // 한 번에 오르기엔 너무 높은 턱
-  return slopeAt(x,z)<=MAXSLOPE;              // 지속적인 급사면만 막는다
+  /* 큰 바위의 벽 — 몸 반지름만큼 앞을 더 본다. 가운데만 보면 눈이 바위 면에 닿아 속이 들여다보였다(사용자 지적) */
+  { const ddx=x-PL.pos.x, ddz=z-PL.pos.z, dl=Math.hypot(ddx,ddz);
+    if(dl>1e-6&&dl<1.5){ const ax=x+ddx/dl*PRAD, az=z+ddz/dl*PRAD, g2=heightAt(ax,az);
+      if(cragFloor(ax,az,fromH,g2)-fromH>STEPUP&&CRAG.slope>0) return false; } }   // (땅이 높은 것은 여기서 안 막는다 — 바위일 때만)
+  if(rise<=0.02) return true;                 // 평지·내리막은 항상 통과
+  /* 땅의 비탈은 **그 자리에서** 잰다(±2.5 m — 잔 기복은 뭉개진다). 예전엔 가장 가까운 격자 칸의 값(`slopeAt`)을 봤는데, 칸이 15 m 인
+     섬에서는 벼랑 발치의 완만한 칸에 '속한' 벽 아랫도리(반 칸 — 10 m 높이까지)를 그냥 걸어 올랐다(사용자 지적: 벽 오르기) */
+  if(rock>0) return rock<=MAXSLOPE;            // 바위 위에서는 바위 면의 비탈
+  const gs=groundSlope(x,z,2.5);
+  return Math.hypot(gs[0],gs[1])<=MAXSLOPE;   // 지속적인 급사면만 막는다
 }
 
 const NO_KEYS={};

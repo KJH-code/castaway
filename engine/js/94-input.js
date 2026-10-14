@@ -110,7 +110,7 @@ addEventListener('keydown',e=>{
   if(e.code==='Tab'){ e.preventDefault(); toggleCfg(); }
 });
 addEventListener('keyup',e=>{ keys[e.code]=false; });   // E 는 이제 열린 창 닫기만 — 여는 것은 좌클릭(releaseE)
-/* 좌클릭을 짧게 눌렀다 떼면 눈앞의 용기·문짝·숫돌·발전기를 다룬다(사용자 요청 — 예전엔 E). 길게 누른 것은 화덕을 다룬 것이므로
+/* 좌클릭을 짧게 눌렀다 떼면 눈앞의 용기·문짝·숫돌·발전기를 다룬다(사용자 요청 — 예전엔 E). 길게 누른 것은 모닥불을 다룬 것이므로
    손을 뗐다고 창이 열리면 안 된다. */
 function releaseE(){
   const c=EK.tgt, held=EK.hold;
@@ -149,6 +149,7 @@ cv.addEventListener('mousedown',e=>{
   if(MOVE.t){ if(e.button===0) movePlace(); else if(e.button===2) moveCancel(); return; }   // 옮기는 중 — 좌클릭 놓기 · 우클릭 그만두기
   if(e.button===0){
     if(BUILD.on) doBuild();
+    else if(LEVEL.on) doLevel();                 // 시멘트를 들었다 — 터 다지기(62-build.js)
     else { useDown=true; if(!facing()) useHeld(); }   // 설비를 보고 있으면 손의 것을 안 쓴다(뗄 때 releaseE)
   }
   if(e.button===2){
@@ -160,7 +161,7 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 addEventListener('mouseup',e=>{ dragF=false;
   if(e.button===0){ const was=useDown; useDown=false; if(was) releaseE(); }
   else if(e.button===2) mouseDown=false; });
-/* 눈앞에 설비(문짝·상자·화덕·제련로·숫돌·발전기)가 있나 — 그때 좌클릭은 공격·먹기가 아니라 설비 조작이다 */
+/* 눈앞에 설비(문짝·상자·모닥불·제련로·숫돌·발전기)가 있나 — 그때 좌클릭은 공격·먹기가 아니라 설비 조작이다 */
 function facing(){ return !!(HARV.fit||HARV.cont); }
 addEventListener('blur',()=>{ mouseDown=false; useDown=false; });
 cv.addEventListener('wheel',e=>{ if(MOVE.t){ moveRotate(Math.sign(e.deltaY)); e.preventDefault(); return; } if(flyMode){ fly.r=clamp(fly.r*(1+Math.sign(e.deltaY)*0.12),40,1600); e.preventDefault(); } },{passive:false});
@@ -331,7 +332,9 @@ function rng(id,key,vid,fmt,after){
   const u=()=>{ P[key]=parseFloat(el.value); v.textContent=fmt(P[key]); if(after) after(); };
   el.addEventListener('input',u); u();
 }
-rng('pWs','ws','vWs',x=>['','1.9 km','3.8 km','5.8 km'][x]||'');   // 섬 배율 — 새 섬부터(00-core.js)
+rng('pWs','ws','vWs',x=>['','1.9 km','3.8 km','5.8 km','7.7 km','9.6 km','11.5 km'][x]||'');
+/* 주소에 ?ws=배율(1~6)을 주면 첫 섬을 그 넓이로 만든다 — 구동 검사(tools/pages.mjs)가 작은 섬으로 돌린다(헤드리스에서 6배 섬은 너무 오래 걸린다) */
+try{ const w=parseInt(new URLSearchParams(location.search).get('ws'),10), el=document.getElementById('pWs'); if(w>=1&&w<=6&&el){ el.value=w; el.dispatchEvent(new Event('input')); } }catch(e){}   // 섬 배율 — 새 섬부터(00-core.js)
 rng('pSize','size','vSize',x=>x.toFixed(2));
 rng('pRidge','ridge','vRidge',x=>x.toFixed(2));
 rng('pEro','ero','vEro',x=>x.toFixed(2));
@@ -425,7 +428,7 @@ document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.val
     move('pRes',p.res,1); move('pFar',p.far,1); move('pShadow',p.shadow,1); move('pLimb',p.limb,1); move('pCam',p.cam,1); move('pNoise',p.noise,1);
     toast('그래픽 프리셋 — '+p.n+(landed?' (가지 밀도는 새 섬부터)':'')); });
   isle.addEventListener('change',()=>{ const p=ISLAND_PRESETS.find(q=>q.id===isle.value); if(!p) return;
-    move('pWs',p.ws||2); move('pSize',p.size); move('pRidge',p.ridge); move('pEro',p.ero); move('pSea',p.sea); move('pRain',p.rain);
+    move('pWs',p.ws||6); move('pSize',p.size); move('pRidge',p.ridge); move('pEro',p.ero); move('pSea',p.sea); move('pRain',p.rain);
     toast('섬 프리셋 — '+p.n+" · '새 섬' 을 누르면 이 모양으로 만든다"); });
   for(const id of ['pRes','pFar','pShadow','pLimb','pCam','pNoise']) document.getElementById(id).addEventListener('change',e=>{ if(e.isTrusted) gfx.value=''; });
   for(const id of ['pWs','pSize','pRidge','pEro','pSea','pRain']) document.getElementById(id).addEventListener('input',e=>{ if(e.isTrusted) isle.value=''; });

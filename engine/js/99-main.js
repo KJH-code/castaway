@@ -25,7 +25,7 @@ function loop(){
   if(!paused&&!busy) try{
     let tp=PO?performance.now():0;
     /* **사전**을 편 동안만 세상이 멈춘다 — 시간 · 배고픔·목마름 · 불 · 날씨 · 몸의 움직임이 선다.
-       가방(소지품·제작)은 열어도 시간이 흐른다(사용자 요청 — 예전엔 가방도 멈췄다). 상자·화덕 창도 안 멈춘다. */
+       가방(소지품·제작)은 열어도 시간이 흐른다(사용자 요청 — 예전엔 가방도 멈췄다). 상자·모닥불 창도 안 멈춘다. */
     const hold=uiHold();
     hudS(document.getElementById('holdTag'),'display',hold?'block':'none');
     if(hold) updateCraft(dt);
@@ -34,7 +34,7 @@ function loop(){
     gameHours+=dh; hourOfDay=(hourOfDay+dh)%24;
     updateShip(dt);                            // 보급선이 내려놓고 떠난다
     updateTorch(dt,dh); updateLamp(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh); updateStoreTags(); updateRubble(); updateFlora(); updateSea(dt); updateFoam(); updateWildlife(dt); updatePush(dt); updateCamcorder(dt);
-    updateWeapon(dt); updatePower(dt);
+    updateWeapon(dt); updatePower(dt); updateDecay(dh);
     updateOcean(now*0.001);
     if(PO) tp=PERF.lap(4,tp);
     updateSky();
@@ -59,7 +59,7 @@ function loop(){
                          :'화면을 클릭하면 시점 조작이 시작됩니다';
         if(h.textContent!==want) h.textContent=want;
       }
-      updateBuild();
+      updateBuild(); updateLevel(); updateCaves(); updateCrags(); updateTlit(dt); updateDew();
       updateHarvest(dt);
       updateGather(dt);           // 덩굴·덤불·열매·버섯·조개 — 누르고 있는 동안 막대가 찬다(95-flora.js)
       updateCraft(dt);

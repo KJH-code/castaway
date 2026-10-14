@@ -116,7 +116,7 @@
   <div class="ch"><b>설정</b><button id="bCfgX">닫기 · Tab</button></div>
   <div class="r"><label>시드</label><input type="text" id="pSeed" value="castaway"></div>
   <div class="r"><label>섬 프리셋</label><select id="pIsle" aria-label="섬 프리셋"></select></div>
-  <div class="r"><label>섬 넓이</label><input type="range" id="pWs" min="1" max="3" step="1" value="2"><span class="v" id="vWs"></span></div>
+  <div class="r"><label>섬 넓이</label><input type="range" id="pWs" min="1" max="6" step="1" value="6"><span class="v" id="vWs"></span></div>
   <div class="r"><label>섬 크기</label><input type="range" id="pSize" min="0.45" max="0.95" step="0.01" value="0.7"><span class="v" id="vSize"></span></div>
   <div class="r"><label>산맥</label><input type="range" id="pRidge" min="0" max="1.4" step="0.02" value="0.85"><span class="v" id="vRidge"></span></div>
   <div class="r"><label>침식</label><input type="range" id="pEro" min="0" max="1" step="0.02" value="0.6"><span class="v" id="vEro"></span></div>
@@ -180,7 +180,7 @@
     <div><span><kbd>Ctrl</kbd></span><em>앉기 · +Space 지붕에서 내려가기</em></div>
     <div><span><kbd>좌클릭</kbd></span><em>쓰기 · 공격 · 먹기 · 캐기 · 설비 열기</em></div>
     <div><span><kbd>우클릭</kbd></span><em>저격총 조준경 · 전등·드릴 충전</em></div>
-    <div><span><kbd>E</kbd></span><em>열린 상자·화덕·숫돌 창 닫기</em></div>
+    <div><span><kbd>E</kbd></span><em>열린 상자·모닥불·숫돌 창 닫기</em></div>
     <div><span><kbd>F</kbd></span><em>설비 옮기기 — 휠·R 돌리기 · 좌클릭 놓기</em></div>
     <div><span><kbd>I</kbd></span><em>가방 — 소지품 · 제작</em></div>
     <div><span><kbd>B</kbd></span><em>사전</em></div>
@@ -199,7 +199,7 @@
     <div><span><kbd>Esc</kbd></span><em>일시정지</em></div>
   </div>
   </div></div>
-  <button id="bStart">상륙</button>
+  <button id="bStart">시작</button>
   <button id="bOpt">설정</button>
   <button id="bQuit" style="display:none">끝내기</button>
   <div id="bar"><i id="barF"></i></div>
@@ -243,7 +243,10 @@
 <script src="engine/js/22-ground-textures.js"></script>
 <script src="engine/js/24-shapes.js"></script>
 <script src="engine/js/30-props.js"></script>
+<script src="engine/js/32-caves.js"></script>
+<script src="engine/js/33-crags.js"></script>
 <script src="engine/js/40-light.js"></script>
+<script src="engine/js/41-terrain-light.js"></script>
 <script src="engine/js/45-sky.js"></script>
 <script src="engine/js/46-camcorder.js"></script>
 <script src="engine/js/50-items.js"></script>
@@ -251,6 +254,7 @@
 <script src="engine/js/60-stations.js"></script>
 <script src="engine/js/62-build.js"></script>
 <script src="engine/js/64-dex.js"></script>
+<script src="engine/js/66-decay.js"></script>
 <script src="engine/js/70-weapons.js"></script>
 <script src="engine/js/data-sentinel-mesh.js"></script>
 <script src="engine/js/72-gear.js"></script>
@@ -267,6 +271,7 @@
 <script src="engine/js/96-foam.js"></script>
 <script src="engine/js/97-wildlife.js"></script>
 <script src="engine/js/98-bag.js"></script>
+<script src="engine/js/98-dew.js"></script>
 <script src="engine/js/99-main.js"></script>
 </body>
 </html>
