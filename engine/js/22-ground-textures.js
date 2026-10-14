@@ -77,6 +77,37 @@ function gndArrayTex(data,S,n){
   t.generateMipmaps=S>1; t.needsUpdate=true;
   return t;
 }
+/* 바위 사진(data-rock-textures.js) — 빛깔 여섯 장 · 법선 지도 여섯 장을 배열 텍스처 두 장으로(`uRk` · `uRkN` — 바위 재질 rockMat 이 읽는다).
+   빛깔은 **밝기만** 평균으로 나눈다(평균 밝기 → 0.5). 땅 사진처럼 빛깔까지 나누면 사암의 누런빛 · 지의류의 풀빛이 사라진다 —
+   바위 재질의 바탕색과 덩이 빛깔(정점 색)이 곱해지므로 밝기만 맞추면 된다. 법선 지도는 그대로 올린다.
+   다 풀리기 전에는 한 점짜리(중간 회색 · 곧게 선 법선)가 물려 있다 */
+function rockPhotoInit(){
+  if(typeof ROCK_JPG==='undefined'||typeof THREE.DataTexture2DArray!=='function') return;
+  const n=ROCK_JPG.length, S=512, flat=new Uint8Array(4*n);
+  for(let i=0;i<n;i++) flat.set([128,128,255,255],i*4);
+  TERR_U.uRk={value:gndArrayTex(new Uint8Array(4*n).fill(128),1,n)};
+  TERR_U.uRkN={value:gndArrayTex(flat,1,n)};
+  const load=(list,nrm,uni)=>{
+    const data=new Uint8Array(S*S*4*n); let left=n;
+    const done=()=>{ const old=uni.value; uni.value=gndArrayTex(data,S,n); old.dispose(); };
+    list.forEach((src,k)=>{
+      const im=new Image(), o=k*S*S*4;
+      im.onerror=()=>{ for(let i=0;i<S*S;i++) data.set(nrm?[128,128,255,255]:[128,128,128,255],o+i*4); if(--left===0) done(); };
+      im.onload=()=>{
+        const cv2=document.createElement('canvas'); cv2.width=cv2.height=S;
+        const g=cv2.getContext('2d'); g.drawImage(im,0,0,S,S);
+        const px=g.getImageData(0,0,S,S).data;
+        if(nrm) data.set(px,o);
+        else{ let L=0; for(let i=0;i<px.length;i+=4) L+=0.30*px[i]+0.59*px[i+1]+0.11*px[i+2];
+          const kk=127.5/(L/(S*S)||1);
+          for(let i=0;i<px.length;i+=4){ data[o+i]=Math.min(255,px[i]*kk); data[o+i+1]=Math.min(255,px[i+1]*kk); data[o+i+2]=Math.min(255,px[i+2]*kk); data[o+i+3]=255; } }
+        if(--left===0) done();
+      };
+      im.src=src;
+    });
+  };
+  load(ROCK_JPG,false,TERR_U.uRk); load(ROCK_NRM,true,TERR_U.uRkN);
+}
 /* 한 번 — 잡음 텍스처를 만들고, 사진을 풀어 배열 텍스처로 올린다. 사진이 다 풀리기 전(1초 안쪽)에는
    중간 회색 한 점짜리가 대신 물려 있다(무늬 없는 땅 — 곧 바뀐다). */
 function gndInit(){
@@ -88,6 +119,7 @@ function gndInit(){
   if(typeof THREE.DataTexture2DArray!=='function') return;
   GND.tex=gndArrayTex(new Uint8Array(4*n).fill(128),1,n);
   TERR_U.uGnd={value:GND.tex};
+  rockPhotoInit();
   const data=new Uint8Array(S*S*4*n); let left=n;
   GND_JPG.forEach((src,k)=>{
     const im=new Image();
@@ -129,7 +161,8 @@ function gndTerrainFrag(frag){
         IND='reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb );';
   const PIX=frag.split(SUN).length===2&&frag.split(IND).length===2;      // 램버트 조각 셰이더가 예상과 같을 때만 화소 빛으로 간다
   if(PIX) frag=frag.replace(SUN,SUN.replace('lambW.x','gndSun')).replace(IND,IND+'\n\treflectedLight.indirectDiffuse *= gndAmb;');
-  return `uniform vec3 uSunDir;
+  const RK=!!TERR_U.uRk;                       // 바위 사진 여섯 장(data-rock-textures.js) — 가파른 벼랑 면이 읽는다
+  return `uniform vec3 uSunDir;${RK?'\nuniform mediump sampler2DArray uRk;':''}
 uniform sampler2D uRel; uniform sampler2D uTL; uniform float uShR, uWet, uDew;
 float gndSun=1.0, gndAmb=1.0;
 uniform sampler2D uBio; uniform sampler2D uBio2; uniform sampler2D uNz; uniform float uBioN, uCell, uShT;
@@ -229,7 +262,14 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         if(wLeaf>0.02)  det+=wLeaf*GL(2.0);
         if(wNeed>0.02)  det+=wNeed*GL(3.0);
         if(wRock>0.02){ vec3 rk=GL(4.0);
-          if(stp>0.0) rk=mix(rk,mix(textureGrad(uGnd,vec3(tS1,4.0),gS1x,gS1y).rgb,textureGrad(uGnd,vec3(tS2,4.0),gS2x,gS2y).rgb,wSx),stp);
+          ${RK?`/* 벼랑 면(옆 투영) — 바위 사진 여섯 장 가운데 둘(이끼 낀 3번 빼고)을 113 m 잡음으로 골라 섞는다(사용자 요청: 벼랑도 진짜 바위처럼).
+             사암 켜 · 잿빛 벼랑 · 금 간 바위 · 검은 바닷가 바위가 벼랑마다 바뀐다. 한 장이 3.8 m(땅 사진보다 크게 — 벼랑은 크다) */
+          if(stp>0.0){ float sl=clamp(n1.r*1.4-0.2,0.0,0.999)*4.0, si=floor(sl), sf=smoothstep(0.25,0.75,fract(sl));
+            float la=si>2.5?si+1.0:si, lb=si>1.5?si+2.0:si+1.0; const float K=0.55;
+            vec3 sa=mix(textureGrad(uRk,vec3(tS1*K,la),gS1x*K,gS1y*K).rgb,textureGrad(uRk,vec3(tS2*K,la),gS2x*K,gS2y*K).rgb,wSx);
+            vec3 sb=sf>0.01?mix(textureGrad(uRk,vec3(tS1*K,lb),gS1x*K,gS1y*K).rgb,textureGrad(uRk,vec3(tS2*K,lb),gS2x*K,gS2y*K).rgb,wSx):sa;
+            rk=mix(rk,mix(sa,sb,sf),stp); }`
+          :`if(stp>0.0) rk=mix(rk,mix(textureGrad(uGnd,vec3(tS1,4.0),gS1x,gS1y).rgb,textureGrad(uGnd,vec3(tS2,4.0),gS2x,gS2y).rgb,wSx),stp);`}
           det+=wRock*rk; }
         if(wGrav>0.02)  det+=wGrav*GL(5.0);
         if(wMud>0.02)   det+=wMud*GL(6.0);
@@ -311,6 +351,43 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
 }
 
 /* 물체 재질에 사진 결 한 겹 — 모래 둔덕·점토·흩뿌린 돌처럼 제 셰이더가 없는 것. 세계 좌표의 윗면 투영(xz) 한 번 읽기 */
+/* 바위 사진 한 겹 — 인스턴스로 흩는 돌(벼랑 밑 잔돌 · 바다 바위)에. 돌마다(인스턴스 자리의 해시) 다섯 장 가운데 한 장을
+   x·y·z 세 방향에서 읽고(땅 사진 한 장을 위에서 내리 비추던 예전 gndDetailPatch 는 옆면이 늘어졌다), 위를 보는 면에는
+   이끼 낀 바위(3번)가 앉는다(moss 0~1) · 30 m 안은 법선 지도로 결의 높낮이를 준다. 바위 사진이 없으면 예전 땅 사진 한 겹 */
+function rockDetailPatch(m,scale,moss){
+  if(!TERR_U.uRk) return gndDetailPatch(m,4,scale);
+  const prev=m.onBeforeCompile, has=Object.prototype.hasOwnProperty.call(m,'onBeforeCompile'), S=scale.toFixed(2), MS=(moss===undefined?0.6:moss).toFixed(2);
+  m.onBeforeCompile=(sh,r)=>{
+    if(has&&prev) prev(sh,r);
+    sh.uniforms.uRk=TERR_U.uRk; sh.uniforms.uRkN=TERR_U.uRkN; sh.uniforms.uSunDir=TERR_U.uSunDir;
+    sh.vertexShader='varying vec3 vRkW;\nvarying vec3 vRkN;\nvarying vec2 vRkL;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+      { vec4 gw=vec4(transformed,1.0); vec3 gn=normal; vec3 o=vec3(0.0);
+        #ifdef USE_INSTANCING
+          gw=instanceMatrix*gw; gn=mat3(instanceMatrix)*gn; o=instanceMatrix[3].xyz;
+        #endif
+        vRkW=(modelMatrix*gw).xyz; vRkN=normalize(mat3(modelMatrix)*gn);
+        float h=fract(sin(dot(floor(o*2.0),vec3(12.9898,78.233,37.719)))*43758.5453), L=floor(h*5.0);
+        vRkL=vec2(L>2.5?L+1.0:L, length((modelViewMatrix*gw).xyz)); }`);
+    sh.fragmentShader='uniform mediump sampler2DArray uRk;\nuniform mediump sampler2DArray uRkN;\nuniform vec3 uSunDir;\nvarying vec3 vRkW;\nvarying vec3 vRkN;\nvarying vec2 vRkL;\n'+sh.fragmentShader.replace('#include <color_fragment>',
+      `#include <color_fragment>
+      { vec3 n=normalize(vRkN), tw=pow(abs(n),vec3(4.0)); tw/=tw.x+tw.y+tw.z+1e-4; vec3 q=vRkW/${S}; float L=vRkL.x;
+        vec3 c0=diffuseColor.rgb;
+        vec3 rk=texture(uRk,vec3(q.zy,L)).rgb*tw.x+texture(uRk,vec3(q.xz,L)).rgb*tw.y+texture(uRk,vec3(q.xy,L)).rgb*tw.z;
+        diffuseColor.rgb*=mix(vec3(1.0),rk*2.0,0.9);
+        diffuseColor.rgb=mix(diffuseColor.rgb,c0*texture(uRk,vec3(q.xz*1.1,3.0)).rgb*2.0,smoothstep(0.5,0.9,n.y)*${MS});
+        float nr=clamp(1.0-vRkL.y/30.0,0.0,1.0);
+        if(nr>0.0){
+          vec3 tx=texture(uRkN,vec3(q.zy,L)).rgb*2.0-1.0, ty=texture(uRkN,vec3(q.xz,L)).rgb*2.0-1.0, tz=texture(uRkN,vec3(q.xy,L)).rgb*2.0-1.0;
+          tx=vec3(tx.xy+n.zy,n.x); ty=vec3(ty.xy+n.xz,n.y); tz=vec3(tz.xy+n.xy,n.z);
+          vec3 np=normalize(mix(n,normalize(tx.zyx*tw.x+ty.xzy*tw.y+tz.xyz*tw.z),0.8));
+          diffuseColor.rgb*=1.0+clamp((dot(np,uSunDir)-dot(n,uSunDir))*1.5,-0.5,0.5)*nr*smoothstep(0.0,0.25,uSunDir.y);
+          diffuseColor.rgb*=mix(1.0,0.72+0.28*clamp(dot(np,n),0.0,1.0),nr);
+        } }`);
+  };
+  const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
+  m.customProgramCacheKey=()=>'rkd-'+S+'-'+MS+(pk?'-'+pk.call(m):'');
+  return m;
+}
 function gndDetailPatch(m,layer,scale){
   const prev=m.onBeforeCompile, has=Object.prototype.hasOwnProperty.call(m,'onBeforeCompile');
   m.onBeforeCompile=(sh,r)=>{

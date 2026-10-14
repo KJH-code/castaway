@@ -45,7 +45,7 @@ function cragShape(seed,w,h){
   for(let i=0;i<p.count;i++){ let x=p.getX(i), y=p.getY(i), z=p.getZ(i);
     const k=Math.pow(Math.max(Math.abs(x),Math.abs(y),Math.abs(z)),-box); x*=k; y*=k; z*=k;            // 네모지게(모서리가 선다)
     let f=0; for(const l of L) f+=l[5]*Math.sin(l[3]*(x*l[0]+y*l[1]+z*l[2])+l[4]);
-    const s=1+0.055*f+0.020*Math.sin(y*st+sp); x*=s; y*=s; z*=s;                                        // 큰 혹 · 가는 층리
+    const s=(1+0.055*f+0.020*Math.sin(y*st+sp))*(1+0.075*SHP.rough(p.getX(i),p.getY(i),p.getZ(i),seed,1.7,4)); x*=s; y*=s; z*=s;   // 큰 혹 · 가는 층리 · 잔 울퉁불퉁(SHP.rough — 사용자 요청: 바위가 너무 매끈하다)
     for(const c of C){ const d=x*c[0]+y*c[1]+z*c[2]-c[3]; if(d>0){ x-=c[0]*d; y-=c[1]*d; z-=c[2]*d; } }  // 쪼개진 면
     p.setXYZ(i,x,y,z); }
   g.computeVertexNormals(); SHP.weldSeam(g,w);
@@ -54,7 +54,7 @@ function cragShape(seed,w,h){
 }
 function cragShapes(){
   if(CRAG.shapes) return CRAG.shapes;
-  const RES=[[[13,9],[8,6]],[[9,6],[6,4]],[[7,5],[7,5]]], S=[];
+  const RES=[[[22,15],[10,7]],[[14,10],[7,5]],[[10,7],[7,5]]], S=[];   // [가까이 촘촘 · 멀리 성김] — 잔 울퉁불퉁이 보이게 가까운 꼴을 곱게(예전 13×9 · 9×6 · 7×5)
   for(let lv=0;lv<3;lv++){ S.push([]); for(let v=0;v<8;v++){ const sd=0xa11+lv*977+v*131; S[lv].push([cragShape(sd,RES[lv][1][0],RES[lv][1][1]),cragShape(sd,RES[lv][0][0],RES[lv][0][1])]); } }
   return CRAG.shapes=S;
 }

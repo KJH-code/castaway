@@ -199,7 +199,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 로컬 서버로 볼 때는 `python3 tools/serve.py`(캐시를 끈다). 문법만 볼 때는 `node --check engine/js/파일.js`.
 **나뉘기 전 한 파일 판은 커밋 `8ec7546` 까지다.**
 
-`data-ground-textures.js`(1.2 MB · 땅 사진 여덟 장)·`data-sentinel-mesh.js`(1.3 MB · 투구 모형)는 base64 한 줄이다 — **읽지 말 것.**
+`data-ground-textures.js`(1.2 MB · 땅 사진 여덟 장)·`data-rock-textures.js`(1.8 MB · 바위 사진 여섯 장 + 법선 지도 — `rockPhotoInit` 이 `uRk`·`uRkN` 으로 올리고 `rockMat`·`rockDetailPatch`·땅 셰이더의 벼랑 면이 읽는다)·`data-sentinel-mesh.js`(1.3 MB · 투구 모형)는 base64 한 줄이다 — **읽지 말 것.**
 나머지도 큰 파일(`45-sky.js` 2,342줄 · `30-props.js` 1,618줄)은 통째로 읽지 말고 아래 지도에서 줄을 집어 `sed -n '시작,끝p'` 로 뜰 것.
 
 ### 파일 지도 — `engine/js/`
@@ -229,7 +229,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `70-weapons.js` | `CREATURES` 12 · 근접 판정 · **`WEAPON_FX` 195** · `emberClad` 109 |
 | `72-gear.js` | 갑옷·투구·옷·짐(`GEAR` · `gScalesOnMesh` 363 · `gearModel` 850) |
 | `74-icons-guns.js` | `itemIcon` 95 · 손에 든 먹을것 · 휘두르기 · `shoot` 358 · 수류탄·조준경·로켓 · `castNet` 543 · 좌클릭 `useHeld` 579 · `attack` 607 |
-| `80-player.js` | `rollSpawns` 87 · **`PL` 119** · `hurtPL` 132 · 개발자 모드 `DEV`·`devFly`(` 키 — 날기 · 안 다친다 · 끄면 바닥에 내려선다) · `updatePlayer`(걷기·헤엄·기력·배고픔) · `eyeWater`(물속 안개) · 음향 · 발소리 |
+| `80-player.js` | `rollSpawns` 87 · **`PL` 119** · `hurtPL` 132 · 개발자 모드 `DEV`·`devFly`(` 키 — 날기 · 안 다친다 · 끄면 바닥에 내려선다) · 눈의 경계 `eyeHit`(눈 둘레 0.26 m 에 바위·땅이 들면 그 걸음을 되돌린다 — 새 움직임을 만들면 이것을 거칠 것) · 벼랑 오르기 `WALL`·`wallTick`(Space 를 누르고 있어야 매달린다 · 기력) · 돌진(Space 를 누르는 순간 · `LUNGE_V`) · `updatePlayer`(걷기·헤엄·기력·배고픔) · `eyeWater`(물속 안개) · 음향 · 발소리 |
 | `82-hud.js` | 지도 핀 `MAPPINS`·`toggleMap`(M — 펴면 `uiOpen` 이라 마우스가 풀린다 · 저장 `pins`) · `drawMap` · `drawCompass`(핀이 있으면 띠 위에 핀 줄 10 px) · 성능 창 `PERF` 98 · `updateHUD` 270 · 벤치마크 |
 | `90-init.js` | 안개·그림자 셰이더 손질 · `initThree` 104 · `freezeStatics` 164 · `PRECOMP` 190 · `generateWorld`(만드는 차례) |
 | `91-title.js` | **여는 화면의 그림**(캔버스 `#ovArt` — 처음 여는 화면 `#ov.title` 에서만 돈다) — 스텐실 간판 CASTAWAY(글자를 직접 긋는다 · 위가 좁은 올려다본 꼴 · 소실점으로 가는 두께) · 뒤로 누워 올라가는 안내 글 · 깨진 금. 전부 흑백으로 평평하게 그린 뒤 통째로 볼록한 유리에 휘고(`titleBend`), 빨강·초록·파랑을 갈라 겹친다. 단추(`titleButton` → `TITLE.btns` · 시작·착륙·설정·끝내기)와 진행 막대(`titleProgress` — `#barF`·`#ovLoad` 를 읽는다)도 캔버스가 그리고 HTML 쪽은 감춘 채 대신 누른다. 눈(잡음)·깜빡임·굴러가는 띠·비월 주사선·유리 반사 |

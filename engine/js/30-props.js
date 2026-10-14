@@ -222,7 +222,7 @@ function castNear(m,near){ if(!m||m._cast0===undefined) return false; const v=ne
    sh  껍질 단계(1 = 80면 · 2 = 180면 · 3 = 320면)   jit 꼭짓점마다 반지름을 흔드는 폭(안 쓴다) */
 const HABIT={
   // 화강암 — 둥글게 닳은 큰 덩어리. 크게 쪼개진 면이 두어 장, 넓적하게 앉는다
-  granite :{amp:0.17,bump:2.6,nb:4,cuts:3,deep:0.84,cube:0.00,smooth:0.94,flat:0.76,st:0.34,sh:3},
+  granite :{amp:0.17,bump:2.6,nb:4,cuts:3,deep:0.84,cube:0.00,smooth:0.94,flat:0.76,st:0.34,sh:4,rough:0.11},   // 잔 울퉁불퉁이 보이게 4단계(500면)
   // 부싯돌 — 조개 껍질처럼 움푹한 날카로운 조각. 면이 적고 깊게 깎인다
   flint   :{amp:0.14,bump:3.0,nb:3,cuts:5,deep:0.60,cube:0.00,smooth:0.90,flat:0.80,st:0.40,sh:1},
   // 자갈 — 물에 닳은 조약돌. 거의 안 깨진다
@@ -862,7 +862,7 @@ function buildProps(){
      둔다 — 자갈만 3,000개라 곱게 쪼개면 정점만 늘고 보이는 건 그대로다. */
   /* 20면체 세분 단계 n 은 면 20·(n+1)² — 1단계 80 · 2단계 180 · 3단계 320.
      큰 암석 3단계(320면) · 자갈·부싯돌 2단계(180면) — 예전(180·80)의 약 2배 */
-  const SHELLS={1:makeShell(1), 2:makeShell(2), 3:makeShell(3)};
+  const SHELLS={1:makeShell(1), 2:makeShell(2), 3:makeShell(3), 4:makeShell(4)};
   const shellFor=k=>SHELLS[(HABIT[k]&&HABIT[k].sh)||3];
 
   function buildRockBatch(list,R){
@@ -909,6 +909,9 @@ function buildProps(){
         for(const l of lobe)
           f+=l[5]*Math.sin(l[3]*(d[0]*l[0]+d[1]*l[1]+d[2]*l[2])+l[4]);
         let r=1+(f/wsum)*amp;
+        /* 잔 울퉁불퉁 — 겹친 값잡음으로 겉을 거칠게(사용자 요청: 바위가 너무 매끈하다). 화강암 11% · 나머지 5% · 자갈·부싯돌 3% */
+        const RG=H.rough!==undefined?H.rough:(R.k==='pebble'||R.k==='flint'?0.03:0.05);
+        r*=1+RG*SHP.rough(d[0],d[1],d[2],hh,1.9,4);
         if(H.jit) r*=1+(rnd()*2-1)*H.jit;           // 꼭짓점마다 들쭉날쭉 — 낮은 다각형 바위의 모난 결
         let ow=-1;
         // ③ 정벽 쪼개짐 — 정육면체 쪽으로 당긴다
@@ -924,6 +927,7 @@ function buildProps(){
           const dot=d[0]*c[0]+d[1]*c[1]+d[2]*c[2];
           if(dot>1e-3){ const lim=c[3]/dot; if(lim<r){ r=lim; ow=ci; } }
         }
+        if(ow>=0&&ow<100) r*=1+RG*0.35*SHP.vn3(d[0]*7.0,d[1]*7.0,d[2]*7.0,hh^0x55);   // 쪼개진 면도 판판하지만은 않다
         fac[u]=r; own[u]=ow;
       }
       // 개체별 회전 · 축별 신축
@@ -1380,12 +1384,14 @@ function buildProps(){
    · 자리는 1.3 m 칸마다 칸 번호의 해시로 정한다 — 같은 섬 같은 자리에는 늘 같은 돌이 놓인다(저장할 것이 없다).
    · 칸의 자갈밭 정도(`gravelAt`)가 높을수록 돌이 선다. 크기는 주먹~수박, 20개에 하나는 무릎 높이 바위.
    · 7 m 넘게 걸으면 그 둘레로 다시 깐다(칸 3,800개를 훑는 일 — 1 ms 안팎).
-   · 줍거나 캐는 것이 아니다(그건 자갈 'pebble'·화강암이 한다) — 몸도 막지 않는다. 그림자는 받기만 한다. */
-const RUBBLE={mesh:null, cap:2200, cx:1e9, cz:1e9, R:40, cell:1.3, seed:0, picks:[]};
+   · 줍거나 캐는 것이 아니다(그건 자갈 'pebble'·화강암이 한다). 그림자는 받기만 한다.
+   · **무릎을 넘는 큰 돌은 단단하다**(사용자 지적: 돌을 뚫고 지나간다 · 25 m 안 · `RUBBLE.cols`) — 턱(0.55 m)보다 높으면 몸이 막히고
+     낮으면 그 위에 올라선다(`rubbleCollide` · `rubbleFloor` — 80-player.js 가 부른다). 주울 만한 작은 돌은 그대로 밟고 지나간다. */
+const RUBBLE={mesh:null, cap:2200, cx:1e9, cz:1e9, R:40, cell:1.3, seed:0, picks:[], cols:[]};
 function rubbleInit(){
   /* 물에 닳은 둥근 돌 — 예전엔 각진 20면체(면 20장)라 가까이서 사면체 조각처럼 보였다. 혹 진 공(면 64장)에 법선을 이어
      빛이 둥글게 넘어간다 */
-  const g=SHP.blob(1,0x5eed,{w:8,h:5,amp:0.30,nb:4,sy:0.86}); g.computeBoundingSphere();
+  const g=SHP.blob(1,0x5eed,{w:10,h:7,amp:0.30,nb:4,sy:0.86,rough:0.16}); g.computeBoundingSphere();   // 잔 울퉁불퉁(rough)이 보이게 조금 촘촘히
   const m=new THREE.MeshLambertMaterial({color:0xffffff});
   m.onBeforeCompile=sh=>{                              // 밑동은 어둡게 — 땅에 앉은 느낌
     sh.vertexShader='varying float vRubY;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvRubY=position.y;');
@@ -1394,7 +1400,7 @@ function rubbleInit(){
   };
   m.customProgramCacheKey=()=>'rubble';
   m.userData.melt=0.14;                                // 잔돌은 반쯤 묻힌 듯 — 아래 반이 땅 빛깔로 녹아든다(envPatch)
-  gndDetailPatch(m,4,0.7);                             // 진짜 바위 사진의 결을 한 겹(22-ground-textures.js)
+  rockDetailPatch(m,0.8,0.5);                          // 진짜 바위 사진 — 돌마다 다른 장 · 세 방향 · 결의 높낮이(22-ground-textures.js)
   const im=new THREE.InstancedMesh(g,m,RUBBLE.cap);
   /* 인스턴스 색 칸을 처음부터 만들어 둔다(셰이더가 한 가지로 짜인다). **count 를 0 으로 내리기 전에** 불러야 한다 —
      r128 의 setColorAt 은 그때의 count 크기로 버퍼를 잡는다. 0 인 채로 부르면 길이 0 짜리가 생겨 돌이 하나도 안 보였다 */
@@ -1406,6 +1412,25 @@ function rubbleInit(){
 const _rbM=new THREE.Matrix4(), _rbQ=new THREE.Quaternion(), _rbE=new THREE.Euler(), _rbV=new THREE.Vector3(),
       _rbS=new THREE.Vector3(), _rbC=new THREE.Color();
 const RUB_PAL=[[0.46,0.45,0.43],[0.56,0.52,0.45],[0.40,0.39,0.38],[0.29,0.30,0.33],[0.62,0.60,0.56],[0.50,0.45,0.38]];   // 한낮 볕에 하얗게 날지 않을 만큼만 밝게
+/* 큰 돌에 몸이 막힌다 — 꼭대기가 발보다 턱(STEPUP) 넘게 높은 것만(낮은 것은 rubbleFloor 로 올라선다) */
+function rubbleCollide(p,rad){
+  for(const c of RUBBLE.cols){
+    if(c.top-p.y<=STEPUP) continue;
+    const dx=p.x-c.x, dz=p.z-c.z, rr=c.r+rad*0.8, d2=dx*dx+dz*dz;
+    if(d2>=rr*rr||d2<1e-8) continue;
+    const d=Math.sqrt(d2); p.x=c.x+dx/d*rr; p.z=c.z+dz/d*rr;
+  }
+}
+/* 발밑의 큰 돌 윗면(둥근 등) — 발에서 턱 높이 안의 것만 딛는다 */
+function rubbleFloor(x,z,y){
+  let best=-1e9;
+  for(const c of RUBBLE.cols){
+    const dx=x-c.x, dz=z-c.z, q=(dx*dx+dz*dz)/(c.r*c.r); if(q>=1) continue;
+    const h=c.cy+(c.top-c.cy)*Math.sqrt(1-q);
+    if(h<=y+STEPUP&&h>best) best=h;
+  }
+  return best;
+}
 function updateRubble(force){
   const U=RUBBLE;
   if(!scene) return;
@@ -1415,7 +1440,7 @@ function updateRubble(force){
   U.cx=px; U.cz=pz;
   const C=U.cell, R=U.R, im=U.mesh;
   const x0=Math.floor((px-R)/C), x1=Math.floor((px+R)/C), z0=Math.floor((pz-R)/C), z1=Math.floor((pz+R)/C);
-  let n=0; U.picks.length=0;
+  let n=0; U.picks.length=0; U.cols.length=0;
   for(let gz=z0;gz<=z1&&n<U.cap;gz++) for(let gx=x0;gx<=x1&&n<U.cap;gx++){
     let h=(Math.imul(gx,374761393)+Math.imul(gz,668265263)+U.seed)|0;
     h=Math.imul(h^(h>>>13),1274126177); h=(h^(h>>>16))>>>0;
@@ -1439,15 +1464,18 @@ function updateRubble(force){
     const pk=salt||r<0.34, key='S'+gx+','+gz;
     if(pk){ const tk=FLORA.taken.get(key); if(tk!==undefined){ if(gameHours-tk<72) continue; FLORA.taken.delete(key); } }
     r*=clamp((R-d)/8,0.2,1);                            // 가장자리에서 갑자기 생기지 않게 작게 시작
+    const gs0=groundSlope(wx,wz,Math.max(0.25,r)), sl0=Math.hypot(gs0[0],gs0[1]);
+    if(sl0>1.25) continue;                              // 52° 넘는 벽에는 돌이 얹혀 있을 수 없다(벽에 붙어 떠 보였다)
     const sy=salt?0.26:0.5+0.35*((h2>>>9)&15)/15;
     _rbE.set(((h2>>>13)&63)/63*0.7-0.35,((h2>>>19)&255)/255*6.283,((h2>>>27)&31)/31*0.7-0.35);
     _rbQ.setFromEuler(_rbE);
-    { const gs=groundSlope(wx,wz,Math.max(0.25,r)); _rbV.set(wx,heightAt(wx,wz)+r*sy*0.42-r*Math.min(0.9,Math.hypot(gs[0],gs[1]))*0.55,wz); }   // 비탈에서는 더 묻는다(아래쪽이 뜨지 않게)
+    _rbV.set(wx,heightAt(wx,wz)+r*sy*0.42-r*Math.min(0.9,sl0)*0.55,wz);   // 비탈에서는 더 묻는다(아래쪽이 뜨지 않게)
     _rbS.set(r*(0.85+0.4*((h>>>4)&15)/15),r*sy,r);
     _rbM.compose(_rbV,_rbQ,_rbS); im.setMatrixAt(n,_rbM);
     /* 주울 돌 여섯에 하나는 **석회석**(희다) — 구우면 석회, 시멘트의 바탕(사용자 요청). 자리의 해시로 정하니 섬의 생김새는 그대로다 */
     const lime=!salt&&pk&&((h2>>>22)%6)===0;
     if(pk&&d<16) U.picks.push({kind:salt?'salt':lime?'limerock':'stone',x:wx,y:_rbV.y,z:wz,key,r,tree:false});
+    if(!pk&&d<25) U.cols.push({x:wx,z:wz,r:r*0.95,cy:_rbV.y,top:_rbV.y+0.9*r*sy});   // 큰 돌 — 몸이 막히거나 올라선다
     const pc=salt?[1.05,1.05,1.02]:lime?[0.92,0.90,0.84]:RUB_PAL[(h2>>>3)%RUB_PAL.length], tv=0.86+0.28*((h>>>12)&15)/15;
     im.setColorAt(n,_rbC.setRGB(pc[0]*tv,pc[1]*tv,pc[2]*tv));
     n++;

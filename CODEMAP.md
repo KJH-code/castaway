@@ -34,6 +34,7 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/data-native-wasm.js` | The compiled WebAssembly as base64 (generated — do not edit) |
 | `engine/js/20-terrain.js` | Tree limb/leaf instancing data, bark, **ground shader** (per-biome textures, gravel), **rock material**, terrain chunks + LOD, sea/river water |
 | `engine/js/data-ground-textures.js` | Eight real photo textures (sand, grass, two forest floors, rock, pebbles, mud, dry soil) embedded as base64. Not meant to be read |
+| `engine/js/data-rock-textures.js` | Six rock/cliff photos and their normal maps (rock face, layered sandstone, cracked boulder, mossy rock, seaside rock, lichen rock) embedded as base64 (`ROCK_JPG` · `ROCK_NRM`). Not meant to be read |
 | `engine/js/22-ground-textures.js` | Loads those photos into one array texture, builds the noise texture, and holds the **photo-based ground shader** (+ shoreline wet band and foam) |
 | `engine/js/24-shapes.js` | Smooth shape toolkit shared by land plants and sea life: tubes (branches, roots, coral), lumpy blobs (stones), bending fronds (seaweed, ferns, palms), lathe shapes, leaf cards, and the part merger |
 | `engine/js/30-props.js` | Distance tiers and tile culling, far trees, `buildProps()` (grass, trees, rocks, mounds), scattered gravel stones (`RUBBLE`), berries, supply ship |
@@ -52,7 +53,7 @@ To get one file again, run `python3 tools/build_single.py` (writes `island_world
 | `engine/js/data-sentinel-mesh.js` | One 1.3 MB line of mesh data (helmet model). Not meant to be read |
 | `engine/js/72-gear.js` | Armour, helmets, clothes, packs modelled in body coordinates (icons + worn look) |
 | `engine/js/74-icons-guns.js` | Item icon rendering, held food models, swing animation, guns, grenade, scope, rocket, net fishing, left-click (`useHeld`) |
-| `engine/js/80-player.js` | Mob table, first-person player (walking, **swimming**, stamina, hunger, health), developer mode (`DEV` — ` key: fly, no damage, needs stay full), synthesized audio, footsteps |
+| `engine/js/80-player.js` | Mob table, first-person player (walking, **swimming**, stamina, hunger, health), developer mode (`DEV` — ` key: fly, no damage, needs stay full), lunge (Space tap), cliff climbing (`WALL` · `wallTick` — hold Space at a cliff, costs stamina), eye guard (`eyeHit` — the camera never enters rock or ground), synthesized audio, footsteps |
 | `engine/js/82-hud.js` | Minimap and map pins (`MAPPINS` — M opens the big map with a free cursor; pins show on the compass and are saved), HUD (look prompt, bars), performance window (F3), benchmark |
 | `engine/js/90-init.js` | Fog/shadow shader patches, shader precompile, `initThree()`, `generateWorld()` (the generation sequence) |
 | `engine/js/91-title.js` | The opening-screen art on one canvas: stencil CASTAWAY banner drawn from strokes, the receding crawl, and the crack — rendered flat in black and white, bent onto a curved screen, then split into red/green/blue. Also the opening text (words appear one at a time with a beep) and the glowing 착륙 button; restarts skip straight to the button |
@@ -137,7 +138,7 @@ If it is still slow: Tab → **캠코더** 360줄, then lower **그림자** (sha
 ## Third-party code and images
 
 - `engine/three.min.js` — three.js r128, MIT licence.
-- Ground and rock photos in `engine/js/data-ground-textures.js` — from Poly Haven (polyhaven.com), all **CC0**
+- Ground and rock photos in `engine/js/data-ground-textures.js` and `engine/js/data-rock-textures.js` — from Poly Haven (polyhaven.com), all **CC0**
   (public domain): `sand_01`, `leafy_grass`, `forest_leaves_02`, `forrest_ground_01`, `rock_boulder_dry`,
   `ganges_river_pebbles`, `brown_mud_03`, `coral_gravel`. Downscaled to 512 px.
 - Ideas (not code) taken from the engines in `graphics/`: zone-based flocking from
