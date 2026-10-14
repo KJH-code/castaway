@@ -118,6 +118,19 @@ function dropTreeTile(t){
 }
 /* 사람에서 칸 가장자리까지 */
 function tileGap(t,px,pz){ const dx=t.cx-px, dz=t.cz-pz; return Math.sqrt(dx*dx+dz*dz)-t.r; }
+/* **칸을 512 m 구역으로 묶는다** — 섬의 칸은 4만 개(바위 1.4만 · 소품 1.9만 · 나무 0.7만)인데, 눈이 움직일 때마다 그 전부의 거리를
+   쟀다(걷거나 고개를 돌리는 동안 프레임당 6 ms — CPU 프로파일). 칸이 보이는 거리는 길어야 500 m 남짓이니, 사람 둘레 760 m 에
+   걸친 구역(열여섯 안팎)의 칸만 본다. 구역이 범위를 벗어나는 순간에는 한 번 더 돌려 그 칸들을 끄고 비운다 */
+const TREG={S:512, R:760, map:new Map(), n:[-1,-1,-1], r0:null, last:[], act:[], fr:0};
+function tileRegions(){
+  const T=TREG;
+  if(T.n[0]===ROCK_TILES.length&&T.n[1]===PROP_TILES.length&&T.n[2]===TREE_TILES.length&&T.r0===(TREE_TILES[0]||ROCK_TILES[0]||null)) return;
+  T.n=[ROCK_TILES.length,PROP_TILES.length,TREE_TILES.length]; T.r0=TREE_TILES[0]||ROCK_TILES[0]||null; T.map.clear(); T.last.length=0;
+  const put=(t,k)=>{ const key=(Math.floor(t.cx/T.S)+64)*128+(Math.floor(t.cz/T.S)+64); let R=T.map.get(key);
+    if(!R) T.map.set(key,R={rock:[],prop:[],tree:[],st:-1}); R[k].push(t); };
+  for(const t of ROCK_TILES) put(t,'rock'); for(const t of PROP_TILES) put(t,'prop'); for(const t of TREE_TILES) put(t,'tree');
+  for(const R of T.map.values()) T.last.push(R);        // 처음 한 번은 섬 전체를 돈다 — 갓 지은 칸 메시는 켜진 채라, 먼 것을 다 꺼야 한다
+}
 function updateTileVis(){
   const px=PL.pos.x, pz=PL.pos.z;
   camera.updateMatrixWorld(); _tPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
@@ -131,8 +144,15 @@ function updateTileVis(){
   /* 칸이 켜지거나 꺼지면 그 칸이 드리우던 그림자도 바뀐다 — 그림자 지도를 매 프레임 안 그리므로(LIGHT)
      바뀐 칸 둘레만 다시 그리게 알린다 */
   // 바위 — 칸 가장자리가 200 m 밖이면 통째로 안 그린다
+  tileRegions();
+  const act=TREG.act; act.length=0; let nIn=0;
+  { const T=TREG, S=T.S, x0=Math.floor((px-T.R)/S), x1=Math.floor((px+T.R)/S), z0=Math.floor((pz-T.R)/S), z1=Math.floor((pz+T.R)/S); T.fr++;
+    for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const R=T.map.get((gx+64)*128+(gz+64)); if(R){ R.st=T.fr; act.push(R); } }
+    nIn=act.length;
+    for(const R of T.last) if(R.st!==T.fr) act.push(R);     // 방금 범위를 벗어난 구역 — 한 번 더 돌려 끈다
+    T.last.length=0; for(let i=0;i<nIn;i++) T.last.push(act[i]); }
   let rockBudget=3;                                  // 노는 중에는 한 프레임에 바위 칸 셋까지만 빚는다
-  for(const t of ROCK_TILES){
+  for(const RG of act) for(const t of RG.rock){
     const g=tileGap(t,px,pz), want=g<=t.d;
     if(want&&!t.m){
       if(busy||rockBudget>0){ rockBudget--; t.m=t.build(); }
@@ -144,11 +164,12 @@ function updateTileVis(){
     if(t.m&&setVis(t.m,want&&!tileOcc(t,8))) LIGHT.dirtyAt(t.cx,t.cz,t.r);   // 산 너머의 바위 칸은 거른다
   }
   const QK=QUAL.k;
-  for(const t of PROP_TILES){ const d=tileGap(t,px,pz), v=d<=t.d*QK&&tileSeen(t,d,6);
+  for(const RG of act) for(const t of RG.prop){ const d=tileGap(t,px,pz), v=d<=t.d*QK&&tileSeen(t,d,6);
     let f=false; for(const m of t.ms) if(setVis(m,v)) f=true;
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r); }
   _treeBudget=1; _treeDrop=1;
-  for(const t of TREE_TILES){
+  for(let ri=0;ri<act.length;ri++){ if(ri===nIn) _treeDrop=1e9;          // 범위를 벗어난 구역의 칸은 한꺼번에 비운다
+  for(const t of act[ri].tree){
     const d=tileGap(t,px,pz), seen=tileSeen(t,d);
     const near=seen&&d<=NEAR_DIST*QK, mid=seen&&d>NEAR_DIST*QK&&d<=VIEW_DIST;
     /* **제 가지를 그대로 그리는 칸은 사람이 선 칸과, 칸 테두리가 10 m 안인 이웃뿐이다.** 예전엔 칸의 경계구(반지름 57 m)가
@@ -174,6 +195,7 @@ function updateTileVis(){
       for(let k=0;k<3;k++){ if(setVis(t.cps[2*k],lv===k)) f=true; if(setVis(t.cps[2*k+1],lv===k)) f=true; } }
     if(t.bb && setVis(t.bb,mid && !(t.cps&&cp))) f=true;
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r);
+  }
   }
 }
 /* 보이기를 바꿨으면 참 — 바뀐 칸만 그림자 지도를 다시 그리게 알린다 */
@@ -343,7 +365,7 @@ const BOUND_PAD=2;
 function boundTiles(){
   if(!propGroup) return;
   let nb=0;
-  for(const m of propGroup.children) if(boundMesh(m)) nb++;
+  for(const m of (propGroup._all||propGroup.children)) if(boundMesh(m)) nb++;      // 숨은 것까지(children 은 보이는 것만이다)
   return nb;
 }
 /* 인스턴스 메시 하나의 경계구 — 섬을 다 지은 뒤 한꺼번에(boundTiles), 또는 나무 칸을 뒤늦게 지을 때(tile.build) */
@@ -445,7 +467,7 @@ function buildProps(){
   for(const k in ROCK_MAT) delete ROCK_MAT[k];
   if(propGroup){
     scene.remove(propGroup);
-    propGroup.children.forEach(m=>{ m.geometry.dispose(); m.material.dispose(); });
+    (propGroup._all||propGroup.children).forEach(m=>{ m.geometry.dispose(); m.material.dispose(); });
   }
   propGroup=new THREE.Group(); propGroup.matrixAutoUpdate=false; scene.add(propGroup);
   /* 자식(칸 메시)이 수만 개다(6배 섬에서 7만) — Three 는 프레임마다 그 전부의 updateMatrixWorld 를 부른다. 굳힌 잎은 할 일이
@@ -455,13 +477,43 @@ function buildProps(){
        · 굳힌 잎을 뒤늦게 옮긴 것(updateMatrix 가 matrixWorldNeedsUpdate 를 세운다)은 프레임마다 1,500 개씩 돌아가며 살펴 잡는다
          (7만 개면 0.8 초에 한 바퀴 — 지금 그런 코드는 없다. 안전망이다).
      이 묶음도 장면도 안 움직인다(둘 다 제자리) — 그래서 위에서 내려오는 '강제'는 볼 필요가 없다 */
-  propGroup._fresh=[]; propGroup._live=[]; propGroup._scan=0;
-  { const add0=propGroup.add, rem0=propGroup.remove;
-    propGroup.add=function(o){ const r=add0.apply(this,arguments); if(arguments.length===1&&o&&o.isObject3D&&o.parent===this) this._fresh.push(o); return r; };
-    propGroup.remove=function(o){ const r=rem0.apply(this,arguments); if(arguments.length===1&&o&&o._mwLive){ const i=this._live.indexOf(o); if(i>=0) this._live.splice(i,1); o._mwLive=false; } return r; }; }
+  /* **그릴 것만 children 에 둔다** — Three 는 프레임마다 장면의 자식을 다 훑는다: 그릴 것을 모을 때 한 번(`projectObject`), 그림자
+     지도를 그릴 때마다 또 한 번. 자식이 7만 개면 꺼진 것을 '꺼졌네' 하고 넘기는 것만으로 프레임당 6 ms 였다(CPU 프로파일 —
+     tools/prof-window.js). 그래서 **꺼진 자식은 children 에서 빼 둔다**: 자식마다 `visible` 을 접근자로 바꿔, 끄면 children 에서
+     빠지고(끝 것과 자리를 바꿔 한 번에) 켜면 도로 든다. 코드 어디서 `m.visible=…` 을 쓰든 그대로 듣는다.
+       · 전부는 `propGroup._all`(Set)에 있다 — 자식을 다 돌아야 하는 코드(굳히기 · 버리기 · 장면 훑기)는 이것을 쓴다.
+         `propGroup.children` 은 **지금 보이는 것만**이다.
+       · `traverse` 는 숨은 것까지 돈다(장면을 훑어 배역을 주는 LIGHT.refresh 따위가 다 보게). 떼어 내면 보통 속성으로 되돌린다 */
+  propGroup._fresh=[]; propGroup._live=[]; propGroup._scan=0; propGroup._all=new Set();
+  { const G=propGroup, add0=G.add;
+    const hide=o=>{ const ch=G.children, i=o._ci; if(i<0) return; const last=ch[ch.length-1]; ch[i]=last; last._ci=i; ch.pop(); o._ci=-1; };
+    const show=o=>{ if(o._ci>=0) return; o._ci=G.children.length; G.children.push(o); if(o.matrixAutoUpdate||o.matrixWorldNeedsUpdate||!o._mwSeen) G._fresh.push(o); };
+    const VIS={configurable:true, enumerable:true, get(){ return this._pv; },
+               set(x){ x=!!x; if(x===this._pv) return; this._pv=x; if(this._pg){ if(x) show(this); else hide(this); } }};
+    G.add=function(o){
+      if(arguments.length>1){ for(let i=0;i<arguments.length;i++) this.add(arguments[i]); return this; }
+      if(!o||!o.isObject3D||o===this||o._pg===this) return this;
+      const v=o.visible!==false;
+      add0.call(this,o);                                // children 끝에 붙는다(LIGHT 의 갈고리도 여기서 돈다)
+      o._pg=this; o._pv=v; o._ci=this.children.length-1; this._all.add(o);
+      Object.defineProperty(o,'visible',VIS);
+      this._fresh.push(o);
+      if(!v) hide(o);
+      return this; };
+    G.remove=function(o){
+      if(arguments.length>1){ for(let i=0;i<arguments.length;i++) this.remove(arguments[i]); return this; }
+      if(!o||o._pg!==this) return this;
+      hide(o); this._all.delete(o); o._pg=null; o.parent=null;
+      { const pv=o._pv; delete o.visible; o.visible=pv; }       // 보통 속성으로 되돌린다
+      if(o._mwLive){ const i=this._live.indexOf(o); if(i>=0) this._live.splice(i,1); o._mwLive=false; }
+      if(o.castShadow) LIGHT.dirty();                   // 드리우던 것이 떨어졌다 — 그림자를 다시(Object3D.remove 의 갈고리가 하던 일)
+      o.dispatchEvent({type:'removed'});
+      return this; };
+    G.traverse=function(cb){ cb(this); for(const o of this._all) o.traverse(cb); };
+  }
   propGroup.updateMatrixWorld=function(){
     const fr=this._fresh, lv=this._live, ch=this.children;
-    if(fr.length){ for(const c of fr){ if(c.parent!==this) continue; c.updateMatrixWorld(true);
+    if(fr.length){ for(const c of fr){ if(c.parent!==this) continue; c.updateMatrixWorld(true); c._mwSeen=true;
         if((c.matrixAutoUpdate||c.children.length)&&!c._mwLive){ c._mwLive=true; lv.push(c); } }
       fr.length=0; }
     for(let i=lv.length-1;i>=0;i--){ const c=lv[i]; c.updateMatrixWorld(true);

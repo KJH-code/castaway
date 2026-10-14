@@ -181,7 +181,7 @@ let busy=false;
    **이걸 건 물체를 옮기려면 `updateMatrix()` 를 직접 부를 것** — 안 부르면 그 자리에 그대로 그려진다. */
 function freezeStatics(){
   const fr=o=>{ o.matrixAutoUpdate=false; o.updateMatrix(); };
-  if(propGroup) for(const o of propGroup.children) fr(o);
+  if(propGroup) for(const o of (propGroup._all||propGroup.children)) fr(o);      // 숨은 것까지(children 은 보이는 것만 — 30-props.js)
   for(const B of TERR_BLK) fr(B.m);          // 지형 묶음(청크는 그리는 단위가 아니다 — 20-terrain.js)
   if(riverMesh) fr(riverMesh);
 }
