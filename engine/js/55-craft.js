@@ -1230,6 +1230,24 @@ const CRAFT_TABS=[['tool','도구'],['weapon','무기'],['wear','옷·갑옷'],[
 const TIER_ORDER=['맨손','풀과 돌','불','옷','나무와 점토','간석기','바다와 살림','뼈와 키틴','금속','철기','강철','화학'];
 const TIER_LABEL={'맨손':'맨손','풀과 돌':'간이 · 풀과 돌','불':'불','옷':'옷','나무와 점토':'나무 · 점토','간석기':'돌 · 간석기',
                   '바다와 살림':'바다 · 살림','뼈와 키틴':'뼈 · 키틴','금속':'청동 · 금속','철기':'철','강철':'강철','화학':'화학 · 전기'};
+/* 화학 탭 — 예전엔 '화학 · 전기' 단 하나에 스물넷이 한 줄로 서 있어 무엇이 무엇에서 나오는지 읽을 수 없었다(사용자 지적: 화학 제작 나무가 어지럽다).
+   쓰임으로 갈래를 나눠 밑감(왼쪽)에서 완성품(오른쪽)으로 세운다. 갈래 안은 앞의 것을 드는 차례다.
+   재 · 잿물 · 술 → 탄소 전극(아크로의 심) → 산 · 염(질산은 아크로에서) → 화약 · 뇌관 / 모루에서 뽑는 선 · 관 · 자석 → 전지 · 전등.
+   표에 없는 화학 제작법은 맨 끝 '그 밖' 단에 선다 */
+const CHEM_GROUPS=[
+  ['재 · 잿물 · 술',['ash','lye','alcohol']],
+  ['탄소 · 전극',['electrode','graphite']],
+  ['산 · 염',['acid_sulfuric','nitric','saltpeter','li_carbonate']],
+  ['화약 · 뇌관',['gunpowder','guncotton','powder_smokeless','fulminate','primer']],
+  ['선 · 관 · 자석',['drawplate','wire_copper','pipe_copper','gauze_platinum','magnet']],
+  ['전지 · 전등',['bulb','battery','cathode_lfp','battery_li','camc_pack']]
+];
+function chemCols(list){
+  const seen=new Set();
+  const cols=CHEM_GROUPS.map(([n,ids])=>[n,ids.map(id=>list.find(o=>o.R.id===id)).filter(o=>o&&!seen.has(o)&&seen.add(o))]);
+  const rest=list.filter(o=>!seen.has(o)); if(rest.length) cols.push(['그 밖',rest]);
+  return cols;
+}
 let craftTab='tool';
 function craftCat(R){
   if(R.place) return 'build';
@@ -1287,9 +1305,10 @@ function drawCraft(){
     const list=RECIPES.map((R,i)=>({R,i})).filter(o=>craftCat(o.R)===craftTab);
     if(nEl) nEl.textContent=list.filter(o=>canCraft(o.R)).length+' / '+list.length+' 가능';
     html='<div class="tw">';
-    for(const tier of TIER_ORDER){
-      const col=list.filter(o=>o.R.tier===tier&&(!craftOnly||canCraft(o.R))); if(!col.length) continue;
-      html+='<div class="tc"><div class="th">'+TIER_LABEL[tier]+'<span>'+col.filter(o=>canCraft(o.R)).length+'/'+col.length+'</span></div>'
+    const cols=craftTab==='chem'?chemCols(list):TIER_ORDER.map(t=>[TIER_LABEL[t],list.filter(o=>o.R.tier===t)]);
+    for(const [label,all] of cols){
+      const col=all.filter(o=>!craftOnly||canCraft(o.R)); if(!col.length) continue;
+      html+='<div class="tc"><div class="th">'+label+'<span>'+col.filter(o=>canCraft(o.R)).length+'/'+col.length+'</span></div>'
         +col.map(o=>{ const R=o.R, ok=canCraft(R), busy=CRAFT.recipe===R;
           return '<div class="nd '+(ok?'ok':'no')+(R.proc?' pr':'')+(o.i===CRAFT.sel?' sel':'')+(busy?' busy':'')+'" data-i="'+o.i+'"'+(R.proc?' title="'+(R.proc==='furnace'?'제련로':'모닥불·가마')+'에 넣어 두는 일"':'')+'>'
             +(R.out?iconTagSoon(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')

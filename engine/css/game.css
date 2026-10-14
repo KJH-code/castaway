@@ -132,7 +132,8 @@
   #crfT button span{margin-left:7px;font-size:11px;color:var(--dim)}
   #crfT button.on{border-color:var(--acc);color:var(--acc);background:rgba(143,214,180,.10)}
   #bag #crfL{flex:1;min-height:0;overflow:auto;position:relative;overscroll-behavior:contain}
-  #crfL .tw{position:relative;display:flex;gap:48px;align-items:flex-start;padding:6px 10px 24px 26px;min-width:max-content}
+  /* 단이 창보다 많으면 다음 줄로 접힌다 — 예전엔 옆으로 굴려야 보여 오른쪽 단(화학의 전지 · 먹을 것의 바다)이 있는 줄도 몰랐다 */
+  #crfL .tw{position:relative;display:flex;flex-wrap:wrap;column-gap:26px;row-gap:20px;align-items:flex-start;padding:6px 10px 24px 26px}
   #crfL .tc{display:flex;flex-direction:column;gap:6px;min-width:150px;position:relative}
   #crfL .th{font-size:12px;letter-spacing:.10em;color:#e8d9a0;border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px;
     display:flex;justify-content:space-between;gap:10px}
