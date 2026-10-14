@@ -85,6 +85,7 @@ function cragShapes(){
 function cragClear(){
   for(const t of CRAG.tiles.values()) cragDrop(t);
   CRAG.tiles.clear(); CRAG.cols.length=0; CRAG.cg.clear(); CRAG.ix.clear(); CRAG.n=0; CRAG.blobs=0;
+  if(typeof coastClear==='function') coastClear();
 }
 function cragDrop(t){ for(const k of ['near','far']){ const m=t[k]; if(m){ scene.remove(m); m.geometry.dispose(); t[k]=null; } } }
 /* 충돌 원 — 반지름 7 m 까지는 하나, 더 크면 고리로 덮는다 */
@@ -156,6 +157,7 @@ function cragSites(seed){
     cragGrow({x:wx,z:wz,dx:-gx/gl,dz:-gz/gl,seed:sd},t.b); occ[i]=1; CRAG.n++;
   }
   PROPS=PROPS.filter(p=>p.cave||!occ[IDX(clamp(Math.round(p.x/CELL+N/2),0,N-1),clamp(Math.round(p.z/CELL+N/2),0,N-1))]);
+  if((P.tv|0)>=5&&typeof coastFeatures==='function') coastFeatures(seed);   // 바닷가 지형 — 시스택 · 해식 아치 · 주상절리(34-coast.js · 지형 판 5)
   { const C=CRAG.cols, G=CRAG.cg;                                                          // 원을 16 m 칸에 걸어 둔다(cragNear)
     for(let i=0;i<C.length;i+=3){ const r=C[i+2], x0=Math.floor((C[i]-r)/16), x1=Math.floor((C[i]+r)/16), z0=Math.floor((C[i+1]-r)/16), z1=Math.floor((C[i+1]+r)/16);
       for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const k=(gx+2048)*4096+(gz+2048); let a=G.get(k); if(!a) G.set(k,a=[]); a.push(i); } } }
@@ -168,7 +170,7 @@ function cragNear(x,z,pad){
   for(const i of a){ const dx=x-C[i], dz=z-C[i+1], q=C[i+2]+pad; if(dx*dx+dz*dz<q*q) return true; }
   return false;
 }
-function buildCrags(){}                 // (예전엔 여기서 충돌 원을 걸었다 — 이제 몸은 바위의 진짜 꼴로 막는다. 아래)
+function buildCrags(){ if(typeof coastBuild==='function') coastBuild(); }   // 주상절리 기둥 메시(34-coast.js)                 // (예전엔 여기서 충돌 원을 걸었다 — 이제 몸은 바위의 진짜 꼴로 막는다. 아래)
 
 /* ── 바위를 딛기 ────────────────────────────────────────────────────────────
    사람이 선 자리의 수직선이 바위 덩이를 지나는 구간([밑, 꼭대기])을 **그려진 꼴 그대로** 구한다 — 덩이마다 수직선을 그 덩이의

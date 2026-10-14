@@ -262,6 +262,7 @@ function eyeHit(x,y,z){
     const sx=x+o[0], sz=z+o[1];
     if(heightAt(sx,sz)>y-0.15) return true;
     if(CRAG.n){ const n=cragSpan(sx,sz); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y+EYE_V&&s.t>y-EYE_V) return true; } }
+    if(coastSolid(sx,sz,y-EYE_V,y+EYE_V)) return true;                     // 주상절리 기둥
   }
   return false;
 }
@@ -276,7 +277,7 @@ function floorGrad(x,z,y){
 function solidAt(x,z,y){
   if(heightAt(x,z)>y) return true;
   if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y&&s.t>y) return true; } }
-  return false;
+  return coastSolid(x,z,y);
 }
 /* ── 벼랑 오르기(사용자 요청) ───────────────────────────────────────────
    걸어 못 오르는 벼랑(가파른 땅 · 큰 바위 벽)을 마주 보고 **Space 를 누르고 있으면 매달린다** — 손(Space)을 떼면 떨어진다.
@@ -306,6 +307,7 @@ function wallAhead(){
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw), p=PL.pos, yc=p.y+0.8;
   for(let d=0.3;d<=1.6+1e-6;d+=0.1){ const x=p.x+fx*d, z=p.z+fz*d;
     if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const sp=_cgS[i]; if(sp.b<yc&&sp.t>yc) return d; } }
+    if(coastSolid(x,z,yc)) return d;                                       // 주상절리 기둥 벽
     if(heightAt(x,z)>yc){ const g=groundSlope(x,z,0.8); return Math.hypot(g[0],g[1])>MAXSLOPE*0.87?d:0; }
   }
   return 0;                                                          // 벽까지의 거리(m) — 없으면 0
