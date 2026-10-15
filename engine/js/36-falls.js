@@ -114,7 +114,11 @@ function fallsCrags(seed){
     for(const s of [-1,1]) for(let k=0;k<3;k++){ const b=s*(f.w*0.6+k*rr*1.4), r=rr*(0.7+0.3*rnd()), a=f.aH+r*0.5;
       coastBlob(rnd,f.px+f.ux*a+tx*b,f.y0+0.2,f.pz+f.uz*a+tz*b,r*1.2,r*0.45,r,1,tone); }
   }
-  PROPS=PROPS.filter(p=>p.cave||!FALLS.list.some(f=>f.res&&Math.hypot(p.x-(f.px+f.ux*f.aF),p.z-(f.pz+f.uz*f.aF))<f.Wc+3+(f.aH-f.aF)&&Math.hypot(p.x-f.rx,p.z-f.rz)>f.rR));   // 벽 자리의 나무·바위는 치운다
+  const R=FALLS.list.filter(f=>f.res).map(f=>({f,x:f.px+f.ux*f.aF,z:f.pz+f.uz*f.aF,r:f.Wc+3+(f.aH-f.aF)}));
+  if(R.length) PROPS=PROPS.filter(p=>{ if(p.cave) return true;                 // 소품 수십만 — 상자로 먼저 거른다
+    for(const q of R){ const dx=p.x-q.x, dz=p.z-q.z; if(dx>q.r||dx<-q.r||dz>q.r||dz<-q.r) continue;
+      if(dx*dx+dz*dz<q.r*q.r&&Math.hypot(p.x-q.f.rx,p.z-q.f.rz)>q.f.rR) return false; }
+    return true; });   // 벽 자리의 나무·바위는 치운다
 }
 /* 소의 거품 — 가운데가 짙고 가장자리로 스러지는 잡음 무늬(예전 흰 원판은 판때기처럼 튀었다 — 사용자 지적) */
 let _fFoamTex=null;

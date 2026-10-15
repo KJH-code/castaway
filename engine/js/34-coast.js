@@ -144,8 +144,9 @@ function coastIsle(I){
   if(H>=6){ const cand=I.cols.filter(c=>c.d<0.5&&!I.shards.some(s=>Math.hypot(s.x-c.x,s.z-c.z)<s.r+1.2)&&!I.cols.some(o=>o!==c&&Math.hypot(o.x-c.x,o.z-c.z)<2.6&&o.t>c.t+0.3));
     cand.sort((a,b)=>b.t-a.t);
     const nT=Math.min(cand.length,1+(rnd()<0.5?1:0));
-    for(let i=0,put=0;i<cand.length&&put<nT;i++){ const c=cand[i]; if(PROPS.some(p=>p.isle&&Math.hypot(p.x-c.x,p.z-c.z)<5)) continue;
-      PROPS.push({k:'fir',x:c.x,z:c.z,y:c.t,top:c.t-0.12,s:0.55+0.35*rnd(),r:rnd()*6.283,isle:1,_sunk:0}); put++; } }
+    const put=[];                                                            // 이 섬에 세운 것 — 소품 전체(수십만)를 뒤지지 않는다
+    for(let i=0;i<cand.length&&put.length<nT;i++){ const c=cand[i]; if(put.some(p=>Math.hypot(p.x-c.x,p.z-c.z)<5)) continue;
+      const p={k:'fir',x:c.x,z:c.z,y:c.t,top:c.t-0.12,s:0.55+0.35*rnd(),r:rnd()*6.283,isle:1,_sunk:0}; PROPS.push(p); put.push(p); } }
 }
 let _isleMat=null, _obsMat=null;
 /* 현무암 기둥의 재질 — 바위 사진 재질(rockMat)을 짙은 현무암으로 · 잔 기공 · 물가는 젖어 어둡다(20-terrain.js 'basaltcol') */
@@ -217,7 +218,7 @@ function coastIsleBuild(I){
   }
   if(I.shards&&I.shards.length){
     const parts=[], M4=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), Sc=new THREE.Vector3();
-    for(const s of I.shards){ const gg=obsShardGeo(s).toNonIndexed(); E.set(s.tx,s.ya,s.tz); Q.setFromEuler(E); V.set(s.x,s.y,s.z); Sc.set(s.r,s.r*s.sy,s.r*0.85); M4.compose(V,Q,Sc); gg.applyMatrix4(M4);
+    for(const s of I.shards){ const gg=obsShardGeo(s);                     // 20면체는 이미 면마다 따로 선 꼭짓점이다(색인 없음) E.set(s.tx,s.ya,s.tz); Q.setFromEuler(E); V.set(s.x,s.y,s.z); Sc.set(s.r,s.r*s.sy,s.r*0.85); M4.compose(V,Q,Sc); gg.applyMatrix4(M4);
       const n=gg.attributes.position.count, cc=new Float32Array(n*3).fill(s.k); gg.setAttribute('color',new THREE.BufferAttribute(cc,3)); gg.deleteAttribute('uv'); gg.deleteAttribute('normal'); parts.push(gg); }
     let n=0; for(const q of parts) n+=q.attributes.position.count;
     const pos=new Float32Array(n*3), col=new Float32Array(n*3); let o=0;
