@@ -2,12 +2,14 @@
 
 무인도 생존 게임. **단일 HTML 파일 · Three.js r128 · 빌드 과정 없음.**
 
+**처음 맡았으면 `docs/HANDOVER.md` 부터** — 2026-10-15 인수인계(사용자와 정한 규칙 요약 · 점검 결과 · 진행 중인 새 몹 · 다음 할 일).
+
 ## 스택
 
 - Three.js r128을 레포 안의 `engine/three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 31개로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 222종 · 레시피 181개
+- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 46개(코드 42 + base64 자료 4)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 365종 · 레시피 278개(제작법 240 + 설비 공정 38 — 2026-10-15 잼)
 - 라이선스 GPL-3.0
 
 ## 폴더
@@ -15,7 +17,7 @@
 | 폴더 | 무엇 |
 |---|---|
 | `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
-| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 29개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
+| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 42개 + base64 자료 4개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
 | `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) |
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
@@ -192,7 +194,7 @@ python -m http.server 5173
 | `presets/models/bear_high.glb`, `presets/models/stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |
 | `presets/models/azure_apocalypse.glb` | **애저 아포칼립스**(새 몹 · 11.3 MB · 사용자 요청 '받침 없애고 · 참고 그림처럼 돌 갑옷 + 푸른 에너지로 칠하고 · 삼각형 20만 · 리깅, 떠서 움직이니 다리 뼈는 없이' · 공격은 에너지 빔과 팔 휘두르기 예정). 원본은 같은 폴더의 `Meshy_AI_Azure_Apocalypse_…_fbx.zip`(사용자 업로드 · FBX 140만 세모 · 뼈 없음 · 받침 붙음 — **FBX 는 Y 위라 적혀 있지만 실제는 Z 위**). `tools/azure/run.sh` 가 같은 GLB 를 다시 만든다. 세모 197,205 · 정점 153,441 · 뼈 23(`root` · `pelvis` · `spine` · `chest` · `neck` · `head` · `halo` · 팔 넷 `armR1/R2/L1/L2` → `fore*` → `hand*` → `claw*` — 팔은 몸 오른쪽(−x) 위·아래 · 왼쪽(+x) 위·아래 · 쉼 자세 회전 0) · **+z 를 본다** · 키 2.98 m · 원점은 몸 가운데 발밑. 바탕 + 발광 그림(갈고리 끝 · 몸의 결이 빛난다) · **머리 위 고리는 새로 빚었다**(사용자 참고 그림 — 검은 돌 비늘 조각 17개가 고리로 이어지고 밑·틈에서 푸른빛이 새며 군데군데 끊기고 부스러기가 뜬다 · `tools/azure/halo_new.py` · 원본의 매끈한 원환은 뺐다) — 게임에선 `MeshLambertMaterial({map, emissiveMap, emissive:흰색, skinning:true})`. 사슬은 몸통만 따르고, 따로 움직일 덩이(팔 넷 · 허리 아래 · 머리 · 고리)를 잇던 세모 1,465 장은 뺐다. **아직 어느 코드에서도 로드하지 않는다** — r128 GLTFLoader 는 레포에 없다(npm three@0.128.0) |
 
-**본편은 나뉘어 있다** — `island_world.html`(250줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 29개.
+**본편은 나뉘어 있다** — `island_world.html`(289줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 46개(코드 42 + base64 자료 4).
 js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
 나누면서 고쳐 쓴 것이 없다). 번호가 곧 불러오는 차례다 — **불러오는 순간 바로 도는 코드는 위 파일 것만 쓸 수 있다**(함수 안에서
 부르는 것은 어느 파일 것이든 된다). 새 계통은 `99-main.js` 바로 위에 새 파일로 넣는 것이 쉽다. 파일별 설명(영어)은 `CODEMAP.md`.
@@ -263,7 +265,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 예외 넷은 미리 알고 갈 것:
 
 1. **손에 드는 것(`tool` 을 단 아이템)은 전부 `WEAPON_FX` 에 생김새 함수를 따로 써야 한다.**
-   무기만이 아니다 — 도끼·곡괭이·그물·횃불·등잔·활비비·라이터도 들면 보인다(40개 = 40개).
+   무기만이 아니다 — 도끼·곡괭이·그물·횃불·등잔·활비비·라이터·통나무배(노)·시멘트도 들면 보인다(57개 = 57개 — 2026-10-15 에 상어 이빨 칼·시멘트·통나무배 셋이 빠져 있던 것을 채웠다).
    안 쓰면 `setWeaponFx` 가 조용히 `return` 하고 손이 빈다. 더하면 이 짝부터 맞춰 볼 것:
    `node tools/probe.mjs island_world.html "Object.entries(ITEMS).filter(([k,v])=>v.tool).length" "Object.keys(WEAPON_FX).length"`
    무기가 아닌 것은 `rest:{rx,rz}` 로 세워 들고(횃불·그물), 도끼·곡괭이는 캐는 동안(`HARV.active`)
@@ -1122,7 +1124,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   두른다(`f.kilnU` · 40 → 80 kg · 10 → 20 칸 · 굽기 두 배 빠르게 — `updateFires`). 저장 `fires[].kl`(옛 저장의 `kiln` 꾸러미와 다르다).
 - **기술 나무에 설비 공정도 선다**(`proc` — 60-stations.js SMELT 끝) — 제련로 제련(SMELT)과 화덕·가마 굽기(FIRING)를 RECIPES **끝에** 붙인다
   (앞 번호는 그대로). `canCraft` 는 늘 거짓 · 누르면 `procHow` 가 어디에 무엇을 넣는지 알린다 · 마디는 점선 + ⚒. 그래서 주석 → 주석 제련 → 석석·도가니로 이어진다.
-  `obtainOf` 는 `proc` 를 '제작' 으로 세지 않는다. 지금 RECIPES 223(제작법 187 + 공정 36).
+  `obtainOf` 는 `proc` 를 '제작' 으로 세지 않는다. 지금 RECIPES 278(제작법 240 + 공정 38 — 2026-10-15 잼).
 - **만드는 동안은 손이 빈다**(`CRAFT.held` · `craftBusy`/`craftRestoreHeld`) — 시작하면 든 것을 내려놓고 끝나면(실패·그만둠 포함) 다시 든다. 그동안 들기·빠른 칸·끌어 들기는 막힌다.
 - **거품 조각은 프랙탈 사면체 뭉치**(`foamCluster` — 가운데 하나 + 면마다 반 크기 넷 + 그 바깥에 둘씩 = 13 · `aLv` 대(代)) — 셰이더가 사면체마다 뭉치 가운데를
   축으로 공전시키고(바깥 대일수록 빠르게 · 출렁) 제자리에서도 돌려 속이 섞인다. 물가 한 점에 조각 16(`FOAM.K` — 예전 22).

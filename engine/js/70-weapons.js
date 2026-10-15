@@ -742,6 +742,38 @@ const WEAPON_FX={
     sock.position.y=L-0.06; g.add(sock);
     const coil=new THREE.Mesh(new THREE.TorusGeometry(0.034,0.009,5,12),WMAT(W_CORD)); coil.position.y=0.6; coil.rotation.x=Math.PI/2; g.add(coil);
     return {mesh:g, grip:0.58};
+  },
+  shark_knife(){                             // 상어 이빨 칼(96-reef.js) — 나무 자루에 판을 물리고 한쪽 날에 이빨을 줄지어 박았다
+    const g=new THREE.Group(), H=0.12, B=0.24;
+    g.add(haft(H,0.017,0.020,0x5a4632));
+    g.add(wbindC(H-0.02,0.022));
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(0.036,B,0.010),WMAT(0x8a7458));
+    bl.position.set(-0.004,H+B/2,0); g.add(bl);
+    for(let i=0;i<7;i++){                    // 이빨 — 납작한 세모, 끝으로 갈수록 작다
+      const k=1-i*0.06, t=new THREE.Mesh(new THREE.ConeGeometry(0.011*k,0.028*k,3),WMAT(0xe0dcd0));
+      t.scale.z=0.45; t.position.set(0.018+0.010*k,H+0.025+i*0.031,0); t.rotation.z=-Math.PI/2+0.35; g.add(t);
+    }
+    const pt=new THREE.Mesh(new THREE.ConeGeometry(0.019,0.05,3),WMAT(0xe0dcd0));
+    pt.scale.z=0.45; pt.position.set(-0.004,H+B+0.022,0); g.add(pt);
+    return {mesh:g, grip:0.06};
+  },
+  cement(){                                  // 시멘트 — 개어 둔 토기 통 · 다지는 나무 막대
+    const g=new THREE.Group();
+    const pts=[[0,0],[0.060,0.004],[0.074,0.040],[0.078,0.090],[0.070,0.094]].map(a=>new THREE.Vector2(a[0],a[1]));
+    g.add(new THREE.Mesh(new THREE.LatheGeometry(pts,14),WMAT(0x9a6a44)));
+    const paste=new THREE.Mesh(new THREE.SphereGeometry(0.071,14,6,0,Math.PI*2,0,Math.PI/2),WMAT(0x9c9d98));
+    paste.scale.y=0.45; paste.position.y=0.082; g.add(paste);          // 테 위로 봉긋하게 — 옆에서도 회색이 보인다
+    const st=haft(0.20,0.008,0.010,W_WOOD); st.position.set(0.025,0.10,0.01); st.rotation.z=-0.35; g.add(st);
+    return {mesh:g, grip:0.03, rest:{rx:-0.02, rz:0.05}};
+  },
+  canoe(){                                   // 통나무배 — 손에는 노를 든다(배는 물을 보고 좌클릭하면 뜬다 · 96-sea.js)
+    const g=new THREE.Group(), L=0.95;
+    g.add(haft(L,0.017,0.020,0x7a5a3a));
+    const grip=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.026,0.03),WMAT(0x7a5a3a));
+    grip.position.y=0.01; g.add(grip);
+    const bl=new THREE.Mesh(new THREE.SphereGeometry(0.5,10,8),WMAT(0x8a6a44));
+    bl.scale.set(0.16,0.42,0.035); bl.position.y=L+0.15; g.add(bl);
+    return {mesh:g, grip:0.40, rest:{rx:-0.30, rz:0.18}};
   }
 };
 /* 지금 든 무기에 맞춰 손의 것을 갈아 끼운다.
