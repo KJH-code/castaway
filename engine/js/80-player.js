@@ -150,6 +150,7 @@ function diePL(why){
     +'가진 것은 그대로지만 배는 절반만 차 있다.';
   document.getElementById('bStart').textContent='깨어나기';
   ov.style.display='flex';
+  if(typeof titleDeath==='function') titleDeath(why);   // 브라운관을 끄듯 꺼지고 빨간 DEAD(91-title.js) — 글자 화면은 그 밑의 대비책
 }
 /* 깨어나기 — 짐은 그대로 두고 표류물 곁으로 돌려보낸다. 죽음이 가벼우면
    높이도 물도 무섭지 않으니, 배를 절반으로 깎아 대가를 남긴다. */
@@ -202,7 +203,7 @@ function walkable(x,z,fromH){
   return Math.hypot(gs[0],gs[1])<=MAXSLOPE;   // 지속적인 급사면만 막는다
 }
 
-/* ── 개발자 모드(` 키 · 설정 창 '개발자 모드') ─────────────────────────────────────
+/* ── 개발자 모드(; 키 · 설정 창 '개발자 모드') ─────────────────────────────────────
    섬을 마음대로 둘러본다(사용자 요청). 보는 쪽으로 날고(W·S 앞뒤 · A·D 옆 · Space 위 · C/Ctrl 아래 · Shift 다섯 배 · 휠 빠르기),
    땅 밑으로만 안 들어간다(바위·집은 뚫고 지나간다). 체력·기력·배고픔·목마름·숨이 늘 가득하고 다치지도 쓰러지지도 않는다.
    끄면 그 자리 바닥에 내려선다(바다 위면 물 위에) — 떨어져 다치지 않게. 켠 채로 저장하면 그 바닥 높이가 적힌다(92-save.js) */
@@ -218,7 +219,7 @@ function toggleDev(on){
   PL.vel.set(0,0,0); PL.camY=undefined;
   if(DEV.on){ hurtFlash=0; PL.dead=false; }
   else{ PL.pos.y=devGround(); PL.grounded=true; }
-  toast(DEV.on?'개발자 모드 — 날아서 둘러본다 · 다치지 않는다 · ` 로 끈다':'개발자 모드 끔');
+  toast(DEV.on?'개발자 모드 — 날아서 둘러본다 · 다치지 않는다 · ; 로 끈다':'개발자 모드 끔');
 }
 /* 개발자 모드 — 굴 둘러보기(사용자 요청: 굴이 제대로 지어졌나 보고 싶다). ] 다음 굴 · [ 앞 굴 — 입구 앞 6 m 에서 굴 속을 보고 선다.
    지도에는 굴이 번호 붙은 청록 동그라미로 뜬다(개발자 모드일 때만 — 82-hud.js drawMap) */
@@ -262,6 +263,7 @@ function eyeHit(x,y,z){
     const sx=x+o[0], sz=z+o[1];
     if(heightAt(sx,sz)>y-0.15) return true;
     if(CRAG.n){ const n=cragSpan(sx,sz); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y+EYE_V&&s.t>y-EYE_V) return true; } }
+    if(coastSolid(sx,sz,y-EYE_V,y+EYE_V)) return true;                     // 주상절리 기둥
   }
   return false;
 }
@@ -276,7 +278,7 @@ function floorGrad(x,z,y){
 function solidAt(x,z,y){
   if(heightAt(x,z)>y) return true;
   if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y&&s.t>y) return true; } }
-  return false;
+  return coastSolid(x,z,y);
 }
 /* ── 벼랑 오르기(사용자 요청) ───────────────────────────────────────────
    걸어 못 오르는 벼랑(가파른 땅 · 큰 바위 벽)을 마주 보고 **Space 를 누르고 있으면 매달린다** — 손(Space)을 떼면 떨어진다.
@@ -306,6 +308,7 @@ function wallAhead(){
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw), p=PL.pos, yc=p.y+0.8;
   for(let d=0.3;d<=1.6+1e-6;d+=0.1){ const x=p.x+fx*d, z=p.z+fz*d;
     if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const sp=_cgS[i]; if(sp.b<yc&&sp.t>yc) return d; } }
+    if(coastSolid(x,z,yc)) return d;                                       // 주상절리 기둥 벽
     if(heightAt(x,z)>yc){ const g=groundSlope(x,z,0.8); return Math.hypot(g[0],g[1])>MAXSLOPE*0.87?d:0; }
   }
   return 0;                                                          // 벽까지의 거리(m) — 없으면 0
@@ -732,7 +735,8 @@ function harvestSfx(kind,field){
     case 'clay': case 'sand':  return 'dig';
     case 'iron': case 'tin':  return 'gravel';
     case 'coal':              return 'brittle';
-    case 'copper': case 'granite': return 'hardrock';
+    case 'copper': case 'granite': case 'basalt': return 'hardrock';
+    case 'karst': case 'sandstone': return 'brittle';
   }
   return 'stone';
 }

@@ -937,10 +937,12 @@ function floraFindLook(){
       const d=Math.sqrt(dx*dx+dz*dz); if(d>p.r+1.7||d<1e-3) continue;
       const c=(dx*hx+dz*hz)/d; if(c<0.75) continue;
       const sc=d*(2-c); if(sc<bd){ bd=sc; FLORA.look=p; }
-    }else{                                             // 낮은 것(고사리·꽃·버섯·덤불·돌) — 그 포기를 겨눠야 한다
+    }else{                                             // 낮은 것(고사리·꽃·버섯·덤불·돌) — **조준선이 그 포기를 지나야** 한다(사용자 요청 — 예전엔 ±37° 원뿔이라 빈 모래를 봐도 '풀 뜯기' 가 떴다)
       const ay=p.ay!==undefined?p.ay:p.y+0.06, dy=ay-ey, d=Math.sqrt(dx*dx+dy*dy+dz*dz); if(d>2.2+(ay>p.y+0.1?p.r:0)||d<0.05) continue;   // 덤불은 몸 반지름만큼 더
-      const c=(dx*fx+dy*fy+dz*fz)/d; if(c<0.80) continue;
-      const sc=d*(2-c); if(sc<bd){ bd=sc; FLORA.look=p; }
+      const t=dx*fx+dy*fy+dz*fz; if(t<0.1) continue;
+      const qx=dx-fx*t, qy=dy-fy*t, qz=dz-fz*t, rr=Math.max(0.10,(p.r||0.12)*1.05);
+      if(qx*qx+qy*qy+qz*qz>rr*rr) continue;
+      const sc=t; if(sc<bd){ bd=sc; FLORA.look=p; }
     }
   }
   }

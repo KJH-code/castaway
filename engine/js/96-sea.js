@@ -264,7 +264,8 @@ function seaFindLook(){
     /* 산호·바닷말·바위(그 자리에 남는 것)는 똑바로 겨눠야 잡히고, 작살·무기·그물을 들었으면 안 잡힌다 — 물고기를 찌르려는
        좌클릭을 가로채지 않게 */
     if(p.keep&&armed) continue;
-    if((dx*fx+dy*fy+dz*fz)/d<(p.keep?0.85:0.5)) continue;
+    { const t=dx*fx+dy*fy+dz*fz; if(t<0.1) continue;                   // **조준선이 그것을 지나야**(사용자 요청 — 예전엔 ±60° 원뿔)
+      const qx=dx-fx*t, qy=dy-fy*t, qz=dz-fz*t, rr=p.r||(p.keep?0.32:0.22); if(qx*qx+qy*qy+qz*qz>rr*rr) continue; }
     bd=d; SEA.look=p;
   }
 }
@@ -477,7 +478,8 @@ function updateFish(dt){
         /* 몇 토막을 건지나는 무작위(사용자 요청) — 표의 수 ±1(작은 것은 1~2) */
         const nd=Math.max(1,S.drop[1]+(Math.random()<0.35?1:0)-(S.drop[1]>1&&Math.random()<0.3?1:0));
         let got=0; for(let k=0;k<nd;k++) if(invAdd(S.drop[0],1)) got++;
-        toast(got?('잡았다 — '+ITEMS[S.drop[0]].n+' +'+got):(S.n+' — 무거워서 못 들고 놓쳤다'));
+        if(got&&S.drop2) for(let k=0;k<S.drop2[1];k++) invAdd(S.drop2[0],1);     // 덤(상어 이빨 · 쏠배감펭 가시 — 96-reef.js)
+        toast(got?('잡았다 — '+ITEMS[S.drop[0]].n+' +'+got+(S.drop2?' · '+ITEMS[S.drop2[0]].n+' +'+S.drop2[1]:'')):(S.n+' — 무거워서 못 들고 놓쳤다'));
         invDirty=true;
       }
       g.flee=3; fishKill(f); continue;
@@ -558,7 +560,7 @@ function rodReset(){ ROD.st=0; if(ROD.bob){ ROD.bob.visible=ROD.line.visible=ROD
 /* 찌 자리에서 무는 고기 — 물의 깊이로 구역을 정하고 그 구역 고기 가운데 많은 것일수록 자주 */
 function rodPick(x,z){
   const g=heightAt(x,z), W=waterAt(x,z,g);
-  if(W.river) return null;                                          // 민물 — 그냥 물고기
+  if(W.river) return (typeof fallsNear==='function'&&fallsNear(x,z)&&Math.random()<0.7)?{n:'연어',len:0.75,tier:2,drop:['salmon',1]}:null;   // 민물 — 폭포 둘레면 연어(36-falls.js) · 아니면 그냥 물고기
   const dep=Math.max(0,-g), zone=dep>14?'deep':dep>4?'shelf':(Math.random()<0.5?'reef':'sand');
   const L=FISH_SP.filter(s=>s.zone===zone||(zone==='deep'&&s.zone==='shelf'&&Math.random()<0.3));
   let tot=0; for(const s of L) tot+=s.cap; let r=Math.random()*tot;
@@ -574,7 +576,7 @@ function rodUse(w,T){
       if(W.wl-g>0.7){ hit={x,z,y:W.river?W.wl:seaSurfAt(x,z),river:!!W.river}; break; } }
     if(!hit){ toast('물에 던져야 한다 — 무릎 넘게 깊은 물을 보고'); return; }
     PL.stam-=T.stam; ATK.cd=0.6; ATK.swing=0.4; ATK.swingMax=0.4; sfx('bind');
-    Object.assign(ROD,{st:1, x:hit.x, y:hit.y, z:hit.z, river:hit.river, t:3+Math.random()*6, sp:hit.river?null:rodPick(hit.x,hit.z), ang:Math.random()*6.2832});
+    Object.assign(ROD,{st:1, x:hit.x, y:hit.y, z:hit.z, river:hit.river, t:3+Math.random()*6, sp:rodPick(hit.x,hit.z), ang:Math.random()*6.2832});
     ROD.bob.position.set(ROD.x,ROD.y,ROD.z); ROD.bob.visible=ROD.line.visible=true;
     return;
   }
@@ -784,7 +786,7 @@ async function farDrift(){
     const w=['tide','ashen','vireo','kelp','marrow','glass','hollow','ember','driftwood','saltgrave'];
     P.seed=w[(Math.random()*w.length)|0]+'-'+((Math.random()*9000+1000)|0);
     const se=document.getElementById('pSeed'); if(se) se.value=P.seed;
-    P.tv=4;                                            // 새 섬은 새 지형 판(옛 저장에서 떠나왔어도)
+    P.tv=6;                                            // 새 섬은 새 지형 판(옛 저장에서 떠나왔어도)
     await generateWorld();
     INV.slots.length=0; for(const o of loadSlots(keep.inv)) INV.slots.push(o);
     INV.sel=keep.sel|0; EQUIP=keep.eq>=0?INV.slots[keep.eq]||null:null;

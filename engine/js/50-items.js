@@ -273,6 +273,9 @@ const ITEMS={
                sips:4, drink:{n:40, empty:'bucket_iron'}},
   /* 석회석 — 자갈밭에 드문드문 섞인 흰 돌(30-props.js RUBBLE). 구우면 석회, 석회·재·모래·점토를 물에 개면 시멘트 */
   limestone:  {n:'석회석',     kg:0.8,  c:0xd9d5c6, use:'흰 돌 — 불에 구우면 석회가 된다(시멘트의 바탕)'},
+  /* 현무암 판돌 — 분기공 언저리의 현무암 노두(지형 판 6). 열을 오래 품는다 — 모닥불가에 두면 돌판구이를 한다 */
+  basalt_slab:{n:'현무암 판돌', kg:3.2,  c:0x3c3d3f, use:'열을 오래 품는 검은 판돌 — 모닥불에 달궈 돌판구이 · 석축',
+               tags:['slab']},
   /* 시멘트 — 통마다 남은 양(amt 0~1)이 다르다. 터를 다질 때 든 만큼만 줄어든다(통 다섯에 0.3 통이면 530%) */
   cement:     {n:'시멘트',     kg:5.2,  c:0x9c9d98, frac:1, tool:{level:1},
                use:'터 다지기 — 들고 땅을 보며 좌클릭. 집의 토대는 다진 터 위에만 선다'},
@@ -658,6 +661,10 @@ const ITEMS={
                food:8, raw:true, fishy:1, tags:['fish']},
   flounder_cooked:{n:'구운 넙치', kg:0.72, c:0x987a52, use:'불에 익혔다',
                food:30, fishy:1},
+  salmon:    {n:'연어', kg:1.8, c:0xc86a52, use:'폭포 밑 소에서 거슬러 오르는 연어 — 낚싯대로 잡는다(그물엔 너무 크다)',
+               food:9, raw:true, fishy:1, tags:['fish']},
+  salmon_cooked:{n:'구운 연어', kg:1.6, c:0xd88a62, use:'불에 익혔다 — 기름지고 든든하다',
+               food:34, fishy:1},
   mackerel:  {n:'고등어', kg:0.50, c:0x4a7a9a, use:'떼 지어 다니는 등 푸른 물고기',
                food:7, raw:true, fishy:1, tags:['fish']},
   mackerel_cooked:{n:'구운 고등어', kg:0.45, c:0x687174, use:'불에 익혔다',
@@ -777,26 +784,15 @@ function drawInv(){
   f.style.width=(invLoad()*100)+'%';
   f.style.background=invLoad()>0.85?'#d8724a':(invLoad()>0.6?'#d8c96a':'#8fd6b4');
   if(!invOpen) return;
-  // 착용 칸 · 방어 · 보온 요약
-  let wh='<div class="wr">';
-  // 손 — 도구·무기·그물을 드는 자리
-  wh+='<div class="ws slot" data-slot="hand"><span>손</span>'
-    +(EQUIP?'<b draggable="true">'+ITEMS[EQUIP.id].n+'</b>':'<i>비어 있음</i>')+'</div>';
-  for(const k of ['body','armor','head','back']){
-    const sl=WEAR[k];
-    wh+='<div class="ws slot" data-slot="'+k+'"><span>'+WEAR_N[k]+'</span>'
-      +(sl?'<b draggable="true">'+ITEMS[sl.id].n+'</b>':'<i>비어 있음</i>')+'</div>';
-  }
-  // 입 — 먹을 것을 끌어다 놓으면 먹는다
-  wh+='<div class="ws slot" data-slot="eat"><span>쓰기</span>'
-    +'<i>먹을 것 · 마실 것 · 붕대를 여기로</i></div>';
-  // 버리기 — 끌어다 놓으면 그 칸을 통째로 버린다(Shift 를 누른 채 놓으면 1개만)
-  wh+='<div class="ws slot" data-slot="trash"><span>🗑 버리기</span>'
-    +'<i>끌어다 놓는다 · Shift=1개</i></div>';
-  wh+='<div class="ws"><span>방어 / 보온</span><b>'+armorTotal()+' / '+warmthTotal()+'</b></div>';
-  if(wornSum('carry')) wh+='<div class="ws"><span>적재 보너스</span><b>+'
-    +wornSum('carry')+' kg</b></div>';
-  wh+='</div>';
+  /* 착용 칸 — 글 줄 여덟이던 것을 **칸 일곱의 한 줄**로(사용자 요청: 가방이 어렵다). 손 · 옷 · 겉옷 · 머리 · 등짐 칸에는
+     든 것의 그림이, 먹기 · 버리기 칸은 끌어다 놓는 자리다(Shift 를 누른 채 놓으면 1개만 버린다) */
+  const tile=(slot,label,sl,hint)=>'<div class="ws slot" data-slot="'+slot+'"><span>'+label+'</span>'
+    +(sl?'<b draggable="true" title="'+ITEMS[sl.id].n+'">'+iconTag(sl.id,ITEMS[sl.id])+'<em>'+ITEMS[sl.id].n+'</em></b>':'<i>'+hint+'</i>')+'</div>';
+  let wh='<div class="wr">'+tile('hand','손',EQUIP,'—');
+  for(const k of ['body','armor','head','back']) wh+=tile(k,WEAR_N[k],WEAR[k],'—');
+  wh+=tile('eat','먹기',null,'여기로 끌기')+tile('trash','🗑 버리기',null,'Shift = 1개')+'</div>'
+    +'<div class="wsum">방어 <b>'+armorTotal()+'</b> · 보온 <b>'+warmthTotal()+'</b>'+(wornSum('carry')?' · 적재 <b>+'+wornSum('carry')+' kg</b>':'')
+    +'<span>물건을 누르면 오른쪽에 할 수 있는 일 · 자세한 것은 사전(B)</span></div>';
   if(INV.ren) return;                               // 칸 이름을 치는 중 — 목록을 다시 그리면 글칸이 사라진다
   /* ── 갈래 · 내 칸(사용자 요청: 소지품을 갈래지어 보고, 내가 칸을 만들어 나눠 담는다) ──
      위 줄의 단추로 본다: 전체 · 갈래(도구·무기·옷·먹을 것·재료·기타) · 내 칸. 물건을 **칸 단추에 끌어다 놓으면** 그 칸에 든다
@@ -826,8 +822,7 @@ function drawInv(){
       +(s.amt!==undefined?'<span class="eq" style="color:#c8c8c0">'+Math.round(s.amt*100)+'%</span>':'')+freshTag(s)
       +(s.fuel!==undefined?'<span class="eq" style="color:'+(s.lit?'#e08a3a':'#5d7a71')+'">'
         +(s.lit?'타는 중 ':'꺼짐 ')+Math.round(s.fuel/t.burn*100)+'%</span>':'')
-      +'<span class="u">'+t.use+'</span></span>'
-      +'<span class="kg">'+(t.kg*s.n).toFixed(1)+' kg</span></div>';
+      +'</span></div>';                               // 설명 · 무게는 고른 물건 칸과 사전에(목록에는 그림 · 이름 · 개수만)
   };
   const all=INV.slots.map((_,i)=>i);
   const sect=(title,ids,cls,v)=>ids.length?'<div class="ig '+(cls||'')+'"'+(v?' data-v="'+v+'"':'')+'>'+title+'<span>'+ids.length+'</span></div><div class="igL">'+ids.map(row).join('')+'</div>':'';
@@ -1006,7 +1001,12 @@ const MINE={
   // 화강암은 불에 달궈 균열이 생긴 뒤에야(tier 3 → 2) 떼어낼 수 있다
   granite:{item:'stone_block',label:'화강암 떼기', dur:6.0, stam:11, tier:3, uses:[3,6],
            fireset:0.35,   // 게임시간 21분 — 횃불이면 35분
-           extra:{id:'spodumene', p:0.25}}   // 페그마타이트 맥 — 네 번에 한 번꼴 리튬휘석이 딸려 나온다
+           extra:{id:'spodumene', p:0.25}},  // 페그마타이트 맥 — 네 번에 한 번꼴 리튬휘석이 딸려 나온다
+  /* 지형 판 6 의 바위 — 광석이 굴로 들어간 자리(10-worldgen.js surfaceRocks) */
+  basalt: {item:'basalt_slab',label:'현무암 떼기', dur:5.0, stam:10, tier:2, uses:[2,4]},
+  karst:  {item:'limestone',  label:'석회암 깨기', dur:3.0, stam:7,  tier:1, uses:[3,6],
+           extra:{id:'flint', p:0.30}},      // 백악·석회암에 박힌 처트 단괴
+  sandstone:{item:'stone_block',label:'사암 떼기', dur:4.2, stam:9, tier:2, uses:[2,3]}
 };
 const CHOP={
   oak:{item:'log', label:'나무 베기', dur:5.0, stam:10, yield:[1,1], logs:[2,3]},
@@ -1251,16 +1251,35 @@ function findHarvestTarget(){
   const e=equippedTool(), W=e?(ITEMS[e.id].tool||{}):{};
   const fit=p=>(W.axe&&CHOP[p.k]&&p.logs>0)||(W.pick&&MINE[p.k]&&p.ore>0);
   let best=null, bs=2.8;
+  /* **겨눈 것만**(사용자 요청: 조준점이 겨우 스치거나 아무것도 없는데 채집 안내가 뜬다) — 예전엔 2.8 m 안 · 수평으로 ±60° 안이면
+     다 후보였다. 이제 눈에서 보는 쪽으로 뻗은 선(고개 숙임까지)이 **그 물건의 꼴(타원체)을 지나야** 한다. 나무는 줄기(굵기 + 15 cm ·
+     밑동에서 줄기 높이까지)를 지나야 한다. 거리(선을 따라) 2.8 m 안 */
+  const ex=camera.position.x, ey=camera.position.y, ez=camera.position.z, cp=Math.cos(PL.pitch);
+  const vx=-Math.sin(PL.yaw)*cp, vy=Math.sin(PL.pitch), vz=-Math.cos(PL.yaw)*cp;
+  const ray=(px,py,pz,r,rv)=>{ const k=r/rv, dx=px-ex, dy=(py-ey)*k, dz=pz-ez, wy=vy*k, wl=Math.sqrt(vx*vx+wy*wy+vz*vz);
+    const ux=vx/wl, uy=wy/wl, uz=vz/wl, t=dx*ux+dy*uy+dz*uz; if(t<0.1) return -1;
+    const qx=dx-ux*t, qy=dy-uy*t, qz=dz-uz*t; if(qx*qx+qy*qy+qz*qz>r*r) return -1;
+    return t/wl*Math.sqrt(vx*vx+vy*vy+vz*vz); };                                     // 선을 따라 잰 거리(m)
   eachNearProp(PL.pos.x,PL.pos.z,p=>{
     if(!isNode(p.k)) return;
     /* **다 주운 자리는 건드릴 것이 없다**(사용자 요청) — 돌을 줍고 나면 다시 날 때까지 그 자리를 보지도 잡지도 않는다.
        예전엔 빈 자리가 계속 잡혀 '더 얻을 게 없다' 가 뜨고, 곁의 다른 것을 가렸다. 벤 나무의 그루터기는 그대로 본다 */
     if(!p.felled&&(p.ore|0)<=0&&(p.br|0)<=0&&(p.logs|0)<=0) return;
     const dx=p.x-PL.pos.x, dz=p.z-PL.pos.z;
-    const d=Math.hypot(dx,dz);
-    if(d>2.8||d<0.05) return;
-    if((dx/d)*fx+(dz/d)*fz < 0.5) return;      // 시야 밖이면 제외
-    const sc=d-(fit(p)?1.2:0);
+    if(dx*dx+dz*dz>16) return;
+    let t;
+    if(p.k==='oak'||p.k==='fir'){                       // 줄기 — 수평으로 줄기 원을 지나고, 그 자리의 높이가 밑동~줄기 높이 안
+      const tr=(p.k==='oak'?0.46:0.40)*p.s+0.15, hx=-Math.sin(PL.yaw), hz=-Math.cos(PL.yaw), ox=p.x-ex, oz=p.z-ez, th=ox*hx+oz*hz;
+      const px2=ox-hx*th, pz2=oz-hz*th; if(th<0.1||px2*px2+pz2*pz2>tr*tr) return;
+      const yh=ey+Math.tan(PL.pitch)*th, top=p.felled?p.y+0.9:p.y+(p.k==='oak'?2.6:3.4)*p.s; if(yh<p.y-0.3||yh>top) return;
+      t=th/Math.max(0.2,cp);
+    }else{
+      const flat=PROP_FLAT[p.k], soft=PROP_SOFT[p.k], r=Math.max(0.18,(PROP_FOOT[p.k]||0.3)*p.s*(flat?0.85:soft?1:0.8));
+      const rv=flat?0.35:soft?0.45:r*0.7, cy=p.y+(flat?0.05:soft?0.25:rv*0.6);
+      t=ray(p.x,cy,p.z,r,rv);
+    }
+    if(t<0||t>2.8) return;
+    const sc=t-(fit(p)?1.2:0);
     if(sc<bs){ bs=sc; best=p; }
   });
   /* 노거수 줄기 — 줄기 겉까지 1.6 m 안이면 후보(줄기가 굵어 가운데까지 재면 늘 멀다). 도끼를 들었으면 똑같이 앞선다 */

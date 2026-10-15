@@ -136,6 +136,7 @@ function builtFloorAt(x,z){
 function floorAt(x,z,fromY){
   let t=heightAt(x,z)+giantRootAt(x,z);         // 노거수의 뿌리는 땅이다(95-giants.js)
   t=cragFloor(x,z,fromY,t);                     // 벼랑의 큰 바위 — 낮으면 딛고 높으면 벽이다(33-crags.js)
+  t=coastFloor(x,z,fromY,t);                    // 주상절리 기둥 위(34-coast.js)
   const gx=Math.round(x/CELL_B), gz=Math.round(z/CELL_B);
   { const pd=PADS.get(fkey(gx,gz)); if(pd&&pd.y>t&&(fromY===undefined||pd.y<=fromY+0.6)) t=pd.y; }   // 다진 터 — 발이 닿는 높이면 그 위를 딛는다
   const f=FOUNDS.get(fkey(gx,gz));

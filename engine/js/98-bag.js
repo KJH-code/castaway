@@ -1,7 +1,7 @@
 /* 98-bag.js — CASTAWAY
    가방 화면 — 소지품과 제작을 **한 화면**에 나란히 띄운다(I). 열려 있어도 **시간은 흐른다**(몸만 멈춰 선다 — 사용자 요청으로 되돌렸다).
-   물건을 누르면 가운데 칸에 그 물건으로 **할 수 있는 일**(들기·입기·먹기·빠른 칸·버리기)과
-   **만들 수 있는 것**(그 물건이 재료·도구로 드는 제작법)이 뜬다.
+   물건을 누르면 오른쪽 칸에 그 물건으로 **할 수 있는 일**(들기·입기·먹기·빠른 칸·버리기)과 **지금 만들 수 있는 것**만 뜬다.
+   얻는 법 · 쓰임 · 이것으로 만드는 것 같은 자세한 것은 **사전**에 있다 — '사전에서 자세히' 단추가 그 항목으로 건너간다(64-dex.js dexShow).
    (island_world (6).html 이 이 차례로 읽는다 — 차례와 묶음은 README.md 의 「코드 지도」에 있다) */
 "use strict";
 
@@ -159,31 +159,13 @@ function drawSel(){
       h+='<div class="sA q5"><span>빠른 칸</span>'
         +[0,1,2,3,4].map(i=>'<button data-act="quick" data-arg="'+i+'"'+(QUICK[i]===sl?' class="on"':'')+'>'+(i+1)+'</button>').join('')+'</div>';
     }
-    // ── 넣어 두면 되는 것
-    const put=[];
-    if(FIRING[id]) put.push('타는 모닥불에 넣어 두면 → <b>'+ITEMS[FIRING[id].out].n+'</b>'+(FIRING[id].count>1?' ×'+FIRING[id].count:''));
-    if(FUEL[id]) put.push('땔감 — 모닥불·제련로에 넣으면 '+fmtFuel(FUEL[id])+' 동안 탄다');
-    for(const S of SMELT) if(S.in.some(r=>r.id===id)||(S.need||[]).some(r=>r.id===id))
-      put.push('제련로 — '+S.n+' → <b>'+ITEMS[S.out.id].n+'</b>'+(S.out.n>1?' ×'+S.out.n:''));
-    if(put.length) h+='<div class="sS">넣어 두면</div><div class="sP">'+put.slice(0,6).map(p=>'<div>'+p+'</div>').join('')+'</div>';
-    // ── 이것으로 만들 수 있는 것
-    const uses=RECIPES.map((R,i)=>({R,i})).filter(o=>o.R.in.some(r=>bagUses(id,r))||(o.R.need||[]).some(r=>bagUses(id,r)));
-    uses.forEach(o=>{ o.ok=canCraft(o.R); });
-    uses.sort((a,b)=>(b.ok?1:0)-(a.ok?1:0));
-    h+='<div class="sS">이것으로 만들 수 있는 것 <span class="q">'+uses.filter(o=>o.ok).length+' / '+uses.length+'</span></div>';
-    if(!uses.length) h+='<div class="sE2">이 물건이 드는 제작법은 없다</div>';
-    else h+='<div class="sR">'+uses.slice(0,40).map(o=>{
-      const R=o.R, tool=(R.need||[]).some(r=>bagUses(id,r))&&!R.in.some(r=>bagUses(id,r));
-      return '<div class="rw'+(o.ok?'':' no')+'" data-act="craft" data-arg="'+o.i+'">'
-        +'<div class="rn">'+R.n+(tool?' <span class="q">도구로</span>':'')+'<span class="rk">'+R.tier+'</span></div>'
-        +'<div class="rm">'+(o.ok?'<span class="g">지금 만들 수 있다 — 누르면 만든다</span>':'<span class="b">모자란 것: '+bagMissing(R)+'</span>')+'</div></div>';
-    }).join('')+'</div>';
-    // ── 이것을 만드는 법
-    const made=RECIPES.filter(R=>R.out&&R.out.id===id);
-    if(made.length) h+='<div class="sS">이것을 만드는 법</div><div class="sP">'+made.slice(0,3).map(R=>
-      '<div>'+R.in.map(r=>matName(r)+' '+r.n).join(' + ')
-      +((R.need||[]).length?' · 도구 '+R.need.map(matName).join(' · '):'')
-      +(R.station?' · '+STATION[R.station].n+' 곁':'')+'</div>').join('')+'</div>';
+    /* ── 자세한 것은 사전으로(사용자 요청: 가방이 어렵다 — 가방에는 그림 · 이름 · 개수 · 할 수 있는 일만, 나머지는 사전에).
+       지금 만들 수 있는 것만 몇 줄 남긴다(누르면 만든다) */
+    const uses=RECIPES.map((R,i)=>({R,i})).filter(o=>(o.R.in.some(r=>bagUses(id,r))||(o.R.need||[]).some(r=>bagUses(id,r)))&&canCraft(o.R));
+    if(uses.length) h+='<div class="sS">지금 만들 수 있는 것 <span class="q">'+uses.length+'</span></div><div class="sR">'+uses.slice(0,5).map(o=>
+      '<div class="rw" data-act="craft" data-arg="'+o.i+'"><div class="rn">'+o.R.n+'<span class="rk">누르면 만든다</span></div></div>').join('')+'</div>';
+    h+='<div class="sA sL"><button data-act="dex" data-arg="'+id+'">사전에서 자세히 — 얻는 법 · 쓰임 · 만드는 것</button>'
+      +'<button data-act="find" data-arg="'+id+'">제작 나무에서 찾기</button></div>';
   }
   if(h!==BAG.lastHtml){ const sc=el.scrollTop; el.innerHTML=h; BAG.lastHtml=h; el.scrollTop=sc; }
 }
@@ -219,6 +201,10 @@ function bagAct(act,arg){
     const q=document.getElementById('crfS'); q.value=''; craftQuery=''; document.getElementById('crfL')._html=null;
     if(BAG.tab!=='craft') bagTab('craft');
     craftDirty=true; return; }
+  if(act==='dex'){ dexShow(arg); return; }
+  if(act==='find'){ const T=ITEMS[arg]; if(!T) return;
+    const q=document.getElementById('crfS'); q.value=T.n; craftQuery=T.n; document.getElementById('crfL')._html=null;
+    bagTab('craft'); craftDirty=true; return; }
   const sl=INV.slots[INV.sel];
   if(act==='craft'){
     const R=RECIPES[+arg]; if(!R) return;

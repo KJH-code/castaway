@@ -60,7 +60,7 @@ addEventListener('keydown',e=>{
   if(e.code==='F3'){ e.preventDefault(); PERF.toggle(); }
   if(e.code==='F5'){ e.preventDefault(); saveLocal(); }
   if(e.code==='F9'){ e.preventDefault(); askLoad(); }
-  if(e.code==='KeyB'){ toggleDex(); }
+  if(e.code==='KeyB'||(e.code==='Escape'&&dexOpen)){ e.preventDefault(); toggleDex(); return; }
   if(e.code==='KeyQ'&&BUILD.on){               // 삼각 벽 방향 뒤집기 (아크의 좌/우 경사벽)
     BUILD.hand=-BUILD.hand;
     toast('삼각 벽 방향 — '+(BUILD.hand>0?'오른쪽':'왼쪽'));
@@ -87,7 +87,7 @@ addEventListener('keydown',e=>{
     }
     else if(!craftOpen && i<QUICK.length) quickSwap(i);
   }
-  if(e.code==='Backquote'&&!e.repeat){ toggleDev(); }
+  if(e.code==='Semicolon'&&!e.repeat){ toggleDev(); }   // ; — 개발자 모드(사용자 요청 — ` 는 한글 자판에서 ₩ 라 안 눌렸다)
   if(DEV.on&&(e.code==='BracketRight'||e.code==='BracketLeft')&&!e.repeat){ devCave(e.code==='BracketRight'?1:-1); }   // 개발자 모드 — 굴 둘러보기   // 개발자 모드 — 날아서 둘러보기 · 다치지 않는다(80-player.js)
   if(e.code==='KeyV'){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
   /* T — 시간 배속. 20배를 넣어 두었다: 하늘과 날씨를 살펴볼 때 1배는 너무 느리고
@@ -454,6 +454,7 @@ for(const [bid,tab] of [['dexI','item'],['dexM','mineral'],['dexK','keys']])
   document.getElementById(bid).onclick=()=>{ dexTab=tab;
     for(const b of ['dexI','dexM','dexK']) document.getElementById(b).classList.toggle('on',b===bid);
     drawDex(); };
+document.getElementById('dexS').oninput=()=>{ if(dexTab!=='item') document.getElementById('dexI').click(); else drawDex(); };
 tgl('bProps',v=>{ showProps=v; if(propGroup) propGroup.visible=v; });
 tgl('bGuar',v=>{ newIsland(()=>{ GUARANTEE=v; generateWorld(); },()=>document.getElementById('bGuar').classList.toggle('on',!v)); });
 tgl('bDev',v=>toggleDev(v));

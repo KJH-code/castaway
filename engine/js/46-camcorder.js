@@ -16,104 +16,31 @@
    ③ **물속** — 화면이 일렁이고 청록으로 가라앉으며, 낮에는 수면에서 빛줄기가 내려온다.
    ④ **배터리** — 켜 둔 동안 닳는다(가득에서 14분). 화면 위 오른쪽에 남은 양이 뜬다. 15% 밑이면 화면이 지직거리고,
       다 닳으면 어둡고 흐린 흑백이 된다(놀 수는 있다). **손 충전기**를 손에 들고 좌클릭을 누르고 있으면 찬다.
-   ⑤ **다치면 렌즈가 깨진다**(사용자 요청 — 여는 화면의 깨진 금처럼) — 체력이 90% 밑으로 내려가면 맞은 자리 셋에서 차례로 금이 뻗는다
-      (`camcCrackTex` — 금 그림 한 장 · `CAMC.hurt`). 오른쪽 아래 자리가 먼저(체력 90 → 50%), 왼쪽 위(65 → 25%), 아래 가운데(45 → 10%).
-      금은 맞은 자리에서 둘레로 자라나고(셰이더가 거리로 드러낸다) 체력이 차면 도로 줄어든다. 금 둘레는 색이 크게 갈라지고 유리 조각마다
-      화면이 조금씩 어긋난다(조각 그림 `CAMC.shd` — 경계가 곧 금) · 뒤에 맞은 자리의 금은 먼저 난 금에서 멈춘다 · 맞은 자리는 잘게 부서져 있다(보로노이).
+   ⑤ **다치면 화면 가장자리부터 어두워진다**(사용자 요청 — 예전의 깨진 렌즈 금 대신) — 체력이 90% 밑이면 가장자리에서 어둠이
+      부드럽게(그러데이션) 번져 들어오고 체력이 낮을수록 가운데로 조여 든다. 그 어둠 띠 안에는 가는 줄이 가운데를 향해 흘러든다.
+      맞는 순간 한꺼번에 조여 들고 체력이 차면 아주 천천히(25초쯤) 물러난다(`CAMC.hurt`).
       **지직거림**도 체력을 따라 심해진다 — ntsc-rs(MIT)의 식을 옮겼다: 가로 줄무늬 눈 · 맨 아래 줄의 헤드 스위칭 · 아래쪽 트래킹 띠 ·
       가장자리 물결 · 깜빡임, 맞는 순간(`hurtFlash`)엔 줄 묶음이 찢기고 세로로 튄다.
    ========================================================================== */
 const CAMC={on:true, lines:480, rt:null, scene:null, cam:null, mat:null,
             bat:100, DRAIN:100/(14*60), CRANK:6.5, crank:0, under:0, warned:false, el:null,
             health:1, li:false, hsaid:0,           // 전지의 늙음(1 새것 → 채울수록 준다) · 리튬이온으로 갈았나
-            noise:1, hurt:0, crk:null, tPrev:0};    // 화면 잡음(0 끔 · 1 보통 · 2 짙게) — 설정 · 프리셋 · hurt 렌즈 깨짐(0~1) · crk 금 그림
+            noise:1, hurt:0, tPrev:0};    // 화면 잡음(0 끔 · 1 보통 · 2 짙게) — 설정 · 프리셋 · hurt 다친 정도(0~1 · 가장자리 어둠) 금 그림
 const CAMC_LINES=[0,360,480,720];                   // 설정 칸의 0~3 → 줄 수(0 = 끄기)
-/* 깨진 렌즈의 금 — 1024×512 두 장. ① 금(`CAMC.crk`): 맞은 자리 셋의 금을 빨강·초록·파랑 칸에 따로(셰이더가 자리마다 따로 드러낸다),
-   알파 칸에는 금 둘레 번짐(색이 갈라지는 너비). ② 조각(`CAMC.shd`): 금으로 둘러싸인 유리 조각마다 값 하나(자리마다 한 칸 · 0 은 조각 아님) —
-   셰이더가 조각마다 화면을 따로 어긋나게 하고 밝기를 달리한다(경계가 곧 금이라 금을 사이에 두고 어긋난다).
-   실제 유리처럼(NIST·SWGMAT 유리 파괴 지침): 맞은 자리에서 **방사형 금**이 뻗고 그 둘레를 **동심원 금**이 돈다 · **뒤에 맞은 자리의 금은
-   먼저 난 금에서 멈춘다**(`occ` — 앞 자리들의 금이 지나간 화소) · 맞은 자리는 잘게 부서져 있다(셰이더의 보로노이 — 아래).
-   맞은 자리(가로 · 아래에서 높이 — 그림 좌표)는 CAMC_HIT 하나를 그림과 셰이더가 같이 쓴다. 여는 화면(91-title.js)의 금과 같은 식으로 긋는다 */
-const CAMC_HIT=[[0.70,0.34,12,0.36,0.60],[0.27,0.68,10,0.20,0.44],[0.42,0.20,9,0.15,0.34]];   // [가로, 아래에서 높이, 금 수, 짧은·긴 금 길이(너비 몫)]
-function camcCrackTex(){
-  const W=1024, H=512, mk=()=>{ const c=document.createElement('canvas'); c.width=W; c.height=H; const g=c.getContext('2d'); g.fillStyle='#000'; g.fillRect(0,0,W,H); return [c,g]; };
-  const occ=new Uint8Array(W*H), occAt=(x,y)=>{ const i=Math.round(x), j=Math.round(y); return i>=0&&j>=0&&i<W&&j<H&&occ[j*W+i]===1; };
-  const occMark=(pts,r)=>{ for(let i=0;i<pts.length-1;i++){ const p=pts[i], q=pts[i+1], n=Math.ceil(Math.hypot(q[0]-p[0],q[1]-p[1]))+1;
-    for(let k=0;k<=n;k++){ const x=Math.round(p[0]+(q[0]-p[0])*k/n), y=Math.round(p[1]+(q[1]-p[1])*k/n);
-      for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++){ const X=x+dx, Y=y+dy; if(X>=0&&Y>=0&&X<W&&Y<H) occ[Y*W+X]=1; } } } };
-  /* 앞 자리의 금에 닿으면 거기서 멈춘다(맞은 자리 둘레 4 화소는 안 본다) — 멈췄으면 .stop */
-  const clip=(pts,k)=>{ if(!k) return pts; const o=[pts[0]];
-    for(let i=1;i<pts.length;i++){ const p=o[o.length-1], q=pts[i], L=Math.hypot(q[0]-p[0],q[1]-p[1]), n=Math.max(1,Math.ceil(L/1.5));
-      for(let s=1;s<=n;s++){ const x=p[0]+(q[0]-p[0])*s/n, y=p[1]+(q[1]-p[1])*s/n;
-        if(Math.hypot(x-pts[0][0],y-pts[0][1])>4&&occAt(x,y)){ o.push([x,y]); o.stop=true; return o; } }
-      o.push(q); }
-    return o; };
-  const [hc,hg]=mk(), ch=[], sh=[];
-  CAMC_HIT.forEach(([hx,hy,nr,l0,l1],k)=>{
-    const [c,f]=mk(), [sc,sg]=mk(), rnd=mulberry32(0x7e1e+k*977), ix=hx*W, iy=hy*H, rays=[];
-    for(let i=0;i<nr;i++){ const big=i%3===0, a=i/nr*6.283+rnd()*0.45, L=W*(big?l1*(0.75+rnd()*0.25):l0*(0.5+rnd()*0.5)), n=8; let pts=[[ix,iy]], x=ix,y=iy,aa=a;
-      for(let s=0;s<n;s++){ aa+=(rnd()-0.5)*0.40; x+=Math.cos(aa)*L/n; y+=Math.sin(aa)*L/n; pts.push([x,y]); }
-      pts=clip(pts,k); pts.big=big; rays.push(pts); }
-    const seg=(pts,w0,a0)=>{ const n=pts.length-1; f.lineCap='round'; hg.lineCap='round';
-      for(let i=0;i<n;i++){ const t=i/n, w=w0*Math.pow(1-t,0.55)+0.6, al=a0*(1-0.7*t), p=pts[i], q=pts[i+1];
-        f.strokeStyle='rgba(255,255,255,'+(0.20*al).toFixed(3)+')'; f.lineWidth=w*3.5; f.beginPath(); f.moveTo(p[0],p[1]); f.lineTo(q[0],q[1]); f.stroke();
-        f.strokeStyle='rgba(255,255,255,'+al.toFixed(3)+')'; f.lineWidth=w; f.beginPath(); f.moveTo(p[0],p[1]); f.lineTo(q[0],q[1]); f.stroke();
-        hg.strokeStyle='rgba(255,255,255,'+(0.55*al).toFixed(3)+')'; hg.lineWidth=w*9+8; hg.beginPath(); hg.moveTo(p[0],p[1]); hg.lineTo(q[0],q[1]); hg.stroke(); } };
-    for(const pts of rays) seg(pts,pts.big?2.6:1.5,0.95);
-    /* 둘레를 도는 동심원 금 — 이웃한 두 금의 같은 마디를 잇는다. 끝까지 이어진 것만 조각의 경계가 된다(ring[i][r] = 가운데 점) */
-    const ring=rays.map(()=>[]), rings=[];
-    for(let r=1;r<=4;r++) for(let i=0;i<rays.length;i++){ const A=rays[i], B=rays[(i+1)%rays.length]; if(rnd()<0.3||A.length<=r||B.length<=r) continue;
-      const p=A[r], q=B[r], m=[(p[0]+q[0])/2+(rnd()-0.5)*8,(p[1]+q[1])/2+(rnd()-0.5)*8], pts=clip([p,m,q],k);
-      seg(pts,1.0,0.75-r*0.12); rings.push(pts); if(!pts.stop) ring[i][r]=m; }
-    const g0=f.createRadialGradient(ix,iy,0,ix,iy,W*0.035); g0.addColorStop(0,'rgba(255,255,255,.75)'); g0.addColorStop(1,'rgba(255,255,255,0)');   // 맞은 자리 — 하얗게 부서진 점
-    f.fillStyle=g0; f.beginPath(); f.arc(ix,iy,W*0.035,0,6.283); f.fill();
-    /* 조각 — 이웃한 두 금 사이를 동심원 금으로 끊어 칸마다 다른 값으로 채운다(바깥 칸은 두 금 끝을 곧게 이어 닫는다) */
-    const poly=(P,v)=>{ if(P.length<3) return; sg.fillStyle='rgb('+v+','+v+','+v+')'; sg.beginPath(); sg.moveTo(P[0][0],P[0][1]); for(const q of P) sg.lineTo(q[0],q[1]); sg.closePath(); sg.fill(); };
-    for(let i=0;i<rays.length;i++){ const A=rays[i], B=rays[(i+1)%rays.length], top=Math.min(A.length,B.length)-1;
-      const lv=[0]; for(let r=1;r<=4&&r<=top;r++) if(ring[i][r]) lv.push(r);
-      for(let j=0;j<lv.length;j++){ const a=lv[j], b=j+1<lv.length?lv[j+1]:-1, P=[];
-        if(b>0){ P.push(...A.slice(a,b+1),ring[i][b],...B.slice(a,b+1).reverse()); }
-        else{ P.push(...A.slice(a),...B.slice(a).reverse()); }
-        if(a>0) P.push(ring[i][a]);
-        poly(P,1+Math.floor(rnd()*254)); } }
-    ch.push(f.getImageData(0,0,W,H).data); sh.push(sg.getImageData(0,0,W,H).data);
-    for(const pts of rays) occMark(pts,1); for(const pts of rings) occMark(pts,1);   // 다음 자리의 금은 여기서 멈춘다
-  });
-  /* 번짐은 굵게 그은 금을 흐린다 — filter 가 안 되는 브라우저는 굵은 줄 그대로 */
-  const [bc,bg]=mk(); try{ bg.filter='blur(9px)'; }catch(e){} bg.drawImage(hc,0,0); try{ bg.filter='none'; }catch(e){}
-  const hb=bg.getImageData(0,0,W,H).data, d=new Uint8Array(W*H*4), e=new Uint8Array(W*H*4);
-  for(let i=0;i<W*H;i++){ d[i*4]=ch[0][i*4]; d[i*4+1]=ch[1][i*4]; d[i*4+2]=ch[2][i*4]; d[i*4+3]=hb[i*4];
-    e[i*4]=sh[0][i*4]; e[i*4+1]=sh[1][i*4]; e[i*4+2]=sh[2][i*4]; e[i*4+3]=255; }
-  const T=new THREE.DataTexture(d,W,H,THREE.RGBAFormat); T.minFilter=T.magFilter=THREE.LinearFilter; T.needsUpdate=true;   // 줄 0 = 캔버스 맨 위 = 셰이더 v 0(화면 아래) — CAMC_HIT 의 높이가 '아래에서'인 까닭
-  const S=new THREE.DataTexture(e,W,H,THREE.RGBAFormat); S.minFilter=S.magFilter=THREE.NearestFilter; S.needsUpdate=true;      // 조각 값은 섞이면 안 된다
-  CAMC.shd=S;
-  return T;
-}
 function camcInit(){
   CAMC.scene=new THREE.Scene(); CAMC.cam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
-  CAMC.crk=camcCrackTex();
   CAMC.mat=new THREE.ShaderMaterial({
     depthTest:false, depthWrite:false, fog:false,
     uniforms:{tD:{value:null}, uRes:{value:new THREE.Vector2(640,480)}, uT:{value:0}, uBat:{value:1}, uUnder:{value:0},
               uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}, uHdr:{value:0}, uIll:{value:0},
-              tCrk:{value:CAMC.crk}, tShd:{value:CAMC.shd}, uHurt:{value:0}, uHit:{value:0}, uAsp:{value:16/9}},
+              uHurt:{value:0}, uHurtN:{value:0}, uHit:{value:0}, uAsp:{value:16/9}},
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
     fragmentShader:`
       precision highp float;
-      uniform sampler2D tD, tCrk, tShd; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurt,uHit,uAsp;
+      uniform sampler2D tD; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurt,uHurtN,uHit,uAsp;
       varying vec2 vUv;
       float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
       float vn1(float x){ float i=floor(x), f=fract(x); f=f*f*(3.0-2.0*f); return mix(h21(vec2(i,0.37)),h21(vec2(i+1.0,0.37)),f)*2.0-1.0; }   // 1차원 값잡음(−1~1)
-      /* 보로노이 칸 경계까지의 거리 · 칸 번호 — Inigo Quilez 의 'voronoi lines'(두 번 훑기 · MIT, © 2013 Inigo Quilez) 를 옮겼다.
-         맞은 자리의 잘게 부서진 유리 */
-      vec2 hh2(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453); }
-      vec3 vorB(vec2 x){
-        vec2 n=floor(x), f=fract(x), mg=vec2(0.0), mr=vec2(0.0); float md=8.0;
-        for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){ vec2 g=vec2(float(i),float(j)), r=g+hh2(n+g)-f; float d=dot(r,r); if(d<md){ md=d; mr=r; mg=g; } }
-        md=8.0;
-        for(int j=-2;j<=2;j++) for(int i=-2;i<=2;i++){ vec2 g=mg+vec2(float(i),float(j)), r=g+hh2(n+g)-f;
-          if(dot(mr-r,mr-r)>0.00001) md=min(md,dot(0.5*(mr+r),normalize(r-mr))); }
-        return vec3(md,n+mg); }
       /* **눈(snow)** — ntsc-rs(MIT, © valadaptive)의 'row_speckles' 를 셰이더로 옮겼다. 점이 아니라 8~64 화소짜리 **가로 줄무늬**가
          시작점에서 cos 로 출렁이며 (1−x/길이)² 로 사그라든다. 줄마다 세기가 다르고(퍼짐 an 이 크면 몰린 줄·빈 줄이 갈린다 — 로지스틱),
          줄 위의 자리는 64 화소 칸마다 '하나 이상 생길 확률'로 뽑는다(원본은 기하분포로 다음 자리까지 건너뛴다) */
@@ -128,35 +55,11 @@ function camcInit(){
       void main(){
         vec2 c=vUv-0.5, uv=0.5+c*(1.0+0.045*dot(c,c));                     // 렌즈 — 가장자리가 살짝 볼록하다
         float weak=smoothstep(0.15,0.0,uBat), dead=smoothstep(0.012,0.0,uBat);
-        /* **깨진 렌즈**(위 ⑤) — 금 그림은 화면 세로에 맞춰 읽는다(가로는 화면 비율만큼 — 금이 늘어나지 않게).
-           맞은 자리마다 금이 드러나는 반지름이 체력을 따라 자란다(거리는 세로 단위 — 가로 ×2) */
-        vec2 tc=vec2(0.5+(uv.x-0.5)*uAsp*0.5,uv.y);
-        vec2 C1=vec2(${CAMC_HIT[0][0]},${CAMC_HIT[0][1]}), C2=vec2(${CAMC_HIT[1][0]},${CAMC_HIT[1][1]}), C3=vec2(${CAMC_HIT[2][0]},${CAMC_HIT[2][1]});
-        vec2 e1=(tc-C1)*vec2(2.0,1.0), e2=(tc-C2)*vec2(2.0,1.0), e3=(tc-C3)*vec2(2.0,1.0);
-        vec3 dI=vec3(length(e1),length(e2),length(e3));
-        /* **금은 통째로** 나타나고 통째로 옅어진다(사용자 요청 — 예전엔 맞은 자리에서 반지름이 자라고 줄어 가장자리부터 사라지는 게 기괴했다).
-           맞은 자리 셋이 체력을 따라 차례로 짙어진다 */
-        vec3 mI=vec3(smoothstep(0.0,0.30,uHurt), smoothstep(0.32,0.60,uHurt), smoothstep(0.58,0.85,uHurt));
-        vec4 ck=texture2D(tCrk,tc), ckS=texture2D(tCrk,tc+vec2(0.0016,-0.0032));   // 금 · 그 오른쪽 아래의 그늘
-        float crk=max(max(ck.r*mI.x,ck.g*mI.y),ck.b*mI.z), crkS=max(max(ckS.r*mI.x,ckS.g*mI.y),ckS.b*mI.z);
-        float hz=ck.a*max(max(mI.x,mI.y),mI.z);                              // 금 둘레(번짐) — 색이 갈라지고 조각이 어긋난다
-        /* 유리 조각(tShd — 경계가 곧 금) — 조각마다 화면을 조금씩 다른 쪽으로 밀고 밝기를 달리한다. 맞은 자리에 가까울수록 크다 */
-        vec3 nk=vec3(1.0)-smoothstep(vec3(0.0),vec3(0.9,0.7,0.55),dI);
-        vec3 sd=texture2D(tShd,tc).rgb, sm=step(vec3(0.002),sd)*mI;
-        vec2 so=vec2(0.0); float sb=0.0;
-        so+=vec2(cos(sd.x*43.0),sin(sd.x*43.0))*sm.x*(0.0012+0.0050*nk.x); sb+=(fract(sd.x*17.3)-0.5)*sm.x;
-        so+=vec2(cos(sd.y*43.0),sin(sd.y*43.0))*sm.y*(0.0012+0.0050*nk.y); sb+=(fract(sd.y*17.3)-0.5)*sm.y;
-        so+=vec2(cos(sd.z*43.0),sin(sd.z*43.0))*sm.z*(0.0012+0.0050*nk.z); sb+=(fract(sd.z*17.3)-0.5)*sm.z;
-        uv+=so*smoothstep(0.0,0.15,uHurt);
-        /* 맞은 자리는 잘게 부서져 있다 — 가장 가까운 드러난 자리 둘레(0.12·0.09·0.08)를 보로노이 조각으로 쪼개 조각마다 어긋나게 한다 */
-        float cz=0.0, cl=0.0, cc=0.0; vec2 ce=vec2(0.0);
-        if(mI.x>0.0&&dI.x<0.12){ ce=e1; cz=mI.x*(1.0-smoothstep(0.05,0.12,dI.x)); }
-        else if(mI.y>0.0&&dI.y<0.09){ ce=e2+3.7; cz=mI.y*(1.0-smoothstep(0.035,0.09,dI.y)); }
-        else if(mI.z>0.0&&dI.z<0.08){ ce=e3+7.1; cz=mI.z*(1.0-smoothstep(0.03,0.08,dI.z)); }
-        if(cz>0.0){ vec3 vb=vorB(ce*42.0); cl=(1.0-smoothstep(0.02,0.07,vb.x))*cz; cc=h21(vb.yz);
-          uv+=(vec2(h21(vb.yz+1.3),h21(vb.yz+7.1))-0.5)*0.010*cz; }
+        float hz=0.0;                                                          // (예전 금 둘레의 색 갈라짐 — 금을 걷어 0)
         /* 지직거림의 세기 — 체력 + 맞는 순간 */
-        float S=uHurt*0.75+uHit, fr=floor(uT*30.0), rb=floor(uv.y*uRes.y);      // rb — 아래에서 몇째 줄(그림판 줄)
+        /* 가장자리 띠(위 ⑤) — 어둠과 흰 줄이 이 띠 안에만 든다. 체력이 낮을수록 안쪽 테두리(rinE)가 가운데로 조여 든다 */
+        vec2 cvE=(uv-0.5)*vec2(uAsp,1.0); float rrE=length(cvE), rinE=mix(1.0,0.12,uHurt), edgeK=smoothstep(rinE-0.25,rinE+0.30,rrE);
+        float S=(uHurtN*0.75)*mix(1.0,edgeK,step(0.001,uHurt))+uHit, fr=floor(uT*30.0), rb=floor(uv.y*uRes.y);     // rb — 아래에서 몇째 줄 · 지직거림은 **지금 체력**을 따른다(금은 천천히 옅어지지만 줄무늬는 체력이 차면 바로 걷힌다)
         /* **헤드 스위칭**(ntsc-rs 'head_switching') — 맨 아래 몇 줄이 옆으로 밀린다. 아래로 갈수록 (k)^1.5 로 크게 · 줄마다 ±0.5 화소 흔들림 ·
            맨 윗줄은 가운데 어디쯤부터만 밀리고 그 자리에 밝은 끌림이 남는다 */
         float hsN=floor(2.0+10.0*S), hsT=0.0;
@@ -205,13 +108,18 @@ function camcInit(){
           col+=vec3(0.26,0.42,0.40)*ray*smoothstep(0.10,1.0,uv.y)*uUnder*uDay*0.55;
         }
         col=mix(vec3(Y),col,0.94)*0.95+0.028;                                  // 싼 센서 — 검정이 살짝 뜬다
-        /* 금을 긋는다 — 조각마다 밝기가 조금 다르고(조각마다 빛을 받는 각이 다르다) · 오른쪽 아래로 그늘 · 가운데 흰 날 · 둘레에 엷은 빛 ·
-           맞은 자리의 부서진 조각은 잔금이 촘촘하고 몇 조각은 뿌옇게 하얗다 */
-        col*=1.0+sb*0.10*smoothstep(0.0,0.15,uHurt);
-        col*=1.0-0.55*crkS;
-        col=mix(col,vec3(0.94),crk*0.85)+hz*0.035;
-        col=mix(col,vec3(0.82),step(0.64,cc)*0.32*cz);
-        col=mix(col,vec3(0.95),cl*0.75);
+        /* **가장자리부터 어둠**(위 ⑤ · 사용자 요청) — 체력이 낮을수록 어둠의 안쪽 테두리가 가운데로 조여 든다(그러데이션 0.55 폭).
+           어둠 띠 안에서는 가는 줄(방사형)이 가운데를 향해 흘러든다 — 줄마다 굵기·밝기·빠르기가 다르다 */
+        if(uHurt>0.001){
+          vec2 cv=cvE; float rr=rrE, rin=rinE;
+          float dk=smoothstep(rin,rin+0.40,rr);
+          float an=atan(cv.y,cv.x)*9.549, li=floor(an), lf=fract(an);                // 원을 60 칸 — 칸마다 줄 하나
+          float on=step(0.55,h21(vec2(li,1.7))), w=0.06+0.10*h21(vec2(li,4.3));
+          float flow=fract(rr*3.0+uT*(0.35+0.4*h21(vec2(li,8.1))));                   // 바깥에서 안으로(반지름이 줄며) 흐른다
+          float ln=on*(1.0-smoothstep(0.0,w,abs(lf-0.5)))*smoothstep(0.0,0.5,flow)*(1.0-flow);
+          col*=1.0-0.93*dk;
+          col+=vec3(0.55)*ln*dk*(1.0-dk)*1.6*uHurt;
+        }
         col+=hsT;                                                              // 헤드 스위칭 자리의 밝은 끌림
         float n=h21(uv*uRes+uT*61.0)-0.5;
         /* 흰 잡음 — 화면 화소마다(그림판 화소가 아니라) 새로 뽑아 잘게 지직거린다. 어두울수록 · 배터리가 약할수록 심하다.
@@ -273,8 +181,9 @@ function camcEnd(under){
   /* 깨진 렌즈 — 체력 90% 밑에서 금이 생겨 10% 에서 다 퍼진다. 맞으면 금이 0.3초쯤에 걸쳐 뻗고, 체력이 차면 천천히 줄어든다 */
   { const now=performance.now(), dt=Math.min(0.1,(now-(CAMC.tPrev||now))/1000); CAMC.tPrev=now;
     const want=PL.dead?1:clamp((0.9-PL.hp/HPMAX)/0.8,0,1);
-    CAMC.hurt+=(want-CAMC.hurt)*(1-Math.exp(-dt*(want>CAMC.hurt?9:0.35)));   // 체력이 차면 금이 천천히(3초쯤) 옅어진다
-    U.uHurt.value=CAMC.hurt; U.uHit.value=Math.min(1,hurtFlash*1.4);
+    /* 금은 **맞는 순간 한꺼번에** 생기고, 체력이 차도 **아주 천천히**(25초쯤) 옅어진다(사용자 요청). 지직거림(uHurtN)은 지금 체력 그대로 */
+    if(want>CAMC.hurt) CAMC.hurt=want; else CAMC.hurt+=(want-CAMC.hurt)*(1-Math.exp(-dt*0.04));
+    U.uHurt.value=CAMC.hurt; U.uHurtN.value=PL.dead?0:clamp((0.9-PL.hp/HPMAX)/0.8,0,1); U.uHit.value=Math.min(1,hurtFlash*1.4);
     U.uAsp.value=renderer.domElement.width/Math.max(1,renderer.domElement.height); }
   renderer.setRenderTarget(null);
   renderer.render(CAMC.scene,CAMC.cam);

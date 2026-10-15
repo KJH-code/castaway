@@ -43,11 +43,20 @@ const GEO={
                 +'다루기 쉽다 — 축전지의 극판이 여기서 나온다.'},
   cinnabar:{tier:'간이 곡괭이', where:'분기공 둘레에만 — 유황과 같은 자리',
            note:'열수가 식으며 앉은 붉은 딱지. 구우면 수은이 김으로 날아오른다. '
-                +'그 김은 마시면 안 된다. 뇌관의 뇌홍이 여기서 시작한다.'}
+                +'그 김은 마시면 안 된다. 뇌관의 뇌홍이 여기서 시작한다.'},
+  basalt: {tier:'경도 2', where:'분기공 언저리 — 화산이 흘린 용암',
+           note:'용암이 식으며 오그라들어 육각 기둥 결로 갈라진 검은 돌. 결을 따라 판돌로 떨어진다. '
+                +'열을 오래 품어 달궈 두면 고기·생선을 굽는 돌판이 된다.'},
+  karst:  {tier:'경도 1', where:'낮은 초지 · 숲 · 덤불',
+           note:'얕은 바다 밑에 쌓인 조개껍데기와 산호가 굳어 솟은 흰 돌. 빗물에 녹아 구멍이 숭숭하다. '
+                +'구우면 석회가 되고, 그 속에 박힌 부싯돌 단괴가 딸려 나온다.'},
+  sandstone:{tier:'경도 2', where:'바닷가 가까운 낮은 모래땅',
+           note:'모래가 켜켜이 쌓여 굳은 돌. 켜를 따라 쐐기를 박으면 반듯한 석재로 떨어진다 — '
+                +'화강암처럼 불로 달굴 필요가 없지만 무르다.'}
 };
 /* 사전 광물 탭에 싣는 차례 — 캐는 단계가 얕은 것부터 */
 const MINERALS=['flint','pebble','clay','sand','sulfur','iron','tin','coal','copper',
-                'granite','zinc','galena','cinnabar'];
+                'granite','basalt','karst','sandstone','zinc','galena','cinnabar'];
 
 /* 광물 삽화 — 게임 안 암석과 같은 배합표(`HABIT`)를 2차원으로 옮긴다.
    ① 혹으로 윤곽을 흔들고 ② 무작위 직선으로 잘라 내고(모난 면) ③ 정사각형 쪽으로
@@ -69,7 +78,10 @@ const LUSTRE={
   sulfur  :{met:0.18,tex:'botry'},  // 포도송이 혹
   cinnabar:{met:0.25,tex:'botry'},
   clay    :{met:0.00,tex:'smooth'},
-  sand    :{met:0.00,tex:'speck'}
+  sand    :{met:0.00,tex:'speck'},
+  basalt  :{met:0.05,tex:'crack'},  // 기둥 결
+  karst   :{met:0.02,tex:'smooth'},
+  sandstone:{met:0.00,tex:'step'}   // 켜
 };
 function mineralIcon(k,hex){
   if(ICONS[k]) return ICONS[k];
@@ -553,7 +565,7 @@ const CONTROLS_GUIDE=[
   ['화면 · 저장',[
     ['M','지도 펴기/접기 — 펴면 마우스가 풀린다 · 좌클릭 핀 꽂기(따라가기) · 핀 우클릭 뽑기 · 따라가는 핀은 나침반에'],
     ['V','자유 카메라'],
-    ['`','개발자 모드 — 날아서 둘러보기(WASD · Space 위 · C 아래 · Shift 빠르게 · 휠 빠르기) · 다치지도 배고프지도 않는다'],
+    [';','개발자 모드 — 날아서 둘러보기(WASD · Space 위 · C 아래 · Shift 빠르게 · 휠 빠르기) · 다치지도 배고프지도 않는다'],
     ['T','시간 빠르게(1 → 20 → 60 → 300배)'],
     ['Tab','설정 — 그래픽·캠코더 화면(줄 수)·음량·마우스 감도·저장 칸·섬 생성'],
     ['F3','성능 창'],
@@ -567,17 +579,36 @@ function drawDex(){
   const L=document.getElementById('dexL');
   let h='';
   if(dexTab==='item'){
-    const order=Object.keys(ITEMS);
-    h+='<div class="dt">아이템 '+order.length+'종</div>';
+    /* 가방에서 뺀 자세한 것이 다 여기에 있다(사용자 요청: 가방이 어렵다 — 자세한 것은 사전에) —
+       먹으면 · 입으면 · 성능 · 얻는 법 · 넣어 두면(모닥불·제련로) · 이것으로 만드는 것. 위의 찾기 칸으로 거른다 */
+    const q=(document.getElementById('dexS')||{value:''}).value.trim();
+    const order=Object.keys(ITEMS).filter(id=>!q||ITEMS[id].n.indexOf(q)>=0||(ITEMS[id].use||'').indexOf(q)>=0);
+    h+='<div class="dt">아이템 '+order.length+'종'+(q?' — \''+q.replace(/[<>&"']/g,'')+'\' 찾기':'')+'</div>';
     for(const id of order){
-      const it=ITEMS[id], got=obtainOf(id);
-      h+='<div class="de"><div class="dn"><span>'+it.n+'</span>'
+      const it=ITEMS[id], got=obtainOf(id), ico=ITEM_ICON[id];
+      h+='<div class="de" id="dx_'+id+'">'+(ico?'<img class="ic" src="'+ico+'" alt="">':'')
+        +'<div class="dn"><span>'+it.n+'</span>'
         +'<span class="dw">'+it.kg+' kg</span></div>'
         +'<div class="du">'+it.use+'</div>';
+      const st=[];
+      if(it.food) st.push('허기 +'+it.food); if(it.water) st.push('목마름 +'+it.water); if(it.drink) st.push('목마름 +'+it.drink.n);
+      if(it.heal){ const H=it.heal; if(H.hp) st.push('체력 +'+H.hp); if(H.stam) st.push('기력 +'+H.stam); if(H.ill) st.push('탈을 가라앉힌다'); }
+      if(it.raw) st.push('날것 — 탈이 날 수 있다'); if(it.poison) st.push('독'); if(it.rot) st.push(Math.round(it.rot/24)+'일이면 상한다');
+      if(it.empty) st.push('다 먹으면 빈 '+ITEMS[it.empty].n+'이 남는다');
+      if(it.wear){ const W=it.wear; st.push(WEAR_N[W.slot]+(W.armor?' · 방어 '+W.armor:'')+(W.warm?' · 보온 '+W.warm:'')+(W.carry?' · 적재 +'+W.carry+' kg':'')); }
+      if(st.length) h+='<div class="dg"><b>쓰면</b> '+st.join(' · ')+'</div>';
       if(it.tool) h+='<div class="dg"><b>성능</b> '+toolSpec(it.tool,it)+'</div>';
       h+='<div class="dg">'+(got.length?got.map(g=>'<b>'+g.split(' — ')[0]+'</b> '
           +g.split(' — ').slice(1).join(' — ')).join('<br>')
-        :'<b>처음부터 지님</b>')+'</div></div>';
+        :'<b>처음부터 지님</b>')+'</div>';
+      const put=[];
+      if(FIRING[id]) put.push('타는 모닥불에 넣어 두면 → '+ITEMS[FIRING[id].out].n+(FIRING[id].count>1?' ×'+FIRING[id].count:''));
+      if(FUEL[id]) put.push('땔감 — '+fmtFuel(FUEL[id])+' 동안 탄다');
+      for(const S of SMELT) if(S.in.some(r=>r.id===id)||(S.need||[]).some(r=>r.id===id)) put.push('제련로 — '+S.n+' → '+ITEMS[S.out.id].n);
+      if(put.length) h+='<div class="dg"><b>넣어 두면</b> '+put.slice(0,6).join('<br>')+'</div>';
+      const us=RECIPES.filter(R=>R.in.some(r=>bagUses(id,r))||(R.need||[]).some(r=>bagUses(id,r)));
+      if(us.length) h+='<div class="dg"><b>이것으로 만드는 것 '+us.length+'</b> '+us.map(R=>R.n).join(' · ')+'</div>';
+      h+='</div>';
     }
   }else if(dexTab==='keys'){
     h+='<div class="dt">조작 안내</div>';
@@ -604,9 +635,23 @@ function drawDex(){
   }
   L.innerHTML=h;
 }
+/* 가방의 '사전에서 자세히' — 사전을 아이템 탭으로 열고 그 물건으로 굴려 밝힌다. 사전을 닫으면 가방으로 돌아간다 */
+let dexBack=false;
+function dexShow(id){
+  if(!INV.slots.some(s=>s.id==='codex')){ toast('사전을 가지고 있지 않다'); return; }
+  const s=document.getElementById('dexS'); if(s) s.value='';
+  dexTab='item'; for(const [b,t] of [['dexI','item'],['dexM','mineral'],['dexK','keys']]) document.getElementById(b).classList.toggle('on',t==='item');
+  if(!ITEM_ICON[id]) itemIcon(id);
+  if(!dexOpen) toggleDex(); else drawDex();
+  dexBack=true;
+  const el=document.getElementById('dx_'+id);
+  if(el){ el.classList.add('hl'); el.scrollIntoView({block:'center'}); }
+}
 function toggleDex(){
   if(!INV.slots.some(s=>s.id==='codex')){ toast('사전을 가지고 있지 않다'); return; }
   dexOpen=!dexOpen;
+  if(!dexOpen&&dexBack){ dexBack=false; document.getElementById('dex').style.display='none'; openBag(); return; }
+  if(dexOpen) dexBack=false;
   document.getElementById('dex').style.display=dexOpen?'block':'none';
   if(dexOpen){
     invOpen=false; craftOpen=false; closeCfg();

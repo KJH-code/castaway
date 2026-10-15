@@ -33,8 +33,8 @@ function loop(){
     const dh=dt*timeScale/60;                  // 실시간 1분 = 게임 1시간 (하루 24분)
     gameHours+=dh; hourOfDay=(hourOfDay+dh)%24;
     updateShip(dt);                            // 보급선이 내려놓고 떠난다
-    updateTorch(dt,dh); updateLamp(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh); updateStoreTags(); updateRubble(); updateFlora(); updateSea(dt); updateFoam(); updateWildlife(dt); updatePush(dt); updateCamcorder(dt);
-    updateWeapon(dt); updatePower(dt); updateDecay(dh);
+    updateTorch(dt,dh); updateLamp(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh); updateStoreTags(); updateRubble(); updateFlora(); updateSea(dt); updateReef(dt); updateFoam(); updateWildlife(dt); updatePush(dt); updateCamcorder(dt);
+    updateWeapon(dt); updatePower(dt); updateDecay(dh); updateGeo(dt); updateFalls(dt);
     updateOcean(now*0.001);
     if(PO) tp=PERF.lap(4,tp);
     updateSky();
@@ -82,6 +82,7 @@ function loop(){
   const tr=PO?performance.now():0;
   if(PO) PERF.gpuBegin();
   try{ LIGHT.flush(); renderFrame(); }catch(e){ showErr('렌더',e); }   // 새로 붙은 물체는 그리기 전에 배역을 받는다
+  if(TITLE.snapWant) titleSnapTake();                                   // 쓰러진 순간의 그림 — 그린 직후에 떠 둔다(91-title.js)
   if(PO){ PERF.gpuEnd(); PERF.lap(6,tr); PERF.frame(now); }
 }
 

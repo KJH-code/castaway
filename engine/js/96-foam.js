@@ -25,50 +25,6 @@ const FOAM={mesh:null, geo:null, cap:3600, K:6, KS:2, KB:1, R:44, step:0.75, lev
             useC:true, synced:false, ST:9, out:new Float32Array(2048*9),
             U:{uFT:{value:0}, uFP:WATER_U.uFP, uFR:WATER_U.uFR}};   // uFP·uFR 은 물 셰이더와 같이 쓴다 — 조각이 서는 데서는 칠한 거품이 옅어진다
 
-/* 조각 하나 = **프랙탈 사면체 뭉치**(사용자 요청). 짜임:
-     ① **큰 사면체 셋이 모서리로 이어진다** — 앞 사면체의 한 모서리를 축으로 반 바퀴 돌린 자리에 다음 것이 선다(모서리 하나만 맞닿는다).
-        다음 것은 그 맞은편 모서리로 또 이어져 지그재그 사슬이 된다. 크기는 저마다 다르다(0.78~1.12배).
-     ② **면마다 작은 사면체가 돋는다** — 큰 사면체의 네 면 가운데에 밑면을 붙이고 바깥으로 선다(면 크기의 0.34~0.64배).
-     ③ 그 작은 사면체의 바깥 면에서 **또 더 작은 것**이 돋는다(하나 · 가끔 둘 · 0.38~0.62배) — 같은 꼴이 줄어들며 되풀이된다.
-   3 + 12 + 열여섯 안팎 = 서른 남짓. 뭉치는 한 덩어리로 구르고(사슬이 안 끊어진다), 돋은 것들은 붙은 자리를 축으로 숨 쉬듯 조금 커졌다
-   작아진다. 사면체마다 aSub(붙은 자리 xyz · 박자)와 aLv(몇 대인가 0·1·2)를 단다 */
-function foamCluster(){
-  const P=[], Nn=[], S=[], L=[], rnd=mulberry32(0xf0a3);
-  const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]], add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]], mul=(a,k)=>[a[0]*k,a[1]*k,a[2]*k];
-  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]], dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
-  const len=a=>Math.hypot(a[0],a[1],a[2]), unit=a=>{ const l=len(a)||1; return [a[0]/l,a[1]/l,a[2]/l]; };
-  const cen=v=>mul(v.reduce(add),1/v.length);
-  /* 사면체 하나를 버퍼에 — 면마다 바깥을 보는 법선(면이 각져 보인다) */
-  const put=(T,anchor,lv)=>{ const c=cen(T), ph=rnd()*6.283;
-    for(const f of [[0,1,2],[0,3,1],[1,3,2],[2,3,0]]){ let v=[T[f[0]],T[f[1]],T[f[2]]], n=unit(cross(sub(v[1],v[0]),sub(v[2],v[0])));
-      if(dot(n,sub(cen(v),c))<0){ v=[v[0],v[2],v[1]]; n=mul(n,-1); }
-      for(const q of v){ P.push(q[0],q[1],q[2]); Nn.push(n[0],n[1],n[2]); S.push(anchor[0],anchor[1],anchor[2],ph); L.push(lv); } } };
-  /* 면 f(세 점) 위에 돋는 사면체 — 밑면은 그 면을 가운데로 k 배 줄인 세모, 꼭짓점은 바깥으로 */
-  const bud=(face,inside,k)=>{ const g=cen(face); let n=unit(cross(sub(face[1],face[0]),sub(face[2],face[0]))); if(dot(n,sub(g,inside))<0) n=mul(n,-1);
-    const base=face.map(q=>add(g,mul(sub(q,g),k))), e=len(sub(base[1],base[0]));
-    return {T:[base[0],base[1],base[2],add(g,mul(n,e*0.8165))], g}; };
-  const faces=T=>[[T[0],T[1],T[2]],[T[0],T[1],T[3]],[T[1],T[2],T[3]],[T[2],T[0],T[3]]];
-  /* ① 사슬 — 정사면체에서 시작해, 모서리 AB 를 축으로 C·D 를 반 바퀴 돌려 다음 것을 세운다(다음 축은 새 C·D 모서리) */
-  const R0=0.40, mains=[]; let T=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]].map(q=>mul(q,R0/Math.sqrt(3)));
-  mains.push(T);
-  for(let k=1;k<3;k++){ const A=T[0], B=T[1], ax=unit(sub(B,A)), mid=mul(add(A,B),0.5), sc=0.78+rnd()*0.34;
-    const flip=q=>{ const r=sub(q,A), along=mul(ax,dot(r,ax)); return add(A,sub(mul(along,2),r)); };            // 축을 지나 맞은편으로
-    const grow=q=>add(mid,mul(sub(q,mid),sc));                                                                 // 크기가 다르다(맞닿은 모서리 가운데를 축으로)
-    const C2=grow(flip(T[2])), D2=grow(flip(T[3]));
-    T=[C2,D2,grow(A),grow(B)]; mains.push(T); }
-  /* 뭉치의 가운데를 원점으로 옮긴다(셰이더가 원점을 축으로 굴린다) */
-  { const c=cen(mains.map(cen)); for(const M of mains) for(let i=0;i<4;i++) M[i]=sub(M[i],c); }
-  for(const M of mains){ put(M,cen(M),0);
-    const mc=cen(M);
-    for(const f of faces(M)){ const b1=bud(f,mc,0.34+rnd()*0.30); put(b1.T,b1.g,1);                              // ② 면마다 하나
-      const fs=faces(b1.T).slice(1), c1=cen(b1.T), u2=rnd(), n2=u2<0.30?0:u2<0.88?1:2, first=(rnd()*3)|0;      // 없기도 하고(30%) 둘이기도 하다(12%)                       // ③ 그 바깥 면(밑면 빼고 셋)에서 또 하나(가끔 둘)
-      for(let k=0;k<n2;k++){ const b2=bud(fs[(first+k)%3],c1,0.38+rnd()*0.24); put(b2.T,b2.g,2); } } }
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
-  g.setAttribute('aSub',new THREE.Float32BufferAttribute(S,4)); g.setAttribute('aLv',new THREE.Float32BufferAttribute(L,1));
-  FOAM.tets=P.length/36;
-  return g;
-}
 /* **입체 거품 뭉치**(사용자 요청 — 둥근 판 거품이 이상하다 · 더 입체로). 사면체 뭉치는 세모로 보여 걷어졌었다(#29) — 이제
    **거품 방울**이 엉긴 뭉치다: 큰 방울 하나(20면) 둘레에 가운데 방울 셋(20면)이 반쯤 묻혀 붙고, 잔 방울 넷(8면)이 그 겉에 돋는다.
    법선은 방울 가운데에서 바깥으로(둥글게 보인다). 짜임은 사면체 뭉치와 같다 — 방울마다 aSub(붙은 자리 · 박자) · aLv(대) */
@@ -103,7 +59,7 @@ function foamLaceTex(){
   const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;
 }
 function foamInit(){
-  const base=foamBubbles(), g=new THREE.InstancedBufferGeometry();   // 거품 방울 뭉치(사면체 뭉치 foamCluster 는 남겨 둔다)
+  const base=foamBubbles(), g=new THREE.InstancedBufferGeometry();   // 거품 방울 뭉치
   g.setAttribute('position',base.attributes.position); g.setAttribute('normal',base.attributes.normal); g.setAttribute('aSub',base.attributes.aSub); g.setAttribute('aLv',base.attributes.aLv);
   /* 조각마다 — aA 물가의 점(x·z)과 뭍 쪽 방향(nx·nz) · aB 1/비탈 · 물가를 따라 비낀 거리 · 물머리보다 처지는 거리 · 크기
                  aC 씨앗 · 버티는 몫(물이 빠질 때 얼마나 오래 남나) · 구르는 빠르기 · 튀는 높이 */
