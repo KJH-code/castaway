@@ -28,4 +28,5 @@ cp "$R/engine/three.min.js" "$T/bake.html" .
 python3 -m http.server "$PORT" --bind 127.0.0.1 >/dev/null 2>&1 & SV=$!
 sleep 1; node "$T/bake.mjs" "m=d_&a=attr.bin&s=2048" regions.png; kill $SV
 python3 "$T/recolor.py"                                       # ⑫ 다시 칠하기(바탕 · 발광)
+python3 "$T/halo_new.py"                                      #    머리 위 고리를 돌 조각 고리로 새로 빚기(그림 조각도 그려 넣음)
 python3 "$T/export.py" "$OUT" 2.2                             # ⑬ GLB(키 약 3 m)
