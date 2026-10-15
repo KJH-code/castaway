@@ -22,7 +22,7 @@ Windows 는 "PC 보호" 창에서 **추가 정보 → 실행**, macOS 는 **우�
 지형은 시드 하나에서 결정론적으로 생성됩니다 — 같은 시드는 언제나 같은 섬이 됩니다.
 768 × 768 셀을 셀 한 변 2.5 m(1,920 m)로 만든 뒤 통째로 키웁니다 — 새 섬은 2배(**3,840 m** = 14.7 km²)이고 설정의 '섬 넓이'로 1.9 · 3.8 · 5.8 km 를 고릅니다.
 
-**맥용 베타 빌드**는 `sh beta/build-mac.sh` — `beta/builds/` 에 `CASTAWAY.app` 과 `.dmg` 가 생깁니다([beta/README.md](beta/README.md)).
+**설치 파일**은 판 번호마다 `beta/builds/<판>/{mac,windows,linux}/` 에 모입니다 — 맥은 `sh beta/build-mac.sh`, 윈도·리눅스(그리고 CI 의 맥)는 `sh beta/fetch-ci.sh` 가 GitHub Actions 에서 받아 옵니다([beta/README.md](beta/README.md)).
 
 ---
 
