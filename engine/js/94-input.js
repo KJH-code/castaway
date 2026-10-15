@@ -103,6 +103,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyR'){ newIsland(generateWorld); }
   if(e.code==='KeyZ'){                         // 짓기 모드
     if(BUILD.on){ exitBuild(); toast('짓기 끝'); }
+    else if(PL.under) toast('땅속에서는 지을 수 없다');
     else enterBuild(null);
   }
   if(e.code==='KeyX'){                         // 재장전

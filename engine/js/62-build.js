@@ -134,7 +134,9 @@ function builtFloorAt(x,z){
 }
 /* 발밑 — 지금 서 있는 높이보다 위에 있는 지붕은 천장이지 바닥이 아니다 */
 function floorAt(x,z,fromY){
-  let t=heightAt(x,z)+giantRootAt(x,z);         // 노거수의 뿌리는 땅이다(95-giants.js)
+  const h0=heightAt(x,z);
+  if(PL.under&&fromY!==undefined&&fromY<h0-3) return underFloorAt(x,z);   // 땅속에 있고 땅 밑 3 m 아래 — 땅속의 바닥(96-underworld.js · 땅 위 벼랑 앞에서 땅속으로 빠지지 않게 사람이 땅속일 때만)
+  let t=h0+giantRootAt(x,z);                    // 노거수의 뿌리는 땅이다(95-giants.js)
   t=cragFloor(x,z,fromY,t);                     // 벼랑의 큰 바위 — 낮으면 딛고 높으면 벽이다(33-crags.js)
   t=coastFloor(x,z,fromY,t);                    // 주상절리 기둥 위(34-coast.js)
   const gx=Math.round(x/CELL_B), gz=Math.round(z/CELL_B);

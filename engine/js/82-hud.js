@@ -123,6 +123,7 @@ function drawMap(){
     mapBaseProps=showProps; mapBaseT=now;
   }
   ctx.drawImage(mapBase,0,0);
+  if(PL.under&&typeof underMapImg==='function'){ ctx.fillStyle='rgba(0,0,0,0.72)'; ctx.fillRect(0,0,N,N); ctx.drawImage(underMapImg(),0,0); }   // 땅속 — 땅 위 지도를 어둡게 덮고 굴 방·굴길·수직굴을 그린다(96-underworld.js)
   /* 핀 — 화면에서 머리가 큰 지도 9 px · 작은 지도 4.5 px 쯤 되게(캔버스 768 을 172~688 px 로 줄여 보인다) */
   const ps=(mapOpen?9:4.5)*N/mapPx();
   if(pinAct>=0&&MAPPINS[pinAct]){                     // 따라가는 핀까지 점선
@@ -400,7 +401,7 @@ function updateHUD(dt){
   hudT(document.getElementById('iTime'),String(H).padStart(2,'0')+':'+String(M).padStart(2,'0'));
   hudT(document.getElementById('iPos'),Math.round(PL.pos.x)+', '+Math.round(PL.pos.z));
   hudT(document.getElementById('iAlt'),(PL.swim?'수중 ':'')+Math.round(PL.pos.y)+' m');
-  hudT(document.getElementById('iBio'),caveAt(PL.pos.x,PL.pos.z,-0.5)?'동굴':BIOME_INFO[s.biome].n);
+  hudT(document.getElementById('iBio'),PL.under?'땅속':caveAt(PL.pos.x,PL.pos.z,-0.5)?'동굴':BIOME_INFO[s.biome].n);
   hudT(document.getElementById('iFps'),fps);
   const hpF=document.getElementById('hpF'), hpT=document.getElementById('hpT');
   if(hpF){

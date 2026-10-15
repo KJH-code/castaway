@@ -31,9 +31,10 @@ function renderFrame(){
   }
   const tape=camcBegin();               // 캠코더가 켜져 있으면 낮은 해상도 그림판에 찍는다(46-camcorder.js)
   renderer.autoClear=false;
-  renderer.setClearColor(skyUnder?scene.fog.color:skyScene.background,1);   // 물속이면 하늘 대신 물빛(updatePlayer 가 정한 안개색)
+  const noSky=skyUnder||(typeof UNDER!=='undefined'&&UNDER.u>0.97);   // 땅속(96-underworld.js)도 하늘을 안 그린다 — 다만 물속 화면(빛줄기·청록)은 아니다
+  renderer.setClearColor(noSky?scene.fog.color:skyScene.background,1);   // 물속이면 하늘 대신 물빛(updatePlayer 가 정한 안개색)
   renderer.clear();
-  if(!skyUnder){ renderer.render(skyScene,skyCam); renderer.clearDepth(); }
+  if(!noSky){ renderer.render(skyScene,skyCam); renderer.clearDepth(); }
   renderer.render(scene,camera);
   if(tape) camcEnd(skyUnder);           // 그림판을 화면에 테이프 화질로 옮긴다
   renderer.autoClear=true; skyUnder=false;

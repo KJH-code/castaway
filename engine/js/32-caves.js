@@ -18,6 +18,26 @@
      불빛 풀(40-light.js)에 걸어 둔다 — 광원 수는 안 는다(풀의 세 자리 가운데 남는 자리를 쓰고, 모닥불·횃불이 있으면 그쪽이 먼저다).
    ========================================================================== */
 const CAVE_MESH=[];
+/* ── 굴 바위의 참 꼴(눈의 경계 — 사용자 지적: 굴 벽·바위에 붙어 고개를 조금 돌리면 속이 보인다) ──────────────
+   예전엔 벽 바위마다 원 하나(반지름의 0.86)로만 몸을 막았다. 바위는 혹(±26 %)이 난 덩이라 넓은 쪽에서는 원보다 한참 나와 있어
+   몸은 원 밖인데 눈이 바위 속에 들었다. 이제 ① 몸은 그 바위가 몸 높이에서 실제로 내민 만큼(방위 16 · `prof`) 막히고
+   ② 눈(80-player.js eyeHit)은 바위마다 적어 둔 **방향별 반지름 표**(덩이를 빚은 공의 위도·경도 칸 그대로)로 속인지 본다 —
+   벽 · 처마 · 지붕 · 문틀 바위 모두. 표는 8 m 칸에 담는다 */
+const CAVE_SOL=new Map(), CSG=8, csKey=(gx,gz)=>(gx+4096)*8192+(gz+4096);
+const _csV=new THREE.Vector3();
+function caveSolid(x,y,z){
+  const a=CAVE_SOL.get(csKey(Math.floor(x/CSG),Math.floor(z/CSG))); if(!a) return false;
+  for(const s of a){
+    const dx=x-s.x, dy=y-s.y, dz=z-s.z; if(dx*dx+dy*dy+dz*dz>s.R*s.R) continue;
+    const m=s.m, qx=(m[0]*dx+m[1]*dy+m[2]*dz)/s.sx, qy=(m[3]*dx+m[4]*dy+m[5]*dz)/s.sy, qz=(m[6]*dx+m[7]*dy+m[8]*dz)/s.sz;   // 바위의 빚기 자리로(돌림을 되돌리고 늘인 만큼 줄인다)
+    const q=Math.sqrt(qx*qx+qy*qy+qz*qz); if(q<1e-6) return true;
+    const W=s.w, Hh=s.h, th=Math.acos(clamp(qy/q,-1,1))/Math.PI*Hh, ph=((Math.atan2(qz,-qx)/6.2832)+1)%1*W;   // 공 꼭짓점의 위도·경도 칸
+    const j=Math.min(Hh-1,Math.floor(th)), i=Math.min(W-1,Math.floor(ph)), K=s.k, r1=W+1;
+    const kk=Math.max(K[j*r1+i],K[j*r1+i+1],K[(j+1)*r1+i],K[(j+1)*r1+i+1]);   // 네 모서리 가운데 큰 것(덜 들어가게)
+    if(q<kk*1.03) return true;
+  }
+  return false;
+}
 let CAVE_GLOW=null, CAVE_SHROOM=null;                  // 빛나는 점 · 버섯의 재질(굴 전체가 함께 쓴다)
 function caveGlowMat(){
   return CAVE_GLOW||(CAVE_GLOW=new THREE.ShaderMaterial({
@@ -33,7 +53,7 @@ void main(){ float d=length(gl_PointCoord-0.5)*2.0, a=(exp(-d*d*11.0)+0.38*exp(-
     blending:THREE.AdditiveBlending, depthWrite:false, transparent:true}));
 }
 function buildCaves(){
-  for(const m of CAVE_MESH){ scene.remove(m); m.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); } CAVE_MESH.length=0;
+  for(const m of CAVE_MESH){ scene.remove(m); m.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); } CAVE_MESH.length=0; CAVE_SOL.clear();
   if(typeof CAVES==='undefined'||!CAVES.length) return;
   const mat=cragMat();                                 // 화강암 재질 + 덩이마다 다른 빛깔(33-crags.js)
   const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), S=new THREE.Vector3(), nm=new THREE.Matrix3(), v=new THREE.Vector3();
@@ -67,20 +87,33 @@ function buildCaves(){
       for(let k=0;k<RG;k++) for(let j=0;j<SG;j++){ const j1=(j+1)%SG, a=o2+k*SG+j, b=o2+k*SG+j1, e=a+SG, f=b+SG; SI.push(a,e,b, b,e,f); }
       const oc=SP.length/3; SP.push(tx,y+h-r*0.10,tz); SC.push(0.12,0.52,0.42);                       // 갓 밑(주름) — 한 톤 어둡다
       for(let j=0;j<SG;j++) SI.push(oc,o2+j,o2+(j+1)%SG); };
+    let rkO=0, rkN=0;                                  // 방금 빚은 바위의 꼭짓점 자리(P 의 몇 번째부터 몇 개) — 벽 바위의 몸 테두리를 뽑는다
     const rock=(x,y,z,r,sy,melt,tone)=>{
       const g=SHP.blob(1,(rnd()*1e6)|0,{w:10,h:7,amp:0.26,nb:4}), pa=g.attributes.position.array, na=g.attributes.normal.array, o=P.length/3;
       const cb=(tone||TB)*(0.78+0.44*rnd());          // 덩이마다 밝기가 다르다(tone — 종유석은 밝은 석회빛)
       E.set(rnd()*0.5-0.25,rnd()*6.283,rnd()*0.5-0.25); Q.setFromEuler(E); V.set(x,y,z); S.set(r*(0.9+rnd()*0.3),r*sy,r*(0.9+rnd()*0.3)); M.compose(V,Q,S); nm.getNormalMatrix(M);
+      /* 눈의 경계에 쓸 참 꼴 — 공 꼭짓점마다의 반지름(빚기 자리) · 되돌리는 돌림 · 늘인 몫. 종유석처럼 가는 것은 뺀다 */
+      if(r*Math.min(1,sy)>=0.35){ const K=new Float32Array(pa.length/3); let km=0; for(let i=0;i<K.length;i++){ K[i]=Math.hypot(pa[i*3],pa[i*3+1],pa[i*3+2]); if(K[i]>km) km=K[i]; }
+        const e=new THREE.Matrix4().makeRotationFromQuaternion(Q).elements;     // 열 우선 — 되돌림은 전치(행렬 m 의 행 = 돌림의 열)
+        const s={x,y,z,sx:S.x,sy:S.y,sz:S.z,k:K,w:10,h:7,m:[e[0],e[1],e[2],e[4],e[5],e[6],e[8],e[9],e[10]],R:Math.max(S.x,S.y,S.z)*km*1.05};
+        for(let gz=Math.floor((z-s.R)/CSG);gz<=Math.floor((z+s.R)/CSG);gz++) for(let gx=Math.floor((x-s.R)/CSG);gx<=Math.floor((x+s.R)/CSG);gx++){
+          const k=csKey(gx,gz); let a=CAVE_SOL.get(k); if(!a) CAVE_SOL.set(k,a=[]); a.push(s); } }
       for(let i=0;i<pa.length;i+=3){ v.set(pa[i],pa[i+1],pa[i+2]).applyMatrix4(M); P.push(v.x,v.y,v.z);
         v.set(na[i],na[i+1],na[i+2]).applyMatrix3(nm).normalize(); Nn.push(v.x,v.y,v.z); ML.push(melt); CL.push(cb*T0[0],cb*T0[1],cb*T0[2]); }
       const ix=g.index.array, i0=I.length; for(let i=0;i<ix.length;i++) I.push(o+ix[i]);
-      g.dispose(); return i0; };
+      rkO=o; rkN=pa.length/3; g.dispose(); return i0; };
+    /* 몸 높이(발 밑 0.2 m ~ 머리 위 0.3 m)에서 바위가 방위마다 내민 거리 — 16 방위 · 빈 방위는 이웃으로 메운다 */
+    const profOf=(cx,cz,y0,y1)=>{ const K=16, pr=new Float32Array(K); let mx=0;
+      for(let q=rkO;q<rkO+rkN;q++){ const py=P[q*3+1]; if(py<y0||py>y1) continue; const dx=P[q*3]-cx, dz=P[q*3+2]-cz, d=Math.hypot(dx,dz), k=Math.floor((Math.atan2(dz,dx)/6.2832+1)%1*K)%K; if(d>pr[k]) pr[k]=d; }
+      const f=pr.slice(); for(let k=0;k<K;k++){ f[k]=Math.max(pr[k],0.5*(pr[(k+K-1)%K]+pr[(k+1)%K])); if(f[k]>mx) mx=f[k]; }
+      return {pr:f,mx}; };
     for(const rm of c.rooms){
       const R=rm.R, n1=Math.max(9,Math.round((R+1.7)*6.283/4.1)), n2=Math.max(6,Math.round(R*6.283/5.4)), a0=rnd()*6.283;
       for(let i=0;i<n1;i++){ const a=a0+i/n1*6.283; if(rm.open.some(o=>adiff(a,o)<0.50)) continue;       // 벽 — 터진 데는 비운다
         const r=2.7+rnd()*0.8, d=R+r*0.55, x=rm.x+Math.cos(a)*d, z=rm.z+Math.sin(a)*d, gy=heightAt(x,z);
         const i0=rock(x,gy+r*0.55,z,r,1.0+rnd()*0.25,1.1); glowOn(i0,I.length,rm,false);
-        COLLIDERS.push({x,z,r:r*0.86}); }
+        const pf=profOf(x,z,Math.min(gy,rm.y)-0.2,Math.max(gy,rm.y)+2.2);
+        COLLIDERS.push(pf.mx>0.5?{x,z,r:pf.mx,prof:pf.pr}:{x,z,r:r*0.86}); }
       for(let i=0;i<n2;i++){ const a=a0+0.3+i/n2*6.283, r=2.8+rnd()*0.7, d=R-0.6, x=rm.x+Math.cos(a)*d, z=rm.z+Math.sin(a)*d;   // 둘째 단 — 안으로 기운 처마
         const i0=rock(x,Math.max(rm.y,heightAt(x,z))+4.9+rnd()*0.5,z,r,0.72,0.3); glowOn(i0,I.length,rm,true); }
       for(let i=0;i<5;i++){ const a=rnd()*6.283, d=i?R*0.45*rnd()+0.6:0, x=rm.x+Math.cos(a)*d, z=rm.z+Math.sin(a)*d;                  // 지붕

@@ -118,7 +118,7 @@ const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, LUNGE_V=12, LUNGE_UP=
       STEPUP=0.55;                                      // 이 높이 이하 턱은 그냥 올라선다
 const PL={pos:new THREE.Vector3(),vel:new THREE.Vector3(),yaw:0,pitch:0,
   grounded:false,crouch:false,run:false,swim:false,wade:0,
-  hp:100,stam:100,oxy:100,food:100,water:100,ill:0,bob:0,dist:0,eye:EYE,lungeCd:0};
+  hp:100,stam:100,oxy:100,food:100,water:100,ill:0,bob:0,dist:0,eye:EYE,lungeCd:0,under:false};   // under — 땅속에 있나(96-underworld.js 가 프레임마다 정한다)
 const keys={};
 /* 뚫고 내려가기 — 이 시간 동안에는 DROP.y 아래의 지은 바닥만 밟는다.
    Ctrl+Space 로 지붕을 뚫고 내려올 때 쓴다. */
@@ -187,6 +187,7 @@ function slopeAt(wx,wz){
    앞으로 못 가고 걸리던 것이 이 때문이다.
    공중에 뜬 동안에는 발 높이(p.y)를 기준으로 봐서, 뛰어서 턱을 넘을 수 있다. */
 function walkable(x,z,fromH){
+  if(PL.under&&fromH<heightAt(x,z)-3) return underWalk(x,z,fromH);           // 땅속 — 머리 닿는 데 · 턱 · 비탈(96-underworld.js)
   if(Math.abs(x)>HALF-6||Math.abs(z)>HALF-6) return false;
   const rise=floorAt(x,z,fromH)-fromH;         // 토대·지붕 윗면도 바닥으로 친다
   const rock=CRAG.slope;                      // 그 자리가 큰 바위 위면 그 면의 비탈(33-crags.js — floorAt 이 남긴다)
@@ -255,15 +256,19 @@ function devFly(dt){
   hudT(document.getElementById('devTagV'),'×'+(DEV.sp*(K.ShiftLeft||K.ShiftRight?5:1)).toFixed(DEV.sp<1?2:1)+' · '+Math.round(p.y)+' m');
 }
 /* ── 눈의 경계 ───────────────────────────────────────────────────────────
-   화면 앞 평면(0.1 m)의 모서리는 눈에서 0.17 m 까지 나간다 — 그 안에 바위나 땅이 들면 속이 보인다. 눈 둘레 0.26 m 의 다섯 점에서
-   땅이 눈 밑 0.15 m 보다 높은지, 큰 바위 덩이(cragSpan — 그려진 꼴 그대로)가 눈높이 ±0.24 m 를 지나는지 본다 */
-const EYE_R=0.26, EYE_V=0.24, _eyeO=[[0,0],[EYE_R,0],[-EYE_R,0],[0,EYE_R],[0,-EYE_R]];
+   화면 앞 평면(0.1 m)의 모서리는 눈에서 0.17 m 까지 나간다 — 그 안에 바위나 땅이 들면 속이 보인다. 눈 둘레 0.26 m 의 아홉 점(가운데 · 여덟 방위)에서
+   땅이 눈 밑 0.15 m 보다 높은지, 큰 바위 덩이(cragSpan — 그려진 꼴 그대로)가 눈높이 ±0.24 m 를 지나는지,
+   굴 바위(caveSolid — 바위마다 적은 방향별 반지름)의 속인지 본다 */
+const EYE_R=0.26, EYE_V=0.24, _eyeO=[[0,0]];
+for(let k=0;k<8;k++) _eyeO.push([Math.cos(k*0.7854)*EYE_R,Math.sin(k*0.7854)*EYE_R]);   // 가운데 + 여덟 방위(넷이던 때는 대각선 쪽 바위 속을 못 봤다)
 function eyeHit(x,y,z){
+  if(PL.under&&y<heightAt(x,z)-2.5) return underEyeHit(x,y,z);               // 땅속 — 바닥과 천장 사이인가(96-underworld.js)
   for(const o of _eyeO){
     const sx=x+o[0], sz=z+o[1];
     if(heightAt(sx,sz)>y-0.15) return true;
     if(CRAG.n){ const n=cragSpan(sx,sz); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y+EYE_V&&s.t>y-EYE_V) return true; } }
     if(coastSolid(sx,sz,y-EYE_V,y+EYE_V)) return true;                     // 주상절리 기둥
+    if(CAVE_SOL.size&&(caveSolid(sx,y,sz)||caveSolid(sx,y-EYE_V,sz)||caveSolid(sx,y+EYE_V,sz))) return true;   // 굴 바위(벽 · 처마 · 지붕 — 32-caves.js)
   }
   return false;
 }
@@ -276,7 +281,9 @@ function floorGrad(x,z,y){
 }
 /* 그 점(높이 y)이 땅 속이나 큰 바위 속인가 */
 function solidAt(x,z,y){
-  if(heightAt(x,z)>y) return true;
+  const h0=heightAt(x,z);
+  if(PL.under&&y<h0-3) return underSolid(x,z,y);                             // 땅속
+  if(h0>y) return true;
   if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y&&s.t>y) return true; } }
   return coastSolid(x,z,y);
 }
@@ -374,6 +381,8 @@ const NO_KEYS={};
 function updatePlayer(dt){
   if(PL.dead) return;                              // 쓰러져 있는 동안에는 아무것도 안 한다
   if(DEV.on){ devFly(dt); return; }                // 개발자 모드 — 날기(위)
+  if(underRopeTick(dt)) return;                    // 수직굴 밧줄을 타는 중(96-underworld.js)
+  if(UNDER.ok) PL.under=underIn(PL.pos.x,PL.pos.z,PL.pos.y)&&underQ(PL.pos.x,PL.pos.z).g>0.2;   // 땅속인가 — 몸을 움직이기 전에(불러온 저장 · 순간 이동이 땅 위로 튀지 않게)
   if(climbTick(dt)) return;                        // 나무를 오르는 중 — 몸은 줄기에 붙어 있다(97-wildlife.js)
   if(wallTick(dt)) return;                         // 벼랑에 매달려 있다(위) — Space 를 누르고 있어야 한다
   if(BOAT.on){ boatTick(dt); return; }             // 배를 탔다(96-sea.js)
@@ -391,7 +400,7 @@ function updatePlayer(dt){
   const gy=floorAt(p.x,p.z,p.y);
   // 바다는 해수면 0, 하천은 하도별 수면 표고를 쓴다
   /* 물의 영역은 **그려진 수면**이 정한다(riverSurfAt — 20-terrain.js). 하천 판이 그 자리 땅 위에 있을 때만 민물이다 */
-  const WA=waterAt(p.x,p.z,gy), inRiver=WA.river;
+  const WA=PL.under?underWater(p.x,p.z,gy):waterAt(p.x,p.z,gy), inRiver=WA.river;   // 땅속은 못만 물이다(위의 하천·바다를 안 본다)
   const wl=WA.wl;
   const depth=Math.max(0,wl-gy);          // 수심
   const sub=Math.max(0,wl-p.y);           // 플레이어 발이 잠긴 깊이
@@ -474,12 +483,15 @@ function updatePlayer(dt){
   const fh=PL.grounded?gy:Math.max(gy,p.y);
   if(walkable(p.x+mx,p.z,fh)) p.x+=mx; else PL.vel.x*=0.4;
   if(walkable(p.x,p.z+mz,fh)) p.z+=mz; else PL.vel.z*=0.4;
+  if(!PL.under){                               // 땅속에서는 땅 위의 것(바위·나무·보급선)에 안 걸린다
   resolveProps(p,PRAD);
   rubbleCollide(p,PRAD);                       // 벼랑 밑 큰 돌(무릎 넘는 것 — 30-props.js)
   floraCollide(p,PRAD);                        // 어린 나무·자작·야자의 줄기(95-flora.js)
+  }
   const y0=p.y;
   p.y+=PL.vel.y*dt;
-  shipCollide(p,PRAD,PL.eye+0.15,y0,PL.vel);   // 보급선 몸에 막힌다 · 머리가 밑면에 닿는다(30-props.js)
+  if(PL.under){ const c=underQ(p.x,p.z).c; if(p.y+PL.eye+0.25>c){ p.y=Math.max(y0,c-PL.eye-0.25); PL.vel.y=Math.min(0,PL.vel.y); } }   // 머리가 천장에 닿는다
+  else shipCollide(p,PRAD,PL.eye+0.15,y0,PL.vel);   // 보급선 몸에 막힌다 · 머리가 밑면에 닿는다(30-props.js)
 
   if(DROP.t>0){ DROP.t-=dt; }
   let ng=Math.max(floorAt(p.x,p.z,p.y),shipFloor(p.x,p.z,p.y),rubbleFloor(p.x,p.z,p.y));   // 지은 바닥 · 보급선 날개·몸 위 · 낮은 큰 돌 위에 선다
@@ -553,7 +565,7 @@ function updatePlayer(dt){
   // 수중이면 안개를 진하게 — 물 밖과 확실히 구분되게
   /* **화면이 물속으로 바뀌는 것은 눈이 수면 밑으로 내려갔을 때만**(사용자 요청: 물의 깊이로 정한다) — 눈(카메라)의 높이를
      그 자리의 수면과 견준다. 바다는 지금 그 자리의 물결 높이까지 본다. 눈높이보다 얕은 물(서서 0.3 m · 앉아도 눈 밑)에선 안 바뀐다 */
-  eyeWater(camera.position.y, inRiver?wl:(gy<0.3?seaSurfAt(p.x,p.z):-1e9), gy, inRiver);
+  if(!PL.under) eyeWater(camera.position.y, inRiver?wl:(gy<0.3?seaSurfAt(p.x,p.z):-1e9), gy, inRiver);   // 땅속은 바다·하천 밑이 아니다
 }
 function eyeWater(head,surf,gy,inRiver){
   if(head<surf-0.04&&surf-gy>0.35){
@@ -751,7 +763,7 @@ STEP[B.MEADOW]=[110,1200,1.1,0.8];   STEP[B.SCRUB] =[110,1400,1.2,0.85];
 STEP[B.BROADLEAF]=[105,1000,0.9,0.9];STEP[B.CONIFER]=[100,900,0.9,0.9];
 function footstep(){
   if(!A.ctx) return;
-  const c=STEP[sampleAt(PL.pos.x,PL.pos.z).biome]||[110,1200,1.1,0.85];
+  const c=STEP[PL.under?B.ROCK:sampleAt(PL.pos.x,PL.pos.z).biome]||[110,1200,1.1,0.85];
   const t=T0(), p=rr(0.88,1.14), wet=PL.wade>0.3?1.5:1;
   ring(c[0]*p,0.075,0.045*c[3]*wet,t,'sine',0.6);          // 발이 닿는 저역 충격
   nz(t,0.10,0.045*c[3]*wet,'bandpass',c[1]*p,c[2]);        // 지면 재질

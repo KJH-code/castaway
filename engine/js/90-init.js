@@ -370,6 +370,7 @@ async function generateWorld(){
                                     fallsSites();           // 폭포 자리 — 하천 수면이 4 m 넘게 떨어지는 데(36-falls.js · 지형 판 5)
                                     reliefMask();           // 잔 기복의 가림막(지형 판 3) — 이 뒤로 heightAt 이 둔덕·골을 안다
                                     placeResources(seed);
+                                    underSites(seed);       // 땅속 세계 — 굴 방 · 굴길 · 수직굴 자리(96-underworld.js · 지형 판 7)
                                     shapeSeabed(seed);      // 바다 바닥의 기복 — 뭍·자원을 다 정한 **뒤에**(같은 시드의 섬은 그대로다)
   await phase('지형 메시',90);      buildBioTex(); buildChunks(); buildWater();
   await phase('자원 배치',96);      placeProps_(seed);
@@ -380,6 +381,7 @@ async function generateWorld(){
   await phase('상륙 준비',99);      cacheMap(); spawnPlayer(); buildFarTrees(); boundTiles(); freezeStatics();
                                     RUBBLE.seed=seed|0; updateRubble(true);     // 자갈밭의 돌을 사람 둘레에 깐다
                                     floraReset(seed); giantsBuild();             // 노거수 — 뿌리가 땅이 되는 큰 나무(군락이 정한 자리)
+                                    underBuild();                                // 수직굴의 구멍·밧줄·굴뚝 · 땅속 그리기 묶음(96-underworld.js)
                                     updateFlora(true);                           // 군락의 나무·덤불을 사람 둘레에 깐다
                                     tlitBuild();                                 // 섬 크기의 빛 — 산 그림자·하늘 트임·숲 덮임(41-terrain-light.js)
                                     foamReset();                                 // 물가의 사면체 거품 — 새 섬의 표고를 C 쪽에 비춘다(96-foam.js)
