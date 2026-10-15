@@ -2,7 +2,7 @@
 
 무인도 생존 게임. **단일 HTML 파일 · Three.js r128 · 빌드 과정 없음.**
 
-**처음 맡았으면 `docs/HANDOVER.md` 부터** — 2026-10-15 인수인계(사용자와 정한 규칙 요약 · 점검 결과 · 진행 중인 새 몹 · 다음 할 일).
+**처음 맡았으면 `docs/HANDOVER.md` 부터** — 2026-10-15 인수인계(사용자와 정한 규칙 요약 · 점검 결과 · **FPS · 비주얼 · UI 할 거리와 잰 값** · 몹은 사용자가 직접 만든다).
 
 ## 스택
 
@@ -22,7 +22,7 @@
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md`) |
+| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md`) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
@@ -325,6 +325,8 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 
 `probe.mjs` 가 값을 재 오는 쪽이다 — `--do` 로 상태를 만들고, 표현식으로 결과를 읽는다.
 여러 단계를 재야 하면 `--run 파일.js`. 대상 목록과 브라우저 설정은 `tools/pages.mjs`.
+`--run` 파일은 async 함수 몸통으로 돈다 — 값은 `return` 으로 돌려주고 `await` 를 쓸 수 있다(그래서 `node --check` 는 못 거친다).
+프레임 부담을 계통별로 재려면 `node tools/probe.mjs island_world.html --run tools/tri-census.js`(잰 값과 할 거리는 `docs/HANDOVER.md` 6장).
 
 - **브라우저가 없다고 하면** `CHROMIUM_PATH` 를 준다:
   `CHROMIUM_PATH=/opt/pw-browsers/chromium-*/chrome-linux/chrome node tools/smoke.mjs`
