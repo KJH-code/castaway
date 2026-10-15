@@ -985,6 +985,8 @@ function wWander(){
    ⑨ 할퀴기·물기 — 뒤로 당겼다가(예비 동작) 맞는 순간 끝까지 뻗고 잠깐 머문 뒤 돌아온다.
       판정 자세(applyClawPose · applyBitePose)는 그대로 — 진행 곡선만 바꿨다.
    ⑩ 맞으면 움찔 · 죽을 때(부푸는 5초)는 울부짖으며 일어섰다가 옆으로 무너져 경련한다.
+   ⑪ 이륙 — 땅에서 뜰 때 웅크렸다(0.55초) 뛰어올라 크고 빠르게 치며 오른다. 높이·웅크림은 AI 의 wClimb 가
+      준다(W.lift · W.vy — 이 구역 밖이라 시험장마다 따로 들어 있다).
    개체마다 쓰는 값은 W.an 에 둔다(battle 처럼 여럿이면 W 를 갈아 끼울 때 같이 바뀐다). */
 const WALKSW=0.42, KNEESW=0.20, WINGSW=0.72;
 const WX_XF=0.3;                               // 상태 사이 섞는 시간(초)
@@ -1113,18 +1115,32 @@ function poseWyv_(dt){
     dyT=-0.9*fall;
   }
   else if(flying){
+    /* 이륙 — AI(wClimb)가 땅에서 뜰 때 웅크림(W.lift)을 주고 뛰어올라 오른다(W.vy).
+       웅크리는 동안은 땅을 디딘 채 앞뒤 다리를 굽혀 몸을 낮추고(깊이 cd) 날개를 높이 펴 들고 고개를 든다 ·
+       뛰는 순간 날개가 맨 위에서 첫 내려치기를 시작하고(A.wp) 웅크림이 0.1초에 풀린다(다리가 땅을 찬다) ·
+       오르는 동안(cl) 크고 빠르게 치며 머리를 들고 · 땅 가까이(low)는 다리를 늘어뜨렸다가 높이 따라 접는다 */
+    if(W.lift>0){ if(!A.lf){ A.lf=1; A.crT=0; } A.crT+=dt; A.cr=1; }
+    else{ if(A.lf){ A.lf=0; A.wp=1.98; } A.cr=(A.cr||0)*Math.exp(-10*dt); }   // 1.98 — 비튼 위상이 π/2(날개 맨 위)
+    const cr=A.cr||0, cd=cr*ease(Math.min(1,(A.crT||0)/0.4));
+    A.cl=(A.cl||0)+(clamp((W.vy||0)/5,0,1)-(A.cl||0))*k(3);
+    const cl=A.cl, low=clamp(1-(W.y-2)/10,0,1);
     /* 날갯짓 빠르기 · 폭 — 노려볼 땐 제자리에 떠 있느라 깊고 빠르다 */
     let hz=0.95, amp=0.5;
     if(W.state==='fly'){
-      /* 활공 — 쳤다 미끄러졌다를 되풀이한다. 둘러보며 느리게 날 때는 쉬지 않고 친다 */
+      /* 활공 — 쳤다 미끄러졌다를 되풀이한다. 둘러보며 느리게 날 때·오를 때는 쉬지 않고 친다 */
       A.glT-=dt;
       if(A.glT<=0){ A.glide=A.glide>0.5?0:1; A.glT=A.glide?rnd(1.8,3.2):rnd(2.6,4.2); }
-      if(W.scan>0) A.glide=0;
+      if(W.scan>0||cl>0.2||cr>0.05) A.glide=0;
       A.gl=(A.gl||0)+((A.glide?1:0)-(A.gl||0))*k(1.6);
       amp*=1-0.88*A.gl;
     }
     if(W.state==='spot'){ hz=1.3; amp=0.66; }
     if(W.state==='dive'){ hz=2.2; amp=0.05; }
+    else{
+      /* 오를 때 — 땅 가까이선 날개가 땅을 치지 않게 폭을 줄인다 */
+      hz+=(1.6-hz)*cl; amp+=(Math.min(0.85,0.55+W.y*0.05)-amp)*cl;
+      amp*=1-cr;
+    }
     A.wp+=dt*hz*6.2832;
     const ph=A.wp-0.45*Math.sin(A.wp);              // 내려치기가 빠르다(위상이 π 근처에서 빨리 흐른다)
     const fold=Math.max(0,Math.cos(ph))*0.45*amp;    // 올리는 동안 손목을 접는다
@@ -1138,32 +1154,34 @@ function poseWyv_(dt){
       CH_TAIL.forEach((nm,i)=>{ WR(nm,_AXS,0.06*(1-f)); WR(nm,_AXU,Math.sin(t*9-i*0.7)*0.05); });
       WR(CH_HEAD[0],_AXS,-0.35*(1-f));
     }else{
-      const spot=W.state==='spot';
-      /* 몸 — 내려칠 때 뜨고(몸무게를 받친다) · 날갯짓에 맞춰 살짝 끄덕인다 · 도는 쪽으로 눕는다 */
-      dyT=-0.35*amp*Math.sin(ph-0.6);
-      WR(CH_SPINE[0],_AXS,(spot?-0.18:0.04)+0.05*amp*Math.cos(ph));
-      WR(CH_SPINE[0],_AXF,-A.turn*0.32);
-      wWingPose(spot?-0.12:-0.24,spot?-0.12:0.05,1,amp,ph,fold);
-      /* 다리 — 날 때는 뒷다리를 뒤로 붙이고 앞발을 모은다 · 노려볼 땐 늘어뜨린다 */
-      const lg=spot?0.15:0.95;
+      const spot=W.state==='spot', fr=1-cr;
+      /* 몸 — 내려칠 때 뜨고(몸무게를 받친다) · 날갯짓에 맞춰 살짝 끄덕인다 · 도는 쪽으로 눕는다 · 오를 땐 머리를 든다 */
+      dyT=-0.35*amp*Math.sin(ph-0.6)-0.6*cd;
+      WR(CH_SPINE[0],_AXS,((spot?-0.18:0.04)+0.05*amp*Math.cos(ph)-0.24*cl)*fr+0.12*cd);
+      WR(CH_SPINE[0],_AXF,-A.turn*0.32*fr);
+      let wc=spot?-0.12:-0.24; wc+=(-0.02-wc)*cl; wc+=(0.62-wc)*cr;
+      wWingPose(wc,(spot?-0.12:0.05)*fr-0.15*cr,1,amp,ph,fold);
+      /* 다리 — 날 때는 뒷다리를 뒤로 붙이고 앞발을 모은다 · 노려볼 때·땅 가까이선 늘어뜨린다 ·
+         웅크릴 땐 쉼 자세(땅을 디딤)에서 굽힌다(착지의 주저앉기와 같은 굽힘) */
+      const dg=spot?1:low, mx=(a,b)=>a+(b-a)*dg;
       for(const [ch,i] of [[CH_LEG_L,0],[CH_LEG_R,1]]){
         const lag=Math.sin(ph-1.2+i*0.3)*0.06;
-        WR(ch[0],_AXS,lg+lag); WR(ch[1],_AXS,spot?0.15:-0.25); WR(ch[3],_AXS,spot?0.45:0.75);
+        WR(ch[0],_AXS,(mx(0.95,0.15)+lag)*fr-0.3*cd); WR(ch[1],_AXS,mx(-0.25,0.15)*fr+0.25*cd); WR(ch[3],_AXS,mx(0.75,0.45)*fr);
       }
-      for(const ch of [CH_ARM_L,CH_ARM_R]){ WR(ch[1],_AXS,spot?-0.25:0.2); WR(ch[2],_AXS,spot?-0.5:-0.95); WR(ch[3],_AXS,spot?0.35:0.6); }
+      for(const ch of [CH_ARM_L,CH_ARM_R]){ WR(ch[1],_AXS,mx(0.2,-0.25)*fr-0.35*cd); WR(ch[2],_AXS,mx(-0.95,-0.5)*fr+0.4*cd); WR(ch[3],_AXS,mx(0.6,0.35)*fr); }
       /* 꼬리 — 물결이 뒤로 갈수록 늦게 · 노려볼 땐 늘어진다 */
       CH_TAIL.forEach((nm,i)=>{
         WR(nm,_AXU,Math.sin(t*1.3-i*0.55)*(0.03+i*0.012)+A.turn*0.05);
         WR(nm,_AXS,(spot?-0.07:0.015)-0.03*amp*Math.sin(ph-0.9-i*0.35));
       });
       /* 머리 — 몸이 끄덕이는 만큼 거슬러 앞을 지키고, 노리는 것을 본다(날 때는 아래를 훑는다) */
-      WR(CH_HEAD[0],_AXS,-0.05*amp*Math.cos(ph));
+      WR(CH_HEAD[0],_AXS,-0.05*amp*Math.cos(ph)+0.12*cl*fr-0.3*cd);
       if(W.state==='fly'){
         W.lookPh=(W.lookPh||0)+dt*(W.scan>0?0.9:0.5);
-        const sa=(W.scan>0?0.62:0.26);
+        const sa=(W.scan>0?0.62:0.26)*fr;
         WR(CH_HEAD[0],_AXU,Math.sin(W.lookPh)*sa);
         WR(CH_HEAD[1],_AXU,Math.sin(W.lookPh*1.3)*sa*0.5);
-        WR(CH_HEAD[2],_AXS,0.18+Math.sin(W.lookPh*0.7)*0.12);
+        WR(CH_HEAD[2],_AXS,(0.18+Math.sin(W.lookPh*0.7)*0.12)*fr);
         wLook(A,dt,false);
       }else wLook(A,dt,true,1.3);
     }
@@ -2271,6 +2289,28 @@ function faceTo(tx,tz,dt,rate){
   while(d<-Math.PI) d+=Math.PI*2;
   W.yaw+=clamp(d,-(rate||WP.turn)*dt,(rate||WP.turn)*dt);
 }
+/* 오르내리기 — 날거나 노려보는 동안 고도를 맞춘다. 땅에서 뜰 때는 웅크렸다(WCL.crouch) 뛰어올라(WCL.leap)
+   날갯짓으로 초당 WCL.climb m 까지 오르고, 다 와 가면 늦춘다(남은 높이 × 1.4 /초). 앞으로 나는 빠르기도
+   뛰어오른 뒤 천천히 붙는다(W.flyK 0 → 1). 예전엔 고도를 지수로 당겨(시상수 0.15초) 땅에서 20 m 를
+   반 초 만에 솟았다 — 쫓다가 놓치고 다시 날아오를 때 순간이동처럼 보였다(사용자 지적).
+   W.lift(웅크림 남은 초)와 W.vy(오르는 빠르기)는 자세(poseWyv_)도 읽는다. */
+const WCL={crouch:0.55, leap:7, climb:5, acc:8};
+function wClimb(dt,goal){
+  if(W.flyK===undefined) W.flyK=1;
+  if(W.y!==W.cy) W.vy=0;                       // 내리꽂기처럼 다른 데서 높이를 옮겼으면 새로 센다
+  if(W.lift>0){                                // 웅크림 — 제자리에서 몸을 낮춘다
+    W.lift-=dt; W.vy=0; W.flyK=0;
+    if(W.lift<=0) W.vy=WCL.leap;               // 뛰어오른다
+  }else if(W.y<0.05&&!(W.vy>0.01)&&goal>1){
+    W.lift=WCL.crouch; W.vy=0; W.flyK=0;
+  }else{
+    const want=clamp((goal-W.y)*1.4,-WCL.climb,WCL.climb);
+    W.vy+=clamp(want-W.vy,-WCL.acc*dt,WCL.acc*dt);
+    W.y=Math.max(0,W.y+W.vy*dt);
+    W.flyK+=(1-W.flyK)*(1-Math.exp(-0.9*dt));
+  }
+  W.cy=W.y;
+}
 function updateW(dt){
   if(!W.alive){ if(W.state==='dying') updateDying(dt);
                 else if(W.state==='boom') updateBoom(dt); return; }
@@ -2284,7 +2324,7 @@ function updateW(dt){
 
   switch(W.state){
   case 'fly': {
-    W.y=lerp(W.y,WP.cruise,1-Math.pow(0.001,dt));
+    wClimb(dt,WP.cruise);
     const td=Math.hypot(W.target.x-W.pos.x,W.target.z-W.pos.z);
     if(td<6){ wWander(); W.scan=WP.scan; }     // 한 바퀴 돌았으면 둘러본다
     faceTo(W.target.x,W.target.z,dt,1.4);
@@ -2292,6 +2332,7 @@ function updateW(dt){
        poseWyv 에서 같이 붙는다. */
     if(W.scan>0){ W.scan-=dt; W.speed=WP.flySpd*0.35; }
     else W.speed=WP.flySpd;
+    W.speed*=W.flyK;                           // 뛰어오른 뒤 천천히 앞으로 붙는다
     W.pos.x+=Math.sin(W.yaw)*W.speed*dt;
     W.pos.z+=Math.cos(W.yaw)*W.speed*dt;
     if((W.alerted||seesPlayer())&&PL.hp>0){ W.alerted=true; W.aim=null; wSet('spot'); }
@@ -2307,7 +2348,7 @@ function updateW(dt){
     const ax=A?A.x:PL.pos.x, az=A?A.z:PL.pos.z;
     W.speed=0;
     faceTo(ax,az,dt,2.2);
-    W.y=lerp(W.y,WP.cruise+2,1-Math.pow(0.05,dt));
+    wClimb(dt,WP.cruise+2);
     if(W.t>=WP.spotHold){
       wSet('dive');
       /* 집 위로 바로 떨어지면 지붕에 박힌다 — 옆에 내려선다 */
