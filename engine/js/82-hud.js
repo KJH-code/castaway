@@ -123,6 +123,7 @@ function drawMap(){
     mapBaseProps=showProps; mapBaseT=now;
   }
   ctx.drawImage(mapBase,0,0);
+  if(PL.under&&typeof underMapImg==='function'){ ctx.fillStyle='rgba(0,0,0,0.72)'; ctx.fillRect(0,0,N,N); ctx.drawImage(underMapImg(),0,0); }   // 땅속 — 땅 위 지도를 어둡게 덮고 굴 방·굴길·수직굴을 그린다(96-underworld.js)
   /* 핀 — 화면에서 머리가 큰 지도 9 px · 작은 지도 4.5 px 쯤 되게(캔버스 768 을 172~688 px 로 줄여 보인다) */
   const ps=(mapOpen?9:4.5)*N/mapPx();
   if(pinAct>=0&&MAPPINS[pinAct]){                     // 따라가는 핀까지 점선

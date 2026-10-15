@@ -30,7 +30,7 @@ function underClear(){
   for(const d of UNDER.deco.values()) underDecoDrop(d); UNDER.deco.clear();
   if(UNDER.grp){ scene.remove(UNDER.grp); UNDER.grp.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); UNDER.grp=null; }
   UNDER.ok=false; UNDER.ch.length=0; UNDER.tu.length=0; UNDER.pits.length=0; UNDER.grid.clear(); UNDER.B=null; UNDER.picks.length=0;
-  UNDER.rope=null; UNDER.u=0; UNDER.cx=UNDER.cz=1e9; if(typeof PL!=='undefined') PL.under=false;
+  UNDER.rope=null; UNDER.u=0; UNDER.cx=UNDER.cz=1e9; UNDER.map=null; if(typeof PL!=='undefined') PL.under=false;
 }
 /* ── 자리 정하기(섬을 지을 때 · placeResources 다음) ──────────────────────────── */
 function underSites(seed){
@@ -409,6 +409,17 @@ function updateUnder(dt){
       else if(d>300+c.R&&has){ underUnpopulate(has); underDecoDrop(has); UNDER.deco.delete(c); } }
     UNDER.picks.length=0; for(const d of UNDER.deco.values()) for(const q of d.picks) UNDER.picks.push(q); }
   if(PL.under) underCreatures(dt);
+}
+/* ── 지도 — 땅속에 있으면 굴 방(원) · 굴길(굵은 선) · 못 · 수직굴(흰 점)을 그린다. 처음 한 번 굽는다(82-hud.js drawMap) ── */
+function underMapImg(){
+  if(UNDER.map) return UNDER.map;
+  const c=document.createElement('canvas'); c.width=c.height=N; const g=c.getContext('2d'), k=1/CELL, o=N/2;
+  g.strokeStyle=g.fillStyle='#5f8e86'; g.lineCap='round';
+  for(const t of UNDER.tu){ g.lineWidth=Math.max(1.2,t.w*2*k); g.beginPath(); g.moveTo(t.x0*k+o,t.z0*k+o); g.lineTo(t.x1*k+o,t.z1*k+o); g.stroke(); }
+  for(const ch of UNDER.ch){ g.beginPath(); g.arc(ch.x*k+o,ch.z*k+o,Math.max(1.5,ch.R*k),0,6.283); g.fill(); }
+  g.fillStyle='#2c6e8a'; for(const ch of UNDER.ch) if(ch.pool&&ch.pr){ g.beginPath(); g.arc(ch.x*k+o,ch.z*k+o,Math.max(1,ch.pr*k),0,6.283); g.fill(); }
+  g.fillStyle='#f4f0e0'; for(const p of UNDER.pits){ g.beginPath(); g.arc(p.x*k+o,p.z*k+o,Math.max(1.6,3*k),0,6.283); g.fill(); }
+  return UNDER.map=c;
 }
 /* ── 아이템 · 딸 것 · 제작 ─────────────────────────────────────────────────── */
 Object.assign(ITEMS,{
