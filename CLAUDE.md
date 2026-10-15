@@ -62,7 +62,7 @@ npx electron-builder --linux               # 묶기 — dist/ (--win · --mac �
   본편(`engine/js/92-save.js`)의 `DESK` 가 있으면 **저장 칸이 파일**(`userData/saves/slot1~3.json` · `auto.json` · Windows `%APPDATA%\CASTAWAY\saves` —
   임시 파일에 쓰고 바꿔 끼우며 바로 앞 것은 `.bak`), 없으면 `localStorage`(`castaway.save1~3` · `castaway.auto` — 슬롯 1 은 예전 키 그대로). 슬롯 이름은 `[a-z0-9._-]` 만 받는다.
   데스크톱 판에서만 보이는 것: 일시정지 화면의 **끝내기**(`#bQuit` — 상륙 전이면 바로, 상륙했으면 묻고 닫기 길(자동 저장)을 탄다) · 설정 창의 '전체 화면'·'저장·기록 폴더'(`#deskG` — userData 를 연다)·그래픽 백엔드 고르기(`#pAngle`) ·
-  시작 화면 오른쪽 아래 판 번호(`#ovVer`). **판 번호는 `desktop/package.json` 의 `version`**(지금 0.4.1 — `package-lock.json` 맨 위 두 곳도 같이) — 묶은 파일 이름에 들어가고 새 판 알림이 이것과 Releases 태그를 견준다.
+  시작 화면 오른쪽 아래 판 번호(`#ovVer`). **판 번호는 `desktop/package.json` 의 `version`**(지금 0.4.2 — `package-lock.json` 맨 위 두 곳도 같이) — 묶은 파일 이름에 들어가고 새 판 알림이 이것과 Releases 태그를 견준다.
 - **시험**: playwright 의 `_electron.launch` 로 xvfb 에서 띄운다(`xvfb-run -a node 시험.cjs`). 소프트웨어 GL 이라 섬 생성이 약 2분이고,
   `page.screenshot` 은 시간 초과가 난다 — 주 프로세스의 `webContents.capturePage()` 로 찍을 것.
 - 루트 `.gitignore` 가 `package.json` 을 무시한다(CI 가 맨 위에 playwright 를 깐다) — `desktop/` 것만 `!` 로 살려 두었다.
@@ -208,7 +208,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 |---|---|
 | `00-core.js` | 오류 띠 · 시드 난수·잡음 · 격자 크기 · 지형 필드 `F` · 바이옴 표 · **`RESOURCES`** · 섬 인자 `P` |
 | `10-worldgen.js` | 1)~8) 섬 만들기(융기 → 열적·수적 침식 → 하천 → 경사·거리장 → 기후 → 바이옴 → 자원 배치) · 해저 굴곡 `shapeSeabed`(맨 끝 — 땅·저장에 안 닿는다) · `heightAt` 등 조회 창구 |
-| `12-native.js` · `data-native-wasm.js` | **C 로 짠 침식 토막**(열적·물방울 침식·다듬기)을 WebAssembly 로 잇는다 — 원본 `engine/native/erosion.c` · 짓기 `sh engine/native/build.sh`(컴파일러는 `sh env/setup-zig.sh`) · **JS 판과 한 비트도 달라선 안 된다**: 한쪽을 고치면 `node tools/probe.mjs island_world.html "nativeVerify()"` 로 견줄 것(전부 same 이어야 한다). `data-native-wasm.js` 는 base64 — 읽지 말 것 |
+| `12-native.js` · `data-native-wasm.js` | **C 로 짠 침식 토막**(열적·물방울 침식·다듬기)을 WebAssembly 로 잇는다 — 원본 `engine/native/erosion.c` · 짓기 `sh engine/native/build.sh`(컴파일러는 `sh env/setup-zig.sh`) · **JS 판과 한 비트도 달라선 안 된다**: 한쪽을 고치면 `node tools/probe.mjs island_world.html "nativeVerify()"` 로 견줄 것(전부 same 이어야 한다). `data-native-wasm.js` 는 base64 — 읽지 말 것  · `engine/native/light.c` — 하늘 트임(`cw_tlit_open` → tlitBuild) · 땅속 기준 높이(`cw_under_base` → underSites) — JS 판과 같은 값 |
 | `20-terrain.js` | 가지·잎 인스턴스 · 압축 `instCompact` 87 · 나무껍질 · 땅 셰이더 · 암석 재질 · 지형 `buildChunks` 866(4×4 청크 묶음 `TERR_BLK`) / LOD `updateTerrainLOD` 945 · 바다·하천 물 |
 | `22-ground-textures.js` | 땅 사진을 배열 텍스처로 · 사진 결 땅 셰이더(물가 젖은 띠·거품 · 마른 모래의 바람 물결·알갱이·반짝임) · **둔덕 재질 `moundMat`**(모래 둔덕·점토 노출지가 땅 셰이더를 그대로 쓴다 — 아래 '모래·점토') |
 | `24-shapes.js` | 땅 식물·바다 생물이 같이 쓰는 매끈한 모양 도구(관·혹·휘는 잎·돌림체·잎 판·합치기) |
