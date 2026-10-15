@@ -1,0 +1,24 @@
+<!doctype html><meta charset=utf8><body style=margin:0><script src="three.min.js"></script><script src="GLTFLoader.js"></script><script>
+const Q=new URLSearchParams(location.search), W=+(Q.get('w')||420), H=+(Q.get('h')||470);
+const R=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); R.setSize(W,H); R.outputEncoding=THREE.sRGBEncoding; document.body.appendChild(R.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(Q.get('bg')||'#22242c');
+scene.add(new THREE.HemisphereLight(0xc8d4ff,0x302a28,0.6)); const sun=new THREE.DirectionalLight(0xffffff,0.9); scene.add(sun);
+const cam=new THREE.PerspectiveCamera(30,W/H,0.05,100);
+window.ready=new Promise(res=>new THREE.GLTFLoader().load(Q.get('f')||'azure.glb',g=>{
+  window.G=g; scene.add(g.scene); window.SM=null; g.scene.traverse(o=>{if(o.isSkinnedMesh){SM=o;
+    // 게임처럼 램버트로
+    const m=o.material; o.material=new THREE.MeshLambertMaterial({map:m.map,emissiveMap:m.emissiveMap,emissive:new THREE.Color(1,1,1),skinning:true,side:THREE.DoubleSide}); o.frustumCulled=false;}});
+  window.BONES={}; SM.skeleton.bones.forEach(b=>BONES[b.name]=b); res(Object.keys(BONES).length);
+},undefined,e=>res('ERR '+e)));
+window.rest=()=>{for(const b of Object.values(BONES)) b.quaternion.identity();};
+window.pose=(o)=>{rest(); for(const k in o){const e=o[k]; BONES[k].quaternion.setFromEuler(new THREE.Euler(e[0],e[1],e[2],'XYZ'));}};
+window.shoot=async function(list,cols){ // list: [[pose, az, el, dist, cy]]
+  await ready; cols=cols||list.length; const rows=Math.ceil(list.length/cols);
+  const C=document.createElement('canvas'); C.width=W*cols; C.height=H*rows; const x=C.getContext('2d');
+  list.forEach((v,i)=>{const [p,az,el,dd,cy]=v; pose(p||{}); G.scene.updateMatrixWorld(true);
+    const c=new THREE.Vector3(v[5]!=null?v[5]:0,cy==null?1.45:cy,v[6]!=null?v[6]:0), a=az*Math.PI/180,e=el*Math.PI/180, d=dd||7.5;
+    cam.position.set(c.x+d*Math.cos(e)*Math.sin(a),c.y+d*Math.sin(e),c.z+d*Math.cos(e)*Math.cos(a)); cam.lookAt(c);
+    sun.position.copy(cam.position).add(new THREE.Vector3(2,5,1)); R.render(scene,cam); x.drawImage(R.domElement,(i%cols)*W,Math.floor(i/cols)*H);});
+  return C.toDataURL('image/png');
+};
+</script>
