@@ -34,6 +34,10 @@ function tlitBuild(){
   TLIT.G.value.set(N,CELL);
   /* G 하늘 트임 — 방위마다 1·2·3·5·8·12·18 칸 밖의 땅이 만드는 가장 높은 지평선. 1 − sin(지평선 각)의 평균 */
   const DX=[1,1,0,-1,-1,-1,0,1], DZ=[0,1,1,1,0,-1,-1,-1], ST=[1,2,3,5,8,12,18];
+  if(typeof nativeOn==='function'&&nativeOn()&&NATIVE.x.cw_tlit_open){            // C 판(engine/native/light.c — 같은 식 · 칸 3,300만 번)
+    const X=NATIVE.x; new Float32Array(X.memory.buffer,X.cw_elev(),n).set(h); X.cw_tlit_open(N,CELL);
+    const o=new Uint8Array(X.memory.buffer,X.cw_tlit_out(),n); for(let i=0;i<n;i++) px[i*4+1]=o[i];
+  }else
   for(let z=0;z<N;z++) for(let x=0;x<N;x++){
     const i=z*N+x, h0=h[i]>0?h[i]:0; let op=0;
     for(let d=0;d<8;d++){ const dl=((d&1)?1.4142:1)*CELL; let mt=0;

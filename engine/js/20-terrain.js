@@ -750,7 +750,7 @@ function rockMat(k,col){
   const m=new THREE.MeshLambertMaterial({color:col});
   const L=LUSTRE[k]||{met:0.05,tex:'speck'};
   const TEX={speck:0,vein:1,crack:2,step:3,grain:4,botry:5,conch:6,smooth:7}[L.tex]||0;
-  const moss=(k==='sulfur'||k==='cinnabar'||k==='pebble'||k==='flint'||k==='underrock')?0:1;   // 자갈·부싯돌엔 이끼가 없다(바닷가 자갈 윗면이 곰팡이 핀 것처럼 보였다 — 사용자 지적)
+  const moss=(k==='sulfur'||k==='cinnabar'||k==='pebble'||k==='flint'||k==='underrock'||k==='basaltcol')?0:1;   // 자갈·부싯돌엔 이끼가 없다(바닷가 자갈 윗면이 곰팡이 핀 것처럼 보였다 — 사용자 지적)
   const FACET=(HABIT[k]&&HABIT[k].smooth===0)?1:0;      // 면마다 각진 바위만 면별 톤을 준다
   const PHOTO=GND_OK();                                 // 사진 결을 쓸 수 있나(22-ground-textures.js)
   const RPH=PHOTO&&!!TERR_U.uRk;                        // 바위 사진 여섯 장 + 법선 지도(data-rock-textures.js · rockPhotoInit)
@@ -852,6 +852,9 @@ vec2 grain(vec3 p){
         { vec2 ce=ckEdge(p.xz*0.9); float side=1.0-smoothstep(0.55,0.85,abs(n.y));
           c*=1.0-0.42*(1.0-smoothstep(0.0,0.05+fwidth(ce.x),ce.x))*side*nearK;
           c*=1.0-0.30*smoothstep(0.84,0.92,rn(p/0.035))*nearK; }`:''}
+        ${k==='basaltcol'?`/* 바위섬의 현무암 기둥 — 잔 기공 · 물가(해수면 ±1.5 m)는 젖어 어둡고 그 밑은 더 어둡다 */
+        { c*=1.0-0.30*smoothstep(0.84,0.92,rn(p/0.035))*nearK;
+          c*=mix(0.55,1.0,smoothstep(-0.6,1.6,p.y)); }`:''}
         ${k==='sandstone'?`/* 사암 — 가로 켜. 켜마다 빛깔이 조금씩 다르고 경계가 들쭉날쭉하다 */
         { float st=p.y*4.0+(rn(p/1.6)-0.5)*1.2; c*=mix(vec3(0.84,0.78,0.72),vec3(1.07,1.03,0.97),0.5+0.5*sin(st*3.1416));
           c*=0.90+0.12*rh(vec3(0.0,floor(st),0.0)); }`:''}
