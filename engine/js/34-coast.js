@@ -6,8 +6,9 @@
 /* ============================================================================
    바닷가 지형(사용자 요청 — 바닷가와 바다를 훨씬 다양하게)
    ----------------------------------------------------------------------------
-   · **시스택(작은 바위섬)** — 물가에서 30~90 m 떨어진 얕은 바다(수심 1.5~10 m)에 바위 기둥이 한둘~셋 선다. 바다 밑에서 물 위
-     8~26 m 까지 덩이를 쌓아 올리고(위로 갈수록 가늘다) 잔 덩이가 돋는다.
+   · **바위섬(현무암 · 흑요석)** — 물가에서 30~90 m 떨어진 얕은 바다(수심 1.5~10 m)에 한둘~셋 선다. 지름 2 m 육각 현무암 기둥이
+     벌집처럼 서서 가운데가 높고(물 위 8~26 m) 물가로 계단처럼 부러진다 · 검은 흑요석 덩이가 박힌다(셋에 하나는 흑요석 섬) ·
+     꼭대기에 전나무 한두 그루(coastIsle). 예전엔 둥근 덩이를 쌓아 흘러내리는 것처럼 보였다(사용자 지적).
    · **해식 아치** — 물가 바로 앞 얕은 물에 반원으로 휜 바위 다리. 덩이를 반원을 따라 겹쳐 세우고 두 발은 바다 밑까지 내린다.
      가운데 밑은 물 위 4.5 m 넘게 비어 배가 지나간다.
    · 둘 다 **벼랑의 큰 바위(33-crags.js)와 같은 덩이**다 — 같은 칸에 넣어 같은 사진 재질·같은 단계(LOD)·같은 몸의 막힘(cragSpan)을 쓴다.
@@ -20,7 +21,7 @@ const COAST={cols:[], grid:new Map(), meshes:[], G:8, sites:{stack:0,arch:0,basa
 const coastKey=(x,z)=>(Math.floor(x/COAST.G)+4096)*8192+(Math.floor(z/COAST.G)+4096);
 function coastClear(){
   for(const m of COAST.meshes){ scene.remove(m); m.geometry.dispose(); }
-  COAST.meshes.length=0; COAST.cols.length=0; COAST.grid.clear(); COAST.sites={stack:0,arch:0,basalt:0};
+  COAST.meshes.length=0; COAST.cols.length=0; COAST.grid.clear(); COAST.sites={stack:0,arch:0,basalt:0}; COAST.isles=[];
 }
 /* 벼랑 바위 칸(33-crags.js)에 덩이 하나 — 수 15 개(자리 · 반지름 · 돌림 · 단계 · 꼴 벌 · 빛깔 · 녹는 높이) */
 function coastBlob(rnd,x,y,z,rx,ry,rz,lv,tone){
@@ -44,7 +45,10 @@ function coastFeatures(seed){
   const rnd=mulberry32((seed^0xc0a57)>>>0), WS=Math.max(1,CELL/4), spots=[];
   const far=(x,z,d)=>spots.every(s=>Math.hypot(s[0]-x,s[1]-z)>d);
   const landOK=(x,z,pad)=>!caveAt(x,z,pad)&&!(typeof inLanding==='function'&&inLanding(x,z,pad+20));
-  /* ── 시스택 ── */
+  /* ── 시스택 → 현무암 · 흑요석 바위섬(사용자 요청 — 덩이를 쌓은 바위섬이 흘러내리는 것처럼 이상했다) ──
+     자리 고르기는 예전 그대로다. 이 난수(rnd)를 아치 · 주상절리가 이어 쓰므로 예전 덩이들이 뽑던 난수를 같은 수만큼 뽑아 버려야
+     옛 섬의 아치 · 주상절리 자리가 안 바뀐다. 섬의 꼴은 자리마다 제 난수로 coastIsle 이 따로 빚는다 */
+  COAST.isles=[];
   for(let tries=0,want=Math.round(10+8*WS);tries<60000&&COAST.sites.stack<want;tries++){
     const gx=3+((rnd()*(N-6))|0), gz=3+((rnd()*(N-6))|0), e=F.elev[IDX(gx,gz)];
     if(e>-1.5||e<-10) continue;
@@ -55,13 +59,12 @@ function coastFeatures(seed){
     for(let s=0,ns=1+((rnd()*3)|0);s<ns;s++){
       const x=x0+(rnd()-0.5)*26*Math.min(s,1), z=z0+(rnd()-0.5)*26*Math.min(s,1), fl=heightAt(x,z); if(fl>-1) continue;
       const R=4+rnd()*5, H=8+rnd()*18, nb=Math.max(2,Math.ceil((H-fl)/(R*1.05))), tone=0.78+0.22*rnd();
-      for(let k=0;k<nb;k++){ const f=k/(nb-1), y=fl+(H-fl)*f, r=R*(1-0.30*f)*(0.88+0.24*rnd());
-        coastBlob(rnd,x+(rnd()-0.5)*r*0.3,y,z+(rnd()-0.5)*r*0.3,r*(0.9+0.3*rnd()),r*(k===nb-1?0.55:0.72),r*(0.9+0.3*rnd()),k===nb-1?1:0,tone); }
-      for(let k=0,nk=2+((rnd()*3)|0);k<nk;k++){ const a=rnd()*6.283, y=fl+(H-fl)*(0.3+0.65*rnd()), r=R*(0.30+0.25*rnd());
-        coastBlob(rnd,x+Math.cos(a)*R*0.8,y,z+Math.sin(a)*R*0.8,r,r*0.8,r,2,tone); }
-      cragCollide(x,z,R*0.9);
+      for(let k=0;k<nb;k++) for(let i=0;i<10;i++) rnd();                    // 예전 기둥 덩이 — 덩이마다 열(크기 · 자리 · 늘림 · 돌림 · 빛깔)
+      for(let k=0,nk=2+((rnd()*3)|0);k<nk;k++) for(let i=0;i<8;i++) rnd();  // 예전 잔 덩이 — 덩이마다 여덟
+      cragCollide(x,z,R*1.15); COAST.isles.push({x,z,R,H,fl,tone});
     }
   }
+  for(const isle of COAST.isles) coastIsle(isle);
   /* ── 해식 아치 ── */
   for(let tries=0,want=Math.round(3+3*WS);tries<60000&&COAST.sites.arch<want;tries++){
     const gx=4+((rnd()*(N-8))|0), gz=4+((rnd()*(N-8))|0), e=F.elev[IDX(gx,gz)];
@@ -107,9 +110,70 @@ function coastFeatures(seed){
     cragCollide(x0-nx*D*0.5,z0-nz*D*0.5,Math.max(Lw,D)*0.55);              // 나무·덤불이 기둥 속에 서지 않게(cragNear)
   }
 }
+/* ── 바위섬 하나 ─────────────────────────────────────────────────────────────
+   · **현무암 기둥** — 지름 2 m 육각 기둥을 벌집처럼 세운다(바다 밑 바닥 − 2 m 에서). 꼭대기는 가운데가 높고(H) 가장자리로 갈수록
+     계단처럼 부러져 물가에서는 물 위 0.3~1.5 m 의 디딤돌이 된다. 둘레는 고르지 않은 원(세 겹 물결).
+   · **흑요석** — 검고 번들거리는 화산 유리. 날카롭게 깨진 덩이(평면 대여섯 장으로 깎은 공)가 기둥 사이 · 꼭대기 · 물가에 박힌다.
+     섬 셋에 하나는 흑요석 섬이다 — 기둥은 아랫도리만 서고 윗도리를 큰 흑요석 덩이가 덮는다.
+   · **전나무 한두 그루** — 꼭대기 기둥 가운데 둘레가 고른 것 위에(소품 전나무 — 벨 수 있다 · `top` 높이에 선다).
+   · 기둥은 주상절리와 같은 칸에 담겨 몸이 막히고 위에 올라선다(coastFloor · coastSolid). 흑요석 덩이도 기둥 꼴로 막는다 */
+function coastIsle(I){
+  const rnd=mulberry32(hashStr('isle|'+Math.round(I.x)+'|'+Math.round(I.z))), S=2.0, RC=S/Math.sqrt(3)*1.02;
+  const obs=rnd()<0.34, p1=rnd()*6.283, p2=rnd()*6.283, p3=rnd()*6.283, Rf=I.R*1.15, H=Math.max(4,I.H*(obs?0.55:1));
+  I.cols=[]; I.shards=[]; I.obs=obs;
+  const rim=a=>Rf*(1+0.22*Math.sin(2*a+p1)+0.14*Math.sin(3*a+p2)+0.08*Math.sin(5*a+p3));
+  for(let row=-Math.ceil(Rf*1.6/(S*0.866));row*S*0.866<=Rf*1.6;row++){ const v=row*S*0.866, off=(row&1)*S*0.5;
+    for(let u=-Rf*1.6+off;u<=Rf*1.6;u+=S){ const x=I.x+u, z=I.z+v, a=Math.atan2(v,u), d=Math.hypot(u,v)/rim(a); if(d>1) continue;
+      const g=heightAt(x,z);
+      let top=H*Math.pow(Math.max(0,1-Math.pow(d,1.7)),0.9);                  // 가운데가 높고 어깨로 흘러내리는 등(탑처럼 곧추서지 않게)
+      top=Math.floor(top/0.8)*0.8+(rnd()-0.5)*0.5;                            // 기둥마다 부러진 높이 — 0.8 m 계단에 잔 차이
+      if(d>0.72) top=Math.min(top,0.3+rnd()*1.4+(1-d)*4);                     // 가장자리 — 물가의 디딤돌
+      if(top<g+0.6) continue;
+      I.cols.push({x,z,r:RC*0.97,b:Math.min(g,0)-2,t:top,k:0.70+0.30*rnd(),d}); } }
+  /* 흑요석 덩이 — 흑요석 섬은 꼭대기에 크게, 아니면 기둥 사이와 물가에 몇 개 */
+  const nS=obs?7+((rnd()*5)|0):2+((rnd()*3)|0);
+  for(let i=0;i<nS;i++){ const a=rnd()*6.283, d=obs?Math.sqrt(rnd())*0.55:0.3+0.6*rnd(), x=I.x+Math.cos(a)*rim(a)*d, z=I.z+Math.sin(a)*rim(a)*d;
+    let base=0; for(const c of I.cols) if(Math.hypot(c.x-x,c.z-z)<RC*1.6) base=Math.max(base,c.t);
+    const r=obs?(1.6+rnd()*2.4)*(1-d*0.5):0.6+rnd()*1.1;
+    I.shards.push({x,y:base+r*(obs?0.25:0.1),z,r,sy:obs?1.1+rnd()*0.9:0.8+rnd()*0.6,ya:rnd()*6.283,tx:(rnd()-0.5)*0.6,tz:(rnd()-0.5)*0.6,seed:(rnd()*1e9)|0,k:0.8+0.4*rnd()}); }
+  /* 몸 막힘 — 기둥은 그대로, 흑요석 덩이는 그 둘레의 기둥 꼴로 */
+  const add=c=>{ COAST.cols.push(c); const k=coastKey(c.x,c.z); let a=COAST.grid.get(k); if(!a) COAST.grid.set(k,a=[]); a.push(c); };
+  for(const c of I.cols) add(c);
+  for(const s of I.shards) add({x:s.x,z:s.z,r:s.r*0.8,b:s.y-s.r*s.sy*0.9,t:s.y+s.r*s.sy*0.7,k:1});
+  /* 전나무 — 꼭대기 쪽 기둥 가운데 둘레(2.6 m 안)가 30 cm 넘게 높지 않은 것. 흑요석 덩이 위는 피한다 */
+  if(H>=6){ const cand=I.cols.filter(c=>c.d<0.5&&!I.shards.some(s=>Math.hypot(s.x-c.x,s.z-c.z)<s.r+1.2)&&!I.cols.some(o=>o!==c&&Math.hypot(o.x-c.x,o.z-c.z)<2.6&&o.t>c.t+0.3));
+    cand.sort((a,b)=>b.t-a.t);
+    const nT=Math.min(cand.length,1+(rnd()<0.5?1:0));
+    const put=[];                                                            // 이 섬에 세운 것 — 소품 전체(수십만)를 뒤지지 않는다
+    for(let i=0;i<cand.length&&put.length<nT;i++){ const c=cand[i]; if(put.some(p=>Math.hypot(p.x-c.x,p.z-c.z)<5)) continue;
+      const p={k:'fir',x:c.x,z:c.z,y:c.t,top:c.t-0.12,s:0.55+0.35*rnd(),r:rnd()*6.283,isle:1,_sunk:0}; PROPS.push(p); put.push(p); } }
+}
+let _isleMat=null, _obsMat=null;
+/* 현무암 기둥의 재질 — 바위 사진 재질(rockMat)을 짙은 현무암으로 · 잔 기공 · 물가는 젖어 어둡다(20-terrain.js 'basaltcol') */
+function isleMat(){ if(_isleMat) return _isleMat; const m=rockMat('basaltcol',0x5e5f62); m.vertexColors=true; m.userData.melt=0; m.userData.meltAttr=false; return _isleMat=m; }
+/* 흑요석 — 검은 유리: 면이 날카롭게 각지고(면마다 법선) 볕을 받으면 하얗게 번뜩인다 · 결 따라 엷은 회색 띠 */
+function obsMat(){
+  if(_obsMat) return _obsMat;
+  const m=new THREE.MeshPhongMaterial({color:0x0e0e12,specular:0xa8b0c0,shininess:140,vertexColors:true,flatShading:true});
+  m.onBeforeCompile=sh=>{ sh.vertexShader='varying vec3 vOW;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvOW=(modelMatrix*vec4(transformed,1.0)).xyz;');
+    sh.fragmentShader='varying vec3 vOW;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+      { float bnd=sin(vOW.y*5.5+sin(vOW.x*0.9+vOW.z*0.7)*2.0); diffuseColor.rgb*=1.0+0.35*smoothstep(0.75,1.0,bnd); }`); };
+  m.customProgramCacheKey=()=>'obsidian';
+  return _obsMat=m;
+}
+/* 흑요석 덩이 — 20면체(1단계)를 평면 대여섯 장으로 깎아(평면 밖의 점을 평면 위로) 날카로운 면을 낸다 */
+function obsShardGeo(s){
+  const g=new THREE.IcosahedronGeometry(1,1), p=g.attributes.position, rnd=mulberry32(s.seed>>>0), cuts=[];
+  for(let i=0;i<6;i++){ let x=rnd()*2-1, y=rnd()*1.4-0.5, z=rnd()*2-1; const l=Math.hypot(x,y,z)||1; cuts.push([x/l,y/l,z/l,0.55+0.3*rnd()]); }
+  for(let i=0;i<p.count;i++){ let x=p.getX(i), y=p.getY(i), z=p.getZ(i);
+    for(const c of cuts){ const d=x*c[0]+y*c[1]+z*c[2]-c[3]; if(d>0){ x-=c[0]*d; y-=c[1]*d; z-=c[2]*d; } }
+    p.setXYZ(i,x,y,z); }
+  return g;
+}
 /* 기둥 메시 — 자리마다 하나로 합친다(육각 옆면 + 윗면 · 면마다 제 법선 · 기둥마다 밝기) */
 function coastBuild(){
   for(const m of COAST.meshes){ scene.remove(m); m.geometry.dispose(); } COAST.meshes.length=0;
+  for(const I of (COAST.isles||[])) coastIsleBuild(I);
   if(!COAST.basalt) return;
   for(const site of COAST.basalt){
     if(!site.cols.length) continue;
@@ -130,6 +194,37 @@ function coastBuild(){
     g.setAttribute('color',new THREE.Float32BufferAttribute(C,3)); g.setAttribute('aMelt',new THREE.Float32BufferAttribute(M,1));
     g.computeBoundingSphere();
     const m=new THREE.Mesh(g,cragMat()); m.castShadow=m.receiveShadow=true; m.matrixAutoUpdate=false; m.updateMatrix(); scene.add(m); COAST.meshes.push(m);
+  }
+}
+/* 바위섬 그리기 — 현무암 기둥(육각 옆면 + 윗면의 가장자리를 살짝 깎은 모 · 면마다 한 톤) · 흑요석 덩이(합쳐 한 메시) */
+function coastIsleBuild(I){
+  if(I.cols&&I.cols.length){
+    const P=[], Nn=[], C=[], M=[];
+    const tri=(a,b,c,n,col)=>{ for(const v of [a,b,c]){ P.push(v[0],v[1],v[2]); Nn.push(n[0],n[1],n[2]); C.push(col,col,col*1.03); M.push(0); } };
+    for(const c of I.cols){
+      const ring=[], inner=[], ch=0.12;                                    // 윗면 모서리 — 12 cm 깎아 둥근 모(빛이 모서리를 잡는다)
+      for(let k=0;k<6;k++){ const a=k/6*6.2832+0.5236+(c.k-0.85)*0.3; ring.push([c.x+Math.cos(a)*c.r,c.z+Math.sin(a)*c.r]); inner.push([c.x+Math.cos(a)*(c.r-ch),c.z+Math.sin(a)*(c.r-ch)]); }
+      const col=0.72*c.k*I.tone;                                           // 짙은 잿빛(그늘 쪽이 새까맣게 뭉개지지 않게)
+      for(let k=0;k<6;k++){ const p=ring[k], q=ring[(k+1)%6], am=(k+0.5)/6*6.2832+0.5236+(c.k-0.85)*0.3, n=[Math.cos(am),0,Math.sin(am)];
+        const fk=0.80+0.20*(((k*5+Math.floor(c.x*2.3+c.z*1.3))%3+3)%3)/2;
+        tri([p[0],c.b,p[1]],[q[0],c.b,q[1]],[q[0],c.t-ch,q[1]],n,col*fk); tri([p[0],c.b,p[1]],[q[0],c.t-ch,q[1]],[p[0],c.t-ch,p[1]],n,col*fk);
+        const pi=inner[k], qi=inner[(k+1)%6], nb=[n[0]*0.7,0.71,n[2]*0.7];  // 깎은 모
+        tri([p[0],c.t-ch,p[1]],[q[0],c.t-ch,q[1]],[qi[0],c.t,qi[1]],nb,col*1.08); tri([p[0],c.t-ch,p[1]],[qi[0],c.t,qi[1]],[pi[0],c.t,pi[1]],nb,col*1.08);
+        tri([c.x,c.t,c.z],[qi[0],c.t,qi[1]],[pi[0],c.t,pi[1]],[0,1,0],col*1.15); } }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(C,3)); g.setAttribute('aMelt',new THREE.Float32BufferAttribute(M,1)); g.computeBoundingSphere();
+    const m=new THREE.Mesh(g,isleMat()); m.castShadow=m.receiveShadow=true; m.matrixAutoUpdate=false; m.updateMatrix(); scene.add(m); COAST.meshes.push(m);
+  }
+  if(I.shards&&I.shards.length){
+    const parts=[], M4=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), Sc=new THREE.Vector3();
+    for(const s of I.shards){ const gg=obsShardGeo(s);                     // 20면체는 이미 면마다 따로 선 꼭짓점이다(색인 없음) E.set(s.tx,s.ya,s.tz); Q.setFromEuler(E); V.set(s.x,s.y,s.z); Sc.set(s.r,s.r*s.sy,s.r*0.85); M4.compose(V,Q,Sc); gg.applyMatrix4(M4);
+      const n=gg.attributes.position.count, cc=new Float32Array(n*3).fill(s.k); gg.setAttribute('color',new THREE.BufferAttribute(cc,3)); gg.deleteAttribute('uv'); gg.deleteAttribute('normal'); parts.push(gg); }
+    let n=0; for(const q of parts) n+=q.attributes.position.count;
+    const pos=new Float32Array(n*3), col=new Float32Array(n*3); let o=0;
+    for(const q of parts){ pos.set(q.attributes.position.array,o*3); col.set(q.attributes.color.array,o*3); o+=q.attributes.position.count; q.dispose(); }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('color',new THREE.BufferAttribute(col,3)); g.computeVertexNormals(); g.computeBoundingSphere();
+    const m=new THREE.Mesh(g,obsMat()); m.castShadow=m.receiveShadow=true; m.matrixAutoUpdate=false; m.updateMatrix(); scene.add(m); COAST.meshes.push(m);
   }
 }
 /* 기둥 위 — 밑이 (땅 또는 발)에서 1.9 m 안인 기둥은 그 꼭대기가 바닥이다(벼랑 바위와 같은 규칙 · 높으면 벽 — 80-player.js walkable) */

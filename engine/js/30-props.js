@@ -1176,7 +1176,7 @@ function buildProps(){
 
     // 1차: 채집 횟수·통나무 수·베리를 먼저 정한다 (가지 총량을 알아야 하므로)
     list.forEach(p=>{
-      p.y=heightAt(p.x,p.z);
+      p.y=p.top!==undefined?p.top:heightAt(p.x,p.z);   // 바위섬 꼭대기의 전나무는 제 높이(34-coast.js coastIsle)
       if(HARVEST[R.k]||MINE[R.k]){
         const hh=hashStr(R.k+'|'+Math.round(p.x)+'|'+Math.round(p.z));
         p.vanish=!!(HARVEST[R.k]&&HARVEST[R.k].vanish);

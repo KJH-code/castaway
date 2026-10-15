@@ -33,21 +33,30 @@ function underClear(){
   UNDER.rope=null; UNDER.u=0; UNDER.cx=UNDER.cz=1e9; UNDER.map=null; if(typeof PL!=='undefined') PL.under=false;
 }
 /* ── 자리 정하기(섬을 지을 때 · placeResources 다음) ──────────────────────────── */
-function underSites(seed){
-  underClear(); if((P.tv|0)<7) return;
-  const rnd=mulberry32((seed^0x0bd3e7)>>>0), E=F.elev;
-  /* ① 기준 높이 — 둘레 50 m 의 가장 낮은 땅(최소 거르기) → 넓게 흐린 것과 '가장 낮은 땅 − 24 m' 가운데 낮은 쪽 − 16 m.
-       그래서 천장(Y0 + 0.7g · g ≤ 28)도 늘 땅 밑 20 m 아래다 */
-  const r0=Math.max(1,Math.ceil(50/CELL)), A=new Float32Array(N*N), M=new Float32Array(N*N);
+/* 기준 높이의 자바스크립트 판 — C 판(engine/native/light.c cw_under_base)이 못 켜졌을 때. 두 판은 같은 값을 낸다 */
+function underBaseJS(E,r0,rb){
+  const A=new Float32Array(N*N), M=new Float32Array(N*N);
   for(let z=0;z<N;z++) for(let x=0;x<N;x++){ let m=1e9; for(let k=-r0;k<=r0;k++){ const xx=clamp(x+k,0,N-1); const v=E[z*N+xx]; if(v<m) m=v; } A[z*N+x]=m; }
   for(let z=0;z<N;z++) for(let x=0;x<N;x++){ let m=1e9; for(let k=-r0;k<=r0;k++){ const zz=clamp(z+k,0,N-1); const v=A[zz*N+x]; if(v<m) m=v; } M[z*N+x]=m; }
-  const rb=Math.max(1,Math.ceil(120/CELL)), T1=new Float32Array(N*N), T2=new Float32Array(N*N);
+  const T1=new Float32Array(N*N), T2=new Float32Array(N*N);
   const blur=(src,dst,dx)=>{ for(let z=0;z<N;z++){ let s=0, n=0; const row=i=>dx?z*N+i:i*N+z;
       for(let i=-rb;i<=rb;i++){ const q=clamp(i,0,N-1); s+=src[row(q)]; n++; }
       for(let i=0;i<N;i++){ dst[row(i)]=s/n; const a=clamp(i-rb,0,N-1), b=clamp(i+rb+1,0,N-1); s+=src[row(b)]-src[row(a)]; } } };
   blur(M,T1,true); blur(T1,T2,false); blur(T2,T1,true); blur(T1,T2,false);
   const Bm=new Float32Array(N*N); for(let i=0;i<N*N;i++) Bm[i]=Math.min(T2[i],M[i]-24)-16;
   UNDER.B=Bm; UNDER.M=M;
+}
+function underSites(seed){
+  underClear(); if((P.tv|0)<7) return;
+  const rnd=mulberry32((seed^0x0bd3e7)>>>0), E=F.elev;
+  /* ① 기준 높이 — 둘레 50 m 의 가장 낮은 땅(최소 거르기) → 넓게 흐린 것과 '가장 낮은 땅 − 24 m' 가운데 낮은 쪽 − 16 m.
+       그래서 천장(Y0 + 0.7g · g ≤ 28)도 늘 땅 밑 20 m 아래다 */
+  const r0=Math.max(1,Math.ceil(50/CELL)), rb=Math.max(1,Math.ceil(120/CELL));
+  if(typeof nativeOn==='function'&&nativeOn()&&NATIVE.x.cw_under_base){         // C 판(engine/native/light.c — 같은 식)
+    const X=NATIVE.x; new Float32Array(X.memory.buffer,X.cw_elev(),N*N).set(E); X.cw_under_base(N,r0,rb);
+    UNDER.M=new Float32Array(X.memory.buffer,X.cw_under_m(),N*N).slice(); UNDER.B=new Float32Array(X.memory.buffer,X.cw_under_b(),N*N).slice();
+  }else underBaseJS(E,r0,rb);
+  const M=UNDER.M;
   const landAt=(x,z)=>{ const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2); return gx>2&&gz>2&&gx<N-3&&gz<N-3&&M[gz*N+gx]>5; };
   /* ② 굴 방 — 300 m 칸마다 하나(뭍 밑에만) */
   const S=300, n=Math.floor(HALF/S);
@@ -58,9 +67,10 @@ function underSites(seed){
     UNDER.ch.push({x,z,R,H,sd,p:[rnd()*6.283,rnd()*6.283,rnd()*6.283],...f});
   }
   /* ③ 수직굴 — 땅 위 굴 둘에 하나꼴, 마지막 방 바닥(광석이 없는 자리). 밑에는 작은 방을 하나 둔다 */
+  const caveOre=PROPS.filter(p=>p.cave);                                    // 굴 속 광석만 한 번 추린다(소품 전체를 굴마다 뒤지면 굴 88 × 수십만)
   for(const c of CAVES){ if(c.off||rnd()<0.45) continue;
     /* 광석에서 가장 먼 자리(열두 번 뽑아) — 그래도 2.4 m 안에 걸리는 광석은 방 가장자리로 비켜 놓는다 */
-    const rm=c.rooms[c.rooms.length-1], ore=PROPS.filter(p=>p.cave&&Math.hypot(p.x-rm.x,p.z-rm.z)<rm.R+1); let px=rm.x, pz=rm.z, best=-1;
+    const rm=c.rooms[c.rooms.length-1], ore=caveOre.filter(p=>Math.hypot(p.x-rm.x,p.z-rm.z)<rm.R+1); let px=rm.x, pz=rm.z, best=-1;
     for(let t=0;t<12;t++){ const a=rnd()*6.283, d=rm.R*(0.25+0.3*rnd()), x=rm.x+Math.cos(a)*d, z=rm.z+Math.sin(a)*d;
       let m=1e9; for(const p of ore) m=Math.min(m,Math.hypot(p.x-x,p.z-z)); if(m>best){ best=m; px=x; pz=z; } }
     for(const p of ore){ const dx=p.x-px, dz=p.z-pz, d=Math.hypot(dx,dz); if(d>=2.4) continue;

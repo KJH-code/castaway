@@ -1,5 +1,5 @@
 #!/bin/sh
-# engine/native/build.sh — compile the C kernels (erosion.c, shore.c) to WebAssembly and embed them for the game.
+# engine/native/build.sh — compile the C kernels (erosion.c, shore.c, light.c) to WebAssembly and embed them for the game.
 #
 #   sh env/setup-zig.sh        # once: fetch the compiler into env/zig/
 #   sh engine/native/build.sh  # writes engine/js/data-native-wasm.js
@@ -17,7 +17,8 @@ OUT="$ROOT/engine/native/erosion.wasm"
   -Wl,--no-entry -Wl,--strip-all \
   -Wl,--export=cw_elev -Wl,--export=cw_thermal -Wl,--export=cw_hydraulic -Wl,--export=cw_smooth \
   -Wl,--export=cw_river -Wl,--export=cw_shore_out -Wl,--export=cw_shore \
-  -o "$OUT" "$ROOT/engine/native/erosion.c" "$ROOT/engine/native/shore.c"
+  -Wl,--export=cw_tlit_open -Wl,--export=cw_tlit_out -Wl,--export=cw_under_base -Wl,--export=cw_under_m -Wl,--export=cw_under_b \
+  -o "$OUT" "$ROOT/engine/native/erosion.c" "$ROOT/engine/native/shore.c" "$ROOT/engine/native/light.c"
 python3 - "$OUT" "$ROOT/engine/js/data-native-wasm.js" <<'PY'
 import base64, sys
 b = open(sys.argv[1], 'rb').read()
