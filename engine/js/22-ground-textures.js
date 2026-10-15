@@ -155,8 +155,14 @@ function gndInit(){
      ③ 그 법선으로 N·L 을 세어 정점에서 온 값(`lambW.x`) 자리에 넣는다(`gndSun`). 그림자·구름 그늘·산 그림자는 그대로 곱해진다.
      ④ 그림자 지도 밖(`uShR`)에서는 숲 덮임(`uTL` 의 B)만큼 햇빛을 깎는다 — 먼 숲 바닥이 어둡다. 하늘빛도 조금.
      ⑤ 기복의 낮은 데는 하늘빛을 덜 받는다(`gndAmb`).
-     ⑥ 젖은 데(물가 · 진흙 · 비 `uWet`)는 짙어지고 번들거린다(블린-퐁 — 마른 흙은 넓고 흐리게, 젖으면 좁고 밝게) */
-function gndTerrainFrag(frag){
+     ⑥ 젖은 데(물가 · 진흙 · 비 `uWet`)는 짙어지고 번들거린다(블린-퐁 — 마른 흙은 넓고 흐리게, 젖으면 좁고 밝게)
+     ⑦ 마른 모래 — 바람 물결 자국 · 알갱이 빛깔 · 석영 알의 반짝임(아래 '모래' 토막들)
+
+   **extra** — 땅 위에 놓는 둔덕(모래 둔덕 · 점토 노출지 — moundMat)이 이 셰이더를 그대로 쓰며 끼워 넣는 GLSL. 바탕 빛깔(c)을 다 센 뒤 ·
+   물가 손질 앞에 들어가고, 아래 갈고리 값으로 빛 셈에 손을 댄다(둔덕이 아니면 다 0 이라 땅은 한 비트도 안 바뀐다):
+     mdSand — 이 자리를 마른 모래로 친다(물결 자국·알갱이·반짝임) · mdH — 결의 높이(금 · 말린 가장자리 — 사진 결 높이에 더한다) ·
+     mdK · mdGl · mdF0 — 번들거림을 이 값 쪽으로(축축한 점토) */
+function gndTerrainFrag(frag,extra){
   const SUN='reflectedLight.directDiffuse += PI * directionalLights[ 0 ].color * lambW.x * getShadowMask();',
         IND='reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb );';
   const PIX=frag.split(SUN).length===2&&frag.split(IND).length===2;      // 램버트 조각 셰이더가 예상과 같을 때만 화소 빛으로 간다
@@ -190,6 +196,11 @@ float ckNet(vec2 u,float k){
     c=max(c,(1.0-smoothstep(0.0,w+fw,e.x))*step(i==0?0.55:0.45,e.y)*(1.0-smoothstep(0.15,0.45,fw))*(i==0?1.0:0.7)); kk*=2.7; w*=0.9; }
   return c; }
 
+/* 칸 해시 — pcg2d(Jarzynski · Olano, "Hash Functions for GPU Rendering", JCGT 2020). 모래 알 하나(0.5 mm)짜리 칸까지 세므로
+   sin 해시(큰 값에서 정밀도가 무너져 줄무늬가 선다) 대신 정수로 섞는다 */
+vec2 gnH(vec2 c){ uvec2 v=uvec2(ivec2(mod(c,65536.0)))*1664525u+1013904223u; v.x+=v.y*1664525u; v.y+=v.x*1664525u; v^=v>>16u;
+  v.x+=v.y*1664525u; v.y+=v.x*1664525u; v^=v>>16u; return vec2(v)*(1.0/4294967296.0); }
+
 vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
   vec2 sk=mat2(1.0,0.0,-0.57735027,1.15470054)*(uv*1.7320508);
   vec2 b=floor(sk); vec3 t=vec3(fract(sk),0.0); t.z=1.0-t.x-t.y;
@@ -204,6 +215,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
 `+frag.replace('#include <color_fragment>',`#include <color_fragment>
       {
         vec2 p=vTW.xz;
+        vec2 mdGrad=vec2(0.0); float mdSand=0.0, mdH=0.0, mdK=0.0, mdGl=60.0, mdF0=0.04;   // 둔덕 갈고리(extra) — 땅은 0 그대로
         vec4 n1=texture2D(uNz,p/113.0), n2=texture2D(uNz,p/27.0+vec2(0.37,0.11));
         /* **가파른 면은 옆에서 본 좌표로** — 위에서 내려다본 좌표(xz)만 쓰면 벽에서 무늬가 세로로 길게 늘어진다(벼랑의 줄무늬).
            51°~68° 에 걸쳐 옆 투영 둘(xy · zy)을 면이 보는 쪽대로 섞은 것으로 옮겨 간다 — 얼룩 잡음과 바위 사진 결 */
@@ -299,6 +311,18 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         /* 모래는 사진 결을 반만 — 모래밭이 혼자 튀었다(사용자 지적). 대신 넓은 얼룩(젖은 데·마른 데)으로 바탕과 섞는다 */
         c*=mix(vec3(1.0),det*2.0,mix(1.0,0.6,smoothstep(50.0,160.0,vTD))*mix(1.0,0.50,wSand));    // 멀리선 조금 옅게
         c*=mix(1.0,0.84+0.30*n1.r+0.10*(n2.g-0.5),wSand);
+        ${extra||''}
+        /* **모래 알갱이** — 0.5~0.7 mm 알(석영 8 · 검은 광물 1.2 · 조개 부스러기 0.8 의 몫)의 빛깔이 알마다 다르다. 화소 발자국만 한
+           칸(2의 거듭제곱 · 두 단계를 섞어 튀지 않게)마다 알 하나를 뽑고, 칸에 알이 (칸/알)² 개 섞인 만큼(흔들림 ∝ 알/칸) 눅인다 —
+           멀리선 평균(1)으로 사라지고 발밑에선 알갱이가 보인다. 사진(한 화소 4 mm)으론 이보다 잘게 못 그린다 */
+        float wDS=max(wSand,mdSand);
+        vec2 fwP=fwidth(p); float fpx=max(max(fwP.x,fwP.y),1e-5);
+        if(wDS>0.02&&fpx<0.012){
+          float lv=max(log2(fpx/0.0006),0.0), l0=floor(lv), lw=lv-l0; vec3 gm=vec3(0.0);
+          for(int i=0;i<2;i++){ float L=0.0006*exp2(l0+float(i)); vec2 hg=gnH(floor(p/L)+vec2(l0+float(i))*977.0);
+            vec3 m=hg.x<0.12?vec3(0.45,0.44,0.46):hg.x<0.20?vec3(1.32,1.30,1.26):vec3(1.05,1.045,1.03)*(0.92+0.16*hg.y);
+            gm+=(i==0?1.0-lw:lw)*mix(vec3(1.0),m,clamp(0.0006/L,0.0,1.0)); }
+          c*=mix(vec3(1.0),gm,wDS*smoothstep(0.012,0.004,fpx)); }
         /* 물가 — 젖은 띠와 밀려온 거품. 바닷물 셰이더의 거품과 같은 박자(uShT)로 오르내린다 */
         float h=vTW.y, wetS=0.0;
         if(h<1.3&&h>-0.8){
@@ -336,14 +360,32 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
              이랑이다: 이랑은 물가와 나란히(비탈의 내리막에 수직으로) 눕는다. 방향이 다른 세 벌(60° 간격)을 두고 그 자리의 내리막 방향에
              가까운 벌이 이기게 섞는다(방향을 화소마다 돌리면 무늬가 뭉개진다). 간격은 얕은 데 30 cm · 깊은 데 90 cm(큰 이랑),
              높이 1.2 cm. 잡음으로 굽이친다. 20 m 밖에서는 화소보다 잘아져 지운다 */
-          { float sandK=max(mSand*flat1*0.35,(h<0.3?(1.0-subRock)*(1.0-grav):0.0))*smoothstep(22.0,7.0,vTD);   // 마른 모래밭의 이랑은 옅게(줄무늬로 튀었다) — 물밑은 그대로
+          { float sandK=(h<0.3?(1.0-subRock)*(1.0-grav):0.0)*smoothstep(22.0,7.0,vTD);   // 물이 낸 이랑은 물밑·물가만 — 마른 모래는 아래 바람 자국(예전엔 마른 데도 0.32 m 이랑을 옅게 깔아 곧은 줄무늬로 튀었다)
             if(sandK>0.02){ vec2 dn=normalize(Ng.xz+vec2(0.021,0.013)); float lam=mix(0.32,0.90,smoothstep(0.3,-7.0,h)), kk=6.2832/lam, ws=0.0, hs=0.0; vec2 gr=vec2(0.0);
               for(int i=0;i<3;i++){ float an=float(i)*1.0472+0.35; vec2 d=vec2(cos(an),sin(an)); float w=pow(abs(dot(dn,d)),6.0)+0.02;
                 float ph=dot(p,d)*kk+(n2.r-0.5)*5.0+(n1.g-0.5)*9.0; gr+=w*d*(cos(ph)+0.35*cos(2.0*ph+1.0))*kk; hs+=w*sin(ph); ws+=w; }
               g+=gr/ws*(0.012*sandK); hr+=hs/ws*0.10*sandK; } }
+          /* **바람 물결 자국**(마른 모래 — 사용자 지적: 모래 질감이 실제와 다르다). 실측(바람 모래 물결 리뷰 · Nield 외 2023 JGR):
+             파장 수 cm~십수 cm · 높이는 파장의 1/15~1/20 · 바람 받는 비탈은 완만하고 바람 그늘 쪽이 가파르다 · 마루는 납작하고 굽이치며
+             끊겼다 이어진다 · 굵은 알이 마루에 모인다. 그래서 파장 11 cm · 높이 1/20 · 완만한 쪽이 한 주기의 72%(경사 최대 6° / 15°).
+             바람은 섬 전체가 하나라 마루 방향도 하나다. 물결 밭은 군데군데만(9 m 잡음 문턱) · 물이 닿는
+             데는 없다 · 마루를 0.7 m 잡음으로 끊고 1.9 m 잡음으로 굽힌다. 한 파장이 화소 여덟 밑이면 줄여 넷에서 지운다(물결 무늬 번쩍임) */
+          float rpY=0.0, rpK=0.0;
+          { float dK=wDS*(1.0-wetS)*flat1*max(smoothstep(0.44,0.70,textureLod(uNz,p/9.0+vec2(0.71,0.23),1.0).g)*smoothstep(0.45,0.85,h),mdSand);
+            float lam=0.11, aa=smoothstep(0.25,0.125,fpx/lam);
+            if(dK*aa>0.01){
+              /* 방향은 섬 전체가 하나(바람은 하나다). 자리마다 방향을 돌렸더니 위상이 원점에서 잰 거리(수백 m)만큼 지렛대를 타
+                 0.001 rad 에도 열 주기 넘게 밀려 마루가 지문처럼 동그랗게 말렸다 — 굽힘은 아래 위상 비틀기만 맡는다 */
+              const vec2 d=vec2(0.8309,0.5564);
+              /* 굽힘은 큰 잡음에서만(흐린 밉 단계로 잔 옥타브를 뺀다) — 잡음 텍스처의 잔 옥타브(한 장의 1/32)까지 위상에 넣었더니 마루가 지문처럼 동그랗게 말렸다 */
+              float ph=dot(p,d)/lam+(textureLod(uNz,p/7.0,2.5).r-0.5)*0.9+(textureLod(uNz,p/2.2+vec2(0.6,0.3),2.0).g-0.5)*1.3+(n2.r-0.5)*1.9, t=fract(ph);   // 2 m 굽이 — 마루가 물결친다
+              const float A=0.72; float x=t<A?t/A:(1.0-t)/(1.0-A), s=6.0*x*(1.0-x)/(t<A?A:-(1.0-A));
+              rpK=dK*aa*smoothstep(0.22,0.58,textureLod(uNz,p/1.6+vec2(0.4,0.9),2.0).b); rpY=x*x*(3.0-2.0*x);   // 마루가 흐려졌다 이어진다(흐린 밉 — 잔 옥타브는 마루를 토막 냈다)
+              g+=d*(s/20.0)*rpK; hr+=(rpY-0.5)*0.12*rpK; c*=1.0-0.05*rpY*rpK; } }   // 마루엔 굵고 짙은 알이 모인다
+          g+=mdGrad;
           float ny=max(Ng.y,0.3);
           vec3 Np=normalize(vec3(Ng.x/ny-g.x,1.0,Ng.z/ny-g.y));
-          float lum=dot(det,vec3(0.3333)), nearB=1.0-smoothstep(6.0,34.0,vTD);
+          float lum=dot(det,vec3(0.3333))+mdH, nearB=1.0-smoothstep(6.0,34.0,vTD);
           if(nearB>0.0){                                                          // 사진 결의 밝기를 높이로(밝은 데가 솟았다 · 3 cm)
             vec3 sx=dFdx(vTW), sy=dFdy(vTW), r1=cross(sy,Np), r2=cross(Np,sx); float dt=dot(sx,r1);
             Np=normalize(Np-(dFdx(lum)*r1+dFdy(lum)*r2)*(sign(dt)/max(abs(dt),1e-7))*0.03*nearB); }
@@ -355,6 +397,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
           c*=mix(1.0,0.74,uWet*(1.0-mSand*0.5));                                  // 비 맞은 땅은 짙다
           vec3 Vv=normalize(cameraPosition-vTW), Hh=normalize(Vv+uSunDir);
           float gl=mix(mix(mix(7.0,22.0,wRock),150.0,wallSleek),96.0,wetK), f0=mix(mix(0.022,0.075,wallSleek),0.05,wetK);   // 점판암은 매끈하다
+          gl=mix(gl,mdGl,mdK); f0=mix(f0,mdF0,mdK);                                // 둔덕 갈고리 — 축축한 점토의 윤
           if(wallWet>0.01){ float rp=texture2D(uNz,vTW.xy/1.7+vec2(0.0,uShT*0.06)).g+texture2D(uNz,vTW.zy/1.7+vec2(0.0,uShT*0.06)).g-1.0;
             Np=normalize(Np+vec3(rp,0.0,rp)*0.10*wallWet); }                         // 흘러내리는 물의 잔 일렁임 — 반짝임이 살아 움직인다
           float spec=f0*(gl+8.0)*0.125*pow(max(dot(Np,Hh),0.0),gl)*ndl*(0.35+0.65*smoothstep(0.35,0.65,lum))*mix(1.0,0.5,wetK);   // 젖은 데는 좁고 밝되 하얗게 뭉개지지 않게
@@ -362,6 +405,27 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
           if(uDew>0.01&&wGrass>0.05){ float cs=max(0.010,vTD*0.0024);
             float hh=fract(sin(dot(floor(vTW/cs),vec3(127.1,311.7,74.7))+floor(dot(Vv,vec3(31.0,17.0,23.0)))*13.7)*43758.5453);
             spec+=smoothstep(0.990,1.0,hh)*smoothstep(60.0,12.0,vTD)*6.0*uDew*wGrass*ndl; }
+          /* **모래 반짝임** — 마른 모래의 석영 알 가운데 깨진 면이 매끈한 것(몫 15% — 석영이 많은 바닷가 모래)이 해를 눈 쪽으로 되비치면 한 점이 번쩍인다.
+             세는 꼴로 센다(Jakob 외 2014 'Discrete stochastic microfacet models' · Chermain 외 2020 'Procedural physically based BRDF for
+             real-time rendering of glints' — MIT 코드 ASTex-ICube/real_time_glint 를 보고 식만 가볍게 새로 썼다, 사전(dictionary) 텍스처 없이):
+             ① 화소 발자국만 한 칸(알 0.5 mm × 2의 거듭제곱 — 두 단계를 섞어 단계가 바뀌어도 튀지 않게 · 칸 번호는 세계 자리라 걸어도 안 흐른다)
+             ② 칸 안 거울 알 n 개 가운데 해를 눈으로 되비칠 몫 p = D(h)·cosθh·Ω해/(4·(l·h)) — D 는 벡만(거칠기 0.55 · 알이 제멋대로 놓인 꼴),
+                Ω해 는 **실제 해**(6.8e-5 sr — 그려 놓은 해 원판은 보기 좋게 네 배라 그걸 쓰면 반짝임이 열네 배 흔하고 그만큼 흐려 안 보였다)
+             ③ 기댓값 λ=n·p 로 칸마다 정해진 난수에서 포아송 표본 k 를 뽑아(6 넘으면 정규 근사) 매끈한 반사에 k/λ 를 곱한다.
+             그래서 가까이선 드문 아주 밝은 점이고(k=1 · λ 작음), 멀어지면 λ 가 커져 k/λ→1 — 매끈한 옅은 윤으로 저절로 수렴한다(에너지 같음).
+             젖은 모래는 물막이 덮어 안 반짝인다 · 40 m 밖은 그 윤이 0.5% 밑이라 안 센다 */
+          { float wG=wDS*(1.0-wetK)*(1.0-smoothstep(30.0,40.0,vTD));
+            if(wG>0.01&&ndl>0.0){
+              float cH=clamp(dot(Np,Hh),1e-3,1.0), c2=cH*cH; const float aB=0.55;
+              float Dh=exp(-(1.0-c2)/(c2*aB*aB))/(3.14159*aB*aB*c2*c2), pr=Dh*cH*6.8e-5/(4.0*max(dot(uSunDir,Hh),0.05));
+              float fpn=max(min(length(dFdx(p)),length(dFdy(p))),1e-5);   // 발자국의 짧은 축(비스듬히 보면 긴 축은 늘어난다 — Chermain 도 짧은 축으로 단계를 고른다)
+              float lv=max(log2(fpn/0.0005),0.0), l0=floor(lv), lw=lv-l0, kr=0.0;
+              for(int i=0;i<2;i++){ float L=0.0005*exp2(l0+float(i)), lam=max((L/0.0005)*(L/0.0005)*0.15*pr,1e-7);
+                vec2 u=gnH(floor(p/L)+vec2(l0+float(i))*1531.0+vec2(311.0,57.0)); float k=0.0;
+                if(lam<6.0){ float pk=exp(-lam), cdf=pk; for(int j=0;j<12;j++){ if(u.x<=cdf) break; k+=1.0; pk*=lam/k; cdf+=pk; } }
+                else k=max(0.0,lam+sqrt(lam)*sqrt(-2.0*log(max(u.x,1e-6)))*cos(6.2832*u.y));
+                kr+=(i==0?1.0-lw:lw)*k/lam; }
+              spec+=min(0.15*0.045*Dh*3.14159/(4.0*max(dot(Np,Vv),0.15))*kr,60.0)*wG*smoothstep(0.0,0.08,ndl); } }
           gndSun=ndl*(1.0-0.62*can*canK)+spec/max(dot(c,vec3(0.3333)),0.03);
           gndAmb=(0.86+0.28*smoothstep(-0.30,0.30,hr))*(1.0-0.18*can)*(0.90+0.10*Np.y/ny*Ng.y);
         }`:''}
@@ -425,5 +489,78 @@ function gndDetailPatch(m,layer,scale){
   };
   const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
   m.customProgramCacheKey=()=>'gnd'+layer+'-'+scale+(pk?'-'+pk.call(m):'');
+  return m;
+}
+
+/* ── 둔덕 재질 — 모래 둔덕 · 점토 노출지 ──────────────────────────────────
+   사용자 지적: 모래·점토의 질감이 실제와 다르다. 예전엔 둔덕이 제 빛깔(표의 색 × 사진 한 겹)로 칠한 램버트였다 — 둘레 땅과 밝기·빛깔·
+   빛 셈(땅은 화소마다, 둔덕은 정점마다)이 달라 **모래밭에 붙인 스티커**처럼 테두리가 섰다. 이제 둔덕은 **땅 셰이더를 그대로** 쓴다
+   (gndTerrainFrag — 같은 바이옴 빛깔 · 같은 사진 결 · 같은 화소 빛 · 같은 물가 손질). 그래서 가장자리는 땅과 한 화소도 다르지 않고,
+   안쪽으로 들어갈수록 둔덕만의 결(extra)이 짙어진다:
+   · 모래 둔덕 — 바람에 쌓인 마른 모래 더미. 둘레 땅이 무엇이든 안쪽은 해변 모래 빛깔(한 톤 밝게 — 말라 성기다)이고, 마른 모래의
+     물결 자국 · 알갱이 · 반짝임이 그대로 앉는다(mdSand).
+   · 점토 노출지 — 모래·흙이 벗겨져 드러난 점토층. 가장자리는 모래가 덮어 들쭉날쭉하고(잡음 세 겹), 안쪽은 말라 **갈라진다** —
+     말라 줄어드는 층의 금(실측: 금 사이 간격은 층 두께쯤 · 먼저 난 굵은 금이 큰 칸을 나누고 나중 금이 그 안을 잘게 나눈다 —
+     Goehring 2013 'Evolving fracture patterns' · 'Universal scaling of polygonal desiccation crack patterns' 2018). 굵은 금 칸 14 cm ·
+     잔 금 칸 5 cm(반쯤만) — 보로노이 경계(ckEdge, 벼랑 금과 같은 것). 판의 가장자리는 말려 올라 볕을 받고(mdH 높이 → 사진 결 높이와 같은
+     길로 법선을 기울인다), 금 속은 그늘이다. 빛깔은 쇠 녹(주황) 얼룩과 잿빛(환원) 얼룩이 섞인 점토 · 마른 데는 밝고 축축한 둘레는 짙고
+     번들거린다(mdK). 화소보다 잘아진 금은 지운다(번쩍임).
+   땅 셰이더가 없으면(WebGL1) 예전 램버트 + 사진 한 겹(gndDetailPatch) */
+function moundMat(kind,R,col,H,bury){
+  const m=new THREE.MeshLambertMaterial({color:0xffffff});
+  if(!GND_OK()){ m.color.setHex(col); return gndDetailPatch(m,kind?6:0,2.1); }
+  const f3=h=>{ const c=new THREE.Color(h); return c.r.toFixed(4)+','+c.g.toFixed(4)+','+c.b.toFixed(4); };
+  const SAND=f3(BIOME_INFO[B.BEACH].c);
+  /* 둔덕 결은 '땅 위로 드러난 높이'로 잰다: e = 1 − (높이 − bury)/(꼭대기 − bury) — 꼭대기 0 · 땅과 만나는 데 1.
+     bury 는 둔덕 높이(제 좌표)에서 땅이 있는 자리 — 덮어씌우므로 자락이 1 cm 땅속(−0.02)이다 */
+  const E=`clamp(1.0-(vMd.y-(${bury.toFixed(3)}))/${(H-0.03-bury).toFixed(3)},0.0,1.0)`;   // 괄호 — 음수면 'y--0.02' 가 되어 컴파일이 안 됐다
+  const EXTRA=kind===0?`
+        { float rr=${E}, cw=smoothstep(0.95,0.45,rr+(texture2D(uNz,p/1.3).g-0.5)*0.30);
+          vec3 sc=vec3(${SAND})*0.70; sc=mix(sc,sc*vec3(0.94,0.95,1.0)+vec3(0.0,0.004,0.008),0.5);   // 땅 셰이더의 모래 손질과 같은 값
+          sc*=1.0+0.22*(n1.b-0.5)+0.12*(n2.b-0.5); sc*=mix(vec3(0.96,0.99,1.04),vec3(1.05,1.01,0.93),n1.a);
+          sc*=mix(vec3(1.0),GL(0.0)*2.0,0.5)*(0.84+0.30*n1.r+0.10*(n2.g-0.5));
+          c=mix(c,sc*1.04,cw); mdSand=cw; }`:`
+        { float rr=${E};
+          float ed=rr+(textureLod(uNz,p/2.4+vec2(0.2,0.5),1.0).g-0.5)*0.45+(texture2D(uNz,p/0.65).g-0.5)*0.22+(texture2D(uNz,p/0.23).b-0.5)*0.08;   // 큰 혹 · 잔 톱니 — 둥근 판이 아니게
+          float cw=smoothstep(0.97,0.80,ed)*smoothstep(0.22,0.40,texture2D(uNz,p/0.33+vec2(0.8,0.1)).r+0.45*(1.0-ed)), dry=smoothstep(0.80,0.35,ed);   // 모래가 덮은 데(바람에 날려 온 모래 웅덩이)는 빠진다
+          vec3 cc=vec3(${f3(col)}); cc=mix(cc,vec3(dot(cc,vec3(0.3333)))*vec3(1.02,0.98,0.93),0.55)*0.92;   // 자연 점토는 표의 빛깔보다 잿빛이다
+          float mo=texture2D(uNz,p/0.6+vec2(0.31,0.77)).b, mo2=texture2D(uNz,p/0.21+vec2(0.6,0.2)).a;
+          cc*=0.88+0.24*mo;
+          cc=mix(cc,cc*vec3(1.22,0.93,0.68),smoothstep(0.58,0.80,mo2)*0.35);                                  // 쇠 녹 얼룩
+          cc=mix(cc,vec3(dot(cc,vec3(0.3333)))*vec3(0.92,0.96,1.0),smoothstep(0.62,0.82,1.0-mo2)*0.35);      // 잿빛(환원) 얼룩
+          cc*=mix(vec3(1.0),GL(6.0)*2.0,0.22);                                                                  // 고운 결만 옅게
+          cc*=mix(0.72,1.12,dry);                                                                               // 젖은 점토는 짙다
+          vec2 e1=ckEdge(p/0.14), e2=ckEdge(p/0.05+vec2(7.3,1.9));
+          float f1=fwidth(e1.x)+1e-4, f2=fwidth(e2.x)+1e-4, v1=1.0-smoothstep(0.12,0.35,f1), v2=1.0-smoothstep(0.12,0.35,f2);
+          /* 금마다 폭이 다르고(먼저 난 금이 넓다) · 굵은 칸의 경계도 15% 는 안 갈라져 이웃 판이 붙어 있다(T 자 이음) */
+          float cr1=(1.0-smoothstep(0.008+0.014*e1.y,0.008+0.014*e1.y+f1,e1.x))*step(0.15,e1.y)*v1, cr2=(1.0-smoothstep(0.016,0.016+f2,e2.x))*step(0.65,e2.y)*v2*0.55;
+          float rim=smoothstep(0.14,0.03,e1.x)*(1.0-cr1)*v1, dk=dry*cw, cr=max(cr1,cr2);
+          cc*=(1.0-0.50*cr*dk)*(1.0+0.07*rim*dk);
+          c=mix(c,cc,cw);
+          mdH=(-0.6*cr+0.30*rim)*dk; mdK=cw*(1.0-dry)*0.85; mdGl=80.0; mdF0=0.045; }`;
+  m.onBeforeCompile=sh=>{
+    Object.assign(sh.uniforms,TERR_U);
+    sh.uniforms.uElev=WATER_U.uElev; sh.uniforms.uGrid=WATER_U.uGrid;
+    /* **땅에 덮어씌운다** — 놓인 자리(인스턴스)의 가로 자리는 그대로 두고, 높이는 그 자리 **그려진 땅**의 높이(덧판과 같은 식 — patchCalc)에
+       둔덕의 키(땅 위 높이)를 더한 것으로 세운다. 그래서 자락이 땅의 잔 기복을 그대로 타고 땅속으로 1 cm 들어간다 — 테두리에 꺾인 금도 틈도
+       없다(예전엔 둔덕을 땅 법선에 맞춰 눕혀 묻었더니 잔 기복이 가운데를 뚫고 나오거나 비탈 한가운데에서 잘려 금이 섰다). 법선은 땅의 것에
+       둔덕의 기울기를 더한다. 바꾼 자리는 transformed 로 되돌려 넣어 그 뒤(그림자 좌표 · envPatch)가 다 같은 자리를 본다 */
+    sh.vertexShader='varying vec3 vTW;\nvarying vec3 vTN;\nvarying float vTD;\nvarying vec2 vMd;\n'+TPATCH_GLSL()+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+      { mat4 IM=modelMatrix;
+        #ifdef USE_INSTANCING
+          IM=modelMatrix*instanceMatrix;
+        #endif
+        vec3 w=(IM*vec4(position,1.0)).xyz, uW=normalize(mat3(IM)*vec3(0.0,1.0,0.0)), nW=normalize(mat3(IM)*normal);
+        float sc=length(IM[1].xyz);
+        vec3 nP=uW;
+        if(sc>1e-4){                                     // 다 퍼 가 0 배로 접힌 둔덕은 건너뛴다(inverse 가 NaN)
+          patchCalc(vec3(w.x-uPC.x,0.0,w.z-uPC.y)); nP=patchNor;
+          w.y=patchPos.y+(max(position.y+0.03,0.0)-0.01)*sc;
+          transformed=(inverse(IM)*vec4(w,1.0)).xyz; }
+        vTW=w; vTN=normalize(nP+nW/max(dot(nW,uW),0.2)-uW); vTD=length((viewMatrix*vec4(w,1.0)).xyz);
+        vMd=vec2(length(position.xz)/${R.toFixed(2)},position.y); }`);
+    sh.fragmentShader=gndTerrainFrag('varying vec2 vMd;\n'+sh.fragmentShader,EXTRA);
+  };
+  m.customProgramCacheKey=()=>'mound'+kind;
   return m;
 }
