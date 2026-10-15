@@ -27,7 +27,7 @@
   ES 모듈이 아니라 **번호 차례로 불러오는 보통 스크립트**(전역 하나를 나눠 쓴다). 새 계통은 `99-main.js` 바로 위에 새 파일로.
   아이템 365 · 레시피 278(제작법 240 + 설비 공정 38) · 손에 드는 것 57.
 - `beta/` — 몹 시험장(본편과 따로 뜨는 한 파일짜리 · 모델 내장이라 4~27 MB). **몹은 아직 본편에 없다**(`CREATURES` 가 비어 있다) — 몹 거동은 시험장이 정본.
-- `desktop/` — Electron 44 껍데기(판 0.4.1). GitHub Actions `데스크톱 판` 이 푸시마다 Windows·macOS·Linux 로 묶는다. 게임 본체는 베끼지 않는다.
+- `desktop/` — Electron 44 껍데기(판 0.4.2). GitHub Actions `데스크톱 판` 이 푸시마다 Windows·macOS·Linux 로 묶는다. 게임 본체는 베끼지 않는다.
 - `tools/` — 검사(`check-syntax` · `smoke` · `probe`) · 시험장 동기화(`garg-rig.mjs` · `wyv-sync.mjs` · `mk-cloud-arena.mjs`) · 성능 재기 · 모델 도구(`azure/`).
 - 라이선스 GPL-3.0 · 레포 `KJH-code/castaway`.
 
@@ -70,7 +70,7 @@
 
 ### 손대지 않고 남긴 것 — 사용자에게 먼저 물을 것
 
-- **`claude/basalt-obsidian-isles`** — main 에 안 합친 커밋 1(오늘 · '바위섬을 현무암 · 흑요석 섬으로' · `34-coast.js` 등 3 파일) · PR 없음 · 묶기 CI 는 초록. 다른 세션이 하던 일일 수 있다.
+- ~~`claude/basalt-obsidian-isles`~~ — 이 문서를 쓰는 사이 다른 세션이 [PR #45](https://github.com/KJH-code/castaway/pull/45)로 합쳤다(바위섬 · 섬 짓기 빠르게 · C 판 둘 · 판 0.4.2). **main 은 이렇게 수시로 움직인다.**
 - **`claude/bold-wright-guehrl`** — 9월 커밋 2(CLAUDE.md 정리 · 가고일 시험장 무기 안내). 시험장이 `beta/` 로 옮기기 전 구조라 그대로는 못 합친다. 버릴지 물을 것(지우지는 말 것).
 - 나머지 원격 브랜치 13개는 main 에 다 들어가 있다.
 
@@ -105,7 +105,7 @@
   데스크톱 판은 `tools/bench-window.js` · `tools/prof-window.js`. 잴 때는 자동 품질을 끌 것(`QUAL.on=false`).
 - **캠코더 화면이 기본으로 켜져 있어 장면은 480 줄(약 853×480)로 그려진다** — 화소 몫이 작아 **프레임은 정점 · 그리기 호출이 정한다**. 캠코더를 끄면 화면 해상도로 그리므로 땅 · 물 셰이더의 화소 몫이 커진다.
 
-**잰 값**(2026-10-15 · `?ws=2` 상륙 자리 · 그림자 '보통' · 캠코더 480 줄 · `tools/tri-census.js`):
+**잰 값**(2026-10-15 · `?ws=2` 상륙 자리 · 그림자 '보통' · 캠코더 480 줄 · `tools/tri-census.js` · PR #45 를 합친 뒤 다시 재도 같다 — 암벽 71.5만):
 
 | | 북 | 동 | 남 | 서 |
 |---|---|---|---|---|
@@ -198,6 +198,7 @@ B6(먼 칸 소품 솎기)은 얻는 것이 1% 안팎이라 미뤘다.
 
 | PR | 무엇 |
 |---|---|
+| [#45](https://github.com/KJH-code/castaway/pull/45) | 바위섬을 현무암 · 흑요석 섬으로 · 섬 짓기 빠르게(6배 섬 30 → 14초) · C 판 둘(하늘 트임 · 땅속 높이) · 판 0.4.2(다른 세션) |
 | [#43](https://github.com/KJH-code/castaway/pull/43) | 애저 아포칼립스 — 머리 위 고리를 돌 조각 고리로 새로 빚음 |
 | [#42](https://github.com/KJH-code/castaway/pull/42) | 애저 아포칼립스 몹 모델 — 받침 떼기 · 20만 세모 · 돌+푸른 에너지 · 뼈 23 · `tools/azure/` |
 | [#41](https://github.com/KJH-code/castaway/pull/41) | 모래 · 점토 질감 — 둔덕을 땅 셰이더로 · 바람 물결 · 반짝임 · 말라 갈라진 점토 |
