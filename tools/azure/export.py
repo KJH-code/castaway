@@ -10,6 +10,9 @@ fn=np.cross(V[Fv[:,1]]-V[Fv[:,0]],V[Fv[:,2]]-V[Fv[:,0]]); Nv=np.zeros_like(V)
 for k in range(3): np.add.at(Nv,Fv[:,k],fn)
 Nv/=np.linalg.norm(Nv,axis=1,keepdims=True)+1e-12
 keep=~sk['drop']
+import os
+NEWH=os.path.exists('halo_new.npz')
+if NEWH: keep&=~sk['halo'][Fv].all(1)          # 옛 고리를 빼고 halo_new.py 가 빚은 고리로
 P,U,I,vi=L.unify(V,d['T'],Fv[keep],d['Ft'][keep])
 # 게임 좌표: 몸 가운데(x,z)를 원점에, 맨 아래를 y=0 에, SC 배
 C=np.array([0.245,V[:,1].min(),-0.15])
@@ -17,6 +20,13 @@ def tf(p): return (np.asarray(p)-C)*SC
 Pg=tf(P).astype('<f4'); Ng=Nv[vi].astype('<f4'); Ug=U.astype('<f4').copy(); Ug[:,1]=1-Ug[:,1]  # glTF uv 는 위가 0
 Jg=np.zeros((len(P),4),np.uint8); Jg[:,:2]=J[vi]; Wf=np.zeros((len(P),4)); Wf[:,:2]=W[vi]; Wf/=Wf.sum(1,keepdims=True)
 Wg=np.round(Wf*255).astype(np.uint8); Wg[:,0]=255-Wg[:,1:].sum(1); Ig=I.astype('<u4').ravel()   # 가중치 u8 정규화(합 255)
+if NEWH:
+    h=np.load('halo_new.npz'); n=len(h['P']); iH=NAMES.index('halo')
+    hu=h['UV'].astype('<f4').copy(); hu[:,1]=1-hu[:,1]
+    hj=np.zeros((n,4),np.uint8); hj[:,0]=iH; hw=np.zeros((n,4),np.uint8); hw[:,0]=255
+    Ig=np.concatenate([Ig,(np.arange(n)+len(Pg)).astype('<u4')])
+    Pg=np.concatenate([Pg,tf(h['P']).astype('<f4')]); Ng=np.concatenate([Ng,h['N'].astype('<f4')]); Ug=np.concatenate([Ug,hu])
+    Jg=np.concatenate([Jg,hj]); Wg=np.concatenate([Wg,hw])
 Hg=tf(HEAD); Tg=tf(TAIL)
 def jpg(fn,q):
     b=io.BytesIO(); Image.open(fn).convert('RGB').save(b,'JPEG',quality=q,optimize=True); return b.getvalue()
@@ -60,4 +70,4 @@ with open(OUT,'wb') as f:
     f.write(struct.pack('<III',0x46546C67,2,12+8+len(js)+8+len(bin_)))
     f.write(struct.pack('<II',len(js),0x4E4F534A)); f.write(js)
     f.write(struct.pack('<II',len(bin_),0x004E4942)); f.write(bin_)
-import os; print(OUT,'%.2f MB'%(os.path.getsize(OUT)/1e6),'verts',len(P),'tris',len(Ig)//3,'bones',len(NAMES),'height %.2f m'%(Pg[:,1].max()))
+import os; print(OUT,'%.2f MB'%(os.path.getsize(OUT)/1e6),'verts',len(Pg),'tris',len(Ig)//3,'bones',len(NAMES),'height %.2f m'%(Pg[:,1].max()))
