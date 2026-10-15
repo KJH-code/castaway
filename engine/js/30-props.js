@@ -886,8 +886,8 @@ function buildProps(){
     sulfur: [new THREE.IcosahedronGeometry(0.55,0)],
     /* 점토 노출지 · 모래 언덕 — 예전엔 6·7각 납작 원기둥이라 땅에 놓인 과자 같았다(볕을 받으면 흰 판때기로 떴다).
        울퉁불퉁한 반구를 눌러 둔덕으로 만든다(밑은 평평 — 땅에 묻는다) */
-    clay:   [moundGeo(1.9,0.30,0x51a7)],
-    sand:   [moundGeo(2.0,0.34,0x5a4d)],
+    clay:   [moundGeo(1.3,0.30,0x51a7)],
+    sand:   [moundGeo(1.6,0.40,0x5a4d)],
     grass:  [grassTuft],
     reed:   [reedTuft],
     copper: [new THREE.IcosahedronGeometry(1.05,0)],
@@ -907,9 +907,10 @@ function buildProps(){
     for(let i=0;i<p.count;i++){
       const x=p.getX(i), y=p.getY(i), z=p.getZ(i), f=bump(x,z);
       /* 종 모양 — 꼭대기와 가장자리에서 기울기가 0 이다. 가장자리의 법선이 땅과 같아져 둘레 땅에 스며든다
-         (반구를 누른 꼴은 가장자리가 가팔라 모래밭에 얹은 덩이로 보였다 — 사용자 지적) */
-      const rr=Math.min(1,Math.sqrt(x*x+z*z)), bell=Math.cos(rr*1.5708); 
-      p.setXYZ(i,x*r*(0.9+0.1*f),(y>0?bell*bell*h*f:0)-0.03,z*r*(0.9+0.1*f));
+         (반구를 누른 꼴은 가장자리가 가팔라 모래밭에 얹은 덩이로 보였다 — 사용자 지적).
+         (1−r²)³ — 자락이 길게 눕는다. cos² 꼴을 깊이 묻었더니 비탈 한가운데에서 잘려 땅과 만나는 데에 꺾인 금이 섰다 */
+      const rr=Math.min(1,Math.sqrt(x*x+z*z)), t1=1-rr*rr;
+      p.setXYZ(i,x*r*(0.9+0.1*f),(y>0?t1*t1*t1*h*f:0)-0.03,z*r*(0.9+0.1*f));
     }
     g.computeVertexNormals(); g.computeBoundingSphere();
     return g;
@@ -1135,11 +1136,14 @@ function buildProps(){
      ① 임의로 기울이지 말고 지면 법선에 맞춰 눕힌다
      ② 원반 두께의 절반보다 깊게 파묻어 지형이 굽어도 밑이 안 드러난다.
      예전 값(점토 +0.4 · 모래 +0.22)은 원반 밑면을 아예 지면 위로 띄워 놓고 있었다
-     — 점토는 두께가 0.5 라 밑면이 늘 0.15 m 떠 있었다. */
+     — 점토는 두께가 0.5 라 밑면이 늘 0.15 m 떠 있었다.
+     **이제 둔덕은 땅에 덮어씌운다**(moundMat 의 정점 셰이더 — 높이 = 그 자리 그려진 땅 + 둔덕의 키). 묻어 두던 때는 땅 위로 8 cm 남짓만
+     나와 땅의 잔 기복(2 m 안에서 수 cm)이 가운데를 뚫고 올라와 두 쪽으로 갈라졌고, 비탈 한가운데에서 잘려 땅과 만나는 데에 금이 섰다.
+     그래서 아래 propOff 의 점토·모래 값은 이제 가로 자리 말고는 쓰이지 않는다(채집 표시 높이 정도). 키 점토 0.30 · 모래 0.40 m(크기 배율 곱) */
   const FLAT_PROP={clay:1, sand:1};
   const propOff=(k,sc)=>(k==='fir'?3.3:k==='oak'?2.4:     // 줄기 밑동을 0.2 m 땅에 묻는다(판근이 비탈에서 뜨지 않게)
      
-      k==='clay'?-0.16:k==='sand'?-0.18:
+      k==='clay'?-0.05:k==='sand'?-0.05:
       (k==='grass'||k==='reed')?0:
       k==='flint'?0.15:k==='pebble'?0.11:0.5)*sc;
   const _pN=new THREE.Vector3(), _pUP=new THREE.Vector3(0,1,0),
@@ -1153,10 +1157,11 @@ function buildProps(){
     /* 모래·점토 둔덕은 둘레 땅과 같은 빛깔·같은 사진 결을 입는다 — 모래 언덕은 해변 색 그대로(땅 셰이더가 모래를
        0.80 으로 낮추므로 같은 값), 점토는 진흙 결 */
     const tintK=R.k==='sand'?0.80:R.k==='clay'?0.88:1;      // 모래: 땅 셰이더의 0.74 에 사진 결 차이를 얹은 값
+    /* 모래·점토 둔덕은 땅 셰이더를 그대로 쓴다(moundMat — 22-ground-textures.js) — 가장자리가 둘레 땅과 같아 스티커처럼 뜨지 않는다 */
     const mats=tree?[trunkMat,new THREE.MeshLambertMaterial({color:R.c})]
-                   :[new THREE.MeshLambertMaterial({color:new THREE.Color(R.k==='sand'?BIOME_INFO[B.BEACH].c:R.c).multiplyScalar(tintK)})];
-    if(R.k==='sand') gndDetailPatch(mats[0],0,2.1);
-    if(R.k==='clay') gndDetailPatch(mats[0],6,2.1);
+              :FLAT_PROP[R.k]?[moundMat(R.k==='clay'?1:0,R.k==='clay'?1.3:1.6,new THREE.Color(R.k==='sand'?BIOME_INFO[B.BEACH].c:R.c).multiplyScalar(tintK).getHex(),
+                                     R.k==='clay'?0.30:0.40,-0.02)]   // 반지름 · 높이 · 묻힌 깊이 — geoFor 의 moundGeo · propOff 와 같은 값
+              :[new THREE.MeshLambertMaterial({color:R.c})];
     const ms=geos.map((g,gi)=>new THREE.InstancedMesh(g,mats[gi],list.length));
 
     // 1차: 채집 횟수·통나무 수·베리를 먼저 정한다 (가지 총량을 알아야 하므로)

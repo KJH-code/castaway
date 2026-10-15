@@ -158,6 +158,23 @@ What moved it, from A/B runs with one thing switched off at a time (uncapped, tu
 
 The automatic quality control now steps detail down when the slow frame-time average passes 19.5 ms (51 fps).
 
+### 5.3 Sand and clay (ground material, `engine/js/22-ground-textures.js`)
+
+Player report: sand and clay "do not look like the real thing". Before: dry beach sand carried the wet-sand wave ripples
+at a third of their strength (straight 0.32 m stripes), and the sand mound / clay deposit were vertex-lit Lambert discs
+with their own colour, so they read as stickers on the beach.
+
+| Change | Source | What it does | Measured |
+|---|---|---|---|
+| Mounds drawn **with the ground shader** (`moundMat` → `gndTerrainFrag(frag, extra)`) and **draped** on the rendered ground in the vertex shader (`patchCalc`, same formula as the near-player patch) | — | The rim is the ground itself; only the inside gets the mound's own look | Seam at the toe gone (stills, same spots) |
+| Dry-sand aeolian ripples: 11 cm wavelength, height λ/20, gentle stoss 72% / steep lee 28%, one wind direction for the island, crests bent by low-mip noise only, patchy fields | Field and lab measurements: ripple index 15–20, asymmetric profile (arXiv 0807.4284 review; Nield et al., JGR) | Replaces the straight stripes | Fades out below 4 px per wavelength |
+| Grain speckle (0.6 mm grains, quartz / dark mineral / shell fragments) with variance ∝ grain/footprint | — | Visible grains at the player's feet, averages away with distance | Mean of the grain colours = 1.00 |
+| Glints: counting model on cells sized to the pixel footprint's minor axis, two LODs blended, Poisson count from a per-cell hash, Beckmann α 0.55, 15% mirror-like grains, **real sun solid angle** (6.8e-5 sr) | Jakob et al. 2014 (discrete stochastic microfacets); Chermain et al. 2020 — MIT code `ASTex-ICube/real_time_glint` read for the structure, rewritten without its dictionary texture; hash pcg2d (Jarzynski & Olano, JCGT 2020) | Rare white sparkles near, converging to a faint smooth sheen far away | 47 pixels > 235 in the lower half of a 960×600 sun-facing view at 3 m (the game's 4× sun disc made them 14× commoner and too dim to see) |
+| Clay: two generations of desiccation cracks (14 cm and 5 cm cells, primary cracks wider, 15% of edges uncracked), curled plate rims, iron-rust and grey mottles, damp glossy rim, sand drifts over the edge | Crack spacing ≈ layer thickness, hierarchical primary/secondary polygons (arXiv 1211.6762, 1807.06126) | — | Cracks fade below ~3 px per crack |
+
+Not sand: a meadow and a marsh view are **pixel-identical** to before (hook values are zero there). Journey's sand
+(Edwards, GDC 2013, and Alan Zucconi's write-up) was read for the idea only; no code from it was used.
+
 ## 6. Roadmap, ordered by value for this renderer
 
 1. **Tree mesh weight.** A single oak is still about 45k triangles at full detail. Generate proper LOD meshes with
