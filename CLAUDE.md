@@ -20,7 +20,7 @@
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) |
+| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md`) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
@@ -190,6 +190,7 @@ python -m http.server 5173
 | `docs/CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
 | `docs/CASTAWAY_전사_초반부.md`, `docs/CASTAWAY_전사_2차.md` | 개발 대화 원문 |
 | `presets/models/bear_high.glb`, `presets/models/stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |
+| `presets/models/azure_apocalypse.glb` | **애저 아포칼립스**(새 몹 · 11.1 MB · 사용자 요청 '받침 없애고 · 참고 그림처럼 돌 갑옷 + 푸른 에너지로 칠하고 · 삼각형 20만 · 리깅, 떠서 움직이니 다리 뼈는 없이' · 공격은 에너지 빔과 팔 휘두르기 예정). 원본은 같은 폴더의 `Meshy_AI_Azure_Apocalypse_…_fbx.zip`(사용자 업로드 · FBX 140만 세모 · 뼈 없음 · 받침 붙음 — **FBX 는 Y 위라 적혀 있지만 실제는 Z 위**). `tools/azure/run.sh` 가 같은 GLB 를 다시 만든다. 세모 198,535 · 정점 147,541 · 뼈 23(`root` · `pelvis` · `spine` · `chest` · `neck` · `head` · `halo` · 팔 넷 `armR1/R2/L1/L2` → `fore*` → `hand*` → `claw*` — 팔은 몸 오른쪽(−x) 위·아래 · 왼쪽(+x) 위·아래 · 쉼 자세 회전 0) · **+z 를 본다** · 키 2.98 m · 원점은 몸 가운데 발밑. 바탕 + 발광 그림(갈고리 끝 · 머리 위 고리 · 몸의 결이 빛난다) — 게임에선 `MeshLambertMaterial({map, emissiveMap, emissive:흰색, skinning:true})`. 사슬은 몸통만 따르고, 따로 움직일 덩이(팔 넷 · 허리 아래 · 머리 · 고리)를 잇던 세모 1,465 장은 뺐다. **아직 어느 코드에서도 로드하지 않는다** — r128 GLTFLoader 는 레포에 없다(npm three@0.128.0) |
 
 **본편은 나뉘어 있다** — `island_world.html`(250줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 29개.
 js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
@@ -1473,6 +1474,6 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 
 - **`flatShading: true`는 `MeshLambertMaterial`에서 무시된다.** r128에서 확인해 14곳을 걷어냈다.
   각진 면이 필요하면 정점을 분리해야지 이 플래그로는 안 된다.
-- **레포가 이미 ~15MB다** (GLB 10.1MB + `beta/gargoyle_arena.html` 5MB). Git LFS를 쓰지 않는다.
+- **레포 기록이 이미 ~390MB다**(`.git` — 시험장 html 들 · 사용자가 올린 Meshy zip 85MB · 모델 GLB). Git LFS를 쓰지 않는다. 한 번 올린 파일은 지워도 기록에 남는다.
   모델을 더 커밋하기 전에 LFS 전환을 먼저 결정할 것 — 나중에 옮기려면 히스토리를 다시 써야 한다.
 - `.gitattributes`가 `* text=auto eol=lf`이므로 `*.glb binary`를 반드시 유지할 것.

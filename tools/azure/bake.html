@@ -1,0 +1,18 @@
+<!doctype html><meta charset=utf8><body style=margin:0><script src="three.min.js"></script><script>
+// UV 공간에 정점 속성(rgb u8)을 굽는다: ?m=접두어&a=속성파일&s=크기
+const Q=new URLSearchParams(location.search),M=Q.get('m'),A=Q.get('a'),S=+(Q.get('s')||2048);
+async function bin(n,T){const r=await fetch(n);return new T(await r.arrayBuffer());}
+window.bake=(async()=>{
+ const R=new THREE.WebGLRenderer({antialias:false,preserveDrawingBuffer:true}); R.setSize(S,S); R.setPixelRatio(1);
+ const g=new THREE.BufferGeometry();
+ g.setAttribute('position',new THREE.BufferAttribute(await bin(M+'pos.bin',Float32Array),3));
+ g.setAttribute('uv',new THREE.BufferAttribute(await bin(M+'uv.bin',Float32Array),2));
+ g.setAttribute('col',new THREE.BufferAttribute(await bin(A,Uint8Array),3,true));
+ g.setIndex(new THREE.BufferAttribute(await bin(M+'idx.bin',Uint32Array),1));
+ const mat=new THREE.ShaderMaterial({side:THREE.DoubleSide,vertexShader:'attribute vec3 col; varying vec3 vC; void main(){vC=col; gl_Position=vec4(uv*2.0-1.0,0.0,1.0);}',
+   fragmentShader:'varying vec3 vC; void main(){gl_FragColor=vec4(vC,1.0);}'});
+ const sc=new THREE.Scene(); const me=new THREE.Mesh(g,mat); me.frustumCulled=false; sc.add(me);
+ R.setClearColor(0x000000,0); R.render(sc,new THREE.Camera());
+ return R.domElement.toDataURL('image/png');
+})();
+</script>
