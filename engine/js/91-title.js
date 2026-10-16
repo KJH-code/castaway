@@ -22,7 +22,7 @@
    값: 간판·금은 크기가 바뀔 때 한 번만 그려 두고, 프레임마다는 띠 수백 장을 옮겨 붙인다(초당 20번 · 여는 화면에서만).
    ========================================================================== */
 const TITLE={mode:'banner', first:true, intro:{t0:0,said:0,keep:false,text:false}, btns:[], hov:null, fr:0, nz:null, ac:null, on:false, timer:0, t0:0, cv:null, cx:null, W:0, H:0, dpr:1, L:null, text:null,
-             ban:null, crk:null, txt:null, mid:null, flat:null, bA:null, bB:null, ch:null, out:null, band:null, rays:null, KA:0.22, KB:0.13, bgN:0};   // bgN — 여는 화면 뒤에서 섬을 그린 장수(99-main.js)
+             ban:null, crk:null, txt:null, mid:null, flat:null, bA:null, bB:null, ch:null, out:null, band:null, rays:null, KA:0.22, KB:0.13, bgN:0, nzK:-1, nzX:0, nzY:0, nzI:0, nzP:0, flk:0.04};   // bgN — 여는 화면 뒤에서 섬을 그린 장수(99-main.js)
 
 /* ── 스텐실 글자 — 높이 100 칸에 긋는다. w 너비 · draw(c) 줄기 · cuts 잘라 낼 이음매(네모) ── */
 const STENCIL=(()=>{
@@ -49,6 +49,7 @@ const STENCIL=(()=>{
     c.moveTo(8,-8); c.lineTo(32,50); c.lineTo(56,-8); c.stroke(); c.beginPath(); c.moveTo(32,46); c.lineTo(32,100); c.stroke(); }};
   return G;
 })();
+const TITLE_NZ_HZ=12;   // 눈 · 깜빡임 · 비월 주사선이 바뀌는 박자(초당) — 프레임률과 무관하게
 const TITLE_WORD='CASTAWAY', TITLE_GAP=10;
 function titleCanvas(w,h){ const c=document.createElement('canvas'); c.width=Math.max(2,Math.round(w)); c.height=Math.max(2,Math.round(h)); return c; }
 /* 글자들의 앞면(흰색) — 높이 capH 화소. 이음매는 잘라 냈다. 깨끗하다(얼룩 없음) */
@@ -393,15 +394,19 @@ function titleDraw(now){
   /* **눈(잡음)** — 자글거리는 점을 마구 옮겨 깐다. 섬을 만드는 동안(신호를 찾는 중)은 더 짙다 */
   { const busyNow=typeof busy!=='undefined'&&busy;
     O.globalCompositeOperation='screen'; O.globalAlpha=busyNow?0.24:0.10;
-    O.save(); O.translate(-Math.floor(Math.random()*160),-Math.floor(Math.random()*160));
-    O.fillStyle=O.createPattern(T.nz[T.fr%3],'repeat'); O.fillRect(0,0,W+160,H+160); O.restore();
+    /* **눈은 초당 12번만 바꾼다**(`TITLE_NZ_HZ` · 사용자 지적 — 그리기가 빨라지자 눈이 사라졌다): 프레임마다 새로 뿌리면 60 fps 에선 눈에서 섞여
+       평평한 잿빛이 된다. 예전엔 한 장이 무거워 초당 몇 장만 그려져 치지직이 보였던 것이다. 깜빡임 · 비월 주사선도 같은 박자를 탄다 */
+    const nk=Math.floor(t*TITLE_NZ_HZ); if(nk!==T.nzK){ T.nzK=nk; T.nzX=Math.floor(Math.random()*160); T.nzY=Math.floor(Math.random()*160); T.nzI=(T.nzI+1)%3;
+      T.flk=0.02+0.05*Math.random()+(Math.random()<0.035?0.18:0); T.nzP^=1; }
+    O.save(); O.translate(-T.nzX,-T.nzY);
+    O.fillStyle=O.createPattern(T.nz[T.nzI],'repeat'); O.fillRect(0,0,W+160,H+160); O.restore();
     O.globalAlpha=1; O.globalCompositeOperation='source-over'; }
-  O.drawImage(T.scan[T.fr&1],0,0);                  // 주사선 — 홀짝 칸이 번갈아 그려져 줄이 떨린다(비월 주사)
+  O.drawImage(T.scan[T.nzP],0,0);                  // 주사선 — 홀짝 칸이 번갈아 그려져 줄이 떨린다(비월 주사)
   /* **굴러가는 띠** — 전원 맥동(험 바)처럼 넓고 어두운 띠가 천천히 위로 올라간다 */
   { const hy=(1.25-(t*0.09)%1.5)*H, hh=H*0.17; g=O.createLinearGradient(0,hy-hh,0,hy+hh);
     g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(0.5,'rgba(0,0,0,.16)'); g.addColorStop(1,'rgba(0,0,0,0)'); O.fillStyle=g; O.fillRect(0,hy-hh,W,hh*2); }
   /* **깜빡임** — 화면 전체의 밝기가 프레임마다 조금씩 흔들리고, 가끔 한 번 크게 꺼질 듯 어두워진다 */
-  O.fillStyle='rgba(0,0,0,'+(0.02+0.05*Math.random()+(Math.random()<0.035?0.18:0)).toFixed(3)+')'; O.fillRect(0,0,W,H);
+  O.fillStyle='rgba(0,0,0,'+T.flk.toFixed(3)+')'; O.fillRect(0,0,W,H);
   /* **볼록한 유리의 반사** — 왼쪽 위에 방의 빛이 둥글게 비치고(아주 엷게), 위 가장자리를 따라 가는 빛줄이 휜다. 유리가 둥글다는 것은 이 명암이 말한다.
      깜빡이지 않는다(방의 빛이라 화면 신호와 상관없다 · 그려 둔 판 titleStatic) */
   O.globalCompositeOperation='screen'; O.drawImage(T.glass,0,0);
