@@ -237,10 +237,10 @@ function devFly(dt){
   const p=PL.pos, K=(invOpen||craftOpen)?NO_KEYS:keys;
   PL.hp=HPMAX; PL.stam=100; PL.food=100; PL.water=100; PL.oxy=100; PL.ill=0; hurtFlash=0;
   PL.swim=false; PL.grounded=false; PL.crouch=false; PL.run=false; PL.wade=0; PL.depth=0;
-  const fwd=(K.KeyW?1:0)-(K.KeyS?1:0), str=(K.KeyD?1:0)-(K.KeyA?1:0), up=(K.Space?1:0)-((K.ControlLeft||K.KeyC)?1:0);
+  const fwd=(K.fwd?1:0)-(K.back?1:0), str=(K.right?1:0)-(K.left?1:0), up=(K.jump?1:0)-(K.crouch?1:0);
   const sy=Math.sin(PL.yaw), cy=Math.cos(PL.yaw), sp=Math.sin(PL.pitch), cp=Math.cos(PL.pitch);
   let vx=-sy*cp*fwd+cy*str, vy=sp*fwd+up, vz=-cy*cp*fwd-sy*str;          // 앞 = 보는 쪽(고개를 든 만큼 위로)
-  const l=Math.hypot(vx,vy,vz), v=DEV_SP*DEV.sp*(K.ShiftLeft||K.ShiftRight?5:1);
+  const l=Math.hypot(vx,vy,vz), v=DEV_SP*DEV.sp*(K.run?5:1);
   if(l>0){ vx*=v/l; vy*=v/l; vz*=v/l; }
   const k=clamp(7*dt,0,1);
   PL.vel.x+=(vx-PL.vel.x)*k; PL.vel.y+=(vy-PL.vel.y)*k; PL.vel.z+=(vz-PL.vel.z)*k;
@@ -253,7 +253,7 @@ function devFly(dt){
   camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
   const WA=waterAt(p.x,p.z,gy);
   eyeWater(camera.position.y, WA.river?WA.wl:(gy<0.3?seaSurfAt(p.x,p.z):-1e9), gy, WA.river);
-  hudT(document.getElementById('devTagV'),'×'+(DEV.sp*(K.ShiftLeft||K.ShiftRight?5:1)).toFixed(DEV.sp<1?2:1)+' · '+Math.round(p.y)+' m');
+  hudT(document.getElementById('devTagV'),'×'+(DEV.sp*(K.run?5:1)).toFixed(DEV.sp<1?2:1)+' · '+Math.round(p.y)+' m');
 }
 /* ── 눈의 경계 ───────────────────────────────────────────────────────────
    화면 앞 평면(0.1 m)의 모서리는 눈에서 0.17 m 까지 나간다 — 그 안에 바위나 땅이 들면 속이 보인다. 눈 둘레 0.26 m 의 아홉 점(가운데 · 여덟 방위)에서
@@ -321,7 +321,7 @@ function wallAhead(){
   return 0;                                                          // 벽까지의 거리(m) — 없으면 0
 }
 function wallTick(dt){
-  const sp=!!keys.Space, tap=sp&&!WALL.sp; WALL.sp=sp;
+  const sp=!!keys.jump, tap=sp&&!WALL.sp; WALL.sp=sp;
   const p=PL.pos;
   if(!WALL.on){
     if(tap&&!PL.swim&&!(invOpen||craftOpen)&&!BUILD.on&&!MOVE.t&&wallAhead()){
@@ -336,7 +336,7 @@ function wallTick(dt){
     return WALL.on;
   }
   const bag=invOpen||craftOpen, K=bag?NO_KEYS:keys, fx=WALL.dx, fz=WALL.dz;
-  const up=(K.KeyW?1:0)-(K.KeyS?1:0), side=(K.KeyD?1:0)-(K.KeyA?1:0), load=invLoad();
+  const up=(K.fwd?1:0)-(K.back?1:0), side=(K.right?1:0)-(K.left?1:0), load=invLoad();
   PL.stam=clamp(PL.stam-((up||side)?13:6)*(1+load*0.8)*dt,0,100);   // 매달리기 초당 6 · 오르내리기 13(사용자 요청: 매달리면 기력이 확 든다 — 가득에서 16초)
   const let_go=(why,push)=>{ WALL.on=false; WALL.end=why||'놓음'; if(why) toast(why); PL.vel.set(-fx*push,0,-fz*push); PL.grounded=false; return false; };
   if(!sp) return let_go('',1.2);                                                   // 손을 뗐다
@@ -344,7 +344,7 @@ function wallTick(dt){
   const ox=p.x, oy=p.y, oz=p.z, spd=1.1*(1-0.4*load);
   /* **매달려 돌진**(사용자 요청: 오르기에 돌진이 빠졌다) — 매달린 채 Shift 를 톡 누르면 누른 쪽(W·A·D · 없으면 위)으로 1.4 m 를 몸을 던져
      다음 손잡이를 잡는다(0.25초 · 기력 18 · 0.8초에 한 번) */
-  const sh=!!(K.ShiftLeft||K.ShiftRight), shTap=sh&&!WALL.sh; WALL.sh=sh;
+  const sh=!!K.run, shTap=sh&&!WALL.sh; WALL.sh=sh;
   if(WALL.lc>0) WALL.lc-=dt;
   if(shTap&&!(WALL.lt>0)&&!(WALL.lc>0)){
     if(PL.stam>=18){ const u=up>=0?(up||(side?0:1)):-1, l=Math.hypot(u,side)||1; WALL.lu=u/l; WALL.ls=side/l; WALL.lt=0.25; WALL.lc=0.8; PL.stam-=18; footstep(); }
@@ -389,13 +389,13 @@ function updatePlayer(dt){
   const p=PL.pos;
   /* 가방(소지품·제작)을 연 동안에는 세상은 흐르지만 몸은 선다 — 누르고 있던 걷기·뛰기 키를 안 받는다 */
   const K=(invOpen||craftOpen)?NO_KEYS:keys;
-  const spTap=!!K.Space&&!PL._sp0; PL._sp0=!!K.Space;            // Space 를 누르는 순간(돌진)
+  const spTap=!!K.jump&&!PL._sp0; PL._sp0=!!K.jump;            // Space 를 누르는 순간(돌진)
   if(PL.lungeCd>0) PL.lungeCd-=dt;
   const ox=p.x, oz=p.z, oy=p.y;                                   // 이번 프레임 앞의 자리(눈이 바위에 들면 되돌린다 — eyeHit)
-  const fwd=(K.KeyW?1:0)-(K.KeyS?1:0);
-  const str=(K.KeyD?1:0)-(K.KeyA?1:0);
-  PL.crouch=!!(K.ControlLeft||K.KeyC)&&!PL.swim;
-  PL.run=!!K.ShiftLeft && !PL.crouch && PL.stam>1 && fwd>0 && PL.food>0 && PL.water>0;
+  const fwd=(K.fwd?1:0)-(K.back?1:0);
+  const str=(K.right?1:0)-(K.left?1:0);
+  PL.crouch=!!K.crouch&&!PL.swim;
+  PL.run=!!K.run && !PL.crouch && PL.stam>1 && fwd>0 && PL.food>0 && PL.water>0;
 
   const gy=floorAt(p.x,p.z,p.y);
   // 바다는 해수면 0, 하천은 하도별 수면 표고를 쓴다
@@ -447,7 +447,7 @@ function updatePlayer(dt){
     // 부력으로 수면 근처에 뜬다. Space로 잠수 해제, Ctrl로 하강
     /* 기력이 다하면 몸이 가라앉는다 — 머리가 잠겨 숨이 닳기 시작한다(떠오르기도 안 먹는다). 발이 닿는 데로 나와야 산다 */
     const target=wl-(spent?1.75:0.45);
-    PL.vel.y += (((K.Space&&!spent)?1.6:(K.ControlLeft?-1.4:(target-p.y)*3.2))-PL.vel.y)*clamp(6*dt,0,1);
+    PL.vel.y += (((K.jump&&!spent)?1.6:(K.crouch?-1.4:(target-p.y)*3.2))-PL.vel.y)*clamp(6*dt,0,1);
     /* 숨 — 머리가 잠기면 닳는다. 스노클이 있으면 수면 바로 밑(대롱 길이 0.5 m)까지는 숨을 쉰다 */
     PL.oxy=clamp(PL.oxy + (p.y<wl-(hasGear('snorkel')?1.7:1.2)?-9*dt:14*dt),0,100);
     if(spent){ if(!PL._spentMsg){ PL._spentMsg=true; toast('기력이 다했다 — 몸이 가라앉는다! 발 닿는 데로 나가라'); } }
@@ -459,7 +459,7 @@ function updatePlayer(dt){
     // 지붕 위에서 Ctrl(앉기) + Space → 그 자리에서 아래로 떨어진다.
     // 가장자리까지 걸어갈 자리가 없는 좁은 지붕에서도 내려올 수 있게 하는 길이다.
     // 보통 점프보다 먼저 본다 — 안 그러면 점프가 먼저 걸려 위로 뛴다.
-    if(K.Space&&K.ControlLeft&&PL.grounded&&p.y>heightAt(p.x,p.z)+0.9){
+    if(K.jump&&K.crouch&&PL.grounded&&p.y>heightAt(p.x,p.z)+0.9){
       DROP.t=0.45; DROP.y=p.y; PL.grounded=false; PL.vel.y=-1.2;
     }
     /* **돌진**(사용자 요청 — 예전의 위로 뛰기 대신) — Space 를 **누르는 순간** 가는 쪽(누른 방향 · 없으면 보는 쪽)으로 낮게 몸을 날린다
