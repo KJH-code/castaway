@@ -357,7 +357,7 @@ function underBuild(){
 /* 수직굴 오르내리기 — Space 를 누른 순간 구멍(땅 위) 또는 밧줄(밑) 곁이면 탄다. 타는 동안은 몸 움직임을 대신 맡는다(80-player.js) */
 function underRopeTick(dt){
   if(!UNDER.ok) return false;
-  const p=PL.pos, spTap=!!keys.Space&&!UNDER.sp0; UNDER.sp0=!!keys.Space;
+  const p=PL.pos, spTap=!!keys.jump&&!UNDER.sp0; UNDER.sp0=!!keys.jump;
   const R=UNDER.rope;
   if(R){
     if(R.dir>0){ PL.stam-=7*dt*(1+invLoad()); if(PL.stam<=0){ PL.stam=0; R.dir=-1; R.y0=p.y; R.y1=R.p.yf; R.t=0; R.T=Math.max(1.2,(p.y-R.y1)/9); toast('팔에 힘이 다했다 — 미끄러져 내려간다'); } }

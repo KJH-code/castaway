@@ -334,20 +334,20 @@ const climbTop=p=>p.k==='giant'?GIANT_BOLE[p.g.v].H*p.s*0.45:nestH(p)+0.9;     /
 const climbRad=p=>p.k==='giant'?p.R*1.12+0.40:((p.k==='oak'?0.46:0.40)*p.s)+0.34;   // 줄기에서 몸까지(노거수는 판근 · 혹이 있어 조금 더)
 /* 프레임마다 — 오르는 중이면 몸과 눈을 줄기에 붙여 옮기고 true(걷기 처리를 건너뛴다). updatePlayer 가 맨 먼저 부른다 */
 function climbTick(dt){
-  const sp=!!keys.Space, tap=sp&&!CLIMB.sp; CLIMB.sp=sp;
+  const sp=!!keys.jump, tap=sp&&!CLIMB.sp; CLIMB.sp=sp;
   if(!CLIMB.on){
     if(tap&&PL.grounded&&!(invOpen||craftOpen)&&!MOVE.t){ let p=climbLook();
       if(p&&typeof wallAhead==='function'){ const wd=wallAhead(); if(wd&&wd<Math.hypot(p.x-PL.pos.x,p.z-PL.pos.z)) p=null; }   // 벼랑이 나무보다 가까우면 벼랑에 매달린다(80-player.js)
       /* 눈이 바위에 들지 않는 쪽에서 매달린다 — 바위에 붙어 선 나무면 줄기를 돌아 빈 쪽을 찾고, 없으면 못 오른다 */
       let ang=null; if(p){ const a0=Math.atan2(PL.pos.z-p.z,PL.pos.x-p.x), rad=climbRad(p);
         for(let k=0;k<12&&ang===null;k++){ const a=a0+(k%2?1:-1)*Math.ceil(k/2)*0.52; if(!eyeHit(p.x+Math.cos(a)*rad,p.y+0.3+EYE,p.z+Math.sin(a)*rad)) ang=a; }
-        if(ang===null){ toast('바위가 막아 이 나무는 오를 수 없다'); keys.Space=false; return false; } }
+        if(ang===null){ toast('바위가 막아 이 나무는 오를 수 없다'); keys.jump=false; return false; } }
       if(p){ CLIMB.on=true; CLIMB.p=p; CLIMB.h=0.3; CLIMB.top=climbTop(p); CLIMB.ang=ang;
-        keys.Space=false; toast('나무를 오른다 — W·S 오르내리기 · A·D 줄기 돌기 · Space 뛰어내리기'); } }
+        keys.jump=false; toast('나무를 오른다 — W·S 오르내리기 · A·D 줄기 돌기 · Space 뛰어내리기'); } }
     return CLIMB.on;
   }
   const p=CLIMB.p, bag=invOpen||craftOpen;
-  const up=bag?0:((keys.KeyW?1:0)-(keys.KeyS?1:0)), turn=bag?0:((keys.KeyD?1:0)-(keys.KeyA?1:0));
+  const up=bag?0:((keys.fwd?1:0)-(keys.back?1:0)), turn=bag?0:((keys.right?1:0)-(keys.left?1:0));
   const h0=CLIMB.h, a0=CLIMB.ang;
   CLIMB.h=clamp(CLIMB.h+up*1.5*dt,0,CLIMB.top); CLIMB.ang+=turn*1.4*dt;
   PL.stam=clamp(PL.stam-(up?4.5:1.2)*dt,0,100);

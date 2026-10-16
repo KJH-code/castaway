@@ -41,34 +41,35 @@ addEventListener('keydown',e=>{
     return;
   }
   /* 그림판이 열려 있으면 게임 키는 받지 않는다 — Esc 로 닫기만 */
-  keys[e.code]=true;
-  if(e.code==='Space') e.preventDefault();
-  if(e.code==='KeyM'&&!e.repeat&&(landed||mapOpen)){ toggleMap(); }   // 지도 펴기(4배 · 마우스가 풀려 핀을 꽂는다 — 82-hud.js) ↔ 접기
+  /* 키는 행동 이름으로 켠다 — 이 글쇠에 걸린 행동 전부(93-keys.js · 바꾼 키가 그대로 듣는다) */
+  for(const a of KB_BY[e.code]||[]) keys[a]=true;
+  if(e.code==='Space'||kbHit(e,'jump')) e.preventDefault();
+  if(kbHit(e,'map')&&!e.repeat&&(landed||mapOpen)){ toggleMap(); }   // 지도 펴기(4배 · 마우스가 풀려 핀을 꽂는다 — 82-hud.js) ↔ 접기
   if(e.code==='Escape'&&mapOpen){ toggleMap(false); return; }
-  if(e.code==='KeyL'){ toggleLamp(); }         // 전등은 들고 좌클릭해도 켜진다 · 충전은 우클릭
+  if(kbHit(e,'lamp')){ toggleLamp(); }         // 전등은 들고 좌클릭해도 켜진다 · 충전은 우클릭
   if(e.code==='Escape'&&boxOpen){ toggleBox(null); }
-  if(e.code==='KeyE'&&boxOpen&&!e.repeat){ toggleBox(null); }
-  else if(e.code==='KeyE'&&!e.repeat&&!grindOpen&&!uiOpen()&&typeof boatToggle==='function') boatToggle();   // 배 타기 · 내리기(96-sea.js)
-  if((e.code==='Escape'||e.code==='KeyE')&&grindOpen&&!e.repeat){ toggleGrind(); return; }
+  if(kbHit(e,'close')&&boxOpen&&!e.repeat){ toggleBox(null); }
+  else if(kbHit(e,'close')&&!e.repeat&&!grindOpen&&!uiOpen()&&typeof boatToggle==='function') boatToggle();   // 배 타기 · 내리기(96-sea.js)
+  if((e.code==='Escape'||kbHit(e,'close'))&&grindOpen&&!e.repeat){ toggleGrind(); return; }
   /* I — 가방 화면(소지품 + 고른 물건 + 제작이 한 장에 선다 · 98-bag.js). 예전엔 C 로도 열렸고 그때는 검색칸에 바로 글자가
      쳐졌다 — C 를 누르고 I 를 누르면 가방이 닫히는 대신 검색칸에 'i' 가 쳐졌다(사용자 지적). 이제 여는 키는 I 하나고,
      검색칸은 **눌러야** 글자를 받는다. C 는 앉기만 한다 */
   if(e.code==='Escape'&&(invOpen||craftOpen)){ e.preventDefault(); closeBag(); return; }
   if(e.code==='Escape'&&BUILD.on){ exitBuild(); toast('짓기 끝'); BUILD_ESC_T=performance.now(); }   // 짓기 중 Esc — 그만두기(잠긴 마우스도 같이 풀린다 · 일시정지 화면은 안 띄운다 — 아래 pointerlockchange)
-  if(e.code==='KeyI'&&!e.repeat){ toggleBag(); }
+  if(kbHit(e,'bag')&&!e.repeat){ toggleBag(); }
   /* F3 — 성능 창(예전의 '진단' 상자는 성능 창 맨 아래 줄로 옮겼다) */
-  if(e.code==='F3'){ e.preventDefault(); PERF.toggle(); }
-  if(e.code==='F5'){ e.preventDefault(); saveLocal(); }
-  if(e.code==='F9'){ e.preventDefault(); askLoad(); }
-  if(e.code==='KeyB'||(e.code==='Escape'&&dexOpen)){ e.preventDefault(); toggleDex(); return; }
-  if(e.code==='KeyQ'&&BUILD.on){               // 삼각 벽 방향 뒤집기 (아크의 좌/우 경사벽)
+  if(kbHit(e,'perf')){ e.preventDefault(); PERF.toggle(); }
+  if(kbHit(e,'save')){ e.preventDefault(); saveLocal(); }
+  if(kbHit(e,'load')){ e.preventDefault(); askLoad(); }
+  if(kbHit(e,'dex')||(e.code==='Escape'&&dexOpen)){ e.preventDefault(); toggleDex(); return; }
+  if(kbHit(e,'bFlip')&&BUILD.on){               // 삼각 벽 방향 뒤집기 (아크의 좌/우 경사벽)
     BUILD.hand=-BUILD.hand;
     toast('삼각 벽 방향 — '+(BUILD.hand>0?'오른쪽':'왼쪽'));
     bldSig=null; return;
   }
   /* 먹고 마시고 감는 것은 손에 들고 좌클릭한다(useHeld) — F 는 없앴다. */
-  if(e.code==='KeyG'&&BUILD.on){ undoBuild(); return; }   // 짓기 중엔 걷어내기
-  if(e.code==='KeyG'&&!e.repeat&&INV.slots.length){   // 고른 것 버리기 — 묻고 버린다 · Shift 전부 · Ctrl 묻지 않음(50-items.js dropSlot)
+  if(kbHit(e,'bUndo')&&BUILD.on){ undoBuild(); return; }   // 짓기 중엔 걷어내기
+  if(kbHit(e,'drop')&&!e.repeat&&INV.slots.length){   // 고른 것 버리기 — 묻고 버린다 · Shift 전부 · Ctrl 묻지 않음(50-items.js dropSlot)
     const s0=INV.slots[INV.sel];
     if(s0) dropSlot(s0, e.shiftKey?s0.n:1, e.ctrlKey||e.metaKey);
   }
@@ -86,32 +87,32 @@ addEventListener('keydown',e=>{
     }
     else if(!craftOpen && i<QUICK.length) quickSwap(i);
   }
-  if(e.code==='Semicolon'&&!e.repeat){ toggleDev(); }   // ; — 개발자 모드(사용자 요청 — ` 는 한글 자판에서 ₩ 라 안 눌렸다)
-  if(DEV.on&&(e.code==='BracketRight'||e.code==='BracketLeft')&&!e.repeat){ devCave(e.code==='BracketRight'?1:-1); }   // 개발자 모드 — 굴 둘러보기   // 개발자 모드 — 날아서 둘러보기 · 다치지 않는다(80-player.js)
-  if(e.code==='KeyV'){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
+  if(kbHit(e,'dev')&&!e.repeat){ toggleDev(); }   // 기본 ; — 개발자 모드(사용자 요청 — ` 는 한글 자판에서 ₩ 라 안 눌렸다 · 키 창에서 바꾼다)
+  if(DEV.on&&(kbHit(e,'devNext')||kbHit(e,'devPrev'))&&!e.repeat){ devCave(kbHit(e,'devNext')?1:-1); }   // 개발자 모드 — 굴 둘러보기   // 개발자 모드 — 날아서 둘러보기 · 다치지 않는다(80-player.js)
+  if(kbHit(e,'fly')){ flyMode=!flyMode; document.getElementById('bFly').classList.toggle('on',flyMode); }
   /* T — 시간 배속. 20배를 넣어 두었다: 하늘과 날씨를 살펴볼 때 1배는 너무 느리고
      60배는 하루가 24초라 너무 빠르다. 20배면 게임 하루가 72초다.
      주소 뒤에 ?t=20 을 붙이면 그 배속으로 시작한다. */
-  if(e.code==='KeyT'){
+  if(kbHit(e,'time')){
     timeScale = timeScale===1?20:(timeScale===20?60:(timeScale===60?300:1));
     toast('시간 '+timeScale+'배 — 하루가 '+(24*60/timeScale).toFixed(0)+'초');
   }
-  if(e.code==='KeyR'&&BUILD.on){ buildRotate(1); return; }   // 짓기 중엔 방향 돌리기
-  if(e.code==='KeyR'&&MOVE.t){ moveRotate(e.shiftKey?-1:1); return; }   // 옮기는 중엔 돌리기
-  if(e.code==='KeyF'&&!e.repeat&&!uiOpen()&&!BUILD.on){ if(MOVE.t) moveCancel(); else moveStart(); }   // 옮기기 — 집어 들기 · 그만두기(60-stations.js)
-  if(e.code==='KeyR'){ newIsland(generateWorld); }
-  if(e.code==='KeyZ'){                         // 짓기 모드
+  if(kbHit(e,'bRot')&&BUILD.on){ buildRotate(1); return; }   // 짓기 중엔 방향 돌리기
+  if(kbHit(e,'mRot')&&MOVE.t){ moveRotate(e.shiftKey?-1:1); return; }   // 옮기는 중엔 돌리기
+  if(kbHit(e,'move')&&!e.repeat&&!uiOpen()&&!BUILD.on){ if(MOVE.t) moveCancel(); else moveStart(); }   // 옮기기 — 집어 들기 · 그만두기(60-stations.js)
+  if(kbHit(e,'newIsle')){ newIsland(generateWorld); }
+  if(kbHit(e,'build')){                         // 짓기 모드
     if(BUILD.on){ exitBuild(); toast('짓기 끝'); }
     else if(PL.under) toast('땅속에서는 지을 수 없다');
     else enterBuild(null);
   }
-  if(e.code==='KeyX'){                         // 재장전
+  if(kbHit(e,'reload')){                       // 재장전
     const w=equippedWeapon(), W=w&&ITEMS[w.id].tool;
     if(w&&W.gun&&RELOAD.t<=0) startReload(w,W);
   }
-  if(e.code==='Tab'){ e.preventDefault(); toggleCfg(); }
+  if(kbHit(e,'cfg')){ e.preventDefault(); toggleCfg(); }
 });
-addEventListener('keyup',e=>{ keys[e.code]=false; });   // E 는 이제 열린 창 닫기만 — 여는 것은 좌클릭(releaseE)
+addEventListener('keyup',e=>{ for(const a of KB_BY[e.code]||[]) keys[a]=false; });   // E 는 이제 열린 창 닫기만 — 여는 것은 좌클릭(releaseE)
 /* 좌클릭을 짧게 눌렀다 떼면 눈앞의 용기·문짝·숫돌·발전기를 다룬다(사용자 요청 — 예전엔 E). 길게 누른 것은 모닥불을 다룬 것이므로
    손을 뗐다고 창이 열리면 안 된다. */
 function releaseE(){
@@ -188,7 +189,7 @@ document.addEventListener('pointerlockchange',()=>{
 /* 창(소지품·제작·사전·설정)이 열려 있으면 마우스를 풀어 줘야 클릭할 수 있다.
    포인터가 잠긴 채로는 커서가 없어 UI를 누를 방법이 없다. */
 let cfgOpen=false;
-const uiOpen=()=>invOpen||craftOpen||dexOpen||cfgOpen||boxOpen||grindOpen||askOpen||mapOpen;
+const uiOpen=()=>invOpen||craftOpen||dexOpen||cfgOpen||boxOpen||grindOpen||askOpen||mapOpen||KBW.open;
 /* 이 창들이 열려 있는 동안은 세상이 멈춘다(loop) */
 const uiHold=()=>dexOpen;
 function syncLock(){
@@ -235,6 +236,7 @@ function toggleCfg(on){
 }
 document.getElementById('bOpt').onclick=()=>toggleCfg(true);
 document.getElementById('bCfgX').onclick=()=>toggleCfg(false);
+document.getElementById('bKeys').onclick=()=>kbwToggle(true);   // 키 창(93-keys.js)
 /* 소리 — 일시정지 · 창을 내리면 멈추고, 계속하면 다시 낸다 */
 function audioPause(on){ if(!A.ctx) return; try{ on?A.ctx.suspend():A.ctx.resume(); }catch(e){} }
 let winHidden=false;           // 데스크톱 판에서 창을 내렸나(브라우저는 document.hidden 이 알려 준다)
@@ -306,7 +308,7 @@ if(touchOnly){
     for(const t of e.changedTouches){
       if(t.identifier===stickId){
         stickId=null; tmv={x:0,y:0};
-        keys.KeyW=keys.KeyS=keys.KeyA=keys.KeyD=false;   // 놓을 때 한 번만 해제
+        keys.fwd=keys.back=keys.left=keys.right=false;   // 놓을 때 한 번만 해제
         kn.style.left='36px'; kn.style.top='36px';
       }
       if(t.identifier===lookId) lookId=null;
@@ -314,20 +316,20 @@ if(touchOnly){
   });
   const bind=(id,fn)=>document.getElementById(id)
     .addEventListener('touchstart',e=>{fn();e.stopPropagation();e.preventDefault();},{passive:false});
-  bind('tJump',()=>{keys.Space=true;setTimeout(()=>keys.Space=false,120);});
-  bind('tRun',()=>{keys.ShiftLeft=!keys.ShiftLeft;});
+  bind('tJump',()=>{keys.jump=true;setTimeout(()=>keys.jump=false,120);});
+  bind('tRun',()=>{keys.run=!keys.run;});
   bind('tLight',()=>{ toggleLamp(); });
   bind('tAtk',attack);
   const pk=document.getElementById('tPick');
-  pk.addEventListener('touchstart',e=>{keys.KeyE=true;useDown=true;e.stopPropagation();e.preventDefault();},{passive:false});
-  pk.addEventListener('touchend',e=>{keys.KeyE=false;useDown=false;releaseE();e.stopPropagation();},{passive:false});
+  pk.addEventListener('touchstart',e=>{keys.close=true;useDown=true;e.stopPropagation();e.preventDefault();},{passive:false});
+  pk.addEventListener('touchend',e=>{keys.close=false;useDown=false;releaseE();e.stopPropagation();},{passive:false});
 }
 function applyTouch(){
   // 스틱을 실제로 잡고 있을 때만 관여한다. 그러지 않으면 매 프레임
   // 키보드 입력을 false 로 덮어써서 PC에서 이동이 먹통이 된다.
   if(stickId===null) return;
-  keys.KeyW=tmv.y<-0.2; keys.KeyS=tmv.y>0.2;
-  keys.KeyA=tmv.x<-0.2; keys.KeyD=tmv.x>0.2;
+  keys.fwd=tmv.y<-0.2; keys.back=tmv.y>0.2;
+  keys.left=tmv.x<-0.2; keys.right=tmv.x>0.2;
 }
 
 /* ---------------- 설정 패널 ---------------- */

@@ -663,7 +663,7 @@ function boatToggle(){
 }
 function boatTick(dt){
   const b=BOAT.b, K=(invOpen||craftOpen)?NO_KEYS:keys;
-  const fwd=(K.KeyW?1:0)-(K.KeyS?1:0), turn=(K.KeyD?1:0)-(K.KeyA?1:0);
+  const fwd=(K.fwd?1:0)-(K.back?1:0), turn=(K.right?1:0)-(K.left?1:0);
   BOAT.v+=((fwd>0?4.5:fwd<0?-1.8:0)-BOAT.v)*clamp((fwd?0.8:0.35)*dt,0,1);
   BOAT.w+=(-turn*0.9-BOAT.w)*clamp(2.5*dt,0,1); b.yaw+=BOAT.w*dt*(0.35+0.65*Math.min(1,Math.abs(BOAT.v)/2));
   PL.stam=clamp(PL.stam+(fwd?-1.2:6)*dt,0,100);
