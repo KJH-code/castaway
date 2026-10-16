@@ -15,10 +15,6 @@ function loop(){
   /* 섬을 짓는 동안(busy)은 그리지 않는다 — 덮개(94%) 뒤에서 짓다 만 장면(땅이 없어졌다 생기고, 하늘 표가 비었다 차고 …)을
      초당 10번 그려서 로딩 내내 뒤가 깜박였다. 화면은 마지막으로 그린 그림을 그대로 둔다 */
   if(busy){ last=now; return; }
-  /* 여는 화면(#ov.title)은 불투명한 바탕에 캔버스 그림이라 뒤의 섬이 한 화소도 안 보인다 — 섬을 다 지은 뒤 세 장만 그려
-     (텍스처 올리기 · 셰이더 · 그림자 지도를 데워 둔다 — 안 그러면 그 몫이 '상륙'을 누르는 순간으로 밀린다) 그 뒤로는 안 그린다.
-     쓰러진 순간의 그림을 뜰 때는 그린다 */
-  if(paused&&TITLE.on&&!TITLE.snapWant){ if(TITLE.bgN>=3){ last=now; return; } TITLE.bgN++; }
   /* 프레임 제한(설정) — 정한 간격이 안 됐으면 이번 화면 주기는 건너뛴다. last 는 그대로 두어 dt 가 쉰 시간을 안는다 */
   if(FPS_CAP>0&&now-lastDraw<1000/FPS_CAP-1.5) return;
   lastDraw=now;

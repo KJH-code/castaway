@@ -54,7 +54,9 @@ const igniteDur=e=>IGNITE.dur/((e&&(ITEMS[e.id].tool||{}).fire)||1);
 const needsTinder=e=>((e&&(ITEMS[e.id].tool||{}).fire)||1)<2;
 
 // 플레이어 앞 1.4 m 지점을 검사한다. 재료를 소모하기 전에 먼저 부른다.
-function campfireSpot(){
+/* free — 만든 뒤 곧바로 집어 들어 자리를 고르는 설비(55-craft.js)면 둘레 설비와의 거리는 안 본다: 겹침은 놓는 자리에서
+   `moveCheck` 가 본다(베타 신고 — 모닥불 곁에서 상자를 못 만드는 등 처음 자리 둘레 설비 때문에 아예 못 만들었다) */
+function campfireSpot(free){
   const x=PL.pos.x-Math.sin(PL.yaw)*1.4, z=PL.pos.z-Math.cos(PL.yaw)*1.4;
   /* 토대·지붕 위에도 놓는다(사용자 요청) — 발 높이에서 닿는 바닥(floorAt)이 땅보다 높으면 그 판 위다(물가·비탈 검사는 땅일 때만) */
   const g=heightAt(x,z), y=floorAt(x,z,PL.pos.y), onB=y>g+0.05;
@@ -64,7 +66,7 @@ function campfireSpot(){
   }else if(Math.abs(floorAt(x+0.45,z,y+0.1)-y)>0.05||Math.abs(floorAt(x-0.45,z,y+0.1)-y)>0.05
          ||Math.abs(floorAt(x,z+0.45,y+0.1)-y)>0.05||Math.abs(floorAt(x,z-0.45,y+0.1)-y)>0.05)
     return {ok:false, why:'판 가장자리라 걸치지 않는다 — 조금 더 안쪽에'};
-  for(const f of FIRES) if(Math.hypot(f.x-x,f.z-z)<3&&Math.abs(f.y-y)<1.5) return {ok:false, why:'이미 모닥불이 있다'};
+  if(!free) for(const f of FIRES) if(Math.hypot(f.x-x,f.z-z)<3&&Math.abs(f.y-y)<1.5) return {ok:false, why:'이미 모닥불이 있다'};
   return {ok:true,x,y,z,onB,onF:onB&&onFound(x,z,y)};
 }
 /* 그 자리가 집 바닥(토대나 그 위 지붕)인가 — 다진 터(시멘트)는 집 바닥이 아니다 */
@@ -159,11 +161,11 @@ function procHow(R){ toast(R.proc==='furnace'?R.n+' — 제련로에 넣어 두�
 
 const FURNACES=[];
 const nearFurnace=()=>FURNACES.some(g=>Math.hypot(g.x-PL.pos.x,g.z-PL.pos.z)<3.4);
-function placeFurnace(){
-  const spot=campfireSpot();
+function placeFurnace(free){
+  const spot=campfireSpot(free);
   if(!spot.ok){ toast(spot.why); return false; }
   if(spot.onF){ toast(FIRE_ON_FOUND); return false; }
-  for(const g of FURNACES) if(Math.hypot(g.x-spot.x,g.z-spot.z)<3){
+  if(!free) for(const g of FURNACES) if(Math.hypot(g.x-spot.x,g.z-spot.z)<3){
     toast('이미 제련로가 있다'); return false; }
   placeFurnaceAt(spot.x,spot.y,spot.z);
   toast('제련로를 쌓았다');
@@ -264,10 +266,10 @@ const STORE_DEF={
   /* 쓰레기통 — 넣은 것은 창을 닫는 순간 사라진다. 쓸모없는 것을 한꺼번에 치우는 자리 */
   trash :{n:'쓰레기통',   cap:80, trash:true}
 };
-function placeStore(kind){
-  const spot=campfireSpot();
+function placeStore(kind,free){
+  const spot=campfireSpot(free);
   if(!spot.ok){ toast(spot.why); return false; }
-  for(const g of STORES) if(Math.hypot(g.x-spot.x,g.z-spot.z)<1.6&&Math.abs(g.y-spot.y)<1.5){
+  if(!free) for(const g of STORES) if(Math.hypot(g.x-spot.x,g.z-spot.z)<1.6&&Math.abs(g.y-spot.y)<1.5){
     toast('너무 가깝다'); return false; }
   placeStoreAt(kind,spot.x,spot.y,spot.z);
   toast(eulReul(STORE_DEF[kind].n)+' 놓았다');
@@ -425,7 +427,9 @@ function pushCollider(c){
 /* ── 옮기기(F) — 아크 서바이벌처럼 집어 들고, 돌리고, 내려놓는다(사용자 요청 — 예전엔 F 를 누르고 있는 동안 밀기라 불편했다) ──
    설비를 보고 F → 그 설비가 눈앞에 떠서 시선을 따라온다(바닥 · 토대 · 지붕 위 — `floorAt`). 휠·R 로 15° 씩 돌리고 좌클릭으로 놓는다.
    F 다시·우클릭·Esc 는 그만두기(제자리로). 놓을 자리가 안 되면 발밑 고리가 붉고 까닭이 뜬다. 안에 든 것·불·이름표는 그대로 따라온다.
-   들고 있는 동안 그 설비의 충돌 원은 빼 두고(r 0), 놓을 때 새 자리·높이로 옮긴다(`cgMove`). 돌린 각은 저장된다(`ry`). */
+   들고 있는 동안 그 설비의 충돌 원은 빼 두고(r 0), 놓을 때 새 자리·높이로 옮긴다(`cgMove`). 돌린 각은 저장된다(`ry`).
+   **드는 동안 몸은 제자리다**(베타 신고 — 짐이 든 상자를 들고 걸어 다녀 무게 없이 날랐다) — 시점만 돌고 걷기·돌진·오르기는 안 받는다
+   (`updatePlayer` 의 `NO_KEYS` · `climbTick` · `wallTick`). 그래서 놓는 자리는 선 자리에서 4.5 m 안이다. */
 const MOVE={t:null, ox:0, oy:0, oz:0, ory:0, ry:0, x:0, y:0, z:0, ok:false, why:'', col:null, cr:0, ring:null};
 function moveStart(){
   if(MOVE.t) return;
@@ -434,9 +438,9 @@ function moveStart(){
   return moveBegin(c);
 }
 /* 그 설비를 집어 든다 — F 로 고른 것(moveStart)이든, 방금 지은 것(55-craft.js)이든 */
-function moveBegin(c){
+function moveBegin(c,fresh){
   if(MOVE.t||!c) return false;
-  MOVE.t=c; MOVE.ox=c.x; MOVE.oy=c.y; MOVE.oz=c.z; MOVE.ory=MOVE.ry=c.mesh.rotation.y;
+  MOVE.t=c; MOVE.fresh=!!fresh; MOVE.ox=c.x; MOVE.oy=c.y; MOVE.oz=c.z; MOVE.ory=MOVE.ry=c.mesh.rotation.y;
   MOVE.col=pushCollider(c); MOVE.cr=MOVE.col?MOVE.col.r:0.5; if(MOVE.col) MOVE.col.r=0;
   if(!MOVE.ring){ MOVE.ring=new THREE.Mesh(new THREE.RingGeometry(0.85,1,40).rotateX(-Math.PI/2),
       new THREE.MeshBasicMaterial({color:0x7fe0a0,transparent:true,opacity:0.7,depthWrite:false,side:THREE.DoubleSide}));
@@ -472,7 +476,7 @@ function moveCheck(c,x,y,z){
 }
 function updateMove(dt){
   const c=MOVE.t; if(!c) return;
-  if(uiOpen()||BUILD.on||PL.swim||PL.dead||!pushKind(c)){ moveCancel(); return; }
+  if(uiOpen()||BUILD.on||PL.swim||PL.dead||BOAT.on||CLIMB.on||WALL.on||!pushKind(c)){ moveCancel(); return; }
   const [x,y,z]=moveAim(); MOVE.x=x; MOVE.y=y; MOVE.z=z;
   MOVE.why=moveCheck(c,x,y,z); MOVE.ok=!MOVE.why;
   c.mesh.position.set(x,y+0.02,z); c.mesh.rotation.y=MOVE.ry;
@@ -491,9 +495,21 @@ function movePlace(){
 }
 function moveCancel(){
   const c=MOVE.t; if(!c) return;
+  /* 갓 만든 것(moveBegin 의 fresh)은 처음 자리를 거리로 따지지 않고 만들었으므로(campfireSpot 의 free) 그 자리가 다른 것과 겹칠 수 있다 —
+     겹치면 둘레 4 m 안에서 놓을 수 있는 가장 가까운 자리로 옮겨 둔다(없으면 처음 자리) */
+  if(MOVE.fresh&&moveCheck(c,MOVE.ox,MOVE.oy,MOVE.oz)){
+    const s=moveSettle(c);
+    if(s){ MOVE.x=s[0]; MOVE.y=s[1]; MOVE.z=s[2]; MOVE.ry=MOVE.ory; MOVE.ok=true; movePlace(); return; } }
   c.mesh.position.set(MOVE.ox,MOVE.oy,MOVE.oz); c.mesh.rotation.y=MOVE.ory;
   if(MOVE.col) MOVE.col.r=MOVE.cr;
   MOVE.t=null; if(MOVE.ring) MOVE.ring.visible=false;
+}
+/* 처음 자리 둘레(0.5 m 씩 4 m 까지 · 16 방위)에서 moveCheck 를 지나는 가장 가까운 자리 — 없으면 null */
+function moveSettle(c){
+  for(let r=0.5;r<=4+1e-6;r+=0.5) for(let k=0;k<16;k++){
+    const a=k/16*6.2832, x=MOVE.ox+Math.cos(a)*r, z=MOVE.oz+Math.sin(a)*r, y=floorAt(x,z,MOVE.oy+0.5);
+    if(Math.abs(y-MOVE.oy)<1.2&&!moveCheck(c,x,y,z)) return [x,y,z]; }
+  return null;
 }
 function updatePush(dt){ updateMove(dt); }
 /* ── 용기 공통 ───────────────────────────────────────────────────────────────

@@ -336,7 +336,7 @@ const climbRad=p=>p.k==='giant'?p.R*1.12+0.40:((p.k==='oak'?0.46:0.40)*p.s)+0.34
 function climbTick(dt){
   const sp=!!keys.jump, tap=sp&&!CLIMB.sp; CLIMB.sp=sp;
   if(!CLIMB.on){
-    if(tap&&PL.grounded&&!(invOpen||craftOpen)){ let p=climbLook();
+    if(tap&&PL.grounded&&!(invOpen||craftOpen)&&!MOVE.t){ let p=climbLook();
       if(p&&typeof wallAhead==='function'){ const wd=wallAhead(); if(wd&&wd<Math.hypot(p.x-PL.pos.x,p.z-PL.pos.z)) p=null; }   // 벼랑이 나무보다 가까우면 벼랑에 매달린다(80-player.js)
       /* 눈이 바위에 들지 않는 쪽에서 매달린다 — 바위에 붙어 선 나무면 줄기를 돌아 빈 쪽을 찾고, 없으면 못 오른다 */
       let ang=null; if(p){ const a0=Math.atan2(PL.pos.z-p.z,PL.pos.x-p.x), rad=climbRad(p);

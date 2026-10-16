@@ -69,10 +69,9 @@ addEventListener('keydown',e=>{
   }
   /* 먹고 마시고 감는 것은 손에 들고 좌클릭한다(useHeld) — F 는 없앴다. */
   if(kbHit(e,'bUndo')&&BUILD.on){ undoBuild(); return; }   // 짓기 중엔 걷어내기
-  if(kbHit(e,'drop')&&INV.slots.length){
+  if(kbHit(e,'drop')&&!e.repeat&&INV.slots.length){   // 고른 것 버리기 — 묻고 버린다 · Shift 전부 · Ctrl 묻지 않음(50-items.js dropSlot)
     const s0=INV.slots[INV.sel];
-    invRemove(INV.sel, e.shiftKey?s0.n:1);
-    toast('버림');
+    if(s0) dropSlot(s0, e.shiftKey?s0.n:1, e.ctrlKey||e.metaKey);
   }
   if(/^Digit[0-9]$/.test(e.code)){
     const i=(+e.code.slice(5)+9)%10;          // 0 은 열 번째 자리

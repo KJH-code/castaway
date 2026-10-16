@@ -207,8 +207,7 @@ function freezeStatics(){
    **안개 없는 빈 장면**으로 그리므로 안개 없는 장면에서, 그림자에 그릴 면(앞면 재질은 뒷면 — `SHADOW_SIDE`)으로 짠다.
    내장 깊이·거리 재질은 렌더러 안에 숨어 있지만 같은 매개변수의 재질로 짜 두면 열쇠가 같아 셰이더를 나눠 쓴다.
    불을 켠 채 멈추면 그 상태에서 '하나 더' 를 다시 짠다 — 이미 짠 것은 표에서 찾기만 한다(재질 하나에 0.05 ms 쯤). */
-const PRECOMP={jobs:null, k:0, i:0, sig:'', t:0, n:0, ms:0, ic:null, g0:null, mf:null, dm:{}, xm:{}, force:false, inT:0, cool:0};
-for(const ev of ['pointermove','pointerdown','keydown','wheel']) addEventListener(ev,()=>{ PRECOMP.inT=performance.now(); },{capture:true,passive:true});   // 만지는 동안은 미리 짜기를 쉰다(precompTick)
+const PRECOMP={jobs:null, k:0, i:0, sig:'', t:0, n:0, ms:0, ic:null, g0:null, mf:null, dm:{}, xm:{}, force:false};
 const SHADOW_SIDE={0:1,1:0,2:2};      // r128 — 그림자 지도엔 앞면 재질의 뒷면을 그린다(양면은 양면)
 function lightCensus(){
   const c={d:0,ds:0,p:0,ps:0,s:0,ss:0,h:0};
@@ -330,17 +329,12 @@ function precompTick(now){
   const P=PRECOMP;
   if(GPU_SOFT&&!P.force) return;
   if(renderer.info.programs.length>=PRECOMP_MAX){ P.jobs=null; return; }
-  /* **사람이 만지는 동안은 쉰다**(사용자 지적 — 시작·일시정지 화면에서 몇 초씩 멈추고 단추가 늦게 먹었다). 셰이더 하나를 짜는 동안은
-     브라우저가 통째로 기다린다(8 ms 예산은 짜고 나서야 본다 — 내장 그래픽의 ANGLE 에선 하나에 수백 ms 일 수 있다).
-     그래서 ① 마우스·키를 만진 뒤 0.8초는 안 짜고 ② 한 번 짜는 데 30 ms 를 넘겼으면 그 세 배만큼 쉬어 화면이 숨을 쉬게 한다 */
-  if(now-P.inT<800||now<P.cool) return;
-  if(P.jobs){ const t0=performance.now(); precompStep(8); const d=performance.now()-t0; if(d>30) P.cool=performance.now()+d*3; return; }
-  if(now-P.t<4000) return;              // 장면이 바뀌었나 보는 것도 장면을 두 번 훑는다 — 4초마다(예전 1.5초)
+  if(P.jobs){ precompStep(8); return; }
+  if(now-P.t<1500) return;
   P.t=now; precompPlan();
 }
 async function generateWorld(){
   if(busy) return; busy=true;
-  TITLE.bgN=0;                          // 새 섬 — 여는 화면 뒤에서 다시 세 장 데운다(99-main.js)
   landed=false; autoT=0;                // 새 섬 · 불러오기 — 상륙할 때까지는 자동 저장할 것이 없다
   GAME_ID=newGameId(); _propGrid=null;  // 새 판 번호(불러오기는 restore 가 저장의 번호로 되돌린다)
   paused=true;                          // 덮개('상륙')가 떠 있는 동안 세상이 뒤에서 흘러가지 않게 — 놀다가 불러와도(F9) 상륙을 눌러야 시간이 간다
