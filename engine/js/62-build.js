@@ -1105,10 +1105,10 @@ const nearArc=()=>powered()&&ARCS.some(a=>Math.hypot(a.x-PL.pos.x,a.z-PL.pos.z)<
 /* 모루 — 통나무 그루터기에 얹은 넓적한 석재. 달군 쇠를 여기서 두들긴다. */
 const ANVILS=[];
 const nearAnvil=()=>ANVILS.some(g=>Math.hypot(g.x-PL.pos.x,g.z-PL.pos.z)<3.2);
-function placeAnvil(){
-  const spot=campfireSpot();
+function placeAnvil(free){
+  const spot=campfireSpot(free);
   if(!spot.ok){ toast(spot.why); return false; }
-  for(const g of ANVILS) if(Math.hypot(g.x-spot.x,g.z-spot.z)<2.5){
+  if(!free) for(const g of ANVILS) if(Math.hypot(g.x-spot.x,g.z-spot.z)<2.5){
     toast('이미 모루가 있다'); return false; }
   placeAnvilAt(spot.x,spot.y,spot.z);
   toast('모루를 놓았다');
@@ -1139,10 +1139,10 @@ function placeAnvilAt(px,py,pz){
 /* 숫돌 — 마제 석기를 갈기 위한 작업대. 모닥불과 같은 방식으로 설치한다. */
 const GRINDS=[];
 const nearGrind=()=>GRINDS.some(g=>Math.hypot(g.x-PL.pos.x,g.z-PL.pos.z)<3.2);
-function placeGrindstone(){
-  const spot=campfireSpot();
+function placeGrindstone(free){
+  const spot=campfireSpot(free);
   if(!spot.ok){ toast(spot.why); return false; }
-  for(const g of GRINDS) if(Math.hypot(g.x-spot.x,g.z-spot.z)<2.5){
+  if(!free) for(const g of GRINDS) if(Math.hypot(g.x-spot.x,g.z-spot.z)<2.5){
     toast('이미 숫돌이 있다'); return false; }
   placeGrindstoneAt(spot.x,spot.y,spot.z);
   toast('숫돌을 놓았다');
@@ -1250,8 +1250,8 @@ function placeKiln(){
   const f=kilnTarget(); if(!f){ toast('모닥불 곁에서 짓는다'); return false; }
   kilnify(f); toast('가마를 지었다 — 모닥불보다 두 배 넓고 두 배 빨리 굽는다'); boxDirty=true; return true;
 }
-function placeCampfire(){
-  const spot=campfireSpot();
+function placeCampfire(free){
+  const spot=campfireSpot(free);
   if(!spot.ok){ toast(spot.why); return false; }
   if(spot.onF){ toast(FIRE_ON_FOUND); return false; }
   placeCampfireAt(spot.x,spot.y,spot.z);
