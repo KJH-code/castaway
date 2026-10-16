@@ -1132,6 +1132,9 @@ function matWeight(r){
   return w;
 }
 const CRAFT={recipe:null, t:0, sel:-1};          // sel — 기술 나무에서 고른 마디(RECIPES 의 번호)
+/* 만든 뒤 곧바로 집어 들어 놓을 자리를 고르는 설비(옮기기 `pushKind` 와 같은 것들) — 처음 자리 둘레의 설비 거리로 막지 않는다(campfireSpot 의 free).
+   겹침은 놓는 자리에서 moveCheck 가 본다. 물레방아·증기기관·발전기·선반·아크로는 놓은 자리가 끝이라 예전처럼 따진다 */
+const PLACE_FREE=new Set(['campfire','furnace','anvil','grind','basket','chest','trash']);
 function startCraft(R){
   if(R.proc){ procHow(R); return; }
   if(!canCraft(R)){ toast('재료가 모자란다'); return; }
@@ -1169,7 +1172,7 @@ function updateCraft(dt){
     return;
   }
   if(R.place){
-    const spot=(R.place==='wheel')?wheelSpot():(R.place==='kiln')?kilnSpot():(R.place==='hearth')?hearthSpot():campfireSpot();
+    const spot=(R.place==='wheel')?wheelSpot():(R.place==='kiln')?kilnSpot():(R.place==='hearth')?hearthSpot():campfireSpot(PLACE_FREE.has(R.place));
     if(!spot.ok){ toast(spot.why); return; }
   }
   if(!stationOK(R)){ toast(STATION[R.station].n+' 곁에서만 할 수 있다'); return; }
@@ -1178,16 +1181,19 @@ function updateCraft(dt){
   if(R.place){
     const PLACE={campfire:placeCampfire, kiln:placeKiln, hearth:placeHearth, grind:placeGrindstone, furnace:placeFurnace, anvil:placeAnvil,
                  wheel:placeWheel, steam:placeSteam, dynamo:placeDynamo, lathe:placeLathe, arc:placeArc,
-                 basket:()=>placeStore('basket'), chest:()=>placeStore('chest'), trash:()=>placeStore('trash')};
-    const fn=PLACE[R.place];
+                 basket:f=>placeStore('basket',f), chest:f=>placeStore('chest',f), trash:f=>placeStore('trash',f)};
+    const fn=PLACE[R.place], free=PLACE_FREE.has(R.place);
     const arrs=[FIRES,FURNACES,ANVILS,GRINDS,STORES,DYNAMOS,LATHES,ARCS], n0=arrs.map(a=>a.length);
-    if(!fn||!fn()){ craftDirty=true; return; }       // 못 놓았다 — 까닭은 놓는 쪽이 알렸고, 재료는 그대로 남는다
+    if(!fn||!fn(free)){ craftDirty=true; return; }       // 못 놓았다 — 까닭은 놓는 쪽이 알렸고, 재료는 그대로 남는다
     R.in.forEach(consumeMat);
     craftDirty=true; invDirty=true;
     /* **놓을 자리를 보여 주고 고르게 한다**(사용자 요청) — 방금 지은 것을 곧바로 집어 든 꼴로 넘긴다(옮기기와 같은 틀 · 60-stations.js):
        시선을 따라 자리가 보이고(발밑 고리가 초록이면 놓인다), 휠·R 로 돌리고, 좌클릭으로 놓는다. 그만두면 처음 선 자리에 남는다 */
     { const k=arrs.findIndex((a,i)=>a.length>n0[i]), c=k>=0?arrs[k][arrs[k].length-1]:null;
-      if(c&&pushKind(c)){ closeBag(); syncLock(); if(moveBegin(c)) toast(c.cname+' — 놓을 자리를 보고 [좌클릭] · [휠·R] 돌리기 · [우클릭] 지금 자리에 둔다'); } }
+      if(c&&pushKind(c)){
+        /* 방금 세운 충돌 원을 바로 쥐여 준다 — pushCollider 는 자리로 짝을 찾아서, 처음 자리가 다른 설비와 꼭 같으면(거리를 안 따지므로 · free) 그것을 잡았다 */
+        const l=COLLIDERS[COLLIDERS.length-1]; if(l&&l.x===c.x&&l.z===c.z) c._col=l;
+        closeBag(); syncLock(); if(moveBegin(c,free)) toast(c.cname+' — 놓을 자리를 보고 [좌클릭] · [휠·R] 돌리기 · [우클릭] 지금 자리에 둔다'); } }
     return;
   }
   /* 만들어도 들 수 없으면 **시작하지 않는다** — 예전엔 재료를 다 쓴 뒤에야 '완성했지만 들 수 없다'며 결과물을 버렸다.

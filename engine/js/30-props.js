@@ -2053,8 +2053,9 @@ function shipPower(k,dust){
 /* 떠나는 동안만 움직인다. 다 가면 장면에서 지운다. */
 function updateShip(dt){
   if(!shipMesh) return;
-  LIGHT.dirtyAt(shipMesh.position.x,shipMesh.position.z,14);   // 움직이는 배 — 그림자를 매 프레임 다시
   SHIP.t+=dt;
+  // 움직이는 배 — 그림자를 매 프레임 다시. '기다림'(4 cm 출렁임)은 그림자에서 안 보이니 오를 때부터
+  if(SHIP.st!=='wait') LIGHT.dirtyAt(shipMesh.position.x,shipMesh.position.z,14);
   if(SHIP.navs) SHIP.navs.forEach(n=>n.visible=((SHIP.t*1.2)%1)<0.25);   // 항법등 깜박임
   if(SHIP.st==='away'&&SHIP.dust) SHIP.dust.visible=false;
   if(SHIP.st==='wait'){

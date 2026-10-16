@@ -43,6 +43,9 @@
 const SUN_STEP=4, SUN_TURN_COS=Math.cos(0.2*Math.PI/180), SUN_AGE=1.5;
 /* 해가 낮을 때의 그림자 행렬 — 어느 점이든 (2,2,2) 로 보낸다(지도 [0,1] 밖 → 그림자 없음) */
 const SUN_PARK=new THREE.Matrix4().set(0,0,0,2, 0,0,0,2, 0,0,0,2, 0,0,0,1);
+/* 불빛 풀의 빈 칸 — 그림자는 켠 채(끄면 그림자 수가 바뀌어 셰이더를 다 다시 짠다) 세기 0 으로 쉬는 칸이다. 그 지도는 안 보이니
+   dirty·dirtyAt 이 다시 그리게 하지 않는다(예전엔 걷기만 해도 프레임의 43% 에서 정육면체 여섯 면 754만 △ 를 다시 그렸다) */
+const LIGHT_IDLE=l=>!!(l.userData.pool&&!l.userData.who);
 const LIGHT={
   /* size 해 그림자 지도 한 변 · R 덮는 반경(m) · pts 점광원 그림자 개수 ·
      psize 점광원 지도 한 변 · soft 부드러운 가장자리 */
@@ -137,7 +140,7 @@ const LIGHT={
     assign(plain,rest.concat(over));
     for(let i=0;i<slots.length;i++){
       const l=slots[i], o=l.userData.who, cast=i<S;
-      if(!o){ l.intensity=0; continue; }
+      if(!o){ l.intensity=0; l.shadow.needsUpdate=false; continue; }   // 맡은 불이 없는 칸 — 세기 0 이라 안 보이는 지도를 다시 그리지 않는다(맡으면 moved 가 다시 그린다)
       if(l.userData.moved){
         o.getWorldPosition(l.position); l.distance=o.distance; l.decay=o.decay;
         if(cast){ l.shadow.camera.far=o.distance+2; l.shadow.camera.updateProjectionMatrix(); l.shadow.needsUpdate=true; }
@@ -273,7 +276,7 @@ const LIGHT={
   /* 드리우는 것이 바뀌었다 — 해 지도와 그림자를 받은 불 지도를 다음 프레임에 다시 그린다 */
   dirty(){
     this._sunDirty=true;
-    for(const l of this.locals) if(l.castShadow&&l.shadow.autoUpdate===false) l.shadow.needsUpdate=true;
+    for(const l of this.locals) if(l.castShadow&&l.shadow.autoUpdate===false&&!LIGHT_IDLE(l)) l.shadow.needsUpdate=true;
   },
   /* (x,z) 둘레 r m 가 바뀌었다 — 그 자리를 덮는 지도만 */
   dirtyAt(x,z,r=0){
@@ -281,7 +284,7 @@ const LIGHT={
     // 상자 밖이라도 해 쪽에 선 큰 것은 그림자를 상자 안으로 드리운다 — 넉넉히 2R
     if(Math.abs(x-this._cx)<Q.R*2+r&&Math.abs(z-this._cz)<Q.R*2+r) this._sunDirty=true;
     for(const l of this.locals){
-      if(!l.castShadow||l.shadow.autoUpdate!==false) continue;
+      if(!l.castShadow||l.shadow.autoUpdate!==false||LIGHT_IDLE(l)) continue;
       l.getWorldPosition(this._c);
       if(Math.hypot(x-this._c.x,z-this._c.z)<(l.distance||30)+r+1) l.shadow.needsUpdate=true;
     }

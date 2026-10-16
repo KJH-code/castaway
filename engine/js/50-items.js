@@ -785,12 +785,12 @@ function drawInv(){
   f.style.background=invLoad()>0.85?'#d8724a':(invLoad()>0.6?'#d8c96a':'#8fd6b4');
   if(!invOpen) return;
   /* 착용 칸 — 글 줄 여덟이던 것을 **칸 일곱의 한 줄**로(사용자 요청: 가방이 어렵다). 손 · 옷 · 겉옷 · 머리 · 등짐 칸에는
-     든 것의 그림이, 먹기 · 버리기 칸은 끌어다 놓는 자리다(Shift 를 누른 채 놓으면 1개만 버린다) */
+     든 것의 그림이, 먹기 · 버리기 칸은 끌어다 놓는 자리다(Shift 를 누른 채 놓으면 1개만 · Ctrl 이면 묻지 않고 버린다) */
   const tile=(slot,label,sl,hint)=>'<div class="ws slot" data-slot="'+slot+'"><span>'+label+'</span>'
     +(sl?'<b draggable="true" title="'+ITEMS[sl.id].n+'">'+iconTag(sl.id,ITEMS[sl.id])+'<em>'+ITEMS[sl.id].n+'</em></b>':'<i>'+hint+'</i>')+'</div>';
   let wh='<div class="wr">'+tile('hand','손',EQUIP,'—');
   for(const k of ['body','armor','head','back']) wh+=tile(k,WEAR_N[k],WEAR[k],'—');
-  wh+=tile('eat','먹기',null,'여기로 끌기')+tile('trash','🗑 버리기',null,'Shift = 1개')+'</div>'
+  wh+=tile('eat','먹기',null,'여기로 끌기')+tile('trash','🗑 버리기',null,'Shift 1개 · Ctrl 안 묻기')+'</div>'
     +'<div class="wsum">방어 <b>'+armorTotal()+'</b> · 보온 <b>'+warmthTotal()+'</b>'+(wornSum('carry')?' · 적재 <b>+'+wornSum('carry')+' kg</b>':'')
     +'<span>물건을 누르면 오른쪽에 할 수 있는 일 · 자세한 것은 사전(B)</span></div>';
   if(INV.ren) return;                               // 칸 이름을 치는 중 — 목록을 다시 그리면 글칸이 사라진다
@@ -884,17 +884,29 @@ function invChip(v,el){
    빠른 칸(1~5)에도 끌어다 넣을 수 있다. 쥔 것은 소지품 슬롯 자체를 가리키므로
    무게는 그대로다 — 자리만 옮긴다. */
 let DRAG=null;                                      // 지금 끌고 있는 슬롯
-function dragPut(where,one){
+/* 버리기 — 되돌릴 수 없으니 **묻고 버린다**(베타 신고 — 확인이 없어 실수로 날렸다). Ctrl 을 누른 채면 묻지 않는다(quick).
+   버리는 길 셋이 다 여기로 온다: 버리기 칸에 끌어 놓기(dragPut) · 가방의 '1개 버리기'·'전부 버리기'(98-bag.js) · G 키(94-input.js).
+   묻는 동안 칸이 바뀌었으면(먹었다 · 옮겼다) 남은 만큼만 버린다. 읽을거리(생존 안내서)는 안 버린다 */
+function dropSlot(sl,n,quick){
+  if(!sl||INV.slots.indexOf(sl)<0) return;
+  const T=ITEMS[sl.id];
+  if(T.read){ toast(T.n+' — 버릴 수 없다'); return; }
+  const go=()=>{
+    if(INV.slots.indexOf(sl)<0) return;
+    const k=Math.min(n,sl.n);
+    invRemove(INV.slots.indexOf(sl),k); refreshWear(); quickDirty=true; invDirty=true; craftDirty=true;
+    toast('버렸다 — '+T.n+' ×'+k); sfx('bind');
+  };
+  if(quick) go();
+  else if(!askOpen) ask('버릴까? — '+T.n+' ×'+Math.min(n,sl.n),'되돌릴 수 없다 · Y 예 · N 아니오 · Ctrl 을 누른 채 버리면 묻지 않는다',
+    ()=>{ go(); syncLock(); }, syncLock);           // 묻는 상자가 마우스 잠금을 푼다 — 가방 없이 G 로 물었으면 답한 뒤 다시 잠근다
+}
+function dragPut(where,one,quick){
   const sl=DRAG; DRAG=null;
   if(!sl || INV.slots.indexOf(sl)<0) return;
   const T=ITEMS[sl.id];
   if(where==='eat'){ eatSlot(sl); return; }
-  if(where==='trash'){                              // 버리기 — 되돌릴 수 없다
-    const n=one?1:sl.n;
-    invRemove(INV.slots.indexOf(sl),n);
-    refreshWear(); quickDirty=true;
-    toast('버렸다 — '+T.n+' ×'+n); sfx('bind'); return;
-  }
+  if(where==='trash'){ dropSlot(sl,one?1:sl.n,quick); return; }   // 버리기 — Shift 1개 · Ctrl 묻지 않음
   if(where==='grind'){                              // 숫돌의 수리 칸
     if(!canRepairSlot(sl)){
       toast(!T.durMax ? '내구가 없는 물건이다'
@@ -942,7 +954,7 @@ function wireDrag(L){
       ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain','x'); };
     el.ondragover=ev=>{ ev.preventDefault(); mark(el,true); };
     el.ondragleave=()=>mark(el,false);
-    el.ondrop=ev=>{ ev.preventDefault(); mark(el,false); dragPut(k,ev.shiftKey); };
+    el.ondrop=ev=>{ ev.preventDefault(); mark(el,false); dragPut(k,ev.shiftKey,ev.ctrlKey||ev.metaKey); };
   });
   // 목록 바탕 — 여기로 끌면 내려놓는다
   L.ondragover=ev=>{ if(DRAG){ ev.preventDefault(); L.classList.add('on'); } };
