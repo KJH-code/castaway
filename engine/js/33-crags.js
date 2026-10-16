@@ -24,7 +24,7 @@
      나무·덤불이 바위 속에 서지 않게 하는 데만 쓴다(`cragNear`).
    · 자리와 꼴은 시드가 정한다(저장에 안 넣는다). 지형 판 1(옛 저장)에는 없다.
    ========================================================================== */
-const CRAG={T:320, NEAR:140, FAR:720, DROP:1050, tiles:new Map(), cols:[], cg:new Map(), ix:new Map(), n:0, blobs:0, shapes:null, mat:null, matFar:null, t:0, F:15, BK:10, slope:0};
+const CRAG={T:320, S:80, MID:60, NEAR:140, FAR:720, DROP:1050, tiles:new Map(), cols:[], cg:new Map(), ix:new Map(), n:0, blobs:0, shapes:null, mat:null, matFar:null, t:0, F:15, BK:10, slope:0};
 function cragMat(){
   if(CRAG.mat) return CRAG.mat;
   const m=rockMat('granite',0x7a7872); m.vertexColors=true;
@@ -87,7 +87,18 @@ function cragClear(){
   CRAG.tiles.clear(); CRAG.cols.length=0; CRAG.cg.clear(); CRAG.ix.clear(); CRAG.n=0; CRAG.blobs=0;
   if(typeof coastClear==='function') coastClear();
 }
-function cragDrop(t){ for(const k of ['near','far']){ const m=t[k]; if(m){ scene.remove(m); m.geometry.dispose(); t[k]=null; } } }
+function cragDrop(t){ for(const u of (t.sub||[t])) for(const k of ['near','mid','far']){ const m=u[k]; if(m){ scene.remove(m); m.geometry.dispose(); u[k]=null; } } }
+/* **그리는 단위는 80 m 작은 칸이다**(`CRAG.S` · 사용자 요청 — 렉 줄이기). 320 m 칸 하나를 통째로 한 메시로 지어, 칸 가장자리가 140 m 안이면 400 m 밖 덩이까지
+   촘촘한 꼴로 그렸다(상륙 자리 옆 칸 하나가 71.5만 △) · 경계구가 반지름 212 m 라 화면 밖 거르기도 불 그림자 정육면체 거르기도 못 피했다(6면에 72만씩).
+   이제 덩이를 제 자리의 작은 칸에 나눠 담고, 작은 칸마다 거리로 단계를 고르고 따로 거른다. 충돌(cragIndex · cragSpan)은 320 m 칸 그대로다 */
+function cragSubs(t){
+  if(t.sub) return t.sub;
+  const S=CRAG.S, F_=CRAG.F, B=t.b, m=new Map();
+  for(let o=0;o<B.length;o+=F_){ const ix=Math.floor(B[o]/S), iz=Math.floor(B[o+2]/S), k=ix*65536+iz;
+    let u=m.get(k); if(!u) m.set(k,u={cx:(ix+0.5)*S, cz:(iz+0.5)*S, r:S*0.75, b:[], near:null, mid:null, far:null, par:t});
+    for(let j=0;j<F_;j++) u.b.push(B[o+j]); }
+  return t.sub=[...m.values()];
+}
 /* 충돌 원 — 반지름 7 m 까지는 하나, 더 크면 고리로 덮는다 */
 function cragCollide(x,z,R){
   const C=CRAG.cols;
@@ -240,15 +251,16 @@ function cragFloor(x,z,fromY,g){
       if(s.b<=Math.max(top,ref)+1.9){ top=s.t; CRAG.slope=s.sl+1e-4; s.u=true; more=true; } } }     // 0 보다 크면 '바위 위'라는 표시다
   return top;
 }
-/* 칸 하나의 메시 — lod 1: 세 단계 다(촘촘한 꼴) · 0: 두 단계(성긴 꼴) */
+/* 칸 하나의 메시 — lod 1: 세 단계 다(촘촘한 꼴) · 2: 세 단계 다(성긴 꼴 · 가까운 재질 — 60~140 m) · 0: 두 단계(성긴 꼴 · 먼 재질) */
 const _crM=new THREE.Matrix4(), _crQ=new THREE.Quaternion(), _crE=new THREE.Euler();
 function cragMesh(t,lod){
   const B=t.b, S=cragShapes(), F_=CRAG.F; let nv=0, ni=0;
-  for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue; const sh=S[lv][B[o+10]][lod]; nv+=sh.pos.length/3; ni+=sh.idx.length; }
+  const fine=lod===1?1:0;
+  for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue; const sh=S[lv][B[o+10]][fine]; nv+=sh.pos.length/3; ni+=sh.idx.length; }
   const pos=new Float32Array(nv*3), nor=new Float32Array(nv*3), col=new Float32Array(nv*3), mel=new Float32Array(nv), idx=new Uint32Array(ni);
   let v=0, q=0;
   for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue;
-    const sh=S[lv][B[o+10]][lod], sp=sh.pos, sn=sh.nor, si=sh.idx, n=sp.length/3;
+    const sh=S[lv][B[o+10]][fine], sp=sh.pos, sn=sh.nor, si=sh.idx, n=sp.length/3;
     _crE.set(B[o+6],B[o+7],B[o+8]); _crQ.setFromEuler(_crE); _crM.makeRotationFromQuaternion(_crQ); const e=_crM.elements;
     const X=B[o], Y=B[o+1], Z=B[o+2], rx=B[o+3], ry=B[o+4], rz=B[o+5], cr=B[o+11], cg=B[o+12], cb=B[o+13], ml=B[o+14];
     for(let i=0;i<n;i++){ const a=i*3, c=(v+i)*3;
@@ -266,17 +278,24 @@ function cragMesh(t,lod){
   const m=new THREE.Mesh(g,lod?cragMat():cragMatFar()); m.matrixAutoUpdate=false; m.updateMatrix(); m.visible=false; scene.add(m);
   return m;
 }
-/* 사람 둘레의 칸을 짓고 켜고 끈다 — 여덟 프레임에 한 번 · 한 번에 칸 하나만 짓는다(멈칫하지 않게) */
-function updateCrags(){
-  if(!CRAG.tiles.size||(CRAG.t++&7)) return;
-  const px=PL.pos.x, pz=PL.pos.z; let built=0;
+/* 사람 둘레의 작은 칸을 짓고 켜고 끈다 — 여덟 프레임에 한 번 · 짓기는 한 번에 3 ms 까지(적어도 하나 — 멈칫하지 않게) */
+function updateCrags(all){            // all — 섬을 다 지었을 때 한 번: 상륙 자리 둘레를 예산 없이 다 짓는다(로딩 중이라 멈칫해도 된다)
+  if(!CRAG.tiles.size||(!all&&(CRAG.t++&7))) return;
+  const px=PL.pos.x, pz=PL.pos.z, t0=performance.now(); let built=0;
   for(const t of CRAG.tiles.values()){
-    const d=Math.max(0,Math.hypot(t.cx-px,t.cz-pz)-CRAG.T*0.71);
-    if(d>CRAG.DROP){ if(t.near||t.far) cragDrop(t); continue; }
-    const see=d<CRAG.FAR&&!(d>CRAG.NEAR&&tileOcc(t,70)), lod=d<CRAG.NEAR?1:0, k=lod?'near':'far';
-    if(see&&!t[k]&&!built){ t[k]=cragMesh(t,lod); built=1; }
-    const nOn=see&&lod===1&&!!t.near, fOn=see&&!nOn&&!!t.far;
-    if(t.near&&t.near.visible!==nOn){ t.near.visible=nOn; LIGHT.dirtyAt(t.cx,t.cz,t.r); }
-    if(t.far&&t.far.visible!==fOn) t.far.visible=fOn;
+    const dt=Math.max(0,Math.hypot(t.cx-px,t.cz-pz)-CRAG.T*0.71);
+    if(dt>CRAG.DROP){ if(t.sub) cragDrop(t); continue; }
+    if(dt>CRAG.FAR&&!t.sub) continue;
+    for(const u of cragSubs(t)){
+      const d=Math.max(0,Math.hypot(u.cx-px,u.cz-pz)-CRAG.S*0.71);
+      if(d>CRAG.DROP){ for(const k of ['near','mid','far']){ const m=u[k]; if(m){ scene.remove(m); m.geometry.dispose(); u[k]=null; } } continue; }
+      if(u.near&&d>CRAG.NEAR*2){ scene.remove(u.near); u.near.geometry.dispose(); u.near=null; }   // 촘촘한 꼴은 무겁다 — 280 m 넘게 멀어지면 버린다
+      if(u.near&&d>CRAG.NEAR*2){ scene.remove(u.near); u.near.geometry.dispose(); u.near=null; }   // 촘촘한 꼴은 무겁다 — 280 m 넘게 멀어지면 버린다
+      const see=d<CRAG.FAR&&!(d>CRAG.NEAR&&tileOcc(u,70)), k=d<CRAG.MID?'near':d<CRAG.NEAR?'mid':'far', lod=k==='near'?1:k==='mid'?2:0;
+      if(see&&!u[k]&&(all||!built||performance.now()-t0<3)){ u[k]=cragMesh(u,lod); built++; }
+      /* 지을 때까지는 이미 지은 다른 단계로 선다(빈자리가 생기지 않게) — 원하는 것 → 가까운 쪽 → 먼 쪽 */
+      const on=!see?null:u[k]?k:['near','mid','far'].find(q=>u[q])||null;
+      for(const q of ['near','mid','far']){ const m=u[q]; if(m&&m.visible!==(on===q)){ m.visible=on===q; LIGHT.dirtyAt(u.cx,u.cz,u.r); } }
+    }
   }
 }

@@ -10,7 +10,7 @@ const R=renderer, info=R.info.render, wait=ms=>new Promise(r=>setTimeout(r,ms));
 await wait(8000);                                               // 암벽 · 나무 단계가 뒤늦게 지어진다
 function tags(){
   const L=new Map(), tag=(o,k)=>{ if(o&&o.isObject3D) o.traverse(c=>{ if(!L.has(c)) L.set(c,k); }); };
-  for(const t of CRAG.tiles.values()){ tag(t.near,'암벽(가까운 단계)'); tag(t.far,'암벽(먼 단계)'); }
+  for(const t of CRAG.tiles.values()) for(const u of (t.sub||[t])){ tag(u.near,'암벽(가까운 단계)'); tag(u.mid,'암벽(가운데 단계)'); tag(u.far,'암벽(먼 단계)'); }
   for(const B of TERR_BLK) tag(B.m,'지형 묶음'); tag(TPATCH.m,'지형 덧판'); tag(ocean,'바다'); tag(riverMesh,'하천');
   for(const t of ROCK_TILES) for(const k in t) if(t[k]&&t[k].isObject3D) tag(t[k],'바위 칸');
   for(const m of CAVE_MESH) tag(m,'동굴'); for(const m of COAST.meshes) tag(m,'바닷가'); for(const m of FALLS.meshes) tag(m,'폭포');
