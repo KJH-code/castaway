@@ -22,7 +22,7 @@
    값: 간판·금은 크기가 바뀔 때 한 번만 그려 두고, 프레임마다는 띠 수백 장을 옮겨 붙인다(초당 20번 · 여는 화면에서만).
    ========================================================================== */
 const TITLE={mode:'banner', first:true, intro:{t0:0,said:0,keep:false,text:false}, btns:[], hov:null, fr:0, nz:null, ac:null, on:false, timer:0, t0:0, cv:null, cx:null, W:0, H:0, dpr:1, L:null, text:null,
-             ban:null, crk:null, txt:null, mid:null, flat:null, bA:null, bB:null, ch:null, out:null, band:null, rays:null, KA:0.22, KB:0.13};
+             ban:null, crk:null, txt:null, mid:null, flat:null, bA:null, bB:null, ch:null, out:null, band:null, rays:null, KA:0.22, KB:0.13, bgN:0, nzK:-1, nzX:0, nzY:0, nzI:0, nzP:0, flk:0.04};   // bgN — 여는 화면 뒤에서 섬을 그린 장수(99-main.js)
 
 /* ── 스텐실 글자 — 높이 100 칸에 긋는다. w 너비 · draw(c) 줄기 · cuts 잘라 낼 이음매(네모) ── */
 const STENCIL=(()=>{
@@ -49,6 +49,7 @@ const STENCIL=(()=>{
     c.moveTo(8,-8); c.lineTo(32,50); c.lineTo(56,-8); c.stroke(); c.beginPath(); c.moveTo(32,46); c.lineTo(32,100); c.stroke(); }};
   return G;
 })();
+const TITLE_NZ_HZ=12;   // 눈 · 깜빡임 · 비월 주사선이 바뀌는 박자(초당) — 프레임률과 무관하게
 const TITLE_WORD='CASTAWAY', TITLE_GAP=10;
 function titleCanvas(w,h){ const c=document.createElement('canvas'); c.width=Math.max(2,Math.round(w)); c.height=Math.max(2,Math.round(h)); return c; }
 /* 글자들의 앞면(흰색) — 높이 capH 화소. 이음매는 잘라 냈다. 깨끗하다(얼룩 없음) */
@@ -124,7 +125,12 @@ function titleLayout(){
   T.crk=crk; T.rays=rays.filter(p=>p.big);                            // 굵은 금 — 그 둘레에서 색이 크게 갈라진다
   { const f=titleFace(Math.round(capH*0.95),'DEAD'); T.deadF=titleTint(f,'#e8322a'); T.deadB=titleTint(f,'#4a0806'); }   // 쓰러졌을 때(빨강 · 짙은 그늘)
   T.flat=titleCanvas(W,H); T.bA=titleCanvas(W,H); T.bB=titleCanvas(W,H); T.ch=titleCanvas(W,H); T.out=titleCanvas(W,H);
+  T.cb=titleCanvas(W,H); titleStatic(W,H);                              // 번짐 한 장 · 안 움직이는 겹(titleStatic)
   T.band=T.rays.map(p=>p.map(q=>titleBend(q[0],q[1],W,H)));
+  { let x0=W,y0=H,x1=0,y1=0; for(const p of T.band) for(const q of p){ x0=Math.min(x0,q[0]); y0=Math.min(y0,q[1]); x1=Math.max(x1,q[0]); y1=Math.max(y1,q[1]); }
+    const m=60; x0=Math.max(0,Math.floor(x0-m)); y0=Math.max(0,Math.floor(y0-m)); x1=Math.min(W,Math.ceil(x1+m)); y1=Math.min(H,Math.ceil(y1+m));
+    T.bandBox=[x0,y0,Math.max(1,x1-x0),Math.max(1,y1-y0)]; }                 // 금 띠가 드는 상자(점 반지름 24 + 어긋남 24 + 흐림) — 둘째 흐림은 이 안만
+  T.gh=titleCanvas(W/2,H/2);                                             // 형광막 번짐은 반 크기에서 흐린다(6 px 흐림이라 티가 안 난다)
   /* 눈(잡음) — 안테나가 못 잡은 신호처럼 자글거리는 점. 거의 검고 가끔 흰 점(세제곱으로 눌러 둔다) · 가끔 한 줄이 통째로 밝다.
      세 장을 돌려 가며 자리를 마구 옮겨 깐다 */
   T.nz=[0,1,2].map(()=>{ const c=titleCanvas(160,160), x=c.getContext('2d'), im=x.createImageData(160,160), d=im.data;
@@ -132,6 +138,30 @@ function titleLayout(){
       for(let i=y*640;i<(y+1)*640;i+=4){ const r=Math.random(), v=Math.min(255,(r*r*r+row*Math.random())*255); d[i]=d[i+1]=d[i+2]=v; d[i+3]=255; } }
     x.putImageData(im,0,0); return c; });
   titleText();
+}
+/* **안 움직이는 겹은 한 번만 그려 둔다**(사용자 지적 — 시작 화면·인트로가 뚝뚝 끊겼다: 한 장 105~128 ms, 그 반이 blur) —
+   바탕 · 관의 명암 · 유리 반사 · 가장자리 어둠 · 주사선 두 벌. 프레임마다 같은 그레이디언트·채우기를 다시 하던 것과 섞는 식이 같다
+   (screen 은 겹쳐 쌓은 판을 한 번 screen 해도 같고, destination-in/out 은 알파 곱이라 판 하나로 합쳐도 같다) */
+function titleStatic(W,H){
+  const T=TITLE, mk=()=>{ const c=titleCanvas(W,H); return [c,c.getContext('2d')]; };
+  let g;
+  { const [c,x]=mk(); g=x.createRadialGradient(W*0.5,H*0.46,0,W*0.5,H*0.5,Math.max(W,H)*0.62); g.addColorStop(0,'#141414'); g.addColorStop(1,'#030303'); x.fillStyle=g; x.fillRect(0,0,W,H); T.bg=c; }
+  { const [c,x]=mk(); g=x.createRadialGradient(W*0.5,H*0.44,Math.min(W,H)*0.10,W*0.5,H*0.5,Math.max(W,H)*0.64); g.addColorStop(0,'#ffffff'); g.addColorStop(0.6,'#c8c8c8'); g.addColorStop(1,'#6a6a6a'); x.fillStyle=g; x.fillRect(0,0,W,H); T.tube=c; }
+  { const [c,O]=mk(); O.globalCompositeOperation='screen';
+    const gr=O.createRadialGradient(W*0.28,H*0.18,0,W*0.28,H*0.18,Math.max(W,H)*0.42); gr.addColorStop(0,'rgba(255,255,255,.15)'); gr.addColorStop(0.45,'rgba(255,255,255,.045)'); gr.addColorStop(1,'rgba(255,255,255,0)'); O.fillStyle=gr; O.fillRect(0,0,W,H);
+    O.save(); O.translate(W*0.24,H*0.13); O.rotate(-0.52);                                       // 비스듬히 비친 창문 빛 한 줄기
+    { const gl=O.createLinearGradient(0,-H*0.06,0,H*0.06); gl.addColorStop(0,'rgba(255,255,255,0)'); gl.addColorStop(0.5,'rgba(255,255,255,.055)'); gl.addColorStop(1,'rgba(255,255,255,0)'); O.fillStyle=gl; O.fillRect(-W*0.28,-H*0.06,W*0.72,H*0.12); }
+    O.restore();
+    { const hs=O.createRadialGradient(W*0.80,H*0.13,0,W*0.80,H*0.13,W*0.05); hs.addColorStop(0,'rgba(255,255,255,.12)'); hs.addColorStop(1,'rgba(255,255,255,0)'); O.fillStyle=hs; O.fillRect(W*0.74,H*0.05,W*0.12,H*0.16); }   // 오른쪽 위 작은 빛점
+    try{ O.filter='blur(5px)'; }catch(e){} O.strokeStyle='rgba(255,255,255,.10)'; O.lineWidth=Math.max(3,H*0.02); O.beginPath(); O.ellipse(W*0.5,H*0.62,W*0.47,H*0.55,0,Math.PI*1.12,Math.PI*1.52); O.stroke(); try{ O.filter='none'; }catch(e){}
+    T.glass=c; }
+  { const [c,O]=mk();                                                  // 가장자리 어둠 — 알파 판 하나(둥근 어둠 × 네 변 녹이기)
+    g=O.createRadialGradient(W/2,H/2,Math.min(W,H)*0.30,W/2,H/2,Math.max(W,H)*0.60); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(0.75,'rgba(0,0,0,.82)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    O.fillStyle=g; O.fillRect(0,0,W,H); O.globalCompositeOperation='destination-out';
+    for(const [x0,y0,x1,y1,rx,ry,rw,rh] of [[0,0,0,H*0.14,0,0,W,H*0.14],[0,H,0,H*0.93,0,H*0.93,W,H*0.07],[0,0,W*0.10,0,0,0,W*0.10,H],[W,0,W*0.90,0,W*0.90,0,W*0.10,H]]){
+      g=O.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(1,'rgba(0,0,0,0)'); O.fillStyle=g; O.fillRect(rx,ry,rw,rh); }
+    T.vig=c; }
+  T.scan=[0,1].map(p=>{ const [c,x]=mk(); x.fillStyle='rgba(0,0,0,.26)'; for(let y=p;y<H;y+=3) x.fillRect(0,y,W,1); return c; });
 }
 /* 올라갈 글 — 시작 화면의 안내 글(#ov .s)과 조작 글쇠(#ov .k)를 긴 그림 한 장에(흰 글씨) */
 function titleText(){
@@ -295,7 +325,7 @@ function titleDraw(now){
   /* 꺼진 브라운관의 검정은 새까맣지 않다 — 아주 어두운 잿빛 유리(가운데가 조금 밝다). 색은 여전히 없다 */
   const a=T.flat.getContext('2d'); a.setTransform(1,0,0,1,0,0); a.globalCompositeOperation='source-over'; a.shadowBlur=0;
   T.btns=[]; T.fr++;                                                       // 단추는 프레임마다 다시 적는다(차례 · 크기 · 데스크톱 여부)
-  { const gb=a.createRadialGradient(W*0.5,H*0.46,0,W*0.5,H*0.5,Math.max(W,H)*0.62); gb.addColorStop(0,'#141414'); gb.addColorStop(1,'#030303'); a.fillStyle=gb; } a.fillRect(0,0,W,H);
+  a.drawImage(T.bg,0,0);                                              // 바탕(titleStatic)
   let g;
   if(T.mode==='banner'){
     const m=T.mid.getContext('2d'), mw=T.mid.width, mh=T.mid.height, K=0.24, span=T.txtH*0.66;
@@ -327,8 +357,7 @@ function titleDraw(now){
     stops.filter(s=>s[0]>=0&&s[0]<=1).sort((x,y)=>x[0]-y[0]).forEach(s=>{ const v=Math.round(255*Math.min(1,s[1])); g.addColorStop(s[0],'rgb('+v+','+v+','+v+')'); }); }
   a.fillStyle=g; a.fillRect(0,0,W,H);
   /* **관의 명암** — 가운데가 밝고 둘레로 갈수록 어두워진다(전자빔이 비스듬히 닿고 유리가 두꺼워진다). 글도 간판도 금도 같은 판이라 같이 어두워진다 */
-  g=a.createRadialGradient(W*0.5,H*0.44,Math.min(W,H)*0.10,W*0.5,H*0.5,Math.max(W,H)*0.64); g.addColorStop(0,'#ffffff'); g.addColorStop(0.6,'#c8c8c8'); g.addColorStop(1,'#6a6a6a');
-  a.fillStyle=g; a.fillRect(0,0,W,H);
+  a.drawImage(T.tube,0,0);                                            // (titleStatic)
   a.globalCompositeOperation='source-over'; if(T.mode!=='dead') a.drawImage(T.crk,0,0);   // 쓰러진 화면엔 금을 안 긋는다(DEAD 를 가렸다)
   /* ② 통째로 볼록한 유리에 휘어 붙인다 — 세로 띠마다 높이를 줄이고(가로줄이 휜다), 이어서 가로 띠마다 너비를 줄인다(세로줄이 휜다) */
   const A=T.bA.getContext('2d'), B=T.bB.getContext('2d'), S=4;
@@ -341,49 +370,49 @@ function titleDraw(now){
   O.setTransform(1,0,0,1,0,0); O.globalCompositeOperation='source-over'; O.globalAlpha=1; try{ O.filter='none'; }catch(e){}
   O.fillStyle='#000'; O.fillRect(0,0,W,H);
   const split=[['#ff0000',-1.8-jig],['#00ff00',0],['#0000ff',1.8+jig]];
+  /* 흐림은 판마다 한 번 — blur 는 선형이고 색 곱하기와 차례를 바꿔도 같으므로, 흐린 한 장(T.cb)을 떠 두고 색만 셋으로 나눈다(예전엔 색마다 blur · 6번) */
+  const CB=T.cb.getContext('2d');
   for(let pass=0;pass<2;pass++){
+    const [bx,by,bw,bh]=pass?T.bandBox:[0,0,W,H];                       // 둘째 판은 금 띠 상자 안만 쓴다(오려 낸 띠 밖은 안 보인다)
+    CB.setTransform(1,0,0,1,0,0); CB.globalCompositeOperation='copy'; try{ CB.filter=pass?'blur(1.1px)':'blur(0.7px)'; }catch(e){}
+    CB.drawImage(T.bB,bx,by,bw,bh,bx,by,bw,bh); try{ CB.filter='none'; }catch(e){} CB.globalCompositeOperation='source-over';
     if(pass){ O.save(); O.beginPath();                                // 금을 따라 둥근 점을 이어 오려 낸 띠 — 그 안에서만 한 번 더, 멀리 갈라 겹친다
       for(const p of T.band) for(let i=0;i<p.length-1;i++) for(let k=0;k<=3;k++){ const x=p[i][0]+(p[i+1][0]-p[i][0])*k/3, y=p[i][1]+(p[i+1][1]-p[i][1])*k/3; O.moveTo(x+24,y); O.arc(x,y,24,0,6.283); }
       O.clip(); O.globalCompositeOperation='source-over'; O.fillStyle='#000'; O.fillRect(0,0,W,H); }
     for(const [col,dx] of split){
-      C.setTransform(1,0,0,1,0,0); C.globalCompositeOperation='copy'; C.drawImage(T.bB,0,0); C.globalCompositeOperation='multiply'; C.fillStyle=col; C.fillRect(0,0,W,H);
-      O.globalCompositeOperation='lighter'; try{ O.filter=pass?'blur(1.1px)':'blur(0.7px)'; }catch(e){}
+      C.setTransform(1,0,0,1,0,0); C.globalCompositeOperation='copy'; C.drawImage(T.cb,0,0); C.globalCompositeOperation='multiply'; C.fillStyle=col; C.fillRect(0,0,W,H);
+      O.globalCompositeOperation='lighter';
       O.drawImage(T.ch,pass?dx*5:dx,pass?(dx<0?3:dx>0?-3:0):0); }
     if(pass) O.restore();
   }
   try{ O.filter='none'; }catch(e){}
   /* **형광막의 번짐** — 밝은 것 둘레로 엷은 빛이 퍼진다(흐리게 뜬 한 장을 더한다). 주사선보다 먼저라 빛도 줄무늬가 진다 */
-  O.globalCompositeOperation='lighter'; O.globalAlpha=0.30; try{ O.filter='blur(6px)'; }catch(e){} O.drawImage(T.bB,0,0); O.globalAlpha=1; try{ O.filter='none'; }catch(e){}
+  { const G=T.gh.getContext('2d'); G.setTransform(1,0,0,1,0,0); G.globalCompositeOperation='copy'; G.imageSmoothingEnabled=true;
+    try{ G.filter='blur(3px)'; }catch(e){} G.drawImage(T.bB,0,0,T.gh.width,T.gh.height); try{ G.filter='none'; }catch(e){}
+    O.globalCompositeOperation='lighter'; O.globalAlpha=0.30; O.imageSmoothingEnabled=true; O.drawImage(T.gh,0,0,W,H); O.globalAlpha=1; }
   O.globalCompositeOperation='source-over';
   /* **눈(잡음)** — 자글거리는 점을 마구 옮겨 깐다. 섬을 만드는 동안(신호를 찾는 중)은 더 짙다 */
   { const busyNow=typeof busy!=='undefined'&&busy;
     O.globalCompositeOperation='screen'; O.globalAlpha=busyNow?0.24:0.10;
-    O.save(); O.translate(-Math.floor(Math.random()*160),-Math.floor(Math.random()*160));
-    O.fillStyle=O.createPattern(T.nz[T.fr%3],'repeat'); O.fillRect(0,0,W+160,H+160); O.restore();
+    /* **눈은 초당 12번만 바꾼다**(`TITLE_NZ_HZ` · 사용자 지적 — 그리기가 빨라지자 눈이 사라졌다): 프레임마다 새로 뿌리면 60 fps 에선 눈에서 섞여
+       평평한 잿빛이 된다. 예전엔 한 장이 무거워 초당 몇 장만 그려져 치지직이 보였던 것이다. 깜빡임 · 비월 주사선도 같은 박자를 탄다 */
+    const nk=Math.floor(t*TITLE_NZ_HZ); if(nk!==T.nzK){ T.nzK=nk; T.nzX=Math.floor(Math.random()*160); T.nzY=Math.floor(Math.random()*160); T.nzI=(T.nzI+1)%3;
+      T.flk=0.02+0.05*Math.random()+(Math.random()<0.035?0.18:0); T.nzP^=1; }
+    O.save(); O.translate(-T.nzX,-T.nzY);
+    O.fillStyle=O.createPattern(T.nz[T.nzI],'repeat'); O.fillRect(0,0,W+160,H+160); O.restore();
     O.globalAlpha=1; O.globalCompositeOperation='source-over'; }
-  O.fillStyle='rgba(0,0,0,.26)'; for(let y=T.fr&1;y<H;y+=3) O.fillRect(0,y,W,1);                  // 주사선 — 홀짝 칸이 번갈아 그려져 줄이 떨린다(비월 주사)
+  O.drawImage(T.scan[T.nzP],0,0);                  // 주사선 — 홀짝 칸이 번갈아 그려져 줄이 떨린다(비월 주사)
   /* **굴러가는 띠** — 전원 맥동(험 바)처럼 넓고 어두운 띠가 천천히 위로 올라간다 */
   { const hy=(1.25-(t*0.09)%1.5)*H, hh=H*0.17; g=O.createLinearGradient(0,hy-hh,0,hy+hh);
     g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(0.5,'rgba(0,0,0,.16)'); g.addColorStop(1,'rgba(0,0,0,0)'); O.fillStyle=g; O.fillRect(0,hy-hh,W,hh*2); }
   /* **깜빡임** — 화면 전체의 밝기가 프레임마다 조금씩 흔들리고, 가끔 한 번 크게 꺼질 듯 어두워진다 */
-  O.fillStyle='rgba(0,0,0,'+(0.02+0.05*Math.random()+(Math.random()<0.035?0.18:0)).toFixed(3)+')'; O.fillRect(0,0,W,H);
-  /* **볼록한 유리의 반사** — 왼쪽 위에 방의 빛이 둥글게 비치고(아주 엷게), 위 가장자리를 따라 가는 빛줄이 휜다. 유리가 둥글다는 것은 이 명암이 말한다 */
-  O.globalCompositeOperation='screen';
-  /* 반사는 **깜빡이지 않는다**(방의 빛이라 화면 신호와 상관없다) — 그래서 흔들리는 화면 위에 유리가 따로 있는 것처럼 읽힌다 */
-  { const gr=O.createRadialGradient(W*0.28,H*0.18,0,W*0.28,H*0.18,Math.max(W,H)*0.42); gr.addColorStop(0,'rgba(255,255,255,.15)'); gr.addColorStop(0.45,'rgba(255,255,255,.045)'); gr.addColorStop(1,'rgba(255,255,255,0)'); O.fillStyle=gr; O.fillRect(0,0,W,H);
-    O.save(); O.translate(W*0.24,H*0.13); O.rotate(-0.52);                                       // 비스듬히 비친 창문 빛 한 줄기
-    { const gl=O.createLinearGradient(0,-H*0.06,0,H*0.06); gl.addColorStop(0,'rgba(255,255,255,0)'); gl.addColorStop(0.5,'rgba(255,255,255,.055)'); gl.addColorStop(1,'rgba(255,255,255,0)'); O.fillStyle=gl; O.fillRect(-W*0.28,-H*0.06,W*0.72,H*0.12); }
-    O.restore();
-    { const hs=O.createRadialGradient(W*0.80,H*0.13,0,W*0.80,H*0.13,W*0.05); hs.addColorStop(0,'rgba(255,255,255,.12)'); hs.addColorStop(1,'rgba(255,255,255,0)'); O.fillStyle=hs; O.fillRect(W*0.74,H*0.05,W*0.12,H*0.16); }   // 오른쪽 위 작은 빛점
-    try{ O.filter='blur(5px)'; }catch(e){} O.strokeStyle='rgba(255,255,255,.10)'; O.lineWidth=Math.max(3,H*0.02); O.beginPath(); O.ellipse(W*0.5,H*0.62,W*0.47,H*0.55,0,Math.PI*1.12,Math.PI*1.52); O.stroke(); try{ O.filter='none'; }catch(e){} }
+  O.fillStyle='rgba(0,0,0,'+T.flk.toFixed(3)+')'; O.fillRect(0,0,W,H);
+  /* **볼록한 유리의 반사** — 왼쪽 위에 방의 빛이 둥글게 비치고(아주 엷게), 위 가장자리를 따라 가는 빛줄이 휜다. 유리가 둥글다는 것은 이 명암이 말한다.
+     깜빡이지 않는다(방의 빛이라 화면 신호와 상관없다 · 그려 둔 판 titleStatic) */
+  O.globalCompositeOperation='screen'; O.drawImage(T.glass,0,0);
   O.globalCompositeOperation='source-over';
   /* 가장자리 어둠 — 볼록한 유리의 둘레는 어둡게 물러난다. 밖으로는 투명하게 녹여 네모난 판이 안 보이게 한다 */
-  O.globalCompositeOperation='destination-in';
-  g=O.createRadialGradient(W/2,H/2,Math.min(W,H)*0.30,W/2,H/2,Math.max(W,H)*0.60); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(0.75,'rgba(0,0,0,.82)'); g.addColorStop(1,'rgba(0,0,0,0)');
-  O.fillStyle=g; O.fillRect(0,0,W,H);
-  O.globalCompositeOperation='destination-out';                       // 네 변도 따로 녹인다(둥근 어둠만으로는 가까운 변이 칼같이 남는다)
-  for(const [x0,y0,x1,y1,rx,ry,rw,rh] of [[0,0,0,H*0.14,0,0,W,H*0.14],[0,H,0,H*0.93,0,H*0.93,W,H*0.07],[0,0,W*0.10,0,0,0,W*0.10,H],[W,0,W*0.90,0,W*0.90,0,W*0.10,H]]){
-    g=O.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(1,'rgba(0,0,0,0)'); O.fillStyle=g; O.fillRect(rx,ry,rw,rh); }
+  O.globalCompositeOperation='destination-in'; O.drawImage(T.vig,0,0);
   O.globalCompositeOperation='source-over';
   const c=T.cx; c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,T.cv.width,T.cv.height); c.imageSmoothingEnabled=true;
   { const jx=Math.random()<0.05?(Math.random()-0.5)*5:0, jy=(T.fr%157<2)?Math.round(H*0.01):0;      // 가로 떨림 · 세로 튐(수직 동기가 잠깐 놓친다)
