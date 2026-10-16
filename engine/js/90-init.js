@@ -166,13 +166,26 @@ const barF=document.getElementById('barF'), ovLoad=document.getElementById('ovLo
    requestAnimationFrame 을 아예 안 불러 섬 만들기가 그 자리에서 멎었다 — 가려졌으면 기다리지 않고,
    보일 때도 0.15초 안에 프레임이 안 오면 그냥 간다 */
 const phase=(t,p)=>new Promise(r=>{
-  ovLoad.textContent=t; barF.style.width=p+'%';
+  ovLoad.textContent=t; barF.style.width=p+'%'; BREATHE.t=performance.now()+150;
   if(document.hidden){ setTimeout(r,0); return; }
   let done=false; const go=()=>{ if(!done){ done=true; r(); } };
   requestAnimationFrame(()=>setTimeout(go,0));
   setTimeout(go,150);
 });
 let busy=false;
+/* **숨 돌리기** — 섬을 짓는 긴 일 사이사이에 부른다. 앞서 숨을 돌린 뒤 `BREATHE_MS` 넘게 일했으면 한 프레임 쉬어 여는 화면(올라가는 글 ·
+   치지직)이 그려지게 한다(사용자 지적 — 로딩 중에 조작 설명과 화면 효과가 멈춰 보였다: 배율 6 섬 27초 동안 화면이 11번 그려졌고 한 번은 11.6초 멎었다).
+   쉬는 동안 놀이 루프는 busy 라 아무것도 안 한다. 난수를 안 뽑으므로 같은 시드는 같은 섬이다.
+   **일하는 몫은 쉬는 데 든 시간의 4배**(적어도 `BREATHE_MS`) — 쉴 때마다 여는 화면을 한 장 그리므로, 그 한 장이 무거운 장치에서는 덜 자주 쉰다.
+   그래서 늘어나는 시간이 어느 장치든 전체의 20% 안쪽이다(헤드리스: 고정 120 ms 로는 25.8 → 35.2초) */
+const BREATHE_MS=120, BREATHE={t:0, cost:0};
+async function breathe(){
+  const now=performance.now();
+  if(!busy||now-BREATHE.t<Math.max(BREATHE_MS,BREATHE.cost*4)) return;
+  await new Promise(r=>{ if(document.hidden){ setTimeout(r,0); return; }
+    let done=false; const go=()=>{ if(!done){ done=true; r(); } }; requestAnimationFrame(()=>setTimeout(go,0)); setTimeout(go,150); });
+  const t=performance.now(); BREATHE.cost=BREATHE.cost*0.7+(t-now)*0.3; BREATHE.t=t;
+}
 /* ── 정적 물체 행렬 고정 ─────────────────────────────────────────────────
    Three 는 그릴 때마다 장면 전체를 훑어 물체마다 자리·회전·크기로 행렬을 다시 짜고(updateMatrix)
    부모 행렬을 곱한다. 장면 자체(`scene`)가 matrixAutoUpdate 면 그 아래 **모든** 물체의 세계 행렬이
@@ -372,31 +385,34 @@ async function generateWorld(){
   await phase('광상 탐사',82);      worldRescale(P.ws);     // 섬 배율 — 통째로 키운다(1 이면 그대로 · 00-core.js)
                                     camera.far=Math.max(3000,WORLD*1.15); camera.updateProjectionMatrix();
                                     document.getElementById('mSpan').textContent=Math.round(WORLD)+' m';
-                                    if((P.tv|0)>=5) biomeSlopes();   // 바이옴마다 비탈을 다스린다(지형 판 5 · 10-worldgen.js)
-                                    fallsSites();           // 폭포 자리 — 하천 수면이 4 m 넘게 떨어지는 데(36-falls.js · 지형 판 5)
-                                    reliefMask();           // 잔 기복의 가림막(지형 판 3) — 이 뒤로 heightAt 이 둔덕·골을 안다
-                                    placeResources(seed);
-                                    underSites(seed);       // 땅속 세계 — 굴 방 · 굴길 · 수직굴 자리(96-underworld.js · 지형 판 7)
-                                    shapeSeabed(seed);      // 바다 바닥의 기복 — 뭍·자원을 다 정한 **뒤에**(같은 시드의 섬은 그대로다)
-  await phase('지형 메시',90);      buildBioTex(); buildChunks(); buildWater();
-  await phase('자원 배치',96);      placeProps_(seed);
+                                    await breathe(); if((P.tv|0)>=5) biomeSlopes();   // 바이옴마다 비탈을 다스린다(지형 판 5 · 10-worldgen.js)
+                                    await breathe(); fallsSites();           // 폭포 자리 — 하천 수면이 4 m 넘게 떨어지는 데(36-falls.js · 지형 판 5)
+                                    await breathe(); reliefMask();           // 잔 기복의 가림막(지형 판 3) — 이 뒤로 heightAt 이 둔덕·골을 안다
+                                    await breathe(); await placeResources(seed);
+                                    await breathe(); underSites(seed);       // 땅속 세계 — 굴 방 · 굴길 · 수직굴 자리(96-underworld.js · 지형 판 7)
+                                    await breathe(); shapeSeabed(seed);      // 바다 바닥의 기복 — 뭍·자원을 다 정한 **뒤에**(같은 시드의 섬은 그대로다)
+  await phase('지형 메시',90);      buildBioTex(); await breathe(); buildChunks(); await breathe(); buildWater();
+  await phase('자원 배치',96);      await placeProps_(seed);
                                     /* 다 지을 때까지 소품·나무는 안 그린다 — 칸을 켜고 끄는 updateTileVis 는 멈춘 동안(짓는 중·
                                        시작 화면) 안 돌아서, 갓 지은 칸 메시가 전부 켜진 채(섬 전체 나무가 가까운 단계로) 그려졌다.
                                        덮개(94%) 뒤라 안 보이는데 헤드리스에선 그 한 프레임이 수십 초였다 */
                                     propGroup.visible=false;
-  await phase('상륙 준비',99);      cacheMap(); spawnPlayer(); buildFarTrees(); boundTiles(); freezeStatics();
-                                    RUBBLE.seed=seed|0; updateRubble(true);     // 자갈밭의 돌을 사람 둘레에 깐다
-                                    floraReset(seed); giantsBuild();             // 노거수 — 뿌리가 땅이 되는 큰 나무(군락이 정한 자리)
-                                    underBuild();                                // 수직굴의 구멍·밧줄·굴뚝 · 땅속 그리기 묶음(96-underworld.js)
-                                    updateFlora(true);                           // 군락의 나무·덤불을 사람 둘레에 깐다
-                                    tlitBuild();                                 // 섬 크기의 빛 — 산 그림자·하늘 트임·숲 덮임(41-terrain-light.js)
-                                    foamReset();                                 // 물가의 사면체 거품 — 새 섬의 표고를 C 쪽에 비춘다(96-foam.js)
-                                    wildReset();                                 // 새·둥지·벌집·벌레(97-wildlife.js)
-                                    seaReset(seed);                              // 바다 — 주운 자리·물고기를 비우고 새 섬의 산호밭을 깐다
-                                    LIGHT.refresh(); LIGHT.live=true;   // 다 지은 섬에 배역을 한 번에 · 이제부터 바뀌면 그림자를 다시
-                                    updateSky();   // 하늘 표(SKY_LUT)를 한 번 굽는다 — 시작 화면처럼 갱신이 멈춘 동안에도 하늘이 비지 않게
+  await phase('상륙 준비',99);      cacheMap(); spawnPlayer(); await breathe(); buildFarTrees(); boundTiles(); await breathe(); freezeStatics();
+                                    await breathe(); RUBBLE.seed=seed|0; updateRubble(true);     // 자갈밭의 돌을 사람 둘레에 깐다
+                                    await breathe(); floraReset(seed); await giantsBuild();             // 노거수 — 뿌리가 땅이 되는 큰 나무(군락이 정한 자리)
+                                    await breathe(); underBuild();                                // 수직굴의 구멍·밧줄·굴뚝 · 땅속 그리기 묶음(96-underworld.js)
+                                    await floraFarBuildA(); await breathe(); updateFlora(true);                           // 군락의 나무·덤불을 사람 둘레에 깐다
+                                    await breathe(); tlitBuild();                                 // 섬 크기의 빛 — 산 그림자·하늘 트임·숲 덮임(41-terrain-light.js)
+                                    await breathe(); foamReset();                                 // 물가의 사면체 거품 — 새 섬의 표고를 C 쪽에 비춘다(96-foam.js)
+                                    await breathe(); wildReset();                                 // 새·둥지·벌집·벌레(97-wildlife.js)
+                                    await breathe(); seaReset(seed);                              // 바다 — 주운 자리·물고기를 비우고 새 섬의 산호밭을 깐다
+                                    await breathe(); LIGHT.refresh(); LIGHT.live=true;   // 다 지은 섬에 배역을 한 번에 · 이제부터 바뀌면 그림자를 다시
+                                    await breathe(); updateSky();   // 하늘 표(SKY_LUT)를 한 번 굽는다 — 시작 화면처럼 갱신이 멈춘 동안에도 하늘이 비지 않게
                                     propGroup.visible=showProps;           // 칸은 사람 자리로 한 번 골라 켠다(시작 화면도 가벼이)
-                                    _tvForce=true; updateTileVis(); updateTerrainLOD(); updateCrags(true);
+                                    /* 상륙 둘레의 칸(바위 · 나무)은 노는 중처럼 예산대로 나눠 짓고 사이사이 숨을 돌린다 — 한꺼번에 지으면 2.3초 멎었다.
+                                       남은 것은 마지막 한 번이 다 짓는다(끝난 모습은 같다) */
+                                    TV_SLICE=true; for(let i=0;i<2000;i++){ _tvForce=true; updateTileVis(); if(!_tvForce) break; await breathe(); } TV_SLICE=false;
+                                    await breathe(); _tvForce=true; updateTileVis(); updateTerrainLOD(); await breathe(); updateCrags(true);
                                     INV.slots.length=0; INV.sel=0; invDirty=true; INV.pockets.length=0; INV.view='all'; INV.ren=0;
                                     for(const k in WEAR) WEAR[k]=null; INV.max=INV.base;
                                     invAdd('guide',1);        // 생존 안내서 — 가방에서 누르면 읽힌다
@@ -444,4 +460,4 @@ async function generateWorld(){
   }
   busy=false;                           // 실패해도 잠기지 않게 반드시 해제
 }
-function placeProps_(seed){ placePod(seed); buildProps(); buildCrags(); buildCaves(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다
+async function placeProps_(seed){ placePod(seed); await breathe(); await buildProps(); await breathe(); buildCrags(); await breathe(); buildCaves(); await breathe(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다

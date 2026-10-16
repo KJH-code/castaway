@@ -97,7 +97,7 @@ function giantRootPt(g,r,t,out){
   return out;
 }
 /* 섬의 노거수를 전부 세운다 — 섬을 만들 때 한 번(generateWorld) */
-function giantsBuild(){
+async function giantsBuild(){        // async — 칸 줄 · 그루 사이 숨을 돌린다(breathe — 90-init.js)
   for(const m of GIANT.meshes){ scene.remove(m); if(m.userData.own) m.geometry.dispose(); if(m.isInstancedMesh) m.dispose(); }   // 인스턴스 버퍼도 돌려준다
   GIANT.meshes.length=0; GIANT.list.length=0; GIANT.grid.clear();
   for(const f of GIANT.falls) giantFallEnd(f); GIANT.falls.length=0;
@@ -105,7 +105,7 @@ function giantsBuild(){
   if(!FLORA.m) floraBuild();                          // 그림 묶음·재질을 같이 쓴다
   if(!GIANT.geo) giantGeos();
   const S=GIANT.G, n=Math.floor(HALF/S)-1;
-  for(let gz=-n;gz<=n;gz++) for(let gx=-n;gx<=n;gx++){
+  for(let gz=-n;gz<=n;gz++){ await breathe(); for(let gx=-n;gx<=n;gx++){
     const h=floraHash(gx,gz,91); if((h&255)>140) continue;
     let placed=null;
     for(let tr=0;tr<3&&!placed;tr++){
@@ -136,7 +136,7 @@ function giantsBuild(){
       const col={x:placed.x,z:placed.z,r:mx,prof}; COLLIDERS.push(col); placed.col=col; }
     const k=cgKey(Math.floor(placed.x/GIANT.cell),Math.floor(placed.z/GIANT.cell));
     let a=GIANT.grid.get(k); if(!a){ a=[]; GIANT.grid.set(k,a); } a.push(placed);
-  }
+  } }
   buildColliderGrid();
   /* ── 메시 — 200 m(`GIANT_FAR`) 안은 그루마다 제 생김새(종류 × 벌마다 인스턴스 메시 하나), 밖은 **종류마다 사람에게서 가장 가까운
      그루의 벌 하나**로 모두 찍는다(참나무·전나무의 기준 나무 `FAR_REF` 와 같은 방식 · `GIANT.ref`). 예전엔 128 m 칸 × 종류 × 벌로
@@ -172,6 +172,7 @@ function giantsBuild(){
      셰이더를 갈아 끼운다(인스턴스 색이 없는 메시가 섞이면 아예 죽는다). 그래서 뿌리는 제 재질을 쓴다 */
   const o={x:0,z:0,h:0,w:0};
   for(const g of GIANT.list){
+    await breathe();
     const parts=[], RB=g.v===2?[0.52,0.33,0.24]:[0.44,0.38,0.32], RB2=g.v===2?[0.66,0.44,0.32]:[0.60,0.53,0.45];
     for(const r of g.roots)
       /* 땅을 따라 누운 등성이 — 단면 다섯 점(양 끝은 땅에 0.25 m 묻는다) */
