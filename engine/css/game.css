@@ -488,6 +488,18 @@
   #cfg select{width:100%;margin-bottom:5px;background:#0b1314;border:1px solid var(--line);color:var(--ink);font:inherit;font-size:12px;padding:4px}
   #cfg .r select{flex:1;min-width:0;width:auto;margin-bottom:0}       /* 줄 안의 고름칸(프리셋) */
   #cfg button:disabled{opacity:.35;cursor:default}
+  /* 키 창(93-keys.js) — 설정 창 옆에 뜬다 · 묻는 상자(60) 밑 */
+  #kbw{right:234px;top:12px;width:340px;display:none;pointer-events:auto;z-index:13;max-height:calc(100vh - 24px);overflow:auto;touch-action:pan-y}
+  #kbw .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;color:var(--ink);font-size:14px;letter-spacing:.12em}
+  #kbw .kbH{color:var(--dim);font-size:11px;line-height:1.5;margin-bottom:6px}
+  #kbw .kbN{color:var(--acc);font-size:12px;margin-bottom:6px}
+  #kbw .kbG{color:var(--ink);font-size:12px;letter-spacing:.1em;margin:10px 0 4px;border-bottom:1px solid var(--line);padding-bottom:2px}
+  #kbw .kbR{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+  #kbw .kbR span{flex:1;min-width:0;font-size:12px;color:var(--dim)}
+  #kbw .kbR button{flex:0 0 74px;padding:3px 4px;text-align:center;color:var(--ink)}
+  #kbw .kbR.none span{color:#e07060}
+  #kbw .g{display:flex;gap:5px;margin-top:10px}
+  @media (max-width:640px){ #kbw{left:12px;right:12px;width:auto} }
   #bar{width:220px;height:3px;background:#0f1c1a;margin-top:16px}
   #bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .12s}
   /* 숫돌 창 — 위는 숫돌에서 만드는 것, 아래는 수리 */

@@ -31,7 +31,7 @@ function bagWire(){
   /* 고른 물건 칸의 단추 — 줄마다 달지 않고 칸 바탕에서 한 번에 받는다(다시 그려도 눌림이 안 빠진다) */
   sel.addEventListener('click',ev=>{
     const b=ev.target&&ev.target.closest?ev.target.closest('[data-act]'):null;
-    if(b) bagAct(b.dataset.act,b.dataset.arg);
+    if(b) bagAct(b.dataset.act,b.dataset.arg,ev.ctrlKey||ev.metaKey);
   });
   bag.querySelector('.bagT').addEventListener('click',ev=>{ const b=ev.target.closest('button'); if(b) bagTab(b.dataset.bt); });
   /* 말풍선 — 물건·마디에 마우스를 올리면 드는 것과 쓰임이 뜬다 */
@@ -191,7 +191,7 @@ function selRecipe(){
   return h;
 }
 /* 고른 물건 칸의 단추 */
-function bagAct(act,arg){
+function bagAct(act,arg,ctrl){
   if(act==='rcraft'){ const R=RECIPES[CRAFT.sel]; if(!R) return;
     if(R.proc){ procHow(R); return; }
     if(!canCraft(R)){ toast('아직 못 만든다 — '+bagMissing(R)); return; }
@@ -225,11 +225,7 @@ function bagAct(act,arg){
     else{ for(let k=0;k<QUICK.length;k++) if(QUICK[k]===sl) QUICK[k]=null; QUICK[i]=sl; toast((i+1)+'번 칸에 넣었다'); }
     quickDirty=true;
   }
-  else if(act==='drop1'||act==='dropAll'){
-    const n=act==='drop1'?1:sl.n;
-    invRemove(INV.slots.indexOf(sl),n); refreshWear(); quickDirty=true;
-    toast('버렸다 — '+T.n+' ×'+n); sfx('bind');
-  }
+  else if(act==='drop1'||act==='dropAll'){ dropSlot(sl,act==='drop1'?1:sl.n,ctrl); }   // 묻고 버린다 · Ctrl 이면 바로(50-items.js)
   invDirty=true; craftDirty=true;
 }
 bagWire();
