@@ -271,7 +271,10 @@ function tileRegions(){
   for(const t of ROCK_TILES) put(t,'rock'); for(const t of PROP_TILES) put(t,'prop'); for(const t of TREE_TILES) put(t,'tree');
   for(const R of T.map.values()) T.last.push(R);        // 처음 한 번은 섬 전체를 돈다 — 갓 지은 칸 메시는 켜진 채라, 먼 것을 다 꺼야 한다
 }
-function updateTileVis(){
+/* 섬을 지을 때 칸을 나눠 짓는 표시(90-init.js — updateTileVis 를 거듭 부르며 사이사이 숨을 돌린다) */
+let TV_SLICE=false;
+const TVB=()=>busy&&!TV_SLICE;
+function updateTileVis(){                // 예산(rockBudget · _treeBudget · TL.der · TL.pack)은 노는 중에만 — 짓는 동안(busy)은 한꺼번에, 단 TV_SLICE 면 노는 중처럼 나눠서
   const px=PL.pos.x, pz=PL.pos.z;
   camera.updateMatrixWorld(); _tPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
   { const e=_tPM.elements; let same=!_tvForce&&_tvLast[16]===px&&_tvLast[17]===pz;
@@ -296,7 +299,7 @@ function updateTileVis(){
   for(const RG of act) for(const t of RG.rock){
     const g=tileGap(t,px,pz), want=g<=t.d;
     if(want&&!t.m){
-      if(busy||rockBudget>0){ rockBudget--; t.m=t.build(); }
+      if(TVB()||rockBudget>0){ rockBudget--; t.m=t.build(); }
       else _tvForce=true;                              // 다음 프레임에 이어서
     }else if(t.m&&g>t.d+ROCK_KEEP){                    // 멀어졌다 — 버린다(다시 가까워지면 같은 모양으로 빚는다)
       propGroup.remove(t.m); t.m.geometry.dispose(); t.m=null;
@@ -321,13 +324,13 @@ function updateTileVis(){
     L.seen=tileSeen(t,d); L.d=d;
     if(gone||d>TREE_DROP){ if(L.ready||L.np||t.built) tlDrop(t,true); L.want=false; if(gone) L.seen=false; continue; }   // 범위를 벗어났다 — 통째로 비운다
     /* 원본(제 가지 자료) — 45 m 안 그루가 있을 만한 칸만 짓고, 멀어지면 비운다 */
-    if(!t.built&&d<=TL.full*fk+16){ if(busy||_treeBudget>0){ _treeBudget--; ensureTreeTile(t); L.ev=true; } else _tvForce=true; }
+    if(!t.built&&d<=TL.full*fk+16){ if(TVB()||_treeBudget>0){ _treeBudget--; ensureTreeTile(t); L.ev=true; } else _tvForce=true; }
     else if(t.built&&!t.pin&&d>TL.full+80) dropTreeTile(t);
     /* 솎은 자료 — 그림에서 입체로 넘어가기 40 m 앞부터(가까운 칸은 기다리지 않고 한꺼번에) */
     if(!L.ready&&d<=COPY_DIST+40){
       let done=true;
       for(const p of t.ps){ if(p._thin) continue;
-        if(!busy&&d>TL.full&&performance.now()-tl0>TL.der){ done=false; _tvForce=true; break; }
+        if(!TVB()&&d>TL.full&&performance.now()-tl0>TL.der){ done=false; _tvForce=true; break; }
         p._thin=t.thin1(p); TL.stat.derive++; }
       if(done){ L.ready=true; L.ev=true; }
     }
@@ -339,7 +342,7 @@ function updateTileVis(){
   }
   /* 다시 채우기 — 가까운 칸부터 */
   if(rq.length){ rq.sort((a,b)=>a.lod.d-b.lod.d); const t1=performance.now();
-    for(const t of rq){ if(!busy&&rq[0]!==t&&performance.now()-t1>TL.pack){ _tvForce=true; break; }
+    for(const t of rq){ if(!TVB()&&rq[0]!==t&&performance.now()-t1>TL.pack){ _tvForce=true; break; }
       t.lod.pend=false; if(tlRepack(t)) LIGHT.dirtyAt(t.cx,t.cz,t.r); TL.stat.pack++; }
     TL.stat.packMs=performance.now()-t1; }
   /* 보이기 — 입체 칸은 묶음을, 그 밖(또는 솎은 자료가 아직 없는 칸)은 그림 판때기를 */
@@ -560,7 +563,7 @@ function buildFarTrees(){
     t.bb.instanceMatrix.needsUpdate=true;
   }
 }
-function buildProps(){
+async function buildProps(){        // async — 큰 고리 사이사이 숨을 돌린다(breathe — 90-init.js · 섬을 짓는 동안 여는 화면이 멈추지 않게)
   _tvForce=true;
   /* **비탈의 참나무·전나무는 밑동을 묻는다**(사용자 지적: 경사진 곳의 나무가 떠 있다) — 줄기 가운데의 땅 높이에 세우면 아래쪽 밑동이
      허공에 뜬다. 줄기 반지름(뿌리 퍼짐 포함 1.4배) × 기울기만큼 나무째 내린다(가지·잎도 같이 — p.y 를 한 번만 고친다 · 1.2 m 까지) */
@@ -1160,6 +1163,7 @@ function buildProps(){
         _pQt=new THREE.Quaternion();
 
   for(const R of RESOURCES){
+    await breathe();
     const list=byKind[R.k]; if(!list||!list.length) continue;
     if(!geoFor[R.k]){ showErr('프롭','geoFor 에 '+R.k+' 모양이 없다'); continue; }
     const geos=geoFor[R.k], tree=(R.k==='oak'||R.k==='fir');
@@ -1175,7 +1179,8 @@ function buildProps(){
     const ms=geos.map((g,gi)=>new THREE.InstancedMesh(g,mats[gi],list.length));
 
     // 1차: 채집 횟수·통나무 수·베리를 먼저 정한다 (가지 총량을 알아야 하므로)
-    list.forEach(p=>{
+    let _bn=0;
+    for(const p of list){ if(!(++_bn&1023)) await breathe();
       p.y=p.top!==undefined?p.top:heightAt(p.x,p.z);   // 바위섬 꼭대기의 전나무는 제 높이(34-coast.js coastIsle)
       if(HARVEST[R.k]||MINE[R.k]){
         const hh=hashStr(R.k+'|'+Math.round(p.x)+'|'+Math.round(p.z));
@@ -1207,7 +1212,7 @@ function buildProps(){
         }
         p._hash=hh;
       }
-    });
+    }
 
     /* 가지·잎뭉치 — 나무 종류마다 하나로 몰아 담던 것을 TILE(128 m) 칸마다
        따로 담는다. 인스턴스 메시는 통째로만 껐다 켤 수 있으므로, 섬 전체를
@@ -1366,7 +1371,7 @@ function buildProps(){
     }
 
     // 2차: 행렬 배치
-    list.forEach((p,ix)=>{
+    for(let ix=0;ix<list.length;ix++){ const p=list[ix]; if(!(ix&1023)) await breathe();
       const gy=p.y;
       const lh=hashStr('lean|'+Math.round(p.x*7)+'|'+Math.round(p.z*7));
       const leanK=tree?0.10:(R.k==='grass'||R.k==='reed')?0.20:0.5;   // 풀·갈대는 ±6° 까지만(예전 ±14° — 포기째 쓰러져 보였다)
@@ -1398,7 +1403,7 @@ function buildProps(){
         const col={x:p.x,z:p.z,r:RAD[R.k]*p.s};
         COLLIDERS.push(col); p._col=col;
       }
-    });
+    }
 
     // 암석류는 인스턴싱 대신, 개체마다 새로 만든 형상을 한 버퍼에 이어 붙인다
     // 풀·갈대는 '보통' 이상에서만 드리운다 — 4만 포기라 낮은 품질에서는 버겁다
@@ -1443,7 +1448,7 @@ function buildProps(){
       for(const b of bins.values()){
         const tms=geos.map((g,gi)=>{
           const t=new THREE.InstancedMesh(g,mats[gi],b.ix.length);
-          b.ix.forEach((ix,j)=>{ ms[gi].getMatrixAt(ix,_TM); t.setMatrixAt(j,_TM); });
+          { const A=ms[gi].instanceMatrix.array, D=t.instanceMatrix.array, I=b.ix; for(let j=0;j<I.length;j++){ const o=I[j]*16, d=j*16; for(let e=0;e<16;e++) D[d+e]=A[o+e]; } }   // 배열째 베낀다(Matrix4 로 꺼내 넣던 것과 값이 같다 · 조각 배열을 안 만든다)
           t.instanceMatrix.needsUpdate=true; t.frustumCulled=false;
           t.userData.lightRole=ms[gi].userData.lightRole;
           propGroup.add(t); return t;
@@ -1478,7 +1483,7 @@ function buildProps(){
     }
   }
 
-  buildBerries();
+  await buildBerries();
 
   buildColliderGrid();
   buildPropGrid();
@@ -1608,7 +1613,7 @@ const _bV=new THREE.Vector3(), _bQ=new THREE.Quaternion(), _bE=new THREE.Euler()
       _bS=new THREE.Vector3(), _bM=new THREE.Matrix4();
 const BERRY_RIPE=[0x7e1e2e,0x8e2438,0xa02c40,0xb0364a];   // 익은 것 — 짙은 붉은빛
 const BERRY_RAW =[0xc0764e,0xa8894a,0x8a9a52];            // 덜 익은 것 — 주홍·연둣빛
-function buildBerries(){
+async function buildBerries(){
   berryMesh=null;
   const ALL=PROPS.filter(p=>p.k==='grass'&&p.berryMax>0);
   if(!ALL.length) return;
@@ -1618,8 +1623,9 @@ function buildBerries(){
   const byTile=new Map();
   for(const p of ALL){ const k=Math.floor(p.x/PROP_TILE)+','+Math.floor(p.z/PROP_TILE);
     let a=byTile.get(k); if(!a){ a=[]; byTile.set(k,a); } a.push(p); }
-  for(const bushes of byTile.values()) buildBerryTile(bushes);
-  refreshAllBerries();
+  for(const bushes of byTile.values()){ buildBerryTile(bushes); await breathe(); }
+  /* 갓 지은 덤불은 다 가득 차 있다(berry=berryMax) — refreshAllBerries 는 방금 짠 행렬을 똑같이 다시 짤 뿐이라 안 부른다.
+     딴 만큼 빼는 것은 저장을 불러올 때 92-save.js 가 부른다 */
 }
 const BERRY_DIST=90;
 function buildBerryTile(bushes){

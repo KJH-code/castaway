@@ -631,7 +631,7 @@ function worldRescale(S){
   for(let i=0;i<e.length;i++){ e[i]*=S; w[i]*=S; a[i]*=S; b[i]*=S; }
   fumaCenter.x*=S; fumaCenter.z*=S; fumaCenter.r*=S;
 }
-function placeResources(seed){
+async function placeResources(seed){    // async — 긴 고리 사이 숨을 돌린다(breathe — 90-init.js · 난수 차례는 그대로)
   PROPS=[];
   const rnd=mulberry32(seed^0x27d4eb2f);
   const h=F.elev, s=F.slope, m=F.moist, b=F.biome, tw=F.twi;
@@ -732,6 +732,7 @@ function placeResources(seed){
 
   // --- 1차: 지질 규칙에 따른 자연 배치 ---
   for(const R of RESOURCES){
+    await breathe();
     const fn=suit[R.k], isTree=(R.k==='oak'||R.k==='fir');
     let placed=0;
     if(!fn){ counts[R.k]=0; continue; }                 // 현무암 · 석회암 · 사암은 흩뿌리지 않는다 — surfaceRocks 가 바꿔 세운다
@@ -741,6 +742,7 @@ function placeResources(seed){
     const TVM=(P.tv|0)>=2?(R.k==='granite'?1.7:CAVE_ORE.indexOf(R.k)>=0?0.6:1):1;
     const WS=CELL/GCELL, cap=R.max*WS*WS*Math.max(1,TVM);
     for(let z=2;z<N-2 && placed<cap;z++){
+      if(!(z&63)) await breathe();
       for(let x=2;x<N-2 && placed<cap;x++){
         const i=IDX(x,z);
         if(h[i]<=0.3) continue;
@@ -806,10 +808,10 @@ function placeResources(seed){
     }
   }
 
-  resolveOverlaps();
-  caveSites(seed);                                     // 동굴 자리를 잡고 광석을 그 안으로 옮긴다(지형 판 2)
-  cragSites(seed);                                     // 벼랑에 박힌 큰 바위 무리(33-crags.js)
-  if(typeof geoSites==='function') geoSites(seed);     // 지열 지대 — 온천 · 간헐천 · 진흙 웅덩이 · 석회화 단구(35-geo.js · 지형 판 5)
+  await breathe(); resolveOverlaps();
+  await breathe(); caveSites(seed);                                     // 동굴 자리를 잡고 광석을 그 안으로 옮긴다(지형 판 2)
+  await breathe(); cragSites(seed);                                     // 벼랑에 박힌 큰 바위 무리(33-crags.js)
+  await breathe(); if(typeof geoSites==='function') geoSites(seed);     // 지열 지대 — 온천 · 간헐천 · 진흙 웅덩이 · 석회화 단구(35-geo.js · 지형 판 5)
   for(const k in counts) counts[k]=0; for(const p of PROPS) counts[p.k]=(counts[p.k]||0)+1;
   stats.props=PROPS.length; stats.counts=counts; stats.forced=forced;
 }

@@ -718,11 +718,12 @@ const FL_TILE=64, FL_LOD=[[60,0.65],[95,0.3]], FL_PIC=160, FL_STEP=2, FL_NEAR=60
    줄기·큰 가지 구조가 그대로이고(잎 판·잔가지만 솎는다) ② 제 생김새 그대로는 50 m(`FL_FULL`)까지 · 50~60 m 잎 65% · 60~95 m 30% · 95~160 m 12%.
    그림 판때기(160 m 밖)만 기준 그루 하나다 */   // 잰 값: 이 겹이 한 프레임의 4 ms 였다 — 단계를 당기고(55→40 · 90→75 · 200→160) 잎을 더 솎는다
 const _ffPM=new THREE.Matrix4(), _ffFr=new THREE.Frustum(), _ffSp=new THREE.Sphere();
-function floraPlantAll(){
+/* 생성기 꼴 — 칸 줄마다 한 번 멈춘다(yield). 놀이 중엔 floraPlantAll 이 끝까지 돌리고, 섬을 지을 때는 floraFarBuildA 가 숨을 돌려 가며 돌린다 */
+function* floraPlantAllG(){
   const U=FLORA, L=U.far, C=L.cell, n=Math.floor(HALF/C)-1;
   U.P=[]; U.tl=[]; U.kn={};
   const tiles=new Map();
-  for(let gz=-n;gz<n;gz++) for(let gx=-n;gx<n;gx++){ let lx=1e9, lz=1e9;
+  for(let gz=-n;gz<n;gz++){ yield; for(let gx=-n;gx<n;gx++){ let lx=1e9, lz=1e9;
    for(let tr=0;tr<2;tr++){                           // 칸 하나에 많아야 둘(군락의 dense 가 정한다 — 빽빽한 숲)
     const salt=L.salt+tr*16, h=floraHash(gx,gz,salt);
     const wx=(gx+(h&255)/255)*C, wz=(gz+((h>>>8)&255)/255)*C;
@@ -760,9 +761,10 @@ function floraPlantAll(){
     let t=tiles.get(tk); if(!t){ t={i:U.tl.length, cx:(Math.floor(wx/FL_TILE)+0.5)*FL_TILE, cz:(Math.floor(wz/FL_TILE)+0.5)*FL_TILE, r:FL_TILE*0.71+12, cy:0, ps:[], v:false}; tiles.set(tk,t); U.tl.push(t); }
     t.ps.push(p); lx=wx; lz=wz;
    }
-  }
+  } }
   for(const t of U.tl) t.cy=heightAt(t.cx,t.cz)+8;
 }
+function floraPlantAll(){ for(const _ of floraPlantAllG()); }
 /* 줄인 복제 — 기준 벌의 부품(SHP.merge 가 적어 둔 구간)에서 잎 판(정점 12 이하 · 그림 칸 잎~덩굴)은 몫 f 만 남겨 1/√f 배로 키우고,
    줄기·가지는 가장 큰 것의 절반 넘는 것은 다 두고 나머지는 큰 차례로 f 몫만 둔다(참나무 `bakeTreeGeo` 가 긴 가지만 남기는 것과 같다) */
 function floraLodGeo(g,f){
@@ -822,11 +824,12 @@ function floraBakePic(g){
   return {tex:rt.texture, rt, can:{y0, y1, w:2*hw}};
 }
 /* 기준 그루 · 줄인 복제 · 그림 · 단계마다 메시 — 섬 전체를 깐 바로 뒤에 한 번 */
-function floraFarBuild(){
+function* floraFarBuildG(){
   const U=FLORA, px=PL.pos.x, pz=PL.pos.z;
-  floraPlantAll();
+  yield* floraPlantAllG();
   U.fm={};
   for(const k of U.far.kinds){
+    yield;
     if(!U.kn[k]) continue;
     let best=null, bd=Infinity;
     for(const p of U.P) if(p.k===k){ const d=(p.x-px)**2+(p.z-pz)**2; if(d<bd){ bd=d; best=p; } }
@@ -846,6 +849,9 @@ function floraFarBuild(){
   }
   U.far.cx=1e9; U.sig=null; U.csig=null;
 }
+function floraFarBuild(){ for(const _ of floraFarBuildG()); }
+/* 섬을 지을 때 — 같은 일을 숨을 돌려 가며(breathe — 90-init.js). 다 지어 두면 뒤따르는 updateFlora(true) 는 짓지 않고 깔기만 한다 */
+async function floraFarBuildA(){ if(!FLORA.m) floraBuild(); if(FLORA.P) return; for(const _ of floraFarBuildG()) await breathe(); }
 function floraFarDrop(){
   const U=FLORA; if(!U.fm){ U.P=null; return; }
   for(const k in U.fm){ const f=U.fm[k];
