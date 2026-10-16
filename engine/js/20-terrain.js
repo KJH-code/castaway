@@ -1198,13 +1198,26 @@ float elev1(vec2 g){ vec4 t=texture2D(uElev,(g+0.5)/uGrid.x); return (t.r*255.0*
 // 16비트를 나눠 담았으니 텍스처 보간은 못 쓴다 — 네 점을 직접 섞는다
 float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
   return mix(mix(elev1(i),elev1(i+vec2(1,0)),f.x),mix(elev1(i+vec2(0,1)),elev1(i+vec2(1,1)),f.x),f.y); }
+// 하구의 흙탕물 띠 — 높이 텍스처의 알파 칸(riverPlume · 섬을 지을 때 잰 몫), 네 점을 손으로 섞는다
+float plm1(vec2 g){ return texture2D(uElev,(g+0.5)/uGrid.x).a; }
+float plumeAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
+  return mix(mix(plm1(i),plm1(i+vec2(1,0)),f.x),mix(plm1(i+vec2(0,1)),plm1(i+vec2(1,1)),f.x),f.y); }
 `+sh.fragmentShader.replace('vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;',`
       // 직사광만 가린다 — 하늘 반사·하늘빛은 그늘에서도 그대로다
       float shM=getShadowMask()*cloudSh();
       float dist=length(vVD);
       // 법선 — 여덟 겹 파도의 기울기를 더한다(잔 파도는 멀수록 흐리게)
       vec2 grad=vec2(0.0);
-      float ampK=uRiver>0.5?0.25:1.0;
+      /* **강물 몫 rv**(0 바닷물 · 1 강물) — 예전엔 강 판/바다 판(uRiver)으로 딱 갈라 하구에서 물결 · 반사 · 윤슬 · 깊이 몫이 금을 그었다
+         (물빛만 수면 높이로 이어 두었다). 이제 강 판은 수면이 바다 높이로 내려올수록(fr → 0) 이것들도 다 바다 값이 된다. 바다는 0 —
+         예전 그대로. **흙탕물 sed**(사용자 지적 — 강과 바다가 만나는 데서 초록 강물과 남색 바다가 금을 긋는다): 하구의 흙탕물 띠
+         (plumeAt — 섬을 지을 때 물길에서 바다로 잰 몫)만큼 흙 알갱이가 빛을 되튕겨 밝고 누렇게 된다(깊이를 가린다). 강 판은 하구 쪽(1−fr)만 받아
+         두 판이 만나는 데서 값이 같고, 바다 쪽으로 띠를 따라 옅어진다. 띠 가장자리는 느리게 흐르는 잡음으로 흔든다 */
+      float fr=smoothstep(0.2,1.7,vWW.y);
+      float rv=uRiver>0.5?fr:0.0;
+      float sed=plumeAt(vWW.xz)*(uRiver>0.5?1.0-fr:1.0);
+      if(sed>0.0) sed*=clamp(0.55+0.9*texture2D(uNz,vWW.xz/(uGrid.y*9.0)+vec2(uWT*0.0012,uWT*0.0007)).r,0.0,1.0);
+      float ampK=mix(1.0,0.25,rv);
       /* 화소 하나가 덮는 수면 길이(발자국) — 멀수록, 스치듯 볼수록(1/sinθ) 길어진다.
          물결 한 파장이 화소 몇 개보다 작아지면 눈은 그 물결을 **따로 보지 못하고 평균**만 본다.
          그런데 법선을 그 자리 한 점에서만 뽑으면 화소마다 제멋대로 튀어(에일리어싱) 수평선에
@@ -1250,7 +1263,7 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
           hitK=max(hitK,smoothstep(0.0,2.0,e+step(0.4,e)*3.0-(vWW.y+Rr.y*tt))); tt*=3.0; }
         vec3 land=(uAmb*0.9+uSunCol*max(uSunDir.y,0.0)*0.22)*vec3(0.12,0.16,0.085);
         sky=mix(sky,land,hitK*0.92); }
-      if(uRiver>0.5) F=min(F,0.85);
+      F=min(F,mix(1.0,0.85,rv));
       /* ② 해 반짝임 — 물결 사면 하나하나가 해를 반사하는 몫. 세기도 그 자리의 프레넬을 따른다
          (해가 낮을수록 물결이 금빛으로 번뜩이는 까닭) */
       float sd=max(dot(Rr,uSunDir),0.0);
@@ -1259,9 +1272,9 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       vec3 spec=uSunCol*F*(pow(sd,e1)*e1+pow(sd,e2)*e2*0.024)*step(0.0,uSunDir.y)*shM;
       /* 하천의 해 반짝임 — 잔물결이 작아 해가 거의 한 점 거울로 비쳐 눈을 찔렀다. 넓고 옅게 흩는다 */
       /* 반사를 눌러 끄는 대신 **잘게 부순다** — 물살을 따라 흐르는 잡음으로 반짝이는 자리를 조각내 윤슬로 만든다 */
-      if(uRiver>0.5){
+      if(rv>0.0){
         float gl=texture2D(uNz,vWW.xz/0.9+vec2(uWT*0.05,uWT*0.03)).r*texture2D(uNz,vWW.xz/2.3-vec2(uWT*0.04,0.0)).g;
-        spec=uSunCol*F*(pow(sd,60.0)*smoothstep(0.16,0.40,gl)*9.0+pow(sd,14.0)*0.16)*step(0.0,uSunDir.y)*shM; }
+        spec=mix(spec,uSunCol*F*(pow(sd,60.0)*smoothstep(0.16,0.40,gl)*9.0+pow(sd,14.0)*0.16)*step(0.0,uSunDir.y)*shM,rv); }
       spec*=1.0-hitK;                                   // 뭍이 비치는 자리에는 해가 안 비친다
       /* ③ 물속 — **스넬 굴절**: 보는 빛줄기·햇빛이 물에 들어가며 꺾인다(비스듬할수록 물속
          경로가 길다 — 1/μ). 물의 고유 광학량(1/m, 680·550·440 nm):
@@ -1277,17 +1290,17 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       float d=max(0.0,vWW.y-bed);
       vec3 aW=vec3(0.45,0.0565,0.0145), bW=0.0022*vec3(0.401,1.0,2.622);
       vec3 aX=vec3(0.001,0.004,0.02), bP=vec3(0.81,1.0,1.25)*0.05, bot=vec3(0.46,0.41,0.30);             // 맑은 연안 · 모래 바닥
-      if(uRiver>0.5){                                   // 유기물이 든 개울 — 깊은 소도 새까맣지는 않게
-        /* **강어귀** — 수면이 바다 높이(0)에 가까워질수록 물빛을 바닷물로 잇는다. 예전엔 어귀에서 갈색 개울과 남색 바다가
-           금을 긋고 만났다(사용자 지적: 하천과 바닷가가 만나는 데가 기괴하다) */
-        float fr=smoothstep(0.2,1.7,vWW.y);
-        aX=mix(aX,vec3(0.05,0.22,0.75),fr); bP=mix(bP,vec3(0.81,1.0,1.25)*1.2,fr); bot=mix(bot,vec3(0.27,0.24,0.18),fr); }
+      /* 유기물이 든 개울 — 깊은 소도 새까맣지는 않게. 강물 몫(rv)만큼 섞는다 — 강 판은 하구로 갈수록 바닷물에 이어진다
+         (사용자 지적: 하천과 바닷가가 만나는 데가 기괴하다) */
+      aX=mix(aX,vec3(0.05,0.22,0.75),rv); bP=mix(bP,vec3(0.81,1.0,1.25)*1.2,rv); bot=mix(bot,vec3(0.27,0.24,0.18),rv);
+      /* 흙탕물 — 떠 있는 흙 알갱이: 뒤로 흩는 몫이 크고(파장에 거의 무관) 파랑을 조금 먹는다(누런 띠) */
+      aX+=sed*vec3(0.02,0.06,0.18); bP+=sed*vec3(5.6,6.0,6.2);
       vec3 aT=aW+aX, bb=0.5*bW+0.019*bP;
       vec3 u=bb/(aT+bb);
       vec3 Rinf=0.0949*u+0.0794*u*u;
       vec3 Kt=(aT+bb)*(1.0/muS+1.0/muV);
       /* 하천은 빛이 지나는 깊이를 0.6배로 센다 — 섬을 2배로 키우며 물도 두 배 깊어져(1 m 남짓) 한낮에도 검은 판처럼 보였다 */
-      vec3 Tb=exp(-Kt*d*(uRiver>0.5?0.6:1.0));
+      vec3 Tb=exp(-Kt*d*mix(1.0,0.6,rv));
       vec3 rr=Rinf*(1.0-Tb)+(bot/3.14159)*Tb;
       vec3 Rup=0.52*rr/(1.0-1.7*rr);
       vec3 light=uAmb+uSunCol*max(uSunDir.y,0.0)*(1.0-F)*shM;
@@ -1301,7 +1314,7 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
         vec2 rq=vWW.xz/2.6+vec2(uWT*0.030,uWT*0.021);
         float rip=texture2D(uNz,rq).r-0.5+0.5*(texture2D(uNz,rq*2.7+0.3).g-0.5);
         float win=smoothstep(0.60,0.76,up+rip*0.10);
-        vec3 deep=(uRiver>0.5?vec3(0.09,0.12,0.08):vec3(0.02,0.16,0.20))*(uAmb+uSunCol*max(uSunDir.y,0.0)*0.6);
+        vec3 deep=mix(vec3(0.02,0.16,0.20),vec3(0.09,0.12,0.08),rv)*(uAmb+uSunCol*max(uSunDir.y,0.0)*0.6);
         vec3 skyU=mix(uSkyH,uSkyZ,0.6)*(0.80+0.55*rip);
         /* 창 안의 해 — 굴절돼 들어온 햇빛이 물결에 부서져 번쩍인다(해가 보이는 쪽 = 굴절된 햇빛을 거슬러 올려다본 쪽) */
         vec3 sIn=refract(-uSunDir,vec3(0.0,1.0,0.0),0.7502);
@@ -1350,6 +1363,30 @@ float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
   envPatch(m);   // cloudSh 를 붙인다 — 위 셰이더가 부르므로 LIGHT.refresh 를 기다리지 않는다
   return m;
 }
+/* **하구의 흙탕물 띠**(사용자 지적 — 강과 바다가 만나는 데서 초록 강물과 남색 바다가 칼로 자른 듯 금을 긋는다).
+   실제 하구는 민물이 바닷물 위로 퍼져 나가며 흙탕물 띠(plume)가 수십~수백 m 에 걸쳐 옅어진다. 물길 칸(F.river)을 씨앗으로
+   **바다 칸(물길 아님 · 표고 < 0.3)만 지나며** 거리를 재고(8방 두 번 쓸기 · 대각 √2), 몫 = exp(−거리/`PLUME_L` 칸)을 높이 텍스처의
+   **알파 칸**(아무도 안 읽던 칸)에 0~255 로 담는다. 뭍은 0 · 몫 0.02 밑은 0. 물 셰이더가 이것으로 바닷물을 강물 쪽으로 섞는다(`plumeAt`).
+   섬 생김새는 안 건드린다 — 그리는 쪽만 */
+const PLUME_L=8;                                       // 칸 — 배율 2 섬 40 m · 6배 섬 120 m 에서 1/e
+function riverPlume(){
+  const px=waterElevTex&&waterElevTex.image.data; if(!px) return;
+  const D=new Float32Array(N*N).fill(1e9), sea=i=>!F.river[i]&&F.elev[i]<0.3, R2=Math.SQRT2;
+  for(let i=0;i<N*N;i++) if(F.river[i]) D[i]=0;
+  for(let pass=0;pass<2;pass++){
+    for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=z*N+x; if(!sea(i)) continue;
+      let d=D[i]; const a=D[i-1]+1, b=D[i-N]+1, c=D[i-N-1]+R2, e=D[i-N+1]+R2; if(a<d)d=a; if(b<d)d=b; if(c<d)d=c; if(e<d)d=e; D[i]=d; }
+    for(let z=N-2;z>0;z--) for(let x=N-2;x>0;x--){ const i=z*N+x; if(!sea(i)) continue;
+      let d=D[i]; const a=D[i+1]+1, b=D[i+N]+1, c=D[i+N+1]+R2, e=D[i+N-1]+R2; if(a<d)d=a; if(b<d)d=b; if(c<d)d=c; if(e<d)d=e; D[i]=d; }
+  }
+  let n=0;
+  for(let i=0;i<N*N;i++){ let v=0;
+    if(F.river[i]) v=1; else if(sea(i)&&D[i]<1e8){ v=Math.exp(-D[i]/PLUME_L); if(v<0.02) v=0; }
+    px[i*4+3]=Math.round(v*255); if(v>0&&!F.river[i]) n++; }
+  RIVER_PLUME.cells=n;
+  waterElevTex.needsUpdate=true;
+}
+const RIVER_PLUME={cells:0};
 function buildWaterElev(){
   if(waterElevTex) waterElevTex.dispose();
   /* 실수 텍스처는 그래픽 장치에 따라 못 읽는다(헤드리스에선 0 이 나와 물이 온통 거품이었다).
@@ -1437,6 +1474,7 @@ function buildWater(){
     if(F.elev[i]>0.25) RL[i]=Math.max(RL[i],Math.min(F.wlev[i],F.elev[i]+0.06));   // 뭍의 물길은 바닥이 드러나지 않게
   }
   const wet=j=>F.river[j]&&RL[j]>0.02;                 // 해수면 아래로 내려간 물길 칸은 바다가 덮는다
+  riverPlume();
   const vw=(x,z)=>{
     let sm=0,n=0;
     for(let d=0;d<4;d++){
