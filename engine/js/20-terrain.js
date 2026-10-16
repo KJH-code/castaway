@@ -1140,7 +1140,7 @@ let waterElevTex=null;
 const WATER_U={uTime:{value:0}, uSunDir:{value:new THREE.Vector3(0,1,0)},
   uSunCol:{value:new THREE.Color(1,1,1)}, uAmb:{value:new THREE.Color(0.3,0.35,0.4)},
   uSkyZ:{value:new THREE.Color(0.3,0.5,0.9)}, uSkyH:{value:new THREE.Color(0.7,0.8,0.9)},
-  uElev:{value:null}, uGrid:{value:new THREE.Vector2(768,2.5)},
+  uElev:{value:null}, uGrid:{value:new THREE.Vector2(768,2.5)}, uBedB:{value:null},
   uFP:{value:new THREE.Vector3()}, uFR:{value:0}};   // 사면체 거품이 서는 자리(사람 둘레 uFR m) — 96-foam.js 가 채운다. 0 이면 칠한 거품만
 function waterMat(river){
   /* 램버트로 세우는 까닭은 오직 그림자다 — 조명은 아래에서 손수 센다. 램버트여야 그림자 지도
@@ -1186,6 +1186,7 @@ uniform vec3 uAmb;
 uniform vec3 uSkyZ;
 uniform vec3 uSkyH;
 uniform sampler2D uElev;
+uniform sampler2D uBedB;
 uniform sampler2D uNz;
 uniform vec2 uGrid;
 uniform vec3 uFP;
@@ -1288,6 +1289,13 @@ float plumeAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       vec3 ts=refract(-uSunDir,vec3(0.0,1.0,0.0),0.7502); float muS=max(-ts.y,0.08);
       float bed=elevAt(vWW.xz);
       float d=max(0.0,vWW.y-bed);
+      /* **물빛에 쓰는 깊이는 흐린 바닥으로**(사용자 지적 — 얕은 청록 바다가 깊은 남색으로 칼로 자른 듯 · 곧은 금으로 바뀌었다).
+         바다 밑이 6배 섬에서 수십 m 안에 3 → 15 m 로 꺼지는 데가 많아, 바닥이 비치는 몫 e^(−K·d) 가 거기서 한꺼번에 사라졌다.
+         바닥을 반경 BED_BLUR m 로 흐린 지도(uBedB — buildBedBlur)로 깊이를 재 물빛만 수십 m 에 걸쳐 번지게 한다.
+         물가 알파 · 거품 · 헤엄 깊이는 진짜 깊이(d) 그대로다. 강 판은 제 깊이 */
+      float dO=d;
+      /* 얕은 데(진짜 깊이 4 m 안)는 진짜보다 얕게 세지 않는다 — 흐린 바닥엔 뭍 높이가 섞여 물가를 따라 깊이가 0 으로 나와 모래 빛 띠가 섰다 */
+      if(uRiver<0.5) dO=max(max(0.0,vWW.y-(texture2D(uBedB,(vWW.xz/uGrid.y+uGrid.x*0.5+0.5)/uGrid.x).r*64.0-60.0)),min(d,4.0));
       vec3 aW=vec3(0.45,0.0565,0.0145), bW=0.0022*vec3(0.401,1.0,2.622);
       vec3 aX=vec3(0.001,0.004,0.02), bP=vec3(0.81,1.0,1.25)*0.05, bot=vec3(0.46,0.41,0.30);             // 맑은 연안 · 모래 바닥
       /* 유기물이 든 개울 — 깊은 소도 새까맣지는 않게. 강물 몫(rv)만큼 섞는다 — 강 판은 하구로 갈수록 바닷물에 이어진다
@@ -1300,7 +1308,7 @@ float plumeAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       vec3 Rinf=0.0949*u+0.0794*u*u;
       vec3 Kt=(aT+bb)*(1.0/muS+1.0/muV);
       /* 하천은 빛이 지나는 깊이를 0.6배로 센다 — 섬을 2배로 키우며 물도 두 배 깊어져(1 m 남짓) 한낮에도 검은 판처럼 보였다 */
-      vec3 Tb=exp(-Kt*d*mix(1.0,0.6,rv));
+      vec3 Tb=exp(-Kt*dO*mix(1.0,0.6,rv));
       vec3 rr=Rinf*(1.0-Tb)+(bot/3.14159)*Tb;
       vec3 Rup=0.52*rr/(1.0-1.7*rr);
       vec3 light=uAmb+uSunCol*max(uSunDir.y,0.0)*(1.0-F)*shM;
@@ -1387,6 +1395,26 @@ function riverPlume(){
   waterElevTex.needsUpdate=true;
 }
 const RIVER_PLUME={cells:0};
+/* 흐린 바닥(물 셰이더가 물빛에만 쓴다 — 위 'uBedB') — 표고를 −60~4 m 로 잘라 반경 BED_BLUR m 상자 흐림 두 번(≈ 가우스) ·
+   8비트(0.25 m 눈금 · 직선 보간으로 읽는다). 섬을 지을 때 한 번 */
+const BED_BLUR=45;
+let bedBlurTex=null;
+function buildBedBlur(){
+  const r=Math.max(1,Math.round(BED_BLUR/CELL)), a=new Float32Array(N*N), b=new Float32Array(N*N);
+  for(let i=0;i<N*N;i++) a[i]=clamp(F.elev[i],-60,4);
+  const box=(src,dst,horiz)=>{ for(let o=0;o<N;o++){ let sum=0, n=0;
+      const at=k=>horiz?src[o*N+k]:src[k*N+o];
+      for(let k=0;k<=r&&k<N;k++){ sum+=at(k); n++; }
+      for(let k=0;k<N;k++){ const idx=horiz?o*N+k:k*N+o; dst[idx]=sum/n;
+        const add=k+r+1, rem=k-r; if(add<N){ sum+=at(add); n++; } if(rem>=0){ sum-=at(rem); n--; } } } };
+  for(let pass=0;pass<2;pass++){ box(a,b,true); box(b,a,false); }
+  const px=new Uint8Array(N*N*4);
+  for(let i=0;i<N*N;i++){ px[i*4]=Math.round(clamp((a[i]+60)/64,0,1)*255); px[i*4+3]=255; }
+  if(bedBlurTex) bedBlurTex.dispose();
+  bedBlurTex=new THREE.DataTexture(px,N,N,THREE.RGBAFormat,THREE.UnsignedByteType);
+  bedBlurTex.magFilter=bedBlurTex.minFilter=THREE.LinearFilter; bedBlurTex.needsUpdate=true;
+  WATER_U.uBedB.value=bedBlurTex;
+}
 function buildWaterElev(){
   if(waterElevTex) waterElevTex.dispose();
   /* 실수 텍스처는 그래픽 장치에 따라 못 읽는다(헤드리스에선 0 이 나와 물이 온통 거품이었다).
@@ -1446,6 +1474,7 @@ function buildWater(){
     scene.add(ocean);
   }
   buildWaterElev();
+  buildBedBlur();
   // 하천 수면 — 하도 셀 위에 얇은 판을 덮어 물길이 눈에 보이게 한다
   if(riverMesh){ scene.remove(riverMesh); riverMesh.geometry.dispose(); }
   // 정점 수위 = 그 격자점을 공유하는 하도 셀들의 평균.
