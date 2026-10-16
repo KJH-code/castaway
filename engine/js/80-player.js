@@ -387,8 +387,9 @@ function updatePlayer(dt){
   if(wallTick(dt)) return;                         // 벼랑에 매달려 있다(위) — Space 를 누르고 있어야 한다
   if(BOAT.on){ boatTick(dt); return; }             // 배를 탔다(96-sea.js)
   const p=PL.pos;
-  /* 가방(소지품·제작)을 연 동안에는 세상은 흐르지만 몸은 선다 — 누르고 있던 걷기·뛰기 키를 안 받는다 */
-  const K=(invOpen||craftOpen)?NO_KEYS:keys;
+  /* 가방(소지품·제작)을 연 동안에는 세상은 흐르지만 몸은 선다 — 누르고 있던 걷기·뛰기 키를 안 받는다.
+     설비를 들고 옮기는 동안(MOVE.t — 60-stations.js)도 같다 — 시점만 돌린다(베타 신고: 짐이 든 상자를 들고 걸어 무게 없이 날랐다) */
+  const K=(invOpen||craftOpen||MOVE.t)?NO_KEYS:keys;
   const spTap=!!K.Space&&!PL._sp0; PL._sp0=!!K.Space;            // Space 를 누르는 순간(돌진)
   if(PL.lungeCd>0) PL.lungeCd-=dt;
   const ox=p.x, oz=p.z, oy=p.y;                                   // 이번 프레임 앞의 자리(눈이 바위에 들면 되돌린다 — eyeHit)

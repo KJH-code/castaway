@@ -425,7 +425,9 @@ function pushCollider(c){
 /* ── 옮기기(F) — 아크 서바이벌처럼 집어 들고, 돌리고, 내려놓는다(사용자 요청 — 예전엔 F 를 누르고 있는 동안 밀기라 불편했다) ──
    설비를 보고 F → 그 설비가 눈앞에 떠서 시선을 따라온다(바닥 · 토대 · 지붕 위 — `floorAt`). 휠·R 로 15° 씩 돌리고 좌클릭으로 놓는다.
    F 다시·우클릭·Esc 는 그만두기(제자리로). 놓을 자리가 안 되면 발밑 고리가 붉고 까닭이 뜬다. 안에 든 것·불·이름표는 그대로 따라온다.
-   들고 있는 동안 그 설비의 충돌 원은 빼 두고(r 0), 놓을 때 새 자리·높이로 옮긴다(`cgMove`). 돌린 각은 저장된다(`ry`). */
+   들고 있는 동안 그 설비의 충돌 원은 빼 두고(r 0), 놓을 때 새 자리·높이로 옮긴다(`cgMove`). 돌린 각은 저장된다(`ry`).
+   **드는 동안 몸은 제자리다**(베타 신고 — 짐이 든 상자를 들고 걸어 다녀 무게 없이 날랐다) — 시점만 돌고 걷기·돌진·오르기는 안 받는다
+   (`updatePlayer` 의 `NO_KEYS` · `climbTick` · `wallTick`). 그래서 놓는 자리는 선 자리에서 4.5 m 안이다. */
 const MOVE={t:null, ox:0, oy:0, oz:0, ory:0, ry:0, x:0, y:0, z:0, ok:false, why:'', col:null, cr:0, ring:null};
 function moveStart(){
   if(MOVE.t) return;
@@ -472,7 +474,7 @@ function moveCheck(c,x,y,z){
 }
 function updateMove(dt){
   const c=MOVE.t; if(!c) return;
-  if(uiOpen()||BUILD.on||PL.swim||PL.dead||!pushKind(c)){ moveCancel(); return; }
+  if(uiOpen()||BUILD.on||PL.swim||PL.dead||BOAT.on||CLIMB.on||WALL.on||!pushKind(c)){ moveCancel(); return; }
   const [x,y,z]=moveAim(); MOVE.x=x; MOVE.y=y; MOVE.z=z;
   MOVE.why=moveCheck(c,x,y,z); MOVE.ok=!MOVE.why;
   c.mesh.position.set(x,y+0.02,z); c.mesh.rotation.y=MOVE.ry;
