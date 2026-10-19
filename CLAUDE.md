@@ -411,7 +411,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   무기·도끼·곡괭이·그물을 들었으면 안 잡힌다(`floraHandOK`) — 좌클릭을 가로채지 않게.
 - **r128 은 재질 하나에 셰이더가 하나다** — `InstancedMesh` 와 보통 `Mesh` 가 재질을 나눠 쓰면 안 되고, 재질을 나눠 쓰는 인스턴스 메시는
   전부 인스턴스 색(`setColorAt`)이 있어야 한다(없으면 그릴 때 죽는다 — 노거수 뿌리가 `GIANT.rootMat` 을 따로 쓰는 까닭).
-- **베타 빌드** — 판 번호마다 `beta/builds/<판>/{mac,windows,linux}/`(레포에 안 담는다 · 파일마다 100~230 MB). `sh beta/build-mac.sh` 가 그 판의 `mac/` 에 `CASTAWAY.app` 과 `.dmg` 를, `sh beta/fetch-ci.sh [실행 번호]` 가 CI('데스크톱 판')의 세 판을 받는다. `beta/builds/README.txt` 에 판마다 무엇이 어디서 왔는지 적어 둔다.
+- **베타 빌드** — 모든 판 · 모든 OS 의 설치 파일을 `beta/builds/` 한 폴더에 둔다(`CASTAWAY-<판>-mac.dmg` · `-setup.exe` · `-portable.exe` · `-linux.AppImage` · 레포에 안 담는다 · 파일마다 100~230 MB · 2026-10-19 사용자 요청으로 판마다 나뉜 폴더를 모았다). `sh beta/build-mac.sh` 가 `.dmg` 를, `sh beta/fetch-ci.sh [실행 번호]` 가 CI('데스크톱 판')의 세 판을 거기 받는다. `beta/builds/README.txt` 에 판마다 무엇이 어디서 왔는지 적어 둔다.
   npm 캐시는 `env/.cache/npm`(홈의 캐시 권한이 꼬인 기계가 있다).
 - **조사한 그래픽 엔진·기법과 측정값은 `docs/graphics-engines.md`** — 확인한 것만 적었다. 새 기법을 넣으면 거기 표에 잰 값을 더할 것.
 
