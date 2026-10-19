@@ -373,6 +373,13 @@ document.getElementById('pVol').addEventListener('input',e=>{
 document.getElementById('vVol').textContent=Math.round(VOL*100)+'%';
 document.getElementById('pSens').addEventListener('input',e=>{
   SENS=parseFloat(e.target.value); document.getElementById('vSens').textContent=SENS.toFixed(2);
+/* 몬스터 수(사용자 요청) — 0 없음 · 1 적게 · 2 보통 · 3 많이 · 4 아주 많이(97-mobs.js MOBS.k 가 동시에 서는 수 · 굴의 다지류 수에 곱한다) */
+const MOB_STEPS=[0,0.5,1,1.6,2.4], MOB_NAMES=['없음','적게','보통','많이','아주 많이'];
+document.getElementById('pMobs').addEventListener('input',e=>{
+  const v=clamp(parseInt(e.target.value)||0,0,4); if(typeof MON!=='undefined') mobsSetK(MOB_STEPS[v]);
+  document.getElementById('vMobs').textContent=MOB_NAMES[v];
+});
+document.getElementById('vMobs').textContent='보통';
 });
 document.getElementById('vSens').textContent=SENS.toFixed(2);
 /* 프레임 제한 — 끔(화면 주사율까지) · 30 · 60 · 120. 노트북 발열·배터리를 아낀다. 기본은 끔이라 화면은 그대로다 */
@@ -409,16 +416,16 @@ document.getElementById('pSlot').addEventListener('change',e=>{
    브라우저 저장소에 둔다(데스크톱 판도 같은 저장소가 userData 에 남는다). 섬 모양(시드·크기…)은 저장 파일이 가진다.
    손으로 바꿀 때(change)만 적는다 — 불러올 때 맞추는 input 은 다시 적지 않는다 */
 const SET_KEY='castaway.settings';
-const SET={res:1, far:1, shadow:2, limb:0.8, vol:0.9, sens:1, slot:'1', cap:0, cam:2, noise:1, auto:1};
+const SET={res:1, far:1, shadow:2, limb:0.8, vol:0.9, sens:1, slot:'1', cap:0, cam:2, noise:1, auto:1, mobs:2};
 function saveSettings(){ try{ localStorage.setItem(SET_KEY,JSON.stringify(SET)); }catch(e){} }
-for(const [id,k] of [['pRes','res'],['pFar','far'],['pShadow','shadow'],['pLimb','limb'],['pVol','vol'],['pSens','sens'],['pCap','cap'],['pCam','cam'],['pNoise','noise'],['pAuto','auto']])
+for(const [id,k] of [['pRes','res'],['pFar','far'],['pShadow','shadow'],['pLimb','limb'],['pVol','vol'],['pSens','sens'],['pCap','cap'],['pCam','cam'],['pNoise','noise'],['pAuto','auto'],['pMobs','mobs']])
   document.getElementById(id).addEventListener('change',e=>{ SET[k]=parseFloat(e.target.value); saveSettings(); });
 function applySettings(){
   try{ const o=JSON.parse(localStorage.getItem(SET_KEY)||'{}'); for(const k in SET) if(k in o) SET[k]=o[k]; }catch(e){}
   const put=(id,v)=>{ const el=document.getElementById(id); if(!el||typeof v!=='number'||!isFinite(v)) return;
     el.value=v; el.dispatchEvent(new Event('input')); };
   put('pRes',SET.res); put('pFar',SET.far); put('pShadow',SET.shadow); put('pLimb',SET.limb); put('pVol',SET.vol); put('pSens',SET.sens);
-  put('pCap',SET.cap); put('pCam',SET.cam); put('pNoise',SET.noise); put('pAuto',SET.auto);
+  put('pCap',SET.cap); put('pCam',SET.cam); put('pNoise',SET.noise); put('pAuto',SET.auto); put('pMobs',SET.mobs);
   curSlot=(SET.slot==='2'||SET.slot==='3')?SET.slot:'1'; drawSlots();
 }
 document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.value);

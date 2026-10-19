@@ -9,7 +9,7 @@
 - Three.js r128을 레포 안의 `engine/three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 48개(코드 44 + base64 자료 4)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 280개(제작법 242 + 설비 공정 38 — 2026-10-19 잼)
+- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 53개(코드 46 + base64 자료 7 — 몬스터 모델 셋 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 280개(제작법 242 + 설비 공정 38 — 2026-10-19 잼)
 - 라이선스 GPL-3.0
 
 ## 폴더
@@ -17,7 +17,7 @@
 | 폴더 | 무엇 |
 |---|---|
 | `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
-| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 44개 + base64 자료 4개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
+| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 46개 + base64 자료 7개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
 | `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) |
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
@@ -64,7 +64,7 @@ npx electron-builder --linux               # 묶기 — dist/ (--win · --mac �
   본편(`engine/js/92-save.js`)의 `DESK` 가 있으면 **저장 칸이 파일**(`userData/saves/slot1~3.json` · `auto.json` · Windows `%APPDATA%\CASTAWAY\saves` —
   임시 파일에 쓰고 바꿔 끼우며 바로 앞 것은 `.bak`), 없으면 `localStorage`(`castaway.save1~3` · `castaway.auto` — 슬롯 1 은 예전 키 그대로). 슬롯 이름은 `[a-z0-9._-]` 만 받는다.
   데스크톱 판에서만 보이는 것: 일시정지 화면의 **끝내기**(`#bQuit` — 상륙 전이면 바로, 상륙했으면 묻고 닫기 길(자동 저장)을 탄다) · 설정 창의 '전체 화면'·'저장·기록 폴더'(`#deskG` — userData 를 연다)·그래픽 백엔드 고르기(`#pAngle`) ·
-  시작 화면 오른쪽 아래 판 번호(`#ovVer`). **판 번호는 `desktop/package.json` 의 `version`**(지금 0.4.2 — `package-lock.json` 맨 위 두 곳도 같이) — 묶은 파일 이름에 들어가고 새 판 알림이 이것과 Releases 태그를 견준다.
+  시작 화면 오른쪽 아래 판 번호(`#ovVer`). **판 번호는 `desktop/package.json` 의 `version`**(지금 0.5.0 — `package-lock.json` 맨 위 두 곳도 같이) — 묶은 파일 이름에 들어가고 새 판 알림이 이것과 Releases 태그를 견준다.
 - **시험**: playwright 의 `_electron.launch` 로 xvfb 에서 띄운다(`xvfb-run -a node 시험.cjs`). 소프트웨어 GL 이라 섬 생성이 약 2분이고,
   `page.screenshot` 은 시간 초과가 난다 — 주 프로세스의 `webContents.capturePage()` 로 찍을 것.
 - 루트 `.gitignore` 가 `package.json` 을 무시한다(CI 가 맨 위에 playwright 를 깐다) — `desktop/` 것만 `!` 로 살려 두었다.
@@ -194,7 +194,7 @@ python -m http.server 5173
 | `presets/models/bear_high.glb`, `presets/models/stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |
 | `presets/models/azure_apocalypse.glb` | **애저 아포칼립스**(새 몹 · 11.3 MB · 사용자 요청 '받침 없애고 · 참고 그림처럼 돌 갑옷 + 푸른 에너지로 칠하고 · 삼각형 20만 · 리깅, 떠서 움직이니 다리 뼈는 없이' · 공격은 에너지 빔과 팔 휘두르기 예정). 원본은 같은 폴더의 `Meshy_AI_Azure_Apocalypse_…_fbx.zip`(사용자 업로드 · FBX 140만 세모 · 뼈 없음 · 받침 붙음 — **FBX 는 Y 위라 적혀 있지만 실제는 Z 위**). `tools/azure/run.sh` 가 같은 GLB 를 다시 만든다. 세모 197,205 · 정점 153,441 · 뼈 23(`root` · `pelvis` · `spine` · `chest` · `neck` · `head` · `halo` · 팔 넷 `armR1/R2/L1/L2` → `fore*` → `hand*` → `claw*` — 팔은 몸 오른쪽(−x) 위·아래 · 왼쪽(+x) 위·아래 · 쉼 자세 회전 0) · **+z 를 본다** · 키 2.98 m · 원점은 몸 가운데 발밑. 바탕 + 발광 그림(갈고리 끝 · 몸의 결이 빛난다) · **머리 위 고리는 새로 빚었다**(사용자 참고 그림 — 검은 돌 비늘 조각 17개가 고리로 이어지고 밑·틈에서 푸른빛이 새며 군데군데 끊기고 부스러기가 뜬다 · `tools/azure/halo_new.py` · 원본의 매끈한 원환은 뺐다) — 게임에선 `MeshLambertMaterial({map, emissiveMap, emissive:흰색, skinning:true})`. 사슬은 몸통만 따르고, 따로 움직일 덩이(팔 넷 · 허리 아래 · 머리 · 고리)를 잇던 세모 1,465 장은 뺐다. **아직 어느 코드에서도 로드하지 않는다** — r128 GLTFLoader 는 레포에 없다(npm three@0.128.0) |
 
-**본편은 나뉘어 있다** — `island_world.html`(268줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 47개(코드 43 + base64 자료 4).
+**본편은 나뉘어 있다** — `island_world.html`(275줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 53개(코드 46 + base64 자료 7).
 js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
 나누면서 고쳐 쓴 것이 없다). 번호가 곧 불러오는 차례다 — **불러오는 순간 바로 도는 코드는 위 파일 것만 쓸 수 있다**(함수 안에서
 부르는 것은 어느 파일 것이든 된다). 새 계통은 `99-main.js` 바로 위에 새 파일로 넣는 것이 쉽다. 파일별 설명(영어)은 `CODEMAP.md`.
@@ -251,6 +251,8 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `96-foam.js` | **물가의 거품** — 사람 둘레 55 m 의 물가에 서는 사면체 조각(물머리 · 부서지는 물결 · 물가를 늘 덮는 띠). 움직임은 정점 셰이더(진짜 수면 = 물 셰이더의 긴 파도 셋 · 물가의 생김새 `aD`), 물가 찾기는 C(`engine/native/shore.c` — `foamBench()` 로 JS 판과 견준다). **물 셰이더의 파도 수를 바꾸면 여기 · 땅 셰이더의 젖은 띠(22) · `seaSurfAt`(20) 도 같이** |
 | `97-wildlife.js` | 새 떼(`wildFlocks`) · 둥지와 알 · 벌집과 꿀(`WILD.picks` — `FLORA_PICK` 의 egg·honey) · 새총(`slingShot` · 총·활도 `wildShot`) · 나무 오르기(`climbTick` — `updatePlayer` 가 맨 먼저 부른다) · 나비·반딧불이·잠자리·벌(`wildBugs`) |
 | `97-temples.js` | **옛 신전**(지형 판 8 · 사용자 요청) — 섬 한가운데 계단 신전(`templeLandSite` — 뭍의 무게중심 둘레에서 고른 땅을 골라 반지름 36 m 를 다진다 · 자원 놓기 전) · 해구 가장자리 수심 30~45 m 의 해저 신전(`templeSeaSite` — `shapeSeabed` 뒤). 돌덩이는 방향이 돌아간 상자로 막는다(`templeFloor`·`templeSolid` — `coastFloor`·`coastSolid` 가 먼저 부른다). 상자·항아리는 한 번만 여는 줍기(`TEMPLE.picks` · FLORA_PICK `tchest`·`turn` 의 `once`·`loot` → `templeLoot` · 저장 `temples`) — **백금 반지는 해저 신전에서만**(판 8 은 처음 지니지 않는다). 들판의 바위 솎기 `thinOpenRocks` · 험한 데의 더 나은 소출 `yieldK`/`yieldMul` |
+| `97-mob-rigs.js` · `data-mob-*.js` | **몬스터의 몸** — 시험장에서 옮겼다: 다지류 모듈(`CRW` · `makeCrawler`/`placeCrawler`/`stepCrawler` — crawler_arena 그대로, 다만 `SIZE` 0.8 · 마디·다리마다 떨림 갈고리 `crwJerk`/`crwLegJerk`) · 가고일 공용 구역(`GARG_J`…`gargDraw` — 임시 이름 `_gv`·`_gM` 만 `_gaV`·`_gaM` 으로 바꿨다(72-gear.js 와 겹쳐서) · **`tools/garg-rig.mjs` 는 이 파일을 안 고친다** — 원본을 고치면 손으로 옮길 것) · GLB 풀기 `parseGLB_garg`/`parseGLB_mob`. 자료(base64 · 읽지 말 것): `data-mob-crawler.js`(`CRW_META`/`CRW_B64`) · `data-mob-gargoyle.js`(`GARG_GLB`) · `data-mob-mimic.js`(`MIMIC_GLB` — 바탕색 1024) |
+| `97-mobs.js` | **몬스터**(지형 판 8 · `MON` — **`MOBS` 는 80-player.js 의 날짜별 출현 표 이름이라 못 쓴다**) — 둥지 `mobsSites`(우거진 숲 곁 굴 · 그 굴은 불빛 없음 `c.dark`) · 몸 빚기 `mobsBuild`(섬마다 거두기만 · 다지류 2 · 가고일 6 · 스킨워커 3 을 돌려 쓴다) · 세우고 거두기 `mobSpawner`(1.2초마다 · 사람 둘레) · AI `crawlTick`/`gargTick`/`mimTick` · 맞는 공 `mobProxy`(CREATURES 에 거는 대역 — 체력은 몸의 것 · 한 프레임에 같은 몸의 공 여럿이 맞으면 가장 큰 것 하나) · 맞음 `mobDamage`(넉백 · 움찔 · 비명) · 사람이 맞음 `mobHurtPlayer`(튕김 · 화면 흔들림 `mobCamera`) · 떨림 `mobJerk` · 겹침 `mobSeparate` · 소리 `mobVoice`(합성) · 사체 뒤지기(`MON.picks` → `FLORA_PICK.mobloot` · `MOB_LOOT`) · 둥지 숲의 더 나옴 `mobLairBonus`(→ `yieldK`) |
 | `98-bag.js` | 가방 화면(소지품 + 고른 것 + 제작) — 가방에는 그림 · 이름 · 개수 · 할 수 있는 일만, 자세한 것은 사전(`dexShow`) |
 | `99-main.js` | **`loop`** 8 · 맨 끝에서 게임을 켜는 다섯 줄 |
 
@@ -306,7 +308,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `ITEMS` · `RECIPES` · 지형 생성 | `engine/js/50-items.js` · `engine/js/55-craft.js` · `engine/js/10-worldgen.js` | `beta/build_sandbox.html` (`ITEMS` 204줄 복제, 이미 20줄 어긋남) |
 | 갑옷 성능 · 피해 감소 | `island_world.html` 의 `ITEMS[].wear` 와 `armorMul()` | `trio`·`siege`·`mixed` 아레나의 `ARMORS`/`armorMul()` (셋은 맞춰 두었다. `wyvern`·`battle`·`bear` 는 아직 갑옷이 없다) |
 | 무기 성능(피해·사거리·쿨) | `island_world.html` 의 `ITEMS[].tool` | 아레나 5개가 각자 인라인으로 들고 있다 |
-| 몹 거동 | 각 아레나 | 본편에는 아직 없다 |
+| 몹 거동 | 각 아레나 | 본편 `engine/js/97-mobs.js` 는 제 AI 를 따로 짰다(다지류 · 가고일 · 스킨워커 — 아래 '몬스터'). 몸(뼈 · 껍데기)은 `97-mob-rigs.js` 에 시험장 것을 옮겼다 |
 | 가고일 뼈대 · 몸짓(`GARG_J` · `GARG_SKIN` · `gargBody` · `poseGarg` · `gargDraw`) | `beta/gargoyle_arena.html` | battle · night · siege · trio · mixed — **글자 그대로**. 원본을 고치고 `node tools/garg-rig.mjs` |
 | 애쉬스케일 자세(`poseWyv` · `poseWyv_` · `wWingPose` · `wLook` · `wSwing`) | `beta/wyvern_arena.html` | battle · night · siege — **글자 그대로**. 원본을 고치고 `node tools/wyv-sync.mjs` |
 | 하늘 · 구름 · 날씨 | `engine/js/45-sky.js` | `beta/cloud_arena.html` (그대로 복사 + 손잡이 5개) |
@@ -320,6 +322,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 
 ```bash
 node tools/check-syntax.mjs *.html beta/*.html engine/js/*.js presets/*.js   # html 은 <script> 를 뽑아, js 는 그대로 node --check
+grep -o 'src="[^"]*\.js"' island_world.html | sed 's/src="//;s/"$//' | grep -v three.min | xargs cat > /tmp/all.js && node --check /tmp/all.js   # 전역 이름이 겹치나(파일 하나씩은 못 잡는다 — 겹치면 그 파일이 통째로 안 읽힌다)
 node tools/smoke.mjs                        # 전부 띄워 오류 없이 뜨는지 (파일 이름을 주면 그것만)
 node tools/probe.mjs island_world.html PL.hp RECIPES.length
 node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
@@ -1303,7 +1306,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   참나무 50 · 전나무 71 이고, 나무 하나가 가지 1,000개쯤,
   가까운 칸만 자세히 그리므로 실제로 그리는 나무 삼각형은 섬 전체의 1~2% 다 — 무거우면
   `TL.full`(제 가지로 서는 거리)을 내리거나 `TREE[].space` 를 올리거나(가지가 성겨진다)
-  설정의 `P.limb`(원가지 수 배율)을 내릴 것. 그다음이 `LEAF_PER`(참나무 3 · 전나무 1)다.
+  설정의 `P.limb`(원가지 수 배율)을 내릴 것. 그다음이 `LEAF_PER`(참나무 3 · 전나무 2)다.
   **참나무 잎은 알파 카드다** — 잎을 삼각형으로 빚지 않는다. **잎맥은 잎 윤곽으로 잘라(`clip`) 그린다** — 안 자르면 곁맥 끝·둥근 붓끝이 테두리 밖으로 삐져 가시처럼 보였다. 잎 아홉 장짜리 한 줌을
   **캔버스에 그려**(`makeLeafTex`, 256², 외부 파일 없음 — `makeTreeTex` 와 같은 방식)
   십자로 겹친 판때기 두 장(`leafCard`, 4면)에 붙인다. 잎 모양·잎맥·가장자리는 전부
@@ -1312,7 +1315,9 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   **참나무 잎은 판때기 하나가 인스턴스 하나다**(`LEAF_PER.oak`=3) — 가지 끝 `LEAF_BACK`(0.1 m)
   앞부터 밑동 쪽으로 무작위 자리에 세 장을 흩어 단다(`putLeaf`). 그래서 **잎 인스턴스
   번호는 `(_lbBase+j)*LEAF_PER+q`** 이고, 가지를 꺾는 `hideLimb` 도 그 가지 몫을 전부
-  접어야 한다. 전나무는 바늘 한 다발이 인스턴스 하나다(끝에 하나). **장수와 `space` 는 짝이다** —
+  접어야 한다. **전나무 잎은 잔가지 그림이다**(사용자 지적 '바늘이 이상하다' · `makeNeedleTex` → `leafTexFir` · 30-props.js) — 가운데 줄기에 바늘이 양옆으로
+  빽빽이 난 잔가지 한 줌을 그린 알파 카드(십자 두 장)를 **가지마다 둘** 단다: 하나는 끝 쪽(가지 길이의 0.42~1.04) · 하나는 밑동 쪽(0.04~0.58 — 0.7 m 밑 가지엔 없음),
+  카드 세로 = 그 구간 길이 · 가로 = 잎 크기×1.25(0.16~0.62 m) · 가지 둘레로 무작위로 돌리고 조금 젖힌다. 예전엔 가지 끝에 바늘 다발 하나라 성기고 가시처럼 섰다. **장수와 `space` 는 짝이다** —
   장수를 반으로 줄이면 `space` 를 낮춰 가지를 그만큼 늘려야 나무 한 그루의 잎 총수가 유지된다. **참나무 잎은 한 장이 삼각형 48장**이다 —
   길이 6칸·폭 4칸 격자에 주맥과 곁맥을 능선으로 새겼다(`leafRound`). 한 덩이가 432장이라
   잎만으로 1억 8천만 삼각형이 넘는다. 값이 아니라 모양을 보려고 만든 것이니, 무거우면
@@ -1538,6 +1543,42 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   사암은 대개 돌멩이를 준다(석재는 `extra` 20%). 산호초(초원 · 돌기와 골 · 초 비탈)와 바위 암초는 `seaScatter` 가 바닷가의 결(`seaCoralCoast`)로 가른다.
   물고기는 정점마다 빛깔 + 비늘 · 옆줄 · 지느러미 살 · 은빛(`fishMat` — `aF`).
 
+- **물속에서 올려다본 수면**(사용자 요청 '물속에서 본 수면 반사를 실제처럼' · `waterMat` 의 물속 갈래 — 20-terrain.js · 재질은 양면 `DoubleSide`) — 뒷면(물속)에서는
+  물결 법선으로 시선을 굴절시켜(`refract(I,N,1.333)` — 물→공기) **스넬의 창**(천정에서 48.6° 안)으로만 하늘·해가 보이고, 그 밖은 **전반사**라 물속 빛깔과
+  비친 바닥이 거울처럼 선다. 경계는 물→공기 프레넬(창 가장자리로 갈수록 반사가 는다). 잔물결 두 겹(진폭 0.17 · 0.10)이 창을 일렁이게 하고 해가 창 안이면 빛무리.
+  앞면(물 밖) 셈은 그대로다. 양면이라 물 밖에서 물 밑면을 볼 일은 없다(땅이 가린다).
+- **몬스터**(사용자 요청 · 지형 판 8 · 97-mobs.js · 몸은 97-mob-rigs.js) — 설정 '몬스터 수'(`#pMobs` 0~4 → `MOB_STEPS` 0 · 0.5 · 1 · 1.6 · 2.4 → `MON.k` · `SET.mobs`).
+  **사람 둘레에만 세우고(70~170 m · 눈앞 ±63° 밖) 340 m(다지류 800 m) 넘게 멀어지면 거둔다 · 저장하지 않는다.** 섬을 다 지은 뒤 `mobsBuild` 가 몸을 한 번 빚고(섬이 바뀌면 거두기만),
+  `updateMobs` 가 놀이 중 프레임마다 돈다(99-main.js · 사람 시점 다음).
+  ① **다지류**(체력 1100 · 몸길이 약 33 m) — 둥지는 섬을 지을 때 `mobsSites` 가 고른 굴(우거진 숲 — 활엽수림·대숲 — 칸이 220 m 안에 여섯 넘게 · 굴끼리 700 m 떼어 · 여덟까지 ·
+  상륙 자리 450 m 안은 비움). **그 굴은 불빛도 빛나는 점·버섯도 없다**(`c.dark` — 32-caves.js 는 굴을 다 빚은 뒤 버린다 · 난수 차례 그대로). 켜는 둥지 수 = round(4×k).
+  낮(05:00~19:36 밖이 밤)에는 가장 안쪽 방에 똬리를 틀고 잔다(`crawlCoil` — 머리가 가운데, 길이 바깥으로 감긴다 · 맞으면 깬다). 밤엔 둥지 둘레 우거진 숲을 휘젓는다
+  (`crawlWaypoint` · 돌진 평균 6초마다 28 m) · 50 m 안에 사람이 들면 쫓고(돌진 8초마다 · 120 m 밖이면 놓음) · 새벽이면 둥지로 돌아간다. 마디(반지름 0.85 m)에 닿으면
+  0.5초마다 20(돌진 중 34 · 갑옷이 깎는다) · 튕겨 난다. **둥지 420 m 안의 우거진 숲은 캐고 따는 몫이 +0.6**(`mobLairBonus` → `yieldK`).
+  ② **가고일**(체력 120) — 풀밭(`B.MEADOW`)·탁상지(`LANDFORMS` mesa)에 2~3 마리씩, 모두 round(4×k)(6 까지). 배회 → 30 m 안이면 쫓기 → 10 m 에서 1초 노려봄 → 20 m 돌진
+  (맞으면 28 · 넉백 10) → 3.5초 굳음. 몸짓은 공용 `gargDraw`(고개 · 목 · 손 · 날개에 떨림을 덧댄다).
+  ③ **스킨워커**(체력 520 · 키 4.2 m) — 숲(낮에도 숲 속 그늘이면)과 밤의 들판(풀밭 · 덤불). round(2×k)(3 까지). **빛에 안 들어간다**(`mobLitAt` — 2: 켠 모닥불·화덕 14 m ·
+  횃불·전등 든 사람 12 m · 1: 낮의 트인 땅). 빛 속의 사람은 13.5 m 가장자리를 돌며 노려보고, 빛이 없으면 다가와 8.5 m 에서 0.62초 당겼다가 앞다리를 늘여(최대 5배) 후려친다
+  (끝이 1.7 m 안이면 30 · 넉백 11). 불빛에 닿으면 울부짖으며 물러난다. 다리는 CCD(`mobCcd`) · 몸통·다리 관절마다 떨림.
+  ④ **떨림 `mobJerk`** — 0.05~0.55초마다 새 목표(38% 는 0 · 22% 는 2.6배)로 뛰고 빠르게(초당 30) 따라간다 · 맞으면 `jerkK` 가 올라 더 크게 떤다 · 자는 동안은 드물게.
+  ⑤ **맞는 공**(`mobProxy`) — 본편 무기 판정(`CREATURES` · `attack`/`meleeResolve` · `rayCreature` · `explode` · `burnTick`)에 거는 대역. x·y·z·hp 가 접근자라 체력은 몸의 것이다.
+  다지류는 마디 넷에 하나씩(17개) · 스킨워커는 몸통과 두 앞다리 끝. **한 프레임에 같은 몸의 공이 여럿 맞으면 가장 큰 것 하나만 든다**(`MON.frame` — 수류탄 하나에 마디 열이 다 맞았다).
+  해머 기절은 `frz`(6초까지). 쓰러지면 사체가 남아 뒤질 수 있다(무엇을 들었든 — 총만 빼고 · `MOB_LOOT` — 다지류 키틴 8 · 거미줄 2 / 가고일·스킨워커는 80-player.js `MOBS[].drop` 과 같다) · 90초 뒤 거둔다.
+  ⑥ **몸끼리 안 겹친다**(`mobSeparate` — 가고일 0.8 · 스킨워커 2.0 m · 다지류 마디에서도 밀려난다 · 사람은 스킨워커가 밀고, 가고일은 사람에게서 비켜난다 —
+  사람을 밀었더니 돌진하는 몸에 실려 11 m 끌려갔다).
+  ⑦ **소리는 합성**(`mobVoice(kind,x,y,z,vol)` — 거리 (1+d/14)^−1.4 · 좌우 · 150 m 밖은 없음): 다지류 다리 딸깍임 · 쇳소리 비명(톱니파 둘이 엇갈려 떨며 치솟음) / 가고일 꺾이는 울음 /
+  스킨워커 사람 목소리를 비튼 울부짖음(모음 꼴이 미끄러지고 고리 변조) / 맞는 소리.
+  ⑧ **셰이더 미리 짜기가 뼈 몸도 짠다** — `precompPlan` 이 예전엔 `SkinnedMesh` 를 건너뛰었다. 대역도 같은 뼈로 묶어야(`precompProxy` — `bind(skeleton)`) 뼈 수가 열쇠에 든다.
+  **본편에 몹을 더 들일 때**: 몸은 `scene` 에 숨겨 두고(`visible=false`) 돌려 쓴다 · `lightRole:'recv'`(그림자 안 드리움) · 전역 이름이 시험장 것과 겹치는지 아래 '확인하는 법'의 이어 붙이기 검사로 볼 것.
+- **근접 휘두르기**(사용자 요청 '무기 모션을 더 역동적이고 다양하게 · 넉백 · 맞는 몸짓 · 무기에 맞는 범위가 없다' · 74-icons-guns.js) —
+  ① 결은 **표**다(`WKEY[결][변형]` = [진행, rx, ry, rz, px, py, pz, 고르기] — 들어 올림 · 가속하는 내려치기(`wIn`) · 지나치는 따라가기 · 되돌아오며 살짝 넘침(`wBack`)).
+  베기 셋(왼 위→오른 아래 · 되받아 올려 베기 · 가로 쓸기) · 내리치기 둘(곧게 · 오른 어깨에서 비스듬히) · 찌르기 둘(곧게 · 낮게 비틀어 올려). **쿨이 끝나고 0.7초 안에 또 휘두르면 다음 변형**(`ATK.combo`/`ATK.v`).
+  캐는 도구(도끼·곡괭이)는 내리치기 두 변형을 번갈아 쓴다. 축: rx 를 더하면 날이 들리고 빼면 숙는다(예전 내리치기는 거꾸로라 맞는 순간 날이 들렸다) · rz + 왼쪽 · − 오른쪽.
+  휘두르는 시간은 `min(0.42, 쿨×0.8)`.
+  ② **맞는 것은 날이 닿는 순간에 센다**(`ATK.pend` → `meleeResolve` — 진행 `WHIT` 베기 0.46 · 내리치기 0.52 · 찌르기 0.44). 예전엔 누르는 순간이었다.
+  ③ **판정이 넓어졌다** — 사거리 +0.6 m · 몸 가장자리에서 54°(가까울수록 넓다 — `acos(cos) − atan(r/d)`) · 위아래 3.2 m(예전 정면 40° · 2.2 m).
+  ④ 맞으면 **히트스톱** 0.07초(날이 박혀 떤다) · **시점이 날을 따라 끌려간다**(`ATK.kick` — 결마다 `WKICK` · 맞으면 1.8배 · 97-mobs.js `mobCamera` 가 얹는다) · 소리 `swish`/`flesh`(80-player.js `SFX`).
+  ⑤ **사람이 맞으면** 화면이 흔들리고 기운다(`hurtPL` 이 피해 4 넘으면 `MON.shake`/`MON.roll`) · 든 것도 흔들린다. 몬스터에게 맞으면 튕겨 난다(`MON.pk` — 막히는 데로는 안 밀림).
 ## 함정
 
 - **`flatShading: true`는 `MeshLambertMaterial`에서 무시된다.** r128에서 확인해 14곳을 걷어냈다.

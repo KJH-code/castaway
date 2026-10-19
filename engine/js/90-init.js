@@ -250,13 +250,13 @@ function precompPlan(){
   const own=(tbl,side,mk)=>tbl[side]||(tbl[side]=Object.assign(mk(),{side}));
   scene.traverse(o=>{ if((o.isPointLight&&!o.userData.pool||o.isLightProxy)&&o.parent&&o.parent!==camera) lamp.add(o.parent); });
   const visit=o=>{
-    if(!o.material||o.isSkinnedMesh||!(o.isMesh||o.isPoints||o.isLine||o.isSprite)) return;
+    if(!o.material||!(o.isMesh||o.isPoints||o.isLine||o.isSprite)) return;   // 뼈 몸(몬스터 — 97-mobs.js)도 — 대역도 같은 뼈로 묶는다(precompProxy)
     const g=o.geometry, inst=!!o.isInstancedMesh, ic=inst&&!!o.instanceColor;
     const near=lamp.has(o.parent)||(o.parent&&lamp.has(o.parent.parent))||(o.parent&&o.parent.parent&&lamp.has(o.parent.parent.parent));
     for(const m of (Array.isArray(o.material)?o.material:[o.material])){
       if(m.isRawShaderMaterial) continue;                 // 광원 수가 열쇠에 안 든다 — 처음 그릴 때 한 번이면 된다
       const va=m.vertexColors===true&&g&&g.attributes.color?g.attributes.color.itemSize:0;   // r128 vertexAlphas
-      const it={m,inst,ic,g}, key=m.id+'|'+inst+'|'+ic+'|'+va;
+      const sk=o.isSkinnedMesh&&o.skeleton?o:null, it={m,inst,ic,g,sk}, key=m.id+'|'+inst+'|'+ic+'|'+va+(sk?'|s'+sk.skeleton.bones.length:'');
       if(m.isMeshLambertMaterial||m.isMeshPhongMaterial||m.isMeshStandardMaterial||m.isMeshToonMaterial||(m.isShaderMaterial&&m.lights)) lit.set(key,it);
       else (near?fx:unl).set(key,it);
       if(!sh||!o.castShadow||!o.isMesh) continue;
@@ -319,6 +319,7 @@ function precompPlan(){
 function precompProxy(it){
   const P=PRECOMP;
   if(!P.ic) P.ic=new THREE.InstancedBufferAttribute(new Float32Array(3),3);
+  if(it.sk){ const o=new THREE.SkinnedMesh(it.g,it.m); o.bind(it.sk.skeleton,it.sk.bindMatrix); return o; }   // 뼈 수가 열쇠에 든다
   const o=it.inst?new THREE.InstancedMesh(it.g,it.m,1):new THREE.Mesh(it.g,it.m);
   if(it.ic) o.instanceColor=P.ic;
   return o;
@@ -397,6 +398,7 @@ async function generateWorld(){
                                     await breathe(); underSites(seed);       // 땅속 세계 — 굴 방 · 굴길 · 수직굴 자리(96-underworld.js · 지형 판 7)
                                     await breathe(); shapeSeabed(seed);      // 바다 바닥의 기복 — 뭍·자원을 다 정한 **뒤에**(같은 시드의 섬은 그대로다)
                                     templeSeaSite(seed);                     // 해구 가장자리의 해저 신전(97-temples.js · 지형 판 8)
+                                    mobsSites(seed);                         // 다지류의 둥지 — 우거진 숲 곁의 굴(97-mobs.js · 지형 판 8 · 그 굴은 불빛이 없다)
   await phase('지형 메시',90);      buildBioTex(); await breathe(); buildChunks(); await breathe(); buildWater();
   await phase('자원 배치',96);      await placeProps_(seed);
                                     /* 다 지을 때까지 소품·나무는 안 그린다 — 칸을 켜고 끄는 updateTileVis 는 멈춘 동안(짓는 중·
@@ -450,6 +452,7 @@ async function generateWorld(){
                                     if(typeof CTREE!=='undefined') ctreeHide(true);
                                     if(typeof GATHER!=='undefined'){ GATHER.p=null; GATHER.t=0; GATHER.on=false; }
                                     CREATURES.length=0; ATK.cd=0; ATK.swing=0; if(typeof boatsClear==='function') boatsClear();
+                                    mobsBuild();                                                  // 몬스터 — 몸을 한 번 빚고(섬이 바뀌면 거두기만) · 세우는 것은 updateMobs(97-mobs.js)
 
   document.getElementById('iSeed').textContent=P.seed;
   console.log('[생성]',P.seed,Math.round(performance.now()-t0)+'ms',

@@ -537,7 +537,7 @@ function updateHUD(dt){
   }else if(FLORA.look&&!harvestByUse()){           // 나무·덤불·꽃·버섯·돌 — 세상에 선 것은 다 무엇인가를 준다(95-flora.js)
     const D=FLORA_PICK[FLORA.look.kind], left=floraWait(FLORA.look);
     hudS(look,'display','block');
-    const got=D.loot?(FLORA.look.deep?'깊은 바다에 바쳐진 것 — 백금 반지가 든다고 한다':'옛 사람들이 두고 간 것'):ITEMS[D.item].n+(D.extra?' · 가끔 '+D.extra.map(x=>ITEMS[x[0]].n).join('·'):'')+(D.chance?' · 잘 안 떨어진다':'');
+    const got=D.mob?(typeof MOB_LOOT!=='undefined'&&MOB_LOOT[FLORA.look.mob]||[]).map(x=>ITEMS[x[0]]?ITEMS[x[0]].n:x[0]).join(' · '):D.loot?(FLORA.look.deep?'깊은 바다에 바쳐진 것 — 백금 반지가 든다고 한다':'옛 사람들이 두고 간 것'):ITEMS[D.item].n+(D.extra?' · 가끔 '+D.extra.map(x=>ITEMS[x[0]].n).join('·'):'')+(D.chance?' · 잘 안 떨어진다':'');
     hudH(lt,left>0?(D.n+'<em>'+(D.once?'비었다':'아직 다시 나지 않았다 — 약 '+Math.ceil(left)+'시간 뒤')+'</em>')
                   :('[좌클릭] '+D.n+' '+D.verb+'<em>'+(D.need&&!hasSharp()?'날붙이를 지녀야 벤다':D.take?ITEMS[D.take].n+'에 담는다 · 횃불 연기가 없으면 쏘인다':got)+'</em>'));
     gatherBar(lb,lf,FLORA.look);

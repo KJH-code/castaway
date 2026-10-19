@@ -241,7 +241,7 @@ const wlerp=(a,b,t)=>a+(b-a)*t;
 const wease=t=>t*t*(3-2*t);
 const wIn=t=>t*t*t;
 const WPOSE={rx:0,ry:0,rz:0,px:0,py:0,pz:0};
-function swingPose(style,p){
+function swingPose(style,p,v){
   const o=WPOSE;
   o.rx=WRX; o.ry=0; o.rz=WRZ; o.px=0; o.py=0; o.pz=0;
   if(p<=0||p>=1) return o;
@@ -250,36 +250,36 @@ function swingPose(style,p){
     o.rx=WRX+0.30*k; o.pz=0.14*k; o.py=0.03*k;
     return o;
   }
-  if(style==='thrust'){                      // 찌르기 — 손이 앞으로 나간다
-    const k=Math.sin(p*Math.PI);
-    o.pz=-0.55*k; o.px=-0.10*k; o.rx=WRX-0.10*k;
-    return o;
-  }
-  if(style==='smash'){                       // 내리치기 — 머리 위로 들었다 내린다
-    if(p<0.34){ const k=wease(p/0.34);
-      o.rx=wlerp(WRX,WRX-1.15,k); o.rz=wlerp(WRZ,0.30,k); o.py=0.16*k;
-    }else if(p<0.56){ const k=wIn((p-0.34)/0.22);
-      o.rx=wlerp(WRX-1.15,WRX+1.30,k); o.rz=wlerp(0.30,0.02,k);
-      o.py=wlerp(0.16,-0.16,k); o.pz=-0.22*k;
-    }else{ const k=wease((p-0.56)/0.44);
-      o.rx=wlerp(WRX+1.30,WRX,k); o.rz=wlerp(0.02,WRZ,k);
-      o.py=wlerp(-0.16,0,k); o.pz=wlerp(-0.22,0,k);
-    }
-    return o;
-  }
-  // 베기 — 오른쪽 위로 치켜들었다가 왼쪽 아래로 그어 내린다
-  if(p<0.30){ const k=wease(p/0.30);
-    o.rx=wlerp(WRX,WRX-0.55,k); o.ry=wlerp(0,0.50,k); o.rz=wlerp(WRZ,1.20,k);
-    o.px=0.10*k; o.py=0.10*k;
-  }else if(p<0.56){ const k=wIn((p-0.30)/0.26);
-    o.rx=wlerp(WRX-0.55,WRX+0.70,k); o.ry=wlerp(0.50,-0.60,k);
-    o.rz=wlerp(1.20,-1.35,k);
-    o.px=wlerp(0.10,-0.22,k); o.py=wlerp(0.10,-0.08,k); o.pz=-0.16*k;
-  }else{ const k=wease((p-0.56)/0.44);
-    o.rx=wlerp(WRX+0.70,WRX,k); o.ry=wlerp(-0.60,0,k); o.rz=wlerp(-1.35,WRZ,k);
-    o.px=wlerp(-0.22,0,k); o.py=wlerp(-0.08,0,k); o.pz=wlerp(-0.16,0,k);
-  }
+  /* 근접은 이어 칠 때마다 다른 결로 휘두른다(ATK.v — 사용자 요청 '더 역동적이고 다양하게') — 들어 올리는 준비 · 가속하는 내려치기 ·
+     지나치는 따라가기 · 되돌아올 때 살짝 넘쳤다 자리 잡기. 표의 값은 쉬는 자세에서 더하는 몫이다 */
+  const K=(WKEY[style]||WKEY.slash); wKey(o,K[(v|0)%K.length],p);
   return o;
+}
+/* [진행, rx, ry, rz, px, py, pz, 고르기(0 부드럽게 · 1 가속 · 2 넘쳤다 자리 잡기)] — 맨 앞 0 은 쉬는 자세 */
+const WK0=[0,0,0,0,0,0,0,0], WK1=[1,0,0,0,0,0,0,2];
+/* 축(r128 오일러 XYZ — 날 방향 = Rx·Ry·Rz·(0,1,0)): rx 를 더하면 날이 들리고(+1.4 쯤이면 머리 위로 섬) 빼면 앞으로 숙는다(−0.8 이면 앞 아래) ·
+   rz 를 더하면 날이 왼쪽, 빼면 오른쪽으로 눕는다 · ry 는 누운 날을 위아래로 기울인다. 예전 '내리치기'는 rx 를 거꾸로 써서 맞는 순간에 날이 들렸다 */
+const WKEY={
+  slash:[
+    [WK0,[0.26,-0.70, 0.65, 1.30, 0.14, 0.14, 0.04,0],[0.46, 0.25, 0.55,-1.40,-0.20,-0.12,-0.22,1],[0.60, 0.35, 0.58,-1.55,-0.24,-0.15,-0.18,0],WK1],   // 왼 위 → 오른 아래로 그어 내림
+    [WK0,[0.24, 0.25,-0.50, 1.18,-0.16,-0.12, 0.02,0],[0.44,-0.40,-0.60,-1.42, 0.18, 0.14,-0.20,1],[0.58,-0.48,-0.65,-1.55, 0.20, 0.16,-0.15,0],WK1],   // 되받아 왼 아래 → 오른 위로 올려 벰
+    [WK0,[0.24,-0.10, 0.15,-1.30, 0.18, 0.02, 0.04,0],[0.46,-0.10, 0.15, 1.45,-0.24, 0.00,-0.20,1],[0.60,-0.10, 0.15, 1.62,-0.28, 0.00,-0.16,0],WK1]],  // 오른쪽에서 왼쪽으로 가로 쓸기
+  smash:[
+    [WK0,[0.32, 1.55, 0.00, 0.15, 0.02, 0.18, 0.08,0],[0.52,-0.85, 0.00,-0.05, 0.00,-0.16,-0.24,1],[0.62,-0.62, 0.00,-0.03, 0.00,-0.12,-0.20,0],WK1],   // 머리 위로 들었다 곧게 내리침 · 맞고 튕김
+    [WK0,[0.30, 1.35, 0.00,-0.75, 0.16, 0.18, 0.06,0],[0.52,-0.80, 0.00, 0.55,-0.16,-0.16,-0.22,1],[0.62,-0.60, 0.00, 0.45,-0.14,-0.13,-0.18,0],WK1]],  // 오른 어깨 위에서 왼 아래로 비스듬히 내리찍음
+  thrust:[
+    [WK0,[0.28, 0.12, 0.00, 0.00, 0.04, 0.02, 0.16,0],[0.44,-0.10, 0.00, 0.00,-0.10, 0.00,-0.62,1],[0.58,-0.08, 0.00, 0.00,-0.10, 0.00,-0.56,0],[1,0,0,0,0,0,0,0]],   // 당겼다 곧게 찌름
+    [WK0,[0.26,-0.30, 0.25, 0.50, 0.08,-0.10, 0.14,0],[0.44, 0.22,-0.15,-0.30,-0.12, 0.10,-0.60,1],[0.58, 0.20,-0.12,-0.26,-0.12, 0.09,-0.54,0],[1,0,0,0,0,0,0,0]]]  // 낮게 당겨 비틀며 올려 찌름
+};
+/* 맞는 순간(진행) · 그때 시점이 끌려가는 쪽 — 결마다 */
+const WHIT={slash:0.46, smash:0.52, thrust:0.44};
+const WKICK={slash:[[-0.020, 0.035, 0.050],[0.020,-0.035,-0.045],[-0.005, 0.050, 0.020]], smash:[[-0.060,0,0.010],[-0.050,-0.020,-0.035]], thrust:[[-0.015,0,0],[0.012,-0.010,-0.020]]};
+const wBack=t=>{ const u=t-1; return 1+2.4*u*u*u+1.4*u*u; };
+function wKey(o,K,p){
+  let i=1; while(i<K.length-1&&p>K[i][0]) i++;
+  const a=K[i-1], b=K[i], u=clamp((p-a[0])/Math.max(1e-6,b[0]-a[0]),0,1), e=b[7]===1?wIn(u):b[7]===2?wBack(u):wease(u);
+  o.rx=WRX+wlerp(a[1],b[1],e); o.ry=wlerp(a[2],b[2],e); o.rz=WRZ+wlerp(a[3],b[3],e);
+  o.px=wlerp(a[4],b[4],e); o.py=wlerp(a[5],b[5],e); o.pz=wlerp(a[6],b[6],e);
 }
 let HOLD_T=0;
 function initWeaponFx(){ setWeaponFx(null); }
@@ -652,21 +652,34 @@ function attack(){
   if(W.gun){ shoot(w,W); return; }
   if(W.throw){ throwGrenade(w,W); return; }
   ATK.cd=W.rate;
-  ATK.swing=Math.min(0.30,W.rate*0.55);      // 빠른 무기는 모션도 짧아야 겹치지 않는다
+  ATK.swing=Math.min(0.42,W.rate*0.8);       // 빠른 무기는 모션도 짧아야 겹치지 않는다(쿨보다 늘 짧다)
   ATK.swingMax=ATK.swing;
   PL.stam=clamp(PL.stam-(W.stam||9),0,100);
-
-  // 시선 방향 원뿔 판정 — 사거리 안, 정면 40° 이내
-  const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
-  let hit=null, bd=W.reach;
+  /* 이어 치기 — 쿨이 끝나고 0.7초 안에 또 휘두르면 다음 결(ATK.v) */
+  const now=performance.now(); ATK.combo=now-(ATK.lastT||0)<W.rate*1000+700?(ATK.combo|0)+1:0; ATK.lastT=now;
+  const style=W.swing||'slash'; ATK.v=ATK.combo%((WKEY[style]||WKEY.slash).length);
+  /* 맞는 것은 휘두르는 날이 닿는 순간에 센다(예전엔 누르는 순간 — 날이 아직 머리 위에 있었다) */
+  ATK.pend={w,W,style,v:ATK.v,t:ATK.swing*(WHIT[style]||0.46)};
+  sfx(style==='thrust'?'thrust':'swish');
+}
+/* 날이 닿는 순간 — 판정 · 맞으면 잠깐 멈칫(히트스톱) · 시점이 날을 따라 끌려간다 */
+function meleeResolve(P){
+  const {w,W,style,v}=P;
+  const kk=(WKICK[style]||WKICK.slash)[v%((WKICK[style]||WKICK.slash).length)];
+  ATK.kick=ATK.kick||{x:0,y:0,z:0};
+  /* 판정 — 사거리 +0.6 m · 몸 가장자리에서 54° 안(가까울수록 넓다) · 위아래 3.2 m(사용자 지적: 무기에 맞는 범위가 없는 것 같다 — 좁았다) */
+  const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw), reach=W.reach+0.6;
+  let hit=null, bs=1e9;
   for(const c of CREATURES){
     if(c.hp<=0) continue;
-    const dx=c.x-PL.pos.x, dz=c.z-PL.pos.z, d=Math.hypot(dx,dz);
-    if(d>bd+(c.r||0.5)) continue;
-    if((dx/d)*fx+(dz/d)*fz<0.77) continue;
-    if(Math.abs((c.y||0)-PL.pos.y)>2.2) continue;
-    bd=d; hit=c;
+    const dx=c.x-PL.pos.x, dz=c.z-PL.pos.z, d=Math.hypot(dx,dz)||1e-3, r=c.r||0.5;
+    if(d>reach+r) continue;
+    const ang=Math.acos(clamp((dx*fx+dz*fz)/d,-1,1))-Math.atan2(r,d);
+    if(ang>0.95) continue;
+    if(Math.abs((c.y||0)-PL.pos.y)>3.2) continue;
+    const sc=d-r+Math.max(0,ang)*1.5; if(sc<bs){ bs=sc; hit=c; }
   }
+  const km=hit?1.8:1; ATK.kick.x+=kk[0]*km; ATK.kick.y+=kk[1]*km; ATK.kick.z+=kk[2]*km;
   if(hit&&hit.fish){
     /* 물고기는 작살이라야 박힌다 — 칼·도끼·창은 물살에 밀린다. 작살 등급이 물고기 등급보다 낮으면 튕긴다 */
     const S=hit.sp, have=W.harpoon||0;
@@ -674,21 +687,22 @@ function attack(){
     if(have<S.tier){
       toast(have?(S.n+' — '+ITEMS[w.id].n+'로는 안 박힌다(등급 '+S.tier+' 작살이 있어야 한다)')
                 :(S.n+' — 물고기는 작살이라야 잡힌다'));
-      sfx('thrust'); invDirty=true; return;
+      invDirty=true; return;
     }
   }
   if(hit){
+    ATK.hitStop=0.07;
     hit.hp-=W.dmg;
     /* 해머는 맞은 것을 잠깐 멈춰 세운다. c.stun 은 '굳어 있는 남은 시간' 하나로,
        개체의 경직도 여기에 넣는다 — 둘이 같은 시계를 쓰고 서로 더해진다.
        개체 AI 는 c.stun>0 이면 움직이지도 모션을 진행하지도 않으면 된다. */
     if(W.stun) hit.stun=(hit.stun||0)+W.stun;
     if(W.burn && hit.hp>0) setBurn(hit,W.burn);
-    w.dur-=1;
-    if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); EQUIP=null; }
+    if(INV.slots.indexOf(w)>=0){ w.dur-=1;
+      if(w.dur<=0){ toast(ITEMS[w.id].n+' 파손'); invRemove(INV.slots.indexOf(w),1); if(EQUIP===w) EQUIP=null; } }
     toast(hit.hp<=0?'쓰러뜨렸다':(W.stun?'명중 — 기절':(hit.burn?'명중 — 화상':'명중')));
-    sfx('thrust');
-  }else{ toast('허공을 갈랐다'); sfx('thrust'); }
+    sfx('flesh');
+  }else toast('허공을 갈랐다');
   invDirty=true;
 }
 /* 화상 — c.burn = {t 남은 시간, acc 지난 틱 뒤 흐른 시간, every, dmg}. **겹치지 않는다**:
@@ -718,6 +732,7 @@ function updateWeapon(dt){
     const w=equippedWeapon();
     if(w && ITEMS[w.id].tool.auto && !(HARV.mode&&HARV.mode.tool) && !facing()) attack();
   }
+  if(ATK.pend){ ATK.pend.t-=dt; if(ATK.pend.t<=0){ const P=ATK.pend; ATK.pend=null; meleeResolve(P); } }
   if(NET.cd>0) NET.cd=Math.max(0,NET.cd-dt);
   updateReload(dt); updateGrenades(dt); updateRockets(dt); updateScope(dt);
   if(ATK.flash>0){
@@ -740,14 +755,18 @@ function updateWeapon(dt){
   const W=ITEMS[w.id].tool||{};
   const dur=ATK.swingMax||0.30;
   let p=ATK.swing>0 ? 1-ATK.swing/dur : 0;
-  if(ATK.swing>0) ATK.swing=Math.max(0,ATK.swing-dt);
+  if(ATK.hitStop>0) ATK.hitStop=Math.max(0,ATK.hitStop-dt);           // 맞은 순간 — 날이 잠깐 박혀 멈춘다
+  else if(ATK.swing>0) ATK.swing=Math.max(0,ATK.swing-dt);
   let style=W.swing;
   const drilling=!!W.drill&&HARV.active;
   if(!W.weapon){                                // 도끼·곡괭이는 캐는 동안 내리친다 — 드릴은 아래에서 따로
     style='smash';
     if(HARV.active&&(W.axe||W.pick)&&!W.drill){ HOLD_T+=dt; p=(HOLD_T*1.3)%1; } else { HOLD_T=0; p=0; }
   }
-  const H=WEAPON_HOME, o=swingPose(style,p);
+  const vv=W.weapon?(ATK.v|0):(Math.floor(HOLD_T*1.3)&1);               // 이어 치기의 결 · 캐는 도구는 번갈아 곧게 · 비스듬히
+  const H=WEAPON_HOME, o=swingPose(style,p,vv);
+  if(ATK.hitStop>0){ const t=performance.now()*0.001; o.px+=Math.sin(t*173)*0.006; o.py+=Math.sin(t*151)*0.006; }   // 박힌 날이 떤다
+  if(typeof MON!=='undefined'&&Math.abs(MON.roll)>0.005){ o.rz+=MON.roll*2.2; o.py-=Math.abs(MON.roll)*0.6; o.px+=MON.roll*0.4; }   // 맞으면 든 것이 흔들린다
   /* 드릴 — 휘두르지 않는다. 0.25초에 걸쳐 앞으로 밀어 대고(DRILL_K), 대는 동안 잘게 떨며 날이 돈다 */
   DRILL_K=clamp(DRILL_K+(drilling?dt:-dt)/0.25,0,1);
   if(DRILL_K>0){ const k=wease(DRILL_K), t=performance.now()*0.001;

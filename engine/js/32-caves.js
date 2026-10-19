@@ -137,6 +137,7 @@ function buildCaves(){
     g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
     g.setAttribute('aMelt',new THREE.Float32BufferAttribute(ML,1)); g.setAttribute('color',new THREE.Float32BufferAttribute(CL,3)); g.setIndex(I); g.computeBoundingSphere();
     const m=new THREE.Mesh(g,mat); m.matrixAutoUpdate=false; m.updateMatrix(); m.userData.cave=c; m.visible=false;
+    if(c.dark){ GP.length=0; SI.length=0; lamps.length=0; }   // 다지류의 둥지 — 불빛도 빛나는 것도 없다(97-mobs.js mobsSites · 난수 차례는 그대로 두려고 다 빚은 뒤에 버린다)
     if(GP.length){ const gg=new THREE.BufferGeometry(); gg.setAttribute('position',new THREE.Float32BufferAttribute(GP,3)); gg.setAttribute('aG',new THREE.Float32BufferAttribute(GA,3));
       gg.computeBoundingSphere(); const pt=new THREE.Points(gg,caveGlowMat()); pt.matrixAutoUpdate=false; m.add(pt); }
     if(SI.length){ const sg=new THREE.BufferGeometry(); sg.setAttribute('position',new THREE.Float32BufferAttribute(SP,3)); sg.setAttribute('color',new THREE.Float32BufferAttribute(SC,3)); sg.setIndex(SI);
