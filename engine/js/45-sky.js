@@ -1867,7 +1867,7 @@ float cloudSh(){
   /* 앞서 단 캐시 키가 있으면 이어 붙인다 — 덮어쓰면 제 셰이더를 가진 재질(땅 `terrainMat`)이
      다른 램버트 재질과 같은 프로그램으로 묶여 제 코드가 통째로 빠졌다 */
   const pk=Object.prototype.hasOwnProperty.call(m,'customProgramCacheKey')?m.customProgramCacheKey:null;
-  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(leaf?'L':'')+(amip?'M':'')+(melt?'m'+melt+(meltA?'a':'')+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
+  m.customProgramCacheKey=()=>'env-'+(lam?'l':'d')+wind+(leaf?'L':'')+(amip?'M':'')+(melt?'m'+(meltA?'a':melt)+(meltT?'t':''):'')+(pk?'-'+pk.call(m):'');
   m.needsUpdate=true;
 }
 

@@ -219,7 +219,12 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         vec4 n1=texture2D(uNz,p/113.0), n2=texture2D(uNz,p/27.0+vec2(0.37,0.11));
         /* **가파른 면은 옆에서 본 좌표로** — 위에서 내려다본 좌표(xz)만 쓰면 벽에서 무늬가 세로로 길게 늘어진다(벼랑의 줄무늬).
            51°~68° 에 걸쳐 옆 투영 둘(xy · zy)을 면이 보는 쪽대로 섞은 것으로 옮겨 간다 — 얼룩 잡음과 바위 사진 결 */
-        vec3 aN=abs(normalize(vTN)); float stp=smoothstep(0.62,0.38,aN.y), wSx=aN.x/(aN.x+aN.z+1e-4);
+        /* 옆 투영은 **그 삼각형이 실제로 보는 쪽**(화소 기울기로 구한 면 법선)으로 고른다 — 정점 법선은 이웃 칸과 고르게 섞인 값이라
+           벼랑의 길쭉한 삼각형에선 면과 딴 쪽을 가리켰다. 그러면 면과 거의 나란한 투영을 읽어 사진·금이 세로로 길게 늘어나
+           삼각형마다 V 자 빗금(사용자 지적: 벼랑이 이상하다 · 빗금 친 천)이 섰다. 두 투영도 4제곱으로 섞어 늘어난 쪽이 덜 섞이게 한다 */
+        vec3 fN=normalize(cross(dFdx(vTW),dFdy(vTW))); fN*=sign(dot(fN,vTN)+1e-6);
+        vec3 aN=abs(fN); float stp=smoothstep(0.62,0.38,aN.y);
+        float wSx; { float ax4=aN.x*aN.x*aN.x*aN.x, az4=aN.z*aN.z*aN.z*aN.z; wSx=ax4/(ax4+az4+1e-6); }
         vec2 tS1=vTW.xy/2.1, tS2=vTW.zy/2.1, gS1x=dFdx(tS1), gS1y=dFdy(tS1), gS2x=dFdx(tS2), gS2y=dFdy(tS2);
         /* FPS: 가파른 데서만 읽는다(기울기는 갈래 밖에서 구해 넘긴다 — 갈래 안에서 밉맵을 고를 수 없어서) */
         { vec2 q1=vTW.xy/27.0, q2=vTW.zy/27.0, d1x=dFdx(q1), d1y=dFdy(q1), d2x=dFdx(q2), d2y=dFdy(q2);

@@ -51,7 +51,8 @@ const FLORA_KIND={
 const FLORA_PICK={
   vine    :{item:'vine',    n:'덩굴',      verb:'끊기',        regrow:30, cnt:[1,2], dur:1.3, stam:4},
   bamboo  :{item:'bamboo',  n:'대나무',    verb:'베기',        regrow:60, cnt:[2,3], dur:2.2, stam:6, need:'sharp'},
-  coconut :{item:'coconut', n:'야자열매',  verb:'흔들어 따기', regrow:48, cnt:[1,2], dur:1.8, stam:6},
+  /* 야자열매는 흔들어도 잘 안 떨어진다(사용자 지적: 야자열매가 너무 흔하다) — 네 번에 하나꼴(chance) · 떨어지면 하나 · 다시 달리기까지 이틀 반 */
+  coconut :{item:'coconut', n:'야자열매',  verb:'흔들어 따기', regrow:60, cnt:[1,1], dur:2.2, stam:7, chance:0.25, miss:'흔들었지만 야자열매가 떨어지지 않았다'},
   banana  :{item:'banana',  n:'바나나',    verb:'따기',        regrow:48, cnt:[2,3], dur:1.1, stam:2.5},
   mushroom:{item:'mushroom',n:'버섯',      verb:'따기',        regrow:36, cnt:[1,1], dur:0.5, stam:1, hide:1},
   /* 덤불 — 잔가지를 꺾는다. 마른 잎·검불이 부싯깃이 되고, 열매가 달린 철이면 베리도 딸려 온다 */
@@ -73,7 +74,10 @@ const FLORA_PICK={
   gresin  :{item:'resin',   n:'삼나무 송진', verb:'긁어내기',  regrow:24, cnt:[2,3], dur:1.6, stam:3, need:'sharp'},
   /* 둥지의 알 · 벌집의 꿀(97-wildlife.js) */
   egg     :{item:'egg',     n:'새 둥지',   verb:'알 꺼내기',   regrow:48, cnt:[1,2], dur:1.2, stam:2},
-  honey   :{item:'honey',   n:'벌집',      verb:'꿀 따기',     regrow:72, cnt:[1,1], dur:2.0, stam:4, take:'pot', sting:7}
+  honey   :{item:'honey',   n:'벌집',      verb:'꿀 따기',     regrow:72, cnt:[1,1], dur:2.0, stam:4, take:'pot', sting:7},
+  /* 옛 신전(97-temples.js) — 한 번만 연다(once · 저장 'temples') · 속은 templeLoot 가 정한다 */
+  tchest  :{item:'ring_platinum', n:'옛 상자',  verb:'열기',      regrow:1e9, cnt:[0,0], dur:2.2, stam:2, once:1, loot:1},
+  turn    :{item:'ring_platinum', n:'옛 항아리', verb:'깨서 뒤지기', regrow:1e9, cnt:[0,0], dur:1.2, stam:2, once:1, loot:1}
 };
 /* 바이옴마다의 군락 — w 얼룩이 그 군락이 될 몫 · far 나무 겹 · near 덤불 겹: [종류, 칸마다 설 확률, 크기 아래, 위]
    giant: 노거수가 서는 군락(1 활엽 · 2 침엽 — 95-giants.js) · low: 표고가 이보다 높으면 그 바이옴의 둘째 군락으로 바꾼다
@@ -82,10 +86,14 @@ const FLORA_PICK={
 const FLORA_COMM={
   [B.BROADLEAF]:[
     {w:3,n:'밀림',      dense:2, nearDense:3, far:[['jungle',0.62,0.8,1.3],['banana',0.20,0.8,1.3],['treefern',0.14,0.8,1.3]], near:[['fern',0.46,0.9,1.6],['bush',0.36,0.8,1.5],['shroom',0.02,0.8,1.5]]},
-    {w:2,n:'대숲',      dense:2, far:[['bamboo',0.70,0.8,1.25]],                                         near:[['fern',0.10,0.7,1.1]]},
+    {w:2,n:'대숲',      tv:-8, dense:2, far:[['bamboo',0.70,0.8,1.25]],                                  near:[['fern',0.10,0.7,1.1]]},   // 지형 판 8 부터는 대숲 바이옴(아래)이 맡는다
     {w:2,n:'자작 숲',   dense:2, nearDense:2, far:[['birch',0.52,0.8,1.3],['sapling',0.14,0.8,1.2]],     near:[['fern',0.16,0.7,1.2],['flower',0.06,0.8,1.2],['bush',0.12,0.7,1.2]]},
     {w:3,n:'노거수 숲', giant:1, nearDense:2, far:[['sapling',0.22,0.8,1.3],['treefern',0.12,0.8,1.2]],  near:[['fern',0.38,0.8,1.5],['shroom',0.04,0.8,1.6],['bush',0.10,0.7,1.2]]},
     {w:2,n:'잡목 숲',   dense:2, nearDense:2, far:[['sapling',0.40,0.8,1.4],['birch',0.10,0.8,1.2]],     near:[['bush',0.26,0.7,1.5],['fern',0.20,0.7,1.3]]} ],
+  /* 대숲 바이옴(지형 판 8) — 빽빽한 대 · 가장자리엔 죽순과 고사리 · 대나무는 그늘을 짙게 드리워 덤불이 드물다 */
+  [B.BAMBOO]:[
+    {w:4,n:'대숲',      dense:3, far:[['bamboo',0.78,0.85,1.35]],                                        near:[['fern',0.08,0.7,1.1],['shroom',0.02,0.8,1.3]]},
+    {w:1,n:'대숲 가장자리', dense:2, nearDense:2, far:[['bamboo',0.42,0.7,1.15],['banana',0.06,0.8,1.2]], near:[['fern',0.26,0.7,1.3],['bush',0.08,0.6,1.1]]} ],
   [B.CONIFER]:[
     {w:3,n:'솔숲',      dense:2, far:[['pine',0.60,0.7,1.5]],                                            near:[['fern',0.16,0.7,1.2],['shroom',0.03,0.8,1.5]]},
     {w:2,n:'노거수 숲', giant:2, nearDense:2, far:[['pine',0.22,0.7,1.2]],                               near:[['fern',0.32,0.8,1.5],['shroom',0.05,0.8,1.6]]},
@@ -142,9 +150,10 @@ function floraPatch(x,z){
 function floraCommAt(x,z,biome){
   const tb=FLORA_COMM[biome]; if(!tb) return null;
   const p=floraPatch(x,z);
-  let tot=0; for(const c of tb) tot+=c.w;
+  const tv=P.tv|0, W=c=>c.tv<0&&tv>=-c.tv?0:c.w;          // tv −8: 지형 판 8 부터 빠지는 군락
+  let tot=0; for(const c of tb) tot+=W(c);
   let u=(p.id%997)/997*tot;
-  for(const c of tb){ if(u<c.w) return c; u-=c.w; }
+  for(const c of tb){ if(u<W(c)) return c; u-=W(c); }
   return tb[tb.length-1];
 }
 
@@ -604,7 +613,7 @@ function floraNearRiver(ci){
 }
 /* 그 자리에 큰 나무·바위·설비·벽(충돌 원)이 있나 */
 function floraHit(wx,wz,pad){
-  if(caveAt(wx,wz,pad+2.5)||cragNear(wx,wz,pad)) return true;   // 굴 속·굴 벽 · 벼랑의 큰 바위 속에는 안 선다(10-worldgen.js · 33-crags.js)
+  if(caveAt(wx,wz,pad+2.5)||cragNear(wx,wz,pad)||templeNear(wx,wz,pad)) return true;   // 굴 속·굴 벽 · 벼랑의 큰 바위 속에는 안 선다(10-worldgen.js · 33-crags.js)
   /* **바위 속에 풀이 돋지 않게**(사용자 지적: 바위 안에 풀이 난다) — 벼랑 바위는 원(cols)이 그려진 꼴보다 작아 덩이 가장자리에 풀이 돋았다.
      둘레 8 m 안에 바위가 있으면 그 자리 수직선이 바위를 지나는지(그려진 꼴 그대로 — cragSpan) 본다. 벼랑 밑 큰 돌(RUBBLE.cols)도 */
   if(CRAG.n&&cragNear(wx,wz,8)){ const g=heightAt(wx,wz), n=cragSpan(wx,wz); for(let i=0;i<n;i++) if(_cgS[i].t>g+0.15&&_cgS[i].b<g+1.2) return true; }
@@ -930,14 +939,15 @@ function floraReset(seed){
    여럿이면 가깝고 겨눈 쪽에 가까운 것(거리 × (2 − 겨눈 cos)) — 덤불 옆 버섯을 내려다보면 버섯이다 */
 function floraFindLook(){
   FLORA.look=null;
-  if(uiOpen()||PL.dead||PL.swim) return;
+  if(uiOpen()||PL.dead) return;
+  if(PL.swim){ templeLookSwim(); return; }                             // 물속에서는 해저 신전의 상자 · 항아리만(97-temples.js)
   const e0=equippedTool(), W0=e0&&ITEMS[e0.id].tool, sharpHand=!!(W0&&(W0.weapon&&!W0.gun||W0.axe));   // 칼·도끼를 든 채로도 노거수 껍질·송진은 벗긴다
   const hand=floraHandOK(); if(!hand&&!sharpHand) return;
   const ex=camera.position.x, ey=camera.position.y, ez=camera.position.z, cp=Math.cos(PL.pitch);
   const fx=-Math.sin(PL.yaw)*cp, fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*cp, hx=-Math.sin(PL.yaw), hz=-Math.cos(PL.yaw);
   let bd=1e9;
   if(hand){
-  for(const list of [FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,WILD.picks,UNDER.picks]) for(const p of list){
+  for(const list of [FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,WILD.picks,UNDER.picks,TEMPLE.picks]) for(const p of list){
     const dx=p.x-ex, dz=p.z-ez;
     if(p.tree){
       const d=Math.sqrt(dx*dx+dz*dz); if(d>p.r+1.7||d<1e-3) continue;
@@ -966,6 +976,7 @@ function floraHandOK(){
 }
 /* 아직 다시 안 났으면 남은 시간(게임 시간), 딸 수 있으면 0 */
 function floraWait(p){
+  if(FLORA_PICK[p.kind].once) return TEMPLE.taken.has(p.key)?1e9:0;
   const t=FLORA.taken.get(p.key); if(t===undefined) return 0;
   const left=FLORA_PICK[p.kind].regrow-(gameHours-t);
   if(left<=0){ FLORA.taken.delete(p.key); return 0; }
@@ -978,6 +989,7 @@ function hasSharp(){
 /* 못 따는 까닭(없으면 null) */
 function floraBlock(p){
   const D=FLORA_PICK[p.kind], left=floraWait(p);
+  if(left>0&&D.once) return D.n+' — 이미 비었다';
   if(left>0) return D.n+' — 아직 다시 나지 않았다(약 '+Math.ceil(left)+'시간 뒤)';
   if(D.need==='pick'&&!INV.slots.some(s=>(ITEMS[s.id].tool||{}).pick)) return D.n+' — 곡괭이로 캐야 한다(뗀석기 곡괭이면 된다)';
   if(D.need==='sharp'&&!hasSharp()) return D.n+' — 맨손으로는 못 벤다. 날붙이(주먹도끼·칼·도끼)를 지녀야 한다';
@@ -993,7 +1005,11 @@ function floraPick(){
 }
 /* 막대가 다 찼다 — 얻는 수는 cnt 안에서 무작위 · extra 는 저마다 제 확률로 딸려 나온다 */
 function floraTake(p){
-  const D=FLORA_PICK[p.kind], n=D.cnt[0]+((Math.random()*(D.cnt[1]-D.cnt[0]+1))|0);
+  const D=FLORA_PICK[p.kind];
+  if(D.loot){ const msg=templeLoot(p); TEMPLE.taken.add(p.key); FLORA.look=null; toast(msg); sfx('bind'); invDirty=true; return true; }   // 옛 신전의 상자 · 항아리
+  const n=yieldMul(D.cnt[0]+((Math.random()*(D.cnt[1]-D.cnt[0]+1))|0),D.cnt[1]>0?yieldK(p.x,p.z,p.y):1);   // 험한 데일수록 더(97-temples.js)
+  if(D.chance!==undefined&&Math.random()>=D.chance){                   // 운이 없으면 아무것도 없다(그 포기는 한동안 빈다 — 같은 나무를 계속 흔들 수 없게)
+    FLORA.taken.set(p.key,gameHours-(D.regrow||24)*0.75); FLORA.look=null; toast(D.miss||'아무것도 얻지 못했다'); sfx('bind'); return true; }
   let got=0; for(let i=0;i<n;i++) if(invAdd(D.item,1)) got++;
   if(!got){ toast('무거워서 더 못 든다'); return false; }
   let msg=ITEMS[D.item].n+' +'+got;

@@ -451,7 +451,7 @@ function buildBioTex(){
   for(let z=0;z<N;z++) for(let x=0;x<N;x++){
     const i=IDX(x,z), o=(z*N+x)*4, bi=F.biome[i];
     d2[o]  =(bi===B.BEACH||bi===B.DUNE)?255:(bi===B.SHELF?235:(bi===B.DEEP?150:0));
-    d2[o+1]=bi===B.BROADLEAF?255:0;
+    d2[o+1]=(bi===B.BROADLEAF||bi===B.BAMBOO)?255:0;
     d2[o+2]=bi===B.CONIFER?255:0;
     d2[o+3]=bi===B.MARSH?255:(bi===B.RIVER?110:0);
     biomeColorAt(i,col);
@@ -756,11 +756,18 @@ function rockMat(k,col){
   const RPH=PHOTO&&!!TERR_U.uRk;                        // 바위 사진 여섯 장 + 법선 지도(data-rock-textures.js · rockPhotoInit)
   const big=!(k==='pebble'||k==='flint');
   m.userData.melt=big?0.5:0.1; m.userData.meltAttr=true;   // 높이는 바위마다(aMelt — buildProps 가 제 크기의 0.4배로 적는다)                        // 밑동이 땅 빛깔로 녹아든다(envPatch — 45-sky.js '땅에 녹아들기')
+  /* **바위 재질은 셰이더 하나다**(FPS — 사용자 지적: 버벅임). 예전엔 광물마다 제 셰이더라(화강암 · 구리 · 현무암 · 신전 돌 …
+     스무 남짓) 광원 수가 바뀔 때마다 그 수만큼 다시 짰다(M1 에서 하나에 0.1~0.5초 — 처음 보는 바위마다 멈칫했다). 이제 광물마다
+     다른 것(결 갈래 · 각진 면 · 크기 · 금 · 이끼 · 광택 · 종류별 무늬)은 유니폼으로 넘긴다 — 같은 셰이더에 값만 다르다 */
+  const KIND={sulfur:1,basalt:2,basaltcol:3,sandstone:4,karst:5}[k]||0;
+  m.userData.rkU={uRkTex:{value:TEX},uRkFacet:{value:FACET},uRkBig:{value:big?1:0},uRkCrack:{value:k.startsWith('temple')?0.22:0.72},
+    uRkKind:{value:KIND},uRkMoss:{value:moss},uRkMet:{value:L.met}};
   m.onBeforeCompile=sh=>{
-    Object.assign(sh.uniforms,TERR_U);
+    Object.assign(sh.uniforms,TERR_U); Object.assign(sh.uniforms,m.userData.rkU);
     sh.vertexShader='varying vec3 vRW;\nvarying vec3 vRN;\nvarying vec3 vRV;\n'+sh.vertexShader.replace('#include <begin_vertex>',
       '#include <begin_vertex>\nvRW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvRN=normal;\nvRV=(modelViewMatrix*vec4(transformed,1.0)).xyz;');
     sh.fragmentShader=`uniform vec3 uSunDir;
+uniform int uRkTex, uRkKind; uniform float uRkFacet, uRkBig, uRkCrack, uRkMoss, uRkMet;
 varying vec3 vRW;
 varying vec3 vRN;
 varying vec3 vRV;
@@ -811,8 +818,8 @@ vec2 grain(vec3 p){
         c*=0.92+0.16*a;
         c*=mix(1.0,0.95+0.10*b,nearK);
         c*=mix(vec3(1.04,1.0,0.95),vec3(0.95,0.98,1.05),rn(p/3.0+9.1));
-        c*=mix(1.0,0.90+0.20*rh(floor(n*5.0+0.5)+floor(p/4.0)),${FACET}.0);
-        int T=${TEX};
+        c*=mix(1.0,0.90+0.20*rh(floor(n*5.0+0.5)+floor(p/4.0)),uRkFacet);
+        int T=${TEX};   // 결 갈래는 셰이더에 박는다 — 유니폼으로 돌렸더니 공작석 고리(27번)까지 모든 바위가 안고 돌아 GPU 가 10 → 16 ms
         float f=rn(p/0.05+1.3);
         /* 알갱이(화강암·자갈) — 예전엔 3.5 cm 칸을 검정·흰색으로 빽빽이 칠해 QR 코드 같았다.
            이제 12 cm 칸에 **드문드문 둥근 점**만 찍는다(어두운 점 9% · 밝은 점 8%, 가장자리는 부드럽게) */
@@ -821,14 +828,14 @@ vec2 grain(vec3 p){
            11 m 잡음이 다섯 장(이끼 낀 3번은 빼고 — 그것은 위를 보는 면에만) 사이의 자리를 정하고, 1.3 m 잡음이 두 장의 경계를 들쭉날쭉하게 한다 —
            바위마다, 한 바위 안에서도 결이 바뀐다. x·y·z 세 방향에서 읽어 면이 보는 쪽대로 섞는다(늘어짐 없이 감긴다).
            큰 바위는 1.7 m 에 한 장(예전 0.9 m 는 큰 벼랑에 같은 얼룩이 줄지어 보였다) · 둘째 장은 배율과 자리를 비켜 읽어 되풀이가 겹치지 않는다 */
-        float RS=${big?'1.7':'0.35'};
+        float RS=uRkBig>0.5?1.7:0.35;
         vec3 tw=pow(abs(n),vec3(4.0)); tw/=tw.x+tw.y+tw.z+1e-4;
         vec3 q=p/RS, q2=q*0.83+vec3(0.37,0.11,0.59);
         float sel=clamp(rn(p/11.0+vec3(3.1,0.7,7.7))*1.3-0.15,0.0,0.999)*4.0;
         float ia=floor(sel), fb=smoothstep(0.25,0.75,fract(sel)+(rn(p/1.3+2.2)-0.5)*0.55);
         float la=ia>2.5?ia+1.0:ia, lb=ia>1.5?ia+2.0:ia+1.0;
         vec3 rk=mix(rkTri(q,tw,la),rkTri(q2,tw,lb),fb);
-        rk=mix(vec3(dot(rk,vec3(0.30,0.59,0.11))),rk,${big?'0.45':'0.8'});   // 큰 바위는 사진 빛깔을 반쯤만(사암의 주황이 너무 셌다)
+        rk=mix(vec3(dot(rk,vec3(0.30,0.59,0.11))),rk,uRkBig>0.5?0.45:0.8);   // 큰 바위는 사진 빛깔을 반쯤만(사암의 주황이 너무 셌다)
         c*=mix(vec3(1.0),rk*2.0,0.92);
         /* 결의 높낮이 — 법선 지도로 화소마다 면을 기울여, 볕이 금과 혹을 따라 갈리게 한다(45 m 안 · 많이 섞인 쪽 한 장만 읽는다).
            램버트는 빛을 정점에서 세므로 그 값을 '기울인 면 / 본래 면' 의 볕 차이만큼 밝히고 어둡게 고친다. 패인 데는 하늘을 덜 본다 */
@@ -837,7 +844,7 @@ vec2 grain(vec3 p){
           float L=fb<0.5?la:lb; vec3 qq=fb<0.5?q:q2;
           vec3 tx=texture(uRkN,vec3(qq.zy,L)).rgb*2.0-1.0, ty=texture(uRkN,vec3(qq.xz,L)).rgb*2.0-1.0, tz=texture(uRkN,vec3(qq.xy,L)).rgb*2.0-1.0;
           tx=vec3(tx.xy+n.zy,n.x); ty=vec3(ty.xy+n.xz,n.y); tz=vec3(tz.xy+n.xy,n.z);
-          vec3 np=normalize(mix(n,normalize(tx.zyx*tw.x+ty.xzy*tw.y+tz.xyz*tw.z),${big?'0.9':'0.6'}));
+          vec3 np=normalize(mix(n,normalize(tx.zyx*tw.x+ty.xzy*tw.y+tz.xyz*tw.z),uRkBig>0.5?0.9:0.6));
           float sunK=smoothstep(0.0,0.25,uSunDir.y);
           c*=1.0+clamp((dot(np,uSunDir)-dot(n,uSunDir))*1.5,-0.5,0.5)*nearN*sunK;
           c*=mix(1.0,0.70+0.30*clamp(dot(np,n),0.0,1.0),nearN);
@@ -845,29 +852,40 @@ vec2 grain(vec3 p){
         /* **프랙털 금**(사용자 요청) — 보로노이 경계로 곧게 꺾이는 금(굽지 않는다) 두 겹(2.5 m · 0.9 m)을 세 방향에서 읽어 면이 보는 쪽대로 섞는다.
            60 m 안만 · 화소보다 잘아지면 뺀다 */
         if(nearK>0.0){ float ck=ckNet(p.zy+3.7,0.4)*tw.x+ckNet(p.xz+1.3,0.4)*tw.y+ckNet(p.xy+5.9,0.4)*tw.z;
-          c*=1.0-0.72*ck*nearK; }
-        ${k==='sulfur'?`/* 유황 — **그러데이션**(사용자 요청): 밑은 잿빛 누런 흙빛, 위로 갈수록(볕과 김을 받는 쪽) 샛노란 딱지. 잡음으로 경계를 흔든다 */
-        c*=mix(vec3(0.60,0.55,0.44),vec3(1.06,1.02,0.90),smoothstep(-0.35,0.75,n.y+0.45*(a-0.5)+0.25*(b-0.5)));`:''}
-        ${k==='basalt'?`/* 현무암 — 옆면에 기둥 결(위에서 본 보로노이 칸의 경계가 세로로 내리 그은 금이 된다) · 잔 기공 */
+          c*=1.0-uRkCrack*ck*nearK; }   // 다듬은 신전 돌은 금이 드물다(97-temples.js)
+        if(uRkKind==1){ /* 유황 — **그러데이션**(사용자 요청): 밑은 잿빛 누런 흙빛, 위로 갈수록(볕과 김을 받는 쪽) 샛노란 딱지. 잡음으로 경계를 흔든다 */
+        c*=mix(vec3(0.60,0.55,0.44),vec3(1.06,1.02,0.90),smoothstep(-0.35,0.75,n.y+0.45*(a-0.5)+0.25*(b-0.5))); }
+        if(uRkKind==2)/* 현무암 — 옆면에 기둥 결(위에서 본 보로노이 칸의 경계가 세로로 내리 그은 금이 된다) · 잔 기공 */
         { vec2 ce=ckEdge(p.xz*0.9); float side=1.0-smoothstep(0.55,0.85,abs(n.y));
           c*=1.0-0.42*(1.0-smoothstep(0.0,0.05+fwidth(ce.x),ce.x))*side*nearK;
-          c*=1.0-0.30*smoothstep(0.84,0.92,rn(p/0.035))*nearK; }`:''}
-        ${k==='basaltcol'?`/* 바위섬의 현무암 기둥 — 잔 기공 · 물가(해수면 ±1.5 m)는 젖어 어둡고 그 밑은 더 어둡다 */
+          c*=1.0-0.30*smoothstep(0.84,0.92,rn(p/0.035))*nearK; }
+        if(uRkKind==3)/* 바위섬의 현무암 기둥 — 잔 기공 · 물가(해수면 ±1.5 m)는 젖어 어둡고 그 밑은 더 어둡다 */
         { c*=1.0-0.30*smoothstep(0.84,0.92,rn(p/0.035))*nearK;
-          c*=mix(0.55,1.0,smoothstep(-0.6,1.6,p.y)); }`:''}
-        ${k==='sandstone'?`/* 사암 — 가로 켜. 켜마다 빛깔이 조금씩 다르고 경계가 들쭉날쭉하다 */
+          /* 가로 절리 — 기둥은 식으며 0.4~1.2 m 마다 가로로도 금이 간다(공이음). 기둥마다(2 m 칸) 금의 높이가 다르다 */
+          float side=1.0-smoothstep(0.35,0.7,abs(n.y)), ph=rh(vec3(floor(p.x/1.9),7.0,floor(p.z/1.9)));
+          float jy=p.y*(1.1+0.9*ph)+ph*13.0, jl=abs(fract(jy)-0.5)*2.0;
+          c*=1.0-0.38*smoothstep(0.90,0.985,jl)*step(0.35,rh(vec3(floor(jy),ph*31.0,1.0)))*side*nearK;
+          c*=mix(0.55,1.0,smoothstep(-0.6,1.6,p.y));
+          c=mix(c,c*vec3(0.62,0.86,0.66),smoothstep(1.6,-0.4,p.y)*smoothstep(-2.5,-0.5,p.y)*0.6);         // 물가 — 바닷말 · 따개비 띠
+          /* 윗면 — 지의류(주황 · 잿빛)와 새똥 얼룩, 높은 데에는 흙과 풀 */
+          float up=smoothstep(0.55,0.9,n.y)*smoothstep(1.5,3.0,p.y);
+          float li=smoothstep(0.55,0.75,rn(p/0.7+4.0))*up;
+          c=mix(c,vec3(0.62,0.42,0.18)*(0.8+0.4*rn(p/0.2)),li*0.55);
+          c=mix(c,vec3(0.78,0.78,0.74),smoothstep(0.72,0.85,rn(p/0.45+9.0))*up*0.6);
+          c=mix(c,vec3(0.20,0.24,0.10)*(0.8+0.5*rn(p/0.3+2.0)),smoothstep(0.35,0.6,rn(p/2.2+1.0))*up*smoothstep(5.0,9.0,p.y)*0.85); }
+        if(uRkKind==4)/* 사암 — 가로 켜. 켜마다 빛깔이 조금씩 다르고 경계가 들쭉날쭉하다 */
         { float st=p.y*4.0+(rn(p/1.6)-0.5)*1.2; c*=mix(vec3(0.84,0.78,0.72),vec3(1.07,1.03,0.97),0.5+0.5*sin(st*3.1416));
-          c*=0.90+0.12*rh(vec3(0.0,floor(st),0.0)); }`:''}
-        ${k==='karst'?`/* 석회암 — 빗물에 녹은 잔 구멍 · 옆면을 타고 내린 세로 골 */
+          c*=0.90+0.12*rh(vec3(0.0,floor(st),0.0)); }
+        if(uRkKind==5)/* 석회암 — 빗물에 녹은 잔 구멍 · 옆면을 타고 내린 세로 골 */
         { c*=1.0-0.38*smoothstep(0.86,0.94,rn(p/0.08+2.0))*nearK;
-          c*=mix(1.0,0.88,smoothstep(0.45,0.85,rn(vec3(p.x*3.0,p.y*0.25,p.z*3.0)))*(1.0-abs(n.y))); }`:''}
+          c*=mix(1.0,0.88,smoothstep(0.45,0.85,rn(vec3(p.x*3.0,p.y*0.25,p.z*3.0)))*(1.0-abs(n.y))); }
         /* 위를 보는 면에는 이끼 낀 바위 사진(3번)이 얼룩지게 앉는다(넓은 잡음으로 군데군데) */
-        { float um=smoothstep(0.45,0.9,n.y)*${moss}.0*smoothstep(0.38,0.62,rn(p/3.3+5.5)+(rn(p/0.6)-0.5)*0.4);
+        { float um=smoothstep(0.45,0.9,n.y)*uRkMoss*smoothstep(0.38,0.62,rn(p/3.3+5.5)+(rn(p/0.6)-0.5)*0.4);
           vec3 mz=texture(uRk,vec3(p.xz/(RS*0.9),3.0)).rgb;
           c=mix(c,c0*mz*2.0*vec3(0.95,1.03,0.88),um*0.85); }`
         :PHOTO?`/* 사진 결 — 진짜 바위 사진(4번 층)을 x·y·z 세 방향에서 읽어 면이 보는 쪽대로 섞는다(늘어짐 없이 감긴다).
            큰 바위는 0.9 m 에 한 장, 자갈·부싯돌은 손바닥만 하니 0.3 m 에 한 장. 그린 점무늬(예전)는 모자이크 같았다 */
-        { vec3 tw=pow(abs(n),vec3(4.0)); tw/=tw.x+tw.y+tw.z+1e-4; float RS=${big?'0.9':'0.3'};
+        { vec3 tw=pow(abs(n),vec3(4.0)); tw/=tw.x+tw.y+tw.z+1e-4; float RS=uRkBig>0.5?0.9:0.3;
           vec3 rk=texture(uGnd,vec3(p.zy/RS,4.0)).rgb*tw.x+texture(uGnd,vec3(p.xz/RS,4.0)).rgb*tw.y+texture(uGnd,vec3(p.xy/RS,4.0)).rgb*tw.z;
           c*=mix(vec3(1.0),rk*2.0,0.9); }`
         :`if(T==0){ vec2 gr=grain(p/0.12+rn(p/0.5)*0.5); float g=gr.x; float dot0=smoothstep(0.10,0.30,gr.y);
@@ -924,13 +942,13 @@ vec2 grain(vec3 p){
           float e=min(min(min(f.x,1.0-f.x),min(f.y,1.0-f.y)),min(f.z,1.0-f.z));
           c*=mix(1.0,0.78+0.42*face,mix(0.55,1.0,nearK));
           c*=1.0-(1.0-smoothstep(0.0,0.04,e))*0.25*nearK;                 // 조각 사이 금
-          c+=vec3(0.18)*step(0.86,face)*nearK*${L.met.toFixed(2)};        // 볕 받은 면의 번쩍임
+          c+=vec3(0.18)*step(0.86,face)*nearK*uRkMet;        // 볕 받은 면의 번쩍임
         }
         else if(T==4){ vec2 gr=grain(p/0.07); c*=1.0+step(0.955,gr.x)*smoothstep(0.08,0.25,gr.y)*0.45*nearK; }   // 잔 반짝임 — 드물고 옅게
         else if(T==5){ c*=0.7+0.5*smoothstep(0.2,0.7,rn(p/0.12)); }
         else if(T==6){ c*=0.85+0.25*sin(length(p.xz-floor(p.xz/0.4)*0.4)*40.0)*nearK; }
         // 이끼·지의류 — 위를 향한 면
-        float up=smoothstep(0.55,0.85,n.y)*${moss}.0;
+        float up=smoothstep(0.55,0.85,n.y)*uRkMoss;
         /* 이끼는 둥근 얼룩이 아니라 방석이 번져 붙은 꼴이다 — 자리를 잡음으로 비틀고(도메인 워프)
            세 겹 잡음을 문턱으로 잘라 가장자리를 들쭉날쭉하게, 안쪽엔 방석 결과 빈틈을 둔다 */
         vec3 wq=p+(vec3(rn(p/0.9),rn(p/0.9+5.3),rn(p/0.9+8.1))-0.5)*0.9;
@@ -951,12 +969,12 @@ vec2 grain(vec3 p){
           c*=mix(0.60,1.0,smoothstep(0.04,0.38,abs(dot(nr,Vr)))); }`}
         // 금속 광택 — 해 쪽 반사
         vec3 V=-normalize(vRV), nv=normalize(mat3(viewMatrix)*n), sv=normalize(mat3(viewMatrix)*uSunDir);
-        float sp=pow(max(dot(reflect(-sv,nv),V),0.0),24.0)*${L.met.toFixed(2)}*max(uSunDir.y,0.0);
+        float sp=pow(max(dot(reflect(-sv,nv),V),0.0),24.0)*uRkMet*max(uSunDir.y,0.0);
         c+=vec3(sp*0.7);
         diffuseColor.rgb=c;
       }`);
   };
-  m.customProgramCacheKey=()=>'rock-'+k+(PHOTO?'-photo':'')+(RPH?'-rk':'');
+  m.customProgramCacheKey=()=>'rock-u'+TEX+(PHOTO?'-photo':'')+(RPH?'-rk':'');
   return m;
 }
 /* ── 지형 청크 · 거리 단계(LOD) ──────────────────────────────────────────
@@ -1538,6 +1556,10 @@ function buildWater(){
     if(!nearRiver(x,z)) continue;
     const a=vw2(x,z), b=vw2(x,z+1), c=vw2(x+1,z), d=vw2(x+1,z+1);
     if(a===null||b===null||c===null||d===null) continue;
+    /* **턱을 건너는 칸은 안 깐다**(사용자 지적: 폭포 둘레에 검은 세모가 허공에 떠 있다) — 저수지와 소처럼 수위가 크게 다른 물길이
+       맞닿으면 격자점 평균이 둘 사이를 비스듬한 판으로 이어, 벼랑 앞 허공에 깊은 물(짙은 빛 · 알파 1)이 섰다. 한 칸에서 3 m 넘게
+       떨어지는 것은 폭포다 — 물살 판(36-falls.js)이 덮는다 */
+    if(Math.max(a,b,c,d)-Math.min(a,b,c,d)>3.0) continue;
     const X=(x-N/2)*CELL, Z=(z-N/2)*CELL, S=CELL;
     { const i=IDX(x,z); WSURF.q[i]=1; WSURF.h[i]=a; WSURF.h[i+N]=b; WSURF.h[i+1]=c; WSURF.h[i+N+1]=d; }
     tris.push(X,a,Z, X,b,Z+S, X+S,c,Z,

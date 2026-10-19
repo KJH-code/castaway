@@ -239,7 +239,7 @@ function obtainOf(id){
     if(D.item===id) out.push('따기 — '+D.n+' ('+D.verb+(D.need?' · 날붙이를 지녀야':'')+')');
     if(D.extra) for(const x of D.extra) if(x[0]===id) out.push('따기 — '+D.n+' ('+D.verb+' 때 '+Math.round(x[1]*100)+'% 로 딸려 나온다)'); }
   for(const k in SEA_PICK){ const D=SEA_PICK[k]; if(D.item===id) out.push('줍기 — 바닷가 '+D.n+' ('+D.verb+')'); }
-  if(id==='ring_platinum') out.push('처음부터 지님 — 표류 전부터 끼고 있었다');
+  if(id==='ring_platinum') out.push((P.tv|0)<8?'처음부터 지님 — 표류 전부터 끼고 있었다':'해저 신전 — 섬 밖 깊은 바다 밑, 제단의 상자에 바쳐져 있다');
   if(id==='can_food')    out.push('처음부터 지님 — 보급선이 두 캔 쥐여 주었다. 섬에서는 못 만든다');
   if(id==='bottle_water'||id==='bottle_empty')
     out.push('처음부터 지님 — 보급선이 준 물병. 섬에서는 못 만들고 다시 채우기만 한다');

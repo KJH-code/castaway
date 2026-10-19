@@ -448,9 +448,15 @@ function updatePlayer(dt){
     // 부력으로 수면 근처에 뜬다. Space로 잠수 해제, Ctrl로 하강
     /* 기력이 다하면 몸이 가라앉는다 — 머리가 잠겨 숨이 닳기 시작한다(떠오르기도 안 먹는다). 발이 닿는 데로 나와야 산다 */
     const target=wl-(spent?1.75:0.45);
-    PL.vel.y += (((K.jump&&!spent)?1.6:(K.crouch?-1.4:(target-p.y)*3.2))-PL.vel.y)*clamp(6*dt,0,1);
+    /* 잠수 돌을 지녔으면 가라앉는다 — Ctrl 로 빨리(3.6 m/s), 가만히 있어도 2 m 밑에서는 천천히(0.7 m/s). 오를 때는 무겁다.
+       오리발은 오르내림도 빠르게 한다(지형 판 8 — 해저 신전은 수심 30~45 m) */
+    const stone=hasGear('dive_stone'), up=1.6*(fins?1.5:1)*(stone?0.75:1), down=(stone?3.6:1.4)*(fins?1.2:1);
+    const idle=stone&&p.y<wl-2?-0.7:(target-p.y)*3.2;
+    PL.vel.y += (((K.jump&&!spent)?up:(K.crouch?-down:idle))-PL.vel.y)*clamp(6*dt,0,1);
     /* 숨 — 머리가 잠기면 닳는다. 스노클이 있으면 수면 바로 밑(대롱 길이 0.5 m)까지는 숨을 쉰다 */
-    PL.oxy=clamp(PL.oxy + (p.y<wl-(hasGear('snorkel')?1.7:1.2)?-9*dt:14*dt),0,100);
+    const subm=p.y<wl-(hasGear('snorkel')?1.7:1.2);
+    PL.oxy=clamp(PL.oxy + (subm?-9*dt:14*dt),0,100);
+    airTube(subm,dt);
     if(spent){ if(!PL._spentMsg){ PL._spentMsg=true; toast('기력이 다했다 — 몸이 가라앉는다! 발 닿는 데로 나가라'); } }
     else{ PL._spentMsg=false;
       if(PL.stam<25){ if(!PL._tiredMsg){ PL._tiredMsg=true; toast('팔다리가 무겁다 — 기력이 떨어지기 전에 뭍으로 돌아가라'); } }
@@ -476,6 +482,7 @@ function updatePlayer(dt){
       else if(!PL._jt||performance.now()-PL._jt>2500){ PL._jt=performance.now(); toast(load>0.6?'짐이 무거워 돌진할 기력이 없다':'돌진할 기력이 없다'); }
     }
     PL.oxy=clamp(PL.oxy+18*dt,0,100);
+    airTube(false,dt);                                 // 뭍에서는 공기통이 다시 찬다
   }
 
   // 축별로 나눠 이동시켜 급사면에서 미끄러지듯 막히게 한다
@@ -576,6 +583,13 @@ function eyeWater(head,surf,gy,inRiver){
     scene.fog.color.setRGB((rv?0.10:0.03)*lum,(rv?0.22:0.30)*lum,(rv?0.16:0.37)*lum);
     scene.fog.density=hasGear('goggles')?0.030:0.060; skyUnder=true;
   }
+}
+/* 대통 공기통 — 물속에서 숨이 30 밑이면 가장 많이 남은 통에서 들이마시고(한 번에 숨 가득까지), 물 위에서는 통이 다시 찬다(초당 25) */
+function airTube(subm,dt){
+  let best=null;
+  for(const s of INV.slots) if(s.id==='air_tube'){ if(subm){ if(s.dur>0&&(!best||s.dur>best.dur)) best=s; } else if(s.dur<100){ s.dur=Math.min(100,s.dur+25*dt); invDirty=true; } }
+  if(subm&&best&&PL.oxy<30){ const take=Math.min(best.dur,100-PL.oxy); best.dur-=take; PL.oxy+=take; invDirty=true; sfx('bind');
+    toast('대통 공기통에서 숨을 들이마셨다'+(best.dur<1?' — 이 통은 비었다':' — 남은 공기 '+Math.round(best.dur))); }
 }
 /* 지니고 있나 — 헤엄 장비처럼 '갖고만 있으면 듣는' 것을 본다 */
 const hasGear=id=>{ for(const s of INV.slots) if(s.id===id) return true; return false; };
@@ -761,7 +775,7 @@ STEP[B.BEACH] =[120,1900,1.0,0.9];   STEP[B.DUNE]  =[115,1750,1.0,0.85];
 STEP[B.MARSH] =[85, 420, 0.8,1.35];  STEP[B.RIVER] =[95, 800, 0.9,1.5];
 STEP[B.ROCK]  =[170,2900,2.2,0.8];   STEP[B.SCREE] =[160,2500,2.6,1.0];
 STEP[B.MEADOW]=[110,1200,1.1,0.8];   STEP[B.SCRUB] =[110,1400,1.2,0.85];
-STEP[B.BROADLEAF]=[105,1000,0.9,0.9];STEP[B.CONIFER]=[100,900,0.9,0.9];
+STEP[B.BROADLEAF]=[105,1000,0.9,0.9];STEP[B.BAMBOO]=[105,1000,0.9,0.9];STEP[B.CONIFER]=[100,900,0.9,0.9];
 function footstep(){
   if(!A.ctx) return;
   const c=STEP[PL.under?B.ROCK:sampleAt(PL.pos.x,PL.pos.z).biome]||[110,1200,1.1,0.85];

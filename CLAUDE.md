@@ -9,7 +9,7 @@
 - Three.js r128을 레포 안의 `engine/three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 47개(코드 43 + base64 자료 4)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 365종 · 레시피 278개(제작법 240 + 설비 공정 38 — 2026-10-15 잼)
+- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 48개(코드 44 + base64 자료 4)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 280개(제작법 242 + 설비 공정 38 — 2026-10-19 잼)
 - 라이선스 GPL-3.0
 
 ## 폴더
@@ -17,7 +17,7 @@
 | 폴더 | 무엇 |
 |---|---|
 | `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
-| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 42개 + base64 자료 4개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
+| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 44개 + base64 자료 4개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
 | `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) |
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
@@ -250,6 +250,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `96-reef.js` | 바다 생물 마흔 — 헤엄치는 것 21(FISH_SP 에 보탠다) · 바닥 14 · 떠다니는 것 5 · 그 아이템·굽기·조합 · 산호 폴립 결. `seaScatter` 를 감싼다 |
 | `96-foam.js` | **물가의 거품** — 사람 둘레 55 m 의 물가에 서는 사면체 조각(물머리 · 부서지는 물결 · 물가를 늘 덮는 띠). 움직임은 정점 셰이더(진짜 수면 = 물 셰이더의 긴 파도 셋 · 물가의 생김새 `aD`), 물가 찾기는 C(`engine/native/shore.c` — `foamBench()` 로 JS 판과 견준다). **물 셰이더의 파도 수를 바꾸면 여기 · 땅 셰이더의 젖은 띠(22) · `seaSurfAt`(20) 도 같이** |
 | `97-wildlife.js` | 새 떼(`wildFlocks`) · 둥지와 알 · 벌집과 꿀(`WILD.picks` — `FLORA_PICK` 의 egg·honey) · 새총(`slingShot` · 총·활도 `wildShot`) · 나무 오르기(`climbTick` — `updatePlayer` 가 맨 먼저 부른다) · 나비·반딧불이·잠자리·벌(`wildBugs`) |
+| `97-temples.js` | **옛 신전**(지형 판 8 · 사용자 요청) — 섬 한가운데 계단 신전(`templeLandSite` — 뭍의 무게중심 둘레에서 고른 땅을 골라 반지름 36 m 를 다진다 · 자원 놓기 전) · 해구 가장자리 수심 30~45 m 의 해저 신전(`templeSeaSite` — `shapeSeabed` 뒤). 돌덩이는 방향이 돌아간 상자로 막는다(`templeFloor`·`templeSolid` — `coastFloor`·`coastSolid` 가 먼저 부른다). 상자·항아리는 한 번만 여는 줍기(`TEMPLE.picks` · FLORA_PICK `tchest`·`turn` 의 `once`·`loot` → `templeLoot` · 저장 `temples`) — **백금 반지는 해저 신전에서만**(판 8 은 처음 지니지 않는다). 들판의 바위 솎기 `thinOpenRocks` · 험한 데의 더 나은 소출 `yieldK`/`yieldMul` |
 | `98-bag.js` | 가방 화면(소지품 + 고른 것 + 제작) — 가방에는 그림 · 이름 · 개수 · 할 수 있는 일만, 자세한 것은 사전(`dexShow`) |
 | `99-main.js` | **`loop`** 8 · 맨 끝에서 게임을 켜는 다섯 줄 |
 
@@ -361,7 +362,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   배율 1 의 섬은 자원 배치의 난수 차례가 예전과 같아야 한다(`placeResources` 의 `WS===1` 갈래를 건드리지 말 것).
 - **지형 판(`P.tv`)** — 2 는 침식 뒤에 피오르·골짜기·단구·절벽·산릉·탁상지를 새기고(`terrainFeatures`) 동굴(`caveSites` · 32-caves.js)과
   암벽(33-crags.js)을 둔다. **판이 없는 옛 저장은 1 로 읽혀 예전 섬이 한 비트도 안 달라진다**(배율 2·판 1 의 표고·소품이 main 과 같음을
-  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` 가 주는 값도 올린다(지금 7 — 4 는 바다 골짜기 `seaTrenches` · 5 는 바이옴 비탈 · 바닷가 · 지열 · 폭포 · 6 은 광석을 굴 속에만(`oreToCaves` — 늪철광만 늪에) · 바깥 광석과 낮은 땅 화강암 일부를 그 자리의 현무암 · 석회암(`karst`) · 사암으로(`surfaceRocks`) · 산허리가 방으로 솟는 굴 자리 버리기(`caveSites` 의 `bulge`) · 7 은 저수지 폭포(36-falls.js) · 땅속 세계(96-underworld.js)).
+  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` 가 주는 값도 올린다(지금 8 — 8 은 옛 신전 둘(97-temples.js) · 대숲 바이옴(`B.BAMBOO` 13 — 활엽수림의 낮은 데 · 큰 얼룩) · 들판의 바위 솎기(`thinOpenRocks`) · 판판한 현무암 섬 · 4 는 바다 골짜기 `seaTrenches` · 5 는 바이옴 비탈 · 바닷가 · 지열 · 폭포 · 6 은 광석을 굴 속에만(`oreToCaves` — 늪철광만 늪에) · 바깥 광석과 낮은 땅 화강암 일부를 그 자리의 현무암 · 석회암(`karst`) · 사암으로(`surfaceRocks`) · 산허리가 방으로 솟는 굴 자리 버리기(`caveSites` 의 `bulge`) · 7 은 저수지 폭포(36-falls.js) · 땅속 세계(96-underworld.js)).
   새 지형 코드는 제 난수(`mulberry32(seed^상수)`)만 쓴다 — `placeResources` 의 난수 차례를 건드리지 않는다.
 - **지형 판 3 — 칸 안의 잔 기복(`RELIEF` · 10-worldgen.js)**: `heightAt` 이 둔덕·골(±0.35 m)을 더해 돌려준다. 그리는 쪽은 사람 둘레의
   덧판(`terrainPatch` — 20-terrain.js · 0.75 m 격자 · 46 m)이 **같은 식**을 셰이더에서 푼다. 식을 바꾸면 세 군데를 같이 바꿀 것 —
@@ -1515,6 +1516,27 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   뛰는 순간 날개 맨 위에서 첫 내려치기(`A.wp=1.98`) → 크고 빠르게(1.6 Hz) 치며 머리를 들고 · 12 m 밑에선 다리를 늘어뜨린다.
   **`wClimb` 는 AI 쪽이라 `wyv-sync` 가 안 옮긴다** — wyvern · battle · night · siege 에 같은 글로 따로 들어 있다(고치면 넷 다).
   잰 값(쫓기 → 선회): 0.5초 웅크림 → 1초 2.3 m · 4초 17 m · 6초 19.8 m · 가장 빠른 오름 6.9 m/s · 날개 뺀 뼈 프레임 튐 7.9°(예전 7.8°).
+
+- **지형 판 8 묶음**(사용자 버그 사진 · 요청 — 2026-10-19):
+  ① **벼랑 면의 사진 · 금은 삼각형의 실제 면 법선으로 옆 투영을 고른다**(22-ground-textures.js `fN` — 화소 기울기의 외적). 정점 법선은 이웃 칸과
+  섞인 값이라 벼랑의 길쭉한 삼각형에서 면과 딴 쪽을 가리켜, 면과 거의 나란한 투영을 읽어 V 자 빗금이 섰다.
+  ② **암벽 덩이는 절리로 쪼개진 모난 덩이**(`cragShape` — 상자 쪽으로 당긴 공을 ±x·±y·±z 를 조금 기울인 여섯 평면 + 모서리 두셋으로 깎고, 깎은 면의 점은
+  그 면의 법선) · **무리 안 덩이는 같은 쪽으로 선다**(`cragGrow` 의 `Y0`) · 무리 안 밝기는 조금만 흔든다. 꼴을 바꾸면 충돌(`cragSpan`)도 같은 꼴을 쓴다.
+  ③ **하천 판은 한 칸에서 3 m 넘게 떨어지는 칸을 안 깐다**(`buildWater`) — 저수지와 소 사이에 비스듬한 깊은 물(검은 세모)이 허공에 섰다. 폭포 물살 판이 덮는다.
+  ④ **바위 재질은 결 갈래(TEX)마다 셰이더 하나**(`rockMat` — 광물마다 다른 것은 `m.userData.rkU` 유니폼: `uRkKind` 사암·현무암 무늬 · 크기 · 금 · 이끼 · 광택).
+  예전엔 광물마다 셰이더라 광원 수가 바뀔 때마다 스무 남짓을 다시 짜(M1 에서 하나 0.1~0.5초) 처음 보는 바위마다 멈칫했다.
+  **결 갈래까지 유니폼으로 돌리지 말 것** — 공작석의 27번 고리까지 모든 바위가 안고 돌아 GPU 가 10 → 16 ms 였다(되돌려 7 ms). 새 광물 무늬는 `uRkKind` 에 번호를 더한다.
+  `envPatch` 의 열쇠도 땅에 녹아드는 높이를 정점 값(`meltAttr`)으로 받으면 그 수를 빼 셰이더를 나눠 쓴다.
+  ⑤ **미리 짜기는 숨은 칸 메시도 본다**(`precompPlan` 이 `propGroup._all` 을 돈다 — children 은 보이는 칸뿐이라 먼 바위 · 둔덕 칸 재질을 놓쳤다) · 쉬는 몫 3 → 1.2 배
+  (M1 시작 화면에서 다 짜는 데 92 → 27 초). **지도 바탕은 찍을 소품만 추려 둔다**(`_mapProps` — 10초마다 180만 소품을 훑어 85 ms 씩 끊겼다).
+  ⑥ **섬을 키운 뒤의 꼭대기는 `TEMPLE.hi`** — `stats.hi` 는 `worldRescale` 전 값이라 6배 섬에서 '높이의 몇 할' 조건이 다 틀렸다(신전 자리를 못 찾았다).
+  ⑦ **물에 들고 날 때**(캠코더 셰이더 `uDive` · `uWet` — `camcEnd` 가 물속 여부가 바뀌는 순간을 잡는다) — 들면 거품 · 렌즈 일렁임, 나오면 렌즈에 맺힌
+  물방울(볼록렌즈 굴절 · 어두운 테 · 흘러내리는 큰 방울과 물줄기). 캠코더를 끄면 안 보인다.
+  ⑧ **잠수** — 대통 공기통(`air_tube` · `durMax` 100 = 공기 · 물속에서 숨이 30 밑이면 저절로 들이마시고 물 위에서 다시 찬다 — `airTube`) · 잠수 돌(`dive_stone` —
+  지니면 Ctrl 3.6 m/s · 가만히 있어도 2 m 밑에서는 가라앉는다) · 오리발은 오르내림도 빠르게.
+  ⑨ **줍기 표(FLORA_PICK)의 새 칸** — `chance`(운 — 야자열매 25%) · `miss` · `once`(한 번뿐 — `TEMPLE.taken`) · `loot`(속은 `templeLoot`).
+  사암은 대개 돌멩이를 준다(석재는 `extra` 20%). 산호초(초원 · 돌기와 골 · 초 비탈)와 바위 암초는 `seaScatter` 가 바닷가의 결(`seaCoralCoast`)로 가른다.
+  물고기는 정점마다 빛깔 + 비늘 · 옆줄 · 지느러미 살 · 은빛(`fishMat` — `aF`).
 
 ## 함정
 

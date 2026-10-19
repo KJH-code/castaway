@@ -113,7 +113,8 @@ function snapshot(){
     sea:[...SEA.taken].filter(e=>gameHours-e[1]<SEA_REGROW).map(e=>[e[0],+e[1].toFixed(2)]),   // 주운 조개·굴·성게 자리
     cam:+CAMC.bat.toFixed(1), camh:+CAMC.health.toFixed(4), camli:CAMC.li?1:0,                       // 캠코더 배터리
     flora:[...FLORA.taken].filter(e=>gameHours-e[1]<72).map(e=>[e[0],+e[1].toFixed(2)]),        // 딴 덩굴·대나무·열매·버섯 자리
-    giants:giantSave(),                             // 벤 노거수 — 'gx,gz' → 남은 통나무(0 이면 쓰러진 그루)
+    giants:giantSave(),
+    temples:[...TEMPLE.taken],                     // 연 신전 상자 · 깬 항아리(97-temples.js)                             // 벤 노거수 — 'gx,gz' → 남은 통나무(0 이면 쓰러진 그루)
     power:{wheels:WHEELS.map(g=>[g.x,g.y,g.z]),
            dynamos:DYNAMOS.map(g=>[g.x,g.y,g.z]),
            arcs:ARCS.map(g=>[g.x,g.y,g.z]),
@@ -264,6 +265,7 @@ async function restore(d){
   safe('캠코더',()=>{ CAMC.bat=typeof d.cam==='number'?clamp(d.cam,0,100):100; CAMC.health=typeof d.camh==='number'?clamp(d.camh,0.04,1):1; CAMC.li=!!d.camli; CAMC.hsaid=0; });
   safe('식생',()=>{ FLORA.taken=new Map((d.flora||[]).filter(e=>Array.isArray(e)&&typeof e[0]==='string')); FLORA.near.cx=FLORA.far.cx=1e9; });
   safe('노거수',()=>giantRestore(d.giants));
+  safe('신전',()=>{ TEMPLE.taken=new Set((d.temples||[]).filter(e=>typeof e==='string')); });
   PL.pos.set(d.pl.x,d.pl.y,d.pl.z); PL.vel.set(0,0,0);
   PL.yaw=d.pl.yaw; PL.pitch=d.pl.pitch;
   PL.stam=d.pl.stam; PL.oxy=d.pl.oxy;
@@ -412,7 +414,7 @@ function offerLoadOnStart(){
 /* 새 섬은 지금 섬을 버린다 — 상륙했으면 한 번 묻고 자동 저장에 남긴 뒤 만든다(예전엔 R 한 번에 그냥 사라졌다) */
 function newIsland(go,cancel){
   if(busy||askOpen){ if(cancel) cancel(); return; }
-  { const g0=go; go=()=>{ P.tv=7; g0(); }; }       // 새 섬은 늘 새 지형 판 — 옛 저장을 불러온 뒤(P.tv 1)에 만드는 섬도
+  { const g0=go; go=()=>{ P.tv=8; g0(); }; }       // 새 섬은 늘 새 지형 판 — 옛 저장을 불러온 뒤(P.tv 1)에 만드는 섬도
   if(!landed){ go(); return; }
   ask('새 섬을 만들겠습니까?','지금 섬은 자동 저장에 남깁니다(다음 자동 저장이 덮어씁니다) · Y 예 · N 아니오',
       ()=>{ autoSave('새 섬을 만들기 전'); go(); }, cancel);

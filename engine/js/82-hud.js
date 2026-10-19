@@ -6,7 +6,7 @@
 /* ============================================================================
    11) HUD
    ========================================================================== */
-let mapImg=null, mapBase=null, mapBaseProps=null, mapBaseT=0;
+let mapImg=null, mapBase=null, mapBaseProps=null, mapBaseT=0, _mapProps=[], _mapPropsSrc=null, _mapPropsN=-1;
 document.getElementById('mSpan').textContent=WORLD+' m';   // 섬을 만들 때마다 다시 적는다(generateWorld — 섬 배율)
 function cacheMap(){
   const ctx=document.getElementById('map').getContext('2d');
@@ -106,17 +106,17 @@ function drawMap(){
      768² 화소를 putImageData 하고 자원 수천 개를 RESOURCES.find 로 찾아 찍어 한 번에 4 ms 였다.
      바탕은 자원 표시를 켜고 끌 때와 10초마다(캐서 사라진 것 반영)만 다시 굽는다 */
   const now=performance.now();
-  if(!mapBase||mapBaseProps!==showProps||now-mapBaseT>10000){
+  if(!mapBase||mapBaseProps!==showProps||now-mapBaseT>60000){
     if(!mapBase){ mapBase=document.createElement('canvas'); mapBase.width=mapBase.height=N; }
     const b=mapBase.getContext('2d');
     b.putImageData(mapImg,0,0);
     if(showProps){
-      const colOf={}; for(const r of RESOURCES) colOf[r.k]='#'+r.c.toString(16).padStart(6,'0');
-      for(const p of PROPS){
-        if(p.k==='oak'||p.k==='fir'||p.k==='reed'||p.k==='grass'||p.k==='pebble') continue;
-        b.fillStyle=colOf[p.k];
-        b.fillRect((p.x/CELL+N/2)|0,(p.z/CELL+N/2)|0,1.5*u,1.5*u);
-      }
+      /* 찍을 것만 섬마다 한 번 추려 둔다 — 6배 섬의 PROPS 는 풀까지 180만 개라, 10초마다 통째로 훑는 데 85 ms 가 들어 놀이가 툭툭 끊겼다 */
+      if(_mapPropsSrc!==PROPS||_mapPropsN!==PROPS.length){ _mapPropsSrc=PROPS; _mapPropsN=PROPS.length; _mapProps=[];
+        const colOf={}; for(const r of RESOURCES) colOf[r.k]='#'+r.c.toString(16).padStart(6,'0');
+        for(const p of PROPS){ if(p.k==='oak'||p.k==='fir'||p.k==='reed'||p.k==='grass'||p.k==='pebble'||p.k==='flint') continue;
+          _mapProps.push((p.x/CELL+N/2)|0,(p.z/CELL+N/2)|0,colOf[p.k]); } }
+      for(let i=0;i<_mapProps.length;i+=3){ b.fillStyle=_mapProps[i+2]; b.fillRect(_mapProps[i],_mapProps[i+1],1.5*u,1.5*u); }
     }
     const px=podPos.x/CELL+N/2, pz=podPos.z/CELL+N/2;      // 상륙 지점
     b.fillStyle='#ffb060'; b.fillRect(px-1.5*u,pz-1.5*u,3*u,3*u);
@@ -537,8 +537,8 @@ function updateHUD(dt){
   }else if(FLORA.look&&!harvestByUse()){           // 나무·덤불·꽃·버섯·돌 — 세상에 선 것은 다 무엇인가를 준다(95-flora.js)
     const D=FLORA_PICK[FLORA.look.kind], left=floraWait(FLORA.look);
     hudS(look,'display','block');
-    const got=ITEMS[D.item].n+(D.extra?' · 가끔 '+D.extra.map(x=>ITEMS[x[0]].n).join('·'):'');
-    hudH(lt,left>0?(D.n+'<em>아직 다시 나지 않았다 — 약 '+Math.ceil(left)+'시간 뒤</em>')
+    const got=D.loot?(FLORA.look.deep?'깊은 바다에 바쳐진 것 — 백금 반지가 든다고 한다':'옛 사람들이 두고 간 것'):ITEMS[D.item].n+(D.extra?' · 가끔 '+D.extra.map(x=>ITEMS[x[0]].n).join('·'):'')+(D.chance?' · 잘 안 떨어진다':'');
+    hudH(lt,left>0?(D.n+'<em>'+(D.once?'비었다':'아직 다시 나지 않았다 — 약 '+Math.ceil(left)+'시간 뒤')+'</em>')
                   :('[좌클릭] '+D.n+' '+D.verb+'<em>'+(D.need&&!hasSharp()?'날붙이를 지녀야 벤다':D.take?ITEMS[D.take].n+'에 담는다 · 횃불 연기가 없으면 쏘인다':got)+'</em>'));
     gatherBar(lb,lf,FLORA.look);
   }else if(CLIMB.on){                             // 나무 위(97-wildlife.js)

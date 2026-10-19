@@ -249,7 +249,7 @@ function wildBugs(dt){
       if(i<16&&WILD.hives.length){ const h=WILD.hives[i%WILD.hives.length]; s.x=h.x; s.y=h.y; s.z=h.z; s.k=4; s.life=6+Math.random()*6; s.bx=h.x; s.by=h.y; s.bz=h.z; }
       else{ const a=Math.random()*6.283, d=3+Math.random()*24, x=px+Math.cos(a)*d, z=pz+Math.sin(a)*d, sm=sampleAt(x,z);
         if(sm.elev>0.3){ const g=heightAt(x,z), wet=sm.river||sm.biome===B.MARSH||floraNearRiver(IDX(clamp(Math.round(x/CELL+N/2),1,N-2),clamp(Math.round(z/CELL+N/2),1,N-2)));   // 민물 가(바닷가는 아니다)
-          if(night){ if(sm.biome===B.BROADLEAF||sm.biome===B.CONIFER||sm.biome===B.MARSH||sm.biome===B.MEADOW){ s.k=2; s.y=g+0.4+Math.random()*2.2; } }
+          if(night){ if(sm.biome===B.BROADLEAF||sm.biome===B.BAMBOO||sm.biome===B.CONIFER||sm.biome===B.MARSH||sm.biome===B.MEADOW){ s.k=2; s.y=g+0.4+Math.random()*2.2; } }
           else if(wet){ if(Math.random()<0.3){ s.k=3; s.y=g+0.6+Math.random()*1.2; } }   // 잠자리(파란 점)는 드물게(사용자 요청 — 너무 많았다)
           else if(sm.biome===B.MEADOW||sm.biome===B.BROADLEAF||sm.biome===B.SCRUB){ s.k=Math.random()<0.5?1:(Math.random()<0.5?5:6); s.y=g+0.4+Math.random()*1.3; }
           if(s.k){ s.x=x; s.z=z; s.life=8+Math.random()*14; s.gy=g; } } }

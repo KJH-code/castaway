@@ -404,6 +404,11 @@ function classify(){
     else if(e>HI*0.90)                         b[i]=B.SCREE;
     else if(marshSet[i] && mo>0.35)            b[i]=B.MARSH;
     else if(mo>0.50)                           b[i]= e>HI*0.45 ? B.CONIFER : B.BROADLEAF;
+    /* 지형 판 8 — **대숲**: 대나무는 덥고 축축한 낮은 골짜기 · 냇가에 빽빽이 무리 지어 선다(땅속줄기로 번진다). 활엽수림의 낮은 데 가운데
+       큰 얼룩 잡음이 높은 데(물가에서는 문턱을 낮춘다) — 침엽수림과는 높이로 떨어진다 */
+    if((P.tv|0)>=8 && b[i]===B.BROADLEAF && e<HI*0.34){
+      const bn=SHP.vn3(x*0.028,z*0.028,4.1,(hashStr(String(P.seed))^0xba5b)&0xffff);
+      if(bn>(F.dRiver[i]<45?0.05:0.28)) b[i]=B.BAMBOO; }
     else if(mo>0.22)                           b[i]= e>HI*0.62 ? B.CONIFER : B.MEADOW;
     else                                       b[i]=B.SCRUB;
   }
@@ -417,7 +422,7 @@ function classify(){
    하천과 그 둑(이웃 칸) · 바다는 손대지 않는다(물높이가 하천 판과 어긋나지 않게). 섬 배율을 키운 **뒤에** 부른다(CELL 이 m 다) */
 function biomeSlopes(){
   const MAXS={}; MAXS[B.BEACH]=0.12; MAXS[B.MARSH]=0.04; MAXS[B.DUNE]=0.30; MAXS[B.MEADOW]=0.35; MAXS[B.SCRUB]=0.50;
-  MAXS[B.BROADLEAF]=0.60; MAXS[B.CONIFER]=0.85; MAXS[B.FUMAROLE]=0.45;
+  MAXS[B.BROADLEAF]=0.60; MAXS[B.BAMBOO]=0.55; MAXS[B.CONIFER]=0.85; MAXS[B.FUMAROLE]=0.45;
   const h=F.elev, b=F.biome, R=F.river, keep=new Uint8Array(N*N);
   for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=IDX(x,z); if(R[i]||R[i-1]||R[i+1]||R[i-N]||R[i+N]||h[i]<=0.3) keep[i]=1; }
   for(let pass=0;pass<6;pass++){
@@ -656,7 +661,7 @@ async function placeResources(seed){    // async — 긴 고리 사이 숨을 �
     sand:i=> (b[i]===B.BEACH?1:0) + (b[i]===B.DUNE?0.85:0),
     reed:i=> (b[i]===B.MARSH?1:0) + (F.dRiver[i]<6&&h[i]>0?0.6:0),
     // 풀숲: 초원이 본진, 활엽수림 임상 하층과 습지 가장자리까지. 암반·해빈에는 안 남
-    grass:i=> b[i]===B.MEADOW?1 : (b[i]===B.BROADLEAF?0.55 :
+    grass:i=> b[i]===B.MEADOW?1 : (b[i]===B.BROADLEAF?0.55 : b[i]===B.BAMBOO?0.12 :
               (b[i]===B.MARSH?0.40 : (b[i]===B.SCRUB?0.35 :
               (b[i]===B.DUNE?0.18 : (b[i]===B.CONIFER?0.22:0))))),
     // 공작석: 구리 광화대의 산화대 — 중고도 암반에 소규모 맥
@@ -812,6 +817,7 @@ async function placeResources(seed){    // async — 긴 고리 사이 숨을 �
   await breathe(); caveSites(seed);                                     // 동굴 자리를 잡고 광석을 그 안으로 옮긴다(지형 판 2)
   await breathe(); cragSites(seed);                                     // 벼랑에 박힌 큰 바위 무리(33-crags.js)
   await breathe(); if(typeof geoSites==='function') geoSites(seed);     // 지열 지대 — 온천 · 간헐천 · 진흙 웅덩이 · 석회화 단구(35-geo.js · 지형 판 5)
+  if((P.tv|0)>=8){ thinOpenRocks(); templeClearProps(); }               // 들판의 바위를 솎고 신전 터를 비운다(97-temples.js · 지형 판 8)
   for(const k in counts) counts[k]=0; for(const p of PROPS) counts[p.k]=(counts[p.k]||0)+1;
   stats.props=PROPS.length; stats.counts=counts; stats.forced=forced;
 }
