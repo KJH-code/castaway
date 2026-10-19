@@ -317,7 +317,7 @@ function mobSpawner(k){
   const fwdX=-Math.sin(PL.yaw), fwdZ=-Math.cos(PL.yaw);
   const spot=(ok,rmin,rmax)=>{ for(let t=0;t<14;t++){ const a=Math.random()*6.283, r=rmin+Math.random()*(rmax-rmin), x=px+Math.cos(a)*r, z=pz+Math.sin(a)*r;
       if(Math.cos(a)*fwdX+Math.sin(a)*fwdZ>0.45) continue;                   // 눈앞에 불쑥 서지 않게
-      if(heightAt(x,z)<0.5||ok(x,z)) return [x,z]; } return null; };
+      if(heightAt(x,z)>=0.5&&ok(x,z)) return [x,z]; } return null; };   // 물 위 자리는 버린다(예전엔 조건이 거꾸로라 스킨워커 41% · 가고일 17% 가 물속에 섰다)
   /* 가고일 — 풀밭 · 탁상지 */
   const gAlive=MON.garg.filter(g=>g.active).length, gWant=Math.min(6,Math.round(4*k));
   if(gAlive<gWant&&Math.random()<0.35){
@@ -479,12 +479,14 @@ function mimTick(m,dt){
   if(spd>0){ const len=Math.hypot(mx,mz)||1; mx/=len; mz/=len;
     const nx=m.pos.x+mx*spd*dt, nz=m.pos.z+mz*spd*dt;
     const lit=mobLitAt(nx,nz);
-    if(heightAt(nx,nz)>0.3&&(m.state==='shun'||lit<1||(lit===1&&meLit))&&!solidAt(nx,nz,heightAt(nx,nz)+1.5)){ m.pos.x=nx; m.pos.z=nz; m.walkPh+=dt*spd*0.9; }   // 빛으로는 안 들어간다
+    const hN=heightAt(nx,nz), hC=heightAt(m.pos.x,m.pos.z);            // 물에 들어가 있으면 어디로든 걸어 나온다(예전엔 물에 서면 영영 못 움직였다)
+    if((hN>0.3||hC<=0.3)&&(m.state==='shun'||lit<1||(lit===1&&meLit))&&!solidAt(nx,nz,heightAt(nx,nz)+1.5)){ m.pos.x=nx; m.pos.z=nz; m.walkPh+=dt*spd*0.9; }   // 빛으로는 안 들어간다
     else if(m.state==='wander') mimWander(m);
     if(face===null) face=Math.atan2(mx,mz); }
   m.speed=spd;
   if(face!==null){ let d=face-m.yaw; while(d>Math.PI)d-=6.283; while(d<-Math.PI)d+=6.283; m.yaw+=d*clamp(2.6*dt,0,1); }
-  if(m.kv.lengthSq()>0.01){ m.pos.x+=m.kv.x*dt; m.pos.z+=m.kv.z*dt; m.kv.multiplyScalar(Math.exp(-4*dt)); }
+  if(m.kv.lengthSq()>0.01){ const kx=m.pos.x+m.kv.x*dt, kz=m.pos.z+m.kv.z*dt;              // 넉백 — 물로는 안 밀린다(물에 빠지면 못 나왔다)
+    if(heightAt(kx,kz)>0.3){ m.pos.x=kx; m.pos.z=kz; m.kv.multiplyScalar(Math.exp(-4*dt)); } else m.kv.set(0,0,0); }
   m.pos.y=heightAt(m.pos.x,m.pos.z);
   if(m.state!=='stalk'&&m.state!=='shun'&&(m.voiceT-=dt)<0){ m.voiceT=8+Math.random()*12; if(dist<100) mobVoice('wail',m.pos.x,m.pos.y+3,m.pos.z,0.6); }
   mimPose(m,dt);
