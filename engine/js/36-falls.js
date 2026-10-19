@@ -129,19 +129,45 @@ function fallsFoamTex(){
     const gr=g.createRadialGradient(x,y,0,x,y,r); gr.addColorStop(0,'rgba(255,255,255,'+(0.55*(1-d/64))+')'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(x-r,y-r,r*2,r*2); }
   return _fFoamTex=new THREE.CanvasTexture(c);
 }
+/* 떨어지는 물(사용자 지적: 폭포가 골함석처럼 희고 판판하다). 실제 폭포의 물살은
+     · 마루에서는 **유리처럼 맑은 물 판**이다 — 짙은 청록에 하늘이 비치고, 바닥이 비친다
+     · 떨어지며 빨라져(v = √(2gh)) 공기가 섞이고 **하얗게 부서진다** — 아래로 갈수록 흰 거품 뭉치(덩이 · 가닥)가 많아진다
+     · 가닥은 곧은 줄이 아니라 **덩이째 흘러내리며 늘어나는 물뭉치**다(줄무늬가 고르면 골함석이 된다)
+     · 가장자리는 들쭉날쭉 찢기고 · 밑동은 물보라에 묻혀 흐려진다
+   그래서 무늬를 v 에 따라 흐르는 빠르기를 늘린(가속) 좌표로 읽는다 — 세로로 늘인 잡음 세 겹을 서로 비틀고(도메인 휨) 흐른 거리 s=v²으로 민다.
+   빛은 램버트(그늘 · 해 그림자 · 구름 그림자를 다 받는다) + 등 뒤 해에 비치는 몫(얇은 물 판이 빛을 통과시킨다) */
 function fallsMat(){
-  const m=new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,depthWrite:false,side:THREE.DoubleSide,emissive:0x303438});
-  m.onBeforeCompile=sh=>{ sh.uniforms.uFT=FALLS.U.uFT;
-    sh.vertexShader='varying vec2 vFU;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvFU=uv;');
-    sh.fragmentShader='uniform float uFT;\nvarying vec2 vFU;\nfloat fh(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }\nfloat fn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y); }\n'
+  const m=new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,depthWrite:false,side:THREE.DoubleSide,emissive:0x1c2226});
+  m.onBeforeCompile=sh=>{ sh.uniforms.uFT=FALLS.U.uFT; if(TERR_U.uSunDir) sh.uniforms.uSunDir=TERR_U.uSunDir;
+    sh.vertexShader='varying vec2 vFU;\nvarying vec3 vFW;\nvarying vec3 vFV;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvFU=uv; vFW=(modelMatrix*vec4(transformed,1.0)).xyz; vFV=vFW-cameraPosition;');
+    sh.fragmentShader='uniform float uFT;\n'+(TERR_U.uSunDir?'uniform vec3 uSunDir;\n':'const vec3 uSunDir=vec3(0.3,0.8,0.2);\n')+'varying vec2 vFU;\nvarying vec3 vFW;\nvarying vec3 vFV;\n'
+      +'float fh(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }\n'
+      +'float fn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y); }\n'
+      +'float fb(vec2 p){ return fn(p)*0.55+fn(p*2.13+7.1)*0.30+fn(p*4.37+3.3)*0.15; }\n'
       +sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
-      { /* 위에서 아래로 쏟아지는 결 — 가로로 촘촘한 세로 줄(물줄기)이 흘러내리고, 잡음으로 끊기고 뭉친다. 양 가장자리는 옅다 */
-        float u=vFU.x, v=vFU.y, t=uFT;
-        float s=fn(vec2(u*38.0,v*3.0-t*2.6))*0.6+fn(vec2(u*90.0,v*7.0-t*4.1))*0.4;
-        float edge=smoothstep(0.0,0.12,u)*smoothstep(1.0,0.88,u);
-        diffuseColor.rgb=mix(vec3(0.70,0.80,0.84),vec3(0.97,0.99,1.0),smoothstep(0.35,0.75,s));
-        diffuseColor.a=edge*(0.55+0.45*smoothstep(0.25,0.6,s))*smoothstep(0.0,0.06,v); }`); };
-  m.customProgramCacheKey=()=>'falls'; return m;
+      { float u=vFU.x, v=vFU.y, t=uFT;
+        float s=v*v*3.2+v*0.6;                                                     // 흐른 거리(가속) — 마루에서 느리고 아래로 갈수록 빠르다
+        vec2 q=vec2(u*7.0, s*1.6-t*1.9);
+        vec2 wq=vec2(fb(q*vec2(0.6,0.35)+1.7), fb(q*vec2(0.6,0.35)+5.3))-0.5;       // 도메인 휨 — 물뭉치가 휘고 엉킨다
+        float clump=fb(q*vec2(1.0,0.45)+wq*2.2);                                    // 큰 물뭉치
+        float strand=fb(vec2(u*23.0+wq.x*4.0, s*3.4-t*3.1));                        // 가는 물가닥(규칙적인 골이 안 서게 휜 좌표로)
+        float spray=fn(vec2(u*60.0+wq.y*9.0, s*10.0-t*7.0));                       // 잔 물방울
+        float aer=smoothstep(0.02,0.55,v);                                         // 공기가 섞인 정도 — 마루 0 → 아래 1
+        float white=clamp(smoothstep(0.42,0.70,clump)*0.75+smoothstep(0.55,0.85,strand)*0.45+smoothstep(0.7,0.95,spray)*0.25,0.0,1.0);
+        white=mix(white*0.35,max(white,0.55+0.45*clump),aer*0.85);
+        vec3 clear=vec3(0.10,0.22,0.24)+vec3(0.14,0.18,0.18)*smoothstep(0.3,0.8,strand);   // 맑은 물 판 — 짙은 청록에 결이 비친다
+        vec3 foam=vec3(0.93,0.96,0.97)*(0.86+0.14*spray);
+        diffuseColor.rgb=mix(clear,foam,white);
+        /* 가장자리 — 찢긴 물살: 잡음으로 폭이 들쭉날쭉 · 아래로 갈수록 넓고 성기다 */
+        float rag=0.10+0.10*aer+0.10*(fn(vec2(s*4.0-t*2.0,u*3.0))-0.5);
+        float edge=smoothstep(0.0,rag,u)*smoothstep(1.0,1.0-rag,u);
+        float body=mix(0.62,0.95,white)*(0.75+0.25*smoothstep(0.2,0.6,clump));
+        diffuseColor.a=edge*body*smoothstep(0.0,0.05,v)*mix(1.0,0.55+0.45*smoothstep(0.25,0.6,clump),smoothstep(0.85,1.0,v)); }`)
+      .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+      { /* 등 뒤 해 — 얇은 물 판을 해가 뒤에서 비추면 밝게 빛난다(맑은 물 쪽이 더) */
+        vec3 vd=normalize(vFV); float bk=pow(max(dot(vd,normalize(uSunDir)),0.0),4.0)*smoothstep(0.0,0.2,uSunDir.y);
+        totalEmissiveRadiance+=vec3(0.55,0.62,0.55)*bk*0.5; }`); };
+  m.customProgramCacheKey=()=>'falls2'; return m;
 }
 function fallsBuild(){
   for(const m of FALLS.meshes){ scene.remove(m); if(m.geometry) m.geometry.dispose(); } FALLS.meshes.length=0;
@@ -164,7 +190,7 @@ function fallsBuild(){
   }
   /* 연어 — 몸 75 cm · 등은 짙은 청회 · 배는 은빛 · 산란기의 붉은 옆구리 */
   const sal={id:'salmon',len:0.75,tall:0.27,thick:0.18,c:[0x4a5a6a,0xd8d4cc,0xa8463a],pat:'spots'};
-  const fishM=new THREE.InstancedMesh(fishGeo(sal),new THREE.MeshLambertMaterial({vertexColors:true}),FALLS.list.length*8);
+  const fishM=new THREE.InstancedMesh(fishGeo(sal),fishMat(),FALLS.list.length*8);
   fishM.count=0; fishM.frustumCulled=false; scene.add(fishM); FALLS.meshes.push(fishM);
   FALLS.fish={m:fishM, list:[]};
   for(const f of FALLS.list) for(let k=0;k<8;k++) FALLS.fish.list.push({f, a:Math.random()*6.283, r:1.2+Math.random()*f.w*0.4, sp:0.4+Math.random()*0.5, jump:-1, jt:0});

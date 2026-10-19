@@ -58,22 +58,40 @@ float frn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   }
   return CRAG.matFar=m;
 }
-/* 바위 꼴 하나 — 같은 시드는 쪼갬 수(w·h)가 달라도 같은 꼴이다(먼 것은 성기게 짓는다) */
+/* 바위 꼴 하나 — 같은 시드는 쪼갬 수(w·h)가 달라도 같은 꼴이다(먼 것은 성기게 짓는다).
+   **절리로 쪼개진 덩어리**(사용자 지적: 암벽이 감자 더미 같다 · 실제 같은 지형). 실제 벼랑의 큰 바위는 둥글게 닳은 공이 아니라
+   절리(서로 거의 직각인 금 세 벌)를 따라 떨어져 나온 모난 덩이다 — 윗면은 판판하고(층리), 옆면은 곧게 서고, 모서리만 조금 닳았다.
+     ① 공을 상자 쪽으로 세게 당긴다(초타원 지수 0.8~0.95 — 예전 0.45~0.85 는 둥근 베개였다)
+     ② 절리 면 — 여섯 방향(±x · ±y · ±z)을 조금씩 기울인 평면으로 자른다. 꼴마다 같은 방향 틀이라, 무리 안 덩이들을 같은 쪽으로
+        돌려 세우면(cragGrow) 이웃 덩이의 면이 나란해져 한 벼랑이 쪼개진 것으로 읽힌다
+     ③ 모서리를 비스듬히 떼어 낸 면 2~4 장 · 층리 — 높이를 따라 얕은 턱(가로 홈)
+     ④ 잔 울퉁불퉁은 깎은 면 위에만 옅게(면은 판판하게 남는다) · 법선은 깎은 면이면 그 면의 법선(모서리만 둥글게 잇는다) */
 function cragShape(seed,w,h){
   const g=new THREE.SphereGeometry(1,w,h), p=g.attributes.position, rnd=mulberry32((seed^0x3c6ef3)>>>0);
-  const box=0.45+rnd()*0.40, L=[], C=[];
-  for(let i=0;i<5;i++){ let x=rnd()*2-1, y=rnd()*2-1, z=rnd()*2-1; const l=Math.hypot(x,y,z)||1; L.push([x/l,y/l,z/l,1.3+rnd()*2.4,rnd()*6.283,rnd()*2-1]); }
-  for(let i=0,n=3+((rnd()*4)|0);i<n;i++){ let x=rnd()*2-1, y=(rnd()*2-1)*0.6, z=rnd()*2-1; const l=Math.hypot(x,y,z)||1; C.push([x/l,y/l,z/l,0.62+rnd()*0.30]); }
-  const st=5+rnd()*8, sp=rnd()*6.283;
+  const box=0.55+rnd()*0.25, C=[], L=[];
+  for(let i=0;i<3;i++){ let x=rnd()*2-1, y=rnd()*2-1, z=rnd()*2-1; const l=Math.hypot(x,y,z)||1; L.push([x/l,y/l,z/l,1.1+rnd()*1.6,rnd()*6.283,rnd()*2-1]); }
+  /* 절리 면 여섯 — 축마다 ±, 18° 안팎으로 기울이고 깊이(0.70~0.95)를 들쭉날쭉하게 */
+  const AX=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+  for(const a of AX){ let x=a[0]+(rnd()-0.5)*0.34, y=a[1]+(rnd()-0.5)*(a[1]?0.18:0.30), z=a[2]+(rnd()-0.5)*0.34; const l=Math.hypot(x,y,z)||1;
+    C.push([x/l,y/l,z/l,(a[1]>0?0.74:0.70)+rnd()*0.24]); }
+  for(let i=0,n=2+((rnd()*3)|0);i<n;i++){ let x=rnd()*2-1, y=(rnd()*2-1)*0.8, z=rnd()*2-1; const l=Math.hypot(x,y,z)||1; C.push([x/l,y/l,z/l,0.80+rnd()*0.22]); }   // 모서리를 떼어 낸 면
+  const lay=5+rnd()*6, lp=rnd()*6.283, cut=new Int8Array(p.count).fill(-1);
   for(let i=0;i<p.count;i++){ let x=p.getX(i), y=p.getY(i), z=p.getZ(i);
-    const k=Math.pow(Math.max(Math.abs(x),Math.abs(y),Math.abs(z)),-box); x*=k; y*=k; z*=k;            // 네모지게(모서리가 선다)
+    const ux=x, uy=y, uz=z;
+    const k=Math.pow(Math.max(Math.abs(x),Math.abs(y),Math.abs(z)),-box); x*=k; y*=k; z*=k;            // 상자 쪽으로
     let f=0; for(const l of L) f+=l[5]*Math.sin(l[3]*(x*l[0]+y*l[1]+z*l[2])+l[4]);
-    const ux=p.getX(i), uy=p.getY(i), uz=p.getZ(i);
-    const s=(1+0.055*f+0.020*Math.sin(y*st+sp))*(1+0.075*SHP.rough(ux,uy,uz,seed,1.7,4))*(1+0.16*(SHP.jag(ux,uy,uz,seed^0x6a,2.3,3)-0.25)); x*=s; y*=s; z*=s;   // + 날카로운 능선(SHP.jag)   // 큰 혹 · 가는 층리 · 잔 울퉁불퉁(SHP.rough — 사용자 요청: 바위가 너무 매끈하다)
-    for(const c of C){ const d=x*c[0]+y*c[1]+z*c[2]-c[3]; if(d>0){ x-=c[0]*d; y-=c[1]*d; z-=c[2]*d; } }  // 쪼개진 면
+    const tr=Math.abs(((y*lay+lp/6.283)%1+1)%1-0.5)*2;                                               // 층리 — 0(켜의 가운데) ~ 1(켜의 경계)
+    const s=(1+0.035*f-0.022*Math.pow(tr,6))*(1+0.045*SHP.rough(ux,uy,uz,seed,1.9,4))*(1+0.07*(SHP.jag(ux,uy,uz,seed^0x6a,2.6,3)-0.25)); x*=s; y*=s; z*=s;
+    for(let ci=0;ci<C.length;ci++){ const c=C[ci], d=x*c[0]+y*c[1]+z*c[2]-c[3]; if(d>0){ x-=c[0]*d; y-=c[1]*d; z-=c[2]*d; cut[i]=ci; } }
+    /* 깎은 면에도 잔 결 — 면을 따라 0.6% 만(판판함은 남긴다) */
+    if(cut[i]>=0){ const c=C[cut[i]], e=0.012*SHP.rough(ux*1.7,uy*1.7,uz*1.7,seed^0x51,2.2,3); x+=c[0]*e; y+=c[1]*e; z+=c[2]*e; }
     p.setXYZ(i,x,y,z); }
   g.computeVertexNormals(); SHP.weldSeam(g,w);
-  const o={pos:Float32Array.from(p.array), nor:Float32Array.from(g.attributes.normal.array), idx:Uint16Array.from(g.index.array)};
+  /* 깎은 면의 점은 그 면의 법선으로(85%) — 면 하나가 한 볕을 받아 모난 덩이로 읽힌다. 면과 면 사이 한 줄만 둥글게 이어진다 */
+  const nr=g.attributes.normal;
+  for(let i=0;i<p.count;i++){ const ci=cut[i]; if(ci<0) continue; const c=C[ci];
+    let x=nr.getX(i)*0.15+c[0]*0.85, y=nr.getY(i)*0.15+c[1]*0.85, z=nr.getZ(i)*0.15+c[2]*0.85; const l=Math.hypot(x,y,z)||1; nr.setXYZ(i,x/l,y/l,z/l); }
+  const o={pos:Float32Array.from(p.array), nor:Float32Array.from(nr.array), idx:Uint16Array.from(g.index.array)};
   g.dispose(); return o;
 }
 function cragShapes(){
@@ -111,9 +129,12 @@ const CRAG_TINT=[[1.06,1.00,0.90],[0.92,0.97,1.06],[1.00,0.90,0.80],[1.08,1.07,1
 function cragGrow(s,B){
   const rnd=mulberry32(s.seed>>>0), dx=s.dx, dz=s.dz, tx=-dz, tz=dx;                 // 내리막 · 등고선
   const r0=CELL*(0.55+0.75*rnd()*rnd())*(rnd()<0.10?1.6:1), type=(rnd()*4)|0, side=rnd()<0.5?1:-1;
-  const TB=0.66+0.52*rnd(), T0=CRAG_TINT[(rnd()*CRAG_TINT.length)|0], T1=CRAG_TINT[(rnd()*CRAG_TINT.length)|0];   // 무리의 밝기 · 빛 둘
-  const put=(x,y,z,rx,ry,rz,lv)=>{ const b=TB*(0.80+0.42*rnd())*(lv===2?1.08:1), m=rnd(), j=()=>0.96+0.08*rnd();
-    B.push(x,y,z,rx,ry,rz,(rnd()-0.5)*(lv?0.9:0.4),lv?rnd()*6.283:Math.atan2(-tz,tx)+(rnd()-0.5)*0.7,(rnd()-0.5)*(lv?0.9:0.4)+(type===3&&!lv?0.25:0),
+  const TB=0.80+0.30*rnd(), T0=CRAG_TINT[(rnd()*CRAG_TINT.length)|0], T1=CRAG_TINT[(rnd()*CRAG_TINT.length)|0];   // 무리의 밝기 · 빛 둘
+  /* **무리의 덩이는 같은 쪽으로 선다**(절리 틀이 나란하게 — cragShape) — 예전엔 새끼 덩이를 아무 쪽으로나 돌려 세워 공 더미로 보였다.
+     밝기도 무리 안에서는 조금만 흔든다(한 벼랑의 돌이다 — 예전엔 덩이마다 0.8~1.2배라 조각보 같았다) */
+  const Y0=Math.atan2(-tz,tx)+(rnd()-0.5)*0.3;
+  const put=(x,y,z,rx,ry,rz,lv)=>{ const b=TB*(0.92+0.16*rnd())*(lv===2?1.03:1), m=rnd(), j=()=>0.97+0.06*rnd();
+    B.push(x,y,z,rx,ry,rz,(rnd()-0.5)*(lv?0.32:0.18),Y0+(rnd()-0.5)*(lv?0.55:0.25),(rnd()-0.5)*(lv?0.32:0.18)+(type===3&&!lv?0.18:0),
            lv,(rnd()*8)|0,b*lerp(T0[0],T1[0],m)*j(),b*lerp(T0[1],T1[1],m)*j(),b*lerp(T0[2],T1[2],m)*j(),lv===0?1.5:lv===1?0.8:0.4);
     CRAG.blobs++; };
   /* 어미(자리 · 반지름) 겉에서 새끼가 돋는다 — 바깥(내리막)·위·옆으로. 땅속에 다 묻히는 것은 버린다 */
@@ -140,7 +161,7 @@ function cragGrow(s,B){
     /* 벽 속으로 반지름의 1/4~1/2 을 들여 박는다 — 겉에 얹으면 비탈에 붙은 공으로 보인다 */
     /* 비탈 아래쪽이 뜨지 않게 — 내리막 쪽 발치(반지름의 0.7)의 땅을 재어, 바위 밑면이 거기서도 땅에 묻히는 높이까지만 올린다
        (가파른 벽에 넓적한 바위를 수평으로 얹으면 아래쪽이 허공에 떴다 — 사용자 지적) */
-    const inK=r*(0.25+0.25*rnd()), mx=px-dx*inK, mz=pz-dz*inK, rh0=r*(sx+sz)*0.5;
+    const inK=r*(0.40+0.25*rnd()), mx=px-dx*inK, mz=pz-dz*inK, rh0=r*(sx+sz)*0.5;   // 더 깊이 박는다(덩이가 벽에 얹힌 상자로 안 보이게)
     const y=Math.min(gy+r*sy*(0.02+0.30*rnd()),heightAt(mx+dx*rh0*0.7,mz+dz*rh0*0.7)+r*sy*0.5);
     put(mx,y,mz,r*sx,r*sy,r*sz,0);
     cragCollide(px,pz,r*(sx+sz)*0.36);

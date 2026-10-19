@@ -55,7 +55,14 @@ function seaDepthAt(x,z){
   const y=heightAt(x,z);
   return y<-0.3?-y:0;
 }
-const seaIsReef=(x,z,dep)=>dep>1.2&&dep<11&&reefAt(x,z)>0.56;
+/* **바닷가의 결**(사용자 요청: 진짜 산호초 · 바위 암초) — 섬 둘레 바닷가를 큰 얼룩(300 m)으로 **산호초 바닷가**와 **바위 바닷가**로 가른다.
+   · 산호초(거초) — 물가에서 바깥으로 띠를 이룬다: 초원(얕은 판 · 수심 2.2 m 밑 · 덩이 산호와 모래 웅덩이) → 초 앞면(2.2~9 m ·
+     **돌기와 골**: 물가에 수직으로 산호 등성이(돌기)와 모래 골이 번갈아 선다 — 등성이는 가지·상·기둥 산호가 빽빽하다) →
+     초 비탈(9~16 m · 부채 산호 · 해면 · 대롱 · 상 산호가 성기게)
+   · 바위 암초 — 바위 바닷가와 깊은 바닥(15~32 m)의 등성이 · 골 벽: 둥근 바위 무리에 분홍 석회조류가 앉고 다시마 숲 · 성게 · 해면 · 말미잘 */
+const seaCoralCoast=(x,z)=>seaVal(x,z,320,31)*0.75+seaVal(x,z,110,32)*0.25>0.44;
+const seaIsReef=(x,z,dep)=>dep>0.8&&dep<16&&seaCoralCoast(x,z);
+const seaIsRockReef=(x,z,dep,sl)=>dep>2.5&&dep<32&&(!seaCoralCoast(x,z)||dep>15||sl>0.38)&&seaVal(x,z,23,33)>0.36;
 
 /* ── 생김새 ──────────────────────────────────────────────────────────────────
    3각 뿔과 각진 20면체로 지었던 것을 **매끈한 모양**(24-shapes.js)으로 다시 지었다(사용자 지적: 사면체 메시가 멋없다 ·
@@ -164,11 +171,11 @@ function seaBuildMeshes(){
     return SHP.merge(parts,false,[0.6,1.1]); })();
   // 물밑 바위 — 등성이에 놓인다(진짜 바위 사진의 결을 입는다)
   const rockG=SHP.merge([{g:SHP.blob(1,77,{w:14,h:10,amp:0.30,nb:5,sy:0.72})}]);
-  const rockIM=mk(rockG,260,false); rockDetailPatch(rockIM.material,1.1,0.0);   // 바다 바위 — 이끼는 없다
-  SEA.m={ coral:[mk(branch,420,true),mk(dome,420,false),mk(fan,320,true),mk(tube,320,true),
-                 mk(table,260,true),mk(pillar,260,false),mk(sponge,220,true)],
-          anem:mk(anem,220,true,true), star:mk(star,160,true), kelp:mk(kelp,700,true,true), rock:rockIM,
-          weed:mk(weed,900,true,true), clam:mk(clam,160,false), oyster:mk(oyster,160,false), urchin:mk(urchin,220,true) };
+  const rockIM=mk(rockG,1500,false); rockDetailPatch(rockIM.material,1.1,0.0);   // 바다 바위 — 이끼는 없다(바위 암초 · 석회조류 빛깔은 인스턴스 색)
+  SEA.m={ coral:[mk(branch,900,true),mk(dome,700,false),mk(fan,420,true),mk(tube,420,true),
+                 mk(table,600,true),mk(pillar,500,false),mk(sponge,480,true)],
+          anem:mk(anem,360,true,true), star:mk(star,160,true), kelp:mk(kelp,900,true,true), rock:rockIM,
+          weed:mk(weed,900,true,true), clam:mk(clam,160,false), oyster:mk(oyster,220,false), urchin:mk(urchin,420,true) };
 }
 /* 산호 한 포기의 키(크기 1 일 때) — 수면 위로 솟지 않게 수심에 맞춰 줄인다 */
 const SEA_CORAL_H=[1.05,0.40,0.72,0.72,0.72,1.15,0.46];
@@ -211,23 +218,57 @@ function seaScatter(){
       S.picks.push({kind,x:wx,y,z:wz,key});
       return cnt+1;
     };
+    if(templeNear(wx,wz,1)) continue;                 // 해저 신전 터(97-temples.js)
+    const slope=slopeAt2(wx,wz);
+    /* 산호 하나 — ty 꼴 · s0 크기 · ox,oz 칸 안에서 비킴 · 수면 위로 솟지 않게 */
+    const coral=(ty,s0,ox,oz,first)=>{ const im=M.coral[ty], k='c'+ty; if(n[k]>=im.instanceMatrix.count) return;
+      const hh=seaHash(gx,gz,7+ty+(first?0:9)), cx=wx+ox, cz=wz+oz, dd=first?dep:seaDepthAt(cx,cz); if(dd<0.5) return;
+      const sc=Math.min(s0*edge,(dd-0.35)/SEA_CORAL_H[ty]/1.15);
+      put(im,n[k]++,cx,-dd,cz,sc,sc*(0.85+0.3*((hh>>>16)&7)/7),yaw+(first?0:1.7),0.12,SEA_CORAL_C[(hh>>>19)%SEA_CORAL_C.length],tv);
+      if(first) kp('coral',SEA_CORAL_H[ty]*sc*0.4); };
+    const pickTy=(w,r)=>{ let t=0; for(let i=0;i<w.length;i++) t+=w[i]; let q=r*t; for(let i=0;i<w.length;i++){ if(q<w[i]) return i; q-=w[i]; } return 0; };
+    const v2=((h2>>>24)&255)/255;
     if(reef){
-      if(u<0.52){                                     // 산호 — 일곱 가지 가운데 하나
-        const ty=((h2>>>14)&7)%NC, im=M.coral[ty], k='c'+ty;
-        if(n[k]<im.instanceMatrix.count){
-          /* 크기 — 대개 무릎~허리, 열에 하나는 사람 키를 넘는 큰 산호(뭍의 나무), 넷에 하나는 한 뼘짜리(덤불) */
-          const big=((h2>>>22)&15)===0?2.4:(((h2>>>22)&3)===1?0.55:1);
-          const sc=Math.min((0.7+1.5*v*v)*edge*(ty===1?1.25:1)*big,(dep-0.35)/SEA_CORAL_H[ty]/1.15);   // 물 밖으로 솟지 않게
-          put(im,n[k]++,wx,y,wz,sc,sc*(0.85+0.3*((h2>>>16)&7)/7),yaw,0.12,SEA_CORAL_C[(h2>>>19)%SEA_CORAL_C.length],tv);
-          kp('coral',SEA_CORAL_H[ty]*sc*0.4);
+      if(dep<2.2){                                    // 초원 — 덩이(뇌) 산호 · 기둥 산호 · 모래 웅덩이 · 성게 · 바닷말
+        if(u<0.34) coral(u<0.24?1:5,(0.8+1.6*v*v)*(u<0.24?1.3:1),0,0,true);
+        else if(u<0.42) n.urchin=pick('urchin',M.urchin,n.urchin,0.9+0.6*v,[0.10,0.08,0.12]);
+        else if(u<0.52&&n.weed<M.weed.instanceMatrix.count){ put(M.weed,n.weed++,wx,y,wz,(0.6+0.6*v)*edge,Math.min((0.5+0.8*v)*edge,(dep-0.3)/1.3),yaw,0.05,SEA_WEED_C[(h2>>>19)&3],tv); kp('weed',0.3); }
+        else if(u>0.985) n.star=pick('starfish',M.star,n.star,(0.8+0.9*v)*edge,[[0.86,0.36,0.22],[0.90,0.62,0.24],[0.62,0.30,0.52]][(h2>>>19)%3]);
+      }else if(dep<9){                                // 초 앞면 — 돌기와 골(물가에 수직인 등성이 8~10 m 간격)
+        const gxh=heightAt(wx+1.5,wz)-heightAt(wx-1.5,wz), gzh=heightAt(wx,wz+1.5)-heightAt(wx,wz-1.5), gl=Math.hypot(gxh,gzh)||1;
+        const al=wx*(-gzh/gl)+wz*(gxh/gl), spur=Math.sin(al*0.70+seaVal(wx,wz,17,41)*4.0);
+        if(spur>-0.15){                               // 돌기 — 빽빽하다(한 칸에 둘)
+          if(v2<0.45&&n.rock<M.rock.instanceMatrix.count){ const sr=(0.7+1.3*v)*edge;   // 초의 뼈대 — 산호가 쌓아 올린 석회암 덩이(돌기를 솟게 한다)
+            put(M.rock,n.rock++,wx+(u-0.5)*1.2,y+sr*0.05,wz+(v2-0.2)*1.2,sr,sr*0.5,yaw+0.9,0.2,[[0.72,0.62,0.55],[0.66,0.58,0.62],[0.70,0.66,0.52]][(h2>>>21)%3],tv); }
+          if(u<0.82){ coral(pickTy([30,15,4,4,24,16,7],v2),0.8+1.4*v*v*(spur>0.6?1.4:1),0,0,true);
+            if(v>0.35) coral(pickTy([30,20,2,4,20,18,6],1-v2),0.6+0.9*v,(v2-0.5)*1.4,(u-0.4)*1.6,false); }
+          else if(u<0.87&&n.anem<M.anem.instanceMatrix.count){ put(M.anem,n.anem++,wx,y,wz,(0.8+0.9*v)*edge,(0.8+0.9*v)*edge,yaw,0.05,SEA_CORAL_C[(h2>>>19)%SEA_CORAL_C.length],tv); kp('anem',0.2); }
+          else if(u<0.92) n.urchin=pick('urchin',M.urchin,n.urchin,0.9+0.6*v,[0.22,0.15,0.28]);
+        }else{                                        // 골 — 하얀 모래 · 부서진 산호 조각 · 조개 · 불가사리
+          if(u<0.10) coral(1,0.3+0.4*v,0,0,true);
+          else if(u>0.975) n.star=pick('starfish',M.star,n.star,(0.8+0.9*v)*edge,[[0.86,0.36,0.22],[0.90,0.62,0.24],[0.62,0.30,0.52]][(h2>>>19)%3]);
+          else if(u<0.14&&slope<0.3) n.clam=pick('clam',M.clam,n.clam,0.85+0.6*v,[0.90,0.84,0.74]);
         }
-      }else if(u<0.60) n.urchin=pick('urchin',M.urchin,n.urchin,0.9+0.6*v,[0.22,0.15,0.28]);
-      else if(u<0.74&&n.weed<M.weed.instanceMatrix.count){
-        put(M.weed,n.weed++,wx,y,wz,(0.8+0.8*v)*edge,Math.min((0.9+1.3*v)*edge,(dep-0.3)/1.3),yaw,0.05,SEA_WEED_C[(h2>>>19)&3],tv); kp('weed',0.4); }
-      else if(u<0.82&&n.anem<M.anem.instanceMatrix.count){       // 말미잘
-        put(M.anem,n.anem++,wx,y,wz,(0.8+0.9*v)*edge,(0.8+0.9*v)*edge,yaw,0.05,SEA_CORAL_C[(h2>>>19)%SEA_CORAL_C.length],tv); kp('anem',0.2); }
+      }else{                                          // 초 비탈 — 부채 · 대롱 · 해면 · 상 산호(성기게)
+        if(u<0.48) coral(pickTy([6,8,30,18,18,4,20],v2),0.9+1.5*v*v,0,0,true);
+        else if(u<0.54&&n.anem<M.anem.instanceMatrix.count){ put(M.anem,n.anem++,wx,y,wz,(0.7+0.7*v)*edge,(0.7+0.7*v)*edge,yaw,0.05,SEA_CORAL_C[(h2>>>19)%SEA_CORAL_C.length],tv); kp('anem',0.2); }
+      }
+    }else if(seaIsRockReef(wx,wz,dep,slope)){
+      /* 바위 암초 — 둥근 바위 무리(한 칸에 하나~둘) · 바위 위의 분홍·보라 석회조류 · 다시마 숲 · 성게 · 해면 · 말미잘 · 얕은 바위의 굴 */
+      const CL=[[0.60,0.48,0.52],[0.50,0.47,0.42],[0.62,0.50,0.54],[0.44,0.46,0.40],[0.54,0.45,0.47]];
+      if(u<0.50&&n.rock<M.rock.instanceMatrix.count){
+        const sc=(0.5+2.4*v*v)*edge;
+        put(M.rock,n.rock++,wx,y+sc*0.15,wz,sc,sc*(0.6+0.4*((h2>>>16)&7)/7),yaw,0.35,CL[(h2>>>19)%CL.length],tv); kp('rock',sc*0.5);
+        if(v2>0.45&&n.rock<M.rock.instanceMatrix.count){ const s2=sc*(0.35+0.4*v2), ox=(v2-0.5)*2.4, oz=(u-0.25)*3.0;
+          put(M.rock,n.rock++,wx+ox,-seaDepthAt(wx+ox,wz+oz)+s2*0.12,wz+oz,s2,s2*0.75,yaw+2.1,0.4,CL[(h2>>>21)%CL.length],tv); }
+      }
+      else if(u<0.60) n.urchin=pick('urchin',M.urchin,n.urchin,0.9+0.6*v,[0.10,0.07,0.14]);
+      else if(u<0.67&&n.anem<M.anem.instanceMatrix.count){ put(M.anem,n.anem++,wx,y,wz,(0.8+0.9*v)*edge,(0.8+0.9*v)*edge,yaw,0.05,[[0.85,0.55,0.35],[0.80,0.80,0.75],[0.75,0.40,0.55]][(h2>>>19)%3],tv); kp('anem',0.2); }
+      else if(u<0.74){ const im=M.coral[6]; if(n.c6<im.instanceMatrix.count){ const sc=Math.min((0.7+1.2*v)*edge,(dep-0.35)/SEA_CORAL_H[6]/1.15);   // 해면 — 노랑 · 주황 · 보라
+          put(im,n.c6++,wx,y,wz,sc,sc,yaw,0.1,[[0.92,0.74,0.20],[0.90,0.45,0.18],[0.55,0.30,0.62]][(h2>>>19)%3],tv); kp('coral',0.3); } }
+      else if(dep<20&&u<0.93&&n.kelp<M.kelp.instanceMatrix.count){ put(M.kelp,n.kelp++,wx,y,wz,(0.9+0.9*v)*edge,Math.min(dep*0.8,9)*(0.6+0.4*v)*edge,yaw,0.03,SEA_WEED_C[(h2>>>19)&3],tv*0.9); kp('kelp',1.2); }
+      else if(dep<5&&u>0.93) n.oyster=pick('oyster',M.oyster,n.oyster,0.9+0.7*v,[0.62,0.61,0.56]);
     }else{
-      const slope=slopeAt2(wx,wz);
       if(slope>0.42&&u<0.40&&n.rock<M.rock.instanceMatrix.count){         // 등성이·골 벽의 바위
         const sc=(0.35+1.5*v*v)*edge;
         put(M.rock,n.rock++,wx,y+sc*0.2,wz,sc,sc*(0.7+0.4*((h2>>>16)&7)/7),yaw,0.3,[0.44,0.45,0.44],tv); kp('rock',sc*0.5);
@@ -288,13 +329,13 @@ function seaPick(){
 function seaTake(p){
   const D=SEA_PICK[p.kind];
   if(D.sting){ hurtPL(D.sting,'말미잘에 쏘였다'); toast('말미잘 — 촉수에 쏘였다. 흰동가리나 드나드는 곳이다'); SEA.taken.set(p.key,gameHours); return true; }
-  let got=0; for(let i=0;i<(D.cnt||1);i++) if(invAdd(D.item,1)) got++;
+  let got=0; const nn=yieldMul(D.cnt||1,yieldK(p.x,p.z,p.y)); for(let i=0;i<nn;i++) if(invAdd(D.item,1)) got++;   // 깊은 물 밑일수록 더(97-temples.js)
   if(!got){ toast('무거워서 더 못 든다'); return false; }
   SEA.taken.set(p.key,gameHours); SEA.look=null;
   if(!D.keep) SEA.dirty=true;                        // 주워서 없어지는 것만 다시 깐다
   if(D.keep){ toast(D.n+' — '+ITEMS[D.item].n+' +'+got); sfx('bind'); invDirty=true; return true; }
   if(D.prick&&!equippedTool()){ hurtPL(D.prick,'성게 가시에 찔렸다'); toast(D.n+' +1 — 맨손이라 가시에 찔렸다(손에 무엇이든 들고 따면 안 찔린다)'); }
-  else toast(D.n+' +1');
+  else toast(D.n+' +'+got);
   sfx('bind'); invDirty=true;
   return true;
 }
@@ -316,52 +357,100 @@ const FISH_SP=[
   {id:'swordfish', n:'황새치',   zone:'deep', len:2.40,tall:0.20,thick:0.14, c:[0x2a3a5a,0xb8c0c8,0x1a2a4a], pat:'plain', school:[1,1], v:4.2, hp:110,tier:3, drop:['swordfish',4], shy:6.0, cap:2, sword:1}
 ];
 const FISH={list:[], schools:[], mesh:{}, spawnT:0, look:null, max:70};
-/* 물고기 한 종의 생김새 — 방추형 몸(8마디 × 6각) + 꼬리지느러미 + 등지느러미 + 눈. 빛깔은 정점 색.
+/* 물고기 한 종의 생김새 — 방추형 몸(14마디 × 10각) + 꼬리지느러미 + 등지느러미 + 눈. 빛깔은 정점 색(정점마다 — 등은 짙고 배는 희게
+   매끈히 넘어가고 띠·줄·점은 가장자리가 녹는다 · 예전엔 8 × 6 면마다 한 빛깔이라 조각보 같았다 — 사용자 요청: 물고기에 결을 더).
+   비늘 · 옆줄 · 지느러미 살 · 은빛 반사는 셰이더가 그린다(fishMat · aF = 몸 길이 따라 비늘 줄 · 둘레 비늘 칸 · 지느러미 표시).
    앞이 +X 다(몸이 X 축을 따라 눕는다). */
 function fishGeo(S){
-  const L=S.len, P=[], Cc=[], col=h=>[(h>>16&255)/255,(h>>8&255)/255,(h&255)/255];
+  const L=S.len, P=[], Cc=[], AF=[], col=h=>[(h>>16&255)/255,(h>>8&255)/255,(h&255)/255];
   const cb=col(S.c[0]), cv=col(S.c[1]), cm=col(S.c[2]);
-  const NS=8, NR=6, rnd=mulberry32(hashStr('fish|'+S.id));
+  const NS=14, NR=10, rnd=mulberry32(hashStr('fish|'+S.id)), SC=S.len<0.3?22:S.len<1?30:40;   // 비늘 줄 수(몸 길이 따라)
   const prof=t=>Math.pow(Math.sin(Math.PI*Math.pow(t,0.78)),0.72);      // 꼬리(t=0)→주둥이(t=1) 굵기
   const ring=(i,j)=>{ const t=i/NS, a=j/NR*6.2832, r=Math.max(0.035,prof(t));
-    return [(t-0.5)*L, Math.sin(a)*r*S.tall*L*0.5, Math.cos(a)*r*S.thick*L*0.5, t, Math.sin(a)]; };
-  const spot=new Map();
-  const tint=(t,up,ky)=>{                                             // 그 자리의 빛깔
-    const k=clamp(up*0.5+0.5,0,1); let c=[cv[0]+(cb[0]-cv[0])*k,cv[1]+(cb[1]-cv[1])*k,cv[2]+(cb[2]-cv[2])*k];
-    if(S.pat==='bands'){ if(Math.abs(t-0.30)<0.06||Math.abs(t-0.56)<0.06||Math.abs(t-0.80)<0.05) c=cm; }
-    else if(S.pat==='bars'){ if(Math.abs(t-0.38)<0.05||Math.abs(t-0.66)<0.05) c=cm; }
-    else if(S.pat==='tiger'){ if(up>0.1&&(Math.floor(t*NS)%2===0)) c=cm; }
-    else if(S.pat==='spots'){ let f=spot.get(ky); if(f===undefined){ f=rnd(); spot.set(ky,f); } if(up>-0.2&&f<0.3) c=cm; }
-    return c;
+    return [(t-0.5)*L, Math.sin(a)*r*S.tall*L*0.5, Math.cos(a)*r*S.thick*L*0.5, t, Math.sin(a), j/NR]; };
+  const SP=[]; for(let k=0;k<26;k++) SP.push([rnd(),rnd()*2-1,0.025+rnd()*0.04]);   // 점 — (t, 높이, 반지름)
+  const ss=(e0,e1,x)=>{ const q=clamp((x-e0)/(e1-e0),0,1); return q*q*(3-2*q); };
+  const tint=(t,up)=>{                                                  // 그 자리의 빛깔 — 정점마다
+    const k=ss(-0.55,0.65,up); let c=[cv[0]+(cb[0]-cv[0])*k,cv[1]+(cb[1]-cv[1])*k,cv[2]+(cb[2]-cv[2])*k];
+    let m=0;
+    if(S.pat==='bands') m=Math.max(1-ss(0.045,0.07,Math.abs(t-0.30)),1-ss(0.045,0.07,Math.abs(t-0.56)),1-ss(0.035,0.06,Math.abs(t-0.80)));
+    else if(S.pat==='bars') m=Math.max(1-ss(0.035,0.06,Math.abs(t-0.38)),1-ss(0.035,0.06,Math.abs(t-0.66)))*ss(-0.9,-0.6,up);
+    else if(S.pat==='tiger') m=ss(0.05,0.35,up)*ss(0.3,0.7,0.5+0.5*Math.sin(t*44+up*9));   // 고등어 — 등의 물결 무늬
+    else if(S.pat==='spots'){ for(const q of SP){ const d=Math.hypot((t-q[0])*1.6,(up-q[1])*0.5); m=Math.max(m,(1-ss(q[2]*0.6,q[2],d))*ss(-0.5,-0.1,up)); } }
+    c=[c[0]+(cm[0]-c[0])*m,c[1]+(cm[1]-c[1])*m,c[2]+(cm[2]-c[2])*m];
+    const gill=1-0.18*(1-ss(0.012,0.03,Math.abs(t-0.74)))*ss(-0.6,0,up+0.3);   // 아가미 뚜껑 금
+    const snout=1-0.12*ss(0.88,1.0,t);
+    return [c[0]*gill*snout,c[1]*gill*snout,c[2]*gill*snout];
   };
-  const tri=(a,b,c,ca,cb2,cc)=>{ P.push(a[0],a[1],a[2],b[0],b[1],b[2],c[0],c[1],c[2]); Cc.push(...ca,...cb2,...cc); };
+  const vtx=(v,fin)=>{ P.push(v[0],v[1],v[2]); const c=tint(v[3],v[4]); Cc.push(c[0],c[1],c[2]); AF.push(v[3]*SC,v[5]*12,fin); };
   for(let i=0;i<NS;i++) for(let j=0;j<NR;j++){
     const a=ring(i,j), b=ring(i+1,j), c=ring(i+1,j+1), d=ring(i,j+1);
-    const tm=(i+0.5)/NS, up=(a[4]+d[4])*0.5, cc=tint(tm,up,i+'|'+j);
-    tri(a,b,c,cc,cc,cc); tri(a,c,d,cc,cc,cc);
+    if(j===NR-1){ c[5]=1; d[5]=1; }
+    vtx(a,0); vtx(b,0); vtx(c,0); vtx(a,0); vtx(c,0); vtx(d,0);
   }
   const fc=[cb[0]*0.8,cb[1]*0.8,cb[2]*0.8], x0=-0.5*L, th=S.sword?0.30:0.24;
-  // 꼬리 — 위아래로 갈라진 V
-  tri([x0+0.04*L,0,0],[x0-0.20*L, th*L*Math.max(0.5,S.tall*1.6),0],[x0-0.07*L,0,0],fc,fc,fc);
-  tri([x0+0.04*L,0,0],[x0-0.07*L,0,0],[x0-0.20*L,-th*L*Math.max(0.5,S.tall*1.6),0],fc,fc,fc);
+  const fin=(a,b,c,ra,rb,rc)=>{ for(const [v,r] of [[a,ra],[b,rb],[c,rc]]){ P.push(v[0],v[1],v[2]); Cc.push(fc[0],fc[1],fc[2]); AF.push(r,0,1); } };   // AF.x — 지느러미 살의 자리
+  // 꼬리 — 위아래로 갈라진 V(살은 꼬리 자루에서 부채꼴로)
+  const tw=th*L*Math.max(0.5,S.tall*1.6);
+  fin([x0+0.04*L,0,0],[x0-0.20*L,tw,0],[x0-0.07*L,0,0],0,1,0.5);
+  fin([x0+0.04*L,0,0],[x0-0.07*L,0,0],[x0-0.20*L,-tw,0],0,0.5,1);
   // 등지느러미(엔젤피시는 위아래로 길다)
   const hy=S.tall*L*0.5, fh=(S.fin?0.55:0.22)*L*Math.max(0.35,S.tall);
-  tri([-0.02*L,hy*0.9,0],[0.20*L,hy*0.95,0],[-0.16*L,hy+fh,0],fc,fc,fc);
-  if(S.fin) tri([-0.02*L,-hy*0.9,0],[-0.16*L,-hy-fh,0],[0.20*L,-hy*0.95,0],fc,fc,fc);
-  if(S.sword){ const n=0.5*L; tri([n-0.02*L,0.012*L,0],[n+0.34*L,0,0],[n-0.02*L,-0.012*L,0],fc,fc,fc);    // 주둥이 칼
-               tri([n-0.02*L,0,0.012*L],[n+0.34*L,0,0],[n-0.02*L,0,-0.012*L],fc,fc,fc); }
-  // 눈
-  const ex=0.33*L, ey=S.tall*L*0.12, ez=prof(0.83)*S.thick*L*0.5+0.004, es=Math.max(0.012,0.035*L), K=[0.04,0.04,0.05];
-  for(const s of [-1,1]){ const z=ez*s;
-    tri([ex-es,ey-es,z],[ex+es,ey-es,z],[ex+es,ey+es,z],K,K,K); tri([ex-es,ey-es,z],[ex+es,ey+es,z],[ex-es,ey+es,z],K,K,K); }
+  fin([-0.02*L,hy*0.9,0],[0.20*L,hy*0.95,0],[-0.16*L,hy+fh,0],0,1,0.5);
+  if(S.fin) fin([-0.02*L,-hy*0.9,0],[-0.16*L,-hy-fh,0],[0.20*L,-hy*0.95,0],0,0.5,1);
+  // 가슴지느러미 둘
+  for(const s of [-1,1]){ const z=prof(0.66)*S.thick*L*0.5*s; fin([0.16*L,-hy*0.15,z],[0.04*L,-hy*0.45,z*1.6],[0.02*L,-hy*0.05,z*1.5],0,1,0.6); }
+  if(S.sword){ const n=0.5*L; fin([n-0.02*L,0.012*L,0],[n+0.34*L,0,0],[n-0.02*L,-0.012*L,0],0,0,0);    // 주둥이 칼
+               fin([n-0.02*L,0,0.012*L],[n+0.34*L,0,0],[n-0.02*L,0,-0.012*L],0,0,0); }
+  // 눈 — 검은 눈동자에 밝은 테
+  const ex=0.33*L, ey=S.tall*L*0.12, ez=prof(0.83)*S.thick*L*0.5+0.004, es=Math.max(0.012,0.035*L), K=[0.03,0.03,0.04], R=[0.80,0.74,0.48];
+  for(const s of [-1,1]){ const z=ez*s, o=es*1.45;
+    for(const [e,c,dz] of [[o,R,0],[es,K,0.0015*s]]){ const zz=z+dz;
+      for(const v of [[ex-e,ey-e,zz],[ex+e,ey-e,zz],[ex+e,ey+e,zz],[ex-e,ey-e,zz],[ex+e,ey+e,zz],[ex-e,ey+e,zz]]){ P.push(v[0],v[1],v[2]); Cc.push(c[0],c[1],c[2]); AF.push(0,0,2); } } }
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(P),3));
   g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(Cc),3));
+  g.setAttribute('aF',new THREE.BufferAttribute(new Float32Array(AF),3));
   SHP.smooth(g); g.computeBoundingSphere();          // 몸통의 면을 이어 둥글게(지느러미는 얇은 판 그대로)
   return g;
 }
+/* 물고기 재질 — 비늘(엇갈린 줄의 둥근 비늘 · 테는 어둡고 가운데는 밝다) · 옆줄 · 지느러미 살(줄무늬 · 끝으로 옅다) ·
+   은빛 반사(해 쪽으로 좁게) · 무지갯빛 겉(비스듬히 볼 때 · 등 푸른 고기일수록). 빛은 램버트 그대로(그늘 · 물속 안개를 받는다) */
+let _fishMat=null;
+function fishMat(){
+  if(_fishMat) return _fishMat;
+  const m=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
+  m.onBeforeCompile=sh=>{ sh.uniforms.uSunDir=TERR_U.uSunDir||{value:new THREE.Vector3(0.3,0.9,0.2)};
+    sh.vertexShader='attribute vec3 aF;\nvarying vec3 vFA;\nvarying vec3 vFN;\nvarying vec3 vFV;\n'+sh.vertexShader
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvFA=aF;')
+      .replace('#include <defaultnormal_vertex>','#include <defaultnormal_vertex>\nvFN=normalize(transformedNormal);')
+      .replace('#include <project_vertex>','#include <project_vertex>\nvFV=-mvPosition.xyz;');
+    sh.fragmentShader='uniform vec3 uSunDir;\nvarying vec3 vFA;\nvarying vec3 vFN;\nvarying vec3 vFV;\n'+sh.fragmentShader
+      .replace('#include <color_fragment>',`#include <color_fragment>
+      { if(vFA.z<0.5){
+          vec2 sp=vec2(vFA.x,vFA.y+0.5*floor(vFA.x));                     // 비늘 — 줄마다 반 칸 엇갈린다
+          vec2 f=fract(sp)-vec2(0.35,0.5); float d=length(f*vec2(1.25,1.0));
+          float fw=fwidth(vFA.x)*1.5, sc=1.0-smoothstep(0.0,0.6,fw);       // 화소보다 잘면 지운다(멀리선 고르게)
+          diffuseColor.rgb*=mix(1.0,(1.0-0.20*smoothstep(0.30,0.52,d))*(1.0+0.08*(1.0-smoothstep(0.0,0.3,d))),sc);
+          float yy=abs(fract(vFA.y/12.0+0.25)-0.5);                       // 옆줄 — 몸 옆 가운데(둘레 1/4 자리)
+          diffuseColor.rgb*=1.0-0.22*(1.0-smoothstep(0.004,0.012,abs(yy-0.25)))*smoothstep(1.0,4.0,vFA.x);
+        }else if(vFA.z<1.5){
+          float r=abs(fract(vFA.x*9.0)-0.5);                              // 지느러미 살
+          diffuseColor.rgb*=0.80+0.30*smoothstep(0.08,0.30,r);
+          diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*1.25+0.04,smoothstep(0.6,1.0,vFA.x));   // 끝은 얇아 비친다
+        } }`)
+      .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+      if(vFA.z<0.5){ vec3 n=normalize(vFN), v=normalize(vFV); if(dot(n,v)<0.0) n=-n;
+        vec3 sv=normalize((viewMatrix*vec4(uSunDir,0.0)).xyz);
+        float fr=pow(1.0-max(dot(n,v),0.0),3.0), sp=pow(max(dot(reflect(-sv,n),v),0.0),28.0)*smoothstep(-0.05,0.3,uSunDir.y);
+        vec3 ir=0.5+0.5*cos(6.2832*(fr*1.4+vec3(0.0,0.33,0.67)));       // 무지갯빛
+        totalEmissiveRadiance+=vec3(0.9,0.95,1.0)*sp*0.55+ir*fr*0.10; }`);
+  };
+  m.customProgramCacheKey=()=>'fish2';
+  return _fishMat=m;
+}
 function fishInit(){
-  const mat=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
+  const mat=fishMat();
   for(const S of FISH_SP){
     const im=new THREE.InstancedMesh(fishGeo(S),mat,S.cap);
     im.count=0; im.frustumCulled=false; im.userData.lightRole='recv';
@@ -786,7 +875,7 @@ async function farDrift(){
     const w=['tide','ashen','vireo','kelp','marrow','glass','hollow','ember','driftwood','saltgrave'];
     P.seed=w[(Math.random()*w.length)|0]+'-'+((Math.random()*9000+1000)|0);
     const se=document.getElementById('pSeed'); if(se) se.value=P.seed;
-    P.tv=7;                                            // 새 섬은 새 지형 판(옛 저장에서 떠나왔어도)
+    P.tv=8;                                            // 새 섬은 새 지형 판(옛 저장에서 떠나왔어도)
     await generateWorld();
     INV.slots.length=0; for(const o of loadSlots(keep.inv)) INV.slots.push(o);
     INV.sel=keep.sel|0; EQUIP=keep.eq>=0?INV.slots[keep.eq]||null:null;

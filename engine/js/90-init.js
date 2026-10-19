@@ -249,7 +249,7 @@ function precompPlan(){
   const lit=new Map(), unl=new Map(), fx=new Map(), dep=new Map(), dis=new Map(), lamp=new Set();
   const own=(tbl,side,mk)=>tbl[side]||(tbl[side]=Object.assign(mk(),{side}));
   scene.traverse(o=>{ if((o.isPointLight&&!o.userData.pool||o.isLightProxy)&&o.parent&&o.parent!==camera) lamp.add(o.parent); });
-  scene.traverse(o=>{
+  const visit=o=>{
     if(!o.material||o.isSkinnedMesh||!(o.isMesh||o.isPoints||o.isLine||o.isSprite)) return;
     const g=o.geometry, inst=!!o.isInstancedMesh, ic=inst&&!!o.instanceColor;
     const near=lamp.has(o.parent)||(o.parent&&lamp.has(o.parent.parent))||(o.parent&&o.parent.parent&&lamp.has(o.parent.parent.parent));
@@ -266,7 +266,11 @@ function precompPlan(){
       dep.set(dm.id+'|'+side+'|'+inst+'|'+ic,{m:dm,side,inst,ic,g});
       dis.set(xm.id+'|'+side+'|'+inst+'|'+ic,{m:xm,side,inst,ic,g});
     }
-  });
+  };
+  scene.traverse(visit);
+  /* 숨은 칸 메시도 — propGroup.children 은 지금 보이는 칸만 돌려준다(30-props.js — 나머지는 _all). 숨은 칸(멀리 있는 바위 · 둔덕 칸)의
+     재질을 놓쳐, 처음 다가갈 때 짜며 멈칫했다(날아다니며 잰 값: 바위 · 둔덕 · 거품 셰이더 여럿이 놀이 중에 짜였다) */
+  if(propGroup&&propGroup._all) for(const o of propGroup._all) if(!o.parent||o.parent===propGroup) o.traverse(visit);
   /* 다가가야 생기는 것 — 벼랑 바위의 가까운·먼 재질(33-crags.js · 정점 색 3칸) · 이슬 방울(98-dew.js). 처음 다가갈 때 짜이며 멈칫했다
      (벤치마크 한 바퀴에 셰이더 짜기가 프레임당 평균 1 ms — CPU 프로파일) */
   if(!P.gc){ P.gc=new THREE.BufferGeometry(); const z9=new Float32Array(9);
@@ -347,7 +351,7 @@ function precompTick(now){
      브라우저가 통째로 기다린다(8 ms 예산은 짜고 나서야 본다 — 내장 그래픽의 ANGLE 에선 하나에 수백 ms 일 수 있다).
      그래서 ① 마우스·키를 만진 뒤 0.8초는 안 짜고 ② 한 번 짜는 데 30 ms 를 넘겼으면 그 세 배만큼 쉬어 화면이 숨을 쉬게 한다 */
   if(now-P.inT<800||now<P.cool) return;
-  if(P.jobs){ const t0=performance.now(); precompStep(8); const d=performance.now()-t0; if(d>30) P.cool=performance.now()+d*3; return; }
+  if(P.jobs){ const t0=performance.now(); precompStep(8); const d=performance.now()-t0; if(d>30) P.cool=performance.now()+d*1.2; return; }   // 쉬는 몫 — 예전 세 배는 시작 화면에서 다 짜는 데 1분 반이 걸려 그 사이에 상륙하면 남은 것을 놀이 중에 짰다
   if(now-P.t<4000) return;              // 장면이 바뀌었나 보는 것도 장면을 두 번 훑는다 — 4초마다(예전 1.5초)
   P.t=now; precompPlan();
 }
@@ -387,10 +391,12 @@ async function generateWorld(){
                                     document.getElementById('mSpan').textContent=Math.round(WORLD)+' m';
                                     await breathe(); if((P.tv|0)>=5) biomeSlopes();   // 바이옴마다 비탈을 다스린다(지형 판 5 · 10-worldgen.js)
                                     await breathe(); fallsSites();           // 폭포 자리 — 하천 수면이 4 m 넘게 떨어지는 데(36-falls.js · 지형 판 5)
+                                    await breathe(); templeLandSite(seed);   // 섬 한가운데의 옛 신전 — 터를 다진다(97-temples.js · 지형 판 8)
                                     await breathe(); reliefMask();           // 잔 기복의 가림막(지형 판 3) — 이 뒤로 heightAt 이 둔덕·골을 안다
                                     await breathe(); await placeResources(seed);
                                     await breathe(); underSites(seed);       // 땅속 세계 — 굴 방 · 굴길 · 수직굴 자리(96-underworld.js · 지형 판 7)
                                     await breathe(); shapeSeabed(seed);      // 바다 바닥의 기복 — 뭍·자원을 다 정한 **뒤에**(같은 시드의 섬은 그대로다)
+                                    templeSeaSite(seed);                     // 해구 가장자리의 해저 신전(97-temples.js · 지형 판 8)
   await phase('지형 메시',90);      buildBioTex(); await breathe(); buildChunks(); await breathe(); buildWater();
   await phase('자원 배치',96);      await placeProps_(seed);
                                     /* 다 지을 때까지 소품·나무는 안 그린다 — 칸을 켜고 끄는 updateTileVis 는 멈춘 동안(짓는 중·
@@ -419,7 +425,7 @@ async function generateWorld(){
                                     invAdd('codex',1);        // 사전은 처음부터 지닌다
                                     invAdd('hand_charger',1); // 캠코더 배터리를 채우는 손 충전기
                                     CAMC.bat=100; CAMC.warned=false; CAMC.health=1; CAMC.li=false; CAMC.hsaid=0;
-                                    invAdd('ring_platinum',1); // 표류 전부터 끼고 있던 반지
+                                    if((P.tv|0)<8) invAdd('ring_platinum',1); // 표류 전부터 끼고 있던 반지 — 지형 판 8 부터는 해저 신전에만 있다(97-temples.js · 사용자 요청)
                                     invAdd('can_food',2);     // 보급선이 쥐여 준 비상식량
                                     invAdd('bottle_water',1); // 물 한 병 — 비면 다시 채운다
                                     HARV.near=null; HARV.t=0; REGROW.length=0;
@@ -460,4 +466,4 @@ async function generateWorld(){
   }
   busy=false;                           // 실패해도 잠기지 않게 반드시 해제
 }
-async function placeProps_(seed){ placePod(seed); await breathe(); await buildProps(); await breathe(); buildCrags(); await breathe(); buildCaves(); await breathe(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다
+async function placeProps_(seed){ placePod(seed); await breathe(); await buildProps(); await breathe(); buildCrags(); templeBuild(); await breathe(); buildCaves(); await breathe(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다

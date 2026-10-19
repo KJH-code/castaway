@@ -357,7 +357,7 @@ const ITEMS={
                durMax:60},
   // 금속 가공 · 전기
   ring_platinum:{n:'백금 반지', kg:0.05, c:0xd8dce0,
-               use:'표류 전부터 끼고 있던 것 — 백금은 촉매가 된다'},
+               use:'깊은 바다 밑 신전에 바쳐져 있던 것 — 백금은 촉매가 된다'},
   drawplate:  {n:'인발판',     kg:2.2,  c:0x8f9298, use:'금속을 가늘게 뽑는 판'},
   wire_copper:{n:'구리선',     kg:0.35, c:0xb87333, use:'코일 · 배선'},
   gauze_platinum:{n:'백금 그물망', kg:0.05, c:0xd8dce0,
@@ -635,6 +635,11 @@ const ITEMS={
   snorkel:    {n:'갈대 스노클', kg:0.30, c:0x9aa35c, use:'지니고 있으면 얼굴을 물에 담근 채 숨을 쉰다(수면 바로 밑까지)'},
   fins:       {n:'오리발',     kg:1.00, c:0x6f8a4a, use:'지니고 있으면 헤엄이 1.5배 빨라지고 기력이 절반만 든다'},
   goggles:    {n:'물안경',     kg:0.40, c:0x9fc6cc, use:'지니고 있으면 물속이 두 배 넘게 멀리 보인다'},
+  /* 깊이 잠수(지형 판 8 — 해저 신전이 수심 30~45 m 에 있다 · 80-player.js) */
+  air_tube:   {n:'대통 공기통', kg:0.90, c:0x9a9a52, durMax:100,
+               use:'굵은 대 마디를 송진으로 막은 공기통 — 지니고 있으면 물속에서 숨이 모자랄 때 저절로 들이마신다(한 통에 숨 100 · 물 위에서 다시 찬다)'},
+  dive_stone: {n:'잠수 돌',     kg:6.0,  c:0x6f7072,
+               use:'밧줄로 허리에 매는 무거운 돌 — 지니고 있으면 물속에서 가라앉는다(Ctrl 로 빨리 내려가고 가만히 있으면 천천히 가라앉는다). 해녀가 쓰던 방법이다'},
   harpoon_wood:{n:'나무 작살', kg:1.0,  c:0x8a7550, use:'끝을 깎아 그을린 가지 — 물속의 잔고기를 찌른다(등급 1)',
                tool:{weapon:1, dmg:10, reach:2.5, rate:0.75, stam:6, swing:'thrust', harpoon:1}, durMax:40},
   harpoon_stone:{n:'돌 작살',  kg:1.5,  c:0x6f7478, use:'미늘 달린 돌촉을 풀로 붙이고 밧줄을 맸다 — 장어·대구까지(등급 2)',
@@ -1018,7 +1023,8 @@ const MINE={
   basalt: {item:'basalt_slab',label:'현무암 떼기', dur:5.0, stam:10, tier:2, uses:[2,4]},
   karst:  {item:'limestone',  label:'석회암 깨기', dur:3.0, stam:7,  tier:1, uses:[3,6],
            extra:{id:'flint', p:0.30}},      // 백악·석회암에 박힌 처트 단괴
-  sandstone:{item:'stone_block',label:'사암 떼기', dur:4.2, stam:9, tier:2, uses:[2,3]}
+  /* 사암은 무르다 — 떼면 대개 부스러진 돌멩이고, 석재(돌 덩이)는 다섯 번에 한 번꼴(사용자 요청: 사암은 돌을 덜 주거나 약한 돌을) */
+  sandstone:{item:'pebble',label:'사암 떼기', dur:3.6, stam:8, tier:2, uses:[2,3], extra:{id:'stone_block', p:0.2}}
 };
 const CHOP={
   oak:{item:'log', label:'나무 베기', dur:5.0, stam:10, yield:[1,1], logs:[2,3]},
@@ -1426,7 +1432,7 @@ function updateHarvest(dt){
   HARV.t=0;
   // 남은 적재량만큼만 담는다
   const Y=H.yield||[1,1];
-  const want_n=Y[0]+((Math.random()*(Y[1]-Y[0]+1))|0);
+  const want_n=yieldMul(Y[0]+((Math.random()*(Y[1]-Y[0]+1))|0),t.yk||(t.yk=yieldK(t.x,t.z,t.y)));   // 높고 험한 데 · 굴 속일수록 더(97-temples.js · 지형 판 8)
   const room=Math.floor((INV.max-invWeight())/ITEMS[H.item].kg+1e-9);
   const got=Math.min(want_n,room);
   if(got<1){

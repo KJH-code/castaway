@@ -80,6 +80,9 @@ function _icoShape(id){
     add(cyl(0.05,0.036,0.09,10),WMAT(0x5a4a30),0.18,-0.21,0); }
   else if(id==='fins'){ for(const s of [-1,1]){ add(box(0.16,0.34,0.025),M,s*0.12,0.05,0,0,0,s*0.12,1,1,1);
       add(box(0.10,0.14,0.05),WMAT(0x6b5a3c),s*0.11,-0.19,0); add(tor(0.05,0.012),WMAT(W_CORD),s*0.11,-0.2,0,Math.PI/2,0,0); } g.userData.front=1; }
+  else if(id==='air_tube'){ add(cyl(0.12,0.12,0.62,14),WMAT(0x9a9a52),0,0,0,0,0,0.5); for(const y of [-0.2,0.12]) add(cyl(0.128,0.128,0.03,14),WMAT(0x7a7a3c),Math.sin(0.5)*-y,y*Math.cos(0.5),0,0,0,0.5);
+    add(cyl(0.06,0.07,0.07,10),WMAT(0xb07a2e),Math.sin(0.5)*-0.34,0.34*Math.cos(0.5),0,0,0,0.5); }
+  else if(id==='dive_stone'){ add(sph(0.3,12,9),WMAT(0x6f7072),0,0,0,0,0,0,1.1,0.8,1); add(tor(0.28,0.03),WMAT(W_CORD),0,0,0,1.3,0,0); add(tor(0.28,0.03),WMAT(W_CORD),0,0,0,0.2,1.1,0); }
   else if(id==='goggles'){ const gl=new THREE.MeshPhongMaterial({color:0xcfe6ee,transparent:true,opacity:0.6,shininess:100});
     for(const s of [-1,1]){ add(cyl(0.11,0.11,0.05,14),WMAT(0x6b5a3c),s*0.13,0,0,Math.PI/2,0,0); add(cyl(0.085,0.085,0.055,14),gl,s*0.13,0,0,Math.PI/2,0,0); }
     add(box(0.5,0.04,0.02),WMAT(W_CORD),0,0,-0.04); g.userData.front=1; }

@@ -125,10 +125,12 @@ function coastIsle(I){
   for(let row=-Math.ceil(Rf*1.6/(S*0.866));row*S*0.866<=Rf*1.6;row++){ const v=row*S*0.866, off=(row&1)*S*0.5;
     for(let u=-Rf*1.6+off;u<=Rf*1.6;u+=S){ const x=I.x+u, z=I.z+v, a=Math.atan2(v,u), d=Math.hypot(u,v)/rim(a); if(d>1) continue;
       const g=heightAt(x,z);
-      let top=H*Math.pow(Math.max(0,1-Math.pow(d,1.7)),0.9);                  // 가운데가 높고 어깨로 흘러내리는 등(탑처럼 곧추서지 않게)
-      top=Math.floor(top/0.8)*0.8+(rnd()-0.5)*0.5;                            // 기둥마다 부러진 높이 — 0.8 m 계단에 잔 차이
+      /* 지형 판 8 — 스태파 섬처럼 **윗면이 판판한 덩이**(곧은 벼랑 · 꼭대기에 흙과 풀). 예전엔 가운데가 뾰족한 계단 탑이라 레고 같았다(사용자 지적) */
+      let top=(P.tv|0)>=8?H*(0.92+0.08*(1-Math.min(1,d/0.5)))*(1-Math.pow(Math.max(0,(d-0.52)/0.42),1.6)):H*Math.pow(Math.max(0,1-Math.pow(d,1.7)),0.9);
+      top=Math.floor(top/0.8)*0.8+(rnd()-0.5)*((P.tv|0)>=8?0.9:0.5);       // 기둥마다 부러진 높이 — 0.8 m 계단에 잔 차이
       if(d>0.72) top=Math.min(top,0.3+rnd()*1.4+(1-d)*4);                     // 가장자리 — 물가의 디딤돌
-      if(top<g+0.6) continue;
+      /* 안쪽 기둥은 빼지 않는다 — 빠지면 기둥 하나만 한 육각 굴이 나서 그 속에 들어가 섰다(사용자 지적: 바위섬 속이 비었다) */
+      if(top<g+0.6){ if(d>0.72) continue; top=g+0.6; }
       I.cols.push({x,z,r:RC*0.97,b:Math.min(g,0)-2,t:top,k:0.70+0.30*rnd(),d}); } }
   /* 흑요석 덩이 — 흑요석 섬은 꼭대기에 크게, 아니면 기둥 사이와 물가에 몇 개 */
   const nS=obs?7+((rnd()*5)|0):2+((rnd()*3)|0);
@@ -201,16 +203,28 @@ function coastIsleBuild(I){
   if(I.cols&&I.cols.length){
     const P=[], Nn=[], C=[], M=[];
     const tri=(a,b,c,n,col)=>{ for(const v of [a,b,c]){ P.push(v[0],v[1],v[2]); Nn.push(n[0],n[1],n[2]); C.push(col,col,col*1.03); M.push(0); } };
+    /* **기둥의 단면은 반듯한 육각이 아니다**(사용자 지적: 레고 같다) — 실제 주상절리는 식으며 갈라진 다각형이라 변 길이가 들쭉날쭉하다.
+       벌집 격자의 꼭짓점(이웃 기둥 셋이 나눠 쓰는 점)을 그 자리의 해시로 흔들어, 이웃 기둥이 같은 점을 쓰게 한다 — 틈 없이 맞물린다.
+       기둥마다 가운데 쪽으로 3.5% 줄여 가는 금(절리)을 남긴다. 윗면은 기둥마다 조금 기울었다(부러진 면) */
+    const R0=2.0/Math.sqrt(3), shared=(x,z)=>{ const kx=Math.round(x*20), kz=Math.round(z*20), h=hashStr('bv|'+kx+'|'+kz);
+      return [x+((h&1023)/1023-0.5)*0.62, z+(((h>>>10)&1023)/1023-0.5)*0.62]; };
     for(const c of I.cols){
-      const ring=[], inner=[], ch=0.12;                                    // 윗면 모서리 — 12 cm 깎아 둥근 모(빛이 모서리를 잡는다)
-      for(let k=0;k<6;k++){ const a=k/6*6.2832+0.5236+(c.k-0.85)*0.3; ring.push([c.x+Math.cos(a)*c.r,c.z+Math.sin(a)*c.r]); inner.push([c.x+Math.cos(a)*(c.r-ch),c.z+Math.sin(a)*(c.r-ch)]); }
+      const ring=[], inner=[], ch=0.10, hc=hashStr('bt|'+Math.round(c.x*10)+'|'+Math.round(c.z*10));
+      const tlx=((hc&255)/255-0.5)*0.16, tlz=(((hc>>>8)&255)/255-0.5)*0.16;     // 윗면 기울기(±4.5°)
+      for(let k=0;k<6;k++){ const a=k/6*6.2832+0.5236, sv=shared(c.x+Math.cos(a)*R0,c.z+Math.sin(a)*R0);
+        const px=c.x+(sv[0]-c.x)*0.965, pz=c.z+(sv[1]-c.z)*0.965; ring.push([px,pz]);
+        inner.push([px+(c.x-px)*ch/c.r,pz+(c.z-pz)*ch/c.r]); }
+      const T=(x,z)=>c.t+tlx*(x-c.x)+tlz*(z-c.z);
       const col=0.72*c.k*I.tone;                                           // 짙은 잿빛(그늘 쪽이 새까맣게 뭉개지지 않게)
-      for(let k=0;k<6;k++){ const p=ring[k], q=ring[(k+1)%6], am=(k+0.5)/6*6.2832+0.5236+(c.k-0.85)*0.3, n=[Math.cos(am),0,Math.sin(am)];
-        const fk=0.80+0.20*(((k*5+Math.floor(c.x*2.3+c.z*1.3))%3+3)%3)/2;
-        tri([p[0],c.b,p[1]],[q[0],c.b,q[1]],[q[0],c.t-ch,q[1]],n,col*fk); tri([p[0],c.b,p[1]],[q[0],c.t-ch,q[1]],[p[0],c.t-ch,p[1]],n,col*fk);
+      for(let k=0;k<6;k++){ const p=ring[k], q=ring[(k+1)%6];
+        let nx=q[1]-p[1], nz=-(q[0]-p[0]); const nl=Math.hypot(nx,nz)||1; nx/=nl; nz/=nl;
+        if(nx*(p[0]-c.x)+nz*(p[1]-c.z)<0){ nx=-nx; nz=-nz; } const n=[nx,0,nz];
+        const fk=0.84+0.16*(((k*5+Math.floor(c.x*2.3+c.z*1.3))%3+3)%3)/2;
+        const tp=T(p[0],p[1])-ch, tq=T(q[0],q[1])-ch;
+        tri([p[0],c.b,p[1]],[q[0],c.b,q[1]],[q[0],tq,q[1]],n,col*fk); tri([p[0],c.b,p[1]],[q[0],tq,q[1]],[p[0],tp,p[1]],n,col*fk);
         const pi=inner[k], qi=inner[(k+1)%6], nb=[n[0]*0.7,0.71,n[2]*0.7];  // 깎은 모
-        tri([p[0],c.t-ch,p[1]],[q[0],c.t-ch,q[1]],[qi[0],c.t,qi[1]],nb,col*1.08); tri([p[0],c.t-ch,p[1]],[qi[0],c.t,qi[1]],[pi[0],c.t,pi[1]],nb,col*1.08);
-        tri([c.x,c.t,c.z],[qi[0],c.t,qi[1]],[pi[0],c.t,pi[1]],[0,1,0],col*1.15); } }
+        tri([p[0],tp,p[1]],[q[0],tq,q[1]],[qi[0],T(qi[0],qi[1]),qi[1]],nb,col*1.06); tri([p[0],tp,p[1]],[qi[0],T(qi[0],qi[1]),qi[1]],[pi[0],T(pi[0],pi[1]),pi[1]],nb,col*1.06);
+        const tn=[-tlx,1,-tlz]; tri([c.x,c.t,c.z],[qi[0],T(qi[0],qi[1]),qi[1]],[pi[0],T(pi[0],pi[1]),pi[1]],tn,col*1.12); } }
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
     g.setAttribute('color',new THREE.Float32BufferAttribute(C,3)); g.setAttribute('aMelt',new THREE.Float32BufferAttribute(M,1)); g.computeBoundingSphere();
@@ -229,6 +243,7 @@ function coastIsleBuild(I){
 }
 /* 기둥 위 — 밑이 (땅 또는 발)에서 1.9 m 안인 기둥은 그 꼭대기가 바닥이다(벼랑 바위와 같은 규칙 · 높으면 벽 — 80-player.js walkable) */
 function coastFloor(x,z,fromY,t){
+  if(TEMPLE.boxes.length) t=templeFloor(x,z,fromY,t);                  // 옛 신전의 돌덩이(97-temples.js) — 같은 규칙
   if(!COAST.cols.length) return t;
   const a=COAST.grid.get(coastKey(x,z)); if(!a) return t;
   const ref=fromY===undefined?-1e9:fromY;
@@ -237,6 +252,7 @@ function coastFloor(x,z,fromY,t){
 }
 /* 그 점이 기둥 속인가(눈의 경계 · 벼랑 매달리기가 본다) */
 function coastSolid(x,z,y0,y1){
+  if(TEMPLE.boxes.length&&templeSolid(x,z,y0,y1)) return true;          // 옛 신전의 돌덩이
   if(!COAST.cols.length) return false;
   const a=COAST.grid.get(coastKey(x,z)); if(!a) return false;
   if(y1===undefined) y1=y0;
