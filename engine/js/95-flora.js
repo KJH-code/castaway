@@ -77,7 +77,8 @@ const FLORA_PICK={
   honey   :{item:'honey',   n:'벌집',      verb:'꿀 따기',     regrow:72, cnt:[1,1], dur:2.0, stam:4, take:'pot', sting:7},
   /* 옛 신전(97-temples.js) — 한 번만 연다(once · 저장 'temples') · 속은 templeLoot 가 정한다 */
   tchest  :{item:'ring_platinum', n:'옛 상자',  verb:'열기',      regrow:1e9, cnt:[0,0], dur:2.2, stam:2, once:1, loot:1},
-  turn    :{item:'ring_platinum', n:'옛 항아리', verb:'깨서 뒤지기', regrow:1e9, cnt:[0,0], dur:1.2, stam:2, once:1, loot:1}
+  turn    :{item:'ring_platinum', n:'옛 항아리', verb:'깨서 뒤지기', regrow:1e9, cnt:[0,0], dur:1.2, stam:2, once:1, loot:1},
+  mobloot :{item:'chitin',        n:'사체',     verb:'뒤지기',     regrow:1e9, cnt:[0,0], dur:2.0, stam:3, mob:1}   // 쓰러뜨린 몬스터(97-mobs.js — 뒤지면 사라진다 · 무엇이 드는지는 MOB_LOOT)
 };
 /* 바이옴마다의 군락 — w 얼룩이 그 군락이 될 몫 · far 나무 겹 · near 덤불 겹: [종류, 칸마다 설 확률, 크기 아래, 위]
    giant: 노거수가 서는 군락(1 활엽 · 2 침엽 — 95-giants.js) · low: 표고가 이보다 높으면 그 바이옴의 둘째 군락으로 바꾼다
@@ -942,12 +943,12 @@ function floraFindLook(){
   if(uiOpen()||PL.dead) return;
   if(PL.swim){ templeLookSwim(); return; }                             // 물속에서는 해저 신전의 상자 · 항아리만(97-temples.js)
   const e0=equippedTool(), W0=e0&&ITEMS[e0.id].tool, sharpHand=!!(W0&&(W0.weapon&&!W0.gun||W0.axe));   // 칼·도끼를 든 채로도 노거수 껍질·송진은 벗긴다
-  const hand=floraHandOK(); if(!hand&&!sharpHand) return;
+  const hand=floraHandOK(), mobs=typeof MON!=='undefined'&&MON.picks.length>0; if(!hand&&!sharpHand&&!mobs) return;   // 몬스터 사체는 무엇을 들었든 뒤진다(총만 빼고 — useHeld)
   const ex=camera.position.x, ey=camera.position.y, ez=camera.position.z, cp=Math.cos(PL.pitch);
   const fx=-Math.sin(PL.yaw)*cp, fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*cp, hx=-Math.sin(PL.yaw), hz=-Math.cos(PL.yaw);
   let bd=1e9;
-  if(hand){
-  for(const list of [FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,WILD.picks,UNDER.picks,TEMPLE.picks]) for(const p of list){
+  {
+  for(const list of (hand?[FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,WILD.picks,UNDER.picks,TEMPLE.picks,mobs?MON.picks:[]]:mobs?[MON.picks]:[])) for(const p of list){
     const dx=p.x-ex, dz=p.z-ez;
     if(p.tree){
       const d=Math.sqrt(dx*dx+dz*dz); if(d>p.r+1.7||d<1e-3) continue;
@@ -1006,6 +1007,7 @@ function floraPick(){
 /* 막대가 다 찼다 — 얻는 수는 cnt 안에서 무작위 · extra 는 저마다 제 확률로 딸려 나온다 */
 function floraTake(p){
   const D=FLORA_PICK[p.kind];
+  if(D.mob){ const msg=p.lootFn(); FLORA.look=null; toast(msg); sfx('bind'); invDirty=true; return true; }   // 몬스터 사체(97-mobs.js)
   if(D.loot){ const msg=templeLoot(p); TEMPLE.taken.add(p.key); FLORA.look=null; toast(msg); sfx('bind'); invDirty=true; return true; }   // 옛 신전의 상자 · 항아리
   const n=yieldMul(D.cnt[0]+((Math.random()*(D.cnt[1]-D.cnt[0]+1))|0),D.cnt[1]>0?yieldK(p.x,p.z,p.y):1);   // 험한 데일수록 더(97-temples.js)
   if(D.chance!==undefined&&Math.random()>=D.chance){                   // 운이 없으면 아무것도 없다(그 포기는 한동안 빈다 — 같은 나무를 계속 흔들 수 없게)

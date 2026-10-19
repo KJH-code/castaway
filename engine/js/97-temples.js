@@ -362,6 +362,7 @@ function yieldK(x,z,y){
   if(typeof caveAt==='function'&&caveAt(x,z,-0.5)) k+=0.5;                 // 굴
   if(g>0) k+=clamp((g/HI-0.45)/0.45,0,1)*0.8+clamp((sm.slope-0.6)/0.8,0,1)*0.4;
   else k+=clamp((-g-6)/30,0,1)*0.9;                                        // 깊은 물 밑
+  if(typeof mobLairBonus==='function') k+=mobLairBonus(x,z);               // 다지류가 사는 우거진 숲(97-mobs.js)
   return Math.min(2.5,k);
 }
 /* 몫에 곱한다 — 소수부는 그 확률로 하나 더 */

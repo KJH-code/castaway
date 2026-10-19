@@ -165,7 +165,7 @@ const LIMB_SPACE=0.8;
 /* 가지 하나에 달리는 잎 인스턴스 수. 참나무는 한 장씩 다섯을 가지 위에
    흩어 달고, 전나무는 바늘 한 다발을 끝에 하나 단다.
    참나무는 판때기 하나가 잎 아홉 장짜리 한 줌이라 다섯에서 셋으로 줄였다. */
-const LEAF_PER={oak:2, fir:1};   // FPS: 참나무 가지마다 잎 판 셋 → 둘(판을 1.2배 키워 덮는 넓이는 같다 — 30-props.js putLeaf). 숲의 한 칸에 13만 장이었다
+const LEAF_PER={oak:2, fir:2};   // 전나무 — 잔가지 그림 둘(끝 쪽 · 밑 쪽 — 30-props.js putLeaf)   // FPS: 참나무 가지마다 잎 판 셋 → 둘(판을 1.2배 키워 덮는 넓이는 같다 — 30-props.js putLeaf). 숲의 한 칸에 13만 장이었다
 const LEAF_BACK=0.10;                // 가지 끝에서 이만큼 앞부터 달기 시작한다 (m)
 const LIMB_DEPTH=4;                  // 안전장치 — 길이가 먼저 재귀를 멎게 한다
 function growLimbs(p,TR,emit){
@@ -1164,7 +1164,7 @@ function waterMat(river){
   /* 램버트로 세우는 까닭은 오직 그림자다 — 조명은 아래에서 손수 센다. 램버트여야 그림자 지도
      유니폼이 붙고 `envPatch` 가 구름 그림자(`cloudSh`)를 얹는다. 예전엔 MeshBasic 이라 물에
      바위·나무·구름 그림자가 하나도 안 졌다 */
-  const m=new THREE.MeshLambertMaterial({transparent:true,depthWrite:true});
+  const m=new THREE.MeshLambertMaterial({transparent:true,depthWrite:true,side:THREE.DoubleSide});   // 양면 — 물속에서 올려다보면 판의 뒷면이 보인다(예전엔 앞면만이라 물속에서 수면이 아예 안 그려졌다)
   m.userData.lightRole='recv';
   m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,WATER_U);
@@ -1256,8 +1256,7 @@ float plumeAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
          하늘을 통째로 비추는 흰 띠로 빛났다(사용자 지적: 하천에서 오르막을 볼 때 물빛이 기괴하다). */
       vec3 Ng=normalize(vWN);
       vec3 Nw=normalize(Ng+vec3(-grad.x,0.0,-grad.y));
-      float under=step(dot(Ng,V),0.0);                 // 정말로 수면 밑(물속)에서 올려다보는가
-      if(under>0.5){ Nw=Ng; }
+      float under=step(dot(Ng,V),0.0);                 // 정말로 수면 밑(물속)에서 올려다보는가 — 물결 법선은 그대로 둔다(아래 ④에서 굴절 · 전반사가 물결을 따라 일렁인다)
       vec3 Rr=reflect(-V,Nw); Rr.y=abs(Rr.y);
       /* ① 프레넬 — 쉴릭 어림 대신 **편광 없는 빛의 프레넬 식 그대로**(공기 1 → 물 1.333).
          수직으로 내려다보면 2% 만 비치고, 스치는 각일수록 하늘이 거울처럼 비친다. */
@@ -1332,21 +1331,41 @@ float plumeAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
       vec3 light=uAmb+uSunCol*max(uSunDir.y,0.0)*(1.0-F)*shM;
       vec3 body=3.14159*Rup*light;
       vec3 col=body*(1.0-F)+sky*F+spec;
-      /* 물속에서 올려다본 수면 — 머리 위 좁은 원(스넬의 창, 수직에서 48.6° 안)으로만 하늘이 들어오고,
-         그 밖은 전반사라 어두운 물빛이 되비친다. 예전엔 밑에서 봐도 하늘 거울이라 수면이 하얗게 빛났다 */
+      /* ④ **물속에서 올려다본 수면**(사용자 요청: 물속에서 본 수면 반사를 실제처럼) — 물에서 공기로 나가는 빛을 그대로 푼다.
+           · 굴절 — 눈에서 수면으로 가는 빛줄기를 **물결 법선**으로 꺾어(스넬, 1.333 → 1) 그 쪽 하늘을 본다. 그래서 머리 위
+             원(스넬의 창 — 수직에서 48.6° 안)에 하늘 전체가 오므라져 들어오고, 물결마다 창의 테두리와 안의 하늘 · 해가 일렁인다.
+             물속으로 들어온 빛은 굴절률의 제곱(1.78배)만큼 짙어진다 — 창이 둘레보다 밝다(여기선 1.2배로 눅인다).
+           · 프레넬 — 물 → 공기 정확식. 임계각에 다가갈수록 되비치는 몫이 1 로 올라 창의 테두리가 밝은 띠로 번진다.
+           · 전반사 — 창 밖(48.6° 넘게 비스듬히)은 수면이 거울이다: 물속이 비친다. 되비친 빛줄기가 바닥까지 가는 길(수심 ÷ 기울기)만큼
+             물빛에 묻히고(빨강부터 — 흡수 a + 뒤로 흩는 몫), 얕은 데선 그 길 끝의 햇빛 받은 바닥(모래 · 진흙)이 비친다.
+           예전엔 물결 없이 평평한 법선에 잡음으로 테두리만 흔들고, 창 밖은 한 빛깔이었다 */
       if(under>0.5){
-        float up=clamp(dot(-V,Ng),0.0,1.0);              // 올려다보는 각의 코사인(눈→수면 방향과 수면 법선)
-        /* 수면은 가만있지 않다 — 잔물결이 창의 테두리를 일렁이게 하고, 창 안의 하늘과 창 밖의 물빛을 얼룩지게 한다 */
-        vec2 rq=vWW.xz/2.6+vec2(uWT*0.030,uWT*0.021);
-        float rip=texture2D(uNz,rq).r-0.5+0.5*(texture2D(uNz,rq*2.7+0.3).g-0.5);
-        float win=smoothstep(0.60,0.76,up+rip*0.10);
+        /* 잔물결 — 밑에서 보면 바람에 이는 잔물결(수 cm ~ 수십 cm)이 창의 테두리를 잘게 찢고 해를 조각낸다. 굵은 물결 법선 위에
+           흐르는 잡음 두 겹을 얹는다(멀수록 옅게 — 화소보다 잘아지면 자글거린다) */
+        { vec2 rq=vWW.xz/1.7+vec2(uWT*0.050,uWT*0.037), rq2=vWW.xz/0.55-vec2(uWT*0.085,-uWT*0.062);
+          vec2 g2=(vec2(texture2D(uNz,rq).r,texture2D(uNz,rq+0.37).g)-0.5)*0.17+(vec2(texture2D(uNz,rq2).b,texture2D(uNz,rq2+0.61).a)-0.5)*0.10;
+          Nw=normalize(Nw+vec3(g2.x,0.0,g2.y)/(1.0+dist*0.06)); }
+        vec3 I=normalize(vVD), nU=-Nw;                                // 눈 → 수면(위로) · 물 쪽을 보는 법선
+        float cI=clamp(dot(I,Nw),0.0,1.0), sT2=1.7769*(1.0-cI*cI);
+        vec3 lit=uAmb+uSunCol*max(uSunDir.y,0.0)*shM;
         vec3 deep=mix(vec3(0.02,0.16,0.20),vec3(0.09,0.12,0.08),rv)*(uAmb+uSunCol*max(uSunDir.y,0.0)*0.6);
-        vec3 skyU=mix(uSkyH,uSkyZ,0.6)*(0.80+0.55*rip);
-        /* 창 안의 해 — 굴절돼 들어온 햇빛이 물결에 부서져 번쩍인다(해가 보이는 쪽 = 굴절된 햇빛을 거슬러 올려다본 쪽) */
-        vec3 sIn=refract(-uSunDir,vec3(0.0,1.0,0.0),0.7502);
-        float sg=pow(max(dot(normalize(vVD),-sIn),0.0),36.0);
-        skyU+=uSunCol*sg*(0.5+1.8*smoothstep(-0.1,0.4,rip))*step(0.0,uSunDir.y);
-        col=mix(deep*(0.85+0.7*rip),skyU,win*0.88);
+        vec3 Rd=reflect(I,nU);                                       // 되비친 빛줄기 — 물속으로(아래로)
+        float path=min(d/max(-Rd.y,0.06),80.0);
+        vec3 cA=aT+bb*4.0;                                            // 지나며 잃는 몫(흡수 + 흩음)
+        vec3 bedL=bot*lit*exp(-cA*d)*0.95, Tp=exp(-cA*path);
+        vec3 refl=deep*(1.0-Tp)+bedL*Tp;
+        vec3 cu;
+        if(sT2>=1.0) cu=refl;                                         // 전반사
+        else{
+          float cT=sqrt(1.0-sT2);
+          float rs=(1.333*cI-cT)/(1.333*cI+cT), rp=(cI-1.333*cT)/(cI+1.333*cT), Fw=0.5*(rs*rs+rp*rp);
+          vec3 T=refract(I,nU,1.333);                                 // 공기로 나간 빛줄기
+          vec3 skyT=mix(uSkyH,uSkyZ,1.0-exp(-max(T.y,0.0)*9.0));
+          float sd2=max(dot(T,uSunDir),0.0);
+          skyT+=uSunCol*(pow(sd2,2400.0)*40.0+pow(sd2,90.0)*0.5)*step(0.0,uSunDir.y)*shM;   // 해 — 물결에 부서져 번쩍인다
+          cu=mix(skyT*1.2,refl,Fw);
+        }
+        col=cu;
       }
       // 거품 — 물가 0.5 m 안, 밀려왔다 빠진다
       /* 거품 — 예전엔 물가 0.5 m 띠가 통째로 밝아졌다 어두워졌다 했다(매끈한 흰 띠). 이제

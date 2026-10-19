@@ -134,6 +134,7 @@ function hurtPL(dmg,why,armored){
   if(armored) dmg*=armorMul();
   PL.hp-=dmg;
   hurtFlash=Math.min(1,hurtFlash+Math.min(0.9,dmg/30));
+  if(dmg>=4&&typeof MON!=='undefined'){ MON.shake=Math.min(1,MON.shake+Math.min(0.7,dmg/30)); if(Math.abs(MON.roll)<0.03) MON.roll=(Math.random()<0.5?-1:1)*Math.min(0.14,0.03+dmg/250); }   // 맞는 몸짓 — 화면이 흔들리고 기운다(97-mobs.js mobCamera)
   if(why && dmg>=1 && performance.now()-lastHurtMsg>900){
     lastHurtMsg=performance.now(); toast(why+' — 체력 '+Math.max(0,Math.round(PL.hp)));
   }
@@ -671,6 +672,12 @@ const SFX={
     ring(880*p,0.085,0.08,t+0.004,'sine',0.8);
     nz(t+0.012,0.075,0.09,'bandpass',2600*p,2.6); },
 
+  // 휘두르는 바람 소리 — 띠 잡음이 위로 쓸고 내려온다(결마다 높이가 조금 다르다)
+  swish(){ const t=T0(), p=rr(0.8,1.25);
+    nz(t,0.16,0.32,'bandpass',900*p,1.6,0.9); nz(t+0.04,0.12,0.22,'bandpass',2100*p,2.2); },
+  // 몸에 박힌다 — 둔한 쿵 + 찢기는 잡음(근접 명중)
+  flesh(){ const t=T0(), p=rr(0.85,1.15);
+    ring(110*p,0.16,0.5,t,'triangle',0.5); nz(t,0.12,0.45,'lowpass',1300*p,0.9); nz(t+0.01,0.08,0.25,'bandpass',3000*p,2); click(t,0.3,700*p); },
   // 도끼로 찍는다: 낮고 둔한 타격 + 쪼개짐. 가지보다 크고 느리다
   chop(){ const t=T0(), p=rr(0.9,1.1);
     click(t,0.26,900*p);

@@ -185,8 +185,8 @@ function titleText(){
    전부 같은 유리(휨 · 색 번짐 · 주사선)를 거친다. 섬을 다시 만들었을 때(새 섬 · 불러오기)는 글 없이 **착륙 단추만** 뜬다.
    글이 찍히는 동안 화면을 누르거나 Enter 를 치면 건너뛴다 */
 /* 여는 글(사용자 요청 — 2026-10-15) — 한 화면에 한 줄. **한 글자씩** 찍히고 글자마다 **같은 소리**가 같은 박자로 난다.
-   다 찍히면 잠깐 머물고 → 검은 화면 → 다음 줄. 둘째 줄의 '1일 16시간' 은 실제 40분이다(게임 1시간 = 실제 1분 · 99-main.js) */
-const TITLE_LINES=['큰 돈을 노리던 당신은 불법 게임에 참가했습니다','섬에서 1일 16시간을 살아남으세요','행운을 빌겠습니다'];
+   다 찍히면 잠깐 머물고 → 검은 화면 → 다음 줄(사용자 요청 — 둘째 줄은 '1일 16시간을' 대신 '마지막까지') */
+const TITLE_LINES=['큰 돈을 노리던 당신은 불법 게임에 참가했습니다','섬에서 마지막까지 살아남으세요','행운을 빌겠습니다'];
 const TITLE_CH_DT=0.085, TITLE_HOLD=1.7, TITLE_BLACK=0.7, TITLE_LEAD=0.6;   // 글자 간격 · 다 찍힌 뒤 머무름 · 줄 사이 검은 화면 · 처음 기다림
 function titleBeep(){
   try{ const C=TITLE.ac||(TITLE.ac=new (window.AudioContext||window.webkitAudioContext)()); if(C.state==='suspended') C.resume();
