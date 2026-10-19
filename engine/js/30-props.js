@@ -793,10 +793,38 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
     g.computeVertexNormals();
     return g;
   }
+  /* **전나무 잔가지 그림**(사용자 지적: 전나무가 가까이서 잎 없는 막대기다) — 가지마다 바늘 열네 장짜리 다발 하나를 끝에만 달아,
+     2 m 넘는 가지의 대부분이 맨 막대로 보였다. 이제 바늘이 빽빽이 붙은 잔가지 한 줌(가운데 줄기 · 양옆 두 줄의 바늘 · 곁잔가지 ·
+     끝으로 갈수록 짧은 새 바늘)을 캔버스(128 × 512)에 그려 십자 판때기에 붙이고, 가지 길이에 맞춰 늘여 가지를 따라 둘 단다
+     (가지마다 세모 8 장 — 예전 다발 14 장보다 적다). 전나무 바늘은 짙은 청록 · 끝은 밝고 · 뒷면에 흰 숨구멍 줄 */
+  function makeNeedleTex(){
+    const W=128, H=512, c=document.createElement('canvas'); c.width=W; c.height=H;
+    const g=c.getContext('2d'), rnd=mulberry32(hashStr('firneedle'));
+    const COL=['#1d3a2a','#234431','#2a4b36','#1a3326','#2f5239'], TIP=['#3f6a44','#4a7650','#557f55'];
+    const twig=(x0,y0,ang,len,w0,depth)=>{                               // 가지 하나 — 밑동(x0,y0)에서 ang 쪽으로
+      const ca=Math.sin(ang), cb=-Math.cos(ang), n=Math.max(6,(len/3)|0);
+      for(let i=0;i<n;i++){ const t=i/(n-1), x=x0+ca*len*t, y=y0+cb*len*t, nl=(depth?9:15)*(1-0.55*t*t)*(0.85+0.3*rnd());
+        for(const sd of [-1,1]){ const a=ang+sd*(0.95+0.25*rnd())-0.12*sd*t;   // 바늘 — 앞으로 비스듬히 두 줄
+          const ex=x+Math.sin(a)*nl, ey=y-Math.cos(a)*nl;
+          const gr=g.createLinearGradient(x,y,ex,ey); gr.addColorStop(0,COL[(rnd()*COL.length)|0]); gr.addColorStop(1,t>0.75?TIP[(rnd()*TIP.length)|0]:COL[(rnd()*COL.length)|0]);
+          g.strokeStyle=gr; g.lineWidth=depth?1.6:2.1; g.lineCap='round'; g.beginPath(); g.moveTo(x,y); g.lineTo(ex,ey); g.stroke();
+          if(rnd()<0.18){ g.strokeStyle='rgba(205,220,215,0.55)'; g.lineWidth=0.7; g.beginPath(); g.moveTo(x+(ex-x)*0.2,y+(ey-y)*0.2); g.lineTo(x+(ex-x)*0.85,y+(ey-y)*0.85); g.stroke(); } }
+        if(rnd()<0.5){ const a=ang+(rnd()-0.5)*0.5, nl2=nl*0.7; g.strokeStyle=COL[(rnd()*COL.length)|0]; g.lineWidth=1.8;   // 위로 선 바늘(가지 가운데)
+          g.beginPath(); g.moveTo(x,y); g.lineTo(x+Math.sin(a)*nl2,y-Math.cos(a)*nl2); g.stroke(); } }
+      g.strokeStyle='#4a3a28'; g.lineWidth=w0; g.beginPath(); g.moveTo(x0,y0); g.lineTo(x0+ca*len*0.92,y0+cb*len*0.92); g.stroke();
+    };
+    /* 곁잔가지를 먼저(뒤에 깔린다) — 양옆으로 엇갈려 앞쪽 45° · 위로 갈수록 짧다 */
+    for(let k=0;k<9;k++){ const t=0.08+k*0.095, y=H*(1-t)-6, sd=(k%2)?1:-1, L=(H*0.30)*(1-t*0.8)*(0.8+0.35*rnd());
+      twig(W/2+sd*1.5,y,sd*(0.62+0.18*rnd()),L,2.2,1); }
+    twig(W/2,H-4,(rnd()-0.5)*0.06,H*0.97,3.4,0);                         // 가운데 줄기
+    const tx=new THREE.CanvasTexture(c); tx.wrapS=tx.wrapT=THREE.ClampToEdgeWrapping; tx.anisotropy=4;
+    return tx;
+  }
   function leafSpray(kind){
     /* 참나무는 판때기 하나가 곧 한 인스턴스다. mergeParts 는 uv 를 옮기지
        않으므로 거치지 않고 그대로 쓴다. */
     if(kind==='oak') return leafCard(0.60,1.35);
+    if(kind==='fir') return leafCard(0.5,1.0);                            // 잔가지 그림(makeNeedleTex)을 붙인 십자 판 — 밑동이 원점, 길이 1 · 폭 1(인스턴스가 늘인다)
     /* 바늘잎 — 가지를 따라 뒤로 눕는 솔이다. 두 줄로 갈라 붙여
        가까이서 보면 잎이 마주나는 결이 보인다. 열네 개를 한 다발로 굳혀
        가지 끝에 하나 단다. */
@@ -811,7 +839,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
     return mergeParts(parts);
   }
   const leafUnitOak=leafSpray('oak'), leafUnitFir=leafSpray('fir');
-  const leafTexOak=makeLeafTex();
+  const leafTexOak=makeLeafTex(), leafTexFir=makeNeedleTex();
   /* ---- 멀리서 쓸 수관 임포스터 -------------------------------------------
      55 m 밖에서는 가지도 잎도 그리지 않고 이 판때기 하나로 갈음한다.
      수관 덩이를 여럿 겹쳐 그려 윤곽을 만든다 — 참나무는 둥글게 퍼지고
@@ -1241,7 +1269,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
       const leafMat=R.k==='oak'
         ? new THREE.MeshLambertMaterial({map:leafTexOak, alphaTest:0.5,
                                          side:THREE.DoubleSide})
-        : new THREE.MeshLambertMaterial({color:0x2f4a3a, side:THREE.DoubleSide});
+        : new THREE.MeshLambertMaterial({map:leafTexFir, alphaTest:0.42, side:THREE.DoubleSide});
       /* 멀리서 쓸 수관 임포스터 — 십자 판때기에 수관 그림을 붙인다.
          줄기는 넣지 않는다. 진짜 줄기(원기둥)는 늘 그려지므로 그림에도
          줄기가 있으면 둘이 겹쳐 깜빡인다. */
@@ -1260,7 +1288,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
          예전 재질(leafMat · leafDepth · limbMat)은 먼 나무 복제와 임포스터가 그대로 쓴다 */
       const leafC=instCompact(R.k==='oak'
         ? new THREE.MeshLambertMaterial({map:leafTexOak, alphaTest:0.5, side:THREE.DoubleSide})
-        : new THREE.MeshLambertMaterial({color:0x2f4a3a, side:THREE.DoubleSide}));
+        : new THREE.MeshLambertMaterial({map:leafTexFir, alphaTest:0.42, side:THREE.DoubleSide}));
       leafC.userData.wind='leaf';
       const leafDC=instCompact(new THREE.MeshDepthMaterial(leafMat.map
         ? {depthPacking:THREE.RGBADepthPacking, map:leafMat.map, alphaTest:leafMat.alphaTest}
@@ -1322,6 +1350,15 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
            않게 막는다 — 짧은 잔가지에서 잎이 밑동 뒤로 넘어가지 않게. */
         const lrnd=mulberry32((p._hash||0)^0x51ed270b);
         const putLeaf=(slot,base,quat,len,leafS)=>{
+          if(R.k==='fir'){                                // 전나무 — 잔가지 그림 둘을 가지를 따라(끝 쪽 42~104% · 밑 쪽 4~58%) 늘여 단다
+            _lbD.set(0,1,0).applyQuaternion(quat);
+            for(let q=0;q<LPB;q++){ const i=slot*LPB+q, a0=q?0.04:0.42, a1=q?0.58:1.04;
+              if(leafS<=0||(q&&len<0.7)){ instPut(leafMesh,i,base,quat,0,0); continue; }
+              _lbB.copy(base).addScaledVector(_lbD,len*a0);
+              _lbE.set(0,lrnd()*6.283,0.05+lrnd()*0.16); _lbQ2.setFromEuler(_lbE); _lbQ.copy(quat).multiply(_lbQ2);
+              const w=clamp(leafS*1.25,0.16,0.62)*(0.9+lrnd()*0.3)*(q?0.85:1);
+              instPut(leafMesh,i,_lbB,_lbQ,w,len*(a1-a0)); }
+            return; }
           for(let q=0;q<LPB;q++){
             const i=slot*LPB+q;
             if(leafS<=0){ instPut(leafMesh,i,base,quat,0,0); continue; }
