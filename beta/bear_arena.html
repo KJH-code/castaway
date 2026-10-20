@@ -378,18 +378,25 @@ function bearRotTo(a0,n0,a1,n1,out){
   _brm2.makeBasis(a1,x1,z1);
   return out.setFromRotationMatrix(_brm2.multiply(_brm1.transpose()));
 }
-/* 두 마디 IK — 사슬 k 의 끝(손목·발목)을 모델 좌표 T 에 놓는다. pole 은 가운데 마디(팔꿈치·무릎)가 나갈 쪽.
-   닿지 않으면 쭉 뻗는다. 부모(빗장·엉덩이)는 이미 놓여 있어야 한다(bearFK). */
-function bearIK(B,k,T,pole){
+/* 두 마디 IK — 사슬 k 의 끝(손목·발목)을 모델 좌표 T 에 놓는다. 가운데 마디(팔꿈치·무릎)가 나갈 쪽은
+   경첩 축 hinge 로 정한다(뿌리→끝 × 경첩 — 다리가 어디를 가리키든 그 다리에 수직이라 안 뒤집힌다) · side 는 옆으로 벌리는 몫 ·
+   pole 을 주면(앞발을 치켜들 때) 그 쪽으로 rp 만큼 옮긴다. 고정된 쪽(무릎 = 몸 앞)으로만 잡았더니 발을 앞으로 뻗을 때
+   다리가 그 쪽과 나란해져 무릎이 한 프레임에 98° 뒤집혔다. 닿지 않으면 쭉 뻗는다. 부모(빗장·엉덩이)는 이미 놓여 있어야 한다(bearFK). */
+function bearIK(B,k,T,hinge,side,pole,rp){
   const L=B.L[k], iU=L.iU, iL=L.iL, pU=B.par[iU], a=L.a, b=L.b;
   const P0=_brv[0].copy(B.bones[iU].position).applyQuaternion(B.Q[pU]).add(B.P[pU]);
   const u=_brv[1].subVectors(T,P0);
   /* 다 접히거나 다 펴지는 끝에선 무릎 방향이 거리에 아주 민감해(그 근처 한 프레임에 45° 넘게 돌았다 — 넓적다리가 짧은 왼 뒷다리가
      뛸 때 발을 들면 다 접혔다) 접힘 · 폄을 조금 남겨 둔다. 닿지 못한 만큼은 발이 덜 들리거나 덜 뻗는다 */
   const dlo=Math.abs(a-b)+0.2*(a+b-Math.abs(a-b));
-  let d=u.length(); d=Math.min(Math.max(d,dlo),(a+b)*0.985);
+  /* 목표가 뿌리에 바짝 붙으면(발을 높이 들 때) 뿌리→목표 방향이 조금만 움직여도 휙 돈다(한 프레임 128°) — 붙을수록 아래쪽으로 눕힌다 */
+  let d=u.length();
+  if(d<dlo){ u.y-=dlo-d; d=u.length(); }
+  d=Math.min(Math.max(d,dlo),(a+b)*0.985);
   u.normalize();
-  const bd=_brv[2].copy(pole).addScaledVector(u,-pole.dot(u));
+  const bd=_brv[2].crossVectors(u,hinge).normalize().addScaledVector(side,1);
+  if(rp>0) bd.lerp(pole,rp);
+  bd.addScaledVector(u,-bd.dot(u));
   if(bd.lengthSq()<1e-8) bd.set(0,1,0).addScaledVector(u,-u.y);
   bd.normalize();
   const x=(a*a-b*b+d*d)/(2*d), hh=Math.sqrt(Math.max(0,a*a-x*x));
@@ -417,7 +424,8 @@ function bearEnd(B,k,dir,amt){
    경직 / 쓰러짐. 그 표대로 엉덩이·허리·목을 돌리고 네 발은 IK 로 그 자리에 놓는다. 디딘 발은 땅에 붙어 있다.
    ① 걸음 — 걸음 위상(an.ph)은 간 거리로 민다(프레임률과 무관 · 디딘 발이 몸이 간 만큼 뒤로 가 미끄러지지 않는다).
      천천히 걸을 때는 옆걸음 차례(왼뒤 → 왼앞 → 오른뒤 → 오른앞 · 땅 디딤 64%), 빨라지면 갤럽(뒷발 둘 → 앞발 둘 ·
-     디딤 36% · 허리가 오므렸다 폈다 하고 몸이 한 번 뜬다)으로 넘어간다(달리기 3.5 → 7 m/s).
+     디딤 32% · 한 걸음 5 m · 허리가 크게 오므렸다 폈다 하고 몸이 한 번 뜬다 · 앞발은 높이 들어 앞으로 뻗고 손목을 접는다)으로
+     넘어간다(달리기 3.5 → 7 m/s). 디딘 발이 땅에서 안 미끄러지게 앞발 디딤은 어깨 바로 앞에 둔다(BEAR_GAIT.galZ).
    ② 내려찍기 — 시험장의 Q(치켜듦 · 정점 · 내려찍기 비율)와 P.atk 를 그대로 읽는다: 뒷발을 디딘 채 엉덩이를 축으로
      일어서며 앞발을 머리 위로 치켜들고(입을 벌림) → 잠깐 멎었다가 → 앞으로 몸을 던져 두 앞발로 앞 땅을 찍는다(Q.hit).
    ③ 경직(b.frz) — 찍은 자세에서 숨을 몰아쉬며 P.stun 동안 네 발 자세로 돌아온다.
@@ -425,16 +433,20 @@ function bearEnd(B,k,dir,amt){
    ⑤ 맞으면 움찔(체력이 준 것으로 안다) · 고개는 노리는 것을 본다.
    b 에서 읽는 것: state · t · frz · speed · yaw · alive · hp · pos (AI 는 그대로다). P · Q 는 시험장의 곰 설정 표다. */
 const BEAR_D={rY:0,rZ:1,rP:2,rR:3,sP:4,cP:5,cR:6,nP:7,hP:8,jaw:9,raise:10,lookW:11,
-  hR:12,hL:15,fR:18,fL:21,hand:24,toe:25,yaw:26,N:27};
+  hR:12,hL:15,fR:18,fL:21,hand:24,toe:25,yaw:26,cuR:27,cuL:28,N:29};
 const BEAR_GAIT={
-  walkD:1.45, runD:3.4,                         // 한 걸음 주기에 나아가는 거리(모델 좌표 — SCL 1.14 면 1.7 · 3.9 m · 9.6 m/s 에 초당 2.5 번)
+  walkD:1.45, runD:4.4,                         // 한 걸음 주기에 나아가는 거리(모델 좌표 — SCL 1.14 면 1.7 · 5.0 m · 9.6 m/s 에 초당 1.9 번)
   walk:{hR:0.75, hL:0.25, fR:0.5, fL:0.0},      // 위상 어긋남 — 옆걸음 차례
   gal: {hR:0.58, hL:0.48, fR:0.10, fL:0.0},     // 갤럽 — 뒷발 둘이 먼저, 앞발 둘이 반 주기 뒤
-  duty:[0.64,0.36], lift:{h:[0.26,0.42], f:[0.22,0.30]}
+  duty:[0.64,0.32], lift:{h:[0.26,0.52], f:[0.22,0.46]},
+  /* 걷고 달릴 때 디딤의 가운데(모델 z) — 앞발은 어깨 바로 앞에 둔다(왼 어깨가 0.35 m 뒤에 있다). 서 있을 때 자리(BEAR_STAND)에 두면
+     디딤 끝에서 팔이 모자라(다리 길이의 1.15 · 1.36 배) 앞발이 땅을 끌고 몸을 따라왔다 */
+  walkZ:{hR:0.86, hL:0.50, fR:-0.95, fL:-0.98}, galZ:{hR:0.62, hL:0.36, fR:-0.98, fL:-1.02},
+  reach:{h:0.30, f:0.14}                        // 든 발이 내려앉기 직전 앞으로 더 뻗었다가 디딤 자리로 돌아오는 폭
 };
 /* 네 발로 섰을 때 발 자리(모델 좌표 · 손목 · 발목) */
 const BEAR_STAND={hR:[BEAR_CX+0.62,0.30,1.05], hL:[BEAR_CX-0.62,0.30,1.05], fR:[BEAR_CX+0.60,0.40,-0.95], fL:[BEAR_CX-0.60,0.40,-0.95]};
-const _brd=[new Float32Array(27),new Float32Array(27),new Float32Array(27),new Float32Array(27)];
+const _brd=[0,1,2,3].map(()=>new Float32Array(BEAR_D.N));
 function bearAn(b){
   return b.an||(b.an={t:Math.random()*20, ph:Math.random(), mv:0, gal:0, atk:0, u:0, stn:0, dead:0, hit:0, lastHp:b.hp,
     lw:0, ly:0, lp:0, look:new THREE.Vector3()});
@@ -457,24 +469,29 @@ function bearDLoco(b,A,dt,D){
   const g=A.gal, m=A.mv, len=G.walkD+(G.runD-G.walkD)*g;
   A.ph=(A.ph+v/sc*dt/len)%1;
   const w=A.ph*Math.PI*2, duty=G.duty[0]+(G.duty[1]-G.duty[0])*g, sweep=duty*len;
-  /* 몸 — 걸을 땐 걸음마다 조금 오르내리고 좌우로 흔들린다. 달릴 땐 한 번 크게 떠오르고(뒷발이 박찰 때),
-     허리가 오므렸다 펴며(뒷발이 몸 밑으로 들어올 때 등이 굽는다) 앞으로 숙인다 */
-  D[BEAR_D.rY]+=m*((1-g)*0.035*Math.cos(2*w)+g*(0.12*Math.sin(w-0.9)+0.04));
-  D[BEAR_D.rP]+=m*(g*(0.10+0.10*Math.sin(w+0.3)));
-  D[BEAR_D.sP]+=m*g*0.12*Math.sin(w+1.4);
-  D[BEAR_D.cP]+=m*g*-0.10*Math.sin(w+2.0);
-  D[BEAR_D.rR]+=m*(1-g)*0.035*Math.sin(w);
-  D[BEAR_D.nP]+=m*(-0.06*g-0.5*g*0.10*Math.sin(w+0.3)) + m*(1-g)*0.06;   // 걸을 땐 고개를 조금 숙여 냄새를 맡는다
-  D[BEAR_D.jaw]+=m*g*0.15;
+  /* 몸 — 걸을 땐 걸음마다 조금 오르내리고 좌우로 흔들린다. 달릴 땐 뒷발이 박찰 때 크게 떠오르고, 허리가 크게 오므렸다
+     폈다 한다(뒷발이 몸 밑으로 모일 때 등이 둥글게 굽고, 앞발이 앞으로 뻗을 때 쭉 펴진다) · 고개는 몸과 엇갈려 끄덕인다 */
+  /* 차례(위상 0~1): 뒷발 둘 디딤 0.90~0.32 → 앞발 둘 디딤 0.42~0.84 → 떠서 몸을 모음. 그래서 앞발이 디딜 때(0.55) 가장 낮고
+     숙이며, 앞발이 땅을 차고 난 뒤(0.05) 가장 높다 — 반대로 두면 앞발이 내려앉을 때 가슴이 높아 발이 땅에 못 닿았다 */
+  D[BEAR_D.rY]+=m*((1-g)*0.035*Math.cos(2*w)+g*(0.17*Math.sin(w+1.26)-0.03));
+  D[BEAR_D.rP]+=m*(g*(0.12+0.17*Math.sin(w-2.51)));
+  D[BEAR_D.sP]+=m*g*0.28*Math.sin(w-4.08);       // 뒷발이 몸 밑으로 모일 때(0.9) 등이 가장 둥글다
+  D[BEAR_D.cP]+=m*g*-0.22*Math.sin(w-3.48);
+  D[BEAR_D.rR]+=m*((1-g)*0.035*Math.sin(w)+g*0.05*Math.sin(w+0.6));
+  D[BEAR_D.nP]+=m*(-0.06*g-g*0.16*Math.sin(w-2.51)) + m*(1-g)*0.06;   // 걸을 땐 고개를 조금 숙여 냄새를 맡는다
+  D[BEAR_D.jaw]+=m*g*(0.22+0.10*Math.sin(w));
   for(const k of ['hR','hL','fR','fL']){
     const front=k[0]==='h', o=G.walk[k]+(G.gal[k]-G.walk[k])*g, p=(A.ph+o)%1;
     let dz, lift=0;
+    /* 디딘 동안은 몸이 간 만큼(한 바퀴 len 의 duty 몫 = sweep) 똑같이 뒤로 — 땅에서 안 미끄러진다 */
     if(p<duty) dz=sweep*(0.5-p/duty);
     else { const s=(p-duty)/(1-duty), e=s*s*(3-2*s);
-      dz=sweep*(-0.5+e);
-      const L=front?G.lift.h:G.lift.f; lift=Math.sin(Math.PI*s)*(L[0]+(L[1]-L[0])*g);
-      if(!front) D[BEAR_D.toe]=Math.max(D[BEAR_D.toe],Math.sin(Math.PI*s)*m); }
-    const i=BEAR_D[k]; D[i+1]+=lift*m; D[i+2]+=dz*m;
+      /* 든 동안은 앞으로 휘둘러 — 앞발은 높이 들어 끝에서 앞으로 더 뻗었다가 내려앉고, 뒷발은 몸 밑으로 접어 당긴다 */
+      dz=sweep*(-0.5+e)+(front?G.reach.h:G.reach.f)*g*Math.sin(Math.PI*s)*s*s;
+      const L=front?G.lift.h:G.lift.f; lift=Math.sin(Math.PI*Math.pow(s,front?0.8:1.25))*(L[0]+(L[1]-L[0])*g);
+      if(front) D[k==='hR'?BEAR_D.cuR:BEAR_D.cuL]=Math.sin(Math.PI*Math.min(1,s*1.3))*m*g;   // 든 앞발은 손목을 뒤로 접는다
+      else D[BEAR_D.toe]=Math.max(D[BEAR_D.toe],Math.sin(Math.PI*s)*m); }
+    const i=BEAR_D[k]; D[i+1]+=lift*m; D[i+2]+=(dz+G.walkZ[k]+(G.galZ[k]-G.walkZ[k])*g-D[i+2])*m;
   }
 }
 /* 내려찍기 — u = b.t/P.atk */
@@ -520,7 +537,8 @@ function bearDDead(D){
   bearDSet(D,BEAR_D.hR,BEAR_CX+1.25,0.18,0.95); bearDSet(D,BEAR_D.hL,BEAR_CX-1.30,0.18,0.80);
   bearDSet(D,BEAR_D.fR,BEAR_CX+0.85,0.20,-1.70); bearDSet(D,BEAR_D.fL,BEAR_CX-0.80,0.20,-1.75);
 }
-const _brl=new THREE.Vector3(), _brp=new THREE.Vector3(), _brt=new THREE.Vector3(), _brs=new THREE.Vector3();
+const _brl=new THREE.Vector3(), _brp=new THREE.Vector3(), _brt=new THREE.Vector3(), _brs=new THREE.Vector3(),
+      _brh=new THREE.Vector3(), _brw=new THREE.Vector3();   // IK 경첩 · 옆 벌림
 /* 자세표 D 대로 뼈를 놓는다 */
 function bearApply(B,A,D,look){
   const by=B.by, J=BEAR_D;
@@ -551,17 +569,19 @@ function bearApply(B,A,D,look){
     const i=J[k], sh=_brs.copy(B.bones[B.L[k].iU].position).applyQuaternion(B.Q[B.par[B.L[k].iU]]).add(B.P[B.par[B.L[k].iU]]);
     _brt.set(D[i],D[i+1],D[i+2]);
     if(r>0) _brt.lerp(sh.add(_brp.set(0.12*s,1.05,0.42)),r);
-    _brp.set(0.55*s+0.6*s*r,-0.2*r,-1+0.9*r);
-    bearIK(B,k,_brt,_brp);
-    _brp.set(0.08*s,-0.55,1).normalize();
+    bearIK(B,k,_brt,_brh.set(-1,0,0),_brw.set(0.55*s,0,0),_brp.set(1.15*s,-0.2,-0.1).normalize(),r);   // 팔꿈치는 뒤로(치켜들 땐 옆으로)
+    /* 든 앞발은 손바닥이 뒤를 보게 손목을 접는다 — 몸 옆에서 본 각을 돌려서(앞·뒤 두 쪽을 섞으면 거의 마주 보는 두 쪽이라
+       가운데서 방향이 휙 뒤집혔다) */
+    const cu=D[s>0?J.cuR:J.cuL], al=0.50+1.6*cu;
+    _brp.set(0.08*s,-Math.sin(al),Math.cos(al)).normalize();
     if(r>0) _brp.lerp(_brv[7].set(0.2*s,0.7,0.5).normalize(),r).normalize();
-    bearEnd(B,k,_brp,D[J.hand]);
+    bearEnd(B,k,_brp,Math.max(D[J.hand],0.9*cu));
   }
   /* 뒷발 — 무릎은 앞으로. 든 발은 발끝을 내린다 */
   for(const [k,s] of [['fR',1],['fL',-1]]){
     const i=J[k];
     _brt.set(D[i],D[i+1],D[i+2]);
-    bearIK(B,k,_brt,_brp.set(0.15*s,-0.15,1).applyQuaternion(B.Q[0]));
+    bearIK(B,k,_brt,_brh.set(1,0,0),_brw.set(0.15*s,0,0),null,0);                     // 무릎은 앞으로
     _brp.set(0.15*s,-0.45-0.8*D[J.toe],0.88).normalize();
     bearEnd(B,k,_brp,0.9);
   }
@@ -574,7 +594,7 @@ function bearDraw(b,dt,look,gy){
   A.t+=dt; A.dt=dt;
   /* 상태별 몫 — 내려찍기 · 경직 · 쓰러짐은 빠르게 들어가고 천천히 빠진다 */
   const atk=b.alive&&b.state==='attack'?1:0, stn=b.alive&&!atk&&(b.frz>0||b.state==='stun')?1:0;
-  A.atk+=(atk-A.atk)*(1-Math.exp(-(atk?18:8)*dt));
+  A.atk+=(atk-A.atk)*(1-Math.exp(-(atk?9:8)*dt));     // 달리던 자세에서 9/초로 넘어간다(18 이면 첫 프레임에 앞발이 50° 넘게 튀었다)
   A.stn+=(stn-A.stn)*(1-Math.exp(-(stn?14:6)*dt));
   if(!b.alive) A.dead=Math.min(1,A.dead+dt/0.9); else A.dead=0;
   if(b.hp<A.lastHp-0.5) A.hit=1;
