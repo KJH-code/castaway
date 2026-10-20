@@ -356,7 +356,7 @@ function updateTileVis(){                // 예산(rockBudget · _treeBudget · 
 /* 보이기를 바꿨으면 참 — 바뀐 칸만 그림자 지도를 다시 그리게 알린다 */
 function setVis(m,v){ if(m.visible===v) return false; m.visible=v; return true; }
 /* **해 그림자 상자 밖의 칸은 그림자를 안 드리운다** — 칸 메시는 화면 거르기를 꺼 두어(frustumCulled false — 인스턴스가 칸 밖으로
-   삐져나온다) 그림자 지도를 그릴 때도 보이는 칸 전부가 그려졌다. 상자는 사람 둘레 36~64 m 인데, 125 m 밖 나무 복제·200 m 밖
+   삐져나온다) 그림자 지도를 그릴 때도 보이는 칸 전부가 그려졌다. 상자는 사람 둘레 72~128 m(2026-10-20 넓힘 — 예전 36~64)인데, 125 m 밖 나무 복제·200 m 밖
    바위까지 그림자 지도에 그렸다(숲에서 그림자 한 번에 5 ms — FPS 측정). 칸 가장자리가 상자 반경 + 8 m 밖이면 드리우기를 끈다.
    배역(LIGHT.apply)이 드리우게 한 것만 다시 켠다(`_cast0`). 바뀌었으면 참 */
 function castNear(m,near){ if(!m||m._cast0===undefined) return false; const v=near&&m._cast0; if(m.castShadow===v) return false; m.castShadow=v; return true; }
