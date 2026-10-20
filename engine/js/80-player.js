@@ -11,24 +11,21 @@
    깔려 있으면 강한 것이 설 자리가 없다 — 머릿수와 질이 하나의 저울에 얹힌다.
 
    · 1일차는 0. 표류 첫날은 아무것도 나오지 않는다.
-   · 예산은 15·(6/5)^(d-2). 섬이 1920 m 나 되어 예산이 얕으면 하루 종일 걸어도
-     아무것도 못 만난다 — 그래서 2일차를 15로 잡았다.
-   · 38일(10632)에서 멎는다. 가장 무거운 몹이 500이니 그쯤이면 수십 마리가
-     같이 설 자리가 나온다.
+   · 예산은 100·(6/5)^(d-2)(2026-10-20 사용자 요청으로 밑값 15 → 100).
+   · 38일(70880)에서 멎는다.
    ========================================================================== */
 const START_HOUR=8.5;                        // 표류 첫날 눈을 뜬 시각
 const dayNo=()=>1+Math.floor((gameHours+START_HOUR)/24);
 /* 날짜별 파워레벨 예산 — 첨자가 곧 날짜다(0번은 자리 채움).
-   2일차부터 round(15 · (6/5)^(d-2)) — 나흘에 갑절꼴로 불어난다.
-   밑값 5 에서 15 로 올렸다(3배). 섬이 2.5배로 넓어져 예전 예산으로는
-   하루 종일 걸어도 아무것도 못 만난다. */
-const POWER_BASE=15;
+   2일차부터 round(POWER_BASE · (6/5)^(d-2)) — 나흘에 갑절꼴로 불어난다.
+   밑값 5 → 15(섬이 2.5배로 넓어져서) → 100(사용자 요청 2026-10-20). 밑값을 바꾸면 이 표도 다시 셀 것. */
+const POWER_BASE=100;
 const DAY_POWER=[0,
-    0,  15,  18,  22,  26,  31,  37,  45,  54,  64,   //  1 ~ 10일
-   77,  93, 111, 134, 160, 193, 231, 277, 333, 399,   // 11 ~ 20일
-  479, 575, 690, 828, 994,1192,1431,1717,2061,2473];  // 21 ~ 30일
+     0,  100,  120,  144,  173,  207,  249,  299,  358,  430,   //  1 ~ 10일
+   516,  619,  743,  892, 1070, 1284, 1541, 1849, 2219, 2662,   // 11 ~ 20일
+  3195, 3834, 4601, 5521, 6625, 7950, 9540,11448,13737,16484];  // 21 ~ 30일
 const POWER_LAST=38;                         // 예산이 자라는 마지막 날
-const POWER_CAP=Math.round(POWER_BASE*Math.pow(6/5,POWER_LAST-2));   // = 10632
+const POWER_CAP=Math.round(POWER_BASE*Math.pow(6/5,POWER_LAST-2));   // = 70880
 const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
        : Math.min(POWER_CAP, Math.round(POWER_BASE*Math.pow(6/5,d-2)));
 
@@ -41,8 +38,8 @@ const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
    예전엔 종마다 first · peak · rise · fall 을 손으로 적었다. 이제 날마다의 고유값은 한 식이다(사용자 요청 2026-10-20):
      고유값 = c × mobFit(power, 날)
      mobFit = exp(−(ln(r / MOB_FIT_R))² / (2·MOB_FIT_S²)) · r = 그날 예산 ÷ power(그날 예산이 그 몹을 몇 마리 담나)
-   r 이 MOB_FIT_R(40) 일 때 가장 높다 — 예산이 클수록 무거운 몹의 때가 온다(가고일 7일 · 아르크토스 13 · 애쉬스케일 15 · 스킨워커 20 ·
-   다지류 24 · … · 관입체의 것 38일 넘어). 그보다 MOB_FIT_S(4)배 모자라거나 남으면 0.61 배, 16배면 0.14 배.
+   r 이 MOB_FIT_R(250 — 사용자 요청 2026-10-20 · 예전 40) 일 때 가장 높다 — 예산이 클수록 무거운 몹의 때가 온다(가고일 7일 · 아르크토스 13 ·
+   애쉬스케일 15 · 스킨워커 20 · 다지류 24 · … · 관입체의 것 41일 — 예산이 38일에 멎으므로 거기서 오르다 멈춘다). 그보다 MOB_FIT_S(4)배 모자라거나 남으면 0.61 배, 16배면 0.14 배.
    r 이 1 밑(그날 예산으로 한 마리도 못 담음)이면 0 — '몬스터 수' 를 올려 예산이 커져도 때 이른 몹은 안 나온다. */
 /* drop — 한 마리를 잡으면 나오는 것. 그 재료로 만드는 무기 두 자루 분이 기준이다
    (키틴 검 3 · 키틴 도끼 3 → 키틴 6 / 뼈 창 3 · 뼈 해머 4 → 뼈 8 에 가죽 3). */
@@ -77,7 +74,7 @@ const MOBS=[
    날마다 97-mobs.js 의 mobRoster 가 rollSpawns 로 그날 섬에 깔 몹을 뽑는다. */
 const MOBS_LIVE=['gargoyle','bear','emberwyvern','mimicspider','crawler'];
 for(const M of MOBS) M.hold=!MOBS_LIVE.includes(M.id);
-const MOB_FIT_R=40, MOB_FIT_S=Math.log(4);
+const MOB_FIT_R=250, MOB_FIT_S=Math.log(4);
 function mobFit(power,d){
   const r=powerBudget(d)/power; if(r<1) return 0;
   const x=Math.log(r/MOB_FIT_R); return Math.exp(-x*x/(2*MOB_FIT_S*MOB_FIT_S));
@@ -91,7 +88,7 @@ const mobWeight=(M,d)=>M.c*mobFit(M.power,d);
 function rollSpawns(d,rnd,budget){
   rnd=rnd||Math.random;
   const out=[]; let left=budget===undefined?powerBudget(d):budget;
-  for(let guard=0; guard<400; guard++){
+  for(let guard=0; guard<5000; guard++){        // 38일엔 400 마리 넘게 뽑힌다
     let sum=0; for(const M of MOBS) if(M.power<=left) sum+=mobWeight(M,d);
     if(!(sum>0)) break;
     let r=rnd()*sum, pick=null;
