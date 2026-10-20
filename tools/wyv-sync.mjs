@@ -4,13 +4,13 @@
 
    원본은 beta/wyvern_arena.html 의 '자세' 구역이다 — `/* ── 자세 ──` 로 시작해
    `/* 사슬 하나가 어떤 점에 닿았는가` 바로 앞까지(poseWyv · resolveHit · poseWyv_ 와 그 도우미).
-   battle · night · siege 시험장에 글자 그대로 들어 있다. 거기서 고치지 말고 원본을 고친 뒤 이걸 돌릴 것.
+   battle · night · siege 시험장과 본편(engine/js/97-wyvern.js)에 글자 그대로 들어 있다. 거기서 고치지 말고 원본을 고친 뒤 이걸 돌릴 것.
    여럿이 서는 판(battle · night)은 useWyv(w) 가 W · BONE 을 갈아 끼우므로, 개체마다 남는 값은
    W.an 에만 둔다(이 구역 안에서 전역 상태를 새로 만들지 말 것). */
 import {readFileSync, writeFileSync} from 'node:fs';
 
 const SRC = 'beta/wyvern_arena.html';
-const TARGETS = ['battle', 'night', 'siege'].map(n => `beta/${n}_arena.html`);
+const TARGETS = ['battle', 'night', 'siege'].map(n => `beta/${n}_arena.html`).concat(['engine/js/97-wyvern.js']);   // 본편은 함수로 감싸 있다
 const B0 = '/* ── 자세 ─', B1 = '/* 사슬 하나가 어떤 점에 닿았는가';
 
 const cut = (t, f) => {

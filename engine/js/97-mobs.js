@@ -12,6 +12,10 @@
      그 숲(둥지 420 m 안의 우거진 숲)은 캐고 따는 몫이 더 나온다(`mobLairBonus` → 97-temples.js yieldK).
    · **스킨워커** — 숲과 밤의 들판. 아레나(beta/mimic_arena.html)와 같다 — 본체는 때리지 않고 손 둘이 잡기 · 채찍을 쓴다 ·
      두 손에 잡히면 삼킨다 · 손은 잘리고 되살아난다 · 궁지에 몰리면 새끼 거미를 뱉는다(아래 '스킨워커의 몸').
+   · **아르크토스**(흰 곰) — 침엽수림 · 덤불 · 바위 비탈을 어슬렁거린다. 아레나(beta/bear_arena.html — `BEAR_P`/`BEAR_Q` = 아레나 P · Q)와 같다 —
+     34 m 안에 들면 달리기보다 빠르게(×1.3) 네 발로 쫓아와 4.5 m 에서 뒷발로 일어서 앞발로 내려찍는다(40 · 앞 120°) · 찍고 나면 1.05초 굳는다.
+     몸(뼈 21 · 몸짓)은 97-mob-rigs.js 의 공용 구역 그대로다.
+   · **애쉬스케일** — 탁 트인 데 하늘에서 한 마리가 내려온다(97-wyvern.js — 아레나 beta/wyvern_arena.html 을 함수로 감싸 옮겼다).
    · **가고일** — 풀밭과 탁상지에 무리로 산다. 아레나(beta/gargoyle_arena.html — `GP2` = 아레나 `P`)와 같다 — 낮게 떠 배회하다 30 m 안에 들면 쫓고,
      멈춰 노려본 뒤 돌진한다 — 끝나면 3.5초 굳는다(본편은 돌진 명중에 높이 차 2.2 m 안을 더 본다 — 사용자가 정함).
    · **몸끼리 겹치지 않는다**(`mobSeparate` — 몸 반지름으로 서로 밀어낸다 · 다지류 마디도 · 사람도 몸 안으로 못 들어간다).
@@ -20,7 +24,7 @@
    · 수는 설정 '몬스터 수'(MON.k — 0 없음 ~ 2.4)를 따른다 · 사람 둘레에만 세우고 멀어지면 거둔다(저장하지 않는다).
    · 근접 · 총 · 폭발 · 화상은 본편 무기 판정(CREATURES — 70-weapons.js · 74-icons-guns.js)을 그대로 탄다 — 몸마다 맞는 공(대역)을 건다.
    ========================================================================== */
-const MON={k:1, frame:0, built:false, crawl:[], garg:[], mim:[], spd:[], lairs:[], picks:[], spawnT:0, shake:0, roll:0,
+const MON={k:1, frame:0, built:false, crawl:[], garg:[], mim:[], spd:[], bear:[], lairs:[], picks:[], spawnT:0, shake:0, roll:0,
   gGeo:null, gTex:null, mGeo:null, mTex:null, mSkin:null, mSc:1, seq:0, voiceT:0, blob:null};
 function mobsSetK(k){ MON.k=k; }
 const mobNight=()=>hourOfDay<5.0||hourOfDay>19.6;
@@ -84,6 +88,23 @@ function mobVoice(kind,x,y,z,vol){
     for(const [f0,f1,q,pk] of [[800,350,8,0.5],[1200,2400,10,0.35],[2600,1100,12,0.22]]){ const f=ctx.createBiquadFilter(); f.type='bandpass'; f.Q.value=q;
       f.frequency.setValueAtTime(f0,t); f.frequency.linearRampToValueAtTime(f1,t+1.2); rm.connect(f); env(f,0.15,1.35,0,pk); }
     o1.start(t); o2.start(t); car.start(t); o1.stop(t+1.4); o2.stop(t+1.4); car.stop(t+1.4); }
+  else if(kind==='roar'){                                                    // 아르크토스 — 목 깊은 데서 끓는 포효(낮은 톱니파 둘 · 거친 숨)
+    const base=70+Math.random()*20, o1=osc('sawtooth',base*1.6,base,1.1,0), o2=osc('sawtooth',base*1.62*1.01,base*1.04,1.1,0), lfo=ctx.createOscillator(), lg=ctx.createGain();
+    lfo.frequency.value=23; lg.gain.value=18; lfo.connect(lg); lg.connect(o1.frequency); lg.connect(o2.frequency);
+    for(const [f0,q,pk] of [[420,4,0.55],[900,6,0.3]]){ const f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=f0; f.Q.value=q; o1.connect(f); o2.connect(f); env(f,0.08,1.15,0,pk); }
+    o1.start(t); o2.start(t); lfo.start(t); o1.stop(t+1.2); o2.stop(t+1.2); lfo.stop(t+1.2);
+    noise(0.9,0.02,350,0.7,0.45); }
+  else if(kind==='wyv'){                                                     // 애쉬스케일 — 쇳소리 섞인 긴 포효(내려가며 갈라진다)
+    const base=230+Math.random()*40, o1=osc('sawtooth',base*1.5,base*0.55,1.4,0), o2=osc('square',base*1.52,base*0.6,1.4,0), lfo=ctx.createOscillator(), lg=ctx.createGain();
+    lfo.frequency.value=29; lg.gain.value=40; lfo.connect(lg); lg.connect(o1.frequency); lg.connect(o2.frequency);
+    for(const [f0,f1,q,pk] of [[700,380,5,0.5],[1700,900,7,0.28],[3200,2000,9,0.12]]){ const f=ctx.createBiquadFilter(); f.type='bandpass'; f.Q.value=q;
+      f.frequency.setValueAtTime(f0,t); f.frequency.linearRampToValueAtTime(f1,t+1.3); o1.connect(f); o2.connect(f); env(f,0.06,1.45,0,pk); }
+    o1.start(t); o2.start(t); lfo.start(t); o1.stop(t+1.5); o2.stop(t+1.5); lfo.stop(t+1.5);
+    noise(1.1,0.05,1200,0.8,0.3); }
+  else if(kind==='flap'){ for(let i=0;i<3;i++) noise(0.22,i*0.55,160,0.6,0.7); }   // 날갯짓 — 둔하게 치는 바람
+  else if(kind==='fire'){ noise(0.6,0,900,0.5,0.6); noise(0.35,0,240,0.7,0.5); }   // 화염구 — 뿜는 소리
+  else if(kind==='boom'){ noise(0.9,0,70,0.6,1.0); noise(0.4,0,300,0.8,0.6); noise(0.2,0,1800,1,0.3); }   // 터짐
+  else if(kind==='slam'){ noise(0.25,0,90,0.7,1.0); noise(0.12,0,600,1,0.5); }   // 앞발이 땅을 찍는 소리
   else if(kind==='hurt'){                                                    // 맞았다 — 짧게 찢어지는 소리
     const o=osc('sawtooth',900,300,0.18,0), f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=1400; f.Q.value=2; o.connect(f); env(f,0.005,0.22,0,0.6); o.start(t); o.stop(t+0.25);
     noise(0.15,0,1800,1.5,0.5); }
@@ -114,11 +135,12 @@ function mobDamage(m,d){
   mobVoice('hurt',m.pos.x,m.pos.y+1,m.pos.z,1.2);
   if(m.hp<=0) mobKill(m);
 }
-const MOB_LOOT={crawl:[['chitin',8],['spider_silk',2]], garg:[['chitin',6]], mim:[['spider_silk',6],['mimic_flesh',2]]};   // 가고일 · 스킨워커는 80-player.js 의 MOBS(떨구는 것 표 — 사전이 읽는다)와 같다
+const MOB_LOOT={crawl:[['chitin',8],['spider_silk',2]], garg:[['chitin',6]], mim:[['spider_silk',6],['mimic_flesh',2]],
+  bear:[['bone',8],['hide',3],['meat_bear',5]], wyv:[['gunpowder',1],['ember_scale',12]]};   // 가고일 · 스킨워커는 80-player.js 의 MOBS(떨구는 것 표 — 사전이 읽는다)와 같다
 function mobKill(m){
   m.alive=false; m.hp=0; m.deadT=0; mobRegister(m,false);
-  mobVoice(m.kind==='crawl'?'screech':m.kind==='garg'?'shriek':'wail',m.pos.x,m.pos.y+1,m.pos.z,1.6);
-  toast(({crawl:'다지류를',garg:'가고일을',mim:'스킨워커를'})[m.kind]+' 쓰러뜨렸다 — 사체를 뒤지면 무엇인가 나온다');
+  mobVoice(({crawl:'screech',garg:'shriek',bear:'roar'})[m.kind]||'wail',m.pos.x,m.pos.y+1,m.pos.z,1.6);
+  toast(({crawl:'다지류를',garg:'가고일을',mim:'스킨워커를',bear:'아르크토스를'})[m.kind]+' 쓰러뜨렸다 — 사체를 뒤지면 무엇인가 나온다');
   const p=m.kind==='crawl'?m.cr.head:m.pos, key='M'+(++MON.seq);
   const pick={kind:'mobloot', x:p.x, y:heightAt(p.x,p.z), z:p.z, ay:heightAt(p.x,p.z)+0.6, r:1.4, key, mob:m.kind,
     lootFn:()=>{ let msg=''; for(const [id,n] of MOB_LOOT[m.kind]){ if(!ITEMS[id]) continue; let g=0; for(let k=0;k<n;k++) if(invAdd(id,1)) g++; if(g) msg+=(msg?' · ':'')+ITEMS[id].n+' +'+g; }
@@ -134,8 +156,9 @@ function mobBlob(r){
   const m=new THREE.Mesh(MON.blob.geo,MON.blob.mat); m.scale.set(r*2,1,r*2); m.userData.lightRole='none'; m.renderOrder=3; m.visible=false; scene.add(m); return m;
 }
 function mobsBuild(){
-  for(const m of [...MON.crawl,...MON.garg,...MON.mim]){ mobRegister(m,false); m.active=false; m.alive=false; mobHide(m); }
+  for(const m of [...MON.crawl,...MON.garg,...MON.mim,...MON.bear]){ mobRegister(m,false); m.active=false; m.alive=false; mobHide(m); }
   for(const sp of MON.spd) mimSpiderOff(sp);
+  if(typeof wyvReset==='function') wyvReset();
   MON.picks.length=0;
   if((P.tv|0)<8) return;
   for(const l of MON.lairs){ l.cr=null; l.skip=typeof LANDING!=='undefined'&&Math.hypot(l.x-LANDING.x,l.z-LANDING.z)<450; }   // 상륙 자리 곁 굴은 비운다
@@ -166,12 +189,16 @@ function mobsBuild(){
     { const {geometry,textureURL}=parseGLB_garg(mobB64(SPIDERLING_GLB)); const tex=new THREE.TextureLoader().load(textureURL); tex.flipY=false;
       MON.sGeo=geometry; MON.sMat=new THREE.MeshLambertMaterial({map:tex,side:THREE.DoubleSide}); geometry.computeBoundingBox(); const sb=geometry.boundingBox;
       MON.sSc=MIM_SPIDER_SPAN/Math.max(sb.max.x-sb.min.x,sb.max.z-sb.min.z); for(let i=0;i<15;i++) MON.spd.push(mimSpiderMake()); }
+    /* 아르크토스 셋 — 기하는 나눠 쓰고 뼈 · 재질(맞으면 붉게 뜬다)은 마리마다 */
+    { const geo=parseGLB_bear(mobB64(BEAR_GLB)); for(let i=0;i<3;i++) MON.bear.push(bearMake(geo)); }
+    if(typeof wyvBuild==='function') wyvBuild();                               // 애쉬스케일 — 97-wyvern.js
     MON.built=true;
   }catch(e){ console.error('[몬스터]',e); }
 }
 function mobHide(m){
   if(m.kind==='crawl'){ m.cr.mesh.visible=false; if(m.lair) m.lair.cr=null; m.lair=null; }
   else if(m.kind==='garg'){ m.mesh.visible=false; m.blob.visible=false; }
+  else if(m.kind==='bear'){ m.body.mesh.visible=false; m.blob.visible=false; }
   else { m.rig.visible=false; m.blob.visible=false; }
 }
 
@@ -300,6 +327,8 @@ function updateMobs(dt){
   for(const m of MON.crawl) if(m.active) crawlTick(m,dt);
   for(const g of MON.garg) if(g.active) gargTick(g,dt);
   for(const m of MON.mim) if(m.active) mimTick(m,dt);
+  for(const b of MON.bear) if(b.active) bearTick(b,dt);
+  if(typeof wyvTick==='function') wyvTick(dt,k);
   for(const sp of MON.spd) if(sp.active) mimSpiderTick(sp,dt);
   mimSpiderSeparate();
   mobSeparate(dt);
@@ -322,7 +351,7 @@ function mobSpawner(k){
     else if(!want&&l.cr&&d>800){ const m=l.cr; mobRegister(m,false); m.active=false; mobHide(m); } }
   for(const m of MON.crawl) if(m.active&&!m.alive&&m.deadT>90){ mobRegister(m,false); m.active=false; mobHide(m); }
   /* 가고일 · 스킨워커 — 사람 둘레에만, 멀어지면 거둔다 */
-  for(const list of [MON.garg,MON.mim]) for(const m of list){ if(!m.active) continue;
+  for(const list of [MON.garg,MON.mim,MON.bear]) for(const m of list){ if(!m.active) continue;
     const d=Math.hypot(m.pos.x-px,m.pos.z-pz);
     if(d>340||(!m.alive&&m.deadT>90)||k<=0){ mobRegister(m,false); m.active=false; mobHide(m); if(m.pick){ const i=MON.picks.indexOf(m.pick); if(i>=0) MON.picks.splice(i,1); m.pick=null; } } }
   for(const sp of MON.spd) if(sp.active&&(Math.hypot(sp.pos.x-px,sp.pos.z-pz)>340||k<=0)) mimSpiderOff(sp);
@@ -337,6 +366,11 @@ function mobSpawner(k){
     const mesa=(x,z)=>(typeof LANDFORMS!=='undefined')&&LANDFORMS.some(L=>L.k==='mesa'&&Math.hypot(x-(L.x-N/2)*CELL,z-(L.z-N/2)*CELL)<L.R*CELL*1.2);
     const s=spot((x,z)=>heightAt(x,z)>0.5&&(mobBiome(x,z)===B.MEADOW||mesa(x,z)),70,170);
     if(s){ const n=Math.min(gWant-gAlive,2+((Math.random()*2)|0)); for(let i=0;i<n;i++){ const g=MON.garg.find(q=>!q.active); if(!g) break; gargSpawn(g,s[0]+(Math.random()-0.5)*14,s[1]+(Math.random()-0.5)*14); } } }
+  /* 아르크토스 — 침엽수림 · 덤불 · 바위 비탈(우거진 활엽수림 · 대숲은 다지류 몫) · 낮이고 밤이고 */
+  const bAlive=MON.bear.filter(b=>b.active).length, bWant=Math.min(3,Math.round(1.5*k));
+  if(bAlive<bWant&&Math.random()<0.25){
+    const s=spot((x,z)=>{ const b=mobBiome(x,z); return heightAt(x,z)>0.5&&(b===B.CONIFER||b===B.SCRUB||b===B.ROCK||b===B.SCREE); },70,170);
+    if(s){ const b=MON.bear.find(q=>!q.active); if(b) bearSpawn(b,s[0],s[1]); } }
   /* 스킨워커 — 숲(낮엔 숲 속만) · 밤의 들판 · 빛이 없는 데 */
   const mAlive=MON.mim.filter(m=>m.active).length, mWant=Math.min(3,Math.round(2*k));
   if(mAlive<mWant&&Math.random()<0.25){
@@ -444,6 +478,106 @@ function gargTick(g,dt){
   _moV.set(PL.pos.x,PL.pos.y+EYE*0.8,PL.pos.z);                               // 아레나처럼 늘 사람을 본다
   gargDraw(g,dt,_moV,gy2);
   g.blob.visible=true; g.blob.position.set(g.pos.x,gy2+0.05,g.pos.z);
+}
+
+
+/* ── 아르크토스 ─────────────────────────────────────────────────────────────
+   아레나(beta/bear_arena.html updateB)와 같다 — 배회(1.5 m/s) → 34 m 안에 들면(또는 맞으면) 쫓는다(달리기 × 1.3 = 9.6 m/s ·
+   45.9 m 밖이면 놓음) → 4.5 m 에서 내려찍기(1초 — 치켜듦 0.5 · 정점 0.08 · 앞으로 1.2 m 던지며 내려찍음 · 0.68 에 명중) → 1.05초 굳음.
+   찍는 동안에도 초당 6 rad 까지 사람 쪽으로 돈다(옆으로 돌아서는 못 흘린다 — 사거리 밖으로 빠져야 한다).
+   맞는 자리는 뼈 캡슐(bearHitCaps)의 몸통 · 목 · 머리 · 팔다리 마디 가운데 공 열하나. 섬에 맞춘 것은 생기고 거두기 · 물 · 바위에
+   막힘 · 사체 · 소리뿐이다. */
+const BEAR_SC=2.6*1.32/3.003;                                                 // 모델 3.0 → 3.43 m(아레나 SCL)
+const BEAR_BODY_R=1.07*BEAR_SC+0.42;                                          // 이보다 사람에게 붙지 않는다(아레나 BODY_R)
+const BEAR_HP=400;
+const BEAR_PROX=['hips','spine','chest','neck','head','armR','foreR','armL','foreL','thighR','thighL'];
+/* 곰 GLB — 위치 · 법선 · 정점색(핏자국)뿐이다(아레나 parseGLB 그대로 · 정점색은 Three 의 color 로) */
+function parseGLB_bear(buf){
+  const dv=new DataView(buf); let off=12, json=null, bin=null;
+  while(off<dv.byteLength){ const len=dv.getUint32(off,true), type=dv.getUint32(off+4,true);
+    if(type===0x4E4F534A) json=JSON.parse(new TextDecoder().decode(new Uint8Array(buf,off+8,len))); else bin=off+8; off+=8+len; }
+  const CT={5120:Int8Array,5121:Uint8Array,5122:Int16Array,5123:Uint16Array,5125:Uint32Array,5126:Float32Array}, NC={SCALAR:1,VEC2:2,VEC3:3,VEC4:4};
+  const acc=i=>{ const a=json.accessors[i], bv=json.bufferViews[a.bufferView]; return new CT[a.componentType](buf,bin+(bv.byteOffset||0)+(a.byteOffset||0),a.count*NC[a.type]); };
+  const pr=json.meshes[0].primitives[0], g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(acc(pr.attributes.POSITION),3));
+  g.setAttribute('normal',new THREE.BufferAttribute(acc(pr.attributes.NORMAL),3));
+  g.setAttribute('color',new THREE.BufferAttribute(acc(pr.attributes.COLOR_0),3));
+  g.setIndex(new THREE.BufferAttribute(acc(pr.indices),1));
+  return g;
+}
+function bearMake(geo){
+  const mat=new THREE.MeshLambertMaterial({vertexColors:true});
+  const b={kind:'bear', mat, pos:new THREE.Vector3(), kv:new THREE.Vector3(), yaw:0, hp:BEAR_HP, hpMax:BEAR_HP, frz:0, alerted:false,
+    state:'wander', t:0, target:new THREE.Vector3(), dir:new THREE.Vector3(0,0,1), speed:0, walkPh:0, hitDone:false, alive:false, active:false,
+    home:new THREE.Vector3(), flash:0, deadT:0, voiceT:4, prox:[], sph:BEAR_PROX.map(()=>new THREE.Vector3()), sr:BEAR_PROX.map(()=>0.6)};
+  b.body=bearBody(geo,mat,BEAR_SC); b.body.mesh.visible=false; b.body.mesh.userData.lightRole='recv'; scene.add(b.body.mesh);
+  b.blob=mobBlob(1.5);
+  BEAR_PROX.forEach((nm,i)=>b.prox.push(mobProxy(b,()=>b.sph[i],0.6)));
+  return b;
+}
+function bearSpawn(b,x,z){
+  b.active=true; b.alive=true; b.hp=b.hpMax; b.frz=0; b.alerted=false; b.state='wander'; b.t=0; b.speed=0; b.an=null; b.deadT=0; b.flash=0;
+  b.pos.set(x,heightAt(x,z),z); b.home.set(x,0,z); b.yaw=Math.random()*6.283; bearWander(b);
+  for(let i=0;i<b.sph.length;i++) b.sph[i].set(x,b.pos.y+1.5,z);
+  mobRegister(b,true);
+}
+function bearWander(b){ for(let t=0;t<10;t++){ const a=Math.random()*6.283, r=10+Math.random()*60, x=b.home.x+Math.cos(a)*r, z=b.home.z+Math.sin(a)*r;
+  if(heightAt(x,z)>0.5){ b.target.set(x,0,z); return; } } b.target.copy(b.home); }
+function bearSet(b,s){ b.state=s; b.t=0; b.hitDone=false; }
+/* 앞발이 땅에 닿는 순간 — 곰 앞 120° 부채꼴 · 사거리 × 1.05 안이면 맞는다(아레나 slamLand) */
+function bearSlam(b){
+  const fx=Math.sin(b.yaw), fz=Math.cos(b.yaw), dx=PL.pos.x-b.pos.x, dz=PL.pos.z-b.pos.z, d=Math.hypot(dx,dz)||1;
+  mobVoice('slam',b.pos.x+fx*2.5,b.pos.y,b.pos.z+fz*2.5,1.4);
+  if(d<30) MON.shake=Math.min(1,MON.shake+0.55*Math.max(0,1-d/30));
+  if(d<=BEAR_P.reach*1.05&&(dx/d)*fx+(dz/d)*fz>0.5&&Math.abs(PL.pos.y-b.pos.y)<2.6&&!PL.dead) hurtPL(BEAR_P.dmg,'아르크토스의 내려찍기',true);
+}
+function bearTick(b,dt){
+  const gy=heightAt(b.pos.x,b.pos.z);
+  b.flash=Math.max(0,b.flash-dt*5); if(b.hitT>0){ b.hitT-=dt; b.flash=Math.max(b.flash,b.hitT*2); }
+  b.mat.emissive.setRGB(b.flash*0.45,b.flash*0.08,b.flash*0.05);
+  if(!b.alive){ b.deadT+=dt; b.speed=0; bearDraw(b,dt,null,gy-Math.max(0,b.deadT-60)*0.04); b.blob.visible=false; return; }
+  const dx=PL.pos.x-b.pos.x, dz=PL.pos.z-b.pos.z, dist=Math.hypot(dx,dz);
+  /* 굳어 있는 동안(찍고 난 경직 · 해머 기절이 같은 시계 b.frz 를 쓰고 더해진다)은 아무것도 안 한다 */
+  if(b.frz>0){ b.frz=Math.max(0,b.frz-dt); b.speed=0; if(b.frz<=0&&b.state==='stun') bearSet(b,dist<BEAR_P.see?'chase':'wander'); }
+  else{
+    b.t+=dt;
+    if(b.state==='wander'){
+      const tx=b.target.x-b.pos.x, tz=b.target.z-b.pos.z, td=Math.hypot(tx,tz);
+      if(td<2||b.t>40){ bearWander(b); b.t=0; } else{ b.dir.set(tx/td,0,tz/td); b.speed=BEAR_P.wander; }
+      if((dist<BEAR_P.see&&!PL.under&&!PL.dead)||b.alerted){ bearSet(b,'chase'); mobVoice('roar',b.pos.x,b.pos.y+2,b.pos.z,1.4); }
+    }else if(b.state==='chase'){
+      if((dist>BEAR_P.see*1.35&&!b.alerted)||PL.dead||PL.under){ bearSet(b,'wander'); bearWander(b); b.alerted=false; }
+      else{ b.dir.set(dx/(dist||1),0,dz/(dist||1)); b.speed=RUN*BEAR_P.mul; if(dist<=BEAR_P.reach){ bearSet(b,'attack'); mobVoice('roar',b.pos.x,b.pos.y+2.5,b.pos.z,1.6); } }
+    }else if(b.state==='attack'){
+      const u=clamp(b.t/BEAR_P.atk,0,1), Q=BEAR_Q;
+      if(u<Q.rise){ b.speed=0.6; b.dir.set(dx/(dist||1),0,dz/(dist||1)); }          // 치켜드는 동안은 아주 느리게 따라 돈다
+      else if(u<Q.rise+Q.hold) b.speed=0;                                        // 정점
+      else if(u<Q.rise+Q.hold+Q.drop){ b.dir.set(Math.sin(b.yaw),0,Math.cos(b.yaw)); b.speed=BEAR_P.lunge/Math.max(0.001,Q.drop*BEAR_P.atk); }   // 몸이 향한 쪽으로 던진다
+      else b.speed=0;
+      if(!b.hitDone&&u>=Q.hit){ b.hitDone=true; bearSlam(b); }
+      if(u>=1){ bearSet(b,'stun'); b.frz+=BEAR_P.stun; }
+    }else if(b.state==='stun'){ b.speed=0; bearSet(b,dist<BEAR_P.see?'chase':'wander'); }
+    /* 움직임 — 깊은 물 · 바위에 막힌다(배회는 새 목표) */
+    if(b.speed>0){ const nx=b.pos.x+b.dir.x*b.speed*dt, nz=b.pos.z+b.dir.z*b.speed*dt, hN=heightAt(nx,nz);
+      if((hN>-0.4||hN>gy)&&!solidAt(nx,nz,hN+1.4)){ b.pos.x=nx; b.pos.z=nz; b.walkPh+=dt*b.speed*1.5; }
+      else if(b.state==='wander'){ bearWander(b); b.t=0; } }
+    /* 사람을 뚫고 들어가지 않는다 — 앞으로 던진 몸을 몸통 반지름에서 멈춘다 */
+    { const sx=b.pos.x-PL.pos.x, sz=b.pos.z-PL.pos.z, sd=Math.hypot(sx,sz);
+      if(sd<BEAR_BODY_R&&Math.abs(PL.pos.y-b.pos.y)<2.5){ const a=sd>1e-4?sx/sd:0, c=sd>1e-4?sz/sd:1; b.pos.x=PL.pos.x+a*BEAR_BODY_R; b.pos.z=PL.pos.z+c*BEAR_BODY_R; } }
+    /* 늘 가는 쪽을 보고, 찍는 동안엔 사람 쪽으로(초당 BEAR_P.turn rad 까지) */
+    { const want=b.state==='attack'?Math.atan2(dx,dz):Math.atan2(b.dir.x,b.dir.z);
+      let d=want-b.yaw; while(d>Math.PI) d-=6.283; while(d<-Math.PI) d+=6.283;
+      if(b.state==='attack'){ const lim=BEAR_P.turn*dt; b.yaw+=clamp(d,-lim,lim); } else b.yaw+=d*clamp(7*dt,0,1); }
+  }
+  b.pos.y=heightAt(b.pos.x,b.pos.z);
+  if(b.state==='wander'&&(b.voiceT-=dt)<0){ b.voiceT=9+Math.random()*12; if(dist<80) mobVoice('roar',b.pos.x,b.pos.y+2,b.pos.z,0.5); }
+  _moV.set(PL.pos.x,PL.pos.y+EYE*0.8,PL.pos.z);
+  bearDraw(b,dt,_moV,b.pos.y);
+  /* 맞는 공 — 이번 자세의 뼈 캡슐 가운데(반지름은 캡슐 굵기 + 길이의 0.35) */
+  const caps=bearHitCaps(b,b.pos.y);
+  if(!b.capIx) b.capIx=BEAR_PROX.map(nm=>Object.keys(BEAR_CAPR).indexOf(nm));   // bearHitCaps 는 BEAR_CAPR 차례로 내준다
+  BEAR_PROX.forEach((nm,i)=>{ const c=caps[b.capIx[i]]; if(!c) return; b.sph[i].copy(c.a).lerp(c.b,0.5); b.prox[i].r=c.r+c.a.distanceTo(c.b)*0.35; });
+  b.blob.visible=true; b.blob.position.set(b.pos.x,b.pos.y+0.05,b.pos.z);
 }
 
 /* ── 스킨워커 ─────────────────────────────────────────────────────────────── */
@@ -621,9 +755,10 @@ function mimTick(m,dt){
 }
 
 /* ── 몸끼리 겹치지 않게 ─────────────────────────────────────────────────────── */
-const MOB_R={garg:0.8, mim:2.0};
+const MOB_R={garg:0.8, mim:2.0, bear:1.35};
 function mobSeparate(dt){
   const L=[]; for(const g of MON.garg) if(g.active&&g.alive) L.push(g); for(const m of MON.mim) if(m.active&&m.alive) L.push(m);
+  for(const b of MON.bear) if(b.active&&b.alive) L.push(b);
   for(let i=0;i<L.length;i++){ const a=L[i], ra=MOB_R[a.kind];
     for(let j=i+1;j<L.length;j++){ const b=L[j], dx=b.pos.x-a.pos.x, dz=b.pos.z-a.pos.z, d=Math.hypot(dx,dz), R=ra+MOB_R[b.kind];
       if(d<R&&d>1e-4&&Math.abs(a.pos.y-b.pos.y)<3.5){ const p=(R-d)*0.5; a.pos.x-=dx/d*p; a.pos.z-=dz/d*p; b.pos.x+=dx/d*p; b.pos.z+=dz/d*p; } }
@@ -633,6 +768,7 @@ function mobSeparate(dt){
     const dx=PL.pos.x-a.pos.x, dz=PL.pos.z-a.pos.z, d=Math.hypot(dx,dz), R=ra+PRAD;
     if(d<R&&d>1e-4&&Math.abs(PL.pos.y-a.pos.y)<3){
       if(a.kind==='garg'){ a.pos.x=PL.pos.x-dx/d*R; a.pos.z=PL.pos.z-dz/d*R; }   // 가벼운 가고일이 비켜난다 — 사람을 밀면 돌진하는 몸에 실려 10 m 넘게 끌려갔다
+      else if(a.kind==='bear'){}                                               // 곰은 bearTick 이 몸통 반지름에서 멈춰 세운다(아레나 그대로)
       else { PL.pos.x=a.pos.x+dx/d*R; PL.pos.z=a.pos.z+dz/d*R; } }
   }
 }

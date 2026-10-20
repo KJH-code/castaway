@@ -2,7 +2,7 @@
 
      node tools/bear-rig.mjs
 
-   원본은 beta/bear_arena.html 의 '아르크토스 뼈대 · 몸짓' 구역이다(표지
+   원본은 beta/bear_arena.html 의 '아르크토스 뼈대 · 몸짓' 구역이다 — 시험장 다섯과 본편 engine/js/97-mob-rigs.js 에 옮긴다(표지
    `/* ==== 아르크토스 뼈대 · 몸짓 ====` ~ `/* ==== 아르크토스 뼈대 · 몸짓 끝 ==== *\/`).
    관절 자리(BEAR_J)나 몸짓을 거기서 고친 뒤 이걸 돌리면
      ① BEAR_J 를 읽어 가중치를 다시 세 그 구역의 BEAR_SKIN 줄을 바꾸고
@@ -25,6 +25,8 @@ import {readFileSync, writeFileSync} from 'node:fs';
 const SRC = 'beta/bear_arena.html';
 const TARGETS = [['mixed', 'GLB_B64'], ['trio', 'GLB_BEAR'], ['siege', 'GLB_BEAR'], ['battle', 'GLB_BEAR'], ['night', 'GLB_BEAR']]
   .map(([n, g]) => [`beta/${n}_arena.html`, g]);
+/* 본편 — 구역은 97-mob-rigs.js 에(함수로 감싸 있다) · 모델은 data-mob-bear.js 에 따로 있다 */
+TARGETS.push(['engine/js/97-mob-rigs.js', 'BEAR_GLB', 'engine/js/data-mob-bear.js']);
 const B0 = '/* ==== 아르크토스 뼈대 · 몸짓 ====', B1 = '/* ==== 아르크토스 뼈대 · 몸짓 끝 ==== */';
 
 const findBlock = txt => {
@@ -336,9 +338,9 @@ const newBlk = blk.text.replace(/^const BEAR_SKIN="[^"]*";/m, `const BEAR_SKIN="
 if (newBlk === blk.text && !blk.text.includes(skinB64)) throw new Error('BEAR_SKIN 줄을 못 찾았다');
 writeFileSync(SRC, src.slice(0, blk.a) + newBlk + src.slice(blk.e));
 console.log(`  ${SRC} — 가중치 ${skinB64.length.toLocaleString()} 자`);
-for (const [f, g] of TARGETS) {
+for (const [f, g, gf] of TARGETS) {
   const t = readFileSync(f, 'utf8');
-  if (glbOf(t, g) !== b64) throw new Error(f + ' 의 곰 모델이 원본과 다르다 — 가중치가 안 맞는다');
+  if (glbOf(gf ? readFileSync(gf, 'utf8') : t, g) !== b64) throw new Error((gf || f) + ' 의 곰 모델이 원본과 다르다 — 가중치가 안 맞는다');
   const b = findBlock(t);
   if (!b) { console.log(`  ${f} — 구역이 없어 건너뜀`); continue; }
   writeFileSync(f, t.slice(0, b.a) + newBlk + t.slice(b.e));
