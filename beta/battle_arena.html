@@ -606,7 +606,7 @@ function bearEnd(B,k,dir,amt){
    ⑤ 맞으면 움찔(체력이 준 것으로 안다) · 고개는 노리는 것을 본다.
    b 에서 읽는 것: state · t · frz · speed · yaw · alive · hp · pos (AI 는 그대로다). P · Q 는 시험장의 곰 설정 표다. */
 const BEAR_D={rY:0,rZ:1,rP:2,rR:3,sP:4,cP:5,cR:6,nP:7,hP:8,jaw:9,raise:10,lookW:11,
-  hR:12,hL:15,fR:18,fL:21,hand:24,toe:25,yaw:26,cuR:27,cuL:28,N:29};
+  hR:12,hL:15,fR:18,fL:21,hand:24,toe:25,yaw:26,cuR:27,cuL:28,hold:29,N:30};
 const BEAR_GAIT={
   walkD:1.45, runD:4.4,                         // 한 걸음 주기에 나아가는 거리(모델 좌표 — SCL 1.14 면 1.7 · 5.0 m · 9.6 m/s 에 초당 1.9 번)
   walk:{hR:0.75, hL:0.25, fR:0.5, fL:0.0},      // 위상 어긋남 — 옆걸음 차례
@@ -653,6 +653,7 @@ function bearDLoco(b,A,dt,D){
   D[BEAR_D.rR]+=m*((1-g)*0.035*Math.sin(w)+g*0.05*Math.sin(w+0.6));
   D[BEAR_D.nP]+=m*(-0.06*g-g*0.16*Math.sin(w-2.51)) + m*(1-g)*0.06;   // 걸을 땐 고개를 조금 숙여 냄새를 맡는다
   D[BEAR_D.jaw]+=m*g*(0.22+0.10*Math.sin(w));
+  D[BEAR_D.hold]=m;                                // 움직이는 동안은 머리를 세계에 붙든다(아래 bearApply)
   for(const k of ['hR','hL','fR','fL']){
     const front=k[0]==='h', o=G.walk[k]+(G.gal[k]-G.walk[k])*g, p=(A.ph+o)%1;
     let dz, lift=0;
@@ -736,6 +737,19 @@ function bearApply(B,A,D,look){
   by.neck.quaternion.setFromEuler(_bre.set(D[J.nP]+pt*0.4,yw*0.45,0,'YXZ'));
   by.head.quaternion.setFromEuler(_bre.set(D[J.hP]+pt*0.6,yw*0.55,0,'YXZ'));
   bearFK(B);
+  /* 걷고 달리는 동안은 머리 축을 앞이나 앞보다 조금 밑(0~−20°)으로 붙든다 — 노리는 것 쪽이되 그 안에서만, 없으면 −10°.
+     몸이 숙이고 오르내려도 머리는 세계에서 거의 안 흔들린다. 예전엔 몸을 숙인 만큼 고개를 젖혀 달릴 때 40° 넘게 위를 봤다 */
+  const hw=D[J.hold];
+  if(hw>0.001){
+    const hi=B.ix.head, ax=_brv[5].subVectors(B.T[hi],B.H[hi]).applyQuaternion(B.Q[hi]);
+    let want=-0.17;
+    if(look){ const tl=_brv[4].copy(look).sub(B.P[hi]); want=Math.max(-0.35,Math.min(0,Math.atan2(tl.y,Math.hypot(tl.x,tl.z)))); }
+    A.hp=A.hp===undefined?want:A.hp+(want-A.hp)*Math.min(1,A.dt*4);
+    const e=(Math.atan2(ax.y,Math.hypot(ax.x,ax.z))-A.hp)*hw;    // 위로 넘친 만큼 숙인다(목 40% · 머리 60%)
+    by.neck.quaternion.setFromEuler(_bre.set(D[J.nP]+pt*0.4+e*0.4,yw*0.45,0,'YXZ'));
+    by.head.quaternion.setFromEuler(_bre.set(D[J.hP]+pt*0.6+e*0.6,yw*0.55,0,'YXZ'));
+    bearFK(B);
+  }
   /* 앞발 — 땅 자리와 치켜든 자리(어깨 위)를 raise 로 섞는다. 팔꿈치는 디딜 땐 뒤 · 치켜들 땐 옆으로 */
   const r=D[J.raise];
   for(const [k,s] of [['hR',1],['hL',-1]]){
