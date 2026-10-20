@@ -236,7 +236,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `70-weapons.js` | `CREATURES` 12 · 근접 판정 · **`WEAPON_FX` 195** · `emberClad` 109 |
 | `72-gear.js` | 갑옷·투구·옷·짐(`GEAR` 463 · `gScalesOnMesh` 233 · `gearModel` 475) |
 | `74-icons-guns.js` | `itemIcon` 95 · 손에 든 먹을것 · 휘두르기 · `shoot` 358 · 수류탄·조준경·로켓 · `castNet` 543 · 좌클릭 `useHeld` 579 · `attack` 607 |
-| `80-player.js` | `rollSpawns` 87 · **`PL` 119** · `hurtPL` 132 · 개발자 모드 `DEV`·`devFly`(기본 ; 키 — 키 창에서 바꾼다 · 날기 · 안 다친다 · 끄면 바닥에 내려선다) · 눈의 경계 `eyeHit`(눈 둘레 0.26 m 에 바위·땅이 들면 그 걸음을 되돌린다 — 새 움직임을 만들면 이것을 거칠 것) · 벼랑 오르기 `WALL`·`wallTick`(Space 를 누르고 있어야 매달린다 · 기력) · 미끄러짐(발밑이 49° 넘으면 걷기를 안 받고 끌려 내려간다 — `floorGrad`) · 개발자 모드 굴 둘러보기 `devCave`(] [) · 돌진(Space 를 누르는 순간 · `LUNGE_V`) · `updatePlayer`(걷기·헤엄·기력·배고픔) · `eyeWater`(물속 안개) · 음향 · 발소리 |
+| `80-player.js` | 날마다 몹 예산 `DAY_POWER`·`powerBudget`·`MOBS`(`MOBS_LIVE` — 본편에 들어온 넷만 `hold` 를 푼다)·`rollSpawns` 87(97-mobs.js `mobRoster` 가 부른다) · **`PL` 119** · `hurtPL` 132 · 개발자 모드 `DEV`·`devFly`(기본 ; 키 — 키 창에서 바꾼다 · 날기 · 안 다친다 · 끄면 바닥에 내려선다) · 눈의 경계 `eyeHit`(눈 둘레 0.26 m 에 바위·땅이 들면 그 걸음을 되돌린다 — 새 움직임을 만들면 이것을 거칠 것) · 벼랑 오르기 `WALL`·`wallTick`(Space 를 누르고 있어야 매달린다 · 기력) · 미끄러짐(발밑이 49° 넘으면 걷기를 안 받고 끌려 내려간다 — `floorGrad`) · 개발자 모드 굴 둘러보기 `devCave`(] [) · 돌진(Space 를 누르는 순간 · `LUNGE_V`) · `updatePlayer`(걷기·헤엄·기력·배고픔) · `eyeWater`(물속 안개) · 음향 · 발소리 |
 | `82-hud.js` | 지도 핀 `MAPPINS`·`toggleMap`(M — 펴면 `uiOpen` 이라 마우스가 풀린다 · 저장 `pins`) · `drawMap` · `drawCompass`(핀이 있으면 띠 위에 핀 줄 10 px) · 성능 창 `PERF` 98 · `updateHUD` 270 · 벤치마크 |
 | `90-init.js` | 안개·그림자 셰이더 손질 · `initThree` 104 · `freezeStatics` 164 · `PRECOMP` 190 · `generateWorld`(만드는 차례) |
 | `91-title.js` | **여는 화면의 그림**(캔버스 `#ovArt` — 처음 여는 화면 `#ov.title` 에서만 돈다) — 스텐실 간판 CASTAWAY(글자를 직접 긋는다 · 위가 좁은 올려다본 꼴 · 소실점으로 가는 두께) · 뒤로 누워 올라가는 안내 글 · 깨진 금. 전부 흑백으로 평평하게 그린 뒤 통째로 볼록한 유리에 휘고(`titleBend`), 빨강·초록·파랑을 갈라 겹친다. 단추(`titleButton` → `TITLE.btns` · 시작·착륙·설정·끝내기)와 진행 막대(`titleProgress` — `#barF`·`#ovLoad` 를 읽는다)도 캔버스가 그리고 HTML 쪽은 감춘 채 대신 누른다. 눈(잡음)·깜빡임·굴러가는 띠·비월 주사선·유리 반사 |
@@ -253,8 +253,8 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `97-wildlife.js` | 새 떼(`wildFlocks`) · 둥지와 알 · 벌집과 꿀(`WILD.picks` — `FLORA_PICK` 의 egg·honey) · 새총(`slingShot` · 총·활도 `wildShot`) · 나무 오르기(`climbTick` — `updatePlayer` 가 맨 먼저 부른다) · 나비·반딧불이·잠자리·벌(`wildBugs`) |
 | `97-temples.js` | **옛 신전**(지형 판 8 · 사용자 요청) — 섬 한가운데 계단 신전(`templeLandSite` — 뭍의 무게중심 둘레에서 고른 땅을 골라 반지름 36 m 를 다진다 · 자원 놓기 전) · 해구 가장자리 수심 30~45 m 의 해저 신전(`templeSeaSite` — `shapeSeabed` 뒤). 돌덩이는 방향이 돌아간 상자로 막는다(`templeFloor`·`templeSolid` — `coastFloor`·`coastSolid` 가 먼저 부른다). 상자·항아리는 한 번만 여는 줍기(`TEMPLE.picks` · FLORA_PICK `tchest`·`turn` 의 `once`·`loot` → `templeLoot` · 저장 `temples`) — **백금 반지는 해저 신전에서만**(판 8 은 처음 지니지 않는다). 들판의 바위 솎기 `thinOpenRocks` · 험한 데의 더 나은 소출 `yieldK`/`yieldMul` |
 | `97-mob-rigs.js` · `data-mob-*.js` | **몬스터의 몸** — 시험장에서 옮겼다: 아르크토스 공용 구역(맨 끝 · bear_arena 글자 그대로를 함수로 감싸 시험장 설정 `P`·`Q` 자리에 `BEAR_P`·`BEAR_Q` — 본편 `P` 는 섬 인자라 겹친다 · `bearBody`·`bearDraw`·`bearHitCaps`·`BEAR_CX`·`BEAR_CAPR` 만 밖으로 · **`tools/bear-rig.mjs` 가 같이 바꿔 끼운다**) · 다지류 모듈(`CRW` · `makeCrawler`/`placeCrawler`/`stepCrawler` — crawler_arena 그대로, 다만 `SIZE` 1.0 · 땅 높이 `crwGround`) · 가고일 공용 구역(`GARG_J`…`gargDraw` — 임시 이름 `_gv`·`_gM` 만 `_gaV`·`_gaM` 으로 바꿨다(72-gear.js 와 겹쳐서) · **`tools/garg-rig.mjs` 는 이 파일을 안 고친다** — 원본을 고치면 손으로 옮길 것) · GLB 풀기 `parseGLB_garg`/`parseGLB_mob`. 자료(base64 · 읽지 말 것): `data-mob-crawler.js`(`CRW_META`/`CRW_B64`) · `data-mob-bear.js`(`BEAR_GLB` — 정점색) · `data-mob-wyvern.js`(`WYV_GLB` · 화염구 `WYV_FB_GLB`) · `data-mob-gargoyle.js`(`GARG_GLB`) · `data-mob-mimic.js`(`MIMIC_GLB` — 바탕색 1024) |
-| `97-mobs.js` | **몬스터**(지형 판 8 · `MON` — **`MOBS` 는 80-player.js 의 날짜별 출현 표 이름이라 못 쓴다**) — 둥지 `mobsSites`(우거진 숲 곁 굴 · 그 굴은 불빛 없음 `c.dark`) · 몸 빚기 `mobsBuild`(섬마다 거두기만 · 다지류 2 · 가고일 6 · 스킨워커 3 · 아르크토스 3 · 애쉬스케일 1(97-wyvern.js) 을 돌려 쓴다) · 세우고 거두기 `mobSpawner`(1.2초마다 · 사람 둘레) · AI `crawlTick`/`gargTick`/`mimTick` · 맞는 공 `mobProxy`(CREATURES 에 거는 대역 — 체력은 몸의 것 · 한 프레임에 같은 몸의 공 여럿이 맞으면 가장 큰 것 하나) · 맞음 `mobDamage`(움찔 · 비명 — 넉백 없음) · 화면 흔들림 `mobCamera` · 겹침 `mobSeparate` · 소리 `mobVoice`(합성) · 사체 뒤지기(`MON.picks` → `FLORA_PICK.mobloot` · `MOB_LOOT`) · 둥지 숲의 더 나옴 `mobLairBonus`(→ `yieldK`) |
-| `97-wyvern.js` | **애쉬스케일**(지형 판 8 · `WYV` — beta/wyvern_arena.html 를 **함수 하나로 감쌌다**: 시험장 전역 `W`·`BONE`·`bone`·`rotBone`·`REST`… 가 본편과 안 겹치게 · 밖으로는 `WYV`·`wyvBuild`·`wyvReset`·`wyvTick` 뿐) — '자세' 구역은 시험장 글자 그대로(**`tools/wyv-sync.mjs` 가 같이 바꿔 끼운다**) · 한 마리 · 탁 트인 데에 나타나 사람 둘레를 돈다 · 화염구 · 할퀴기 · 물기 · 터짐 · 잔해 · 맞는 공은 뼈 캡슐을 1 m 마다(`sampleCaps` · 72개) |
+| `97-mobs.js` | **몬스터**(지형 판 8 · `MON` — **`MOBS` 는 80-player.js 의 날짜별 출현 표 이름이라 못 쓴다**) — 둥지 `mobsSites`(우거진 숲 곁 굴 · 그 굴은 불빛 없음 `c.dark`) · 몸 빚기 `mobsBuild`(섬마다 거두기만 · 다지류 2 · 가고일 6 · 스킨워커 3 · 아르크토스 4 · 애쉬스케일 2(97-wyvern.js) 를 돌려 쓴다) · 그날 명단 `mobRoster`(파워레벨 예산 · `mobHabitat`) · 세우고 거두기 `mobSpawner`(1.2초마다 · 명단 칸이 가까우면) · AI `crawlTick`/`gargTick`/`mimTick` · 맞는 공 `mobProxy`(CREATURES 에 거는 대역 — 체력은 몸의 것 · 한 프레임에 같은 몸의 공 여럿이 맞으면 가장 큰 것 하나) · 맞음 `mobDamage`(움찔 · 비명 — 넉백 없음) · 화면 흔들림 `mobCamera` · 겹침 `mobSeparate` · 소리 `mobVoice`(합성) · 사체 뒤지기(`MON.picks` → `FLORA_PICK.mobloot` · `MOB_LOOT`) · 둥지 숲의 더 나옴 `mobLairBonus`(→ `yieldK`) |
+| `97-wyvern.js` | **애쉬스케일**(지형 판 8 — beta/wyvern_arena.html 를 **개체 만드는 함수 `wyvMake(S)` 로 감쌌다**: 시험장 전역 `W`·`BONE`·`bone`·`rotBone`·`REST`… 가 본편과 안 겹치게 · 밖으로는 `wyvMake`·`wyvShared`·`wyvBuild`·`wyvReset`·`wyvTick`·`WYVS`(몸 둘) 뿐) — '자세' 구역은 시험장 글자 그대로(**`tools/wyv-sync.mjs` 가 같이 바꿔 끼운다**) · 명단이 정한 탁 트인 데에 나타나 제 자리 둘레를 돈다 · 화염구 · 할퀴기 · 물기 · 터짐 · 잔해 · 맞는 공은 뼈 캡슐을 1 m 마다(`sampleCaps` · 72개) |
 | `98-bag.js` | 가방 화면(소지품 + 고른 것 + 제작) — 가방에는 그림 · 이름 · 개수 · 할 수 있는 일만, 자세한 것은 사전(`dexShow`) |
 | `99-main.js` | **`loop`** 8 · 맨 끝에서 게임을 켜는 다섯 줄 |
 
@@ -1581,7 +1581,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   비친 바닥이 거울처럼 선다. 경계는 물→공기 프레넬(창 가장자리로 갈수록 반사가 는다). 잔물결 두 겹(진폭 0.17 · 0.10)이 창을 일렁이게 하고 해가 창 안이면 빛무리.
   앞면(물 밖) 셈은 그대로다. 양면이라 물 밖에서 물 밑면을 볼 일은 없다(땅이 가린다).
 - **몬스터**(사용자 요청 · 지형 판 8 · 97-mobs.js · 몸은 97-mob-rigs.js) — 설정 '몬스터 수'(`#pMobs` 0~4 → `MOB_STEPS` 0 · 0.5 · 1 · 1.6 · 2.4 → `MON.k` · `SET.mobs`).
-  **사람 둘레에만 세우고(70~170 m · 눈앞 ±63° 밖) 340 m(다지류 800 m) 넘게 멀어지면 거둔다 · 저장하지 않는다.** 섬을 다 지은 뒤 `mobsBuild` 가 몸을 한 번 빚고(섬이 바뀌면 거두기만),
+  **어디에 몇 마리가 사는지는 그날의 파워레벨 명단이 정한다**(`mobRoster` — 80-player.js 의 `rollSpawns(날, 시드 난수, powerBudget(날)×k)` · 사용자 결정 '옛날에 짜놓은 그대로' 2026-10-20 · `docs/CASTAWAY_개발요약.md` §7). 날마다(또는 '몬스터 수' 를 바꾸면) 다시 뽑고, 같은 섬 같은 날은 같은 명단이다 · 첫날은 예산 0 이라 없다 · 몹마다 제 터에 집 자리(상륙 자리 200 m 안은 빼고) · 명단 칸이 사람 300 m(애쉬스케일 420 m) 안에 들면 돌려 쓰는 몸에 입혀 세우고(눈앞 70 m 안엔 불쑥 안 선다) 340 m(애쉬스케일 460 m) 넘게 멀어지면 자리 · 체력을 명단에 적고 거둔다 · 죽인 것은 그날 다시 안 나온다 · **저장하지 않는다**(불러오면 다시 뽑는다). 다지류만 명단 밖이다(둥지 · 800 m). 섬을 다 지은 뒤 `mobsBuild` 가 몸을 한 번 빚고(섬이 바뀌면 거두기만),
   `updateMobs` 가 놀이 중 프레임마다 돈다(99-main.js · 사람 시점 다음).
   ① **다지류**(체력 1500 · 크기 `CRW.SIZE` 1.0 — 아레나의 1/1.5 · 머리에서 꼬리 끝까지 약 41 m) — 둥지는 섬을 지을 때 `mobsSites` 가 고른 굴(우거진 숲 — 활엽수림·대숲 — 칸이 220 m 안에 여섯 넘게 · 굴끼리 700 m 떼어 · 여덟까지 ·
   상륙 자리 450 m 안은 비움). **그 굴은 불빛도 빛나는 점·버섯도 없다**(`c.dark` — 32-caves.js 는 굴을 다 빚은 뒤 버린다 · 난수 차례 그대로). 켜는 둥지 수 = round(4×k).
@@ -1589,7 +1589,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   (`crawlWaypoint`) · 50 m 안에 사람이 들면 쫓고(120 m 밖이면 놓음) · 새벽이면 둥지로 돌아간다(돌아갈 때는 돌진 없음) — **이 둥지 행동만 본편 것이고 나머지는 아레나와 같다**
   (사용자 요청 2026-10-20 · `CRWP` = 아레나 `P`): 달리기×1.0 · 선회 55°/초 · 돌진 평균 20초마다 50 m · 마디 구 68개 전부가 맞는 공 · 닿으면(사람이 마디 구 위 1.5 m 밑이면) 밀어내고 0.5초마다 40(갑옷이 깎는다).
   보폭 · 마디 구 반지름은 크기에 맞춰 아레나 값 × 1/1.5(`crwK` — 1.2 m · 0.73 m). 떨림 · 맞을 때 넉백 · 사람 튕김은 뺐다. 소리는 남겼다. **둥지 420 m 안의 우거진 숲은 캐고 따는 몫이 +0.6**(`mobLairBonus` → `yieldK`).
-  ② **가고일**(체력 120) — 풀밭(`B.MEADOW`)·탁상지(`LANDFORMS` mesa)에 2~3 마리씩, 모두 round(4×k)(6 까지). 배회 → 30 m 안이면 쫓기 → 10 m 에서 1초 노려봄 → 20 m 돌진
+  ② **가고일**(체력 120) — 풀밭(`B.MEADOW`)·탁상지(`LANDFORMS` mesa)에 산다(명단 · 65% 는 앞 가고일 20 m 안에 떼로 · 몸 6). 배회 → 30 m 안이면 쫓기 → 10 m 에서 1초 노려봄 → 20 m 돌진
   (2.3 m 안이면 28) → 3.5초 굳음 — **아레나 `updateG` 와 같다**(사용자 요청 2026-10-20 · `GP2` = 아레나 `P` · 추격 포기 거리 ×1.35 · 굳은 동안은 아무것도 안 하고 해머 기절은 더해진다 ·
   고개는 늘 사람 · 떨림 · 넉백 · 사람 튕김은 뺐다). 본편에만 있는 것: 돌진 명중에 높이 차 2.2 m 안(사용자가 정함) · 물 · 바위에 막히면 돌진을 끊는다(아레나의 벽 대신) · 소리.
   ③ **스킨워커 — 아레나(`beta/mimic_arena.html` · `battle_arena.html`)와 같다**(사용자 요청 '본편에 있는 거를 아레나랑 똑같게 · 전용 요소도 없애 · 울부짖는 소리만 남겨' · 2026-10-20).
@@ -1599,7 +1599,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   6번 잘릴 때마다 본체 5초 굳음 · 본체 체력 80% 밑 · 35 m 안이면 **새끼 거미 다섯**을 뱉고(본체 −250 · 25초마다 · 손까지 5초 굳음) · 체력 100 밑이면 제 살 깎는 짓을 멈춘다.
   새끼 거미(`MON.spd` 열다섯 돌려 씀 · 모델 `data-mob-spiderling.js` = battle 의 `GLB_MS`) — 체력 100 · 달리기×0.56 로 쫓아 1.3 m 에서 1.2초마다 14.
   자세(`mimPose`)는 아레나 `poseMimic` 그대로 — 앞다리가 6배까지 늘어나고 어깨를 먼저 돌린 뒤 CCD. **빛 피하기 · 떨림 · 맞을 때 젖힘 · 넉백은 아레나에 없어 뺐다.**
-  섬에 맞춘 것은 생기고 거두기(숲 · 밤의 들판) · 배회(제 자리 둘레) · 쓰러짐과 사체 · 울부짖는 소리(알아챌 때 · 손을 쓸 때 · 배회 중 가끔)뿐.
+  섬에 맞춘 것은 사는 데(우거진 숲 · 명단 · 몸 3) · 배회(제 자리 둘레) · 쓰러짐과 사체 · 울부짖는 소리(알아챌 때 · 손을 쓸 때 · 배회 중 가끔)뿐.
   **아레나를 고치면 여기도 같이 고칠 것** — 값은 `MIM_P`/`MIM_SPD` 표에 아레나 `MP`/`SPD` 그대로 옮겨 두었다.
   ④ (떨림 `mobJerk` 는 세 몬스터 모두 아레나에 맞추며 없앴다 — 2026-10-20.)
   ⑤ **맞는 공**(`mobProxy`) — 본편 무기 판정(`CREATURES` · `attack`/`meleeResolve` · `rayCreature` · `explode` · `burnTick`)에 거는 대역. x·y·z·hp 가 접근자라 체력은 몸의 것이다.
@@ -1612,15 +1612,15 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   ⑦ **소리는 합성**(`mobVoice(kind,x,y,z,vol)` — 거리 (1+d/14)^−1.4 · 좌우 · 150 m 밖은 없음): 다지류 다리 딸깍임 · 쇳소리 비명(톱니파 둘이 엇갈려 떨며 치솟음) / 가고일 꺾이는 울음 /
   스킨워커 사람 목소리를 비튼 울부짖음(모음 꼴이 미끄러지고 고리 변조) / 맞는 소리.
   ⑧ **셰이더 미리 짜기가 뼈 몸도 짠다** — `precompPlan` 이 예전엔 `SkinnedMesh` 를 건너뛰었다. 대역도 같은 뼈로 묶어야(`precompProxy` — `bind(skeleton)`) 뼈 수가 열쇠에 든다.
-  ⑨ **아르크토스**(사용자 요청 '북극곰과 드래곤도 본편에' · 2026-10-20 · `bearTick` — 97-mobs.js) — 침엽수림 · 덤불 · 바위 비탈(`B.CONIFER`·`SCRUB`·`ROCK`·`SCREE`)에 낮밤 없이 round(1.5×k)(3 까지) ·
+  ⑨ **아르크토스**(사용자 요청 '북극곰과 드래곤도 본편에' · 2026-10-20 · `bearTick` — 97-mobs.js) — 침엽수림 · 덤불 · 바위 비탈(`B.CONIFER`·`SCRUB`·`ROCK`·`SCREE`)에 낮밤 없이 산다(명단 · 몸 4) ·
   **아레나 `updateB` 와 같다**(`BEAR_P` = 아레나 `P` · `BEAR_Q` = `Q`): 배회 1.5 m/s → 34 m 안이면(또는 맞으면) 네 발로 쫓는다(달리기×1.3 = 9.6 m/s — 달려서는 못 벗어난다 · 45.9 m 밖이면 놓음) →
   4.5 m 에서 일어서 내려찍기(1초 · 0.68 에 앞 120° · 사거리×1.05 안 40 · 찍는 동안 초당 6 rad 까지 사람 쪽으로 돈다) → 1.05초 굳음(해머 기절은 더해진다) · 몸통 반지름(`BEAR_BODY_R` 1.64 m)에서 사람 앞에 멈춘다.
   체력 400 · 맞는 공은 뼈 캡슐(`bearHitCaps`)의 몸통 · 목 · 머리 · 위팔 · 아래팔 · 넓적다리 가운데 열하나(`BEAR_PROX` — 반지름은 캡슐 굵기 + 길이의 0.35) ·
   사체 뼈 8 · 가죽 3 · 아르크토스 고기 5(80-player.js `MOBS` 와 같다). 재질은 정점색 램버트(아레나의 따로 짠 셰이더 대신 — 본편 빛 · 그림자 · 안개를 받는다 · 맞으면 붉게 뜬다).
-  ⑩ **애쉬스케일**(같은 요청 · 97-wyvern.js) — 한 마리. 사람이 탁 트인 데(풀밭 · 덤불 · 바위 · 바닷가 · 지열 지대)에 있으면 이따금(처음 90초 뒤 · 10초마다 35% · 다녀가면 240초÷k 쉼) 150~220 m 밖 상공 20 m 에 나타나
-  **사람 둘레 20~80 m 를 돈다**(아레나는 판 안 아무 데나) — 그 밖은 아레나 `updateW` 그대로: 60 m 안에 보이면(또는 맞으면) 5초 노려봄 → 내리꽂기(곁 4.9 m 면 30) → 3초 굳음 → 걸어서 쫓으며
+  ⑩ **애쉬스케일**(같은 요청 · 97-wyvern.js) — 탁 트인 데(풀밭 · 덤불 · 바위 · 바닷가 · 지열 지대)에 산다(명단 · 몸 둘 `WYVS` — `wyvMake(S)` 가 개체를 만들고 모델 · 그림은 `wyvShared` 하나를 나눠 쓴다 · 뼈만 개체마다 복제). 사람이 420 m 안에 들면 제 자리 상공 20 m 에 나타나
+  **제 자리 둘레를 돈다**(아레나는 판 안 아무 데나) — 그 밖은 아레나 `updateW` 그대로: 60 m 안에 보이면(또는 맞으면) 5초 노려봄 → 내리꽂기(곁 4.9 m 면 30) → 3초 굳음 → 걸어서 쫓으며
   화염구(46 · 8초마다 · 2.6초 젖혀 겨눈 자리로) · 할퀴기(34) · 물기(54) — 뼈를 돌려 닿는 각을 푼다 · 60 m 밖이면 다시 날아오른다(`wClimb`) · 깊은 물(−1.2 m)에선 걷지 않고 난다.
-  체력 700 · 불에 안 탄다(`fireproof`) · 죽으면 5초 부풀다 터진다(17.5 m 안 255 × (1−d/R) — 갑옷이 깎는다) · 잔해 화약 1 · 잿불 비늘 12. 450 m 넘게 멀어지면 거둔다.
+  체력 700 · 불에 안 탄다(`fireproof`) · 죽으면 5초 부풀다 터진다(17.5 m 안 255 × (1−d/R) — 갑옷이 깎는다) · 잔해 화약 1 · 잿불 비늘 12. 460 m 넘게 멀어지면 거둔다.
   **다른 것**: 지어 놓은 집은 노리지 않는다(아레나는 26 m 안 오두막을 먼저 친다 — 본편 건축물은 아직 표적이 아니다) · 화염구에 광원을 달지 않는다(움직이는 광원은 셰이더를 다시 짜게 한다 — 발광 재질로만) ·
   터지는 불빛은 불빛 풀 대역(`LIGHT.addFire` 셋을 돌려 씀) · 숨겨 둔 화염구 하나를 장면에 두어 셰이더 미리 짜기가 본다 · 소리 `mobVoice` 의 'wyv'·'flap'·'fire'·'boom'.
   잰 값(헤드리스 · 사람 앞 40 m 에 세움): 노려봄 5초 → 내리꽂기 → 굳음 → 화염구 → 할퀴기 · 물기 · 화염구가 번갈아(30초에 7대) · 몸짓 한 프레임 0.4~0.6 ms · 7 m 에서 터짐 158.

@@ -21,10 +21,14 @@
    · **몸끼리 겹치지 않는다**(`mobSeparate` — 몸 반지름으로 서로 밀어낸다 · 다지류 마디도 · 사람도 몸 안으로 못 들어간다).
    · **맞으면** 비명을 지른다(아레나처럼 밀리지 않는다 · 해머 기절은 굳은 시간에 더해진다) · 사람이 맞으면 화면이 흔들린다(밀려나지 않는다).
    · 소리는 합성이다(`mobVoice` — 다지류 딸깍임 · 쇳소리 비명 / 가고일 날카로운 울음 / 스킨워커 사람 소리를 비튼 울부짖음) · 거리와 방향으로 줄이고 가른다.
-   · 수는 설정 '몬스터 수'(MON.k — 0 없음 ~ 2.4)를 따른다 · 사람 둘레에만 세우고 멀어지면 거둔다(저장하지 않는다).
+   · **누가 몇 마리 나오는지는 파워레벨 예산이 정한다**(80-player.js — 리썰 컴퍼니 방식 · 날마다 `rollSpawns`): 날이 바뀌면 `mobRoster` 가
+     그날 예산(× 설정 '몬스터 수' MON.k — 보통 1 이면 예산 그대로)으로 가고일 · 아르크토스 · 애쉬스케일 · 스킨워커를 뽑아 저마다 서식지에 집 자리를
+     준다(시드 + 날짜로 정해지는 난수 — 같은 섬 같은 날이면 같은 명단). 몸은 사람이 다가가면(300 m · 애쉬스케일 420 m) 입히고, 멀어지면(340 · 460 m)
+     자리 · 체력을 명단에 적어 두고 거둔다 — 다시 오면 그 자리에서 그 체력으로 선다. 쓰러뜨린 것은 그날 다시 안 나온다(저장하지 않는다 — 불러오면 그날 명단을 다시 뽑는다).
+     몸은 돌려 쓰는 만큼만 동시에 선다(가고일 6 · 아르크토스 4 · 스킨워커 3 · 애쉬스케일 2 — 가까운 자리부터). 다지류는 이 명단이 아니라 굴 둥지를 따른다.
    · 근접 · 총 · 폭발 · 화상은 본편 무기 판정(CREATURES — 70-weapons.js · 74-icons-guns.js)을 그대로 탄다 — 몸마다 맞는 공(대역)을 건다.
    ========================================================================== */
-const MON={k:1, frame:0, built:false, crawl:[], garg:[], mim:[], spd:[], bear:[], lairs:[], picks:[], spawnT:0, shake:0, roll:0,
+const MON={k:1, frame:0, built:false, crawl:[], garg:[], mim:[], spd:[], bear:[], lairs:[], picks:[], spawnT:0, shake:0, roll:0, roster:{day:-1, k:-1, list:[]},
   gGeo:null, gTex:null, mGeo:null, mTex:null, mSkin:null, mSc:1, seq:0, voiceT:0, blob:null};
 function mobsSetK(k){ MON.k=k; }
 const mobNight=()=>hourOfDay<5.0||hourOfDay>19.6;
@@ -139,6 +143,7 @@ const MOB_LOOT={crawl:[['chitin',8],['spider_silk',2]], garg:[['chitin',6]], mim
   bear:[['bone',8],['hide',3],['meat_bear',5]], wyv:[['gunpowder',1],['ember_scale',12]]};   // 가고일 · 스킨워커는 80-player.js 의 MOBS(떨구는 것 표 — 사전이 읽는다)와 같다
 function mobKill(m){
   m.alive=false; m.hp=0; m.deadT=0; mobRegister(m,false);
+  if(m.entry) m.entry.dead=true;                                             // 그날 명단에서 빠진다
   mobVoice(({crawl:'screech',garg:'shriek',bear:'roar'})[m.kind]||'wail',m.pos.x,m.pos.y+1,m.pos.z,1.6);
   toast(({crawl:'다지류를',garg:'가고일을',mim:'스킨워커를',bear:'아르크토스를'})[m.kind]+' 쓰러뜨렸다 — 사체를 뒤지면 무엇인가 나온다');
   const p=m.kind==='crawl'?m.cr.head:m.pos, key='M'+(++MON.seq);
@@ -160,6 +165,7 @@ function mobsBuild(){
   for(const sp of MON.spd) mimSpiderOff(sp);
   if(typeof wyvReset==='function') wyvReset();
   MON.picks.length=0;
+  MON.roster.day=-1; MON.roster.list=[];
   if((P.tv|0)<8) return;
   for(const l of MON.lairs){ l.cr=null; l.skip=typeof LANDING!=='undefined'&&Math.hypot(l.x-LANDING.x,l.z-LANDING.z)<450; }   // 상륙 자리 곁 굴은 비운다
   if(MON.built) return;
@@ -190,7 +196,7 @@ function mobsBuild(){
       MON.sGeo=geometry; MON.sMat=new THREE.MeshLambertMaterial({map:tex,side:THREE.DoubleSide}); geometry.computeBoundingBox(); const sb=geometry.boundingBox;
       MON.sSc=MIM_SPIDER_SPAN/Math.max(sb.max.x-sb.min.x,sb.max.z-sb.min.z); for(let i=0;i<15;i++) MON.spd.push(mimSpiderMake()); }
     /* 아르크토스 셋 — 기하는 나눠 쓰고 뼈 · 재질(맞으면 붉게 뜬다)은 마리마다 */
-    { const geo=parseGLB_bear(mobB64(BEAR_GLB)); for(let i=0;i<3;i++) MON.bear.push(bearMake(geo)); }
+    { const geo=parseGLB_bear(mobB64(BEAR_GLB)); for(let i=0;i<4;i++) MON.bear.push(bearMake(geo)); }
     if(typeof wyvBuild==='function') wyvBuild();                               // 애쉬스케일 — 97-wyvern.js
     MON.built=true;
   }catch(e){ console.error('[몬스터]',e); }
@@ -328,7 +334,7 @@ function updateMobs(dt){
   for(const g of MON.garg) if(g.active) gargTick(g,dt);
   for(const m of MON.mim) if(m.active) mimTick(m,dt);
   for(const b of MON.bear) if(b.active) bearTick(b,dt);
-  if(typeof wyvTick==='function') wyvTick(dt,k);
+  if(typeof wyvTick==='function') wyvTick(dt);
   for(const sp of MON.spd) if(sp.active) mimSpiderTick(sp,dt);
   mimSpiderSeparate();
   mobSeparate(dt);
@@ -350,32 +356,60 @@ function mobSpawner(k){
     if(want&&!l.cr){ const m=MON.crawl.find(c=>!c.active); if(m) crawlAttach(m,l,night); }
     else if(!want&&l.cr&&d>800){ const m=l.cr; mobRegister(m,false); m.active=false; mobHide(m); } }
   for(const m of MON.crawl) if(m.active&&!m.alive&&m.deadT>90){ mobRegister(m,false); m.active=false; mobHide(m); }
-  /* 가고일 · 스킨워커 — 사람 둘레에만, 멀어지면 거둔다 */
+  /* 가고일 · 스킨워커 · 아르크토스 — 멀어지면 거둔다(명단에 자리 · 체력을 적어 둔다) */
   for(const list of [MON.garg,MON.mim,MON.bear]) for(const m of list){ if(!m.active) continue;
     const d=Math.hypot(m.pos.x-px,m.pos.z-pz);
-    if(d>340||(!m.alive&&m.deadT>90)||k<=0){ mobRegister(m,false); m.active=false; mobHide(m); if(m.pick){ const i=MON.picks.indexOf(m.pick); if(i>=0) MON.picks.splice(i,1); m.pick=null; } } }
+    if(d>340||(!m.alive&&m.deadT>90)||k<=0){ mobRegister(m,false); m.active=false; mobHide(m);
+      if(m.entry){ if(m.alive){ m.entry.x=m.pos.x; m.entry.z=m.pos.z; m.entry.hp=m.hp; } m.entry.body=null; m.entry=null; }   /* 다시 오면 그 자리 · 그 체력으로 */
+      if(m.pick){ const i=MON.picks.indexOf(m.pick); if(i>=0) MON.picks.splice(i,1); m.pick=null; } } }
   for(const sp of MON.spd) if(sp.active&&(Math.hypot(sp.pos.x-px,sp.pos.z-pz)>340||k<=0)) mimSpiderOff(sp);
+  if(typeof WYVS!=='undefined') for(const w of WYVS){ const W=w.W; if(!W.active||!W.alive) continue;   // 애쉬스케일 — 쓰러진 것은 제가(wyvTick) 거둔다
+    if(Math.hypot(W.pos.x-px,W.pos.z-pz)>460||k<=0){ if(W.entry){ W.entry.x=W.pos.x; W.entry.z=W.pos.z; W.entry.hp=W.hp; W.entry.body=null; } w.hide(); W.entry=null; } }
+  /* 그날 명단 — 날이 바뀌거나 몬스터 수를 바꾸면 다시 뽑는다 */
+  const day=dayNo(); if(MON.roster.day!==day||MON.roster.k!==k) mobRoster(day,k);
   if(k<=0||under||PL.swim) return;
+  /* 명단에서 세우기 — 집 자리(또는 지난번에 거둔 자리)가 가까운 것부터 · 몸이 남는 만큼 · 눈앞 70 m 안에 불쑥 서지 않게 */
   const fwdX=-Math.sin(PL.yaw), fwdZ=-Math.cos(PL.yaw);
-  const spot=(ok,rmin,rmax)=>{ for(let t=0;t<14;t++){ const a=Math.random()*6.283, r=rmin+Math.random()*(rmax-rmin), x=px+Math.cos(a)*r, z=pz+Math.sin(a)*r;
-      if(Math.cos(a)*fwdX+Math.sin(a)*fwdZ>0.45) continue;                   // 눈앞에 불쑥 서지 않게
-      if(heightAt(x,z)>=0.5&&ok(x,z)) return [x,z]; } return null; };   // 물 위 자리는 버린다(예전엔 조건이 거꾸로라 스킨워커 41% · 가고일 17% 가 물속에 섰다)
-  /* 가고일 — 풀밭 · 탁상지 */
-  const gAlive=MON.garg.filter(g=>g.active).length, gWant=Math.min(6,Math.round(4*k));
-  if(gAlive<gWant&&Math.random()<0.35){
-    const mesa=(x,z)=>(typeof LANDFORMS!=='undefined')&&LANDFORMS.some(L=>L.k==='mesa'&&Math.hypot(x-(L.x-N/2)*CELL,z-(L.z-N/2)*CELL)<L.R*CELL*1.2);
-    const s=spot((x,z)=>heightAt(x,z)>0.5&&(mobBiome(x,z)===B.MEADOW||mesa(x,z)),70,170);
-    if(s){ const n=Math.min(gWant-gAlive,2+((Math.random()*2)|0)); for(let i=0;i<n;i++){ const g=MON.garg.find(q=>!q.active); if(!g) break; gargSpawn(g,s[0]+(Math.random()-0.5)*14,s[1]+(Math.random()-0.5)*14); } } }
-  /* 아르크토스 — 침엽수림 · 덤불 · 바위 비탈(우거진 활엽수림 · 대숲은 다지류 몫) · 낮이고 밤이고 */
-  const bAlive=MON.bear.filter(b=>b.active).length, bWant=Math.min(3,Math.round(1.5*k));
-  if(bAlive<bWant&&Math.random()<0.25){
-    const s=spot((x,z)=>{ const b=mobBiome(x,z); return heightAt(x,z)>0.5&&(b===B.CONIFER||b===B.SCRUB||b===B.ROCK||b===B.SCREE); },70,170);
-    if(s){ const b=MON.bear.find(q=>!q.active); if(b) bearSpawn(b,s[0],s[1]); } }
-  /* 스킨워커 — 숲(낮엔 숲 속만) · 밤의 들판 · 빛이 없는 데 */
-  const mAlive=MON.mim.filter(m=>m.active).length, mWant=Math.min(3,Math.round(2*k));
-  if(mAlive<mWant&&Math.random()<0.25){
-    const s=spot((x,z)=>{ const b=mobBiome(x,z); return heightAt(x,z)>0.5&&(mobForestB(b)||(night&&(b===B.MEADOW||b===B.SCRUB))); },70,140);
-    if(s){ const m=MON.mim.find(q=>!q.active); if(m) mimSpawn(m,s[0],s[1]); } }
+  const POOL={garg:MON.garg, bear:MON.bear, mim:MON.mim, wyv:(typeof WYVS!=='undefined'?WYVS:[])};
+  const cand=[];
+  for(const e of MON.roster.list){ if(e.dead||e.body) continue;
+    const dx=e.x-px, dz=e.z-pz, d=Math.hypot(dx,dz);
+    if(d>(e.kind==='wyv'?420:300)) continue;
+    if(e.kind!=='wyv'&&d<70&&(dx*fwdX+dz*fwdZ)/Math.max(d,1)>0.45) continue;
+    cand.push([d,e]); }
+  cand.sort((a,b)=>a[0]-b[0]);
+  for(const [d,e] of cand){
+    if(e.kind==='wyv'){ const w=POOL.wyv.find(q=>!q.W.active); if(!w) continue; w.spawn(e.x,e.z,e.hp,e); e.body=w; continue; }
+    const m=POOL[e.kind].find(q=>!q.active); if(!m) continue;
+    const y=heightAt(e.x,e.z); if(y<0.3){ e.x=e.hx; e.z=e.hz; }                // 지난번에 물가에서 거뒀으면 집으로
+    ({garg:gargSpawn, bear:bearSpawn, mim:mimSpawn})[e.kind](m,e.x,e.z,e); e.body=m;
+  }
+}
+/* 그날 섬에 깔 몹 — 파워레벨 예산(80-player.js rollSpawns)으로 뽑아 저마다 서식지에 집 자리를 준다.
+   난수는 시드 + 날짜로 정한다(같은 섬의 같은 날은 같은 명단). 가고일은 무리로 산다 — 앞 가고일 곁(20 m 안)에 붙는다. */
+const MOB_KIND_OF={gargoyle:'garg', bear:'bear', emberwyvern:'wyv', mimicspider:'mim'};
+function mobHabitat(kind,x,z){
+  if(heightAt(x,z)<0.8||(typeof LANDING!=='undefined'&&LANDING&&Math.hypot(x-LANDING.x,z-LANDING.z)<200)) return false;
+  const b=mobBiome(x,z);
+  if(kind==='garg') return b===B.MEADOW||((typeof LANDFORMS!=='undefined')&&LANDFORMS.some(L=>L.k==='mesa'&&Math.hypot(x-(L.x-N/2)*CELL,z-(L.z-N/2)*CELL)<L.R*CELL*1.2));
+  if(kind==='bear') return b===B.CONIFER||b===B.SCRUB||b===B.ROCK||b===B.SCREE;
+  if(kind==='mim') return mobForestB(b);
+  return b===B.MEADOW||b===B.SCRUB||b===B.ROCK||b===B.SCREE||b===B.BEACH||b===B.DUNE||b===B.FUMAROLE;   // 애쉬스케일 — 탁 트인 데
+}
+function mobRoster(d,k){
+  const R=MON.roster; R.day=d; R.k=k; R.list=[];
+  if(!(k>0)||(P.tv|0)<8) return;
+  const rnd=mulberry32(((P.seed|0)^Math.imul(d,0x9E3779B1)^0x6d0b5ca1)>>>0);
+  let lastG=null;
+  for(const id of rollSpawns(d,rnd,Math.round(powerBudget(d)*k))){
+    const kind=MOB_KIND_OF[id]; if(!kind) continue;
+    let x=0, z=0, ok=false;
+    if(kind==='garg'&&lastG&&rnd()<0.65) for(let t=0;t<12&&!ok;t++){ const a=rnd()*6.283, r=4+rnd()*16; x=lastG.hx+Math.cos(a)*r; z=lastG.hz+Math.sin(a)*r; ok=heightAt(x,z)>0.8; }
+    for(let t=0;t<120&&!ok;t++){ x=(rnd()*2-1)*(HALF-150); z=(rnd()*2-1)*(HALF-150); ok=mobHabitat(kind,x,z); }
+    if(!ok) continue;                                                         // 이 섬엔 그 서식지가 없다
+    const e={id, kind, x, z, hx:x, hz:z, hp:0, dead:false, body:null}; R.list.push(e);
+    if(kind==='garg') lastG=e;
+  }
 }
 
 /* ── 다지류 ──────────────────────────────────────────────────────────────── */
@@ -437,9 +471,9 @@ function crawlTick(m,dt){
 
 /* ── 가고일 ──────────────────────────────────────────────────────────────── */
 const GP2={wander:1.6, chase:1.1, see:30, trig:10, prep:1.0, dash:20, dspd:1.8, stun:3.5, hover:0.3, dmg:28};
-function gargSpawn(g,x,z){
-  g.active=true; g.alive=true; g.hp=g.hpMax; g.frz=0; g.alerted=false; g.state='wander'; g.t=0; g.an=null; g.kv.set(0,0,0);
-  g.pos.set(x,heightAt(x,z)+GP2.hover,z); g.home.set(x,0,z); g.yaw=Math.random()*6.283; gargWander(g);
+function gargSpawn(g,x,z,e){
+  g.active=true; g.alive=true; g.hp=e&&e.hp>0?e.hp:g.hpMax; g.entry=e||null; g.frz=0; g.alerted=false; g.state='wander'; g.t=0; g.an=null; g.kv.set(0,0,0);
+  g.pos.set(x,heightAt(x,z)+GP2.hover,z); g.home.set(e?e.hx:x,0,e?e.hz:z); g.yaw=Math.random()*6.283; gargWander(g);
   mobRegister(g,true);
 }
 function gargWander(g){ for(let t=0;t<8;t++){ const a=Math.random()*6.283, r=8+Math.random()*55, x=g.home.x+Math.cos(a)*r, z=g.home.z+Math.sin(a)*r; if(heightAt(x,z)>0.5){ g.target.set(x,0,z); return; } } g.target.copy(g.home); }
@@ -515,9 +549,9 @@ function bearMake(geo){
   BEAR_PROX.forEach((nm,i)=>b.prox.push(mobProxy(b,()=>b.sph[i],0.6)));
   return b;
 }
-function bearSpawn(b,x,z){
-  b.active=true; b.alive=true; b.hp=b.hpMax; b.frz=0; b.alerted=false; b.state='wander'; b.t=0; b.speed=0; b.an=null; b.deadT=0; b.flash=0;
-  b.pos.set(x,heightAt(x,z),z); b.home.set(x,0,z); b.yaw=Math.random()*6.283; bearWander(b);
+function bearSpawn(b,x,z,e){
+  b.active=true; b.alive=true; b.hp=e&&e.hp>0?e.hp:b.hpMax; b.entry=e||null; b.frz=0; b.alerted=false; b.state='wander'; b.t=0; b.speed=0; b.an=null; b.deadT=0; b.flash=0;
+  b.pos.set(x,heightAt(x,z),z); b.home.set(e?e.hx:x,0,e?e.hz:z); b.yaw=Math.random()*6.283; bearWander(b);
   for(let i=0;i<b.sph.length;i++) b.sph[i].set(x,b.pos.y+1.5,z);
   mobRegister(b,true);
 }
@@ -581,11 +615,11 @@ function bearTick(b,dt){
 }
 
 /* ── 스킨워커 ─────────────────────────────────────────────────────────────── */
-function mimSpawn(m,x,z){
-  m.active=true; m.alive=true; m.hp=m.hpMax; m.frz=0; m.alerted=false; m.state='wander'; m.t=0; m.kv.set(0,0,0); m.deadT=0;
+function mimSpawn(m,x,z,e){
+  m.active=true; m.alive=true; m.hp=e&&e.hp>0?e.hp:m.hpMax; m.entry=e||null; m.frz=0; m.alerted=false; m.state='wander'; m.t=0; m.kv.set(0,0,0); m.deadT=0;
   m.spawnCd=0; m.cuts=0; m.eatT=-1; m.clock=0; m.lastAct=-99;
   for(const hd of m.hands){ hd.alive=true; hd.hp=hd.hpMax; hd.frz=0; hd.held=false; hd.regen=0; hd.state='idle'; hd.t=0; hd.reachT=0; hd.armT=null; hd.drive=null; }
-  m.pos.set(x,heightAt(x,z),z); m.home.set(x,0,z); m.yaw=Math.random()*6.283; mimWander(m); m.rig.visible=true;
+  m.pos.set(x,heightAt(x,z),z); m.home.set(e?e.hx:x,0,e?e.hz:z); m.yaw=Math.random()*6.283; mimWander(m); m.rig.visible=true;
   mobRegister(m,true);
 }
 function mimWander(m){ for(let t=0;t<10;t++){ const a=Math.random()*6.283, r=10+Math.random()*60, x=m.home.x+Math.cos(a)*r, z=m.home.z+Math.sin(a)*r;

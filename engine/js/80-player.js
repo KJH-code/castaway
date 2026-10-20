@@ -74,19 +74,21 @@ const MOBS=[
   {id:'deeparm',   n:'심해 촉수',     power: 200, first:23, peak:35, rise:3, fall: 8},
   {id:'plutonspawn',n:'관입체의 것',  power: 500, first:28, peak:38, rise:3, fall:60}
 ];
-/* 모델이 있는 것은 아르크토스뿐이다. 나머지는 표만 있고 섬에는 나오지 않는다 —
-   개체를 붙일 때마다 그 줄의 hold 를 지운다. */
-for(const M of MOBS) if(M.id!=='bear') M.hold=true;
+/* 모델(몸)이 붙은 것만 섬에 나온다 — 개체를 붙일 때마다 여기에 더한다(2026-10-20: 가고일 · 아르크토스 · 애쉬스케일 · 스킨워커).
+   날마다 97-mobs.js 의 mobRoster 가 rollSpawns 로 그날 섬에 깔 몹을 뽑는다. 다지류는 이 표가 아니라 굴 둥지(mobsSites)를 따른다. */
+const MOBS_LIVE=['gargoyle','bear','emberwyvern','mimicspider'];
+for(const M of MOBS) M.hold=!MOBS_LIVE.includes(M.id);
 function mobWeight(M,d){
   if(d<M.first) return 0;
   const H=(d<=M.peak)?M.rise:M.fall;     // 전성기 전후로 기울기가 다르다
   return 100*Math.pow(2,-Math.abs(d-M.peak)/H);
 }
 /* 그날 섬에 깔 몹을 뽑는다. 예산이 모자라 못 들어가는 몹은 후보에서 빠지므로
-   마지막 한 자리는 값싼 쪽으로 채워진다. rnd 를 주면 결정론적으로 재현된다. */
-function rollSpawns(d,rnd){
+   마지막 한 자리는 값싼 쪽으로 채워진다. rnd 를 주면 결정론적으로 재현된다.
+   budget 을 주면 그날 예산 대신 쓴다(설정 '몬스터 수'가 예산에 곱해진다 — 보통이면 예산 그대로). */
+function rollSpawns(d,rnd,budget){
   rnd=rnd||Math.random;
-  const out=[]; let left=powerBudget(d);
+  const out=[]; let left=budget===undefined?powerBudget(d):budget;
   for(let guard=0; guard<200; guard++){
     const pool=MOBS.filter(M=>!M.hold && M.power<=left && mobWeight(M,d)>0);
     if(!pool.length) break;
