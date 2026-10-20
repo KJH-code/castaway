@@ -22,7 +22,7 @@
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md`) |
+| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md`) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
@@ -184,11 +184,12 @@ python -m http.server 5173
   들어오면 밀어낸다. 맞히기도 같은 구다. 뼈 세계 자세를 부모 기준으로 되돌려 넣으므로 **머리→꼬리 차례로** 돌린다 |
 | (총 꾸러미) | **본편의 새 총·활·수류탄을 시험장에 옮긴 공용 코드**(`GUNS_NEW` · `GK` · `gkShoot`/`gkThrow`/`gkUpdate`/`gkSwitch`) — crawler·battle 두 곳에 **글자 그대로** 들어가 있다. 산탄총(알마다 선 · `pellets`/`spread`) · 반자동 · 기관단총(`auto` — 누르고 있으면 연사) · 대물 저격총(`scope` — **시험장은 우클릭**이 조준경, 본편은 좌클릭) · 바주카(로켓 초속 70 · 중력 1.5 · 반경 6 m 폭발) · 수류탄(16 m/s 포물선 · 3.5초 · 7 m) · 활 둘. 값은 본편 `ITEMS[].tool` 그대로. **탄창은 무기마다 따로 남는다**(`GK.mags`). 폭발은 (1−d/r)² 로 짐승·사람 모두(사람은 갑옷만 깎는다 — 본편 `explode` 와 같다). 시험장마다 갈고리 넷: `gkRay`·`gkBlast`·`gkHurtSelf`(·`gkNear` 는 안 쓴다). 총 생김새는 본편 `WEAPON_FX` 를 옮겼고 총구 불은 원뿔(`muzzleFlash` 대역)이다 |
 | `beta/bear_arena.html` · `beta/mixed_arena.html` | 곰 시험장. **캡슐 판정이 없다** — 총은
-  `bearSpheres()` 가 뼈마다 늘어놓은 공 18개로 맞히고, 근접은 여전히 평면 거리다 |
+  `bearSpheres()` 가 뼈마다 늘어놓은 공(뼈 17 × 머리·가운데·꼬리 = 51)으로 맞히고, 근접은 여전히 평면 거리다.
+  **곰은 뼈 몸이다**(아래 '아르크토스 뼈대 · 몸짓' — 이 파일이 정본) |
 | `beta/trio_arena.html` | **셋 시험장** — 스킨워커1 · 아르크토스1 · 가고일2. mimic_arena 에
   mixed_arena 의 곰·가고일을 옮겨 붙인 것(27MB). 이름 충돌은 BEAR_R·BSNAME·bSet·
-  bWanderTarget·bearMesh·bearMat 로 피했다. 곰은 `bearCaps()` — 관절 여섯의
-  pivot→tip 캡슐이다(곰 키 3.43 m · 머리 2.65 m · 치켜든 앞발 2.29 m) |
+  bWanderTarget·bearMesh·bearMat 로 피했다. 곰은 `bearCaps()` — 뼈 17 개의
+  머리→꼬리 캡슐이다(이번 자세 그대로 · 공용 구역 `bearHitCaps`) |
 | `docs/CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
 | `docs/CASTAWAY_전사_초반부.md`, `docs/CASTAWAY_전사_2차.md` | 개발 대화 원문 |
 | `presets/models/bear_high.glb`, `presets/models/stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |
@@ -311,6 +312,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | 몹 거동 | 각 아레나 | 본편 `engine/js/97-mobs.js` 는 제 AI 를 따로 짰다(다지류 · 가고일 · 스킨워커 — 아래 '몬스터'). 몸(뼈 · 껍데기)은 `97-mob-rigs.js` 에 시험장 것을 옮겼다 |
 | 가고일 뼈대 · 몸짓(`GARG_J` · `GARG_SKIN` · `gargBody` · `poseGarg` · `gargDraw`) | `beta/gargoyle_arena.html` | battle · night · siege · trio · mixed — **글자 그대로**. 원본을 고치고 `node tools/garg-rig.mjs` |
 | 애쉬스케일 자세(`poseWyv` · `poseWyv_` · `wWingPose` · `wLook` · `wSwing`) | `beta/wyvern_arena.html` | battle · night · siege — **글자 그대로**. 원본을 고치고 `node tools/wyv-sync.mjs` |
+| 아르크토스 뼈대 · 몸짓(`BEAR_J` · `BEAR_SKIN` · `bearBody` · `bearDraw` · `bearHitCaps`) | `beta/bear_arena.html` | mixed · trio · siege · battle · night — **글자 그대로**. 원본을 고치고 `node tools/bear-rig.mjs` |
 | 하늘 · 구름 · 날씨 | `engine/js/45-sky.js` | `beta/cloud_arena.html` (그대로 복사 + 손잡이 5개) |
 
 아레나는 시험장이라 갈라져도 되지만, **수치를 만졌으면 어느 쪽을 만졌는지 밝힐 것.**
@@ -1521,6 +1523,26 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   뛰는 순간 날개 맨 위에서 첫 내려치기(`A.wp=1.98`) → 크고 빠르게(1.6 Hz) 치며 머리를 들고 · 12 m 밑에선 다리를 늘어뜨린다.
   **`wClimb` 는 AI 쪽이라 `wyv-sync` 가 안 옮긴다** — wyvern · battle · night · siege 에 같은 글로 따로 들어 있다(고치면 넷 다).
   잰 값(쫓기 → 선회): 0.5초 웅크림 → 1초 2.3 m · 4초 17 m · 6초 19.8 m · 가장 빠른 오름 6.9 m/s · 날개 뺀 뼈 프레임 튐 7.9°(예전 7.8°).
+- **아르크토스 뼈대 · 몸짓**(사용자 요청 '가고일처럼 모델에 뼈대 만들고 동작 더 자연스럽게 — 나한테 달려올 때 두 발 말고 네 발로' · 공용 구역
+  `/* ==== 아르크토스 뼈대 · 몸짓 ====` — 원본 `beta/bear_arena.html`, mixed·trio·siege·battle·night 에 글자 그대로 · `node tools/bear-rig.mjs` 가 옮긴다).
+  예전엔 뼈 없는 한 덩이를 관절 여섯(몸통·머리·팔 둘·다리 둘)으로 정점 셰이더에서 굽혀 팔다리가 막대째로 돌았고, 웅크린 채 두 발로 걸었다.
+  ① **뼈 21개**(`BEAR_J` — 엉덩이·허리·가슴·목·머리·턱 · 빗장·위팔·아래팔·손 · 넓적다리·정강이·발 · 궁둥이 `rump` — 안 돌린다, 엉덩이 뼈 뒤로 나온
+  궁둥이 살이 끌릴 자리)를 모델 좌표에 박아 `SkinnedMesh` 로 그린다(`bearBody(기하,재질,배율)` · 재질은 `bearShader(안개색,짙기)` — 예전 시험장 셰이더에 스키닝만 바꿈).
+  모델이 비대칭이라 좌우를 따로 잡았다(왼 엉덩이 관절은 넓적다리 살 뒤쪽 위로 올렸다 — 오른쪽과 같은 높이면 넓적다리 뼈가 0.4 m 라 다리가 늘 다 접혀 있었다).
+  ② **가중치는 `tools/bear-rig.mjs`**(`BEAR_SKIN` — 정점마다 뼈 넷 + 몫 셋, base64 19만 자): 2.5 cm 칸 부피 · 뼈마다 칸 속 거리 → 가장 가까운 뼈와 그 이웃에 1/d⁴ →
+  **겉을 따라 24 번 고르게 편다**(처음 뼈가 이웃인 정점끼리만 — 몸통·목·머리·턱은 다 이웃) → 큰 넷. 가시·발톱(얇은 덩이)은 밑동 고리 한가운데의 몫을 통째로.
+  둘만 골랐을 땐 이웃 정점끼리 둘째 뼈가 갈려 세모 변이 30 배까지 늘었다 — 지금 7 배(가시 끝뿐). 도구가 '몫이 갈린 변'(합 차이 0.9 넘게)을 센다 — 0 이어야 한다.
+  그래서 **세모를 하나도 빼지 않는다**(가고일은 맞닿은 덩이를 잇는 세모를 뺀다 — 곰에 같은 규칙을 걸었더니 어깨·옆구리에 구멍이 났다).
+  ③ **몸짓은 자세표를 섞는다**(`BEAR_D` — 엉덩이 높이·앞뒤 · 숙임 · 허리·가슴 굽힘 · 목·머리 · 턱 · 앞발 치켜듦 · 네 발 자리): 네 발 서기·걷기·달리기(`bearDLoco`) ·
+  내려찍기(`bearDSlam`) · 경직(`bearDStun`) · 쓰러짐(`bearDDead`)을 상태 몫으로 섞고, 엉덩이·허리·목은 돌리고 **네 발은 두 마디 IK**(`bearIK` — 다 접힘·다 폄의 끝은
+  피한다: 그 근처에선 무릎이 한 프레임에 45° 넘게 돌았다). 고개는 노리는 것을 본다(`bearDraw(b,dt,바라볼 점,땅 높이)` 셋째 인자).
+  ④ **걸음** — 위상은 간 거리로 민다(디딘 발이 미끄러지지 않는다). 천천히는 옆걸음(왼뒤→왼앞→오른뒤→오른앞 · 디딤 64%), 3.5→7 m/s 에서 갤럽(뒷발 둘 → 앞발 둘 ·
+  디딤 36% · 허리가 오므렸다 펴고 한 번 뜬다)으로 넘어간다. 서 있을 땐 0.4 rad 숙여 등을 눕힌다(덜 숙이면 고릴라처럼 섰다).
+  ⑤ **내려찍기** — 시험장의 `Q`(치켜듦·정점·명중)와 `P.atk` 를 읽는다: 뒷발로 일어서며 앞발을 머리 위로 · 입을 벌림 → 멎음 → 앞으로 몸을 던져 **`Q.hit` 에 앞발이 땅에 닿는다**.
+  끝나고 빠지는 동안은 마지막 자세를 쥔다(`A.u` — `b.t` 는 다음 상태에서 0 이 되어 한 프레임에 54° 튀었다). 경직은 찍은 자세에서 숨을 몰아쉬며 일어선다 · 죽으면 배를 깔고 고꾸라진다.
+  ⑥ **맞는 자리**는 뼈마다 머리→꼬리 캡슐(`bearHitCaps` · 반지름 `BEAR_CAPR`) — 공으로는 `bearHitSpheres`(bear·mixed 의 `bearSpheres`).
+  잰 값(시험장 AI 40초 · 사람이 둘레를 돌며 다가감 · 뼈의 프레임 사이 최대 회전): 걷기·달리기 다리 15~20° · 내려찍기(0.1초에 내리꽂는다) 25~34°.
+  쓰는 것: `b.state·t·frz·speed·yaw·alive·hp·pos` 와 시험장의 `P`·`Q` — AI 는 그대로다.
 
 - **지형 판 8 묶음**(사용자 버그 사진 · 요청 — 2026-10-19):
   ① **벼랑 면의 사진 · 금은 삼각형의 실제 면 법선으로 옆 투영을 고른다**(22-ground-textures.js `fN` — 화소 기울기의 외적). 정점 법선은 이웃 칸과
