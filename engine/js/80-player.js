@@ -32,7 +32,7 @@ const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
 /* 몹 명세
    ----------------------------------------------------------------------------
    power  예산에서 차지하는 값
-   c      종마다의 고유 상수 — 그 종이 얼마나 흔한가(다 1 에서 시작한다. 한 종만 더 자주 · 덜 자주 나오게 하려면 이것만 만진다)
+   c      종마다의 고유 상수 — 그 종이 얼마나 흔한가(1 에서 시작했다 · 2026-10-20 사용자가 가고일 1.3 · 스킨워커 0.8 · 다지류 0.7 · 애쉬스케일 0.5 로 정함)
    hold   모델(몸)이 아직 없다 — 예산은 차지하지만 섬에는 안 선다(MOBS_LIVE)
 
    예전엔 종마다 first · peak · rise · fall 을 손으로 적었다. 이제 날마다의 고유값은 한 식이다(사용자 요청 2026-10-20):
@@ -45,23 +45,23 @@ const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
    (키틴 검 3 · 키틴 도끼 3 → 키틴 6 / 뼈 창 3 · 뼈 해머 4 → 뼈 8 에 가죽 3). */
 const MOBS=[
   //  id            이름              power   c
-  {id:'gargoyle',  n:'가고일',        power:   1, c:1,
+  {id:'gargoyle',  n:'가고일',        power:   1, c:1.3,
    drop:[{id:'chitin',n:6}]},
   {id:'bear',      n:'아르크토스',    power:   3, c:1,
    drop:[{id:'bone',n:8},{id:'hide',n:3},{id:'meat_bear',n:5}]},
   /* 애쉬스케일 — 소금게 자리를 넘겨받았다. 상공을 돌다 내리꽂고, 화염구를 뱉고,
      쫓기는 길에 지어 놓은 집부터 부순다. 죽을 때 터지므로 잡고도 물러나야 한다.
      거동은 wyvern_arena.html 에 있다. */
-  {id:'emberwyvern',n:'애쉬스케일',   power:   4, c:1,
+  {id:'emberwyvern',n:'애쉬스케일',   power:   4, c:0.5,
    /* 비늘 12 — 한 마리분으로 복합 갑옷(6)과 복합 투구(3)를 다 꿰고 3 이 남는다.
       잿불 비늘 갑옷(6)·투구(3) 한 벌로 가도 셈이 맞는다. */
    drop:[{id:'gunpowder',n:1},{id:'ember_scale',n:12}]},
   /* 스킨워커 — 먹은 것의 모습을 흉내 낸다. 멀티플레이가 붙으면 시신이나 산 사람을
      삼켜 그 사람으로 변신한다(계획). 지금은 혼자 하는 게임이라 변신할 대상이 없다. */
-  {id:'mimicspider', n:'스킨워커',    power:  10, c:1,
+  {id:'mimicspider', n:'스킨워커',    power:  10, c:0.8,
    drop:[{id:'spider_silk',n:6},{id:'mimic_flesh',n:2}]},
   /* 다지류 — 파워 20 자리(예전 '유황 도롱뇽')를 넘겨받았다(사용자 결정 2026-10-20). 우거진 숲 곁 굴이 둥지다(97-mobs.js) */
-  {id:'crawler',   n:'다지류',        power:  20, c:1,
+  {id:'crawler',   n:'다지류',        power:  20, c:0.7,
    drop:[{id:'chitin',n:8},{id:'spider_silk',n:2}]},
   {id:'stonewing', n:'석화 가고일',   power:  35, c:1},
   {id:'stormwyrm', n:'번개비늘 와이엄',power:  60, c:1},
