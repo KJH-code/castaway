@@ -27,7 +27,7 @@ function parseGLB_garg(buf){
   g.setAttribute('position',new THREE.BufferAttribute(acc(pr.attributes.POSITION),3));
   g.setAttribute('normal',new THREE.BufferAttribute(acc(pr.attributes.NORMAL),3));
   g.setAttribute('uv',new THREE.BufferAttribute(acc(pr.attributes.TEXCOORD_0),2));
-  g.setAttribute('aWing',new THREE.BufferAttribute(acc(pr.attributes._WING),1));
+  if(pr.attributes._WING!==undefined) g.setAttribute('aWing',new THREE.BufferAttribute(acc(pr.attributes._WING),1));   // 새끼 거미 모델엔 날개 몫이 없다
   g.setIndex(new THREE.BufferAttribute(acc(pr.indices),1));
   g.computeBoundingSphere();
   const im=json.images[0], bv=json.bufferViews[im.bufferView];
@@ -75,7 +75,7 @@ function parseGLB_mob(buf){
   g.setAttribute('normal',new THREE.BufferAttribute(acc(pr.attributes.NORMAL),3));
   g.setAttribute('uv',new THREE.BufferAttribute(acc(pr.attributes.TEXCOORD_0),2));
   if(pr.attributes._WING!==undefined)          // 가고일에만 있는 날개 가중치
-    g.setAttribute('aWing',new THREE.BufferAttribute(acc(pr.attributes._WING),1));
+    if(pr.attributes._WING!==undefined) g.setAttribute('aWing',new THREE.BufferAttribute(acc(pr.attributes._WING),1));   // 새끼 거미 모델엔 날개 몫이 없다
   g.setIndex(new THREE.BufferAttribute(acc(pr.indices),1));
   /* 뼈대 — 이 모델에는 진짜 뼈가 66개 들어 있다(앞다리 둘·뒷다리 둘·머리·꼬리).
      껍데기를 뼈에 매달아 두면 앞다리를 그대로 뻗어 쓸 수 있다.

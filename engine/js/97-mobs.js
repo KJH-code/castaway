@@ -10,17 +10,17 @@
      없다 — 32-caves.js `c.dark`). 낮에는 굴 속에 똬리를 틀고 자고(건드리면 깬다), 밤에는 둥지 둘레 숲을 휘젓고 돌아다니며
      자꾸 돌진한다(돌진 사이 평균 6초). 사람이 50 m 안에 들면 쫓고, 새벽이면 둥지로 돌아간다. 몸 마디에 닿으면 다치고 튕겨 난다.
      그 숲(둥지 420 m 안의 우거진 숲)은 캐고 따는 몫이 더 나온다(`mobLairBonus` → 97-temples.js yieldK).
-   · **스킨워커** — 숲(낮에는 어두운 숲 속에만)과 밤의 들판. **빛에 안 들어간다** — 모닥불 · 화덕 둘레, 횃불 · 전등을 든 사람 둘레,
-     낮의 트인 땅. 빛 가장자리에서 멈춰 돌며 노려보다가, 빛이 꺼지면 다가와 늘어나는 앞다리로 후려친다. 빛 속에 갇히면 물러난다.
+   · **스킨워커** — 숲과 밤의 들판. 아레나(beta/mimic_arena.html)와 같다 — 본체는 때리지 않고 손 둘이 잡기 · 채찍을 쓴다 ·
+     두 손에 잡히면 삼킨다 · 손은 잘리고 되살아난다 · 궁지에 몰리면 새끼 거미를 뱉는다(아래 '스킨워커의 몸').
    · **가고일** — 풀밭과 탁상지에 무리로 산다. 낮게 떠 배회하다 30 m 안에 들면 쫓고, 멈춰 노려본 뒤 돌진한다 — 끝나면 3.5초 굳는다.
    · **몸끼리 겹치지 않는다**(`mobSeparate` — 몸 반지름으로 서로 밀어낸다 · 다지류 마디도 · 사람도 몸 안으로 못 들어간다).
-   · **떨림** — 관절마다 가끔 홱 꺾인다(`mobJerk` — 계단처럼 뛰는 값을 빠르게 따라간다 · 맞으면 크게 떤다).
-   · **맞으면** 뒤로 밀리고(넉백) 움찔하며 비명을 지른다 · 사람이 맞으면 튕겨 나고 화면이 흔들린다.
+   · **떨림** — 관절마다 가끔 홱 꺾인다(`mobJerk` — 계단처럼 뛰는 값을 빠르게 따라간다 · 맞으면 크게 떤다 · 스킨워커는 빼고).
+   · **맞으면** 뒤로 밀리고(넉백 — 스킨워커는 빼고) 움찔하며 비명을 지른다 · 사람이 맞으면 튕겨 나고 화면이 흔들린다.
    · 소리는 합성이다(`mobVoice` — 다지류 딸깍임 · 쇳소리 비명 / 가고일 날카로운 울음 / 스킨워커 사람 소리를 비튼 울부짖음) · 거리와 방향으로 줄이고 가른다.
    · 수는 설정 '몬스터 수'(MON.k — 0 없음 ~ 2.4)를 따른다 · 사람 둘레에만 세우고 멀어지면 거둔다(저장하지 않는다).
    · 근접 · 총 · 폭발 · 화상은 본편 무기 판정(CREATURES — 70-weapons.js · 74-icons-guns.js)을 그대로 탄다 — 몸마다 맞는 공(대역)을 건다.
    ========================================================================== */
-const MON={k:1, built:false, crawl:[], garg:[], mim:[], lairs:[], picks:[], spawnT:0, shake:0, roll:0, pk:new THREE.Vector3(),
+const MON={k:1, built:false, crawl:[], garg:[], mim:[], spd:[], lairs:[], picks:[], spawnT:0, shake:0, roll:0, pk:new THREE.Vector3(),
   gGeo:null, gTex:null, mGeo:null, mTex:null, mSkin:null, mSc:1, seq:0, voiceT:0, blob:null};
 function mobsSetK(k){ MON.k=k; }
 const mobNight=()=>hourOfDay<5.0||hourOfDay>19.6;
@@ -125,7 +125,7 @@ function mobRegister(m,on){
 function mobDamage(m,d){
   if(!m.alive||!(d>0)) return;
   m.hp-=d; m.alerted=true; m.hitT=0.4; m.jerkK=Math.min(4,(m.jerkK||1)+1.6);
-  const dx=m.pos.x-PL.pos.x, dz=m.pos.z-PL.pos.z, L=Math.hypot(dx,dz)||1, kb=(m.kind==='garg'?8:m.kind==='mim'?3.6:0.9)*Math.min(1.6,0.4+d/45);
+  const dx=m.pos.x-PL.pos.x, dz=m.pos.z-PL.pos.z, L=Math.hypot(dx,dz)||1, kb=(m.kind==='garg'?8:m.kind==='mim'?0:0.9)*Math.min(1.6,0.4+d/45);
   m.kv.x+=dx/L*kb; m.kv.z+=dz/L*kb;
   MON.shake=Math.min(1,MON.shake+0.12); ATK.hitStop=0.06;
   mobVoice('hurt',m.pos.x,m.pos.y+1,m.pos.z,1.2);
@@ -152,15 +152,6 @@ function mobHurtPlayer(m,dmg,why,kb){
   mobVoice('thud',PL.pos.x,PL.pos.y+1,PL.pos.z,1);
 }
 
-/* ── 빛 — 스킨워커가 안 들어가는 데 ─────────────────────────────────────────── */
-function mobPlayerLight(){ return (torchLight&&torchLight.intensity>0.05)||(typeof flash!=='undefined'&&flash&&flash.intensity>0.05); }
-function mobLitAt(x,z){
-  if(mobPlayerLight()&&Math.hypot(x-PL.pos.x,z-PL.pos.z)<12) return 2;
-  if(typeof FIRES!=='undefined') for(const f of FIRES) if(f.lit&&Math.hypot(x-f.x,z-f.z)<14) return 2;
-  if(!mobNight()&&hourOfDay>6.2&&hourOfDay<18.8&&!mobForestB(mobBiome(x,z))) return 1;   // 낮의 트인 땅
-  return 0;
-}
-
 /* ── 몸 만들기(섬을 다 지은 뒤 한 번 — 모델은 섬이 바뀌어도 다시 안 읽는다) ─────────── */
 function mobBlob(r){
   if(!MON.blob){ const c=document.createElement('canvas'); c.width=c.height=64; const g=c.getContext('2d'), gr=g.createRadialGradient(32,32,2,32,32,31);
@@ -170,6 +161,7 @@ function mobBlob(r){
 }
 function mobsBuild(){
   for(const m of [...MON.crawl,...MON.garg,...MON.mim]){ mobRegister(m,false); m.active=false; m.alive=false; mobHide(m); }
+  for(const sp of MON.spd) mimSpiderOff(sp);
   MON.picks.length=0;
   if((P.tv|0)<8) return;
   for(const l of MON.lairs){ l.cr=null; l.skip=typeof LANDING!=='undefined'&&Math.hypot(l.x-LANDING.x,l.z-LANDING.z)<450; }   // 상륙 자리 곁 굴은 비운다
@@ -194,8 +186,12 @@ function mobsBuild(){
     /* 스킨워커 셋 — 뼈는 마리마다, 지오메트리 · 그림은 나눠 쓴다 */
     const M=parseGLB_mob(mobB64(MIMIC_GLB));
     MON.mGeo=M.geometry; MON.mTex=new THREE.TextureLoader().load(M.textureURL); MON.mTex.flipY=false; MON.mSkin=M.skin;
-    M.geometry.computeBoundingBox(); const bb=M.geometry.boundingBox; MON.mSc=4.2/(bb.max.y-bb.min.y);
+    M.geometry.computeBoundingBox(); const bb=M.geometry.boundingBox; MON.mSc=MIM_H/(bb.max.y-bb.min.y);
     for(let i=0;i<3;i++) MON.mim.push(mimMake());
+    /* 새끼 거미 — 그림 하나를 열다섯이 나눠 쓴다(다리 폭 1 m) */
+    { const {geometry,textureURL}=parseGLB_garg(mobB64(SPIDERLING_GLB)); const tex=new THREE.TextureLoader().load(textureURL); tex.flipY=false;
+      MON.sGeo=geometry; MON.sMat=new THREE.MeshLambertMaterial({map:tex,side:THREE.DoubleSide}); geometry.computeBoundingBox(); const sb=geometry.boundingBox;
+      MON.sSc=MIM_SPIDER_SPAN/Math.max(sb.max.x-sb.min.x,sb.max.z-sb.min.z); for(let i=0;i<15;i++) MON.spd.push(mimSpiderMake()); }
     MON.built=true;
   }catch(e){ console.error('[몬스터]',e); }
 }
@@ -206,12 +202,37 @@ function mobHide(m){
 }
 
 /* ── 스킨워커의 몸 ─────────────────────────────────────────────────────────── */
+/* 아레나(beta/mimic_arena.html · battle_arena.html)와 같다 — 키 5 m · 본체 체력 800 · 손 둘(잡기 · 채찍) · 새끼 거미.
+   본체는 스스로 때리지 않는다. 손 둘이 저마다 움직이고, 궁지에 몰리면 입에서 새끼를 뱉는다.
+   · 손은 저마다 체력 85 · 기절 시계도 따로다. 잘리면 4초 뒤 본체 체력 60 을 깎아 되살아난다. 양손이 통틀어 6번 잘릴 때마다 본체가 5초 굳는다.
+   · 두 손이 1초 안에 잇달아 덤비지 않는다 · 두 손에 잡히면 3초 뒤 삼킨다.
+   · 본체 체력이 100 이하로 떨어지면 제 살을 깎는 짓(손 재생 · 새끼 소환)을 멈춘다.
+   섬에 맞춘 것은 생기고 거두기 · 배회(제 자리 둘레) · 쓰러진 사체 · 울부짖는 소리뿐이다(빛 피하기 · 떨림 · 넉백은 아레나에 없어 뺐다 — 사용자 요청). */
+const MIM_H=5.0, MIM_SPIDER_SPAN=1.0;
+const MIM_P={see:70, fov:150*Math.PI/180, walk:1.5, chase:4.2, reach:10,
+  whipDmg:38, whipWind:0.75, whipSwing:0.34, grabWind:2.0, grabShoot:0.35, grabHold:6.0,
+  handHp:85, handRegen:4, handCost:60, cutsForStun:6, bodyStun:5.0,
+  spawnCost:250, spawnCd:25, spawnN:5, lowHp:100, spawnStun:5.0, eat:3.0};
+const MIM_SPD={hp:100, speed:0.56, bite:14, biteCd:1.2, near:1.3, body:0.7};
+const MIM_MAXSTRETCH=6, MIM_SWING=0.30, MIM_KNEE=0.16, MIM_GRABUP=1.15, MIM_WHIPYAW=1.30;
+const mimEase=t=>t*t*(3-2*t);
 const MIM_LIMBS=[
   {id:'la', side:-1, front:true , names:['Bone_027','Bone_026','Bone_025','Bone_024','Bone_023']},
   {id:'ra', side:+1, front:true , names:['Bone_022','Bone_021','Bone_020','Bone_019','Bone_018']},
   {id:'ll', side:-1, front:false, names:['Bone_009','Bone_008','Bone_007','Bone_006','Bone_005']},
   {id:'rl', side:+1, front:false, names:['Bone_014','Bone_013','Bone_012','Bone_011','Bone_010']}];
-const MIM_BODY=['Bone_001','Bone_004','Bone_003','Bone_002','Bone_017','Bone_016','Bone_015'];
+/* 맞는 공 — 몸 · 손 · 새끼가 저마다 제 체력을 든다(무기 판정 CREATURES 에 거는 대역) */
+function mimProxy(tgt,posfn,r,hit){
+  const o={r, fish:false, _m:tgt, burn:null, fireproof:false};
+  Object.defineProperty(o,'x',{get:()=>posfn().x}); Object.defineProperty(o,'z',{get:()=>posfn().z});
+  Object.defineProperty(o,'y',{get:()=>posfn().y-1.0});
+  Object.defineProperty(o,'hp',{get:()=>tgt.alive?tgt.hp:0, set:v=>{ if(!tgt.alive) return; let d=tgt.hp-v;
+    if(tgt.dF===MON.frame){ const x=Math.max(0,d-tgt.dMax); tgt.dMax=Math.max(tgt.dMax,d); d=x; } else { tgt.dF=MON.frame; tgt.dMax=d; }
+    if(d>0) hit(d); }});
+  Object.defineProperty(o,'stun',{get:()=>0, set:v=>{ if(v>0) tgt.frz=(tgt.frz||0)+Math.min(v,6); }});
+  Object.defineProperty(o,'alerted',{get:()=>true, set:()=>{}});
+  return o;
+}
 function mimMake(){
   const S=MON.mSkin, map={};
   const rec=b=>{ const n=new THREE.Bone(); n.name=b.name; n.position.copy(b.position); n.quaternion.copy(b.quaternion); n.scale.copy(b.scale);
@@ -222,17 +243,36 @@ function mimMake(){
   rig.add(mesh); rig.add(root); rig.updateMatrixWorld(true);
   mesh.bind(new THREE.Skeleton(S.bones.map(b=>map[b.name]),S.boneInverses),new THREE.Matrix4());
   const rest=new Map(), rpos=new Map(); root.traverse(o=>{ if(o.isBone){ rest.set(o,o.quaternion.clone()); rpos.set(o,o.position.clone()); } });
-  const limbs=MIM_LIMBS.map(L=>{ const chain=L.names.map(n=>map[n]).filter(Boolean); let nat=0; for(let i=1;i<chain.length;i++) nat+=chain[i].position.length();
-    return Object.assign({},L,{chain, tip:chain[chain.length-1], nat, js:{}}); });
-  const m={kind:'mim', rig, mesh, mat, bone:map, root, rest, rpos, limbs, body:MIM_BODY.map(n=>map[n]).filter(Boolean), bjs:MIM_BODY.map(()=>({})),
-    pos:new THREE.Vector3(), kv:new THREE.Vector3(), yaw:0, hp:520, hpMax:520, frz:0, alerted:false, alive:false, active:false, state:'wander', t:0,
-    target:new THREE.Vector3(), home:new THREE.Vector3(), speed:0, walkPh:0, atkCd:2, arm:0, armT:new THREE.Vector3(), hitDone:false, voiceT:3, deadT:0, prox:[]};
+  const hands=[-1,1].map(side=>({side, hp:MIM_P.handHp, hpMax:MIM_P.handHp, alive:true, frz:0, state:'idle', t:0, kind:'grab', reachT:0, held:false,
+    regen:0, armT:null, drive:null, hitDone:false, limb:null}));
+  const limbs=MIM_LIMBS.map(L=>{ const chain=L.names.map(n=>map[n]).filter(Boolean), tip=chain[chain.length-1]; let nat=0; for(let i=1;i<chain.length;i++) nat+=chain[i].position.length();
+    const o=Object.assign({},L,{chain, tip, nat});
+    if(tip){ o.restSh=rig.worldToLocal(chain[0].getWorldPosition(new THREE.Vector3()));
+      const wp=tip.getWorldPosition(new THREE.Vector3()); let far=null, fd=0;
+      tip.traverse(b=>{ if(!b.isBone||b===tip) return; const d=b.getWorldPosition(new THREE.Vector3()).distanceTo(wp); if(d>fd){ fd=d; far=b; } });
+      o.hitChain=far?chain.concat([far]):chain; }
+    o.hand=L.front?hands.find(h=>h.side===L.side):null; if(o.hand) o.hand.limb=o;
+    return o; });
+  const m={kind:'mim', rig, mesh, mat, bone:map, root, rest, rpos, limbs, hands,
+    pos:new THREE.Vector3(), kv:new THREE.Vector3(), yaw:0, hp:800, hpMax:800, frz:0, alerted:false, alive:false, active:false, state:'wander', t:0,
+    target:new THREE.Vector3(), home:new THREE.Vector3(), speed:0, walkPh:0, spawnCd:0, cuts:0, eatT:-1, clock:0, lastAct:-99, voiceT:3, deadT:0, prox:[]};
   m.blob=mobBlob(2.0);
-  m.prox.push(mobProxy(m,()=>_moV.set(m.pos.x,m.pos.y+1.9,m.pos.z),1.9));
-  m.prox.push(mobProxy(m,()=>m.limbs[0].tip?m.limbs[0].tip.getWorldPosition(_moV2):m.pos,0.7));
-  m.prox.push(mobProxy(m,()=>m.limbs[1].tip?m.limbs[1].tip.getWorldPosition(_moV2):m.pos,0.7));
+  /* 본체 — 몸통 공(키의 가운데 · 아레나 BODY_R) · 손 — 어깨부터 손가락 끝까지 마디마다 공 */
+  m.prox.push(mobProxy(m,()=>_moV.set(m.pos.x,m.pos.y+MIM_H*0.5,m.pos.z),2.02));
+  for(const L of limbs) if(L.hand&&L.hitChain) for(const b of L.hitChain){ const v=new THREE.Vector3(), hd=L.hand;
+    m.prox.push(mimProxy(hd,()=>b.getWorldPosition(v),0.6,d=>mimHandHit(m,hd,d))); }
   return m;
 }
+/* 새끼 거미 — 몸 열다섯(스킨워커 셋 × 다섯)을 돌려 쓴다 */
+function mimSpiderMake(){
+  const sp={kind:'spd', pos:new THREE.Vector3(), yaw:0, hp:MIM_SPD.hp, hpMax:MIM_SPD.hp, alive:false, active:false, frz:0, cd:0, prox:[]};
+  sp.mesh=new THREE.Mesh(MON.sGeo,MON.sMat); sp.mesh.scale.setScalar(MON.sSc); sp.mesh.visible=false; sp.mesh.userData.lightRole='recv'; scene.add(sp.mesh);
+  sp.blob=mobBlob(0.5);
+  sp.prox.push(mimProxy(sp,()=>_moV.set(sp.pos.x,sp.pos.y+0.2,sp.pos.z),0.6,d=>{ sp.hp-=d; mobVoice('hurt',sp.pos.x,sp.pos.y,sp.pos.z,0.6);
+    if(sp.hp<=0){ sp.hp=0; mimSpiderOff(sp); toast('새끼 거미를 밟았다'); } }));
+  return sp;
+}
+function mimSpiderOff(sp){ sp.alive=false; sp.active=false; mobRegister(sp,false); sp.mesh.visible=false; sp.blob.visible=false; }
 const _moA=new THREE.Vector3(), _moB=new THREE.Vector3(), _moC=new THREE.Vector3(), _moI=new THREE.Quaternion(), _moW=new THREE.Quaternion();
 function mobCcd(chain,target,iters,damp){
   const tip=chain[chain.length-1];
@@ -248,32 +288,31 @@ function mobRotBone(bn,axis,ang){
   bn.quaternion.premultiply(_moQ2); bn.updateWorldMatrix(false,true);
 }
 const _mSide=new THREE.Vector3(), _mUp=new THREE.Vector3(0,1,0);
+/* 자세 — 아레나 poseMimic 그대로(걷기 · 늘어나는 앞다리 · 어깨를 먼저 돌리고 CCD) */
 function mimPose(m,dt){
   const R=m.rig;
-  R.position.set(m.pos.x,m.pos.y,m.pos.z); R.rotation.set(0,m.yaw,0);
-  if(!m.alive){ const k=Math.min(1,m.deadT/1.2); R.rotation.z=k*1.35*(m.arm?1:-1); R.position.y=m.pos.y-k*0.6-Math.max(0,m.deadT-60)*0.05; }
+  const bob=m.alive?Math.sin(m.walkPh*2)*0.035*clamp(m.speed/MIM_P.chase,0,1):0;
+  R.position.set(m.pos.x,m.pos.y+bob,m.pos.z); R.rotation.set(0,m.yaw,0);
+  if(!m.alive){ const k=Math.min(1,m.deadT/1.2); R.rotation.z=k*1.35; R.position.y=m.pos.y-k*0.6-Math.max(0,m.deadT-60)*0.05; }   // 쓰러짐(섬에서 사체가 남는다)
   m.root.traverse(o=>{ if(!o.isBone) return; const q=m.rest.get(o); if(q) o.quaternion.copy(q); const v=m.rpos.get(o); if(v) o.position.copy(v); });
   R.updateMatrixWorld(true);
-  const gait=clamp(m.speed/3.8,0,1), amp=0.35+0.65*gait;
+  const gait=clamp(m.speed/MIM_P.chase,0,1), amp=0.35+0.65*gait;
   _mSide.set(Math.cos(m.yaw),0,-Math.sin(m.yaw));
-  const jk=(m.jerkK||1)*(m.alive?1:0.3);
-  /* 몸통 · 목 — 홱홱 꺾인다(사람 흉내를 내는 것이라 관절이 어긋나게 움직인다) · 맞으면 뒤로 젖힌다 */
-  m.body.forEach((b,i)=>{ const J=mobJerk(m.bjs[i],dt,0.16*jk,!m.alive); _moE.set(J[0]-(m.hitT>0?m.hitT*0.9:0)*(i<3?1:0.4),J[1],J[2]); _moQ.setFromEuler(_moE); b.quaternion.multiply(_moQ); });
-  R.updateMatrixWorld(true);
   for(const L of m.limbs){ if(!L.tip) continue;
-    const atk=L.front&&m.alive&&(m.state==='wind'||m.state==='strike')&&((L.side<0)===(m.arm===0));
-    if(L.front){ const need=atk&&m.state==='strike'?L.chain[0].getWorldPosition(_moV).distanceTo(m.armT):0, nat=L.nat*MON.mSc;
-      const k=atk&&m.state==='strike'?clamp(need/Math.max(nat,1e-4),1,5):1;
+    const hd=L.hand; let tgt=null;
+    if(hd&&hd.alive&&hd.armT) tgt=hd.armT;
+    else if(hd&&!hd.alive) continue;                                          // 잘린 앞다리는 늘어져 있다
+    if(L.front){ const need=tgt?mimHandOrigin(m,hd).distanceTo(tgt):0, nat=L.nat*MON.mSc;
+      const k=tgt?clamp(need/Math.max(nat,1e-4),1,MIM_MAXSTRETCH):1;
       for(let i=1;i<L.chain.length;i++) L.chain[i].position.copy(m.rpos.get(L.chain[i])).multiplyScalar(k);
       if(k!==1) R.updateMatrixWorld(true); }
-    if(atk){
-      if(m.state==='wind'){ mobRotBone(L.chain[0],_mSide,-1.1*clamp(m.t/0.6,0,1)); mobRotBone(L.chain[1],_mSide,-0.6); }
-      else mobCcd(L.chain,m.armT,3,0.9);
-    }else{
+    if(!tgt){
       const ph=m.walkPh+(L.front?0:Math.PI)+(L.side<0?0:Math.PI), sw=Math.sin(ph);
-      mobRotBone(L.chain[0],_mSide,sw*0.30*amp); mobRotBone(L.chain[1],_mSide,-sw*0.09*amp+Math.max(0,sw)*0.16*amp);
-    }
-    const J=mobJerk(L.js,dt,0.22*jk,!m.alive); mobRotBone(L.chain[1],_mSide,J[0]); mobRotBone(L.chain[2],_mUp,J[1]);   // 다리마다 경련
+      mobRotBone(L.chain[0],_mSide,sw*MIM_SWING*amp); mobRotBone(L.chain[1],_mSide,-sw*MIM_SWING*amp*0.30+Math.max(0,sw)*MIM_KNEE*amp);
+      continue; }
+    const drv=hd&&hd.drive;
+    if(drv){ mobRotBone(L.chain[0],drv.up?_mSide:_mUp,drv.ang*(drv.up?1:L.side)); mobCcd(L.chain.slice(1),tgt,3,0.85); }
+    else mobCcd(L.chain,tgt,3,0.85);
   }
 }
 
@@ -287,6 +326,8 @@ function updateMobs(dt){
   for(const m of MON.crawl) if(m.active) crawlTick(m,dt);
   for(const g of MON.garg) if(g.active) gargTick(g,dt);
   for(const m of MON.mim) if(m.active) mimTick(m,dt);
+  for(const sp of MON.spd) if(sp.active) mimSpiderTick(sp,dt);
+  mimSpiderSeparate();
   mobSeparate(dt);
   /* 사람이 맞아 밀려난다 — 막히는 데로는 안 밀린다 */
   if(MON.pk.lengthSq()>0.01){ const p=PL.pos, nx=p.x+MON.pk.x*dt, nz=p.z+MON.pk.z*dt;
@@ -313,6 +354,7 @@ function mobSpawner(k){
   for(const list of [MON.garg,MON.mim]) for(const m of list){ if(!m.active) continue;
     const d=Math.hypot(m.pos.x-px,m.pos.z-pz);
     if(d>340||(!m.alive&&m.deadT>90)||k<=0){ mobRegister(m,false); m.active=false; mobHide(m); if(m.pick){ const i=MON.picks.indexOf(m.pick); if(i>=0) MON.picks.splice(i,1); m.pick=null; } } }
+  for(const sp of MON.spd) if(sp.active&&(Math.hypot(sp.pos.x-px,sp.pos.z-pz)>340||k<=0)) mimSpiderOff(sp);
   if(k<=0||under||PL.swim) return;
   const fwdX=-Math.sin(PL.yaw), fwdZ=-Math.cos(PL.yaw);
   const spot=(ok,rmin,rmax)=>{ for(let t=0;t<14;t++){ const a=Math.random()*6.283, r=rmin+Math.random()*(rmax-rmin), x=px+Math.cos(a)*r, z=pz+Math.sin(a)*r;
@@ -327,7 +369,7 @@ function mobSpawner(k){
   /* 스킨워커 — 숲(낮엔 숲 속만) · 밤의 들판 · 빛이 없는 데 */
   const mAlive=MON.mim.filter(m=>m.active).length, mWant=Math.min(3,Math.round(2*k));
   if(mAlive<mWant&&Math.random()<0.25){
-    const s=spot((x,z)=>{ const b=mobBiome(x,z); return heightAt(x,z)>0.5&&(mobForestB(b)||(night&&(b===B.MEADOW||b===B.SCRUB)))&&!mobLitAt(x,z); },70,140);
+    const s=spot((x,z)=>{ const b=mobBiome(x,z); return heightAt(x,z)>0.5&&(mobForestB(b)||(night&&(b===B.MEADOW||b===B.SCRUB))); },70,140);
     if(s){ const m=MON.mim.find(q=>!q.active); if(m) mimSpawn(m,s[0],s[1]); } }
 }
 
@@ -435,60 +477,174 @@ function gargTick(g,dt){
 
 /* ── 스킨워커 ─────────────────────────────────────────────────────────────── */
 function mimSpawn(m,x,z){
-  m.active=true; m.alive=true; m.hp=m.hpMax; m.frz=0; m.alerted=false; m.state='wander'; m.t=0; m.kv.set(0,0,0); m.deadT=0; m.atkCd=2; m.jerkK=1;
+  m.active=true; m.alive=true; m.hp=m.hpMax; m.frz=0; m.alerted=false; m.state='wander'; m.t=0; m.kv.set(0,0,0); m.deadT=0;
+  m.spawnCd=0; m.cuts=0; m.eatT=-1; m.clock=0; m.lastAct=-99;
+  for(const hd of m.hands){ hd.alive=true; hd.hp=hd.hpMax; hd.frz=0; hd.held=false; hd.regen=0; hd.state='idle'; hd.t=0; hd.reachT=0; hd.armT=null; hd.drive=null; }
   m.pos.set(x,heightAt(x,z),z); m.home.set(x,0,z); m.yaw=Math.random()*6.283; mimWander(m); m.rig.visible=true;
   mobRegister(m,true);
 }
 function mimWander(m){ for(let t=0;t<10;t++){ const a=Math.random()*6.283, r=10+Math.random()*60, x=m.home.x+Math.cos(a)*r, z=m.home.z+Math.sin(a)*r;
-  if(heightAt(x,z)>0.5&&!mobLitAt(x,z)){ m.target.set(x,0,z); return; } } m.target.copy(m.home); }
-function mimSet(m,s){ m.state=s; m.t=0; m.hitDone=false; }
-function mimTick(m,dt){
-  if(!m.alive){ m.deadT+=dt; m.blob.visible=false; mimPose(m,dt); return; }
-  if(m.hitT>0) m.hitT-=dt; m.jerkK=Math.max(1,(m.jerkK||1)-dt*1.5); m.atkCd-=dt;
-  const dx=PL.pos.x-m.pos.x, dz=PL.pos.z-m.pos.z, dist=Math.hypot(dx,dz)||1;
-  const plLit=!!mobLitAt(PL.pos.x,PL.pos.z), meLit=mobLitAt(m.pos.x,m.pos.z);
-  let mx=0, mz=0, spd=0, face=null;
-  if(m.frz>0){ m.frz=Math.max(0,m.frz-dt); m.speed=0; m.state='stun'; }
-  else{
-    m.t+=dt;
-    if(m.state==='stun') mimSet(m,'stalk');
-    if(meLit===2&&m.state!=='shun'){ mimSet(m,'shun'); mobVoice('wail',m.pos.x,m.pos.y+3,m.pos.z,1.2); }   // 불빛에 닿았다 — 물러난다
-    if(m.state==='shun'){                                                     // 빛에서 벗어날 때까지 빛의 반대쪽으로
-      let sx=-dx/dist, sz=-dz/dist;
-      if(typeof FIRES!=='undefined') for(const f of FIRES) if(f.lit){ const fx=m.pos.x-f.x, fz=m.pos.z-f.z, fl=Math.hypot(fx,fz); if(fl<16){ sx=fx/fl; sz=fz/fl; } }
-      mx=sx; mz=sz; spd=4.2; face=Math.atan2(dx,dz);
-      if(!meLit&&m.t>1.2) mimSet(m,'stalk'); }
-    else if(m.state==='wander'){
-      if((dist<45&&!PL.under&&!PL.dead)||m.alerted){ mimSet(m,'stalk'); mobVoice('wail',m.pos.x,m.pos.y+3,m.pos.z,1); }
-      else{ const tx=m.target.x-m.pos.x, tz=m.target.z-m.pos.z, l=Math.hypot(tx,tz); if(l<3||(m.t>30)){ mimWander(m); m.t=0; } else{ mx=tx/l; mz=tz/l; spd=1.5; } } }
-    else if(m.state==='stalk'){
-      face=Math.atan2(dx,dz);
-      if((dist>70&&!m.alerted)||PL.dead||PL.under){ mimSet(m,'wander'); mimWander(m); m.alerted=false; }
-      else if(plLit){                                                         // 빛 속의 사람 — 가장자리에서 맴돌며 노려본다
-        const want=13.5; mx=-dz/dist; mz=dx/dist; spd=1.6; if(dist<want){ mx-=dx/dist*1.5; mz-=dz/dist*1.5; spd=2.6; }
-        if((m.voiceT-=dt)<0){ m.voiceT=4+Math.random()*5; mobVoice('wail',m.pos.x,m.pos.y+3,m.pos.z,0.9); } }
-      else if(dist>5.5){ mx=dx/dist; mz=dz/dist; spd=3.8; }
-      if(!plLit&&dist<8.5&&m.atkCd<=0){ m.arm=Math.random()<0.5?0:1; mimSet(m,'wind'); mobVoice('wail',m.pos.x,m.pos.y+3,m.pos.z,1.4); } }
-    else if(m.state==='wind'){ face=Math.atan2(dx,dz); if(m.t>=0.62){ m.armT.set(PL.pos.x,PL.pos.y+1.1,PL.pos.z); mimSet(m,'strike'); } }
-    else if(m.state==='strike'){ face=Math.atan2(dx,dz);
-      m.armT.lerp(_moV.set(PL.pos.x,PL.pos.y+1.1,PL.pos.z),Math.min(1,dt*4));          // 휘두르는 동안 조금 따라온다
-      const L=m.limbs[m.arm]; if(!m.hitDone&&L.tip&&m.t>0.12){ L.tip.getWorldPosition(_moV2); if(_moV2.distanceTo(_moV.set(PL.pos.x,PL.pos.y+1.0,PL.pos.z))<1.7){ m.hitDone=true; mobHurtPlayer(m,30,'스킨워커의 앞다리',11); } }
-      if(m.t>=0.38){ mimSet(m,'recover'); m.atkCd=2.0+Math.random()*1.2; } }
-    else if(m.state==='recover'){ face=Math.atan2(dx,dz); if(m.t>=0.55) mimSet(m,'stalk'); }
+  if(heightAt(x,z)>0.5){ m.target.set(x,0,z); return; } } m.target.copy(m.home); }
+function mimSet(m,s){ m.state=s; m.t=0; }
+function mimSees(m){
+  if(PL.dead||PL.under) return false;
+  const dx=PL.pos.x-m.pos.x, dz=PL.pos.z-m.pos.z, d=Math.hypot(dx,dz);
+  if(d>MIM_P.see) return false;
+  return (dx/d)*Math.sin(m.yaw)+(dz/d)*Math.cos(m.yaw) >= Math.cos(MIM_P.fov/2);
+}
+const mimLow=m=>m.hp<=MIM_P.lowHp;                                           // 이 아래로는 제 살을 안 깎는다
+const mimHeld=m=>m.hands.filter(h=>h.alive&&h.held).length;
+function mimHandOrigin(m,hd){                                                 // 어깨 — 쉴 때의 자리를 지금 몸의 자리 · 방향으로 옮긴다
+  const r=hd.limb.restSh, k=MON.mSc, s=Math.sin(m.yaw), c=Math.cos(m.yaw), x=r.x*k, y=r.y*k, z=r.z*k;
+  return _moC.set(m.pos.x+x*c+z*s, m.pos.y+y, m.pos.z-x*s+z*c);
+}
+const mimBodyPt=(m,a,d,y)=>new THREE.Vector3(m.pos.x+Math.sin(a)*d, m.pos.y+y, m.pos.z+Math.cos(a)*d);
+const mimWhipA0=(m,hd)=>m.yaw+hd.side*1.75, mimWhipA1=(m,hd)=>m.yaw-hd.side*0.85;
+function mimHandSet(hd,st){ hd.state=st; hd.t=0; }
+/* 손이 맞았다 — 손의 체력만 깎는다. 다 깎이면 잘린다 */
+function mimHandHit(m,hd,d){
+  if(!m.alive||!hd.alive) return;
+  hd.hp-=d; m.alerted=true; if(m.state==='wander') mimSet(m,'chase');
+  mobVoice('hurt',m.pos.x,m.pos.y+2,m.pos.z,1);
+  if(hd.hp>0) return;
+  hd.hp=0; hd.alive=false; hd.held=false; hd.regen=MIM_P.handRegen; hd.armT=null; hd.drive=null; m.cuts++;
+  let msg='앞다리를 잘랐다';
+  if(m.cuts%MIM_P.cutsForStun===0){ m.frz+=MIM_P.bodyStun; mimSet(m,'stun'); msg+=' — '+MIM_P.cutsForStun+'번째다. 본체가 '+MIM_P.bodyStun+'초 굳는다'; }
+  else msg+=' ('+(MIM_P.cutsForStun-m.cuts%MIM_P.cutsForStun)+'번 더 자르면 본체가 굳는다)';
+  if(!mimLow(m)) msg+=' · '+MIM_P.handRegen+'초 뒤 되살아난다';
+  toast(msg);
+}
+function mimHand(m,hd,dt){
+  if(!hd.alive){
+    if(mimLow(m)) return;
+    hd.regen-=dt;
+    if(hd.regen<=0){ hd.alive=true; hd.hp=hd.hpMax; hd.frz=0; hd.held=false; mimHandSet(hd,'idle'); m.hp=Math.max(1,m.hp-MIM_P.handCost); toast('손이 되살아났다 — 본체 체력 −'+MIM_P.handCost); }
+    return; }
+  if(hd.frz>0){ hd.frz=Math.max(0,hd.frz-dt); return; }
+  hd.t+=dt;
+  const O=mimHandOrigin(m,hd).clone(), dist=Math.hypot(PL.pos.x-O.x,PL.pos.z-O.z), P=_moV2.set(PL.pos.x,PL.pos.y+0.9,PL.pos.z);
+  if(hd.state==='idle'){
+    hd.armT=null; hd.drive=null;
+    if(m.state!=='chase'&&m.state!=='spawn') return;
+    if(dist>MIM_P.reach*1.15||PL.dead) return;
+    if(m.clock-m.lastAct<1.0) return;                                        // 다른 손이 방금 움직였다 — 1초는 기다린다
+    m.lastAct=m.clock;
+    hd.kind=Math.random()<0.7?'grab':'whip';
+    mimHandSet(hd,hd.kind==='grab'?'wind':'whipwind'); mobVoice('wail',m.pos.x,m.pos.y+3,m.pos.z,1.2);
+    return; }
+  if(hd.state==='wind'){                                                      // 잡기 — 2초 앞다리를 치켜든다
+    const u=clamp(hd.t/MIM_P.grabWind,0,1);
+    hd.drive={up:true, ang:MIM_GRABUP*mimEase(u)};
+    hd.armT=mimBodyPt(m,m.yaw+hd.side*0.55,1.6+1.4*u,MIM_H*(0.45+0.42*u));
+    if(hd.t>=MIM_P.grabWind){ hd.reachT=0; mimHandSet(hd,'reach'); }
+  }else if(hd.state==='reach'){
+    hd.reachT=Math.min(1,hd.t/MIM_P.grabShoot);
+    if(hd.t>=MIM_P.grabShoot){
+      if(dist<=MIM_P.reach&&!PL.dead){ hd.held=true; mimHandSet(hd,'hold'); toast('손에 붙잡혔다 — 이 손을 부숴야 풀린다'); }
+      else mimHandSet(hd,'back'); }
+  }else if(hd.state==='hold'){
+    hd.held=true;
+    if(hd.t>=MIM_P.grabHold||PL.dead){ hd.held=false; mimHandSet(hd,'back'); }
+  }else if(hd.state==='whipwind'){                                           // 채찍 — 옆으로 쭉 뻗어 잠깐 멈춘다
+    const u=clamp(hd.t/MIM_P.whipWind,0,1);
+    hd.drive={up:false, ang:MIM_WHIPYAW*mimEase(u)};
+    hd.armT=mimBodyPt(m,mimWhipA0(m,hd),MIM_P.reach*(0.45+0.55*u),MIM_H*(0.36+0.06*u));
+    if(hd.t>=MIM_P.whipWind){ hd.hitDone=false; mimHandSet(hd,'whip'); }
+  }else if(hd.state==='whip'){                                               // 부채꼴로 휩쓴다 — 뛰어 있으면 밑으로 빠진다
+    const u=clamp(hd.t/MIM_P.whipSwing,0,1), a=mimWhipA0(m,hd)+(mimWhipA1(m,hd)-mimWhipA0(m,hd))*mimEase(u);
+    hd.drive={up:false, ang:MIM_WHIPYAW*(1-2*mimEase(u))};
+    hd.armT=mimBodyPt(m,a,MIM_P.reach,MIM_H*0.34);
+    hd.reachT=Math.sin(u*Math.PI);
+    if(!hd.hitDone&&!PL.dead){
+      const dx=PL.pos.x-m.pos.x, dz=PL.pos.z-m.pos.z, dd=Math.hypot(dx,dz), pa=Math.atan2(dx,dz), off=Math.abs(((pa-a+Math.PI*3)%(Math.PI*2))-Math.PI);
+      if(dd<=MIM_P.reach&&off<0.42){ hd.hitDone=true; if(PL.grounded) hurtPL(MIM_P.whipDmg,'스킨워커의 채찍',true); else toast('뛰어 넘겼다'); } }
+    if(hd.t>=MIM_P.whipSwing) mimHandSet(hd,'back');
+  }else if(hd.state==='back'){
+    hd.reachT=Math.max(0,1-hd.t/0.3);
+    hd.armT=O.clone().lerp(P,hd.reachT*0.6);
+    hd.drive={up:true, ang:MIM_GRABUP*0.3*hd.reachT};
+    if(hd.t>=0.3){ hd.armT=null; mimHandSet(hd,'idle'); }
   }
-  if(spd>0){ const len=Math.hypot(mx,mz)||1; mx/=len; mz/=len;
-    const nx=m.pos.x+mx*spd*dt, nz=m.pos.z+mz*spd*dt;
-    const lit=mobLitAt(nx,nz);
-    const hN=heightAt(nx,nz), hC=heightAt(m.pos.x,m.pos.z);            // 물에 들어가 있으면 어디로든 걸어 나온다(예전엔 물에 서면 영영 못 움직였다)
-    if((hN>0.3||hC<=0.3)&&(m.state==='shun'||lit<1||(lit===1&&meLit))&&!solidAt(nx,nz,heightAt(nx,nz)+1.5)){ m.pos.x=nx; m.pos.z=nz; m.walkPh+=dt*spd*0.9; }   // 빛으로는 안 들어간다
-    else if(m.state==='wander') mimWander(m);
-    if(face===null) face=Math.atan2(mx,mz); }
+  if(hd.state==='reach'||hd.state==='hold'){                                  // 뻗기 · 붙잡음은 사람을 그대로 겨눈다
+    hd.armT=hd.state==='hold'?P.clone():O.clone().lerp(P,clamp(hd.reachT,0,1));
+    hd.drive={up:true, ang:MIM_GRABUP*(hd.state==='hold'?0.25:1-0.75*clamp(hd.reachT,0,1))}; }
+}
+/* 새끼 뱉기 — 부챗살로 벌려 다섯 */
+function mimSpawnSpiders(m){
+  if(mimLow(m)) return;
+  m.hp=Math.max(1,m.hp-MIM_P.spawnCost); m.spawnCd=MIM_P.spawnCd;
+  const live=MON.spd.filter(s=>s.active);
+  for(let i=0;i<MIM_P.spawnN;i++){
+    const sp=MON.spd.find(s=>!s.active); if(!sp) break;
+    const a=((i+0.5)/MIM_P.spawnN-0.5)*2.2, rad=2.6+(i%2)*1.3;
+    let x=m.pos.x+Math.sin(m.yaw+a)*rad, z=m.pos.z+Math.cos(m.yaw+a)*rad;
+    for(let t=0;t<24;t++){ let px=0,pz=0,hit=false;
+      for(const o of live){ const dx=x-o.pos.x, dz=z-o.pos.z, d=Math.hypot(dx,dz), need=MIM_SPD.body*2; if(d<need){ hit=true; const k=(need-d)/(d||1e-4); px+=dx*k; pz+=dz*k; } }
+      if(!hit) break; x+=px*0.6+(Math.random()-0.5)*0.1; z+=pz*0.6+(Math.random()-0.5)*0.1; }
+    sp.active=true; sp.alive=true; sp.hp=sp.hpMax; sp.frz=0; sp.cd=0; sp.pos.set(x,heightAt(x,z),z); sp.mesh.visible=true; mobRegister(sp,true); live.push(sp);
+  }
+  toast('입에서 새끼 거미 '+MIM_P.spawnN+'마리 — 본체 체력 −'+MIM_P.spawnCost+' · 뱉느라 '+MIM_P.spawnStun+'초 굳는다');
+}
+function mimSpiderTick(sp,dt){
+  if(sp.frz>0){ sp.frz=Math.max(0,sp.frz-dt); }
+  else{
+    const dx=PL.pos.x-sp.pos.x, dz=PL.pos.z-sp.pos.z, d=Math.hypot(dx,dz)||1;
+    if(sp.cd>0) sp.cd-=dt;
+    if(d>MIM_SPD.near){ const v=RUN*MIM_SPD.speed; sp.pos.x+=dx/d*v*dt; sp.pos.z+=dz/d*v*dt; }   // 무조건 따라온다
+    else if(sp.cd<=0&&!PL.dead){ sp.cd=MIM_SPD.biteCd; hurtPL(MIM_SPD.bite,'새끼 거미',true); }
+    sp.yaw=Math.atan2(dx,dz);
+  }
+  sp.pos.y=heightAt(sp.pos.x,sp.pos.z);
+  sp.mesh.position.copy(sp.pos); sp.mesh.rotation.set(0,sp.yaw,0);
+  sp.blob.visible=true; sp.blob.position.set(sp.pos.x,sp.pos.y+0.04,sp.pos.z);
+}
+function mimSpiderSeparate(){
+  const L=MON.spd.filter(s=>s.active);
+  for(let i=0;i<L.length;i++) for(let j=i+1;j<L.length;j++){ const A=L[i], B=L[j], dx=B.pos.x-A.pos.x, dz=B.pos.z-A.pos.z, d=Math.hypot(dx,dz), need=MIM_SPD.body*2;
+    if(d>=need||d<1e-5) continue; const p=(need-d)*0.5, ux=dx/d, uz=dz/d; A.pos.x-=ux*p; A.pos.z-=uz*p; B.pos.x+=ux*p; B.pos.z+=uz*p; }
+}
+/* 본체 — 아레나 updateM 그대로(배회 → 다가옴 · 새끼 뱉기 · 굳음) */
+function mimTick(m,dt){
+  if(!m.alive){ m.deadT+=dt; m.speed=0; m.blob.visible=false; for(const hd of m.hands){ hd.held=false; hd.armT=null; } mimPose(m,dt); return; }
+  m.clock+=dt;
+  const dx=PL.pos.x-m.pos.x, dz=PL.pos.z-m.pos.z, dist=Math.hypot(dx,dz)||1;
+  let mx=0, mz=0, spd=0;
+  if(m.frz>0){
+    m.frz=Math.max(0,m.frz-dt);
+    if(m.frz<=0&&m.state==='stun') mimSet(m,mimSees(m)?'chase':'wander');
+  }else{
+    m.t+=dt; if(m.spawnCd>0) m.spawnCd-=dt;
+    if(m.state==='stun') mimSet(m,'chase');
+    if(m.state==='wander'){
+      if(mimSees(m)||m.alerted){ mimSet(m,'chase'); mobVoice('wail',m.pos.x,m.pos.y+3,m.pos.z,1); }
+      else{ const tx=m.target.x-m.pos.x, tz=m.target.z-m.pos.z, l=Math.hypot(tx,tz); if(l<3||m.t>30){ mimWander(m); m.t=0; } else{ mx=tx/l; mz=tz/l; spd=MIM_P.walk; } } }
+    else if(m.state==='chase'){
+      if((dist>MIM_P.see*1.4&&!m.alerted)||PL.dead||PL.under){ mimSet(m,'wander'); mimWander(m); m.alerted=false; }
+      else{
+        const want=MIM_P.reach*0.42, tooClose=1.8;
+        if(dist>want){ mx=dx/dist; mz=dz/dist; spd=MIM_P.chase; }
+        else if(dist<tooClose&&!m.hands.some(h=>h.held)){ mx=-dx/dist; mz=-dz/dist; spd=MIM_P.chase*0.45; }
+        if(m.spawnCd<=0&&!mimLow(m)&&!MON.spd.some(s=>s.active)&&m.hp<m.hpMax*0.8&&dist<MIM_P.see*0.5) mimSet(m,'spawn');
+      } }
+    else if(m.state==='spawn'){
+      if(m.t>=1.2){ mimSpawnSpiders(m); m.frz+=MIM_P.spawnStun; mimSet(m,'stun');
+        for(const hd of m.hands){ hd.frz=Math.max(hd.frz,MIM_P.spawnStun); hd.held=false; hd.armT=null; hd.drive=null; mimHandSet(hd,'idle'); } } }
+  }
+  if(spd>0){ const nx=m.pos.x+mx*spd*dt, nz=m.pos.z+mz*spd*dt, hN=heightAt(nx,nz), hC=heightAt(m.pos.x,m.pos.z);
+    if((hN>0.3||hC<=0.3)&&!solidAt(nx,nz,hN+1.5)){ m.pos.x=nx; m.pos.z=nz; m.walkPh+=dt*spd*0.85; }   // 물에 들어가 있으면 어디로든 걸어 나온다
+    else if(m.state==='wander') mimWander(m); }
   m.speed=spd;
-  if(face!==null){ let d=face-m.yaw; while(d>Math.PI)d-=6.283; while(d<-Math.PI)d+=6.283; m.yaw+=d*clamp(2.6*dt,0,1); }
-  if(m.kv.lengthSq()>0.01){ const kx=m.pos.x+m.kv.x*dt, kz=m.pos.z+m.kv.z*dt;              // 넉백 — 물로는 안 밀린다(물에 빠지면 못 나왔다)
-    if(heightAt(kx,kz)>0.3){ m.pos.x=kx; m.pos.z=kz; m.kv.multiplyScalar(Math.exp(-4*dt)); } else m.kv.set(0,0,0); }
+  /* 늘 사람 쪽을 본다(시야각이 몸이 향한 쪽 기준이라서) — 배회 중엔 가는 쪽 */
+  let face=null, rate=2.4;
+  if(m.state!=='wander'||mimSees(m)) face=Math.atan2(dx,dz); else if(spd>0){ face=Math.atan2(mx,mz); rate=1.6; }
+  if(face!==null){ let d=face-m.yaw; while(d>Math.PI)d-=6.283; while(d<-Math.PI)d+=6.283; m.yaw+=d*clamp(rate*dt,0,1); }
   m.pos.y=heightAt(m.pos.x,m.pos.z);
-  if(m.state!=='stalk'&&m.state!=='shun'&&(m.voiceT-=dt)<0){ m.voiceT=8+Math.random()*12; if(dist<100) mobVoice('wail',m.pos.x,m.pos.y+3,m.pos.z,0.6); }
+  /* 두 손에 잡히면 삼켜진다 */
+  if(mimHeld(m)>=2){ if(m.eatT<0){ m.eatT=MIM_P.eat; toast('두 손에 붙잡혔다 — 한 손이라도 부숴야 한다'); }
+    m.eatT-=dt; if(m.eatT<=0&&!PL.dead){ hurtPL(99999,'스킨워커에게 삼켜졌다',false); m.eatT=-1; } }
+  else m.eatT=-1;
+  if(m.frz<=0) for(const hd of m.hands) mimHand(m,hd,dt);                   // 본체가 굳으면 손도 멈춘다
+  if(m.state==='wander'&&(m.voiceT-=dt)<0){ m.voiceT=8+Math.random()*12; if(dist<100) mobVoice('wail',m.pos.x,m.pos.y+3,m.pos.z,0.6); }
   mimPose(m,dt);
   m.blob.visible=true; m.blob.position.set(m.pos.x,m.pos.y+0.05,m.pos.z);
 }
