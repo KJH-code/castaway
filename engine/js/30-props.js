@@ -406,6 +406,7 @@ const HABIT0={amp:0.24,bump:5.0,nb:3,cuts:0,deep:1,cube:0,smooth:0.90,flat:1,st:
 /* 나무 한 그루를 옆에서 찍어 임포스터 그림으로 — 가지·잎 인스턴스를 그 나무 몫만 떼어
    임시 장면에 세우고, 정투영 카메라로 256×512 에 한 번 그린다. 알파는 잎이 있는 자리만 1.
    조명은 고르게(환경광 + 위에서 약하게) — 판때기가 게임 안에서 다시 램버트로 빛을 받는다. */
+let IMP_SHADE=true;                  // 그림 판때기에 제 그늘을 굽는다(시험에서 끄고 견준다)
 function bakeTreeImpostor(list,kind){
   const p=list.find(q=>Math.abs(q.s-1)<0.08&&q._lb)||list.find(q=>q._lb);
   if(!p) return null;
@@ -443,16 +444,31 @@ function bakeTreeImpostor(list,kind){
   sc0.add(lm); sc0.add(fm); if(trunk) sc0.add(trunk);
   sc0.add(new THREE.AmbientLight(0xffffff,0.72));
   const dl=new THREE.DirectionalLight(0xffffff,0.45); dl.position.set(0.3,1,0.6); sc0.add(dl);
+  /* 제 잎·가지 그늘을 같이 굽는다(2026-10-20 · 사용자 요청) — 입체 나무는 해 그림자 상자 안에서 제 그늘을 받아 40% 남짓 어두운데
+     그림은 그늘 없이 찍혀, 125 m(COPY_DIST)에서 그림으로 넘어가는 순간 밝아졌다. 해 그림자가 꺼져 있으면(설정 '그림자 끄기') 안 굽는다 —
+     그땐 입체 나무도 그늘이 없다. 한 그루를 한 번 찍을 뿐이라 섬 짓는 시간은 거의 그대로다 */
+  const shade=renderer.shadowMap.enabled&&IMP_SHADE;
+  let fdm=null;
+  if(shade){
+    lm.castShadow=lm.receiveShadow=true; fm.castShadow=fm.receiveShadow=true; if(trunk) trunk.castShadow=trunk.receiveShadow=true;
+    if(fmat.map){ fdm=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:fmat.map,alphaTest:0.5}); fm.customDepthMaterial=fdm; }   // 잎 판때기는 그림대로 오려 드리운다
+    const R=Math.max(hw,(y1-y0)/2)*1.25, cy=(y0+y1)/2;
+    dl.target.position.set(0,cy,0); dl.position.set(0.3*40,cy+40,0.6*40); sc0.add(dl.target);
+    dl.castShadow=true; dl.shadow.mapSize.set(1024,1024); dl.shadow.bias=0; dl.shadow.normalBias=2*R/1024;
+    const c=dl.shadow.camera; c.left=-R; c.right=R; c.top=R; c.bottom=-R; c.near=1; c.far=90; c.updateProjectionMatrix();
+  }
   const cam=new THREE.OrthographicCamera(-hw,hw,y1,y0,-50,50); cam.position.set(0,0,20); cam.lookAt(0,0,0);
   cam.position.set(0,0,20); cam.updateMatrixWorld();
   const W=256,H=512;
   const rt=new THREE.WebGLRenderTarget(W,H,{format:THREE.RGBAFormat,depthBuffer:true});
   rt.texture.generateMipmaps=true; rt.texture.minFilter=THREE.LinearMipmapLinearFilter;
   const oc=renderer.getClearColor(new THREE.Color()), oa=renderer.getClearAlpha(), ot=renderer.getRenderTarget(), osh=renderer.shadowMap.enabled;
-  renderer.shadowMap.enabled=false;
+  renderer.shadowMap.enabled=shade;
   renderer.setRenderTarget(rt); renderer.setClearColor(0x2c3a22,0); renderer.clear(true,true,true);
   renderer.render(sc0,cam);
   renderer.setRenderTarget(ot); renderer.setClearColor(oc,oa); renderer.shadowMap.enabled=osh;
+  if(dl.shadow.map){ dl.shadow.map.dispose(); dl.shadow.map=null; }
+  if(fdm) fdm.dispose();
   lm.material.dispose(); fmat.dispose(); lm.dispose&&lm.dispose(); fm.dispose&&fm.dispose();
   const s=p.s;
   return {tex:rt.texture, rt, can:{y0:y0/s, y1:y1/s, w:2*hw/s}};
