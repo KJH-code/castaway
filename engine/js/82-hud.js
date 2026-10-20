@@ -286,7 +286,7 @@ const PERF={on:false, sec:new Float64Array(7), nf:0, t0:0, show:0, ring:new Floa
     // 진단(예전 F3 상자) — 멈춤·잠금·입력 상태
     L.push('진단 paused='+paused+' busy='+busy+' fly='+flyMode+' mouse='+hasMouse+' touch='+touchOnly
       +' lock='+(document.pointerLockElement===cv)+' · 청크 '+chunks.length+' · 소품 '+PROPS.length
-      +' · '+dayNo()+'일 '+hourOfDay.toFixed(2)+'시 · 전력 '+powerBudget(dayNo()));
+      +' · '+dayNo()+'일 '+hourOfDay.toFixed(2)+'시 · 전력 '+powerBudget(dayNo())+(typeof MON!=='undefined'?' · 명단 '+MON.roster.list.filter(e=>!e.dead).length+'(선 것 '+MON.roster.list.filter(e=>e.body).length+')':''));
     document.getElementById('perfT').textContent=L.join('\n');
     this.graph();
     this.reset(now);

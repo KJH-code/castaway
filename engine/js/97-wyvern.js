@@ -2,11 +2,11 @@
    애쉬스케일(사용자 요청 '드래곤도 본편에') — beta/wyvern_arena.html 의 와이번을 그대로 옮겼다.
    (island_world.html 이 이 차례로 읽는다 — 차례와 묶음은 CODEMAP.md 에 있다 · 모델은 data-mob-wyvern.js)
    시험장 코드는 W · BONE · bone() · rotBone · ccd · REST 처럼 짧은 전역 이름을 쓴다 — 본편 전역과 겹치지 않게 **함수 하나로 감싸**
-   쓰는 것만 밖으로 내놓는다(wyvBuild · wyvReset · wyvTick · WYV). '자세' 구역은 시험장 글자 그대로다 — node tools/wyv-sync.mjs 가
+   쓰는 것만 밖으로 내놓는다(wyvMake — 개체 하나 · wyvBuild · wyvReset · wyvTick · WYVS — 돌려 쓰는 몸 둘). '자세' 구역은 시험장 글자 그대로다 — node tools/wyv-sync.mjs 가
    battle · night · siege 와 함께 여기도 바꿔 끼운다(여기서 고치지 말 것).
    ----------------------------------------------------------------------------
-   · 한 번에 한 마리. 탁 트인 데(풀밭 · 덤불 · 바위 · 바닷가 · 지열 지대)에 있으면 이따금 150~220 m 밖 상공 20 m 에 나타나
-     사람 둘레를 돈다(몬스터 수가 0 이면 안 나온다 · 땅속 · 헤엄 중엔 안 나온다 · 처음엔 1분 30초 뒤부터 · 한 마리가 가면 4분 ÷ 몬스터 수 뒤에 다음).
+   · 몇 마리가 어디에 사는지는 그날의 파워레벨 명단(97-mobs.js mobRoster)이 정한다 — 사람이 420 m 안에 들면 명단 칸에 몸을 입혀
+     그 자리 상공 20 m 에 세우고(spawn) 그 둘레를 돈다 · 몸은 둘(WYVS)을 돌려 쓰고 모델 · 그림은 나눠 쓴다(wyvShared · 뼈만 개체마다 복제).
    · 거동은 아레나(updateW)와 같다 — 상공 20 m 선회 → 60 m 안에 사람이 보이면(또는 맞으면) 5초 노려봄 → 머리부터 내리꽂기(곁 4.9 m 면 30) →
      3초 굳음 → 걸어서 쫓으며 화염구(2.6초 젖혀 겨눈 데로 · 46 · 8초마다) · 할퀴기(34) · 물기(54) — 팔 · 목을 실제로 돌려 닿는 각을 푼다 →
      사람이 60 m 밖으로 나가면 다시 날아오른다(웅크렸다 뛰어올라 초당 5 m).
@@ -14,9 +14,10 @@
      터진 자리에 잔해가 남는다(화약 1 · 잿불 비늘 12 — 80-player.js MOBS 표와 같다).
    · 맞는 자리는 뼈를 따라가는 캡슐(아레나 rebuildCaps)을 1 m 마다 공으로 늘어놓아 본편 무기 판정(CREATURES)에 건다 —
      날고 있으면 높아서 근접이 안 닿는다(총 · 활은 닿는다). 사람은 그 캡슐에 막혀 몸 속으로 못 들어간다.
-   · 아레나와 다른 것: 지어 놓은 집은 노리지 않는다(시험장의 오두막 셋 대신 본편 건축은 아직 표적에 없다) · 흩어지면(450 m) 거둔다. */
+   · 아레나와 다른 것: 지어 놓은 집은 노리지 않는다(시험장의 오두막 셋 대신 본편 건축은 아직 표적에 없다) · 460 m 넘게 멀어지면 자리 · 체력을 명단에 적고 거둔다. */
 "use strict";
-const WYV=(()=>{
+/* 개체 하나 — 부를 때마다 제 상태(W) · 뼈 · 재질 · 화염구를 갖는 애쉬스케일을 만든다. S 는 나눠 쓰는 모델(wyvShared) */
+function wyvMake(S){
 const rnd=(a,b)=>a+Math.random()*(b-a);
 const ease=t=>t*t*(3-2*t);                    // 부드럽게 시작하고 끝난다
 const easeIn=t=>t*t*t;                        // 뒤로 갈수록 빨라진다
@@ -33,7 +34,7 @@ const W={
   hp:700, hpMax:700, alive:false, active:false, flash:0,
   state:'fly', t:0, frz:0, alerted:false, speed:0, walkPh:0,
   target:new THREE.Vector3(), fbCd:0, atkCd:0, wingPh:0, fbAim:null, aimPt:null, pendHit:null, clawAng:0.3, lunge:0, solveGate:0.75, scan:0, lookPh:0,
-  dieT:0, boom:0, prey:null, cd:90, voiceT:6
+  dieT:0, boom:0, prey:null, voiceT:6, entry:null
 };
 const WP={
   see:60, fov:140*Math.PI/180,                // 시야 — 위에서 내려다본다
@@ -639,7 +640,7 @@ function updateFB(dt){
   }
 }
 /* 터짐 — 주황 고리가 퍼지고 잠깐 불빛(불빛 풀의 대역 — 광원 수는 안 바뀐다) */
-const BLASTS=[], BL_LIGHT=[];
+const BLASTS=[], BL_LIGHT=WYV_BL;          // 터지는 불빛 대역은 모든 개체가 나눠 쓴다(셋까지)
 let ringGeo=null;
 function blast(p,scale){
   if(!ringGeo){ ringGeo=new THREE.RingGeometry(0.4,0.75,24); ringGeo.rotateX(-Math.PI/2); }
@@ -799,7 +800,7 @@ function updateW(dt){
 
 /* ── 죽음 — 배부터 달아오르며 부풀다(5초) 터진다 ── */
 function startDying(){
-  W.alive=false; wSet('dying'); W.dieT=0; W.boom=0;
+  W.alive=false; wSet('dying'); W.dieT=0; W.boom=0; if(W.entry) W.entry.dead=true;   // 그날 명단에서 빠진다
   mobRegister({prox:PROX},false);
   mobVoice('wyv',W.pos.x,wGround()+3,W.pos.z,2);
   msg('애쉬스케일이 부풀어 오른다 — 물러나라!');
@@ -922,23 +923,18 @@ function patchEmber(mat){
 }
 function build(){
   if(bRig) return;
-  const {geometry,textureURL,skin}=parseGLB_mob(mobB64(WYV_GLB));
-  const tex=new THREE.TextureLoader().load(textureURL); tex.flipY=false;
-  bMat=new THREE.MeshLambertMaterial({map:tex,side:THREE.DoubleSide,skinning:true});
+  bMat=new THREE.MeshLambertMaterial({map:S.tex,side:THREE.DoubleSide,skinning:true});   // 개체마다 — 맞은 빛 · 달아오름이 따로다
   patchEmber(bMat);
-  geometry.computeBoundingBox();
-  const bb=geometry.boundingBox; bScale=WYV_H/(bb.max.y-bb.min.y);
+  bScale=S.scale;
   /* 크기는 껍데기가 아니라 바깥 마디(bRig)에 준다 — 껍데기를 직접 키우면 뼈까지 같이 커져 살이 두 번 늘어난다 */
   bRig=new THREE.Group(); bRig.scale.setScalar(bScale); bRig.visible=false; bRig.userData.lightRole='recv'; scene.add(bRig);
-  bMesh=new THREE.SkinnedMesh(geometry,bMat); bMesh.frustumCulled=false;
+  const skin=wyvSkinClone(S.skin);                                       // 뼈는 개체마다(기하 · 역묶음 행렬은 나눠 쓴다)
+  bMesh=new THREE.SkinnedMesh(S.geo,bMat); bMesh.frustumCulled=false;
   bRig.add(bMesh); bRig.add(skin.root); bRig.updateMatrixWorld(true);
   bMesh.bind(new THREE.Skeleton(skin.bones,skin.boneInverses), new THREE.Matrix4());
   BONE=skin.byName; SKROOT=skin.root;
-  bindLimbs(); fitBoneRadii(geometry,skin);
-  /* 화염구 — 하나를 여럿이 나눠 쓴다 · 주황 발광으로 어두운 데서도 빛난다 */
-  const F=parseGLB_mob(mobB64(WYV_FB_GLB)), ft=new THREE.TextureLoader().load(F.textureURL); ft.flipY=false;
-  fbGeo=F.geometry; fbMat=new THREE.MeshLambertMaterial({map:ft, emissive:new THREE.Color(0xff6a18), emissiveIntensity:1.0, side:THREE.DoubleSide});
-  { const w=new THREE.Mesh(fbGeo,fbMat); w.visible=false; w.userData.lightRole='none'; scene.add(w); }   // 셰이더 미리 짜기가 보게 숨겨 둔다(첫 화염구에 멈칫하지 않게)
+  bindLimbs(); fitBoneRadii(S.geo,skin);
+  fbGeo=S.fbGeo; fbMat=S.fbMat;
   blob=mobBlob(4.6);
   for(let i=0;i<NPROX;i++){ SAMP.push(new THREE.Vector3()); SAMPR.push(0.6); PROX.push(makeProx(i)); }
 }
@@ -946,14 +942,15 @@ function hide(){
   W.active=false; W.alive=false; mobRegister({prox:PROX},false);
   if(bRig) bRig.visible=false; if(blob) blob.visible=false;
   for(const f of FBS) scene.remove(f.mesh); FBS.length=0;
+  for(const b of BLASTS){ scene.remove(b.m); b.m.material.dispose(); if(b.li){ b.li.intensity=0; b.li.userData.busy=false; } } BLASTS.length=0;
 }
 function reset(){
-  hide(); W.cd=90;
+  hide(); W.entry=null;
   if(W.pick){ const i=MON.picks.indexOf(W.pick); if(i>=0) MON.picks.splice(i,1); W.pick=null; }
 }
-const openB=b=>b===B.MEADOW||b===B.SCRUB||b===B.ROCK||b===B.SCREE||b===B.BEACH||b===B.DUNE||b===B.FUMAROLE;
-function spawn(x,z){
-  W.active=true; W.alive=true; W.hp=W.hpMax; W.frz=0; W.alerted=false; W.flash=0; W.an=null; W.caps=null;
+/* 세우기 — 그날 명단(97-mobs.js mobRoster)의 한 자리. 상공 순항 고도에 나타난다 · hp 는 앞서 다쳤으면 그 값 */
+function spawn(x,z,hp,entry){
+  W.active=true; W.alive=true; W.hp=hp>0?Math.min(hp,W.hpMax):W.hpMax; W.frz=0; W.alerted=false; W.flash=0; W.an=null; W.caps=null; W.entry=entry||null;
   W.pos.set(x,0,z); W.y=WP.cruise; W.cy=W.y; W.vy=0; W.lift=0; W.flyK=1; W.fbCd=0; W.atkCd=0; W.dieT=0; W.boom=0; W.pendHit=null;
   W.yaw=Math.atan2(PL.pos.x-x,PL.pos.z-z); wWander(); wSet('fly');
   if(bRig){ bRig.scale.setScalar(bScale); bRig.visible=true; }
@@ -961,25 +958,13 @@ function spawn(x,z){
   mobRegister({prox:PROX},true);
   mobVoice('wyv',x,h(x,z)+W.y,z,1.2);
 }
-/* 매 프레임(놀이 중 · 97-mobs.js updateMobs 가 부른다) */
-function tick(dt,k){
-  if(!bRig) return;
+/* 매 프레임 — 세워진 개체만(97-mobs.js updateMobs → wyvTick). 거두기(멀어짐 · 몬스터 끔)는 명단 쪽이 정한다 */
+function tick(dt){
+  if(!bRig||!W.active) return;
   const dP=Math.hypot(W.pos.x-PL.pos.x,W.pos.z-PL.pos.z);
-  if(!W.active){
-    W.cd-=dt;
-    if(k>0&&W.cd<=0&&!PL.under&&!PL.swim&&!PL.dead){
-      W.cd=4+Math.random()*6;                    // 자리를 못 찾으면 조금 뒤에 다시 본다
-      if(openB(mobBiome(PL.pos.x,PL.pos.z))&&Math.random()<0.35){
-        for(let t=0;t<10;t++){ const a=Math.random()*6.283, r=150+Math.random()*70, x=PL.pos.x+Math.cos(a)*r, z=PL.pos.z+Math.sin(a)*r;
-          if(Math.abs(x)<HALF-80&&Math.abs(z)<HALF-80){ spawn(x,z); break; } } }
-    }
-    updateFB(dt); updateBlasts(dt);
-    return;
-  }
-  /* 거두기 — 멀어졌거나(날거나 쫓는 중) 몬스터를 껐거나 · 터지고 2초 뒤 · 잔해는 90초 뒤 */
-  if(W.alive&&(dP>450||k<=0)){ hide(); W.cd=240/Math.max(0.5,k||1); return; }
+  /* 터지고 2초 · 잔해는 90초 뒤 거둔다 */
   if(!W.alive&&W.state==='boom'){ W.t+=dt; if(W.t>2){ wSet('dead'); } updateFB(dt); updateBlasts(dt); return; }
-  if(!W.alive&&W.state==='dead'){ W.t+=dt; if(W.t>90||dP>450){ reset(); W.cd=240/Math.max(0.5,k||1); } updateBlasts(dt); return; }
+  if(!W.alive&&W.state==='dead'){ W.t+=dt; if(W.t>90){ reset(); } updateBlasts(dt); return; }
   if(W.alive) updateW(dt); else if(W.state==='dying') updateDying(dt);
   updateFB(dt); updateBlasts(dt);
   poseWyv(dt);                                 // 몸 자리 · 캡슐 · 때린 것 판정까지
@@ -991,8 +976,31 @@ function tick(dt,k){
   blob.scale.setScalar(9.2*(1+clamp(W.y/WP.cruise,0,1)*1.2));     // 높이 뜰수록 넓어진다
   if(W.alive&&(W.voiceT-=dt)<0){ W.voiceT=7+Math.random()*9; if(dP<160) mobVoice(W.state==='fly'?'flap':'wyv',W.pos.x,gy+W.y+2,W.pos.z,0.7); }
 }
-return {W, WP, build, reset, tick, spawn, PROX};
-})();
-function wyvBuild(){ try{ WYV.build(); }catch(e){ console.error('[애쉬스케일]',e); } }
-function wyvReset(){ WYV.reset(); }
-function wyvTick(dt,k){ WYV.tick(dt,k); }
+return {kind:'wyv', W, WP, build, hide, reset, tick, spawn, PROX};
+}
+/* 나눠 쓰는 것 — 모델(기하 · 그림 · 뼈 틀 · 역묶음 행렬)은 한 번만 풀고, 개체는 뼈만 복제한다 */
+const WYV_BL=[];
+let WYV_S=null;
+const WYVS=[];                                 // 개체 둘 — 한 자리에 둘까지 선다(명단엔 더 있어도 가까운 둘만 몸을 입는다)
+function wyvSkinClone(sk){
+  const map=new Map();
+  const rec=b=>{ const n=new THREE.Bone(); n.name=b.name; n.position.copy(b.position); n.quaternion.copy(b.quaternion); n.scale.copy(b.scale);
+    map.set(b,n); for(const c of b.children) if(c.isBone) n.add(rec(c)); return n; };
+  const root=rec(sk.root), bones=sk.bones.map(b=>map.get(b)||b.clone()), byName={};
+  for(const b of bones) byName[b.name]=b;
+  return {root, bones, boneInverses:sk.boneInverses, byName};
+}
+function wyvShared(){
+  if(WYV_S) return WYV_S;
+  const {geometry,textureURL,skin}=parseGLB_mob(mobB64(WYV_GLB));
+  const tex=new THREE.TextureLoader().load(textureURL); tex.flipY=false;
+  geometry.computeBoundingBox(); const bb=geometry.boundingBox;
+  const F=parseGLB_mob(mobB64(WYV_FB_GLB)), ft=new THREE.TextureLoader().load(F.textureURL); ft.flipY=false;
+  /* 화염구 — 하나를 모든 개체가 나눠 쓴다 · 주황 발광으로 어두운 데서도 빛난다 */
+  const fbMat=new THREE.MeshLambertMaterial({map:ft, emissive:new THREE.Color(0xff6a18), emissiveIntensity:1.0, side:THREE.DoubleSide});
+  { const w=new THREE.Mesh(F.geometry,fbMat); w.visible=false; w.userData.lightRole='none'; scene.add(w); }   // 셰이더 미리 짜기가 보게 숨겨 둔다(첫 화염구에 멈칫하지 않게)
+  return WYV_S={geo:geometry, tex, skin, scale:4.4/(bb.max.y-bb.min.y), fbGeo:F.geometry, fbMat};
+}
+function wyvBuild(){ try{ const S=wyvShared(); while(WYVS.length<2){ const w=wyvMake(S); w.build(); WYVS.push(w); } }catch(e){ console.error('[애쉬스케일]',e); } }
+function wyvReset(){ for(const w of WYVS) w.reset(); }
+function wyvTick(dt){ for(const w of WYVS) if(w.W.active) w.tick(dt); }
