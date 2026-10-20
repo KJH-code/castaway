@@ -35,66 +35,67 @@ const powerBudget=d=>d<=30 ? DAY_POWER[clamp(d,1,30)]
 /* 몹 명세
    ----------------------------------------------------------------------------
    power  예산에서 차지하는 값
-   first  처음 나올 수 있는 날. 예산이 그 몹을 감당하는 날보다 앞설 수 없다
-   peak   전성기. 이 날 가중치가 100 으로 가장 높다
-   rise   전성기 전, 며칠마다 가중치가 갑절이 되는가
-   fall   전성기 후, 며칠마다 절반이 되는가 (길게 두면 오래 남아 잡몹 노릇을 한다)
-   hold   표에만 있고 아직 섬에 나오지 않는다 — 모델이 붙으면 이 줄을 지운다
+   c      종마다의 고유 상수 — 그 종이 얼마나 흔한가(다 1 에서 시작한다. 한 종만 더 자주 · 덜 자주 나오게 하려면 이것만 만진다)
+   hold   모델(몸)이 아직 없다 — 예산은 차지하지만 섬에는 안 선다(MOBS_LIVE)
 
-   가중치는 전성기에서 멀어질수록 반씩 줄어드는 종 모양이라 날마다 값이 바뀐다.
-   그래서 몹들이 저절로 순서대로 들어왔다 물러난다.
-   아르크토스의 전성기 16일·배증 3일은 12일에 가고일과 개체수가 맞도록 맞춘 값이다.
-   가중치는 가고일 25 대 아르크토스 40 으로 곰이 높은데, 예산이 바닥날 무렵엔 값싼
-   가고일만 들어갈 수 있어 마지막 자리를 가고일이 쓸어가기 때문이다. 그만큼을
-   곰 쪽에 얹어야 실제 마릿수가 같아진다 (12일 실측 3.16 대 3.12). */
+   예전엔 종마다 first · peak · rise · fall 을 손으로 적었다. 이제 날마다의 고유값은 한 식이다(사용자 요청 2026-10-20):
+     고유값 = c × mobFit(power, 날)
+     mobFit = exp(−(ln(r / MOB_FIT_R))² / (2·MOB_FIT_S²)) · r = 그날 예산 ÷ power(그날 예산이 그 몹을 몇 마리 담나)
+   r 이 MOB_FIT_R(40) 일 때 가장 높다 — 예산이 클수록 무거운 몹의 때가 온다(가고일 7일 · 아르크토스 13 · 애쉬스케일 15 · 스킨워커 20 ·
+   다지류 24 · … · 관입체의 것 38일 넘어). 그보다 MOB_FIT_S(4)배 모자라거나 남으면 0.61 배, 16배면 0.14 배.
+   r 이 1 밑(그날 예산으로 한 마리도 못 담음)이면 0 — '몬스터 수' 를 올려 예산이 커져도 때 이른 몹은 안 나온다. */
 /* drop — 한 마리를 잡으면 나오는 것. 그 재료로 만드는 무기 두 자루 분이 기준이다
    (키틴 검 3 · 키틴 도끼 3 → 키틴 6 / 뼈 창 3 · 뼈 해머 4 → 뼈 8 에 가죽 3). */
 const MOBS=[
-  //  id            이름              power first peak rise fall
-  {id:'gargoyle',  n:'가고일', power:   1, first: 2, peak: 4, rise:2, fall: 4,
+  //  id            이름              power   c
+  {id:'gargoyle',  n:'가고일',        power:   1, c:1,
    drop:[{id:'chitin',n:6}]},
-  {id:'bear',      n:'아르크토스',        power:   3, first: 2, peak:16, rise:3, fall: 8,
+  {id:'bear',      n:'아르크토스',    power:   3, c:1,
    drop:[{id:'bone',n:8},{id:'hide',n:3},{id:'meat_bear',n:5}]},
   /* 애쉬스케일 — 소금게 자리를 넘겨받았다. 상공을 돌다 내리꽂고, 화염구를 뱉고,
      쫓기는 길에 지어 놓은 집부터 부순다. 죽을 때 터지므로 잡고도 물러나야 한다.
      거동은 wyvern_arena.html 에 있다. */
-  {id:'emberwyvern',n:'애쉬스케일',  power:   4, first: 3, peak:18, rise:3, fall: 6,
+  {id:'emberwyvern',n:'애쉬스케일',   power:   4, c:1,
    /* 비늘 12 — 한 마리분으로 복합 갑옷(6)과 복합 투구(3)를 다 꿰고 3 이 남는다.
       잿불 비늘 갑옷(6)·투구(3) 한 벌로 가도 셈이 맞는다. */
    drop:[{id:'gunpowder',n:1},{id:'ember_scale',n:12}]},
   /* 스킨워커 — 먹은 것의 모습을 흉내 낸다. 멀티플레이가 붙으면 시신이나 산 사람을
      삼켜 그 사람으로 변신한다(계획). 지금은 혼자 하는 게임이라 변신할 대상이 없다. */
-  {id:'mimicspider', n:'스킨워커',   power:  10, first: 6, peak:21, rise:3, fall: 6,
+  {id:'mimicspider', n:'스킨워커',    power:  10, c:1,
    drop:[{id:'spider_silk',n:6},{id:'mimic_flesh',n:2}]},
-  {id:'sulfnewt',  n:'유황 도롱뇽',   power:  20, first:10, peak:24, rise:3, fall: 6},
-  {id:'stonewing', n:'석화 가고일',   power:  35, first:13, peak:27, rise:3, fall: 6},
-  {id:'stormwyrm', n:'번개비늘 와이엄',power:  60, first:16, peak:29, rise:3, fall: 6},
-  {id:'lavagolem', n:'용암 골렘',     power: 100, first:19, peak:31, rise:3, fall: 6},
-  {id:'ironfang',  n:'철니 늑대',     power: 130, first:20, peak:33, rise:3, fall: 6},
-  {id:'deeparm',   n:'심해 촉수',     power: 200, first:23, peak:35, rise:3, fall: 8},
-  {id:'plutonspawn',n:'관입체의 것',  power: 500, first:28, peak:38, rise:3, fall:60}
+  /* 다지류 — 파워 20 자리(예전 '유황 도롱뇽')를 넘겨받았다(사용자 결정 2026-10-20). 우거진 숲 곁 굴이 둥지다(97-mobs.js) */
+  {id:'crawler',   n:'다지류',        power:  20, c:1,
+   drop:[{id:'chitin',n:8},{id:'spider_silk',n:2}]},
+  {id:'stonewing', n:'석화 가고일',   power:  35, c:1},
+  {id:'stormwyrm', n:'번개비늘 와이엄',power:  60, c:1},
+  {id:'lavagolem', n:'용암 골렘',     power: 100, c:1},
+  {id:'ironfang',  n:'철니 늑대',     power: 130, c:1},
+  {id:'deeparm',   n:'심해 촉수',     power: 200, c:1},
+  {id:'plutonspawn',n:'관입체의 것',  power: 500, c:1}
 ];
-/* 모델(몸)이 붙은 것만 섬에 나온다 — 개체를 붙일 때마다 여기에 더한다(2026-10-20: 가고일 · 아르크토스 · 애쉬스케일 · 스킨워커).
-   날마다 97-mobs.js 의 mobRoster 가 rollSpawns 로 그날 섬에 깔 몹을 뽑는다. 다지류는 이 표가 아니라 굴 둥지(mobsSites)를 따른다. */
-const MOBS_LIVE=['gargoyle','bear','emberwyvern','mimicspider'];
+/* 모델(몸)이 붙은 것만 섬에 나온다 — 개체를 붙일 때마다 여기에 더한다(2026-10-20: 가고일 · 아르크토스 · 애쉬스케일 · 스킨워커 · 다지류).
+   날마다 97-mobs.js 의 mobRoster 가 rollSpawns 로 그날 섬에 깔 몹을 뽑는다. */
+const MOBS_LIVE=['gargoyle','bear','emberwyvern','mimicspider','crawler'];
 for(const M of MOBS) M.hold=!MOBS_LIVE.includes(M.id);
-function mobWeight(M,d){
-  if(d<M.first) return 0;
-  const H=(d<=M.peak)?M.rise:M.fall;     // 전성기 전후로 기울기가 다르다
-  return 100*Math.pow(2,-Math.abs(d-M.peak)/H);
+const MOB_FIT_R=40, MOB_FIT_S=Math.log(4);
+function mobFit(power,d){
+  const r=powerBudget(d)/power; if(r<1) return 0;
+  const x=Math.log(r/MOB_FIT_R); return Math.exp(-x*x/(2*MOB_FIT_S*MOB_FIT_S));
 }
-/* 그날 섬에 깔 몹을 뽑는다. 예산이 모자라 못 들어가는 몹은 후보에서 빠지므로
-   마지막 한 자리는 값싼 쪽으로 채워진다. rnd 를 주면 결정론적으로 재현된다.
+const mobWeight=(M,d)=>M.c*mobFit(M.power,d);
+/* 그날 섬에 깔 몹을 뽑는다 — 남은 예산 안에 들어가는 몹들의 고유값 합에 대한 그 종의 고유값이 뽑힐 확률이다.
+   하나 뽑으면 그만큼 예산에서 빼고 되풀이한다(남은 예산으로 아무것도 못 담으면 끝). 그래서 마지막 자리는 값싼 쪽으로 채워진다.
+   몸이 없는(hold) 종도 뽑고 예산을 차지한다 — 빼고 뽑으면 다섯 종이 온 예산을 나눠 가져 38일에 다지류가 440 마리였다.
+   부르는 쪽(mobRoster)이 hold 를 건너뛴다. rnd 를 주면 결정론적으로 재현된다.
    budget 을 주면 그날 예산 대신 쓴다(설정 '몬스터 수'가 예산에 곱해진다 — 보통이면 예산 그대로). */
 function rollSpawns(d,rnd,budget){
   rnd=rnd||Math.random;
   const out=[]; let left=budget===undefined?powerBudget(d):budget;
-  for(let guard=0; guard<200; guard++){
-    const pool=MOBS.filter(M=>!M.hold && M.power<=left && mobWeight(M,d)>0);
-    if(!pool.length) break;
-    let sum=0; for(const M of pool) sum+=mobWeight(M,d);
-    let r=rnd()*sum, pick=pool[pool.length-1];
-    for(const M of pool){ r-=mobWeight(M,d); if(r<=0){ pick=M; break; } }
+  for(let guard=0; guard<400; guard++){
+    let sum=0; for(const M of MOBS) if(M.power<=left) sum+=mobWeight(M,d);
+    if(!(sum>0)) break;
+    let r=rnd()*sum, pick=null;
+    for(const M of MOBS){ if(M.power>left) continue; const w=mobWeight(M,d); if(!(w>0)) continue; pick=M; r-=w; if(r<=0) break; }
     out.push(pick.id); left-=pick.power;
   }
   return out;

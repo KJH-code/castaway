@@ -373,7 +373,7 @@ document.getElementById('pVol').addEventListener('input',e=>{
 document.getElementById('vVol').textContent=Math.round(VOL*100)+'%';
 document.getElementById('pSens').addEventListener('input',e=>{
   SENS=parseFloat(e.target.value); document.getElementById('vSens').textContent=SENS.toFixed(2);
-/* 몬스터 수(사용자 요청) — 0 없음 · 1 적게 · 2 보통 · 3 많이 · 4 아주 많이(97-mobs.js MOBS.k 가 동시에 서는 수 · 굴의 다지류 수에 곱한다) */
+/* 몬스터 수(사용자 요청) — 0 없음 · 1 적게 · 2 보통 · 3 많이 · 4 아주 많이(97-mobs.js MON.k — 그날 파워레벨 예산에 곱한다) */
 const MOB_STEPS=[0,0.5,1,1.6,2.4], MOB_NAMES=['없음','적게','보통','많이','아주 많이'];
 document.getElementById('pMobs').addEventListener('input',e=>{
   const v=clamp(parseInt(e.target.value)||0,0,4); if(typeof MON!=='undefined') mobsSetK(MOB_STEPS[v]);
