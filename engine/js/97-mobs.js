@@ -6,7 +6,7 @@
 /* ============================================================================
    몬스터
    ----------------------------------------------------------------------------
-   · **다지류** — 우거진 숲(활엽수림 · 대숲) 곁의 굴이 둥지다(`MON.lairs` — 지형 판 8 · 섬을 지을 때 정한다 · 그 굴은 불빛 · 빛나는 것이
+   · **다지류** — 우거진 숲(활엽수림 · 대숲) 곁의 굴이 둥지다(`MON.lairs` — 지형 판 8 · 섬을 지을 때 정한다 · 그날 명단에 든 다지류만 산다 · 그 굴은 불빛 · 빛나는 것이
      없다 — 32-caves.js `c.dark`). 낮에는 굴 속에 똬리를 틀고 자고(건드리면 깬다), 밤에는 둥지 둘레 숲을 휘젓고 돌아다닌다.
      사람이 50 m 안에 들면 쫓고, 새벽이면 둥지로 돌아간다. 몸짓 · 빠르기 · 돌진 · 닿기 · 체력은 아레나(beta/crawler_arena.html — `CRWP`)와 같다(크기만 1.0).
      그 숲(둥지 420 m 안의 우거진 숲)은 캐고 따는 몫이 더 나온다(`mobLairBonus` → 97-temples.js yieldK).
@@ -22,10 +22,10 @@
    · **맞으면** 비명을 지른다(아레나처럼 밀리지 않는다 · 해머 기절은 굳은 시간에 더해진다) · 사람이 맞으면 화면이 흔들린다(밀려나지 않는다).
    · 소리는 합성이다(`mobVoice` — 다지류 딸깍임 · 쇳소리 비명 / 가고일 날카로운 울음 / 스킨워커 사람 소리를 비튼 울부짖음) · 거리와 방향으로 줄이고 가른다.
    · **누가 몇 마리 나오는지는 파워레벨 예산이 정한다**(80-player.js — 리썰 컴퍼니 방식 · 날마다 `rollSpawns`): 날이 바뀌면 `mobRoster` 가
-     그날 예산(× 설정 '몬스터 수' MON.k — 보통 1 이면 예산 그대로)으로 가고일 · 아르크토스 · 애쉬스케일 · 스킨워커를 뽑아 저마다 서식지에 집 자리를
+     그날 예산(× 설정 '몬스터 수' MON.k — 보통 1 이면 예산 그대로)으로 가고일 · 아르크토스 · 애쉬스케일 · 스킨워커 · 다지류를 뽑아 저마다 서식지에 집 자리를
      준다(시드 + 날짜로 정해지는 난수 — 같은 섬 같은 날이면 같은 명단). 몸은 사람이 다가가면(300 m · 애쉬스케일 420 m) 입히고, 멀어지면(340 · 460 m)
      자리 · 체력을 명단에 적어 두고 거둔다 — 다시 오면 그 자리에서 그 체력으로 선다. 쓰러뜨린 것은 그날 다시 안 나온다(저장하지 않는다 — 불러오면 그날 명단을 다시 뽑는다).
-     몸은 돌려 쓰는 만큼만 동시에 선다(가고일 6 · 아르크토스 4 · 스킨워커 3 · 애쉬스케일 2 — 가까운 자리부터). 다지류는 이 명단이 아니라 굴 둥지를 따른다.
+     몸은 돌려 쓰는 만큼만 동시에 선다(가고일 6 · 아르크토스 4 · 스킨워커 3 · 애쉬스케일 2 — 가까운 자리부터). 다지류(파워 20)는 명단에 든 수만큼 빈 굴 하나씩을 둥지로 받는다(굴이 모자라면 그날은 더 안 산다 · 650 m 안에 들면 깨운다 · 800 m 밖이면 거둔다).
    · 근접 · 총 · 폭발 · 화상은 본편 무기 판정(CREATURES — 70-weapons.js · 74-icons-guns.js)을 그대로 탄다 — 몸마다 맞는 공(대역)을 건다.
    ========================================================================== */
 const MON={k:1, frame:0, built:false, crawl:[], garg:[], mim:[], spd:[], bear:[], lairs:[], picks:[], spawnT:0, shake:0, roll:0, roster:{day:-1, k:-1, list:[]},
@@ -351,11 +351,11 @@ function mobCamera(dt){
 function mobSpawner(k){
   const px=PL.pos.x, pz=PL.pos.z, night=mobNight(), under=!!PL.under;
   /* 다지류 — 둥지마다 하나 · 켜는 둥지 수는 몬스터 수에 따른다 */
-  const nL=k<=0?0:Math.min(MON.lairs.length,Math.max(1,Math.round(4*k)));
-  for(const l of MON.lairs){ const d=Math.hypot(l.x-px,l.z-pz), want=l.id<nL&&!l.skip&&d<650&&!under;
-    if(want&&!l.cr){ const m=MON.crawl.find(c=>!c.active); if(m) crawlAttach(m,l,night); }
-    else if(!want&&l.cr&&d>800){ const m=l.cr; mobRegister(m,false); m.active=false; mobHide(m); } }
-  for(const m of MON.crawl) if(m.active&&!m.alive&&m.deadT>90){ mobRegister(m,false); m.active=false; mobHide(m); }
+  /* 다지류 — 그날 명단에 든 것만 제 둥지(굴)에 산다(mobRoster 가 굴을 하나씩 준다) */
+  for(const l of MON.lairs){ const d=Math.hypot(l.x-px,l.z-pz), e=l.entry, want=!!e&&!e.dead&&!l.skip&&d<650&&!under&&k>0;
+    if(want&&!l.cr){ const m=MON.crawl.find(c=>!c.active); if(m){ crawlAttach(m,l,night,e); e.body=m; } }
+    else if(!want&&l.cr&&(d>800||k<=0)) crawlDetach(l.cr); }
+  for(const m of MON.crawl) if(m.active&&!m.alive&&m.deadT>90) crawlDetach(m);
   /* 가고일 · 스킨워커 · 아르크토스 — 멀어지면 거둔다(명단에 자리 · 체력을 적어 둔다) */
   for(const list of [MON.garg,MON.mim,MON.bear]) for(const m of list){ if(!m.active) continue;
     const d=Math.hypot(m.pos.x-px,m.pos.z-pz);
@@ -376,6 +376,7 @@ function mobSpawner(k){
     const dx=e.x-px, dz=e.z-pz, d=Math.hypot(dx,dz);
     if(d>(e.kind==='wyv'?420:300)) continue;
     if(e.kind!=='wyv'&&d<70&&(dx*fwdX+dz*fwdZ)/Math.max(d,1)>0.45) continue;
+    if(e.kind==='crawl') continue;                                             // 다지류는 위에서 둥지로
     cand.push([d,e]); }
   cand.sort((a,b)=>a[0]-b[0]);
   for(const [d,e] of cand){
@@ -387,7 +388,7 @@ function mobSpawner(k){
 }
 /* 그날 섬에 깔 몹 — 파워레벨 예산(80-player.js rollSpawns)으로 뽑아 저마다 서식지에 집 자리를 준다.
    난수는 시드 + 날짜로 정한다(같은 섬의 같은 날은 같은 명단). 가고일은 무리로 산다 — 앞 가고일 곁(20 m 안)에 붙는다. */
-const MOB_KIND_OF={gargoyle:'garg', bear:'bear', emberwyvern:'wyv', mimicspider:'mim'};
+const MOB_KIND_OF={gargoyle:'garg', bear:'bear', emberwyvern:'wyv', mimicspider:'mim', crawler:'crawl'};
 function mobHabitat(kind,x,z){
   if(heightAt(x,z)<0.8||(typeof LANDING!=='undefined'&&LANDING&&Math.hypot(x-LANDING.x,z-LANDING.z)<200)) return false;
   const b=mobBiome(x,z);
@@ -398,12 +399,20 @@ function mobHabitat(kind,x,z){
 }
 function mobRoster(d,k){
   const R=MON.roster; R.day=d; R.k=k; R.list=[];
+  for(const l of MON.lairs) l.entry=null;
   if(!(k>0)||(P.tv|0)<8) return;
+  const free=MON.lairs.filter(l=>!l.skip);                                   // 다지류가 들 굴
   const rnd=mulberry32(((P.seed|0)^Math.imul(d,0x9E3779B1)^0x6d0b5ca1)>>>0);
   let lastG=null;
   for(const id of rollSpawns(d,rnd,Math.round(powerBudget(d)*k))){
     const kind=MOB_KIND_OF[id]; if(!kind) continue;
     let x=0, z=0, ok=false;
+    if(kind==='crawl'){                                                       // 빈 굴 하나 — 굴이 다 차면 그날은 더 안 산다
+      if(!free.length) continue;
+      const l=free.splice(Math.floor(rnd()*free.length),1)[0];
+      const e={id, kind, x:l.x, z:l.z, hx:l.x, hz:l.z, hp:0, dead:false, body:null, lair:l}; R.list.push(e); l.entry=e;
+      if(l.cr&&l.cr.alive){ e.body=l.cr; l.cr.entry=e; }                     // 날이 바뀌어도 둥지에 있던 놈은 그대로 이 칸을 맡는다
+      continue; }
     if(kind==='garg'&&lastG&&rnd()<0.65) for(let t=0;t<12&&!ok;t++){ const a=rnd()*6.283, r=4+rnd()*16; x=lastG.hx+Math.cos(a)*r; z=lastG.hz+Math.sin(a)*r; ok=heightAt(x,z)>0.8; }
     for(let t=0;t<120&&!ok;t++){ x=(rnd()*2-1)*(HALF-150); z=(rnd()*2-1)*(HALF-150); ok=mobHabitat(kind,x,z); }
     if(!ok) continue;                                                         // 이 섬엔 그 서식지가 없다
@@ -419,11 +428,17 @@ function crawlCoil(m){                                                       // 
   while(len<cr.restLen+3){ th+=CRW.STEP/Math.max(r,0.6); r=Math.min(l.R*0.9,0.8+th*0.32); const x=l.x+Math.cos(th)*r, z=l.z+Math.sin(th)*r; len+=Math.hypot(x-px,z-pz); px=x; pz=z; T.push([x,z]); }
   cr.hdg=th+Math.PI; cr.state='chase';
 }
-function crawlAttach(m,l,night){
-  m.lair=l; l.cr=m; m.cr.mesh.position.y=0; m.active=true; m.alive=true; m.hp=m.hpMax; m.cr.alive=true; m.cr.hp=m.hpMax; m.alerted=false; m.deadT=0; m.frz=0; m.kv.set(0,0,0);
+function crawlAttach(m,l,night,e){
+  const hp=e&&e.hp>0?e.hp:m.hpMax;                                           // 지난번에 거둘 때 남은 체력으로
+  m.lair=l; l.cr=m; m.entry=e||null; m.cr.mesh.position.y=0; m.active=true; m.alive=true; m.hp=hp; m.cr.alive=true; m.cr.hp=hp; m.alerted=false; m.deadT=0; m.frz=0; m.kv.set(0,0,0);
   if(night){ const w=crawlWaypoint(m); placeCrawler(m.cr,w.x,w.z,Math.random()*6.283); m.mode='roam'; }
   else{ crawlCoil(m); m.mode='sleep'; }
   m.cr.mesh.visible=true; mobRegister(m,true);
+}
+function crawlDetach(m){                                                     // 거두기 — 산 놈은 체력을 명단에 적어 둔다
+  mobRegister(m,false); m.active=false; mobHide(m);
+  if(m.entry){ if(m.alive) m.entry.hp=m.hp; m.entry.body=null; m.entry=null; }
+  if(m.pick){ const i=MON.picks.indexOf(m.pick); if(i>=0) MON.picks.splice(i,1); m.pick=null; }
 }
 function crawlWaypoint(m){
   const l=m.lair;
