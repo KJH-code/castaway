@@ -251,8 +251,8 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `96-foam.js` | **물가의 거품** — 사람 둘레 55 m 의 물가에 서는 사면체 조각(물머리 · 부서지는 물결 · 물가를 늘 덮는 띠). 움직임은 정점 셰이더(진짜 수면 = 물 셰이더의 긴 파도 셋 · 물가의 생김새 `aD`), 물가 찾기는 C(`engine/native/shore.c` — `foamBench()` 로 JS 판과 견준다). **물 셰이더의 파도 수를 바꾸면 여기 · 땅 셰이더의 젖은 띠(22) · `seaSurfAt`(20) 도 같이** |
 | `97-wildlife.js` | 새 떼(`wildFlocks`) · 둥지와 알 · 벌집과 꿀(`WILD.picks` — `FLORA_PICK` 의 egg·honey) · 새총(`slingShot` · 총·활도 `wildShot`) · 나무 오르기(`climbTick` — `updatePlayer` 가 맨 먼저 부른다) · 나비·반딧불이·잠자리·벌(`wildBugs`) |
 | `97-temples.js` | **옛 신전**(지형 판 8 · 사용자 요청) — 섬 한가운데 계단 신전(`templeLandSite` — 뭍의 무게중심 둘레에서 고른 땅을 골라 반지름 36 m 를 다진다 · 자원 놓기 전) · 해구 가장자리 수심 30~45 m 의 해저 신전(`templeSeaSite` — `shapeSeabed` 뒤). 돌덩이는 방향이 돌아간 상자로 막는다(`templeFloor`·`templeSolid` — `coastFloor`·`coastSolid` 가 먼저 부른다). 상자·항아리는 한 번만 여는 줍기(`TEMPLE.picks` · FLORA_PICK `tchest`·`turn` 의 `once`·`loot` → `templeLoot` · 저장 `temples`) — **백금 반지는 해저 신전에서만**(판 8 은 처음 지니지 않는다). 들판의 바위 솎기 `thinOpenRocks` · 험한 데의 더 나은 소출 `yieldK`/`yieldMul` |
-| `97-mob-rigs.js` · `data-mob-*.js` | **몬스터의 몸** — 시험장에서 옮겼다: 다지류 모듈(`CRW` · `makeCrawler`/`placeCrawler`/`stepCrawler` — crawler_arena 그대로, 다만 `SIZE` 0.8 · 마디·다리마다 떨림 갈고리 `crwJerk`/`crwLegJerk`) · 가고일 공용 구역(`GARG_J`…`gargDraw` — 임시 이름 `_gv`·`_gM` 만 `_gaV`·`_gaM` 으로 바꿨다(72-gear.js 와 겹쳐서) · **`tools/garg-rig.mjs` 는 이 파일을 안 고친다** — 원본을 고치면 손으로 옮길 것) · GLB 풀기 `parseGLB_garg`/`parseGLB_mob`. 자료(base64 · 읽지 말 것): `data-mob-crawler.js`(`CRW_META`/`CRW_B64`) · `data-mob-gargoyle.js`(`GARG_GLB`) · `data-mob-mimic.js`(`MIMIC_GLB` — 바탕색 1024) |
-| `97-mobs.js` | **몬스터**(지형 판 8 · `MON` — **`MOBS` 는 80-player.js 의 날짜별 출현 표 이름이라 못 쓴다**) — 둥지 `mobsSites`(우거진 숲 곁 굴 · 그 굴은 불빛 없음 `c.dark`) · 몸 빚기 `mobsBuild`(섬마다 거두기만 · 다지류 2 · 가고일 6 · 스킨워커 3 을 돌려 쓴다) · 세우고 거두기 `mobSpawner`(1.2초마다 · 사람 둘레) · AI `crawlTick`/`gargTick`/`mimTick` · 맞는 공 `mobProxy`(CREATURES 에 거는 대역 — 체력은 몸의 것 · 한 프레임에 같은 몸의 공 여럿이 맞으면 가장 큰 것 하나) · 맞음 `mobDamage`(넉백 · 움찔 · 비명) · 사람이 맞음 `mobHurtPlayer`(튕김 · 화면 흔들림 `mobCamera`) · 떨림 `mobJerk` · 겹침 `mobSeparate` · 소리 `mobVoice`(합성) · 사체 뒤지기(`MON.picks` → `FLORA_PICK.mobloot` · `MOB_LOOT`) · 둥지 숲의 더 나옴 `mobLairBonus`(→ `yieldK`) |
+| `97-mob-rigs.js` · `data-mob-*.js` | **몬스터의 몸** — 시험장에서 옮겼다: 다지류 모듈(`CRW` · `makeCrawler`/`placeCrawler`/`stepCrawler` — crawler_arena 그대로, 다만 `SIZE` 1.0 · 땅 높이 `crwGround`) · 가고일 공용 구역(`GARG_J`…`gargDraw` — 임시 이름 `_gv`·`_gM` 만 `_gaV`·`_gaM` 으로 바꿨다(72-gear.js 와 겹쳐서) · **`tools/garg-rig.mjs` 는 이 파일을 안 고친다** — 원본을 고치면 손으로 옮길 것) · GLB 풀기 `parseGLB_garg`/`parseGLB_mob`. 자료(base64 · 읽지 말 것): `data-mob-crawler.js`(`CRW_META`/`CRW_B64`) · `data-mob-gargoyle.js`(`GARG_GLB`) · `data-mob-mimic.js`(`MIMIC_GLB` — 바탕색 1024) |
+| `97-mobs.js` | **몬스터**(지형 판 8 · `MON` — **`MOBS` 는 80-player.js 의 날짜별 출현 표 이름이라 못 쓴다**) — 둥지 `mobsSites`(우거진 숲 곁 굴 · 그 굴은 불빛 없음 `c.dark`) · 몸 빚기 `mobsBuild`(섬마다 거두기만 · 다지류 2 · 가고일 6 · 스킨워커 3 을 돌려 쓴다) · 세우고 거두기 `mobSpawner`(1.2초마다 · 사람 둘레) · AI `crawlTick`/`gargTick`/`mimTick` · 맞는 공 `mobProxy`(CREATURES 에 거는 대역 — 체력은 몸의 것 · 한 프레임에 같은 몸의 공 여럿이 맞으면 가장 큰 것 하나) · 맞음 `mobDamage`(움찔 · 비명 — 넉백 없음) · 화면 흔들림 `mobCamera` · 겹침 `mobSeparate` · 소리 `mobVoice`(합성) · 사체 뒤지기(`MON.picks` → `FLORA_PICK.mobloot` · `MOB_LOOT`) · 둥지 숲의 더 나옴 `mobLairBonus`(→ `yieldK`) |
 | `98-bag.js` | 가방 화면(소지품 + 고른 것 + 제작) — 가방에는 그림 · 이름 · 개수 · 할 수 있는 일만, 자세한 것은 사전(`dexShow`) |
 | `99-main.js` | **`loop`** 8 · 맨 끝에서 게임을 켜는 다섯 줄 |
 
@@ -1550,13 +1550,15 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - **몬스터**(사용자 요청 · 지형 판 8 · 97-mobs.js · 몸은 97-mob-rigs.js) — 설정 '몬스터 수'(`#pMobs` 0~4 → `MOB_STEPS` 0 · 0.5 · 1 · 1.6 · 2.4 → `MON.k` · `SET.mobs`).
   **사람 둘레에만 세우고(70~170 m · 눈앞 ±63° 밖) 340 m(다지류 800 m) 넘게 멀어지면 거둔다 · 저장하지 않는다.** 섬을 다 지은 뒤 `mobsBuild` 가 몸을 한 번 빚고(섬이 바뀌면 거두기만),
   `updateMobs` 가 놀이 중 프레임마다 돈다(99-main.js · 사람 시점 다음).
-  ① **다지류**(체력 1100 · 몸길이 약 33 m) — 둥지는 섬을 지을 때 `mobsSites` 가 고른 굴(우거진 숲 — 활엽수림·대숲 — 칸이 220 m 안에 여섯 넘게 · 굴끼리 700 m 떼어 · 여덟까지 ·
+  ① **다지류**(체력 1500 · 크기 `CRW.SIZE` 1.0 — 아레나의 1/1.5 · 머리에서 꼬리 끝까지 약 41 m) — 둥지는 섬을 지을 때 `mobsSites` 가 고른 굴(우거진 숲 — 활엽수림·대숲 — 칸이 220 m 안에 여섯 넘게 · 굴끼리 700 m 떼어 · 여덟까지 ·
   상륙 자리 450 m 안은 비움). **그 굴은 불빛도 빛나는 점·버섯도 없다**(`c.dark` — 32-caves.js 는 굴을 다 빚은 뒤 버린다 · 난수 차례 그대로). 켜는 둥지 수 = round(4×k).
   낮(05:00~19:36 밖이 밤)에는 가장 안쪽 방에 똬리를 틀고 잔다(`crawlCoil` — 머리가 가운데, 길이 바깥으로 감긴다 · 맞으면 깬다). 밤엔 둥지 둘레 우거진 숲을 휘젓는다
-  (`crawlWaypoint` · 돌진 평균 6초마다 28 m) · 50 m 안에 사람이 들면 쫓고(돌진 8초마다 · 120 m 밖이면 놓음) · 새벽이면 둥지로 돌아간다. 마디(반지름 0.85 m)에 닿으면
-  0.5초마다 20(돌진 중 34 · 갑옷이 깎는다) · 튕겨 난다. **둥지 420 m 안의 우거진 숲은 캐고 따는 몫이 +0.6**(`mobLairBonus` → `yieldK`).
+  (`crawlWaypoint`) · 50 m 안에 사람이 들면 쫓고(120 m 밖이면 놓음) · 새벽이면 둥지로 돌아간다(돌아갈 때는 돌진 없음) — **이 둥지 행동만 본편 것이고 나머지는 아레나와 같다**
+  (사용자 요청 2026-10-20 · `CRWP` = 아레나 `P`): 달리기×1.0 · 선회 55°/초 · 돌진 평균 20초마다 50 m · 마디 구 68개 전부가 맞는 공 · 닿으면(사람이 마디 구 위 1.5 m 밑이면) 밀어내고 0.5초마다 40(갑옷이 깎는다).
+  보폭 · 마디 구 반지름은 크기에 맞춰 아레나 값 × 1/1.5(`crwK` — 1.2 m · 0.73 m). 떨림 · 맞을 때 넉백 · 사람 튕김은 뺐다. 소리는 남겼다. **둥지 420 m 안의 우거진 숲은 캐고 따는 몫이 +0.6**(`mobLairBonus` → `yieldK`).
   ② **가고일**(체력 120) — 풀밭(`B.MEADOW`)·탁상지(`LANDFORMS` mesa)에 2~3 마리씩, 모두 round(4×k)(6 까지). 배회 → 30 m 안이면 쫓기 → 10 m 에서 1초 노려봄 → 20 m 돌진
-  (맞으면 28 · 넉백 10) → 3.5초 굳음. 몸짓은 공용 `gargDraw`(고개 · 목 · 손 · 날개에 떨림을 덧댄다).
+  (2.3 m 안이면 28) → 3.5초 굳음 — **아레나 `updateG` 와 같다**(사용자 요청 2026-10-20 · `GP2` = 아레나 `P` · 추격 포기 거리 ×1.35 · 굳은 동안은 아무것도 안 하고 해머 기절은 더해진다 ·
+  고개는 늘 사람 · 떨림 · 넉백 · 사람 튕김은 뺐다). 본편에만 있는 것: 돌진 명중에 높이 차 2.2 m 안(사용자가 정함) · 물 · 바위에 막히면 돌진을 끊는다(아레나의 벽 대신) · 소리.
   ③ **스킨워커 — 아레나(`beta/mimic_arena.html` · `battle_arena.html`)와 같다**(사용자 요청 '본편에 있는 거를 아레나랑 똑같게 · 전용 요소도 없애 · 울부짖는 소리만 남겨' · 2026-10-20).
   키 5.0 m(`MIM_H`) · 본체 체력 800 · 시야 70 m · 150°(앞쪽에 들어야 알아챈다) · 배회 1.5 → 다가옴 4.2 m/s(4.2 m 에 서고 1.8 m 안이면 느리게 물러남) · 걸을 때 몸 출렁임.
   **본체는 때리지 않는다 — 손 둘**(`m.hands` · `mimHand`): 잡기 70%(2초 치켜듦 → 0.35초 뻗음 → 6초 붙잡음 · 아프지 않다) · 채찍 30%(0.75초 옆으로 뻗음 → 0.34초 부채꼴 휩쓸기 38 · 뛰어 있으면 빠진다) ·
@@ -1566,10 +1568,10 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   자세(`mimPose`)는 아레나 `poseMimic` 그대로 — 앞다리가 6배까지 늘어나고 어깨를 먼저 돌린 뒤 CCD. **빛 피하기 · 떨림 · 맞을 때 젖힘 · 넉백은 아레나에 없어 뺐다.**
   섬에 맞춘 것은 생기고 거두기(숲 · 밤의 들판) · 배회(제 자리 둘레) · 쓰러짐과 사체 · 울부짖는 소리(알아챌 때 · 손을 쓸 때 · 배회 중 가끔)뿐.
   **아레나를 고치면 여기도 같이 고칠 것** — 값은 `MIM_P`/`MIM_SPD` 표에 아레나 `MP`/`SPD` 그대로 옮겨 두었다.
-  ④ **떨림 `mobJerk`** — 0.05~0.55초마다 새 목표(38% 는 0 · 22% 는 2.6배)로 뛰고 빠르게(초당 30) 따라간다 · 맞으면 `jerkK` 가 올라 더 크게 떤다 · 자는 동안은 드물게.
+  ④ (떨림 `mobJerk` 는 세 몬스터 모두 아레나에 맞추며 없앴다 — 2026-10-20.)
   ⑤ **맞는 공**(`mobProxy`) — 본편 무기 판정(`CREATURES` · `attack`/`meleeResolve` · `rayCreature` · `explode` · `burnTick`)에 거는 대역. x·y·z·hp 가 접근자라 체력은 몸의 것이다.
-  다지류는 마디 넷에 하나씩(17개) · 스킨워커는 몸통과 두 앞다리 끝. **한 프레임에 같은 몸의 공이 여럿 맞으면 가장 큰 것 하나만 든다**(`MON.frame` — 수류탄 하나에 마디 열이 다 맞았다).
-  해머 기절은 `frz`(6초까지). 쓰러지면 사체가 남아 뒤질 수 있다(무엇을 들었든 — 총만 빼고 · `MOB_LOOT` — 다지류 키틴 8 · 거미줄 2 / 가고일·스킨워커는 80-player.js `MOBS[].drop` 과 같다) · 90초 뒤 거둔다.
+  다지류는 마디 구 전부(68개) · 스킨워커는 몸통과 두 앞다리 마디마다. **한 프레임에 같은 몸의 공이 여럿 맞으면 가장 큰 것 하나만 든다**(`MON.frame` — 수류탄 하나에 마디 열이 다 맞았다).
+  해머 기절은 `frz` 에 더한다(아레나처럼). 쓰러지면 사체가 남아 뒤질 수 있다(무엇을 들었든 — 총만 빼고 · `MOB_LOOT` — 다지류 키틴 8 · 거미줄 2 / 가고일·스킨워커는 80-player.js `MOBS[].drop` 과 같다) · 90초 뒤 거둔다.
   **설 자리 고르기(`mobSpawner` 의 `spot`)는 물 위를 버린다** — 조건이 `heightAt<0.5||ok` 로 거꾸로라 스킨워커 41% · 가고일 17% 가 물속에 섰고, 스킨워커는 걸음 조건(다음 자리 0.3 m 위) 때문에 영영 못 움직였다(2026-10-19 고침).
   지금은 물에 들어가 있으면 어디로든 걸어 나오고, 넉백은 물로 밀지 않는다(`mimTick`).
   ⑥ **몸끼리 안 겹친다**(`mobSeparate` — 가고일 0.8 · 스킨워커 2.0 m · 다지류 마디에서도 밀려난다 · 사람은 스킨워커가 밀고, 가고일은 사람에게서 비켜난다 —
@@ -1586,7 +1588,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   ② **맞는 것은 날이 닿는 순간에 센다**(`ATK.pend` → `meleeResolve` — 진행 `WHIT` 베기 0.46 · 내리치기 0.52 · 찌르기 0.44). 예전엔 누르는 순간이었다.
   ③ **판정이 넓어졌다** — 사거리 +0.6 m · 몸 가장자리에서 54°(가까울수록 넓다 — `acos(cos) − atan(r/d)`) · 위아래 3.2 m(예전 정면 40° · 2.2 m).
   ④ 맞으면 **히트스톱** 0.07초(날이 박혀 떤다) · **시점이 날을 따라 끌려간다**(`ATK.kick` — 결마다 `WKICK` · 맞으면 1.8배 · 97-mobs.js `mobCamera` 가 얹는다) · 소리 `swish`/`flesh`(80-player.js `SFX`).
-  ⑤ **사람이 맞으면** 화면이 흔들리고 기운다(`hurtPL` 이 피해 4 넘으면 `MON.shake`/`MON.roll`) · 든 것도 흔들린다. 몬스터에게 맞으면 튕겨 난다(`MON.pk` — 막히는 데로는 안 밀림).
+  ⑤ **사람이 맞으면** 화면이 흔들리고 기운다(`hurtPL` 이 피해 4 넘으면 `MON.shake`/`MON.roll`) · 든 것도 흔들린다.
 ## 함정
 
 - **`flatShading: true`는 `MeshLambertMaterial`에서 무시된다.** r128에서 확인해 14곳을 걷어냈다.

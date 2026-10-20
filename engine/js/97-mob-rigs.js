@@ -1,7 +1,7 @@
 /* 97-mob-rigs.js — CASTAWAY
    몬스터의 몸(뼈 · 껍데기) — 시험장에서 그대로 옮긴 코드(사용자 요청: 다지류 · 스킨워커 · 가고일을 본편에)
    (island_world.html 이 이 차례로 읽는다 — 차례와 묶음은 CODEMAP.md 에 있다)
-   · 다지류 모듈 — beta/crawler_arena.html 에서(크기만 1.5 → 0.8 · 땅 높이는 crwGround · 마디 · 다리의 떨림 갈고리 crwJerk · crwLegJerk)
+   · 다지류 모듈 — beta/crawler_arena.html 에서(크기만 1.5 → 1.0 · 땅 높이는 crwGround)
    · 가고일 뼈대 · 몸짓 — beta/gargoyle_arena.html 의 공용 구역 그대로(_gv · _gM 은 본편 72-gear.js 와 겹쳐 _gaV · _gaM 으로)
    · GLB 읽기 — 가고일(parseGLB_garg · 날개 가중치) · 스킨워커(parseGLB_mob · 뼈대) */
 "use strict";
@@ -135,7 +135,7 @@ function parseGLB_mob(buf){
    지오메트리·재질은 한 번만 만들어 나눠 쓰고(`crwBuild`), 뼈는 개체마다 따로 세운다(`makeCrawler`).
    조인트는 (뼈 자리 · 역묶음 행렬) 짝이라 복제 뼈가 원본 행렬을 그대로 쓴다.
    ========================================================================== */
-const CRW={SIZE:0.8, A:3, B:11, K:6, STEP:0.08, geo:null, mat:null, jspec:null, ibm:null,
+const CRW={SIZE:1.0, A:3, B:11, K:6, STEP:0.08, geo:null, mat:null, jspec:null, ibm:null,
            SPN:['Bone_000','Bone_013','Bone_012','Bone_011','Bone_010','Bone_009','Bone_008',
                 'Bone_007','Bone_006','Bone_005','Bone_004','Bone_003','Bone_002','Bone_001']};
 function crwB64(s){ const bin=atob(s), a=new Uint8Array(bin.length);
@@ -341,8 +341,7 @@ function stepCrawler(cr,dt,tg,opt){
     if(i<neck){ yaw=yawH; pit=-cr.lookP; }
     else{ const a=pts[i-1], b=pts[i]; yaw=Math.atan2(a.x-b.x,a.z-b.z);
       pit=-Math.atan2(a.y-b.y,Math.hypot(a.x-b.x,a.z-b.z))*0.6; }
-    { const J=crwJerk(cr,i,dt); pit+=J[0]; yaw+=J[1]; _ce.set(pit,yaw,J[2]); }   // 마디마다 홱홱 꺾이는 떨림(97-mobs.js — 사용자 요청)
-    _cq.setFromEuler(_ce);
+    _ce.set(pit,yaw,0); _cq.setFromEuler(_ce);
     S.qw.copy(_cq).multiply(S.q0);            // 세계 회전 = 방향 × 쉼 회전
     const par=S.b.parent;
     par.updateMatrixWorld(true);
@@ -357,9 +356,8 @@ function stepCrawler(cr,dt,tg,opt){
   for(const Lg of cr.LEGS){
     const ph=cr.gait+Lg.k*0.9+Lg.side*Math.PI;
     const sw=Math.sin(ph)*0.42*amp, lift=Math.max(0,Math.cos(ph))*amp;
-    const jt=crwLegJerk(cr,Lg,dt);                                       // 다리도 가끔 경련하듯 홱 꺾인다
-    Lg.hip.rotation.set(sw+jt,jt*0.6,0);
-    Lg.knee.rotation.set(-0.75*lift-Math.abs(jt)*1.4,0,0);
+    Lg.hip.rotation.set(sw,0,0);
+    Lg.knee.rotation.set(-0.75*lift,0,0);
     if(Lg.ankle) Lg.ankle.rotation.set(0.45*lift,0,0);
   }
   for(const R of cr.REARLEG){
