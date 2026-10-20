@@ -48,11 +48,14 @@ const SUN_PARK=new THREE.Matrix4().set(0,0,0,2, 0,0,0,2, 0,0,0,2, 0,0,0,1);
 const LIGHT_IDLE=l=>!!(l.userData.pool&&!l.userData.who);
 const LIGHT={
   /* size 해 그림자 지도 한 변 · R 덮는 반경(m) · pts 점광원 그림자 개수 ·
-     psize 점광원 지도 한 변 · soft 부드러운 가장자리 */
+     psize 점광원 지도 한 변 · soft 부드러운 가장자리
+     R 은 2026-10-20 넓혔다(사용자 요청 · 낮음 36 · 보통 46 · 높음 64 → 72 · 96 · 128) — 나무 잎은 제 잎·가지 그림자를 받아
+     40% 남짓 어두워지는데, 상자 밖 나무는 그림자가 없어 밝게 섰다가 다가가면 어두워졌다('나무 색이 바뀐다' 베타 신고).
+     상자 앞쪽 끝(시선 앞 0.45R + R)이 나무가 그림으로 바뀌는 COPY_DIST(125 m) 둘레에 오게 했다. 지도도 키워 한 텍셀이 6~7 cm(예전 4.5) */
   QUAL:[{n:'끄기',size:0,   R:0,  pts:0,psize:0,  soft:false},
-        {n:'낮음',size:1024,R:36, pts:0,psize:0,  soft:false},
-        {n:'보통',size:2048,R:46, pts:1,psize:512,soft:true},
-        {n:'높음',size:4096,R:64, pts:2,psize:768,soft:true}],
+        {n:'낮음',size:2048,R:72, pts:0,psize:0,  soft:false},
+        {n:'보통',size:3072,R:96, pts:1,psize:512,soft:true},
+        {n:'높음',size:4096,R:128,pts:2,psize:768,soft:true}],
   q:2,
   locals:[],            // 등록된 점·집중 광원
   _sunOn:false,

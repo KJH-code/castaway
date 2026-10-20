@@ -188,7 +188,7 @@ function tlPack(t,key,n){
   else{
     m=new THREE.InstancedMesh(g,K[mk],1);                       // 행렬 버퍼는 한 칸짜리(압축 — instMesh 와 같다)
     m.userData.instC=true; m.userData.noCull=true; m.customDepthMaterial=mk==='lm'?K.ld:K.fd; m.customDistanceMaterial=mk==='lm'?K.lx:K.fx;   // noCull — 경계구는 칸 전체(L.bs) · boundTiles 가 지금 그루로 좁히면 나중에 든 그루가 잘린다
-    if(/[123]$/.test(key)) m.userData.lightRole='recv';        // 58 m 밖 솎은 단계는 그림자를 안 드리운다
+    /* 솎은 단계도 드리운다 — 예전엔 58 m 밖은 받기만 해서 제 잎 그림자가 없어 밝게 섰다(해 그림자 상자 밖은 castNear 가 끈다) */
     m.count=0; m.visible=false; m.frustumCulled=true; m.matrixAutoUpdate=false; m.updateMatrix();
     L.packs[key]=m; L.np++; propGroup.add(m);
   }
@@ -356,7 +356,7 @@ function updateTileVis(){                // 예산(rockBudget · _treeBudget · 
 /* 보이기를 바꿨으면 참 — 바뀐 칸만 그림자 지도를 다시 그리게 알린다 */
 function setVis(m,v){ if(m.visible===v) return false; m.visible=v; return true; }
 /* **해 그림자 상자 밖의 칸은 그림자를 안 드리운다** — 칸 메시는 화면 거르기를 꺼 두어(frustumCulled false — 인스턴스가 칸 밖으로
-   삐져나온다) 그림자 지도를 그릴 때도 보이는 칸 전부가 그려졌다. 상자는 사람 둘레 36~64 m 인데, 125 m 밖 나무 복제·200 m 밖
+   삐져나온다) 그림자 지도를 그릴 때도 보이는 칸 전부가 그려졌다. 상자는 사람 둘레 72~128 m(2026-10-20 넓힘 — 예전 36~64)인데, 125 m 밖 나무 복제·200 m 밖
    바위까지 그림자 지도에 그렸다(숲에서 그림자 한 번에 5 ms — FPS 측정). 칸 가장자리가 상자 반경 + 8 m 밖이면 드리우기를 끈다.
    배역(LIGHT.apply)이 드리우게 한 것만 다시 켠다(`_cast0`). 바뀌었으면 참 */
 function castNear(m,near){ if(!m||m._cast0===undefined) return false; const v=near&&m._cast0; if(m.castShadow===v) return false; m.castShadow=v; return true; }
