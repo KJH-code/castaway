@@ -188,7 +188,7 @@ function tlPack(t,key,n){
   else{
     m=new THREE.InstancedMesh(g,K[mk],1);                       // 행렬 버퍼는 한 칸짜리(압축 — instMesh 와 같다)
     m.userData.instC=true; m.userData.noCull=true; m.customDepthMaterial=mk==='lm'?K.ld:K.fd; m.customDistanceMaterial=mk==='lm'?K.lx:K.fx;   // noCull — 경계구는 칸 전체(L.bs) · boundTiles 가 지금 그루로 좁히면 나중에 든 그루가 잘린다
-    if(/[123]$/.test(key)) m.userData.lightRole='recv';        // 58 m 밖 솎은 단계는 그림자를 안 드리운다
+    /* 솎은 단계도 드리운다 — 예전엔 58 m 밖은 받기만 해서 제 잎 그림자가 없어 밝게 섰다(해 그림자 상자 밖은 castNear 가 끈다) */
     m.count=0; m.visible=false; m.frustumCulled=true; m.matrixAutoUpdate=false; m.updateMatrix();
     L.packs[key]=m; L.np++; propGroup.add(m);
   }

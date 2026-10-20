@@ -849,9 +849,9 @@ function* floraFarBuildG(){
     const mk=(geo,mat,cast,cap)=>{ const im=new THREE.InstancedMesh(geo,mat,Math.max(1,cap||n));
       if(mat===FLORA.mat||mat===FLORA.matL) im.setColorAt(0,new THREE.Color(1,1,1));          // 색 버퍼는 count 가 가득일 때 만든다
       im.count=0; im.visible=false; im.frustumCulled=false;
-      if(cast) im.customDepthMaterial=FLORA.depth; else im.userData.lightRole='recv';   // 55 m 밖은 그림자를 안 드리운다
+      if(cast) im.customDepthMaterial=FLORA.depth; else im.userData.lightRole='recv';   // 그림(먼 판때기)만 안 드리운다
       im.matrixAutoUpdate=false; im.updateMatrix(); scene.add(im); return im; };
-    const lods=[FL_LOD[0][1],FL_LOD[1][1],0.12].map((f,i)=>U.m[k].map((m,v)=>cnt[v]?mk(floraLodGeo(m.geometry,f),FLORA.matL,i===0,cnt[v]):null));   // [단계][벌] · 먼 단계 재질(matL — 녹아들기 없음)
+    const lods=[FL_LOD[0][1],FL_LOD[1][1],0.12].map((f,i)=>U.m[k].map((m,v)=>cnt[v]?mk(floraLodGeo(m.geometry,f),FLORA.matL,true,cnt[v]):null));   // 줄인 단계도 다 드리운다(해 그림자 상자를 넓혔다 — 2026-10-20 · 상자 밖은 그림자 카메라가 거른다)   // [단계][벌] · 먼 단계 재질(matL — 녹아들기 없음)
     const pic=floraBakePic(base);
     let pm=null;
     if(pic){ pm=mk(SHP.card(1,1),new THREE.MeshLambertMaterial({map:pic.tex,alphaTest:0.35,side:THREE.DoubleSide}),false); }
