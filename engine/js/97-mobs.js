@@ -7,20 +7,20 @@
    몬스터
    ----------------------------------------------------------------------------
    · **다지류** — 우거진 숲(활엽수림 · 대숲) 곁의 굴이 둥지다(`MON.lairs` — 지형 판 8 · 섬을 지을 때 정한다 · 그 굴은 불빛 · 빛나는 것이
-     없다 — 32-caves.js `c.dark`). 낮에는 굴 속에 똬리를 틀고 자고(건드리면 깬다), 밤에는 둥지 둘레 숲을 휘젓고 돌아다니며
-     자꾸 돌진한다(돌진 사이 평균 6초). 사람이 50 m 안에 들면 쫓고, 새벽이면 둥지로 돌아간다. 몸 마디에 닿으면 다치고 튕겨 난다.
+     없다 — 32-caves.js `c.dark`). 낮에는 굴 속에 똬리를 틀고 자고(건드리면 깬다), 밤에는 둥지 둘레 숲을 휘젓고 돌아다닌다.
+     사람이 50 m 안에 들면 쫓고, 새벽이면 둥지로 돌아간다. 몸짓 · 빠르기 · 돌진 · 닿기 · 체력은 아레나(beta/crawler_arena.html — `CRWP`)와 같다(크기만 1.0).
      그 숲(둥지 420 m 안의 우거진 숲)은 캐고 따는 몫이 더 나온다(`mobLairBonus` → 97-temples.js yieldK).
    · **스킨워커** — 숲과 밤의 들판. 아레나(beta/mimic_arena.html)와 같다 — 본체는 때리지 않고 손 둘이 잡기 · 채찍을 쓴다 ·
      두 손에 잡히면 삼킨다 · 손은 잘리고 되살아난다 · 궁지에 몰리면 새끼 거미를 뱉는다(아래 '스킨워커의 몸').
-   · **가고일** — 풀밭과 탁상지에 무리로 산다. 낮게 떠 배회하다 30 m 안에 들면 쫓고, 멈춰 노려본 뒤 돌진한다 — 끝나면 3.5초 굳는다.
+   · **가고일** — 풀밭과 탁상지에 무리로 산다. 아레나(beta/gargoyle_arena.html — `GP2` = 아레나 `P`)와 같다 — 낮게 떠 배회하다 30 m 안에 들면 쫓고,
+     멈춰 노려본 뒤 돌진한다 — 끝나면 3.5초 굳는다(본편은 돌진 명중에 높이 차 2.2 m 안을 더 본다 — 사용자가 정함).
    · **몸끼리 겹치지 않는다**(`mobSeparate` — 몸 반지름으로 서로 밀어낸다 · 다지류 마디도 · 사람도 몸 안으로 못 들어간다).
-   · **떨림** — 관절마다 가끔 홱 꺾인다(`mobJerk` — 계단처럼 뛰는 값을 빠르게 따라간다 · 맞으면 크게 떤다 · 스킨워커는 빼고).
-   · **맞으면** 뒤로 밀리고(넉백 — 스킨워커는 빼고) 움찔하며 비명을 지른다 · 사람이 맞으면 튕겨 나고 화면이 흔들린다.
+   · **맞으면** 비명을 지른다(아레나처럼 밀리지 않는다 · 해머 기절은 굳은 시간에 더해진다) · 사람이 맞으면 화면이 흔들린다(밀려나지 않는다).
    · 소리는 합성이다(`mobVoice` — 다지류 딸깍임 · 쇳소리 비명 / 가고일 날카로운 울음 / 스킨워커 사람 소리를 비튼 울부짖음) · 거리와 방향으로 줄이고 가른다.
    · 수는 설정 '몬스터 수'(MON.k — 0 없음 ~ 2.4)를 따른다 · 사람 둘레에만 세우고 멀어지면 거둔다(저장하지 않는다).
    · 근접 · 총 · 폭발 · 화상은 본편 무기 판정(CREATURES — 70-weapons.js · 74-icons-guns.js)을 그대로 탄다 — 몸마다 맞는 공(대역)을 건다.
    ========================================================================== */
-const MON={k:1, built:false, crawl:[], garg:[], mim:[], spd:[], lairs:[], picks:[], spawnT:0, shake:0, roll:0, pk:new THREE.Vector3(),
+const MON={k:1, frame:0, built:false, crawl:[], garg:[], mim:[], spd:[], lairs:[], picks:[], spawnT:0, shake:0, roll:0,
   gGeo:null, gTex:null, mGeo:null, mTex:null, mSkin:null, mSc:1, seq:0, voiceT:0, blob:null};
 function mobsSetK(k){ MON.k=k; }
 const mobNight=()=>hourOfDay<5.0||hourOfDay>19.6;
@@ -90,21 +90,6 @@ function mobVoice(kind,x,y,z,vol){
   else if(kind==='thud'){ noise(0.12,0,220,0.8,0.9); noise(0.06,0,1500,1,0.4); }   // 몸에 박히는 소리(사람 쪽)
 }
 
-/* ── 떨림 — 계단처럼 뛰는 목표를 빠르게 따라간다(홱홱 꺾인다) ───────────────────── */
-const _moJ=[0,0,0];
-function mobJerk(st,dt,amp,calm){
-  if(st.t===undefined){ st.t=Math.random()*0.4; st.x=st.y=st.z=st.tx=st.ty=st.tz=0; }
-  st.t-=dt;
-  if(st.t<=0){ st.t=0.05+Math.random()*(calm?2.2:0.5);
-    if(Math.random()<0.38){ st.tx=st.ty=st.tz=0; }
-    else{ const a=amp*(Math.random()<0.22?2.6:1); st.tx=(Math.random()-0.5)*a; st.ty=(Math.random()-0.5)*a*1.3; st.tz=(Math.random()-0.5)*a; } }
-  const s=Math.min(1,dt*30); st.x+=(st.tx-st.x)*s; st.y+=(st.ty-st.y)*s; st.z+=(st.tz-st.z)*s;
-  _moJ[0]=st.x; _moJ[1]=st.y; _moJ[2]=st.z; return _moJ;
-}
-/* 다지류 모듈의 갈고리(97-mob-rigs.js stepCrawler) */
-function crwJerk(cr,i,dt){ const J=cr.jk||(cr.jk=[]); return mobJerk(J[i]||(J[i]={}),dt,0.11*(cr.jerkK||1),cr.mode==='sleep'); }
-function crwLegJerk(cr,Lg,dt){ const st=Lg.jst||(Lg.jst={}); return mobJerk(st,dt,0.5*(cr.jerkK||1),cr.mode==='sleep')[0]; }
-
 /* ── 맞는 공(대역) — 본편 무기 판정(CREATURES)에 건다. 체력은 몸의 것을 쓴다 ──────── */
 function mobProxy(m,pos,r){
   const o={r, fish:false, _m:m, burn:null, fireproof:false};
@@ -114,19 +99,17 @@ function mobProxy(m,pos,r){
     /* 한 프레임에 같은 몸의 공 여럿이 맞으면(폭발 · 산탄) 가장 큰 것 하나만 — 공마다 다 들면 다지류가 수류탄 하나에 녹는다 */
     if(m.dF===MON.frame){ const x=Math.max(0,d-m.dMax); m.dMax=Math.max(m.dMax,d); d=x; } else { m.dF=MON.frame; m.dMax=d; }
     mobDamage(m,d); }});
-  Object.defineProperty(o,'stun',{get:()=>0, set:v=>{ if(v>0) m.frz=Math.max(m.frz||0,Math.min(v,6)); }});   // 해머 기절(무기 쪽 시계는 안 쓴다)
+  Object.defineProperty(o,'stun',{get:()=>0, set:v=>{ if(v>0) m.frz=(m.frz||0)+v; }});   // 해머 기절 — 아레나처럼 굳은 시간에 더한다
   Object.defineProperty(o,'alerted',{get:()=>!!m.alerted, set:v=>{ if(v) m.alerted=true; }});
   return o;
 }
 function mobRegister(m,on){
   for(const p of m.prox){ const i=CREATURES.indexOf(p); if(on&&i<0) CREATURES.push(p); else if(!on&&i>=0) CREATURES.splice(i,1); }
 }
-/* 맞았다 — 체력 · 넉백 · 움찔 · 비명. 쓰러지면 사체(뒤질 수 있다) */
+/* 맞았다 — 체력 · 움찔 · 비명. 쓰러지면 사체(뒤질 수 있다) */
 function mobDamage(m,d){
   if(!m.alive||!(d>0)) return;
-  m.hp-=d; m.alerted=true; m.hitT=0.4; m.jerkK=Math.min(4,(m.jerkK||1)+1.6);
-  const dx=m.pos.x-PL.pos.x, dz=m.pos.z-PL.pos.z, L=Math.hypot(dx,dz)||1, kb=(m.kind==='garg'?8:m.kind==='mim'?0:0.9)*Math.min(1.6,0.4+d/45);
-  m.kv.x+=dx/L*kb; m.kv.z+=dz/L*kb;
+  m.hp-=d; m.alerted=true; m.hitT=0.4;                                       // 밀리지 않는다(아레나 셋 다 넉백이 없다)
   MON.shake=Math.min(1,MON.shake+0.12); ATK.hitStop=0.06;
   mobVoice('hurt',m.pos.x,m.pos.y+1,m.pos.z,1.2);
   if(m.hp<=0) mobKill(m);
@@ -141,15 +124,6 @@ function mobKill(m){
     lootFn:()=>{ let msg=''; for(const [id,n] of MOB_LOOT[m.kind]){ if(!ITEMS[id]) continue; let g=0; for(let k=0;k<n;k++) if(invAdd(id,1)) g++; if(g) msg+=(msg?' · ':'')+ITEMS[id].n+' +'+g; }
       const i=MON.picks.indexOf(pick); if(i>=0) MON.picks.splice(i,1); return msg||'가방이 가득 찼다'; }};
   MON.picks.push(pick); m.pick=pick;
-}
-/* 사람이 맞았다 — 튕겨 나고 화면이 흔들린다(맞는 몸짓) */
-function mobHurtPlayer(m,dmg,why,kb){
-  hurtPL(dmg,why,true);
-  const dx=PL.pos.x-m.pos.x, dz=PL.pos.z-m.pos.z, L=Math.hypot(dx,dz)||1;
-  MON.pk.set(dx/L*kb,0,dz/L*kb);
-  if(PL.grounded&&!PL.swim){ PL.vel.y=Math.max(PL.vel.y,2.2+kb*0.15); PL.grounded=false; }
-  MON.shake=1; MON.roll=(Math.random()<0.5?-1:1)*0.16;
-  mobVoice('thud',PL.pos.x,PL.pos.y+1,PL.pos.z,1);
 }
 
 /* ── 몸 만들기(섬을 다 지은 뒤 한 번 — 모델은 섬이 바뀌어도 다시 안 읽는다) ─────────── */
@@ -168,10 +142,10 @@ function mobsBuild(){
   if(MON.built) return;
   try{
     /* 다지류 둘(돌려 쓴다) */
-    for(let i=0;i<2;i++){ const cr=makeCrawler(scene,1100); cr.mesh.visible=false; cr.mesh.userData.lightRole='recv'; placeCrawler(cr,0,0,0);
-      const m={kind:'crawl', cr, pos:cr.head, kv:new THREE.Vector3(), hp:1100, hpMax:1100, alive:false, active:false, frz:0, mode:'sleep', lair:null,
+    for(let i=0;i<2;i++){ const cr=makeCrawler(scene,CRWP.hp); cr.mesh.visible=false; cr.mesh.userData.lightRole='recv'; placeCrawler(cr,0,0,0);
+      const m={kind:'crawl', cr, pos:cr.head, kv:new THREE.Vector3(), hp:CRWP.hp, hpMax:CRWP.hp, alive:false, active:false, frz:0, mode:'sleep', lair:null,
         wp:null, wpT:0, touchT:0, voiceT:0, clickT:0, prox:[]};
-      for(let s=2;s<cr.SPINE.length;s+=4){ const S=cr.SPINE[s]; m.prox.push(mobProxy(m,()=>S.p,0.85)); }
+      for(const S of cr.SPINE) m.prox.push(mobProxy(m,()=>S.p,CRWP.rad*crwK()));   // 아레나처럼 마디 구 전부(한 프레임에 여럿 맞으면 가장 큰 것 하나)
       MON.crawl.push(m); }
     /* 가고일 여섯 */
     const {geometry,textureURL}=parseGLB_garg(mobB64(GARG_GLB));
@@ -179,7 +153,7 @@ function mobsBuild(){
     for(let i=0;i<6;i++){ const mat=new THREE.MeshLambertMaterial({map:MON.gTex,side:THREE.DoubleSide});
       const g={kind:'garg', pos:new THREE.Vector3(), kv:new THREE.Vector3(), yaw:0, hp:120, hpMax:120, frz:0, alerted:false, state:'wander', t:0,
         target:new THREE.Vector3(), dir:new THREE.Vector3(0,0,1), dashLeft:0, speed:0, wing:0, wingPh:0, hitDone:false, alive:false, active:false,
-        home:new THREE.Vector3(), mat, prox:[], js:{}, voiceT:0};
+        home:new THREE.Vector3(), mat, prox:[], voiceT:0};
       g.body=gargBody(geometry,mat); g.mesh=g.body.mesh; g.mesh.visible=false; g.mesh.userData.lightRole='recv'; scene.add(g.mesh);
       g.blob=mobBlob(0.8); g.prox.push(mobProxy(g,()=>_moV.set(g.pos.x,g.pos.y+0.8,g.pos.z),0.9));
       MON.garg.push(g); }
@@ -329,9 +303,6 @@ function updateMobs(dt){
   for(const sp of MON.spd) if(sp.active) mimSpiderTick(sp,dt);
   mimSpiderSeparate();
   mobSeparate(dt);
-  /* 사람이 맞아 밀려난다 — 막히는 데로는 안 밀린다 */
-  if(MON.pk.lengthSq()>0.01){ const p=PL.pos, nx=p.x+MON.pk.x*dt, nz=p.z+MON.pk.z*dt;
-    if(!solidAt(nx,nz,p.y+0.9)){ p.x=nx; p.z=nz; } MON.pk.multiplyScalar(Math.exp(-6*dt)); } else MON.pk.set(0,0,0);
 }
 /* 화면 흔들림(맞았을 때) · 휘두를 때의 시점 움찔(ATK.kick — 74-icons-guns.js) — 사람 시점(updatePlayer)을 세운 뒤에 얹는다 */
 function mobCamera(dt){
@@ -381,7 +352,7 @@ function crawlCoil(m){                                                       // 
   cr.hdg=th+Math.PI; cr.state='chase';
 }
 function crawlAttach(m,l,night){
-  m.lair=l; l.cr=m; m.cr.mesh.position.y=0; m.active=true; m.alive=true; m.hp=m.hpMax; m.cr.alive=true; m.cr.hp=m.hpMax; m.alerted=false; m.deadT=0; m.frz=0; m.kv.set(0,0,0); m.jerkK=1;
+  m.lair=l; l.cr=m; m.cr.mesh.position.y=0; m.active=true; m.alive=true; m.hp=m.hpMax; m.cr.alive=true; m.cr.hp=m.hpMax; m.alerted=false; m.deadT=0; m.frz=0; m.kv.set(0,0,0);
   if(night){ const w=crawlWaypoint(m); placeCrawler(m.cr,w.x,w.z,Math.random()*6.283); m.mode='roam'; }
   else{ crawlCoil(m); m.mode='sleep'; }
   m.cr.mesh.visible=true; mobRegister(m,true);
@@ -392,13 +363,16 @@ function crawlWaypoint(m){
     if(heightAt(x,z)>1&&mobLushB(mobBiome(x,z))) return {x,y:heightAt(x,z),z}; }
   return {x:l.fx,y:heightAt(l.fx,l.fz),z:l.fz};
 }
+/* 아레나(beta/crawler_arena.html 의 P)와 같은 값 — 보폭 · 닿는 구 반지름은 크기(CRW.SIZE ÷ 아레나 1.5)에 맞춰 줄인다 */
+const CRWP={spd:1.0, turn:55, dmg:40, tick:0.5, rad:1.1, stride:1.8, dashEvery:20, dashLen:50, hp:1500};
+const crwK=()=>CRW.SIZE/1.5;
 const _crwT={x:0,y:0,z:0};
 function crawlTick(m,dt){
   const cr=m.cr, night=mobNight();
-  if(!m.alive){ m.deadT+=dt; cr.alive=false; stepCrawler(cr,dt,null,{hold:true,stride:1,lim:HALF}); cr.mesh.position.y=-Math.max(0,m.deadT-40)*0.04; return; }
-  m.jerkK=Math.max(1,(m.jerkK||1)-dt*2); if(m.hitT>0) m.hitT-=dt;
+  if(!m.alive){ m.deadT+=dt; cr.alive=false; stepCrawler(cr,dt,null,{hold:true,stride:CRWP.stride*crwK(),lim:HALF}); cr.mesh.position.y=-Math.max(0,m.deadT-40)*0.04; return; }
+  if(m.hitT>0) m.hitT-=dt;
   const dP=Math.hypot(PL.pos.x-cr.head.x,PL.pos.z-cr.head.z);
-  let tg=null, spd=1.0, dashE=6;
+  let tg=null, dashE=CRWP.dashEvery;
   if(m.mode==='sleep'){
     if(night||m.alerted){ m.mode=m.alerted?'hunt':'roam'; m.wp=crawlWaypoint(m); mobVoice('screech',cr.head.x,cr.head.y+1,cr.head.z,1.3); }
   }else if(m.mode==='roam'){
@@ -406,7 +380,7 @@ function crawlTick(m,dt){
     else{ if(!m.wp||Math.hypot(m.wp.x-cr.head.x,m.wp.z-cr.head.z)<14||(m.wpT-=dt)<0){ m.wp=crawlWaypoint(m); m.wpT=25; } tg=m.wp;
       if(dP<50&&!PL.under&&!PL.dead){ m.mode='hunt'; mobVoice('screech',cr.head.x,cr.head.y+1,cr.head.z,1.5); } }
   }else if(m.mode==='hunt'){
-    tg=_crwT; _crwT.x=PL.pos.x; _crwT.y=PL.pos.y; _crwT.z=PL.pos.z; spd=1.12; dashE=8;
+    tg=_crwT; _crwT.x=PL.pos.x; _crwT.y=PL.pos.y; _crwT.z=PL.pos.z;
     if(dP>120||PL.dead||PL.under){ m.mode=night?'roam':'return'; m.alerted=false; }
     else if(!night&&!m.alerted) m.mode='return';
   }else if(m.mode==='return'){
@@ -415,24 +389,22 @@ function crawlTick(m,dt){
     if(dP<25&&!PL.dead) m.mode='hunt';
   }
   if(m.frz>0){ m.frz=Math.max(0,m.frz-dt); cr.frz=Math.max(cr.frz,m.frz); }
-  stepCrawler(cr,dt,tg,{spd, turn:70, stride:0.95, dashEvery:dashE, dashLen:28, dashTurn:22, lim:HALF-40, hold:m.mode==='sleep'});
-  /* 맞아 밀린 몫 — 머리만 조금(몸이 길다) */
-  if(m.kv.lengthSq()>0.01){ cr.head.x+=m.kv.x*dt; cr.head.z+=m.kv.z*dt; m.kv.multiplyScalar(Math.exp(-5*dt)); }
+  stepCrawler(cr,dt,tg,{spd:CRWP.spd, turn:CRWP.turn, stride:CRWP.stride*crwK(), dashEvery:dashE, dashLen:CRWP.dashLen, lim:HALF-40, hold:m.mode==='sleep'});
   /* 소리 — 다리 딸깍임(움직이는 동안) · 가끔 쇳소리 */
   if(cr.speed>0.5&&(m.clickT-=dt)<0){ m.clickT=0.18+Math.random()*0.25; if(dP<70) mobVoice('click',cr.head.x,cr.head.y,cr.head.z,cr.state==='dash'?1.5:0.8); }
   if(m.mode!=='sleep'&&(m.voiceT-=dt)<0){ m.voiceT=6+Math.random()*10; if(dP<110) mobVoice('screech',cr.head.x,cr.head.y+1,cr.head.z,0.9); }
-  /* 닿기 — 마디(반지름 0.85 m)에 들면 밀려나고 0.5초마다 다친다(갑옷이 깎는다) */
-  if(m.mode!=='sleep'&&!PL.dead){ let hit=null;
-    for(let i=0;i<cr.SPINE.length;i+=2){ const S=cr.SPINE[i], dx=PL.pos.x-S.p.x, dz=PL.pos.z-S.p.z, d=Math.hypot(dx,dz), R=0.85+PRAD;
-      if(d<R&&Math.abs(PL.pos.y+0.8-S.p.y)<1.8){ hit=S; if(d>1e-3){ PL.pos.x=S.p.x+dx/d*R; PL.pos.z=S.p.z+dz/d*R; } } }
-    if(hit){ m.touchT-=dt; if(m.touchT<=0){ m.touchT=0.5; const pseudo={pos:hit.p}; mobHurtPlayer(pseudo,cr.state==='dash'?34:20,'다지류에 받혔다',cr.state==='dash'?13:7); } }
+  /* 닿기(아레나 updateCrawler 그대로) — 마디 구에 사람이 들면 밀어내고 0.5초마다 40(갑옷이 깎는다) · 떨어지면 다음 닿는 순간 바로 한 번 */
+  if(m.mode!=='sleep'&&!PL.dead){ let hit=null; const R=CRWP.rad*crwK()+0.35;
+    for(const S of cr.SPINE){ const dx=PL.pos.x-S.p.x, dz=PL.pos.z-S.p.z, d=Math.hypot(dx,dz);
+      if(d<R&&PL.pos.y<S.p.y+1.5){ hit=S; if(d>1e-3){ PL.pos.x=S.p.x+dx/d*R; PL.pos.z=S.p.z+dz/d*R; } } }
+    if(hit){ m.touchT-=dt; if(m.touchT<=0){ m.touchT=CRWP.tick; hurtPL(CRWP.dmg,'다지류에 받혔다',true); mobVoice('thud',PL.pos.x,PL.pos.y+1,PL.pos.z,1); } }
     else m.touchT=Math.min(m.touchT,0); }
 }
 
 /* ── 가고일 ──────────────────────────────────────────────────────────────── */
 const GP2={wander:1.6, chase:1.1, see:30, trig:10, prep:1.0, dash:20, dspd:1.8, stun:3.5, hover:0.3, dmg:28};
 function gargSpawn(g,x,z){
-  g.active=true; g.alive=true; g.hp=g.hpMax; g.frz=0; g.alerted=false; g.state='wander'; g.t=0; g.an=null; g.kv.set(0,0,0); g.jerkK=1;
+  g.active=true; g.alive=true; g.hp=g.hpMax; g.frz=0; g.alerted=false; g.state='wander'; g.t=0; g.an=null; g.kv.set(0,0,0);
   g.pos.set(x,heightAt(x,z)+GP2.hover,z); g.home.set(x,0,z); g.yaw=Math.random()*6.283; gargWander(g);
   mobRegister(g,true);
 }
@@ -441,37 +413,36 @@ function gargSet(g,s){ g.state=s; g.t=0; g.hitDone=false; }
 function gargTick(g,dt){
   const gy=Math.max(heightAt(g.pos.x,g.pos.z),-0.3);
   if(!g.alive){ g.deadT=(g.deadT||0)+dt; gargDraw(g,dt,null,gy); g.blob.visible=false; return; }
-  if(g.hitT>0) g.hitT-=dt; g.jerkK=Math.max(1,(g.jerkK||1)-dt*2);
+  if(g.hitT>0) g.hitT-=dt;
   const dx=PL.pos.x-g.pos.x, dz=PL.pos.z-g.pos.z, dist=Math.hypot(dx,dz);
-  let mx=0, mz=0, spd=0;
-  if(g.frz>0){ g.frz=Math.max(0,g.frz-dt); if(g.frz<=0&&g.state==='stun') gargSet(g,dist<GP2.see?'chase':'wander'); if(g.state!=='stun') g.state='stun'; }
+  /* 아레나 updateG 그대로 — 굳어 있는 동안(돌진 뒤 경직 · 해머 기절이 같은 시계 g.frz 를 쓰고 더해진다)은 아무것도 안 한다 */
+  if(g.frz>0){ g.frz=Math.max(0,g.frz-dt); g.speed=0; if(g.frz<=0&&g.state==='stun') gargSet(g,dist<GP2.see?'chase':'wander'); }
   else{
+    let mx=0, mz=0, spd=0;
     g.t+=dt;
     if(g.state==='wander'){ if((dist<GP2.see&&!PL.under)||g.alerted){ gargSet(g,'chase'); mobVoice('shriek',g.pos.x,g.pos.y+1,g.pos.z,1.2); }
       else{ const tx=g.target.x-g.pos.x, tz=g.target.z-g.pos.z, l=Math.hypot(tx,tz); if(l<2.5) gargWander(g); else{ mx=tx/l; mz=tz/l; spd=GP2.wander; } } }
-    else if(g.state==='chase'){ if((dist>GP2.see*1.4&&!g.alerted)||PL.dead){ gargSet(g,'wander'); gargWander(g); g.alerted=false; }
+    else if(g.state==='chase'){ if((dist>GP2.see*1.35&&!g.alerted)||PL.dead){ gargSet(g,'wander'); gargWander(g); g.alerted=false; }
       else if(dist<GP2.trig){ gargSet(g,'prep'); mobVoice('shriek',g.pos.x,g.pos.y+1,g.pos.z,1.4); } else{ mx=dx/dist; mz=dz/dist; spd=RUN*GP2.chase; } }
     else if(g.state==='prep'){ if(g.t>=GP2.prep){ g.dir.set(dx/dist,0,dz/dist); g.dashLeft=GP2.dash; gargSet(g,'dash'); } }
     else if(g.state==='dash'){ const s=Math.min(RUN*GP2.chase*GP2.dspd*dt,g.dashLeft); mx=g.dir.x; mz=g.dir.z; spd=s/Math.max(dt,1e-6); g.dashLeft-=s;
-      if(!g.hitDone&&dist<2.6&&Math.abs(PL.pos.y+0.9-g.pos.y)<2.2){ g.hitDone=true; mobHurtPlayer(g,GP2.dmg,'가고일의 발톱',10); }
+      /* 경로에 사람이 있으면 팔을 휘두른다(돌진 한 번에 한 대) — 본편은 높이 차 2.2 m 안도 본다(사용자가 정함) */
+      if(!g.hitDone&&dist<2.3&&Math.abs(PL.pos.y+0.9-g.pos.y)<2.2){ g.hitDone=true; hurtPL(GP2.dmg,'가고일의 발톱',true); mobVoice('thud',PL.pos.x,PL.pos.y+1,PL.pos.z,1); }
       if(g.dashLeft<=0.001){ gargSet(g,'stun'); g.frz+=GP2.stun; } }
     else if(g.state==='stun') gargSet(g,dist<GP2.see?'chase':'wander');
+    /* 막히면(아레나의 벽 대신 물 · 바위) 배회는 새 목표 · 돌진은 끊고 굳는다 */
+    if(spd>0){ const nx=g.pos.x+mx*spd*dt, nz=g.pos.z+mz*spd*dt;
+      if(heightAt(nx,nz)>-0.5&&!solidAt(nx,nz,heightAt(nx,nz)+1.2)){ g.pos.x=nx; g.pos.z=nz; } else if(g.state==='dash'){ g.dashLeft=0; gargSet(g,'stun'); g.frz+=GP2.stun; } else if(g.state==='wander') gargWander(g);
+      let d=Math.atan2(mx,mz)-g.yaw; while(d>Math.PI)d-=6.283; while(d<-Math.PI)d+=6.283; g.yaw+=d*clamp((g.state==='dash'?18:6)*dt,0,1); }
+    else if(g.state==='prep'||g.state==='stun'){ let d=Math.atan2(dx,dz)-g.yaw; while(d>Math.PI)d-=6.283; while(d<-Math.PI)d+=6.283; g.yaw+=d*clamp((g.state==='prep'?7:1.5)*dt,0,1); }
+    g.speed=spd;
+    /* 저공비행 — 땅에서 일정 높이 · 위아래로 살짝(개체마다 위상만 다르게) */
+    g.pos.y=Math.max(heightAt(g.pos.x,g.pos.z),-0.3)+GP2.hover+(g.state==='stun'?0:Math.sin(performance.now()*0.004+g.home.x)*0.05);
   }
-  if(spd>0){ const nx=g.pos.x+mx*spd*dt, nz=g.pos.z+mz*spd*dt;
-    if(heightAt(nx,nz)>-0.5&&!solidAt(nx,nz,heightAt(nx,nz)+1.2)){ g.pos.x=nx; g.pos.z=nz; } else if(g.state==='dash'){ g.dashLeft=0; gargSet(g,'stun'); g.frz+=GP2.stun; } else gargWander(g);
-    let d=Math.atan2(mx,mz)-g.yaw; while(d>Math.PI)d-=6.283; while(d<-Math.PI)d+=6.283; g.yaw+=d*clamp((g.state==='dash'?18:6)*dt,0,1); }
-  else if(g.state==='prep'||g.state==='stun'){ let d=Math.atan2(dx,dz)-g.yaw; while(d>Math.PI)d-=6.283; while(d<-Math.PI)d+=6.283; g.yaw+=d*clamp((g.state==='prep'?7:1.5)*dt,0,1); }
-  g.speed=spd;
-  if(g.kv.lengthSq()>0.01){ g.pos.x+=g.kv.x*dt; g.pos.z+=g.kv.z*dt; g.kv.multiplyScalar(Math.exp(-5*dt)); }
-  const gy2=Math.max(heightAt(g.pos.x,g.pos.z),-0.3);
-  g.pos.y=gy2+GP2.hover+(g.state==='stun'?0:Math.sin(performance.now()*0.004+g.home.x)*0.05);
   if((g.voiceT-=dt)<0){ g.voiceT=5+Math.random()*9; if(dist<90) mobVoice('shriek',g.pos.x,g.pos.y+1,g.pos.z,0.7); }
-  _moV.set(PL.pos.x,PL.pos.y+EYE,PL.pos.z);
-  gargDraw(g,dt,dist<40?_moV:null,gy2);
-  /* 떨림 — 고개 · 목 · 손 · 날개가 홱 꺾인다 */
-  const by=g.body.by, jk=g.jerkK||1;
-  for(const [nm,a] of [['head',0.22],['neck',0.14],['handL',0.35],['handR',0.35],['foreL',0.18],['foreR',0.18],['wingL',0.10],['wingR',0.10]]){ const b=by[nm]; if(!b) continue;
-    const J=mobJerk(g.js[nm]||(g.js[nm]={}),dt,a*jk,g.state==='stun'); _moE.set(J[0],J[1],J[2]); _moQ.setFromEuler(_moE); b.quaternion.multiply(_moQ); }
+  const gy2=Math.max(heightAt(g.pos.x,g.pos.z),-0.3);
+  _moV.set(PL.pos.x,PL.pos.y+EYE*0.8,PL.pos.z);                               // 아레나처럼 늘 사람을 본다
+  gargDraw(g,dt,_moV,gy2);
   g.blob.visible=true; g.blob.position.set(g.pos.x,gy2+0.05,g.pos.z);
 }
 
@@ -657,7 +628,7 @@ function mobSeparate(dt){
     for(let j=i+1;j<L.length;j++){ const b=L[j], dx=b.pos.x-a.pos.x, dz=b.pos.z-a.pos.z, d=Math.hypot(dx,dz), R=ra+MOB_R[b.kind];
       if(d<R&&d>1e-4&&Math.abs(a.pos.y-b.pos.y)<3.5){ const p=(R-d)*0.5; a.pos.x-=dx/d*p; a.pos.z-=dz/d*p; b.pos.x+=dx/d*p; b.pos.z+=dz/d*p; } }
     for(const c of MON.crawl){ if(!c.active||!c.alive) continue;               // 다지류 마디에서도 밀려난다
-      for(let s=0;s<c.cr.SPINE.length;s+=2){ const S=c.cr.SPINE[s].p, dx=a.pos.x-S.x, dz=a.pos.z-S.z, d=Math.hypot(dx,dz), R=ra+0.85; if(d<R&&d>1e-4){ a.pos.x=S.x+dx/d*R; a.pos.z=S.z+dz/d*R; } } }
+      for(let s=0;s<c.cr.SPINE.length;s+=2){ const S=c.cr.SPINE[s].p, dx=a.pos.x-S.x, dz=a.pos.z-S.z, d=Math.hypot(dx,dz), R=ra+CRWP.rad*crwK(); if(d<R&&d>1e-4){ a.pos.x=S.x+dx/d*R; a.pos.z=S.z+dz/d*R; } } }
     /* 사람 — 몸 안으로 못 들어온다(사람을 민다) */
     const dx=PL.pos.x-a.pos.x, dz=PL.pos.z-a.pos.z, d=Math.hypot(dx,dz), R=ra+PRAD;
     if(d<R&&d>1e-4&&Math.abs(PL.pos.y-a.pos.y)<3){
