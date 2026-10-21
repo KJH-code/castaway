@@ -163,6 +163,7 @@ python -m http.server 5173
   돌기둥 없음 · 몸빛 점광원 뺌(마리마다 광원이 늘면 재질을 다 다시 짠다) · 제 자리 둘레 20 m. 맞기는 `hurtMob`·`hitFoe` 의 `isAz` 갈래 → `AZM.damage` · 사람은 주먹 · 구에 밀린다(`PL.kb`).
   모델 자료는 `python3 tools/azure/arena-data.py presets/models/azure_apocalypse.glb beta/battle_arena.html`(모델을 다시 만들면 이것도). 잰 값(헤드리스 40초 · 애저 1 대 곰 4 · 가고일 3 · 와이번 1): 애저 4000 → 2368 · 상대편 1960 → 148 |
 | `beta/night_arena.html` | **밤 시험장**(23MB) — `beta/battle_arena.html` 을 복사해 세 가지만 바꿨다: ① **언덕 지형**(`h()` = 큰 물결 + 가우스 봉우리 다섯 `HILLS` + 가운데 분지, 최고 약 7~12 m · 격자 선 없앰) ② **밤**(짙은 남색 하늘·안개 0.011 · 달빛 평행광 · 달 원판 · 별 900) ③ **편성 고정**(`readLineup` 이 애쉬스케일 2 · 스킨워커 1 · 다지류 1 을 모두 1팀, 사람을 2팀으로 — 몹끼리는 안 싸운다 · 시작 화면에는 무기·방어구·짐만). 나머지(총 꾸러미·다지류 모듈 포함)는 battle 과 글자 그대로라 **battle 을 고치면 여기도 고칠 것** |
+| `beta/azure_night_arena.html` | **밤 애저 시험장**(33MB · 사용자 요청 2026-10-21) — `beta/battle_arena.html` 에 night 의 세 가지(언덕 지형 `HILLS` · 밤 하늘·달빛·별 · 시작 화면은 무기·방어구·짐만)를 얹고 **편성을 고정했다**: `readLineup` 이 애저 1 · 아르크토스 5 · 애쉬스케일 3 을 모두 1팀, 사람을 2팀으로(몹끼리는 안 싸운다). 나머지는 battle 과 글자 그대로라 **battle 을 고치면 여기도 고칠 것** — 다시 만들려면 battle 을 바탕으로 night 의 제목·편성 칸·지형 `h()`·땅 빛깔·격자 대신 달·밤 빛 덩이만 옮긴다 |
 | `beta/cloud_arena.html` | **구름 시험장**(60KB · 모델이 없어 **1.5초에 뜬다**).
   본편의 하늘·달·구름·날씨·비 코드(`engine/js/45-sky.js`)를 **그대로**
   옮겨 놓고 손잡이 다섯만 냈다 — `COVER`(구름양) · `MANUAL`(갈래마다 못수) ·
