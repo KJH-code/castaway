@@ -4471,9 +4471,9 @@ const TAU=Math.PI*2;
 const wrapA=a=>{ while(a>Math.PI)a-=TAU; while(a<-Math.PI)a+=TAU; return a; };
 const ease=t=>t<=0?0:t>=1?1:t*t*(3-2*t);
 const P={hp:4000, sense:140, rushK:10, keep:30, lose:150, gap:1.8, hov:0.6,
-  beamCharge:1.2, beamDur:2.0, beamLag:0.5, beamDps:90, beamR:0.7, beamLen:180,
-  dashK:2, punch:35, punchReach:3.0, punchT:0.22, line:40, lineLen:32, lineW:1.8, lineSpd:85,
-  orbCharge:3.0, orbSpd:24, orbDmg:90, orbR:7, orbMax:1.0,
+  beamCharge:0.9, beamDur:2.0, beamLag:0.45, beamDps:90, beamR:0.7, beamLen:180,
+  dashK:2, punch:50, punchReach:3.0, punchT:0.22, line:60, lineLen:32, lineW:1.8, lineSpd:85,
+  orbCharge:1.7, orbSpd:24, orbDmg:135, orbR:7, orbMax:1.0,
   walkSpd:2.0, combatSpd:6.5, homeR:20, calm:2.5, size:3};
 const SZ=()=>P.size, VK=()=>Math.sqrt(P.size);
 let GT=0;                                   // 이 몹의 시각 — 놀이가 흐를 때만 흐른다
