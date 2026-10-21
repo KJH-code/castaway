@@ -3630,12 +3630,12 @@ const teamLeft=t=>allMobs().filter(m=>m.team===t&&mobAlive(m)).length;
 let overShown=false;
 function checkBattle(){
   if(overShown||paused) return;
-  const a=teamLeft(1), b=teamLeft(2);
-  if(a>0&&b>0) return;
-  if(a===0&&b===0) return;
+  const a=teamLeft(1);
+  /* 2팀은 사람 하나뿐이라 짐승 수로 세면 바로 끝난다 — 짐승이 다 쓰러져야 이긴다
+     (사람이 쓰러지는 것은 hurtPlayer 가 따로 띄운다 · night_arena 와 같다) */
+  if(a>0) return;
   overShown=true; paused=true; unlock();
-  showOv((a>0?'1팀':'2팀')+'이 이겼다',
-    '남은 것 '+(a>0?a:b)+'마리. 사람은 '+(PL_TEAM===NEUTRAL?'구경만 했다':(PL_TEAM===1?'1팀':'2팀')+' 이었다')+'.','다시');
+  showOv('모두 쓰러뜨렸다','밤을 넘겼습니다.','다시');
 }
 
 /* 맞은 놈으로 문맥을 갈아 끼우는 함수들은 보던 개체를 도로 돌려놓는다.
