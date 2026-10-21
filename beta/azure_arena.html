@@ -119,6 +119,8 @@
 </div>
 
 <div class="pnl" id="cfg">
+  <div class="grp">몸</div>
+  <div class="row2"><label>크기 ×</label><input type="range" id="pSize" min="0.5" max="4" step="0.1" value="3"><span class="val" id="vSize"></span></div>
   <div class="grp">거동</div>
   <div class="row2"><label>인지 거리 m</label><input type="range" id="pSense" min="50" max="500" step="10" value="300"><span class="val" id="vSense"></span></div>
   <div class="row2"><label>돌진(달리기×)</label><input type="range" id="pRush" min="2" max="15" step="0.5" value="10"><span class="val" id="vRush"></span></div>
@@ -151,7 +153,7 @@
 
 <div id="ov">
   <h1>전투 시험장 — 애저 아포칼립스</h1>
-  <div class="s">돌 갑옷에 푸른 번개가 흐르는, 떠다니는 네 팔의 거인. 체력 4000.
+  <div class="s">돌 갑옷에 푸른 번개가 흐르는, 떠다니는 네 팔의 거인(키 약 9 m). 체력 4000.
     평소엔 제 자리 둘레를 떠돌다가, <b>300 m 안에서 당신이 달리면</b> 알아채고 사람 달리기의 열 배로 날아와 30 m 앞에 섭니다(걸으면 모릅니다 · 때리면 알아챕니다).
     그 뒤로는 셋 중 하나를 씁니다 — ① 네 팔을 가운데로 모아 <b>0.5초 전 당신이 있던 자리</b>로 광선을 쏩니다(서 있으면 맞고, 움직이면 0.5초 뒤를 따라옵니다).
     ② 달리기의 두 배로 날아와 주먹을 꽂고, 그 앞으로 일직선 번개가 내리칩니다. ③ 머리 위에 3초 동안 번개 구를 모아 던집니다 — 무엇이든 닿으면 터집니다.
@@ -210,7 +212,10 @@ const P={hp:4000, sense:300, rushK:10, keep:30, lose:150, gap:1.8, hov:0.6,
   beamCharge:1.2, beamDur:2.0, beamLag:0.5, beamDps:90, beamR:0.7, beamLen:180,
   dashK:2, punch:35, punchReach:2.6, line:40, lineLen:32, lineW:1.8, lineSpd:85,
   orbCharge:3.0, orbSpd:24, orbDmg:90, orbR:7, orbMax:1.0,
-  walkSpd:2.0, combatSpd:6.5, homeR:45, calm:2.5};
+  walkSpd:2.0, combatSpd:6.5, homeR:45, calm:2.5, size:3};
+/* 크기(사용자 요청 2026-10-21 '세 배 더 크게') — 몸은 P.size 배(키 2.98 m × 3 = 약 9 m) · 광선 굵기 · 구 · 꼬리 · 번쩍임은 √배.
+   번개 구는 크기^0.8 배. 거리(인지 300 · 붙음 30 · 놓침 150) · 빠르기 · 피해 · 폭발 반경은 크기와 상관없다. */
+const SZ=()=>P.size, VK=()=>Math.sqrt(P.size);
 
 /* ---- 플레이어 ---- */
 const WALK=4.3, RUN=7.4, JUMP=7.6, GRAV=-22, EYE=1.66;
@@ -808,7 +813,8 @@ function azPose(dt){
   azFK(true);
   const cq=FKQ[B.chest], cp=FKP[B.chest];
   if(arms==='orb'||arms==='punch') plModel(1.25,_lp);
-  if(arms==='orb'){ _orbM.copy(FKP[B.halo]); _orbM.y+=1.15; }    // 고리 가운데(목표 자세) 위
+  const rM=(A.orb&&A.orb.st!=='off'?A.orb.r:0.5*Math.pow(SZ(),0.8))/SZ();          // 구 반지름(모델 좌표)
+  if(arms==='orb'){ _orbM.copy(FKP[B.halo]); _orbM.y+=0.35+rM*0.9; }    // 고리 가운데(목표 자세) 위
   for(let i=0;i<4;i++){
     const R=A.ARMS[i];
     const sw=Math.sin(GT*1.3+i*1.7)*0.05, sw2=Math.sin(GT*0.9+i*2.3)*0.04;
@@ -818,8 +824,7 @@ function azPose(dt){
       _pole.set(R.side,R.up?0.3:-0.5,-0.3); bodyDir(_pole,_pole);
     }else if(arms==='orb'){
       const dir=_d2.set(R.side*0.75,R.up?-0.32:-0.72,R.up?0.30:0.12).normalize();
-      const r=A.orb?A.orb.r:0.5;
-      _tip.copy(_orbM).addScaledVector(dir,r+0.12);
+      _tip.copy(_orbM).addScaledVector(dir,rM+0.12);
       _aim.subVectors(_orbM,_tip).normalize();
       _pole.set(R.side,-0.6,-0.2); bodyDir(_pole,_pole);
     }else if(arms==='punch'&&i===0){
@@ -925,7 +930,7 @@ function beamSet(o,e,op){
   const w=0.85+0.15*Math.sin(GT*53)+0.08*Math.random();
   const set=(m,r)=>{ m.position.copy(o); m.quaternion.copy(q); m.scale.set(r*w,L,r*w); m.visible=op>0.01;
     m.material.uniforms.uTime.value=GT; m.material.uniforms.uLen.value=L; };
-  set(Bm.core,0.16); set(Bm.glow,0.55); set(Bm.out,1.15);
+  const vk=VK(); set(Bm.core,0.16*vk); set(Bm.glow,0.55*vk); set(Bm.out,1.15*vk);
   Bm.core.material.uniforms.uOp.value=op; Bm.glow.material.uniforms.uOp.value=0.55*op; Bm.out.material.uniforms.uOp.value=0.22*op;
   Bm.len=L;
 }
@@ -936,7 +941,7 @@ function azGo(st){ AZ.st=st; AZ.ts=0; }
 function azNotice(why){
   const A=AZ; if(!A.alive) return;
   azGo('notice');
-  fxSprite(A.origin,0x8fc8ff,1,9,0.6,0.9);
+  fxSprite(A.origin,0x8fc8ff,1*VK(),9*VK(),0.6,0.9);
   sndRoar(A.pos);
   msg(why==='hit'?'맞고 알아챘다 — 날아온다':why==='force'?'시험 — 알아채고 날아온다':'달리는 소리를 듣고 알아챘다 — 날아온다');
 }
@@ -967,7 +972,7 @@ function azDamage(n,stun){
 function azDie(){
   const A=AZ; A.alive=false; A.deadT=0; beamOff(); orbFizzle(true);
   azGo('dead'); A.vel.set(0,0,0);
-  fxSprite(A.origin,0x9fd2ff,2,12,1.0,1);
+  fxSprite(A.origin,0x9fd2ff,2*VK(),12*VK(),1.0,1);
   for(let k=0;k<10;k++){ const e=A.origin.clone().add(new THREE.Vector3(rnd(-6,6),rnd(-2,4),rnd(-6,6))); fxBolt(A.origin,e,{w:0.5,life:0.5}); }
   sndBoom(A.pos);
   msg('쓰러뜨렸다 — 맞힌 횟수 '+A.hits);
@@ -990,7 +995,7 @@ function azUpdate(dt){
   let altT=P.hov, altK=2.5;
   if(!A.alive){
     A.deadT+=dt; A.vel.multiplyScalar(Math.exp(-3*dt));
-    altT=-0.25*ease(A.deadT/1.6); altK=3;
+    altT=-1.0*SZ()*ease(A.deadT/1.6); altK=3;          // 앞으로 엎어진 몸통이 땅에 닿게
   }else if(hold){
     A.vel.set(0,0,0);
   }else if(A.frz>0){
@@ -1048,8 +1053,8 @@ function azUpdate(dt){
       case 'beamGather':
         steer(0,0,dt,4); faceTo(yawToPL(),3,dt);
         A.arcT-=dt;
-        if(A.arcT<=0){ A.arcT=0.07; const i=Math.floor(Math.random()*4); fxBolt(A.tipW[i],A.origin,{w:0.18,life:0.12,amp:0.18,branch:false}); }
-        if(A.ts>=P.beamCharge){ azGo('beamFire'); A.beamTick=0; sndBeam(true,A.pos); fxSprite(A.origin,0xbfe4ff,0.6,5,0.35,1); }
+        if(A.arcT<=0){ A.arcT=0.07; const i=Math.floor(Math.random()*4); fxBolt(A.tipW[i],A.origin,{w:0.18*VK(),life:0.12,amp:0.18,branch:false}); }
+        if(A.ts>=P.beamCharge){ azGo('beamFire'); A.beamTick=0; sndBeam(true,A.pos); fxSprite(A.origin,0xbfe4ff,0.6*VK(),5*VK(),0.35,1); }
         break;
       case 'beamFire': {
         steer(0,0,dt,4);
@@ -1067,7 +1072,7 @@ function azUpdate(dt){
         steer(dx/Math.max(dist,1e-3)*V,dz/Math.max(dist,1e-3)*V,dt,6);
         faceTo(yawToPL(),6,dt);
         altT=clamp(PL.pos.y-h(A.pos.x,A.pos.z)+0.1,0.35,3.5); altK=4;
-        if(dist<=3.4||A.ts>3.5){ azGo('punchWind'); }
+        if(dist<=1.3*SZ()+1.9||A.ts>3.5){ azGo('punchWind'); }     // 주먹이 닿는 거리 — 크기 1 에서 3.2 m · 3 에서 5.8 m
         break; }
       case 'punchWind':
         steer(0,0,dt,8); faceTo(yawToPL(),6,dt);
@@ -1103,19 +1108,19 @@ function azUpdate(dt){
     for(const o of OBST){ const ox=o.x-A.pos.x, oz=o.z-A.pos.z, v2=A.vel.x*A.vel.x+A.vel.z*A.vel.z; if(v2<1) break;
       const t=(ox*A.vel.x+oz*A.vel.z)/v2; if(t<0||t>1.2) continue;
       const lx=ox-A.vel.x*t, lz=oz-A.vel.z*t; if(Math.hypot(lx,lz)<o.r+2.2) altT=Math.max(altT,o.top-gy+0.8); }
-  }else if(A.alive) pushOutObst(A.pos,1.1);
+  }else if(A.alive) pushOutObst(A.pos,1.1*SZ());
   const yT=gy+altT;
   A.pos.y+=(yT-A.pos.y)*clamp(dt*altK,0,1);
   if(A.alive&&A.pos.y<gy+0.2) A.pos.y=gy+0.2;
   const bob=A.alive?Math.sin(GT*1.6)*0.16+Math.sin(GT*0.7)*0.06:0;
-  A.G.position.set(A.pos.x,A.pos.y+bob,A.pos.z);
+  A.G.position.set(A.pos.x,A.pos.y+bob,A.pos.z); A.G.scale.setScalar(SZ());
   A.G.rotation.y=A.yaw;
   azPose(dt);
   // 발밑 그림자 · 몸빛
   const sh=A.shadow, hh=Math.max(0,A.pos.y-gy);
-  sh.position.set(A.pos.x,gy+0.06,A.pos.z); sh.scale.setScalar(1+hh*0.12);
+  sh.position.set(A.pos.x,gy+0.06,A.pos.z); sh.scale.setScalar(SZ()+hh*0.12);
   sh.material.opacity=clamp(1-hh/14,0,1);
-  A.light.position.copy(A.origin); A.light.position.y-=0.4;
+  A.light.position.copy(A.origin); A.light.position.y-=0.4*SZ(); A.light.distance=10*SZ();
   A.light.intensity=A.alive?0.6+A.glow*0.45:Math.max(0,1-A.deadT/2.5)*0.8;
   orbUpdate(dt); linesUpdate(dt); trailUpdate(dt);
   if(A.st!=='beamFire'&&AZ.beam.op>0){ AZ.beam.op=0; beamOff(); }
@@ -1133,8 +1138,9 @@ function trailDraw(st){
   for(let i=1;i<TRAIL.length;i++){
     const a=TRAIL[i-1], b=TRAIL[i], f=1-a.age/0.35, k=Math.min(a.k,b.k);
     if(f<=0) continue;
-    ribPush([a.p,b.p],2.6*f*(0.4+0.6*k),[0.25,0.55,1.0],0.55*f*f,st);
-    ribPush([a.p,b.p],0.7*f,[0.85,0.95,1.0],0.8*f*f*k,st);
+    const vk=VK();
+    ribPush([a.p,b.p],2.6*vk*f*(0.4+0.6*k),[0.25,0.55,1.0],0.55*f*f,st);
+    ribPush([a.p,b.p],0.7*vk*f,[0.85,0.95,1.0],0.8*f*f*k,st);
   }
 }
 /* ---- ① 광선 ---- */
@@ -1147,18 +1153,18 @@ function beamUpdate(dt){
   const t=segBlock(o,_o3,0.05);
   A.beamEnd.copy(o).lerp(_o3,t>=0?t:1);
   beamSet(o,A.beamEnd,Bm.op);
-  Bm.mz.visible=true; Bm.mz.position.copy(o); Bm.mz.scale.setScalar(2.2+Math.random()*0.8);
+  Bm.mz.visible=true; Bm.mz.position.copy(o); Bm.mz.scale.setScalar((2.2+Math.random()*0.8)*VK());
   // 맞은 자리 — 번쩍임 · 튀는 번개 · 빛
   A.arcT-=dt;
   if(A.arcT<=0){ A.arcT=0.05;
     if(t>=0){ fxSprite(A.beamEnd,0x8fcaff,1.2,3.6,0.18,0.8);
       if(Math.random()<0.6){ const e=A.beamEnd.clone().add(new THREE.Vector3(rnd(-2,2),rnd(0,2),rnd(-2,2))); fxBolt(A.beamEnd,e,{w:0.22,life:0.12,amp:0.25,branch:false}); }
       fxLight(A.beamEnd,0x7fc0ff,3.5,18,0.15); }
-    if(Math.random()<0.35){ const i=Math.floor(Math.random()*4); fxBolt(A.tipW[i],o,{w:0.14,life:0.08,amp:0.2,branch:false}); }
+    if(Math.random()<0.35){ const i=Math.floor(Math.random()*4); fxBolt(A.tipW[i],o,{w:0.14*VK(),life:0.08,amp:0.2,branch:false}); }
   }
   // 사람 몸에 닿았나 — 0.1초마다
   A.beamTick-=dt;
-  if(plSegDist(o,A.beamEnd)<=P.beamR+0.35){
+  if(plSegDist(o,A.beamEnd)<=P.beamR*VK()+0.35){             // 맞는 굵기도 보이는 굵기를 따른다
     if(A.beamTick<=0){ A.beamTick=0.1; hurtPlayer(P.beamDps*0.1,true,'zap','광선'); shake(0.45); }
   }
   sndBeam(true,o);
@@ -1170,8 +1176,8 @@ function punchImpact(){
   const px=PL.pos.x-A.pos.x, pz=PL.pos.z-A.pos.z, pd=Math.hypot(px,pz);
   const front=pd<1e-3?1:(px*fx+pz*fz)/pd;
   const dy=PL.pos.y+1.2-fist.y;
-  fxSprite(fist,0xbfe4ff,0.8,6,0.3,1); fxLight(fist,0x8fd0ff,6,22,0.35);
-  if((plSegDist(fist,fist)<=P.punchReach||pd<=4.3&&front>0.45)&&Math.abs(dy)<3&&PL.hp>0){
+  fxSprite(fist,0xbfe4ff,0.8*VK(),6*VK(),0.3,1); fxLight(fist,0x8fd0ff,6,22,0.35);
+  if((plSegDist(fist,fist)<=P.punchReach||pd<=1.3*SZ()+3.0&&front>0.45)&&Math.abs(dy)<3&&PL.hp>0){
     hurtPlayer(P.punch,true,'hit','주먹'); shake(1);
     PL.kb.set(fx*11,0,fz*11); PL.vel.y=Math.max(PL.vel.y,4); PL.grounded=false;
   }
@@ -1255,13 +1261,13 @@ function orbUpdate(dt){
     O.t+=dt;
     if(!A.alive||A.st!=='orbCharge'&&A.st!=='orbThrow'){ orbFizzle(); return; }
     const k=clamp(O.t/P.orbCharge,0,1);
-    O.r=0.12+(P.orbMax-0.12)*Math.pow(k,0.75);
-    const hb=A.B.halo; O.p.copy(FKP[hb]).applyMatrix4(A.G.matrixWorld); O.p.y+=1.15+O.r*0.2;
+    O.r=Math.pow(SZ(),0.8)*(0.12+(P.orbMax-0.12)*Math.pow(k,0.75));   // 구는 크기^0.8 배(크기 3 에서 다 차면 반지름 2.4 m)
+    const hb=A.B.halo; O.p.copy(FKP[hb]).applyMatrix4(A.G.matrixWorld); O.p.y+=0.35*SZ()+O.r*0.9;
     A.arcT-=dt;
     if(A.arcT<=0){ A.arcT=0.04;
-      const i=Math.floor(Math.random()*4); fxBolt(A.tipW[i],O.p,{w:0.18,life:0.1,amp:0.2,branch:false});
+      const i=Math.floor(Math.random()*4); fxBolt(A.tipW[i],O.p,{w:0.18*VK(),life:0.1,amp:0.2,branch:false});
       for(let m=0;m<1+Math.floor(k*3);m++){ const d=new THREE.Vector3(rnd(-1,1),rnd(-1,1),rnd(-1,1)).normalize();
-        fxBolt(O.p.clone().addScaledVector(d,O.r*0.3),O.p.clone().addScaledVector(d,O.r*rnd(1.3,2.4)),{w:0.12+0.08*k,life:0.09,amp:0.3,branch:false}); }
+        fxBolt(O.p.clone().addScaledVector(d,O.r*0.3),O.p.clone().addScaledVector(d,O.r*rnd(1.3,2.4)),{w:(0.12+0.08*k)*VK(),life:0.09,amp:0.3,branch:false}); }
       if(Math.random()<0.15*k){ const g=new THREE.Vector3(O.p.x+rnd(-5,5),0,O.p.z+rnd(-5,5)); g.y=h(g.x,g.z)+0.1;
         fxBolt(O.p,g,{w:0.3,life:0.14,amp:0.15}); }                     // 다 차 갈수록 땅으로 튀는 번개
       if(Math.random()<0.5) fxLight(O.p,0x7fc0ff,2+4*k,16,0.12);
@@ -1376,7 +1382,7 @@ function updatePL(dt){
   pushOutObst(PL.pos,0.35);
   // 몹 몸 — 몸통을 지나가지 못하게
   if(AZ.alive&&AZ.mesh){ const mx=PL.pos.x-AZ.pos.x, mz=PL.pos.z-AZ.pos.z, md=Math.hypot(mx,mz), R=1.0*AZ.G.scale.x;
-    if(md<R&&md>1e-3&&PL.pos.y<AZ.pos.y+2.6){ PL.pos.x=AZ.pos.x+mx/md*R; PL.pos.z=AZ.pos.z+mz/md*R; } }
+    if(md<R&&md>1e-3&&PL.pos.y<AZ.pos.y+2.6*AZ.G.scale.x){ PL.pos.x=AZ.pos.x+mx/md*R; PL.pos.z=AZ.pos.z+mz/md*R; } }
   const g=h(PL.pos.x,PL.pos.z);
   if(PL.pos.y<=g){ PL.pos.y=g; PL.vel.y=0; PL.grounded=true; } else PL.grounded=false;
   if(run&&moving) PL.stam-=17*dt; else PL.stam+=12*dt;
@@ -2240,6 +2246,7 @@ function rng(id,vid,key,fmt){
 rng('pSense','vSense','sense',x=>x.toFixed(0));
 rng('pRush','vRush','rushK',x=>x.toFixed(1));
 rng('pKeep','vKeep','keep',x=>x.toFixed(0));
+rng('pSize','vSize','size',x=>x.toFixed(1));
 rng('pLose','vLose','lose',x=>x.toFixed(0));
 rng('pGap','vGap','gap',x=>x.toFixed(1));
 rng('pBeam','vBeam','beamDps',x=>x.toFixed(0));
@@ -2278,7 +2285,7 @@ function hud(dt){
   // 표지 — 몸 위에 거리
   const mk=document.getElementById('mark');
   if(showMark&&A.mesh){
-    _mk.copy(A.origin); _mk.y+=1.6; _mk.project(camera);
+    _mk.copy(A.origin); _mk.y+=1.6*SZ(); _mk.project(camera);
     const behind=_mk.z>1;
     let x=(_mk.x*0.5+0.5)*innerWidth, y=(-_mk.y*0.5+0.5)*innerHeight;
     if(behind){ x=innerWidth-x; y=innerHeight-24; }
