@@ -155,16 +155,19 @@ function camcInit(){
         vec4 ck=texture2D(tCrk,vUv); float ckOn=smoothstep(1.0-ck.b,1.0-ck.b+0.05,uHurtN)*step(0.004,ck.b);
         /* **금 띠의 글리치**(여는 화면처럼 · 사용자 요청 '표지보단 약하게') — 굵은 금을 따라 난 띠 안에서만: 줄 묶음이 옆으로 어긋나고(초당 12번 새로) ·
            빨강·파랑이 크게 · 위아래로 엇갈려 갈라진다(여는 화면 ±9·∓3 화소의 반쯤). 금과 같은 문턱이라 금이 뻗은 데까지만 */
-        vec4 bd=texture2D(tBand,vUv); float bOn=bd.r*smoothstep(1.0-bd.b,1.0-bd.b+0.05,uHurtN)*step(0.004,bd.b);
+        /* 세기 gK 는 닳은 체력을 따른다(사용자 요청) — 다친 정도 0 → 1 에 0.35 → 1.15 배 · 띠도 그만큼 넓게(가장자리 몫을 키운다) */
+        float gK=0.35+0.8*uHurtN;
+        vec4 bd=texture2D(tBand,vUv); float bOn=min(1.0,bd.r*(0.8+0.6*uHurtN))*smoothstep(1.0-bd.b,1.0-bd.b+0.05,uHurtN)*step(0.004,bd.b);
         if(bOn>0.01){ float gs=floor(vUv.y*uRes.y/4.0);
-          if(hq(vec2(gs,fz*3.1))<0.30) uv.x+=(hq(vec2(gs+7.0,fz))-0.5)*7.0*bOn/uRes.x; }
+          if(hq(vec2(gs,fz*3.1))<0.12+0.36*uHurtN) uv.x+=(hq(vec2(gs+7.0,fz))-0.5)*7.0*gK*bOn/uRes.x; }
         float px=1.0/uRes.x, spl=2.4+K*3.0+ck.r*ckOn*4.0+(h21(vec2(fz,29.0))<0.035?3.0*K:0.0)+uHit*9.0*h21(vec2(floor(uT*20.0),2.0));   // 다칠수록 · 맞는 순간엔 색이 크게 갈라진다(여는 화면처럼 가끔 더 벌어진다)
         vec3 a=texture2D(tD,uv).rgb, l=texture2D(tD,uv-vec2(px*spl,0.0)).rgb, r=texture2D(tD,uv+vec2(px*spl,0.0)).rgb;   // 색 번짐 — 사용자 요청으로 1.7 → 2.4 화소
         vec3 col=vec3(l.r*0.55+a.r*0.45, a.g*0.64+0.18*(l.g+r.g), r.b*0.55+a.b*0.45);   // 색 번짐 — 빨강·파랑이 옆으로 어긋난다
-        if(bOn>0.01){ float bs=(4.5+(mod(fz,29.0)<1.0?1.5:0.0))*bOn, bv=1.5*bOn/uRes.y;      // 금 띠 — 빨강은 왼쪽 아래로 · 파랑은 오른쪽 위로(가끔 더 벌어진다)
+        if(bOn>0.01){ float bs=(4.5+(mod(fz,29.0)<1.0?1.5:0.0))*gK*bOn, bv=1.5*gK*bOn/uRes.y;      // 금 띠 — 빨강은 왼쪽 아래로 · 파랑은 오른쪽 위로(가끔 더 벌어진다)
           vec3 lb=texture2D(tD,uv+vec2(-bs*px,-bv)).rgb, rb=texture2D(tD,uv+vec2(bs*px,bv)).rgb;
-          col.r=mix(col.r,lb.r,0.75*bOn); col.b=mix(col.b,rb.b,0.75*bOn); col.g*=1.0-0.12*bOn;
-          col*=1.0+0.18*bOn*(hq(vec2(fz,41.0))-0.5); }
+          float bm=0.75*bOn*min(1.0,0.45+0.6*uHurtN);
+          col.r=mix(col.r,lb.r,bm); col.b=mix(col.b,rb.b,bm); col.g*=1.0-0.12*gK*bOn;
+          col*=1.0+0.18*gK*bOn*(hq(vec2(fz,41.0))-0.5); }
         if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0) col=vec3(0.0);
         /* **밝은 데의 어깨** — 그림판이 반정밀 실수(uHdr)면 1 을 넘는 볕(한낮의 흰 바위·모래·물비늘)이 잘리지 않고 들어온다.
            0.80 까지는 그대로 두고 그 위를 1.0 으로 서서히 눕힌다 — 하얗게 뭉개지던 면에 결이 남는다. 8비트 그림판이면 손대지 않는다 */
