@@ -164,22 +164,22 @@
   <h1>편싸움 시험장</h1>
   <div class="s"></div>
   <div class="load">
-    <label>1팀 — 아르크토스</label><input type="number" id="nB1" value="2" min="0" max="8" step="1">
-    <label>가고일</label><input type="number" id="nG1" value="2" min="0" max="8" step="1">
-    <label>와이번</label><input type="number" id="nW1" value="1" min="0" max="2" step="1">
-    <label>스킨워커</label><input type="number" id="nM1" value="0" min="0" max="2" step="1">
-    <label>다지류</label><input type="number" id="nC1" value="0" min="0" max="2" step="1">
+    <label>1팀 — 아르크토스</label><input type="number" id="nB1" value="2" min="0" step="1">
+    <label>가고일</label><input type="number" id="nG1" value="2" min="0" step="1">
+    <label>와이번</label><input type="number" id="nW1" value="1" min="0" step="1">
+    <label>스킨워커</label><input type="number" id="nM1" value="0" min="0" step="1">
+    <label>다지류</label><input type="number" id="nC1" value="0" min="0" step="1">
   </div>
   <div class="load">
-    <label>2팀 — 아르크토스</label><input type="number" id="nB2" value="2" min="0" max="8" step="1">
-    <label>가고일</label><input type="number" id="nG2" value="2" min="0" max="8" step="1">
-    <label>와이번</label><input type="number" id="nW2" value="1" min="0" max="2" step="1">
-    <label>스킨워커</label><input type="number" id="nM2" value="0" min="0" max="2" step="1">
-    <label>다지류</label><input type="number" id="nC2" value="0" min="0" max="2" step="1">
+    <label>2팀 — 아르크토스</label><input type="number" id="nB2" value="2" min="0" step="1">
+    <label>가고일</label><input type="number" id="nG2" value="2" min="0" step="1">
+    <label>와이번</label><input type="number" id="nW2" value="1" min="0" step="1">
+    <label>스킨워커</label><input type="number" id="nM2" value="0" min="0" step="1">
+    <label>다지류</label><input type="number" id="nC2" value="0" min="0" step="1">
   </div>
   <div class="load">
     <label>사람 편</label><select id="selPT">
-      <option value="4" selected>중립(구경)</option>
+      <option value="4" selected>중립(구경 · 날기 · 안 다침)</option>
       <option value="1">1팀</option>
       <option value="2">2팀</option>
     </select>
@@ -852,7 +852,59 @@ const Q={rise:0.50, hold:0.08, drop:0.12, hit:0.68};   // 치켜듦 / 정점 / �
 const WALK=4.3, RUN=7.4, JUMP=7.6, GRAV=-22, EYE=1.66;
 const PL={pos:new THREE.Vector3(0,0,0), vel:new THREE.Vector3(),
           yaw:Math.PI, pitch:-0.05, hp:100, stam:100, grounded:false,
-          bob:0, camY:0, atkCd:0, swing:0, swingMax:0.30, hits:0, miss:0, stun:0};
+          bob:0, camY:0, atkCd:0, swing:0, swingMax:0.30, hits:0, miss:0, stun:0,
+          dash:new THREE.Vector3(), dashT:0, dashCd:0};
+/* 대시(E) — 누른 방향(없으면 앞)으로 0.22초 동안 초속 20 m(약 5 m) · 기력 22 · 다시 쓰기 0.8초.
+   땅에서도 공중에서도 된다(azure_arena 와 같은 값). 문을 보고 있으면 E 는 문을 여닫는다. */
+const DASH={v:20, t:0.22, cost:22, cd:0.8};
+function plDash(){
+  if(PL.hp<=0||paused||PL.stun>0||PL.dashCd>0) return;
+  const dev=PL_TEAM===NEUTRAL;
+  if(!dev&&PL.stam<DASH.cost){ msg('기력이 모자라 대시할 수 없다'); return; }
+  const f=(keys.KeyW?1:0)-(keys.KeyS?1:0), s=(keys.KeyD?1:0)-(keys.KeyA?1:0);
+  const si=Math.sin(PL.yaw), co=Math.cos(PL.yaw);
+  let dx=(-si*f+co*s), dz=(-co*f-si*s);
+  if(!f&&!s){ dx=-si; dz=-co; }
+  const L=Math.hypot(dx,dz)||1;
+  PL.dash.set(dx/L*DASH.v,0,dz/L*DASH.v); PL.dashT=DASH.t; PL.dashCd=DASH.cd;
+  if(!dev) PL.stam-=DASH.cost;
+}
+/* 대시 걸음 — 걷기 속도를 덮어쓰고, 끝나면 대시 쪽으로 달리기 빠르기만 남긴다 */
+function dashStep(dt){
+  if(PL.dashCd>0) PL.dashCd=Math.max(0,PL.dashCd-dt);
+  if(PL.dashT<=0) return false;
+  const u=Math.min(dt,PL.dashT); PL.dashT-=dt;
+  PL.pos.x+=PL.dash.x*u; PL.pos.z+=PL.dash.z*u;
+  if(PL.dashT<=0){ const k=RUN/DASH.v; PL.vel.x=PL.dash.x*k; PL.vel.z=PL.dash.z*k; }
+  else { PL.vel.x=0; PL.vel.z=0; if(PL.vel.y<0) PL.vel.y*=Math.exp(-8*dt); }
+  return true;
+}
+/* 중립(구경)이면 본편 개발자 모드처럼 난다 — 안 다치고 체력 · 기력이 늘 차 있다.
+   WASD 는 보는 쪽(고개를 든 만큼 위로) · Space 위 · C 아래 · Shift 다섯 배 · E 대시.
+   짐승은 원래 중립을 노리지 않는다 — 폭발 · 다지류 몸 같은 범위 피해만 hurtPlayer 에서 막는다. */
+const DEV_SP=18;
+function devFlyPL(dt){
+  PL.hp=100; PL.stam=100; PL.stun=0; PL.grounded=false;
+  const p=PL.pos;
+  const f=(keys.KeyW?1:0)-(keys.KeyS?1:0), s=(keys.KeyD?1:0)-(keys.KeyA?1:0), u=(keys.Space?1:0)-(keys.KeyC?1:0);
+  const sy=Math.sin(PL.yaw), cy=Math.cos(PL.yaw), sp=Math.sin(PL.pitch), cp=Math.cos(PL.pitch);
+  let vx=-sy*cp*f+cy*s, vy=sp*f+u, vz=-cy*cp*f-sy*s;
+  const l=Math.hypot(vx,vy,vz), v=DEV_SP*(keys.ShiftLeft?5:1);
+  if(l>0){ vx*=v/l; vy*=v/l; vz*=v/l; }
+  const k=clamp(7*dt,0,1);
+  PL.vel.x+=(vx-PL.vel.x)*k; PL.vel.y+=(vy-PL.vel.y)*k; PL.vel.z+=(vz-PL.vel.z)*k;
+  if(dashStep(dt)) PL.vel.y=vy;
+  p.x=clamp(p.x+PL.vel.x*dt,-ARENA*3,ARENA*3); p.z=clamp(p.z+PL.vel.z*dt,-ARENA*3,ARENA*3);
+  p.y=Math.min(1500,p.y+PL.vel.y*dt);
+  const gy=h(p.x,p.z);
+  if(p.y<gy+0.3){ p.y=gy+0.3; if(PL.vel.y<0) PL.vel.y=0; }       // 땅 밑으로는 안 들어간다
+  PL.camY=p.y;
+  let kx=0,ky=0;
+  if(shake>0){ kx=rnd(-1,1)*shake*0.10; ky=rnd(-1,1)*shake*0.10; shake=Math.max(0,shake-dt*2.2); }
+  camera.position.set(p.x+kx,p.y+EYE+ky,p.z);
+  camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
+  if(PL.atkCd>0) PL.atkCd=Math.max(0,PL.atkCd-dt);
+}
 /* 방어구 — A 로 갈아입는다. 방어 합이 클수록 곰의 내려찍기를 덜 맞는다.
    사냥물 갑옷은 방어가 낮은 대신 무게가 3분의 1이다(무게는 본 게임에서만 쓴다). */
 const ARMORS=[
@@ -2917,7 +2969,17 @@ let doWing=true;
 /* ---- 아르크토스 ---- */
 /* 곰 여럿 — trio 의 한 마리짜리 코드를 배열로 폈다. 뼈 몸(body — 뼈 · SkinnedMesh)과 재질은
    개체마다 따로 둔다(기하만 나눠 쓴다). 하나를 나눠 쓰면 모두 같은 자세로 움직인다. */
-const MAXB=8, MAXG=8, MAXW=2, MAXM=2;                        // 만들어 두는 마릿수
+const MAXB=8, MAXG=8, MAXW=2, MAXM=2;                        // 처음 만들어 두는 마릿수 — 편성이 더 많으면 deploy 가 그때 더 만든다
+let WYV_ADD=null, MIM_ADD=null, BEAR_DRESS=null, GARG_DRESS=null;   // init 이 채운다(모델 · 그림을 쥔 함수)
+function ensurePools(){
+  const nb=LINE.b1+LINE.b2, ng=LINE.g1+LINE.g2, nw=LINE.w1+LINE.w2, nm=LINE.m1+LINE.m2, nc=LINE.c1+LINE.c2;
+  while(BS.length<nb){ const b=makeBear(0,0); if(BEAR_DRESS) BEAR_DRESS(b); }
+  while(GS.length<ng){ const g=makeGargoyle(0,0); GS.push(g); if(GARG_DRESS) GARG_DRESS(g); }
+  if(WYV_ADD){ while(WYVS.length<nw) WYV_ADD(WYVS.length); useWyv(WYVS[0]); }
+  if(MIM_ADD){ while(MIMS.length<nm) MIM_ADD(MIMS.length); useMimic(MIMS[0]); }
+  while(CRAWLS.length<nc&&CRW.geo){ const cr=makeCrawler(scene,1500); cr.team=NEUTRAL; cr.alive=false;
+    cr.mesh.visible=false; placeCrawler(cr,0,0,0); CRAWLS.push(cr); }
+}
 const BS=[];
 /* 집 밖 — 곰 셋 · 가고일 하나 · 와이번 하나 */
 function makeBear(x,z){
@@ -3412,6 +3474,7 @@ function updateBoom(dt){
 
 
 function hurtPlayer(raw,who,noArmor){
+  if(PL_TEAM===NEUTRAL) return;          // 구경꾼은 안 다친다
   const d=noArmor?raw:mitigate(raw);
   PL.hp=clamp(PL.hp-d,0,100);
   const e=document.getElementById('dmg');
@@ -3679,6 +3742,7 @@ function pushOutOfWyv(){
   }
 }
 function updatePL(dt){
+  if(PL_TEAM===NEUTRAL&&PL.hp>0){ devFlyPL(dt); return; }   // 구경꾼 — 개발자 모드처럼 난다
   if(PL.stun>0) PL.stun=Math.max(0,PL.stun-dt);
   if(PL.hp<=0){ PL.vel.set(0,0,0); return; }
   const froze=PL.stun>0;
@@ -3694,6 +3758,7 @@ function updatePL(dt){
   PL.vel.z+=((moving?dz*sp:0)-PL.vel.z)*clamp(acc*dt,0,1);
   PL.vel.y+=GRAV*dt;
   if(!froze&&keys.Space&&PL.grounded){ PL.vel.y=JUMP; PL.grounded=false; }
+  dashStep(dt);
   PL.pos.x=clamp(PL.pos.x+PL.vel.x*dt,-ARENA,ARENA);
   PL.pos.z=clamp(PL.pos.z+PL.vel.z*dt,-ARENA,ARENA);
   PL.pos.y+=PL.vel.y*dt;
@@ -4927,20 +4992,17 @@ const hidden=()=>doorShut() && !breached() && insideHouse();
 const LINE={b1:2, g1:2, w1:1, m1:0, c1:0, b2:2, g2:2, w2:1, m2:0, c2:0, pl:4};
 function readLineup(){
   const n=(id,d)=>{ const e=document.getElementById(id);
-    const cap=(id[1]==='W')?MAXW:((id[1]==='M')?MAXM:((id[1]==='C')?MAXC:8));
-    return e?clamp(parseInt(e.value,10)||0,0,cap):d; };
+    return e?Math.max(0,parseInt(e.value,10)||0):d; };   // 위 끝은 없다 — 모자라면 ensurePools 가 더 만든다
   LINE.b1=n('nB1',2); LINE.g1=n('nG1',2); LINE.w1=n('nW1',1); LINE.m1=n('nM1',0);
   LINE.b2=n('nB2',2); LINE.g2=n('nG2',2); LINE.w2=n('nW2',0);
   LINE.m2=n('nM2',0);
   LINE.c1=n('nC1',0); LINE.c2=n('nC2',0);
-  if(LINE.c1+LINE.c2>MAXC){ LINE.c2=Math.max(0,MAXC-LINE.c1); }
-  if(LINE.w1+LINE.w2>MAXW){ LINE.w2=Math.max(0,MAXW-LINE.w1); }
-  if(LINE.m1+LINE.m2>MAXM){ LINE.m2=Math.max(0,MAXM-LINE.m1); }
   const p=document.getElementById('selPT'); LINE.pl=p?+p.value:4;
 }
 /* 두 편을 마주 보게 세운다 — 1팀은 −z, 2팀은 +z */
 function deploy(){
   readLineup();
+  ensurePools();
   /* 편싸움 판에서는 서로를 멀리서도 알아본다 — 시야를 좁게 두면 두 줄이
      배회만 하다 끝난다. 사람을 노리는 판이 아니라 붙이는 판이다. */
   P.see=140; PG.see=140; WP.see=140;
@@ -4950,9 +5012,11 @@ function deploy(){
       if(i<i0||i>=i0+n){ continue; }
       m.team=team; m.alive=true; m.used=true; m.hp=m.hpMax; m.frz=0; m.alerted=false;
       m.state='wander'; m.t=0; m.hitDone=false; m.flash=0; m.speed=0;
-      const k=i-i0, x=(k-(n-1)/2)*7;
-      m.pos.set(x,0,z);
-      if(m.wing!==undefined){ m.pos.y=h(x,z)+PG.hover; gWander(m); }
+      /* 열 마리씩 한 줄 — 넘으면 뒤로 7 m 씩 줄을 더한다 */
+      const k=i-i0, col=k%10, row=(k/10)|0, nr=Math.min(n,10), x=(col-(nr-1)/2)*7;
+      const zz=clamp(z+Math.sign(z)*row*7,-ARENA*0.95,ARENA*0.95);
+      m.pos.set(x,0,zz);
+      if(m.wing!==undefined){ m.pos.y=h(x,zz)+PG.hover; gWander(m); }
       else { m.pos.y=bGround(m); bWanderTarget(m); }
     }
   };
@@ -4960,18 +5024,19 @@ function deploy(){
   for(const m of [...BS,...GS]){ m.alive=false; m.hp=0; m.speed=0; m.used=false; }
   /* 서로 눈에 들어오는 거리에 세운다 — 곰 시야 34 m · 가고일 30 m 이므로
      두 줄을 32 m 떼어 놓는다. 더 벌리면 배회만 하다 끝난다 */
-  put(BS,LINE.b1,1,-16,0);      put(BS,LINE.b2,2, 16,MAXB-LINE.b2);
-  put(GS,LINE.g1,1,-22,0);      put(GS,LINE.g2,2, 22,MAXG-LINE.g2);
+  put(BS,LINE.b1,1,-16,0);      put(BS,LINE.b2,2, 16,LINE.b1);
+  put(GS,LINE.g1,1,-22,0);      put(GS,LINE.g2,2, 22,LINE.g1);
   /* 와이번 — 1팀 것을 앞쪽에서부터, 2팀 것을 뒤쪽에서부터 쓴다 */
   WYVS.forEach((w,i)=>{
     const V=w.W;
-    const t = (i<LINE.w1) ? 1 : ((i>=MAXW-LINE.w2) ? 2 : NEUTRAL);
+    const t = (i<LINE.w1) ? 1 : ((i<LINE.w1+LINE.w2) ? 2 : NEUTRAL);
     V.team=t; V.alive=(t!==NEUTRAL); V.hp=V.hpMax; V.frz=0; V.alerted=false;
     V.speed=0; V.walkPh=0; V.wingPh=0; V.fbCd=0; V.atkCd=0; V.dieT=0; V.boom=0;
     V.prey=null; V.aim=null; V.flash=0; V.scan=0; V.pendHit=null; V.lunge=0;
     V.biteAng=undefined; V.fbAim=null; V.aimPt=null;
     V.y=WP.cruise; V.yaw=(t===2)?Math.PI:0;
-    V.pos.set((i-(MAXW-1)/2)*14, 0, t===2?30:-30);
+    { const k=(t===2?i-LINE.w1:i), nn=Math.max(1,t===2?LINE.w2:LINE.w1);
+      V.pos.set((k-(nn-1)/2)*14, 0, t===2?30:-30); }
     V.state='fly'; V.t=0;
     w.rig.visible=(t!==NEUTRAL); w.shadow.visible=(t!==NEUTRAL);
     /* 지난 판에 터진 놈은 부푼 몸(scale 1.38)과 달아오른 살(uBoom 1)을
@@ -4985,12 +5050,13 @@ function deploy(){
   /* 스킨워커 — 와이번과 같은 방식 */
   MIMS.forEach((inst,i)=>{
     useMimic(inst);
-    const t = (i<LINE.m1) ? 1 : ((i>=MAXM-LINE.m2) ? 2 : NEUTRAL);
+    const t = (i<LINE.m1) ? 1 : ((i<LINE.m1+LINE.m2) ? 2 : NEUTRAL);
     MB.team=t; MB.alive=(t!==NEUTRAL); MB.hp=MB.hpMax; MB.frz=0; MB.alerted=false;
     MB.state='wander'; MB.t=0; MB.speed=0; MB.walkPh=0; MB.spawnCd=0; MB.cuts=0;
     MB.eatT=-1; MB.eatWho=null; MB.flash=0; inst.clock=0; inst.lastAct=-99; mClock=0; mLastAct=-99;
     MB.yaw=(t===2)?Math.PI:0;
-    MB.pos.set((i-(MAXM-1)/2)*16, 0, t===2?24:-24);
+    { const k=(t===2?i-LINE.m1:i), nn=Math.max(1,t===2?LINE.m2:LINE.m1);
+      MB.pos.set((k-(nn-1)/2)*16, 0, t===2?24:-24); }
     for(const hd of HANDS){ hd.alive=true; hd.hp=hd.hpMax; hd.state='idle'; hd.t=0; hd.heldMob=null;
       hd.held=false; hd.frz=0; hd.regen=0; hd.armT=null; hd.drive=null; hd.flash=0; }
     for(const sp of SPS){ if(sp.mesh) scene.remove(sp.mesh); if(sp.shadow) scene.remove(sp.shadow); }
@@ -5002,10 +5068,10 @@ function deploy(){
   useMimic(MIMS[0]);
   /* 다지류 — 몸길이 62 m 라 옆으로 눕혀 세운다(머리는 가운데 쪽, 몸은 판 가장자리 쪽) */
   CRAWLS.forEach((cr,i)=>{
-    const t=(i<LINE.c1)?1:((i>=MAXC-LINE.c2)?2:NEUTRAL);
+    const t=(i<LINE.c1)?1:((i<LINE.c1+LINE.c2)?2:NEUTRAL);
     cr.team=t; cr.alive=(t!==NEUTRAL); cr.hp=cr.hpMax; cr.frz=0; cr.flash=0; cr.tick=new Map();
     cr.speed=0; cr.gait=0; cr.lookA=0; cr.lookP=0;
-    const dz=(i===1?10:0);                     // 한 편에 둘이면 10 m 띄워 나란히
+    const dz=(t===2?i-LINE.c1:i)*10;           // 한 편에 여럿이면 10 m 씩 띄워 나란히
     if(t===2) placeCrawler(cr,-18,40+dz,Math.PI/2); else placeCrawler(cr,18,-40-dz,-Math.PI/2);
     cr.head.y=h(cr.head.x,cr.head.z);
     cr.mesh.visible=cr.alive;
@@ -5627,7 +5693,7 @@ function init(){
       return {root, bones:skin.bones.map(b=>map[b.name]),
               boneInverses:skin.boneInverses, byName:map};
     };
-    for(let i=0;i<MAXW;i++){
+    WYV_ADD=i=>{
       const mat=new THREE.MeshLambertMaterial({map:tex,side:THREE.DoubleSide});
       patchEmber(mat);
       const rig=new THREE.Group(); rig.scale.setScalar(sc); scene.add(rig);
@@ -5655,7 +5721,8 @@ function init(){
       if(sk){
         if(i===0){ bindLimbs(); fitBoneRadii(geometry,sk); }   // 값은 개체끼리 같다
       }
-    }
+    };
+    for(let i=0;i<MAXW;i++) WYV_ADD(i);
     useWyv(WYVS[0]);
     info.textContent='와이번 '+WYVS.length+'마리 · 삼각형 '+(geometry.index.count/3).toLocaleString()
       +' · 뼈 '+(skin?skin.bones.length:0);
@@ -5698,7 +5765,7 @@ function init(){
       return {root, bones:skin.bones.map(b=>map[b.name]),
               boneInverses:skin.boneInverses, byName:map};
     };
-    for(let i=0;i<MAXM;i++){
+    MIM_ADD=i=>{
       const mat=new THREE.MeshLambertMaterial({map:tex,side:THREE.DoubleSide});
       const rig=new THREE.Group(); rig.scale.setScalar(sc); scene.add(rig);
       const sg=new THREE.CircleGeometry(2.2,20); sg.rotateX(-Math.PI/2);
@@ -5721,7 +5788,8 @@ function init(){
                   rig, mesh, mat, shadow, bone:sk?sk.byName:null, skroot:sk?sk.root:null};
       MIMS.push(inst); useMimic(inst);
       if(sk){ mBindLimbs(); if(i===0) mFitRadii(geometry,sk); }   // 굵기 값은 개체끼리 같다
-    }
+    };
+    for(let i=0;i<MAXM;i++) MIM_ADD(i);
     useMimic(MIMS[0]);
     info.textContent+=' · 스킨워커 '+MIMS.length+'마리('+(geometry.index.count/3).toLocaleString()+' 삼각형)';
   }catch(e){ info.textContent+=' · 스킨워커 오류: '+e.message; console.error(e); }
@@ -5738,7 +5806,7 @@ function init(){
   /* ---- 아르크토스 셋 ---- */
   try{
     bearGeo=parseGLB_BEAR(b64ToBuf(GLB_BEAR));
-    for(const b of BS){
+    BEAR_DRESS=b=>{
       b.mat=bearShader(0x9fc2d4,0.0042);
       b.body=bearBody(bearGeo,b.mat,SCL);          // 뼈는 개체마다 · 기하(가중치 포함)는 나눠 쓴다
       b.mesh=b.body.mesh; scene.add(b.mesh);
@@ -5747,7 +5815,8 @@ function init(){
         transparent:true,opacity:0.30,depthWrite:false}));
       scene.add(b.shadow);
       bWanderTarget(b);
-    }
+    };
+    for(const b of BS) BEAR_DRESS(b);
     info.textContent+=' · 곰 '+BS.length+'마리('+(bearGeo.index.count/3).toLocaleString()+' 삼각형)';
   }catch(e){ info.textContent+=' · 곰 모델 오류: '+e.message; console.error(e); }
   /* ---- 가고일 ---- */
@@ -5757,14 +5826,15 @@ function init(){
     gargTex=new THREE.TextureLoader().load(textureURL);
     gargTex.flipY=false; gargTex.encoding=THREE.sRGBEncoding;
     const sg=new THREE.CircleGeometry(0.75,18); sg.rotateX(-Math.PI/2);
-    for(const g of GS){
+    GARG_DRESS=g=>{
       const m=new THREE.MeshLambertMaterial({map:gargTex,side:THREE.DoubleSide});
       g.mat=m; g.body=gargBody(geometry,m); g.mesh=g.body.mesh; scene.add(g.mesh);   // 뼈 몸 — 뼈도 개체마다
       g.shadow=new THREE.Mesh(sg,new THREE.MeshBasicMaterial({color:0x000000,
         transparent:true,opacity:0.30,depthWrite:false}));
       scene.add(g.shadow);
       gWander(g);
-    }
+    };
+    for(const g of GS) GARG_DRESS(g);
     info.textContent+=' · 가고일 '+GS.length+'마리';
   }catch(e){ info.textContent+=' · 가고일 오류: '+e.message; console.error(e); }
   /* 곰의 내려찍기 충격파 */
@@ -5792,7 +5862,7 @@ addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='Space') e.preventDefault();
   if(e.code==='KeyR') reset();
-  if(e.code==='KeyE') toggleDoor();
+  if(e.code==='KeyE'&&!e.repeat){ if(findFit()) toggleDoor(); else plDash(); }   // 문을 보고 있으면 여닫기, 아니면 대시
   if(e.code==='KeyH'){ const b=document.getElementById('bHit'); if(b) b.onclick(); }
   /* 무기 고르기 — 번호를 치고 Enter. 열 자루가 넘어 숫자 한 개로는 모자란다.
      Backspace 로 한 글자 지우고, Esc 로 치던 것을 물린다. */
@@ -5836,7 +5906,7 @@ addEventListener('mousemove',e=>{
   PL.pitch=clamp(PL.pitch-e.movementY*0.0022*GK.aimMul,-1.5,1.5);
 });
 function reset(){
-  PL.hp=100; PL.stam=100; PL.hits=0; PL.miss=0; PL.stun=0;
+  PL.hp=100; PL.stam=100; PL.hits=0; PL.miss=0; PL.stun=0; PL.dashT=0; PL.dashCd=0;
   PL.pos.set(0,h(0,0),0); PL.vel.set(0,0,0); PL.yaw=Math.PI;   // 집 한가운데
   W.hp=W.hpMax; W.alive=true; W.pos.set(0,0,-52); W.yaw=0; W.frz=0;
   W.y=WP.cruise; W.alerted=false; W.speed=0; W.walkPh=0; W.wingPh=0;
@@ -5915,7 +5985,7 @@ document.getElementById('bStart').onclick=startGame;
 document.addEventListener('pointerlockchange',()=>{
   const locked=document.pointerLockElement===cv;
   document.getElementById('hint').textContent=locked
-    ? 'WASD 이동 · 좌클릭 휘두르기/쏘기 · 우클릭 조준경 · 번호+Enter 무기 · F 방어구 · Tab 설정 접기 · Esc 로 커서 되찾기'
+    ? (PL_TEAM===NEUTRAL?'구경 — 날기: WASD 보는 쪽 · Space 위 · C 아래 · Shift 빠르게 · 안 다침 · ':'')+'WASD 이동 · E 대시 · 좌클릭 휘두르기/쏘기 · 우클릭 조준경 · 번호+Enter 무기 · F 방어구 · Tab 설정 접기 · Esc 로 커서 되찾기'
     : '화면을 클릭하면 시점 조작이 시작됩니다';
   if(!locked && !paused && PL.hp>0 && !allDead()){
     paused=true;
