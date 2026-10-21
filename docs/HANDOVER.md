@@ -88,7 +88,7 @@
 
 - **애저 아포칼립스**(새 몹 · PR #42 · #43) — `presets/models/azure_apocalypse.glb`(11.3 MB · 세모 197,205 · 뼈 23 · +z 를 본다 · 키 2.98 m).
   원본 `presets/models/Meshy_AI_Azure_Apocalypse_…_fbx.zip` · 다시 만들기 `sh tools/azure/run.sh <zip> <작업폴더> <out.glb>`(약 2.5분 · 같은 파일이 나온다) ·
-  뼈 이름 · 한계 · 가중치는 `tools/azure/README.md`. 사용자가 정한 방향: 떠서 움직임(날기 아님) · 에너지 빔 · 팔 휘두르기. **2026-10-21 시험장 `beta/azure_arena.html`**(체력 4000 · 달리면 300 m 에서 알아챔 · 달리기×10 으로 30 m 앞까지 · 150 m 밖이면 놓침 · 광선(0.5초 전 자리) · 주먹+일직선 번개 · 번개 구 — CLAUDE.md '파일' 표) · 본편엔 아직 없다.
+  뼈 이름 · 한계 · 가중치는 `tools/azure/README.md`. 사용자가 정한 방향: 떠서 움직임(날기 아님) · 에너지 빔 · 팔 휘두르기. **2026-10-21 시험장 `beta/azure_arena.html`**(체력 4000 · 크기 3배 키 약 9 m · 달리면 300 m 에서 알아챔 · 달리기×10 으로 30 m 앞까지 · 150 m 밖이면 놓침 · 광선(0.5초 전 자리) · 주먹+일직선 번개 · 번개 구 — CLAUDE.md '파일' 표) · 본편엔 아직 없다.
   r128 GLTFLoader 는 레포에 없다(`npm pack three@0.128.0` → `package/examples/js/loaders/GLTFLoader.js`). 게임 재질은 램버트 —
   `new THREE.MeshLambertMaterial({map, emissiveMap, emissive:0xffffff, skinning:true})`.
 - 가고일 · 애쉬스케일 · 스킨워커 · 다지류 · 아르크토스는 `beta/*_arena.html` 에 산다(정본 표는 CLAUDE.md '어느 쪽이 정본인가'). 본편에는 아직 몹이 없다(`CREATURES` 가 빈다).
