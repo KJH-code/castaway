@@ -211,7 +211,7 @@ function h(x,z){
    공격 ① 광선 — 네 팔을 모아 0.5초 전 사람 자리로 ② 달리기×2 로 날아와 주먹 + 일직선 번개 ③ 머리 위 번개 구 3초 → 던짐 → 닿으면 전기 폭발 */
 const P={hp:4000, sense:300, rushK:10, keep:30, lose:150, gap:1.8, hov:0.6,
   beamCharge:1.2, beamDur:2.0, beamLag:0.5, beamDps:90, beamR:0.7, beamLen:180,
-  dashK:2, punch:35, punchReach:2.6, line:40, lineLen:32, lineW:1.8, lineSpd:85,
+  dashK:2, punch:35, punchReach:3.0, punchT:0.22, line:40, lineLen:32, lineW:1.8, lineSpd:85,
   orbCharge:3.0, orbSpd:24, orbDmg:90, orbR:7, orbMax:1.0,
   walkSpd:2.0, combatSpd:6.5, homeR:45, calm:2.5, size:3};
 /* 크기(사용자 요청 2026-10-21 '세 배 더 크게') — 몸은 P.size 배(키 2.98 m × 3 = 약 9 m) · 광선 굵기 · 구 · 꼬리 · 번쩍임은 √배.
@@ -638,7 +638,7 @@ const AZ={mesh:null, G:null, mat:null, bones:[], par:[], rest:[], hd:[], tl:[], 
   strafe:1, strafeT:0, wp:new THREE.Vector3(HOME.x,0,HOME.z), wpWait:0, calmT:0, hits:0,
   flash:0, flinch:0, haloA:0, haloSpd:0.7, glow:1, deadT:0, alt:P.hov, beamTick:0, hitDone:false,
   caps:[], tipW:[], origin:new THREE.Vector3(), beamEnd:new THREE.Vector3(), beamAim:new THREE.Vector3(), beamFrom:new THREE.Vector3(),
-  orb:null, beam:null, shadow:null, light:null, trailT:0, arcT:0, punchDir:new THREE.Vector3()};
+  orb:null, beam:null, shadow:null, light:null, trailT:0, arcT:0, punchDir:new THREE.Vector3(), punchAim:new THREE.Vector3()};
 const AGGRO=new Set(['notice','rush','combat','beamGather','beamFire','beamEnd','punchDash','punchWind','punchHit','punchEnd','orbCharge','orbThrow']);
 const ST_NAME={wander:'배회', notice:'알아챔', rush:'돌진', combat:'전투', beamGather:'광선 — 팔 모음', beamFire:'광선',
   beamEnd:'광선 — 거둠', punchDash:'날아듦', punchWind:'주먹 — 젖힘', punchHit:'주먹 · 번개', punchEnd:'주먹 — 물러남',
@@ -803,7 +803,7 @@ function azPose(dt){
     case 'punchWind':
       PB.rp=0.38; PB.cy=-0.5; PB.sy=-0.15; PB.np=-0.15; arms='cock'; curl=0.5; PB.rate=12; PB.armRate=12; haloT=3; glowT=1.7; break;
     case 'punchHit':
-      PB.rp=0.50; PB.cy=0.38; PB.sy=0.15; arms='punch'; curl=0.1; PB.rate=24; PB.armRate=26; haloT=4; glowT=2.1; break;
+      PB.rp=0.50; PB.cy=0.38; PB.sy=0.15; arms='punch'; curl=0.1; PB.rate=14; PB.armRate=13; haloT=4; glowT=2.1; break;
     case 'punchEnd':
       PB.rp=0.22; arms='guard'; PB.rate=5; PB.armRate=5; haloT=2; glowT=1.2; break;
     case 'orbCharge': { const k=ease(ts/0.6);
@@ -834,7 +834,8 @@ function azPose(dt){
   // ── 팔 ──
   azFK(true);
   const cq=FKQ[B.chest], cp=FKP[B.chest];
-  if(arms==='orb'||arms==='punch') plModel(1.25,_lp);
+  if(arms==='orb') plModel(1.25,_lp);
+  else if(arms==='punch'){ A.G.updateMatrixWorld(); A.G.worldToLocal(_lp.copy(A.punchAim)); }   // 굳힌 자리로
   const rM=(A.orb&&A.orb.st!=='off'?A.orb.r:0.5*Math.pow(SZ(),0.8))/SZ();          // 구 반지름(모델 좌표)
   if(arms==='orb'){ _orbM.copy(FKP[B.halo]); _orbM.y+=0.35+rM*0.9; }    // 고리 가운데(목표 자세) 위
   for(let i=0;i<4;i++){
@@ -1099,12 +1100,13 @@ function azUpdate(dt){
       case 'punchWind':
         steer(0,0,dt,8); faceTo(yawToPL(),6,dt);
         altT=clamp(PL.pos.y-h(A.pos.x,A.pos.z)+0.1,0.35,3.5); altK=4;
-        if(A.ts>=0.28){ azGo('punchHit'); A.hitDone=false; }
+        if(A.ts>=0.28){ azGo('punchHit'); A.hitDone=false;
+          A.punchAim.set(PL.pos.x,PL.pos.y+1.25,PL.pos.z); }   // 내지르는 순간 겨눌 자리를 굳힌다 — 이 뒤로는 사람을 안 따라간다(대시로 피할 틈)
         break;
       case 'punchHit':
         steer(Math.sin(A.yaw)*3,Math.cos(A.yaw)*3,dt,8);
         altT=clamp(PL.pos.y-h(A.pos.x,A.pos.z)+0.1,0.35,3.5); altK=4;
-        if(A.ts>=0.1&&!A.hitDone){ A.hitDone=true; punchImpact(); }
+        if(A.ts>=P.punchT&&!A.hitDone){ A.hitDone=true; punchImpact(); }
         if(A.ts>=0.45) azGo('punchEnd');
         break;
       case 'punchEnd':
@@ -1199,7 +1201,9 @@ function punchImpact(){
   const front=pd<1e-3?1:(px*fx+pz*fz)/pd;
   const dy=PL.pos.y+1.2-fist.y;
   fxSprite(fist,0xbfe4ff,0.8*VK(),6*VK(),0.3,1); fxLight(fist,0x8fd0ff,6,22,0.35);
-  if((plSegDist(fist,fist)<=P.punchReach||pd<=1.3*SZ()+3.0&&front>0.45)&&Math.abs(dy)<3&&PL.hp>0){
+  // 주먹이 내지른 자리(타격 시작에 굳힌 사람 가슴)에서 사람 몸까지 P.punchReach 안이면 맞는다 —
+  // 주먹 끝이 아니라 그 자리로 재야 좌우가 같다(주먹이 몸 오른쪽에 있어 왼쪽으로 피하기가 훨씬 어려웠다)
+  if(plSegDist(A.punchAim,A.punchAim)<=P.punchReach&&PL.hp>0){
     hurtPlayer(P.punch,true,'hit','주먹'); shake(1);
     PL.kb.set(fx*11,0,fz*11); PL.vel.y=Math.max(PL.vel.y,4); PL.grounded=false;
   }
