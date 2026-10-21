@@ -88,3 +88,9 @@ sh tools/azure/run.sh presets/models/Meshy_AI_Azure_Apocalypse_1015011851_textur
 
 - 사슬은 몸통에만 붙는다(팔을 따라가지 않는다) · 팔을 크게 들면 어깨 · 목둘레 세모가 늘어난다(선형 스키닝).
 - 갈고리는 손마다 한 뼈라 손가락을 따로 못 굽힌다. 다리는 뼈가 없다(허리 아래가 한 덩이로 흔들린다).
+
+## 시험장에 넣기(`arena-data.py`)
+
+`python3 tools/azure/arena-data.py [GLB] [beta/azure_arena.html]` — GLB 를 줄여(자리 u16 · 법선 i8 · uv u16 · 뼈 u8 · 그림 1536 JPEG 85) base64 로 시험장의
+`const AZ_META=` · `const AZ_B64=` 두 줄을 갈아 끼운다(11.3 MB → 시험장 약 9 MB). GLB 를 다시 만들었으면 이것도 다시 돌릴 것.
+몹 거동(체력 4000 · 달리면 300 m 에서 알아챔 · 광선 · 주먹+번개 · 번개 구)은 시험장이 정본이다 — CLAUDE.md '파일' 표.

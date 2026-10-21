@@ -26,6 +26,7 @@ export const PAGES = [
   {f: 'beta/night_arena.html', ready: 'WYVS.length>0 && MIMS.length>0 && BS.every(b=>b.mesh) && GS.every(g=>g.mesh)', ms: 480000},
   {f: 'beta/siege_arena.html', ready: '!!bMesh && BS.every(b=>b.mesh) && GS.every(g=>g.mesh) && BLDS.length>0', ms: 360000},
   {f: 'beta/crawler_arena.html', ready: '!!(C&&C.mesh)',                         ms: 180000},
+  {f: 'beta/azure_arena.html',   ready: '!!(AZ&&AZ.mesh)',                       ms: 180000},
   {f: 'beta/trio_arena.html',    ready: '!!bMesh && !!bearMesh && GS.every(g=>g.mesh)', ms: 480000},
 ];
 
