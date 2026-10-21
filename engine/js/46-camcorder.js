@@ -20,7 +20,7 @@
       회복하면 그만큼 바로 걷힌다(`CAMC.hurt` = 지금 체력). 겹은 91-title.js 와 같다: 신호가 약해짐 · 점 눈(세제곱 · 가끔 밝은 줄) ·
       비월 주사선 · 위로 굴러가는 어두운 띠 · 깜빡임(가끔 크게) · 색 갈라짐 · 가로 떨림 · 세로 튐 — 초당 12번 바뀐다.
       **깨진 금**(`camcCrackTex` — 여는 화면의 금과 같은 식)은 맞은 자리 셋에서 뻗는다: 오른쪽 아래(체력 90 → 46%) · 왼쪽 위(64 → 22%) · 아래 가운데(42 → 10%) —
-      맞은 자리에서 멀수록 늦게 드러나고 회복하면 끝부터 거둬진다. 금 둘레는 색이 크게 갈라진다.
+      맞은 자리에서 멀수록 늦게 드러나고 회복하면 끝부터 거둬진다. 굵은 금을 따라 난 띠(tBand) 안은 여는 화면처럼(그 절반쯤) 줄 묶음이 어긋나고 빨강·파랑이 크게 갈라진다.
       맞는 순간(`hurtFlash`)엔 ntsc-rs(MIT)의 식으로 줄 묶음이 찢기고 세로로 튀며 헤드 스위칭 · 트래킹 띠 · 가로 줄무늬 눈이 잠깐 인다.
    ========================================================================== */
 const CAMC={on:true, lines:480, rt:null, scene:null, cam:null, mat:null,
@@ -34,6 +34,10 @@ const CAMC_LINES=[0,360,480,720];                   // 설정 칸의 0~3 → 줄
 function camcCrackTex(){
   const W=1024, H=576, c=document.createElement('canvas'); c.width=W; c.height=H;
   const f=c.getContext('2d'), rnd=mulberry32(0x7e1e); f.fillStyle='#000'; f.fillRect(0,0,W,H); f.globalCompositeOperation='lighten'; f.lineCap='round';
+  /* 금 띠(여는 화면의 T.band — 굵은 금을 따라 오려 낸 띠, 그 안만 색이 크게 갈라지고 어긋난다) — 반 크기 그림 · R 띠 세기 · B 드러나는 세기(금과 같은 문턱) */
+  const bc=document.createElement('canvas'); bc.width=W/2; bc.height=H/2; const bf=bc.getContext('2d');
+  bf.fillStyle='#000'; bf.fillRect(0,0,W/2,H/2); bf.globalCompositeOperation='lighten'; bf.lineCap='round'; bf.lineJoin='round'; bf.setTransform(0.5,0,0,0.5,0,0);
+  try{ bf.filter='blur(2.5px)'; }catch(e){}
   const col=(r,g,b)=>'rgb('+Math.round(r*255)+','+Math.round(g*255)+','+Math.round(b*255)+')';
   const seg=(pts,w0,a0,t0,t1)=>{ const n=pts.length-1;
     for(let i=0;i<n;i++){ const t=i/n, w=(w0*Math.pow(1-t,0.55)+0.35)*1.3, al=a0*(1-0.75*t), p=pts[i], q=pts[i+1], rv=1-(t0+(t1-t0)*(i+1)/n);
@@ -46,25 +50,31 @@ function camcCrackTex(){
       for(let k=0;k<n;k++){ aa+=(rnd()-0.5)*0.36; x+=Math.cos(aa)*L/n; y+=Math.sin(aa)*L/n; pts.push([x,y]); } pts.big=big; rays.push(pts); }
     const sp=s1-s0;
     for(const pts of rays) seg(pts,pts.big?2.2:1.3,0.95,s0,s0+sp*(pts.big?1:0.6));
+    for(const pts of rays) if(pts.big){ const n=pts.length-1;                                                    // 금 띠 — 굵은 금만
+      for(let i=0;i<n;i++){ const t=i/n, p=pts[i], q=pts[i+1], rv=1-(s0+sp*(i+1)/n);
+        bf.strokeStyle=col(1-0.45*t,0,rv); bf.lineWidth=44*(1-0.45*t); bf.beginPath(); bf.moveTo(p[0],p[1]); bf.lineTo(q[0],q[1]); bf.stroke(); } }
+    bf.fillStyle=col(1,0,1-s0-0.02); bf.beginPath(); bf.arc(ix,iy,30,0,6.283); bf.fill();
     for(let k=1;k<=3;k++) for(let i=0;i<rays.length;i++){ if(rnd()<0.35) continue; const p=rays[i][k], q=rays[(i+1)%rays.length][k];   // 둘레를 도는 잔금
       seg([p,[(p[0]+q[0])/2+(rnd()-0.5)*6,(p[1]+q[1])/2+(rnd()-0.5)*6],q],0.9,0.65-k*0.12,s0+sp*k/7,s0+sp*(k+0.6)/7); }
     const rv=Math.round((1-s0-0.02)*255), g0=f.createRadialGradient(ix,iy,0,ix,iy,W*0.05);                 // 맞은 자리의 빛점
     g0.addColorStop(0,'rgba(140,0,'+rv+',1)'); g0.addColorStop(0.25,'rgba(31,0,'+rv+',1)'); g0.addColorStop(1,'rgba(0,0,'+rv+',0)');
     f.fillStyle=g0; f.beginPath(); f.arc(ix,iy,W*0.05,0,6.283); f.fill();
     f.fillStyle='rgb(255,0,'+rv+')'; f.beginPath(); f.arc(ix,iy,2.8,0,6.283); f.fill(); }
-  const t=new THREE.CanvasTexture(c); t.minFilter=t.magFilter=THREE.LinearFilter; t.generateMipmaps=false; return t;
+  const tex=cv=>{ const t=new THREE.CanvasTexture(cv); t.minFilter=t.magFilter=THREE.LinearFilter; t.generateMipmaps=false; return t; };
+  return {crk:tex(c), band:tex(bc)};
 }
 function camcInit(){
   CAMC.scene=new THREE.Scene(); CAMC.cam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  const CK=camcCrackTex();
   CAMC.mat=new THREE.ShaderMaterial({
     depthTest:false, depthWrite:false, fog:false,
     uniforms:{tD:{value:null}, uRes:{value:new THREE.Vector2(640,480)}, uT:{value:0}, uBat:{value:1}, uUnder:{value:0},
               uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}, uHdr:{value:0}, uIll:{value:0},
-              uHurtN:{value:0}, uHit:{value:0}, tCrk:{value:camcCrackTex()}, uAsp:{value:16/9}, uWet:{value:0}, uDive:{value:0}},
+              uHurtN:{value:0}, uHit:{value:0}, tCrk:{value:CK.crk}, tBand:{value:CK.band}, uAsp:{value:16/9}, uWet:{value:0}, uDive:{value:0}},
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
     fragmentShader:`
       precision highp float;
-      uniform sampler2D tD, tCrk; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurtN,uHit,uAsp,uWet,uDive;
+      uniform sampler2D tD, tCrk, tBand; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurtN,uHit,uAsp,uWet,uDive;
       varying vec2 vUv;
       float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
       float hq(vec2 p){ vec3 q=fract(vec3(p.xyx)*0.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }   // 정수 칸 해시(Hoskins) — h21 은 화면 화소 칸에서 세로 줄무늬가 졌다
@@ -143,9 +153,18 @@ function camcInit(){
         /* **깨진 금**(여는 화면의 금과 같은 그림 — camcCrackTex) — 유리에 난 금이라 렌즈 휨 · 흔들림과 상관없이 화면 그대로(vUv) 읽는다.
            B 칸이 '이 금이 드러나는 세기'(1 − 문턱)라 체력이 낮을수록 맞은 자리에서 바깥으로 뻗고, 회복하면 끝부터 거둬진다 */
         vec4 ck=texture2D(tCrk,vUv); float ckOn=smoothstep(1.0-ck.b,1.0-ck.b+0.05,uHurtN)*step(0.004,ck.b);
-        float px=1.0/uRes.x, spl=2.4+K*3.0+ck.r*ckOn*9.0+(h21(vec2(fz,29.0))<0.035?3.0*K:0.0)+uHit*9.0*h21(vec2(floor(uT*20.0),2.0));   // 다칠수록 · 맞는 순간엔 색이 크게 갈라진다(여는 화면처럼 가끔 더 벌어진다)
+        /* **금 띠의 글리치**(여는 화면처럼 · 사용자 요청 '표지보단 약하게') — 굵은 금을 따라 난 띠 안에서만: 줄 묶음이 옆으로 어긋나고(초당 12번 새로) ·
+           빨강·파랑이 크게 · 위아래로 엇갈려 갈라진다(여는 화면 ±9·∓3 화소의 반쯤). 금과 같은 문턱이라 금이 뻗은 데까지만 */
+        vec4 bd=texture2D(tBand,vUv); float bOn=bd.r*smoothstep(1.0-bd.b,1.0-bd.b+0.05,uHurtN)*step(0.004,bd.b);
+        if(bOn>0.01){ float gs=floor(vUv.y*uRes.y/4.0);
+          if(hq(vec2(gs,fz*3.1))<0.30) uv.x+=(hq(vec2(gs+7.0,fz))-0.5)*7.0*bOn/uRes.x; }
+        float px=1.0/uRes.x, spl=2.4+K*3.0+ck.r*ckOn*4.0+(h21(vec2(fz,29.0))<0.035?3.0*K:0.0)+uHit*9.0*h21(vec2(floor(uT*20.0),2.0));   // 다칠수록 · 맞는 순간엔 색이 크게 갈라진다(여는 화면처럼 가끔 더 벌어진다)
         vec3 a=texture2D(tD,uv).rgb, l=texture2D(tD,uv-vec2(px*spl,0.0)).rgb, r=texture2D(tD,uv+vec2(px*spl,0.0)).rgb;   // 색 번짐 — 사용자 요청으로 1.7 → 2.4 화소
         vec3 col=vec3(l.r*0.55+a.r*0.45, a.g*0.64+0.18*(l.g+r.g), r.b*0.55+a.b*0.45);   // 색 번짐 — 빨강·파랑이 옆으로 어긋난다
+        if(bOn>0.01){ float bs=(4.5+(mod(fz,29.0)<1.0?1.5:0.0))*bOn, bv=1.5*bOn/uRes.y;      // 금 띠 — 빨강은 왼쪽 아래로 · 파랑은 오른쪽 위로(가끔 더 벌어진다)
+          vec3 lb=texture2D(tD,uv+vec2(-bs*px,-bv)).rgb, rb=texture2D(tD,uv+vec2(bs*px,bv)).rgb;
+          col.r=mix(col.r,lb.r,0.75*bOn); col.b=mix(col.b,rb.b,0.75*bOn); col.g*=1.0-0.12*bOn;
+          col*=1.0+0.18*bOn*(hq(vec2(fz,41.0))-0.5); }
         if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0) col=vec3(0.0);
         /* **밝은 데의 어깨** — 그림판이 반정밀 실수(uHdr)면 1 을 넘는 볕(한낮의 흰 바위·모래·물비늘)이 잘리지 않고 들어온다.
            0.80 까지는 그대로 두고 그 위를 1.0 으로 서서히 눕힌다 — 하얗게 뭉개지던 면에 결이 남는다. 8비트 그림판이면 손대지 않는다 */
