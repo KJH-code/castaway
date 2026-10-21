@@ -4827,7 +4827,7 @@ function azPose(dt){
       PB.rate=9; PB.armRate=9; haloT=6; glowT=1.9; break; }
     case 'rush': { const k=clamp(spd/(RUN*P.rushK),0,1);
       PB.rp=0.15+0.85*k; PB.pp=0.35*k; PB.np=-0.45*k; PB.hp=-0.15*k; PB.rr=clamp(-A.yawV*0.12,-0.5,0.5);
-      arms=k>0.15?'rush':'guard'; curl=0.6; PB.rate=8; PB.armRate=8; haloT=3.5; glowT=1.5; break; }
+      PB.cy=-0.28; arms='cock'; curl=0.4; PB.rate=8; PB.armRate=8; haloT=3.5; glowT=1.5; break; }
     case 'combat':
       PB.rp=0.14; PB.sp+=breathe; PB.cp+=breathe*1.4; PB.rr=clamp(-A.yawV*0.06,-0.2,0.2);
       arms='guard'; curl=0.55; haloT=1.6; glowT=1.15; break;
@@ -5082,10 +5082,10 @@ function azUpdate(dt){
         if(A.ts>=0.7){ azGo('rush'); }
         break;
       case 'rush': {
-        // 사람 쪽에서 붙는 거리만큼 떨어진 자리 — 사람이 움직이면 따라 바뀐다
+        // 주먹이 닿는 거리 조금 안쪽까지 곧장 — 팔을 젖힌 채 날아와 닿자마자 내지른다
         let ux=-dx, uz=-dz; const ul=Math.hypot(ux,uz);
         if(ul<0.5){ ux=Math.sin(A.yaw); uz=Math.cos(A.yaw); } else { ux/=ul; uz/=ul; }
-        const tx=TX+ux*P.keep, tz=TZ+uz*P.keep;
+        const tx=TX+ux*(1.3*SZ()+1.4), tz=TZ+uz*(1.3*SZ()+1.4);
         const rx=tx-A.pos.x, rz=tz-A.pos.z, rd=Math.hypot(rx,rz), V=RUN*P.rushK;
         const sp=Math.min(V,rd*3.2+2);
         steer(rx/Math.max(rd,1e-3)*sp,rz/Math.max(rd,1e-3)*sp,dt,rd>8?5:8);
@@ -5096,7 +5096,7 @@ function azUpdate(dt){
         A.trailT-=dt;
         if(A.trailT<=0&&vl>10){ A.trailT=0.04;
           if(Math.random()<0.45) fxBolt(A.origin,A.origin.clone().add(new THREE.Vector3(rnd(-1,1),rnd(-1,1),rnd(-1,1)).multiplyScalar(2.5)).addScaledVector(A.vel,-0.08),{w:0.3,life:0.18,amp:0.2}); }
-        if(rd<1.6||(rd<4&&vl<4)) { azGo('combat'); A.cd=rnd(0.4,1.0); }
+        if(dist<=1.3*SZ()+1.9||rd<1.6||(rd<4&&vl<4)) { A.last='punch'; azGo('punchWind'); }   // 기다리지 않고 바로 주먹
         break; }
       case 'combat': {
         const ux=dx/Math.max(dist,1e-3), uz=dz/Math.max(dist,1e-3);
