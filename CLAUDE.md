@@ -22,7 +22,7 @@
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `sheep/rig.py`(Meshy 양 FBX 에 뼈 21 을 심어 GLB 로 — numpy 만 씀 · 쓰는 법은 파일 머리말) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md`) |
+| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `sheep/rig.py`(Meshy 양 FBX 에 뼈 21 을 심어 GLB 로 — numpy 만 씀 · 쓰는 법은 파일 머리말) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md` · 시험장에 줄여 넣기 `python3 tools/azure/arena-data.py`) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
@@ -183,6 +183,18 @@ python -m http.server 5173
   걸음은 쌍마다 위상 0.9 씩 밀린 물결(간 거리로 민다). **닿으면 0.5초마다 40**(갑옷이 깎는다) — 마디 구 68개(반지름 1.1)에
   들어오면 밀어낸다. 맞히기도 같은 구다. 뼈 세계 자세를 부모 기준으로 되돌려 넣으므로 **머리→꼬리 차례로** 돌린다 |
 | (총 꾸러미) | **본편의 새 총·활·수류탄을 시험장에 옮긴 공용 코드**(`GUNS_NEW` · `GK` · `gkShoot`/`gkThrow`/`gkUpdate`/`gkSwitch`) — crawler·battle 두 곳에 **글자 그대로** 들어가 있다. 산탄총(알마다 선 · `pellets`/`spread`) · 반자동 · 기관단총(`auto` — 누르고 있으면 연사) · 대물 저격총(`scope` — **시험장은 우클릭**이 조준경, 본편은 좌클릭) · 바주카(로켓 초속 70 · 중력 1.5 · 반경 6 m 폭발) · 수류탄(16 m/s 포물선 · 3.5초 · 7 m) · 활 둘. 값은 본편 `ITEMS[].tool` 그대로. **탄창은 무기마다 따로 남는다**(`GK.mags`). 폭발은 (1−d/r)² 로 짐승·사람 모두(사람은 갑옷만 깎는다 — 본편 `explode` 와 같다). 시험장마다 갈고리 넷: `gkRay`·`gkBlast`·`gkHurtSelf`(·`gkNear` 는 안 쓴다). 총 생김새는 본편 `WEAPON_FX` 를 옮겼고 총구 불은 원뿔(`muzzleFlash` 대역)이다 |
+| `beta/azure_arena.html` | **애저 아포칼립스 시험장**(9 MB · 사용자 요청 2026-10-21). 모델은 `presets/models/azure_apocalypse.glb` 를 `python3 tools/azure/arena-data.py` 가 줄여 넣는다
+  (자리 u16 · 법선 i8 · uv u16 · 그림 1536 JPEG — `AZ_META`/`AZ_B64` 두 줄만 갈아 끼운다 · **모델을 다시 만들면 이것도 다시 돌릴 것**). 들판 ±500 m · 돌기둥 90 · 바위 70(`OBST` — 몸 · 광선 · 구 · 번개 줄이 막힌다).
+  **체력 4000 · 떠서 움직인다**(땅 위 0.6 m). 제 자리 45 m 안을 떠돌다 **300 m 안에서 사람이 달리면**(`PL.running` — Shift+앞 · 걸으면 모른다 · 때리면 안다) 0.7초 울부짖고
+  **달리기×10(74 m/s)으로 날아와 사람 앞 30 m 에 선다**(멀면 11 m 까지 솟고 앞을 막는 기둥은 넘는다 · 혜성 꼬리 `TRAIL`) → 전투(30 m 둘레를 6.5 m/s 로 맞추며 옆걸음 ·
+  1.8초 ±30% 마다 셋 중 하나 — 같은 것을 잇달아 잘 안 쓴다) · **150 m 밖이면 놓치고 제 자리로 돌아간다**(2.5초 동안은 달려도 다시 안 알아챈다 — 경계에서 오락가락하지 않게).
+  ① **광선** — 네 팔 IK 로 갈고리 끝을 가슴 앞 1.2 m 한 점(`BEAM_C`)에 모으고(1.2초) 거기서 2초 쏜다 · 겨누는 곳은 늘 **0.5초 전 사람 자리**(`HIST` · `lagPos` — 서 있으면 맞고,
+  움직이면 0.5초 뒤를 쓸고 따라온다 · 걸어서 옆으로 비키면 안 맞는다) · 땅 · 기둥에 막힘 · 초당 90(0.1초마다). ② **주먹 · 번개** — 달리기×2(14.8 m/s)로 날아와 3.4 m 에서 0.28초 젖혔다가
+  오른 위팔(R1)을 사람 가슴으로 내지른다(35 · 2 m 밀려남) · 주먹 밑에서 앞으로 32 m 일직선 번개가 85 m/s 로 내리친다(2.3 m 마다 하늘에서 한 줄기 · 줄 옆 1.8 m 안이면 40 · 기둥에서 끊김).
+  ③ **번개 구** — 머리 위(고리 1.15 m 위)에 3초 모아(네 갈고리에서 잔 번개 · 다 차 갈수록 땅으로 튐) 사람 가슴으로 24 m/s · 땅 · 기둥 · 사람에 닿으면 전기 폭발(반경 7 m · 90×(1−d/R)²).
+  피해는 다 갑옷이 깎는다(`armorMul`). **자세는 몸통 각도(`PB`) + 네 팔 두 마디 IK**(`armIK` — 쉼 자세 회전이 모두 0 이라 돌림이 곧 모델 축 · 손·갈고리는 겨눈 쪽 · 팔꿈치는 pole 쪽 ·
+  팔 자세표 `ARMP` 는 쉼 자세 몸 좌표의 갈고리 끝 자리) · 뼈마다 지수 감쇠로 따라간다. 맞는 캡슐 15(몸통 · 머리 · 치마 · 팔마다 셋). 기절은 해머 · 쓰러지면 앞으로 엎어지며 빛이 꺼진다.
+  무기 · 방어구 · 총 꾸러미는 crawler 와 같다. 설정 칸에서 거리 · 배수 · 피해를 바꾸고 다음 공격을 고른다 · 소리는 합성 · 몹 표지(거리) |
 | `beta/bear_arena.html` · `beta/mixed_arena.html` | 곰 시험장. **캡슐 판정이 없다** — 총은
   `bearSpheres()` 가 뼈마다 늘어놓은 공(뼈 17 × 머리·가운데·꼬리 = 51)으로 맞히고, 근접은 여전히 평면 거리다.
   **곰은 뼈 몸이다**(아래 '아르크토스 뼈대 · 몸짓' — 이 파일이 정본) |
@@ -193,7 +205,7 @@ python -m http.server 5173
 | `docs/CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** — 지형·제작 트리·설비·몹·저장 |
 | `docs/CASTAWAY_전사_초반부.md`, `docs/CASTAWAY_전사_2차.md` | 개발 대화 원문 |
 | `presets/models/bear_high.glb`, `presets/models/stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |
-| `presets/models/azure_apocalypse.glb` | **애저 아포칼립스**(새 몹 · 11.3 MB · 사용자 요청 '받침 없애고 · 참고 그림처럼 돌 갑옷 + 푸른 에너지로 칠하고 · 삼각형 20만 · 리깅, 떠서 움직이니 다리 뼈는 없이' · 공격은 에너지 빔과 팔 휘두르기 예정). 원본은 같은 폴더의 `Meshy_AI_Azure_Apocalypse_…_fbx.zip`(사용자 업로드 · FBX 140만 세모 · 뼈 없음 · 받침 붙음 — **FBX 는 Y 위라 적혀 있지만 실제는 Z 위**). `tools/azure/run.sh` 가 같은 GLB 를 다시 만든다. 세모 197,205 · 정점 153,441 · 뼈 23(`root` · `pelvis` · `spine` · `chest` · `neck` · `head` · `halo` · 팔 넷 `armR1/R2/L1/L2` → `fore*` → `hand*` → `claw*` — 팔은 몸 오른쪽(−x) 위·아래 · 왼쪽(+x) 위·아래 · 쉼 자세 회전 0) · **+z 를 본다** · 키 2.98 m · 원점은 몸 가운데 발밑. 바탕 + 발광 그림(갈고리 끝 · 몸의 결이 빛난다) · **머리 위 고리는 새로 빚었다**(사용자 참고 그림 — 검은 돌 비늘 조각 17개가 고리로 이어지고 밑·틈에서 푸른빛이 새며 군데군데 끊기고 부스러기가 뜬다 · `tools/azure/halo_new.py` · 원본의 매끈한 원환은 뺐다) — 게임에선 `MeshLambertMaterial({map, emissiveMap, emissive:흰색, skinning:true})`. 사슬은 몸통만 따르고, 따로 움직일 덩이(팔 넷 · 허리 아래 · 머리 · 고리)를 잇던 세모 1,465 장은 뺐다. **아직 어느 코드에서도 로드하지 않는다** — r128 GLTFLoader 는 레포에 없다(npm three@0.128.0) |
+| `presets/models/azure_apocalypse.glb` | **애저 아포칼립스**(새 몹 · 11.3 MB · 사용자 요청 '받침 없애고 · 참고 그림처럼 돌 갑옷 + 푸른 에너지로 칠하고 · 삼각형 20만 · 리깅, 떠서 움직이니 다리 뼈는 없이' · 공격은 에너지 빔과 팔 휘두르기 예정). 원본은 같은 폴더의 `Meshy_AI_Azure_Apocalypse_…_fbx.zip`(사용자 업로드 · FBX 140만 세모 · 뼈 없음 · 받침 붙음 — **FBX 는 Y 위라 적혀 있지만 실제는 Z 위**). `tools/azure/run.sh` 가 같은 GLB 를 다시 만든다. 세모 197,205 · 정점 153,441 · 뼈 23(`root` · `pelvis` · `spine` · `chest` · `neck` · `head` · `halo` · 팔 넷 `armR1/R2/L1/L2` → `fore*` → `hand*` → `claw*` — 팔은 몸 오른쪽(−x) 위·아래 · 왼쪽(+x) 위·아래 · 쉼 자세 회전 0) · **+z 를 본다** · 키 2.98 m · 원점은 몸 가운데 발밑. 바탕 + 발광 그림(갈고리 끝 · 몸의 결이 빛난다) · **머리 위 고리는 새로 빚었다**(사용자 참고 그림 — 검은 돌 비늘 조각 17개가 고리로 이어지고 밑·틈에서 푸른빛이 새며 군데군데 끊기고 부스러기가 뜬다 · `tools/azure/halo_new.py` · 원본의 매끈한 원환은 뺐다) — 게임에선 `MeshLambertMaterial({map, emissiveMap, emissive:흰색, skinning:true})`. 사슬은 몸통만 따르고, 따로 움직일 덩이(팔 넷 · 허리 아래 · 머리 · 고리)를 잇던 세모 1,465 장은 뺐다. **시험장 `beta/azure_arena.html` 이 쓴다**(`tools/azure/arena-data.py` 가 줄여 내장 — 본편엔 아직 없다 · r128 GLTFLoader 는 레포에 없다) |
 
 **본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 59개(코드 48 + base64 자료 11).
 js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
@@ -316,6 +328,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | 애쉬스케일 자세(`poseWyv` · `poseWyv_` · `wWingPose` · `wLook` · `wSwing`) | `beta/wyvern_arena.html` | battle · night · siege · 본편 `engine/js/97-wyvern.js`(함수로 감쌈) — **글자 그대로**. 원본을 고치고 `node tools/wyv-sync.mjs` |
 | 아르크토스 뼈대 · 몸짓(`BEAR_J` · `BEAR_SKIN` · `bearBody` · `bearDraw` · `bearHitCaps`) | `beta/bear_arena.html` | mixed · trio · siege · battle · night · 본편 `engine/js/97-mob-rigs.js`(함수로 감싸 P · Q 만 곰 것으로) — **글자 그대로**. 원본을 고치고 `node tools/bear-rig.mjs` |
 | 하늘 · 구름 · 날씨 | `engine/js/45-sky.js` | `beta/cloud_arena.html` (그대로 복사 + 손잡이 5개) |
+| 애저 아포칼립스 거동 · 자세 · 공격 | `beta/azure_arena.html` | 없음(본편엔 아직 안 들였다) |
 
 아레나는 시험장이라 갈라져도 되지만, **수치를 만졌으면 어느 쪽을 만졌는지 밝힐 것.**
 "철·키틴 무기 쿨을 4/5로" 같은 변경은 6개 파일을 전부 고쳐야 했다.
