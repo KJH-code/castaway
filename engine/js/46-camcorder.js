@@ -16,16 +16,15 @@
    ③ **물속** — 화면이 일렁이고 청록으로 가라앉으며, 낮에는 수면에서 빛줄기가 내려온다.
    ④ **배터리** — 켜 둔 동안 닳는다(가득에서 14분). 화면 위 오른쪽에 남은 양이 뜬다. 15% 밑이면 화면이 지직거리고,
       다 닳으면 어둡고 흐린 흑백이 된다(놀 수는 있다). **손 충전기**를 손에 들고 좌클릭을 누르고 있으면 찬다.
-   ⑤ **다치면 화면 가장자리부터 어두워진다**(사용자 요청 — 예전의 깨진 렌즈 금 대신) — 체력이 90% 밑이면 가장자리에서 어둠이
-      부드럽게(그러데이션) 번져 들어오고 체력이 낮을수록 가운데로 조여 든다. 그 어둠 띠 안에는 가는 줄이 가운데를 향해 흘러든다.
-      맞는 순간 한꺼번에 조여 들고 체력이 차면 아주 천천히(25초쯤) 물러난다(`CAMC.hurt`).
-      **지직거림**도 체력을 따라 심해진다 — ntsc-rs(MIT)의 식을 옮겼다: 가로 줄무늬 눈 · 맨 아래 줄의 헤드 스위칭 · 아래쪽 트래킹 띠 ·
-      가장자리 물결 · 깜빡임, 맞는 순간(`hurtFlash`)엔 줄 묶음이 찢기고 세로로 튄다.
+   ⑤ **다치면 여는 화면처럼 치지직거린다**(사용자 요청 — 예전의 가장자리 어둠 원은 걷었다) — 체력이 90% 밑이면 생겨 낮을수록 짙고(10% 에서 가장),
+      회복하면 그만큼 바로 걷힌다(`CAMC.hurt` = 지금 체력). 겹은 91-title.js 와 같다: 신호가 약해짐 · 점 눈(세제곱 · 가끔 밝은 줄) ·
+      비월 주사선 · 위로 굴러가는 어두운 띠 · 깜빡임(가끔 크게) · 색 갈라짐 · 가로 떨림 · 세로 튐 — 초당 12번 바뀐다.
+      맞는 순간(`hurtFlash`)엔 ntsc-rs(MIT)의 식으로 줄 묶음이 찢기고 세로로 튀며 헤드 스위칭 · 트래킹 띠 · 가로 줄무늬 눈이 잠깐 인다.
    ========================================================================== */
 const CAMC={on:true, lines:480, rt:null, scene:null, cam:null, mat:null,
             bat:100, DRAIN:100/(14*60), CRANK:6.5, crank:0, under:0, warned:false, el:null,
             health:1, li:false, hsaid:0,           // 전지의 늙음(1 새것 → 채울수록 준다) · 리튬이온으로 갈았나
-            noise:1, hurt:0, tPrev:0};    // 화면 잡음(0 끔 · 1 보통 · 2 짙게) — 설정 · 프리셋 · hurt 다친 정도(0~1 · 가장자리 어둠) 금 그림
+            noise:1, hurt:0};    // 화면 잡음(0 끔 · 1 보통 · 2 짙게) — 설정 · 프리셋 · hurt 다친 정도(0~1 · 지금 체력 — 치지직 세기)
 const CAMC_LINES=[0,360,480,720];                   // 설정 칸의 0~3 → 줄 수(0 = 끄기)
 function camcInit(){
   CAMC.scene=new THREE.Scene(); CAMC.cam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
@@ -33,13 +32,14 @@ function camcInit(){
     depthTest:false, depthWrite:false, fog:false,
     uniforms:{tD:{value:null}, uRes:{value:new THREE.Vector2(640,480)}, uT:{value:0}, uBat:{value:1}, uUnder:{value:0},
               uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}, uHdr:{value:0}, uIll:{value:0},
-              uHurt:{value:0}, uHurtN:{value:0}, uHit:{value:0}, uAsp:{value:16/9}, uWet:{value:0}, uDive:{value:0}},
+              uHurtN:{value:0}, uHit:{value:0}, uAsp:{value:16/9}, uWet:{value:0}, uDive:{value:0}},
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
     fragmentShader:`
       precision highp float;
-      uniform sampler2D tD; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurt,uHurtN,uHit,uAsp,uWet,uDive;
+      uniform sampler2D tD; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurtN,uHit,uAsp,uWet,uDive;
       varying vec2 vUv;
       float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+      float hq(vec2 p){ vec3 q=fract(vec3(p.xyx)*0.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }   // 정수 칸 해시(Hoskins) — h21 은 화면 화소 칸에서 세로 줄무늬가 졌다
       float vn1(float x){ float i=floor(x), f=fract(x); f=f*f*(3.0-2.0*f); return mix(h21(vec2(i,0.37)),h21(vec2(i+1.0,0.37)),f)*2.0-1.0; }   // 1차원 값잡음(−1~1)
       /* **눈(snow)** — ntsc-rs(MIT, © valadaptive)의 'row_speckles' 를 셰이더로 옮겼다. 점이 아니라 8~64 화소짜리 **가로 줄무늬**가
          시작점에서 cos 로 출렁이며 (1−x/길이)² 로 사그라든다. 줄마다 세기가 다르고(퍼짐 an 이 크면 몰린 줄·빈 줄이 갈린다 — 로지스틱),
@@ -55,11 +55,12 @@ function camcInit(){
       void main(){
         vec2 c=vUv-0.5, uv=0.5+c*(1.0+0.045*dot(c,c));                     // 렌즈 — 가장자리가 살짝 볼록하다
         float weak=smoothstep(0.15,0.0,uBat), dead=smoothstep(0.012,0.0,uBat);
-        float hz=0.0;                                                          // (예전 금 둘레의 색 갈라짐 — 금을 걷어 0)
-        /* 지직거림의 세기 — 체력 + 맞는 순간 */
-        /* 가장자리 띠(위 ⑤) — 어둠과 흰 줄이 이 띠 안에만 든다. 체력이 낮을수록 안쪽 테두리(rinE)가 가운데로 조여 든다 */
-        vec2 cvE=(uv-0.5)*vec2(uAsp,1.0); float rrE=length(cvE), rinE=mix(1.0,0.12,uHurt), edgeK=smoothstep(rinE-0.25,rinE+0.30,rrE);
-        float S=(uHurtN*0.75)*mix(1.0,edgeK,step(0.001,uHurt))+uHit, fr=floor(uT*30.0), rb=floor(uv.y*uRes.y);     // rb — 아래에서 몇째 줄 · 지직거림은 **지금 체력**을 따른다(금은 천천히 옅어지지만 줄무늬는 체력이 차면 바로 걷힌다)
+        /* 다친 화면(위 ⑤) — K 는 **지금 체력**(90% 밑에서 생겨 10% 에서 가장 짙다 · 차면 바로 걷힌다) · S 는 맞는 순간의 찢김만 */
+        float K=clamp(uHurtN+uHit*0.5,0.0,1.0), S=uHit, fr=floor(uT*30.0), rb=floor(uv.y*uRes.y);     // rb — 아래에서 몇째 줄
+        float fz=floor(uT*12.0);                                               // 여는 화면의 박자(TITLE_NZ_HZ) — 눈 · 깜빡임 · 비월이 초당 12번 바뀐다
+        if(K>0.001){                                                           // 가로 떨림(가끔) · 세로 튐(수직 동기가 잠깐 놓친다)
+          if(h21(vec2(fz,11.3))<0.05+0.10*K) uv.x+=(h21(vec2(fz,12.9))-0.5)*5.0*K/uRes.x;
+          if(h21(vec2(fz,17.7))<0.02+0.05*K) uv.y+=0.010*K; }
         /* **헤드 스위칭**(ntsc-rs 'head_switching') — 맨 아래 몇 줄이 옆으로 밀린다. 아래로 갈수록 (k)^1.5 로 크게 · 줄마다 ±0.5 화소 흔들림 ·
            맨 윗줄은 가운데 어디쯤부터만 밀리고 그 자리에 밝은 끌림이 남는다 */
         float hsN=floor(2.0+10.0*S), hsT=0.0;
@@ -111,7 +112,7 @@ function camcInit(){
         float band=fract(uv.y*0.9-uT*0.07);                                    // 천천히 내려오는 트래킹 띠
         jit+=smoothstep(0.985,1.0,band)*0.004*(0.3+weak*3.0);
         uv.x+=jit;
-        float px=1.0/uRes.x, spl=2.4+hz*14.0+uHit*9.0*h21(vec2(floor(uT*20.0),2.0));   // 금 둘레·맞는 순간엔 색이 크게 갈라진다
+        float px=1.0/uRes.x, spl=2.4+K*3.0+(h21(vec2(fz,29.0))<0.035?3.0*K:0.0)+uHit*9.0*h21(vec2(floor(uT*20.0),2.0));   // 다칠수록 · 맞는 순간엔 색이 크게 갈라진다(여는 화면처럼 가끔 더 벌어진다)
         vec3 a=texture2D(tD,uv).rgb, l=texture2D(tD,uv-vec2(px*spl,0.0)).rgb, r=texture2D(tD,uv+vec2(px*spl,0.0)).rgb;   // 색 번짐 — 사용자 요청으로 1.7 → 2.4 화소
         vec3 col=vec3(l.r*0.55+a.r*0.45, a.g*0.64+0.18*(l.g+r.g), r.b*0.55+a.b*0.45);   // 색 번짐 — 빨강·파랑이 옆으로 어긋난다
         if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0) col=vec3(0.0);
@@ -146,17 +147,21 @@ function camcInit(){
               col+=vec3(0.55,0.75,0.85)*ring*uDive*0.9+vec3(0.9)*smoothstep(rr*0.35,0.0,length(f-c-vec2(-0.3,0.35)*rr))*uDive*0.6; } } }
         col*=1.0-wDk; col+=vec3(0.85,0.92,0.95)*wHi;                          // 맺힌 방울의 테(어둡고) · 반짝임
         col=mix(vec3(Y),col,0.94)*0.95+0.028;                                  // 싼 센서 — 검정이 살짝 뜬다
-        /* **가장자리부터 어둠**(위 ⑤ · 사용자 요청) — 체력이 낮을수록 어둠의 안쪽 테두리가 가운데로 조여 든다(그러데이션 0.55 폭).
-           어둠 띠 안에서는 가는 줄(방사형)이 가운데를 향해 흘러든다 — 줄마다 굵기·밝기·빠르기가 다르다 */
-        if(uHurt>0.001){
-          vec2 cv=cvE; float rr=rrE, rin=rinE;
-          float dk=smoothstep(rin,rin+0.40,rr);
-          float an=atan(cv.y,cv.x)*9.549, li=floor(an), lf=fract(an);                // 원을 60 칸 — 칸마다 줄 하나
-          float on=step(0.55,h21(vec2(li,1.7))), w=0.06+0.10*h21(vec2(li,4.3));
-          float flow=fract(rr*3.0+uT*(0.35+0.4*h21(vec2(li,8.1))));                   // 바깥에서 안으로(반지름이 줄며) 흐른다
-          float ln=on*(1.0-smoothstep(0.0,w,abs(lf-0.5)))*smoothstep(0.0,0.5,flow)*(1.0-flow);
-          col*=1.0-0.93*dk;
-          col+=vec3(0.55)*ln*dk*(1.0-dk)*1.6*uHurt;
+        /* **여는 화면의 치지직**(위 ⑤ · 91-title.js 와 같은 겹 · 사용자 요청 — 예전의 가장자리 어둠 원은 걷었다) — 세기 K 는 지금 체력.
+           ① 신호가 약해진다(밝기가 조금 준다) ② 눈 — 그림판 화소가 아니라 화면 2 px 칸마다 세제곱으로 눌러 거의 검고 가끔 흰 점,
+           가끔 한 줄이 통째로 밝다('screen' 으로 얹는다) ③ 비월 주사선 — 홀짝 줄이 번갈아 어둡다 ④ 굴러가는 띠 — 넓고 어두운 띠가 천천히
+           위로 올라간다 ⑤ 깜빡임 — 화면 전체가 조금씩 흔들리고 가끔 한 번 크게 어두워진다 */
+        if(K>0.001){
+          col*=1.0-0.22*K;
+          vec2 cz=floor(gl_FragCoord.xy*0.5);
+          float fm=mod(fz,251.0), r0=hq(cz+fm*vec2(173.0,97.0)), rowB=step(hq(vec2(cz.y,fm*13.0+7.0)),0.04)*0.35*hq(cz.yx+fm*61.0);
+          float v=min(1.0,r0*r0*r0+rowB);
+          col=1.0-(1.0-col)*(1.0-vec3(v)*K*0.62);
+          col*=1.0-0.20*K*step(0.5,mod(floor(gl_FragCoord.y)+mod(fz,2.0),2.0));
+          float hy=1.25-mod(uT*0.09,1.5), hd=abs(vUv.y-hy)/0.17;
+          col*=1.0-0.30*K*max(0.0,1.0-hd);
+          float flk=0.02+0.05*h21(vec2(fz,3.7))+(h21(vec2(fz,5.9))<0.035+0.06*K?0.18:0.0);
+          col*=1.0-flk*(0.6+1.4*K)*K;
         }
         col+=hsT;                                                              // 헤드 스위칭 자리의 밝은 끌림
         float n=h21(uv*uRes+uT*61.0)-0.5;
@@ -222,12 +227,9 @@ function camcEnd(under){
   U.uT.value=(performance.now()/1000)%1000; U.uBat.value=CAMC.bat/100; U.uUnder.value=CAMC.under;
   U.uIll.value+=((PL.ill>0?clamp(PL.ill/6,0,1):0)-U.uIll.value)*0.06;      // 탈 — 서서히 물들고 서서히 걷힌다
   U.uLow.value=G.low; U.uMoon.value=G.moon; U.uNight.value=G.night; U.uDay.value=clamp(1-G.night*1.2,0,1); U.uGrain.value=CAMC.noise;
-  /* 깨진 렌즈 — 체력 90% 밑에서 금이 생겨 10% 에서 다 퍼진다. 맞으면 금이 0.3초쯤에 걸쳐 뻗고, 체력이 차면 천천히 줄어든다 */
-  { const now=performance.now(), dt=Math.min(0.1,(now-(CAMC.tPrev||now))/1000); CAMC.tPrev=now;
-    const want=PL.dead?1:clamp((0.9-PL.hp/HPMAX)/0.8,0,1);
-    /* 금은 **맞는 순간 한꺼번에** 생기고, 체력이 차도 **아주 천천히**(25초쯤) 옅어진다(사용자 요청). 지직거림(uHurtN)은 지금 체력 그대로 */
-    if(want>CAMC.hurt) CAMC.hurt=want; else CAMC.hurt+=(want-CAMC.hurt)*(1-Math.exp(-dt*0.04));
-    U.uHurt.value=CAMC.hurt; U.uHurtN.value=PL.dead?0:clamp((0.9-PL.hp/HPMAX)/0.8,0,1); U.uHit.value=Math.min(1,hurtFlash*1.4);
+  /* 다친 화면 — 체력 90% 밑에서 치지직이 생겨 10% 에서 가장 짙다. **지금 체력 그대로**라 회복하면 그만큼 바로 걷힌다(사용자 요청) */
+  { CAMC.hurt=PL.dead?0:clamp((0.9-PL.hp/HPMAX)/0.8,0,1);
+    U.uHurtN.value=CAMC.hurt; U.uHit.value=Math.min(1,hurtFlash*1.4);
     U.uAsp.value=renderer.domElement.width/Math.max(1,renderer.domElement.height); }
   renderer.setRenderTarget(null);
   renderer.render(CAMC.scene,CAMC.cam);
