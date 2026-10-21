@@ -4472,7 +4472,7 @@ const wrapA=a=>{ while(a>Math.PI)a-=TAU; while(a<-Math.PI)a+=TAU; return a; };
 const ease=t=>t<=0?0:t>=1?1:t*t*(3-2*t);
 const P={hp:4000, sense:140, rushK:10, keep:30, lose:150, gap:1.8, hov:0.6,
   beamCharge:1.2, beamDur:2.0, beamLag:0.5, beamDps:90, beamR:0.7, beamLen:180,
-  dashK:2, punch:35, punchReach:2.6, line:40, lineLen:32, lineW:1.8, lineSpd:85,
+  dashK:2, punch:35, punchReach:3.0, punchT:0.22, line:40, lineLen:32, lineW:1.8, lineSpd:85,
   orbCharge:3.0, orbSpd:24, orbDmg:90, orbR:7, orbMax:1.0,
   walkSpd:2.0, combatSpd:6.5, homeR:20, calm:2.5, size:3};
 const SZ=()=>P.size, VK=()=>Math.sqrt(P.size);
@@ -4843,7 +4843,7 @@ function azPose(dt){
     case 'punchWind':
       PB.rp=0.38; PB.cy=-0.5; PB.sy=-0.15; PB.np=-0.15; arms='cock'; curl=0.5; PB.rate=12; PB.armRate=12; haloT=3; glowT=1.7; break;
     case 'punchHit':
-      PB.rp=0.50; PB.cy=0.38; PB.sy=0.15; arms='punch'; curl=0.1; PB.rate=24; PB.armRate=26; haloT=4; glowT=2.1; break;
+      PB.rp=0.50; PB.cy=0.38; PB.sy=0.15; arms='punch'; curl=0.1; PB.rate=14; PB.armRate=13; haloT=4; glowT=2.1; break;
     case 'punchEnd':
       PB.rp=0.22; arms='guard'; PB.rate=5; PB.armRate=5; haloT=2; glowT=1.2; break;
     case 'orbCharge': { const k=ease(ts/0.6);
@@ -4874,7 +4874,8 @@ function azPose(dt){
   // ── 팔 ──
   azFK(true);
   const cq=FKQ[B.chest], cp=FKP[B.chest];
-  if(arms==='orb'||arms==='punch') plModel(1.25,_lp);
+  if(arms==='orb') plModel(1.25,_lp);
+  else if(arms==='punch'){ A.G.updateMatrixWorld(); A.G.worldToLocal(_lp.copy(A.punchAim)); }   // 굳힌 자리로
   const rM=(A.orb&&A.orb.st!=='off'?A.orb.r:0.5*Math.pow(SZ(),0.8))/SZ();          // 구 반지름(모델 좌표)
   if(arms==='orb'){ _orbM.copy(FKP[B.halo]); _orbM.y+=0.35+rM*0.9; }    // 고리 가운데(목표 자세) 위
   for(let i=0;i<4;i++){
@@ -5136,12 +5137,13 @@ function azUpdate(dt){
       case 'punchWind':
         steer(0,0,dt,8); faceTo(yawToPL(),6,dt);
         altT=clamp(TY-h(A.pos.x,A.pos.z)+0.1,0.35,3.5); altK=4;
-        if(A.ts>=0.28){ azGo('punchHit'); A.hitDone=false; }
+        if(A.ts>=0.28){ azGo('punchHit'); A.hitDone=false;
+          A.punchAim.set(TX,TY+1.25,TZ); }   // 내지르는 순간 겨눌 자리를 굳힌다 — 이 뒤로는 안 따라간다(대시로 피할 틈)
         break;
       case 'punchHit':
         steer(Math.sin(A.yaw)*3,Math.cos(A.yaw)*3,dt,8);
         altT=clamp(TY-h(A.pos.x,A.pos.z)+0.1,0.35,3.5); altK=4;
-        if(A.ts>=0.1&&!A.hitDone){ A.hitDone=true; punchImpact(); }
+        if(A.ts>=P.punchT&&!A.hitDone){ A.hitDone=true; punchImpact(); }
         if(A.ts>=0.45) azGo('punchEnd');
         break;
       case 'punchEnd':
@@ -5264,13 +5266,9 @@ function punchImpact(){
   const A=AZ, fist=A.tipW[0];
   const fx=Math.sin(A.yaw), fz=Math.cos(A.yaw);
   fxSprite(fist,0xbfe4ff,0.8*VK(),6*VK(),0.3,1); fxLight(fist,0x8fd0ff,6,22,0.35);
+  // 주먹이 내지른 자리(타격 시작에 굳힌 가슴 자리)에서 몸까지 — 시험장과 같은 판정(사람 몸 0.35 를 빼고 겉까지 잰다)
   for(const f of enemies()){
-    let hit=entSeg(f,fist,fist)<=P.punchReach;
-    if(!hit&&f.pl){                               // 사람 — 시험장과 같은 앞쪽 판정
-      const px=PL.pos.x-A.pos.x, pz=PL.pos.z-A.pos.z, pd=Math.hypot(px,pz), front=pd<1e-3?1:(px*fx+pz*fz)/pd;
-      hit=pd<=1.3*SZ()+3.0&&front>0.45&&Math.abs(PL.pos.y+1.2-fist.y)<3;
-    }
-    if(hit){ entHurt(f,P.punch,'주먹',fx*11,fz*11); if(f.pl) shk(1); }
+    if(entSeg(f,A.punchAim,A.punchAim)<=P.punchReach-0.35){ entHurt(f,P.punch,'주먹',fx*11,fz*11); if(f.pl) shk(1); }
   }
   // 번개 줄 — 주먹 밑 땅에서 앞쪽으로 일직선(이 판엔 막는 기둥이 없다)
   const ox=fist.x, oz=fist.z;
@@ -5440,7 +5438,7 @@ function azSpawn(){
     pos:V3(), vel:V3(), yaw:0, yawV:0, st:'wander', ts:0, hp:P.hp, hpMax:P.hp, frz:0, cd:0, last:'', force:'',
     strafe:1, strafeT:0, wp:V3(), wpWait:0, calmT:0, hits:0, flash:0, flinch:0, haloA:0, haloSpd:0.7, glow:1, deadT:0,
     beamTick:0, hitDone:false, caps:[], tipW:[], origin:V3(), beamEnd:V3(), beamAim:V3(), beamFrom:V3(),
-    orb:null, beam:null, shadow:null, trailT:0, arcT:0, punchDir:V3(), dist:1e9,
+    orb:null, beam:null, shadow:null, trailT:0, arcT:0, punchDir:V3(), punchAim:V3(), dist:1e9,
     home:V3(), hist:[], histO:undefined, trail:[], lines:[],
     PB:{rp:0,rr:0,ry:0,pp:0,sp:0,sy:0,cp:0,cy:0,np:0,hp:0,look:1,rate:7,armRate:7}};
   A.mat=new THREE.MeshLambertMaterial({map:S.alb,emissiveMap:S.emi,emissive:0xffffff,skinning:true});
