@@ -4930,13 +4930,18 @@ function azPose(dt){
   azCaps(MW);
 }
 /* 맞는 캡슐 15 — 몸통 · 머리 · 치마 · 팔마다 셋 */
+const AZ_SKIRT=new THREE.Vector3(-0.25,0.35,-0.13);   // 치맛단 가운데(모델 좌표 · 쉼 자세)
 function azCaps(MW){
   const A=AZ, B=A.B, C=A.caps;
   let n=0;
   const seg=(i,j,r)=>{ C[n].a.copy(FKP[i]).applyMatrix4(MW); C[n].b.copy(FKP[j]).applyMatrix4(MW); C[n].r=r*A.G.scale.x; n++; };
   const tail=(i,r)=>{ C[n].a.copy(FKP[i]).applyMatrix4(MW);
     C[n].b.copy(A.tl[i]).sub(A.hd[i]).applyQuaternion(FKQ[i]).add(FKP[i]).applyMatrix4(MW); C[n].r=r*A.G.scale.x; n++; };
-  seg(B.spine,B.neck,0.46); tail(B.head,0.30); tail(B.pelvis,0.42);
+  seg(B.spine,B.neck,0.46); tail(B.head,0.30);
+  /* 치마 — 허리에서 치맛단(모델 y 0.3)까지. 예전엔 허리 뼈 길이(y 1.0)에서 끊겨 맞는 자리가 땅 위 2.4 m 부터였고,
+     사람 가슴(1.25 m)에서 재는 근접이 몸에 막혀(3 m) 한 번도 안 닿았다 */
+  C[n].a.copy(FKP[B.pelvis]).applyMatrix4(MW);
+  C[n].b.copy(AZ_SKIRT).sub(A.hd[B.pelvis]).applyQuaternion(FKQ[B.pelvis]).add(FKP[B.pelvis]).applyMatrix4(MW); C[n].r=0.75*A.G.scale.x; n++;
   for(const R of A.ARMS){ seg(R.ia,R.if_,0.18); seg(R.if_,R.ih,0.16);
     C[n].a.copy(FKP[R.ih]).applyMatrix4(MW); C[n].b.copy(A.tipW[A.ARMS.indexOf(R)]); C[n].r=0.15*A.G.scale.x; n++; }
 }
