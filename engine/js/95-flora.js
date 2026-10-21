@@ -948,7 +948,7 @@ function floraFindLook(){
   const fx=-Math.sin(PL.yaw)*cp, fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*cp, hx=-Math.sin(PL.yaw), hz=-Math.cos(PL.yaw);
   let bd=1e9;
   {
-  for(const list of (hand?[FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,WILD.picks,UNDER.picks,TEMPLE.picks,mobs?MON.picks:[]]:mobs?[MON.picks]:[])) for(const p of list){
+  for(const list of (hand?[FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,WILD.picks,UNDER.picks,TEMPLE.picks,mobs?MON.picks:[]]:mobs?[MON.picks.filter(p=>!p.live)]:[])) for(const p of list){
     const dx=p.x-ex, dz=p.z-ez;
     if(p.tree){
       const d=Math.sqrt(dx*dx+dz*dz); if(d>p.r+1.7||d<1e-3) continue;
