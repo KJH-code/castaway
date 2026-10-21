@@ -9,7 +9,7 @@
 - Three.js r128을 레포 안의 `engine/three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 56개(코드 47 + base64 자료 9 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 280개(제작법 242 + 설비 공정 38 — 2026-10-19 잼)
+- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 59개(코드 48 + base64 자료 11 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 280개(제작법 242 + 설비 공정 38 — 2026-10-19 잼)
 - 라이선스 GPL-3.0
 
 ## 폴더
@@ -17,12 +17,12 @@
 | 폴더 | 무엇 |
 |---|---|
 | `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
-| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 47개 + base64 자료 9개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
+| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 48개 + base64 자료 11개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
 | `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) |
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md`) |
+| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `sheep/rig.py`(Meshy 양 FBX 에 뼈 21 을 심어 GLB 로 — numpy 만 씀 · 쓰는 법은 파일 머리말) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md`) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
@@ -195,7 +195,7 @@ python -m http.server 5173
 | `presets/models/bear_high.glb`, `presets/models/stormscale_wyrm.glb` | 몹 모델. **아직 어느 코드에서도 로드하지 않는다** |
 | `presets/models/azure_apocalypse.glb` | **애저 아포칼립스**(새 몹 · 11.3 MB · 사용자 요청 '받침 없애고 · 참고 그림처럼 돌 갑옷 + 푸른 에너지로 칠하고 · 삼각형 20만 · 리깅, 떠서 움직이니 다리 뼈는 없이' · 공격은 에너지 빔과 팔 휘두르기 예정). 원본은 같은 폴더의 `Meshy_AI_Azure_Apocalypse_…_fbx.zip`(사용자 업로드 · FBX 140만 세모 · 뼈 없음 · 받침 붙음 — **FBX 는 Y 위라 적혀 있지만 실제는 Z 위**). `tools/azure/run.sh` 가 같은 GLB 를 다시 만든다. 세모 197,205 · 정점 153,441 · 뼈 23(`root` · `pelvis` · `spine` · `chest` · `neck` · `head` · `halo` · 팔 넷 `armR1/R2/L1/L2` → `fore*` → `hand*` → `claw*` — 팔은 몸 오른쪽(−x) 위·아래 · 왼쪽(+x) 위·아래 · 쉼 자세 회전 0) · **+z 를 본다** · 키 2.98 m · 원점은 몸 가운데 발밑. 바탕 + 발광 그림(갈고리 끝 · 몸의 결이 빛난다) · **머리 위 고리는 새로 빚었다**(사용자 참고 그림 — 검은 돌 비늘 조각 17개가 고리로 이어지고 밑·틈에서 푸른빛이 새며 군데군데 끊기고 부스러기가 뜬다 · `tools/azure/halo_new.py` · 원본의 매끈한 원환은 뺐다) — 게임에선 `MeshLambertMaterial({map, emissiveMap, emissive:흰색, skinning:true})`. 사슬은 몸통만 따르고, 따로 움직일 덩이(팔 넷 · 허리 아래 · 머리 · 고리)를 잇던 세모 1,465 장은 뺐다. **아직 어느 코드에서도 로드하지 않는다** — r128 GLTFLoader 는 레포에 없다(npm three@0.128.0) |
 
-**본편은 나뉘어 있다** — `island_world.html`(275줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 56개(코드 47 + base64 자료 9).
+**본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 59개(코드 48 + base64 자료 11).
 js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
 나누면서 고쳐 쓴 것이 없다). 번호가 곧 불러오는 차례다 — **불러오는 순간 바로 도는 코드는 위 파일 것만 쓸 수 있다**(함수 안에서
 부르는 것은 어느 파일 것이든 된다). 새 계통은 `99-main.js` 바로 위에 새 파일로 넣는 것이 쉽다. 파일별 설명(영어)은 `CODEMAP.md`.
@@ -254,6 +254,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `97-temples.js` | **옛 신전**(지형 판 8 · 사용자 요청) — 섬 한가운데 계단 신전(`templeLandSite` — 뭍의 무게중심 둘레에서 고른 땅을 골라 반지름 36 m 를 다진다 · 자원 놓기 전) · 해구 가장자리 수심 30~45 m 의 해저 신전(`templeSeaSite` — `shapeSeabed` 뒤). 돌덩이는 방향이 돌아간 상자로 막는다(`templeFloor`·`templeSolid` — `coastFloor`·`coastSolid` 가 먼저 부른다). 상자·항아리는 한 번만 여는 줍기(`TEMPLE.picks` · FLORA_PICK `tchest`·`turn` 의 `once`·`loot` → `templeLoot` · 저장 `temples`) — **백금 반지는 해저 신전에서만**(판 8 은 처음 지니지 않는다). 들판의 바위 솎기 `thinOpenRocks` · 험한 데의 더 나은 소출 `yieldK`/`yieldMul` |
 | `97-mob-rigs.js` · `data-mob-*.js` | **몬스터의 몸** — 시험장에서 옮겼다: 아르크토스 공용 구역(맨 끝 · bear_arena 글자 그대로를 함수로 감싸 시험장 설정 `P`·`Q` 자리에 `BEAR_P`·`BEAR_Q` — 본편 `P` 는 섬 인자라 겹친다 · `bearBody`·`bearDraw`·`bearHitCaps`·`BEAR_CX`·`BEAR_CAPR` 만 밖으로 · **`tools/bear-rig.mjs` 가 같이 바꿔 끼운다**) · 다지류 모듈(`CRW` · `makeCrawler`/`placeCrawler`/`stepCrawler` — crawler_arena 그대로, 다만 `SIZE` 1.0 · 땅 높이 `crwGround`) · 가고일 공용 구역(`GARG_J`…`gargDraw` — 임시 이름 `_gv`·`_gM` 만 `_gaV`·`_gaM` 으로 바꿨다(72-gear.js 와 겹쳐서) · **`tools/garg-rig.mjs` 는 이 파일을 안 고친다** — 원본을 고치면 손으로 옮길 것) · GLB 풀기 `parseGLB_garg`/`parseGLB_mob`. 자료(base64 · 읽지 말 것): `data-mob-crawler.js`(`CRW_META`/`CRW_B64`) · `data-mob-bear.js`(`BEAR_GLB` — 정점색) · `data-mob-wyvern.js`(`WYV_GLB` · 화염구 `WYV_FB_GLB`) · `data-mob-gargoyle.js`(`GARG_GLB`) · `data-mob-mimic.js`(`MIMIC_GLB` — 바탕색 1024) |
 | `97-mobs.js` | **몬스터**(지형 판 8 · `MON` — **`MOBS` 는 80-player.js 의 날짜별 출현 표 이름이라 못 쓴다**) — 둥지 `mobsSites`(우거진 숲 곁 굴 · 그 굴은 불빛 없음 `c.dark`) · 몸 빚기 `mobsBuild`(섬마다 거두기만 · 다지류 2 · 가고일 6 · 스킨워커 3 · 아르크토스 4 · 애쉬스케일 2(97-wyvern.js) 를 돌려 쓴다) · 그날 명단 `mobRoster`(파워레벨 예산 · `mobHabitat`) · 세우고 거두기 `mobSpawner`(1.2초마다 · 명단 칸이 가까우면) · AI `crawlTick`/`gargTick`/`mimTick` · 맞는 공 `mobProxy`(CREATURES 에 거는 대역 — 체력은 몸의 것 · 한 프레임에 같은 몸의 공 여럿이 맞으면 가장 큰 것 하나) · 맞음 `mobDamage`(움찔 · 비명 — 넉백 없음) · 화면 흔들림 `mobCamera` · 겹침 `mobSeparate` · 소리 `mobVoice`(합성) · 사체 뒤지기(`MON.picks` → `FLORA_PICK.mobloot` · `MOB_LOOT`) · 둥지 숲의 더 나옴 `mobLairBonus`(→ `yieldK`) |
+| `97-sheep.js` · `data-mob-sheep.js` | **양**(사용자 요청 — Meshy 'Woolly Sheep' 을 `tools/sheep/rig.py` 로 리깅) — 풀밭 · 덤불 땅의 무리(3~5) · 뜯기 · 걷기 · 쳐다보기 · 달아나기(맞거나 뛰어들면 무리 전체) · 대각선 다리 걸음 · 귀 · 꼬리 · 매애(`mobVoice('baa')`) · 사체(양고기 2 · 양털 3) · 산 양 털 깎기(`FLORA_PICK.sheepshear` · `live` 줍기 — 빈손 + 날붙이 지님 · 이틀마다) · 아이템 `meat_mutton`·`wool`·`bandage_wool` · 제작법 `cord_wool`·`bandage_wool`. 몬스터 수 · 지형 판과 상관없이 선다(`MON.sheep` · 97-mobs.js 의 `mobsBuild`/`updateMobs` 가 부른다) |
 | `97-wyvern.js` | **애쉬스케일**(지형 판 8 — beta/wyvern_arena.html 를 **개체 만드는 함수 `wyvMake(S)` 로 감쌌다**: 시험장 전역 `W`·`BONE`·`bone`·`rotBone`·`REST`… 가 본편과 안 겹치게 · 밖으로는 `wyvMake`·`wyvShared`·`wyvBuild`·`wyvReset`·`wyvTick`·`WYVS`(몸 둘) 뿐) — '자세' 구역은 시험장 글자 그대로(**`tools/wyv-sync.mjs` 가 같이 바꿔 끼운다**) · 명단이 정한 탁 트인 데에 나타나 제 자리 둘레를 돈다 · 화염구 · 할퀴기 · 물기 · 터짐 · 잔해 · 맞는 공은 뼈 캡슐을 1 m 마다(`sampleCaps` · 72개) |
 | `98-bag.js` | 가방 화면(소지품 + 고른 것 + 제작) — 가방에는 그림 · 이름 · 개수 · 할 수 있는 일만, 자세한 것은 사전(`dexShow`) |
 | `99-main.js` | **`loop`** 8 · 맨 끝에서 게임을 켜는 다섯 줄 |
@@ -1644,6 +1645,12 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   터지는 불빛은 불빛 풀 대역(`LIGHT.addFire` 셋을 돌려 씀) · 숨겨 둔 화염구 하나를 장면에 두어 셰이더 미리 짜기가 본다 · 소리 `mobVoice` 의 'wyv'·'flap'·'fire'·'boom'.
   잰 값(헤드리스 · 사람 앞 40 m 에 세움): 노려봄 5초 → 내리꽂기 → 굳음 → 화염구 → 할퀴기 · 물기 · 화염구가 번갈아(30초에 7대) · 몸짓 한 프레임 0.4~0.6 ms · 7 m 에서 터짐 158.
   **본편에 몹을 더 들일 때**: 몸은 `scene` 에 숨겨 두고(`visible=false`) 돌려 쓴다 · `lightRole:'recv'`(그림자 안 드리움) · 전역 이름이 시험장 것과 겹치는지 아래 '확인하는 법'의 이어 붙이기 검사로 볼 것.
+- **양**(사용자 요청 '리깅해서 양을 넣어 달라' · 97-sheep.js · 몸은 `tools/sheep/rig.py`) — 모델은 Meshy FBX(5.6만 세모 · 뼈 없음 · **Z 위 · 머리 −Y**)를
+  (x, z, −y)로 세우고 몸길이 1.40 m 로 맞춘 GLB(뼈 21 — 몸통 넷 · 목 · 머리 · 귀 둘 · 꼬리 · 다리마다 셋 · 쉼 자세 회전 0 · 바탕색 1024 JPEG · 2.8 MB → base64 3.7 MB).
+  **FBX uv 는 v 가 위로 — glTF(게임 `flipY=false`)는 아래로라 v 를 뒤집는다**(안 뒤집으면 털 무늬가 조각조각 흩어진다). 가중치는 8 mm 칸으로 속을 채우고
+  뼈마다 몸 속을 따라 잰 거리(6방 BFS)로 가까운 넷을 1/d⁴ — 다리 윗마디는 배 높이(0.40 m) 위를 · 꼬리는 밑동 앞을 그만큼 멀게 친다(안 그러면 걸음에 옆구리 털이 끌려갔다).
+  몸짓은 뼈 회전을 0 에서 프레임마다 새로 짠다 — rotateX + 가 다리를 뒤로 · 목을 숙인다. 다리는 대각선 짝(왼앞+오른뒤 · 오른앞+왼뒤)이 간 거리로 돈다.
+  새 사육 짐승을 들이려면 같은 도구로 뼈를 심고 `97-sheep.js` 를 본뜰 것(맞는 공 · 사체 · 줍기는 97-mobs.js 것을 그대로 쓴다).
 - **근접 휘두르기**(사용자 요청 '무기 모션을 더 역동적이고 다양하게 · 넉백 · 맞는 몸짓 · 무기에 맞는 범위가 없다' · 74-icons-guns.js) —
   ① 결은 **표**다(`WKEY[결][변형]` = [진행, rx, ry, rz, px, py, pz, 고르기] — 들어 올림 · 가속하는 내려치기(`wIn`) · 지나치는 따라가기 · 되돌아오며 살짝 넘침(`wBack`)).
   베기 셋(왼 위→오른 아래 · 되받아 올려 베기 · 가로 쓸기) · 내리치기 둘(곧게 · 오른 어깨에서 비스듬히) · 찌르기 둘(곧게 · 낮게 비틀어 올려). **쿨이 끝나고 0.7초 안에 또 휘두르면 다음 변형**(`ATK.combo`/`ATK.v`).

@@ -112,6 +112,11 @@ function mobVoice(kind,x,y,z,vol){
   else if(kind==='hurt'){                                                    // 맞았다 — 짧게 찢어지는 소리
     const o=osc('sawtooth',900,300,0.18,0), f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=1400; f.Q.value=2; o.connect(f); env(f,0.005,0.22,0,0.6); o.start(t); o.stop(t+0.25);
     noise(0.15,0,1800,1.5,0.5); }
+  else if(kind==='baa'){                                                     // 양 — 매애(톱니파 + 떨림 · 모음 꼴 둘 · 끝이 조금 내려간다 — 97-sheep.js)
+    const f0=280+Math.random()*90, o=osc('sawtooth',f0,f0*0.82,0.75,0), lfo=ctx.createOscillator(), lg=ctx.createGain();
+    lfo.frequency.value=6.5+Math.random()*2; lg.gain.value=f0*0.06; lfo.connect(lg); lg.connect(o.frequency);
+    for(const [fc,q,pk] of [[700,6,0.5],[1150,8,0.32]]){ const f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=fc; f.Q.value=q; o.connect(f); env(f,0.04,0.78,0,pk); }
+    o.start(t); o.stop(t+0.82); lfo.start(t); lfo.stop(t+0.82); }
   else if(kind==='thud'){ noise(0.12,0,220,0.8,0.9); noise(0.06,0,1500,1,0.4); }   // 몸에 박히는 소리(사람 쪽)
 }
 
@@ -144,8 +149,8 @@ const MOB_LOOT={crawl:[['chitin',8],['spider_silk',2]], garg:[['chitin',6]], mim
 function mobKill(m){
   m.alive=false; m.hp=0; m.deadT=0; mobRegister(m,false);
   if(m.entry) m.entry.dead=true;                                             // 그날 명단에서 빠진다
-  mobVoice(({crawl:'screech',garg:'shriek',bear:'roar'})[m.kind]||'wail',m.pos.x,m.pos.y+1,m.pos.z,1.6);
-  toast(({crawl:'다지류를',garg:'가고일을',mim:'스킨워커를',bear:'아르크토스를'})[m.kind]+' 쓰러뜨렸다 — 사체를 뒤지면 무엇인가 나온다');
+  mobVoice(({crawl:'screech',garg:'shriek',bear:'roar',sheep:'baa'})[m.kind]||'wail',m.pos.x,m.pos.y+1,m.pos.z,1.6);
+  toast(({crawl:'다지류를',garg:'가고일을',mim:'스킨워커를',bear:'아르크토스를',sheep:'양을'})[m.kind]+' 쓰러뜨렸다 — 사체를 뒤지면 무엇인가 나온다');
   const p=m.kind==='crawl'?m.cr.head:m.pos, key='M'+(++MON.seq);
   const pick={kind:'mobloot', x:p.x, y:heightAt(p.x,p.z), z:p.z, ay:heightAt(p.x,p.z)+0.6, r:1.4, key, mob:m.kind,
     lootFn:()=>{ let msg=''; for(const [id,n] of MOB_LOOT[m.kind]){ if(!ITEMS[id]) continue; let g=0; for(let k=0;k<n;k++) if(invAdd(id,1)) g++; if(g) msg+=(msg?' · ':'')+ITEMS[id].n+' +'+g; }
@@ -166,6 +171,7 @@ function mobsBuild(){
   if(typeof wyvReset==='function') wyvReset();
   MON.picks.length=0;
   MON.roster.day=-1; MON.roster.list=[];
+  if(typeof sheepBuild==='function') sheepBuild();                          // 양 — 지형 판과 상관없이(97-sheep.js)
   if((P.tv|0)<8) return;
   for(const l of MON.lairs){ l.cr=null; l.skip=typeof LANDING!=='undefined'&&Math.hypot(l.x-LANDING.x,l.z-LANDING.z)<450; }   // 상륙 자리 곁 굴은 비운다
   if(MON.built) return;
@@ -327,6 +333,7 @@ function mimPose(m,dt){
 function updateMobs(dt){
   MON.frame=(MON.frame|0)+1;
   mobCamera(dt);
+  if(typeof sheepUpdate==='function') sheepUpdate(dt);                      // 양(97-sheep.js) — 몬스터 수 · 지형 판과 상관없이
   if(!MON.built||(P.tv|0)<8) return;
   const k=MON.k;
   MON.spawnT-=dt; if(MON.spawnT<=0){ MON.spawnT=1.2; mobSpawner(k); }
@@ -808,6 +815,7 @@ const MOB_R={garg:0.8, mim:2.0, bear:1.35};
 function mobSeparate(dt){
   const L=[]; for(const g of MON.garg) if(g.active&&g.alive) L.push(g); for(const m of MON.mim) if(m.active&&m.alive) L.push(m);
   for(const b of MON.bear) if(b.active&&b.alive) L.push(b);
+  if(MON.sheep) for(const s of MON.sheep) if(s.active&&s.alive) L.push(s);
   for(let i=0;i<L.length;i++){ const a=L[i], ra=MOB_R[a.kind];
     for(let j=i+1;j<L.length;j++){ const b=L[j], dx=b.pos.x-a.pos.x, dz=b.pos.z-a.pos.z, d=Math.hypot(dx,dz), R=ra+MOB_R[b.kind];
       if(d<R&&d>1e-4&&Math.abs(a.pos.y-b.pos.y)<3.5){ const p=(R-d)*0.5; a.pos.x-=dx/d*p; a.pos.z-=dz/d*p; b.pos.x+=dx/d*p; b.pos.z+=dz/d*p; } }
@@ -816,7 +824,7 @@ function mobSeparate(dt){
     /* 사람 — 몸 안으로 못 들어온다(사람을 민다) */
     const dx=PL.pos.x-a.pos.x, dz=PL.pos.z-a.pos.z, d=Math.hypot(dx,dz), R=ra+PRAD;
     if(d<R&&d>1e-4&&Math.abs(PL.pos.y-a.pos.y)<3){
-      if(a.kind==='garg'){ a.pos.x=PL.pos.x-dx/d*R; a.pos.z=PL.pos.z-dz/d*R; }   // 가벼운 가고일이 비켜난다 — 사람을 밀면 돌진하는 몸에 실려 10 m 넘게 끌려갔다
+      if(a.kind==='garg'||a.kind==='sheep'){ a.pos.x=PL.pos.x-dx/d*R; a.pos.z=PL.pos.z-dz/d*R; }   // 가벼운 가고일이 비켜난다 — 사람을 밀면 돌진하는 몸에 실려 10 m 넘게 끌려갔다
       else if(a.kind==='bear'){}                                               // 곰은 bearTick 이 몸통 반지름에서 멈춰 세운다(아레나 그대로)
       else { PL.pos.x=a.pos.x+dx/d*R; PL.pos.z=a.pos.z+dz/d*R; } }
   }
