@@ -551,7 +551,11 @@ function caveSites(seed){
     const i=IDX(gx,gz); return F.elev[i]>2.5&&!F.river[i]&&F.slope[i]<0.6; };
   /* 지형 판 6: 방 안으로 비탈이 솟아 들어오는 자리는 버린다 — 87 굴 중 4 개에서 산허리가 방 바닥을 뚫고 올라왔다(사용자 지적).
      방 가운데 바닥보다 0.55R 고리에서 1.2 m · 0.85R 고리에서 2.0 m 넘게 높은 데가 있으면 그 방은 안 된다 */
-  const TV6=(P.tv|0)>=6;
+  const TV6=(P.tv|0)>=6, TV9=(P.tv|0)>=9;
+  /* 지형 판 9: 강이 방을 지나는 자리도 버린다(물길이 굴 바닥을 가로질렀다 — 15 굴 중 하나) */
+  const wet=rm=>{ for(let k=0;k<12;k++){ const a=k/12*6.283; for(const f of [0.5,1.0]){
+      const gx=Math.round((rm.x+Math.cos(a)*(rm.R+1)*f)/CELL+N/2), gz=Math.round((rm.z+Math.sin(a)*(rm.R+1)*f)/CELL+N/2);
+      if(gx>=0&&gz>=0&&gx<N&&gz<N&&F.river[IDX(gx,gz)]) return true; } } return false; };
   const bulge=rm=>{ for(let k=0;k<16;k++){ const a=k/16*6.283, c=Math.cos(a), s=Math.sin(a);
       if(heightAt(rm.x+c*rm.R*0.55,rm.z+s*rm.R*0.55)-rm.y>1.2||heightAt(rm.x+c*rm.R*0.85,rm.z+s*rm.R*0.85)-rm.y>2.0) return true; }
     return false; };
@@ -565,9 +569,10 @@ function caveSites(seed){
     const rooms=[{x,z,y:heightAt(x,z),R:5.4+rnd()*1.6,open:[yaw]}], nR=1+((rnd()*3)|0);
     let dir=yaw+(rnd()<0.5?1:-1)*(1.45+rnd()*0.25);
     if(TV6&&bulge(rooms[0])) continue;
+    if(TV9&&wet(rooms[0])) continue;
     for(let k=1;k<nR;k++){ const a=rooms[k-1], R=4.6+rnd()*1.6, D=a.R+R+0.8, bx=a.x+Math.cos(dir)*D, bz=a.z+Math.sin(dir)*D;
       if(!okAt(bx,bz)) break;
-      const rm={x:bx,z:bz,y:heightAt(bx,bz),R,open:[dir+Math.PI]}; if(TV6&&bulge(rm)) break;
+      const rm={x:bx,z:bz,y:heightAt(bx,bz),R,open:[dir+Math.PI]}; if(TV6&&bulge(rm)) break; if(TV9&&wet(rm)) break;
       a.open.push(dir); rooms.push(rm); dir+=(rnd()-0.5)*1.1; }
     CAVES.push({x,z,y:rooms[0].y,yaw,rooms,seed:(rnd()*1e9)|0});
   }
@@ -579,11 +584,14 @@ function caveSites(seed){
     near.sort((a,b)=>a[0]-b[0]);
     const n=Math.min(near.length,c.rooms.length*(8+((rnd()*5)|0))), put=[];
     for(let k=0;k<n;k++){ const p=near[k][1], rm=c.rooms[k%c.rooms.length]; let px=rm.x, pz=rm.z;
-      for(let t=0;t<14;t++){ const a=rnd()*6.283, r=0.8+rnd()*(rm.R-2.4); px=rm.x+Math.cos(a)*r; pz=rm.z+Math.sin(a)*r; if(!put.some(q=>Math.hypot(q[0]-px,q[1]-pz)<1.6)) break; }
-      put.push([px,pz]); p.x=px; p.z=pz; p.y=heightAt(px,pz); p.s=Math.min(p.s,0.95); p.cave=1; }
+      if(TV9){ const at=caveOreSpot(rm,(PROP_FOOT[p.k]||1)*Math.min(p.s,0.95),put,rnd); px=at[0]; pz=at[1]; }
+      else{ for(let t=0;t<14;t++){ const a=rnd()*6.283, r=0.8+rnd()*(rm.R-2.4); px=rm.x+Math.cos(a)*r; pz=rm.z+Math.sin(a)*r; if(!put.some(q=>Math.hypot(q[0]-px,q[1]-pz)<1.6)) break; }
+        put.push([px,pz]); }
+      p.x=px; p.z=pz; p.y=heightAt(px,pz); p.s=Math.min(p.s,0.95); p.cave=1; }
     c.ore=n;
   }
   if(TV6) oreToCaves(rnd);
+  if(TV9) caveOreRelax();
   PROPS=PROPS.filter(p=>p.cave||!caveAt(p.x,p.z,4.4));   // 굴 자리에 서 있던 나무·바위는 치운다(지붕을 뚫고 나온다)
   if(TV6) surfaceRocks();
 }
@@ -592,14 +600,48 @@ function caveSites(seed){
 function oreToCaves(rnd){
   const rooms=[]; for(const c of CAVES) for(const r of c.rooms) rooms.push(r);
   if(!rooms.length) return;
+  const TV9=(P.tv|0)>=9; let put=null;
   for(const k of CAVE_ORE){
     let have=0; const out=[];
     for(const p of PROPS) if(p.k===k){ if(p.cave) have++; else if(!(k==='iron'&&bogAt(p.x,p.z))) out.push(p); }
     for(let j=0;have<12&&j<out.length;j++,have++){ const p=out[j];
       let best=rooms[0], bd=1e18; for(const r of rooms){ const d=(r.x-p.x)*(r.x-p.x)+(r.z-p.z)*(r.z-p.z); if(d<bd){ bd=d; best=r; } }
-      const a=rnd()*6.283, rr=0.8+rnd()*(best.R-2.4);
-      p.x=best.x+Math.cos(a)*rr; p.z=best.z+Math.sin(a)*rr; p.y=heightAt(p.x,p.z); p.s=Math.min(p.s,0.95); p.cave=1; best.cave.ore=(best.cave.ore|0)+1; }
+      if(TV9){ if(!put) put=caveOrePut(rooms);
+        const at=caveOreSpot(best,(PROP_FOOT[p.k]||1)*Math.min(p.s,0.95),put.get(best),rnd); p.x=at[0]; p.z=at[1]; }
+      else{ const a=rnd()*6.283, rr=0.8+rnd()*(best.R-2.4); p.x=best.x+Math.cos(a)*rr; p.z=best.z+Math.sin(a)*rr; }
+      p.y=heightAt(p.x,p.z); p.s=Math.min(p.s,0.95); p.cave=1; best.cave.ore=(best.cave.ore|0)+1; }
   }
+}
+/* ── 굴 속 광석 자리(지형 판 9) ─────────────────────────────────────────────
+   예전엔 방 가운데에서 R − 1.6 m 까지 뿌려 벽 바위 밑동(안쪽 면이 R − 1~2 m)에 묻히거나 반쯤 묻혔고(15 굴 · 광석 다섯이 묻히고
+   열여덟이 반쯤), 1.6 m 떼기는 열네 번 뽑아 다 걸리면 마지막 자리에 그냥 두어 서로 겹쳤다(열다섯 쌍 · 몸 둘레의 0.7 배 안 · 판 9 는 다섯).
+   이제 ① 가운데에서 R − 2.4 m 안에만 ② 몸 둘레(PROP_FOOT × 크기)의 0.75 배씩 떼고 ③ 열네 번 다 걸리면 가장 덜 걸린 자리에
+   ④ 다 놓은 뒤 난수 없이 서로 밀어 뗀다(caveOreRelax — 열 번 · 다시 R − 2.4 m 안에 가둔다). put: 그 방(굴)에 이미 놓은 [x, z, 몸 둘레] */
+function caveOreSpot(rm,fp,put,rnd){
+  let best=-1e9, bx=rm.x, bz=rm.z;
+  for(let t=0;t<14;t++){ const a=rnd()*6.283, r=0.8+rnd()*Math.max(0.2,rm.R-3.2), x=rm.x+Math.cos(a)*r, z=rm.z+Math.sin(a)*r;
+    let m=1e9; for(const q of put){ const d=Math.hypot(q[0]-x,q[1]-z)-(fp+q[2])*0.75; if(d<m) m=d; }
+    if(m>best){ best=m; bx=x; bz=z; } if(m>=0) break; }
+  put.push([bx,bz,fp]); return [bx,bz];
+}
+function caveOrePut(rooms){                                   // 방마다 이미 놓인 굴 광석
+  const M=new Map(); for(const r of rooms) M.set(r,[]);
+  for(const p of PROPS){ if(!p.cave) continue; let b=null, bd=1e18; for(const r of rooms){ const d=(r.x-p.x)*(r.x-p.x)+(r.z-p.z)*(r.z-p.z); if(d<bd){ bd=d; b=r; } }
+    if(b) M.get(b).push([p.x,p.z,(PROP_FOOT[p.k]||1)*p.s]); }
+  return M;
+}
+function caveOreRelax(){
+  const ore=PROPS.filter(p=>p.cave);
+  for(const c of CAVES) for(const rm of c.rooms){
+    const L=ore.filter(p=>Math.hypot(p.x-rm.x,p.z-rm.z)<rm.R+0.5), lim=Math.max(0.6,rm.R-2.4);
+    for(let it=0;it<10;it++){ let moved=false;
+      for(let i=0;i<L.length;i++) for(let j=i+1;j<L.length;j++){ const a=L[i], b=L[j], need=((PROP_FOOT[a.k]||1)*a.s+(PROP_FOOT[b.k]||1)*b.s)*0.75;
+        let dx=b.x-a.x, dz=b.z-a.z; const d=Math.hypot(dx,dz); if(d>=need) continue;
+        if(d<1e-3){ dx=Math.cos(i*2.4+j); dz=Math.sin(i*2.4+j); } else { dx/=d; dz/=d; }   // 한자리면 차례로 정한 쪽으로
+        const k=(need-d)/2; a.x-=dx*k; a.z-=dz*k; b.x+=dx*k; b.z+=dz*k; moved=true; }
+      for(const p of L){ const dx=p.x-rm.x, dz=p.z-rm.z, d=Math.hypot(dx,dz); if(d>lim){ p.x=rm.x+dx/d*lim; p.z=rm.z+dz/d*lim; } }
+      if(!moved) break; }
+    for(const p of L) p.y=heightAt(p.x,p.z); }
 }
 function bogAt(x,z){ const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2);
   return gx>=0&&gz>=0&&gx<N&&gz<N&&F.biome[IDX(gx,gz)]===B.MARSH; }

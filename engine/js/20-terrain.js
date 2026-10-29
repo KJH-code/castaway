@@ -810,6 +810,12 @@ vec2 grain(vec3 p){
 `+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       {
         vec3 p=vRW; vec3 n=normalize(vRN);
+        #ifdef RK_OFS
+        /* 덩이마다 무늬를 비킨다(cragMat 만 — 33-crags.js) — 굴 · 큰 바위는 덩이를 한 메시로 합쳐 세계 좌표로 읽어서, 맞닿은 덩이의 금과 얼룩이
+           이음매를 건너 이어져 한 바위를 칼로 자른 것처럼 보였다. 덩이 빛깔(정점 빛깔)이 덩이마다 달라 그것으로 민다.
+           정점 빛깔이 한 면 안에서 바뀌는 재질(땅속 세계 등)에 켜면 무늬가 그 기울기만큼 일그러진다 */
+        p+=vColor.rgb*61.7;
+        #endif
         float dist=length(vRV), nearK=clamp(1.0-dist/60.0,0.0,1.0);   // 카메라 공간에서 잰다(세계 cameraPosition 으로 쟀더니 0 이 나왔다)
         vec3 c=diffuseColor.rgb;
         float a=rn(p/1.2), b=rn(p/0.25+3.7);

@@ -267,6 +267,12 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
                       (1.0-smoothstep(0.84,0.95,normalize(vTN).y))*smoothstep(-1.0,-2.2,vTW.y));
           steep=max(steep,subRock); flat1=1.0-steep; }
         float green=clamp((c.g-max(c.r,c.b))*8.0,0.0,1.0);
+        #ifdef CAVE_ON
+        /* 굴 속(32-caves.js cvF · envPatch 가 main 첫머리에서 센다) — 풀·모래·낙엽·진흙 대신 굴 바닥: 자갈 사진 70% · 마른 흙 30% · 잿갈색.
+           바위 밑동의 녹아들기(45-sky.js)도 같은 빛깔로 간다 */
+        if(cvF>0.002){ grav=mix(grav,0.70,cvF); mSand*=1.0-cvF; mLeaf*=1.0-cvF; mNeed*=1.0-cvF; mMud*=1.0-cvF; green*=1.0-cvF;
+          c=mix(c,vec3(0.27,0.25,0.22)*(0.88+0.24*n2.b),cvF*0.9); }
+        #endif
         // 바닥 빛깔 — 숲은 낙엽·잔가지의 갈색이 풀빛을 덮고, 습지는 검은 진흙, 모래는 한 톤 낮춘다(한낮에 하얗게 날았다)
         c=mix(c,vec3(0.34,0.26,0.14),mLeaf*flat1*0.50);
         c=mix(c,vec3(0.30,0.22,0.13),mNeed*flat1*0.45);
