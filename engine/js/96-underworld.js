@@ -74,7 +74,16 @@ function underSites(seed){
     for(let t=0;t<12;t++){ const a=rnd()*6.283, d=rm.R*(0.25+0.3*rnd()), x=rm.x+Math.cos(a)*d, z=rm.z+Math.sin(a)*d;
       let m=1e9; for(const p of ore) m=Math.min(m,Math.hypot(p.x-x,p.z-z)); if(m>best){ best=m; px=x; pz=z; } }
     for(const p of ore){ const dx=p.x-px, dz=p.z-pz, d=Math.hypot(dx,dz); if(d>=2.4) continue;
-      const a=d>0.01?Math.atan2(dz,dx):rnd()*6.283; p.x=px+Math.cos(a)*2.6; p.z=pz+Math.sin(a)*2.6; p.y=heightAt(p.x,p.z); }
+      const a=d>0.01?Math.atan2(dz,dx):rnd()*6.283;
+      if((P.tv|0)>=9){ /* 지형 판 9 — 구멍 둘레 2.6 m 가운데 방 안(가운데에서 R − 2.4 m)이고 다른 광석과 가장 덜 겹치는 쪽으로(예전엔 바로 바깥으로 밀어 벽 바위 밑동에 묻히거나 이웃 광석과 겹쳤다) */
+        let best=-1e9, bx=px+Math.cos(a)*2.6, bz=pz+Math.sin(a)*2.6;
+        for(let k=0;k<14;k++){ const aa=a+(k&1?1:-1)*Math.ceil(k/2)*0.45, x=px+Math.cos(aa)*2.6, z=pz+Math.sin(aa)*2.6;
+          if(Math.hypot(x-rm.x,z-rm.z)>Math.max(0.6,rm.R-2.4)) continue;
+          let m=1e9; for(const q of ore) if(q!==p) m=Math.min(m,Math.hypot(q.x-x,q.z-z)-((PROP_FOOT[q.k]||1)*q.s+(PROP_FOOT[p.k]||1)*p.s)*0.75);
+          if(m>best){ best=m; bx=x; bz=z; } if(m>=0) break; }
+        p.x=bx; p.z=bz; }
+      else{ p.x=px+Math.cos(a)*2.6; p.z=pz+Math.sin(a)*2.6; }
+      p.y=heightAt(p.x,p.z); }
     UNDER.ch.push({x:px,z:pz,R:13+rnd()*5,H:10+rnd()*3,sd:(rnd()*1e9)|0,p:[rnd()*6.283,rnd()*6.283,rnd()*6.283],pit:1,shroom:true,web:rnd()<0.3});
     UNDER.pits.push({x:px,z:pz,cave:c,rm,ys:heightAt(px,pz)});
   }

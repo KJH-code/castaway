@@ -16,8 +16,40 @@
    · **굴 속의 빛**(사용자 요청 — 불 없이도 더듬어 일할 만큼): 천장과 벽 안쪽에 반딧불이 유충 무리가 청록빛 점으로 붙어 깜박이고
      (빛나는 점 — 뉴질랜드 와이토모 굴의 그것), 바닥 가장자리에 빛나는 버섯이 무더기로 돋는다. 방마다 약한 청록 불빛 하나를
      불빛 풀(40-light.js)에 걸어 둔다 — 광원 수는 안 는다(풀의 세 자리 가운데 남는 자리를 쓰고, 모닥불·횃불이 있으면 그쪽이 먼저다).
+     → 2026-10-29 부터는 불빛 풀을 안 쓰고 셰이더가 방 안에만 더한다(아래 '굴 속의 빛과 바닥').
    ========================================================================== */
 const CAVE_MESH=[];
+/* ── 굴 속의 빛과 바닥(사용자 요청 2026-10-29 '동굴 디자인 오류' 점검) ─────────────────────────────────────────
+   굴은 땅 위에 바위를 쌓은 것이라 ① 하늘빛(간접광)이 그대로 들어 굴 속이 바깥만큼 밝았고(한낮 안쪽 방 밝기 130 · 그늘진 바깥 188)
+   ② 바닥은 그 자리 바이옴의 풀밭이라 굴 속에 풀이 났고 벽 바위 밑동도 풀빛으로 녹아들었고 ③ 방의 불빛(불빛 풀의 점광원 — 그림자가
+   없다)이 벽을 지나 바깥 땅까지 청록으로 비췄다. 그래서 눈에서 가까운 굴 방 여섯(`CAVE_K`)을 유니폼으로 넘겨 모든 램버트 재질
+   (envPatch — 45-sky.js)과 땅 셰이더(22-ground-textures.js)가 **화소마다** 센다(`CAVE_GLSL`):
+     cvK 굴 속 몫 — 방 원 안 · 천장 밑이면 1. 입구가 난 첫 방은 입구에서 멀수록 1(입구 앞은 바깥 빛). 하늘빛을 80% · 해(달)빛을 90% 깎는다
+     cvF 바닥 몫 — 방 원(+0.6~2.2 m) 안의 땅은 풀 대신 굴 바닥(자갈 · 마른 흙)이고, 굴 바위·광석의 밑동도 그 빛깔로 녹아든다
+     cvL 굴 불빛 — 예전 점광원과 같은 세기·자리(2.3 · 사거리 R+8 · 감쇠 2 · 방 가운데 2.6 m 위)를 방 원 안에만 더한다. 빛깔은 옅은 물빛(0.55·0.88·0.80) —
+         예전 0x58ffd0 은 하늘빛이 빠지자 굴 속을 온통 초록 한 빛으로 칠해 광석 빛깔이 갈리지 않았다
+   '천장 밑'은 법선으로 가른다 — 위를 보는 면은 방 바닥 + 4.2 m 밑, 옆은 5.6 m, 아래를 보는 면(천장 밑면)은 7 m 밑까지(지붕 윗면은 바깥) */
+const CAVE_K=6;
+TERR_U.uCvN={value:0};
+TERR_U.uCvA={value:Array.from({length:CAVE_K},()=>new THREE.Vector4())};   // 방 가운데 x · z · 반지름 · 바닥 높이
+TERR_U.uCvB={value:Array.from({length:CAVE_K},()=>new THREE.Vector4())};   // 입구 방향 x · z · 입구가 났나 · 불빛 세기
+const CAVE_GLSL=`#define CAVE_ON
+uniform int uCvN;
+uniform vec4 uCvA[${CAVE_K}];
+uniform vec4 uCvB[${CAVE_K}];
+float cvK=0.0, cvF=0.0; vec3 cvL=vec3(0.0);
+void cvEval(vec3 p,vec3 n){
+  for(int i=0;i<${CAVE_K};i++){ if(i>=uCvN) break;
+    vec4 A=uCvA[i], B=uCvB[i]; float d=length(p.xz-A.xy), rel=p.y-A.w;
+    if(d>A.z+2.6||rel<-8.0||rel>9.0) continue;
+    float lo=smoothstep(-8.0,-6.0,rel), hc=5.6-1.4*n.y, inV=(1.0-smoothstep(hc-0.7,hc+0.7,rel))*lo;
+    float kE=B.z>0.5?smoothstep(0.0,A.z*1.5,length(p.xz-A.xy-B.xy*A.z)):1.0;
+    cvK=max(cvK,(1.0-smoothstep(A.z-0.4,A.z+1.0,d))*inV*kE);
+    cvF=max(cvF,(1.0-smoothstep(A.z+0.6,A.z+2.2,d))*(1.0-smoothstep(4.0,5.0,rel))*lo);
+    if(B.w>0.0){ vec3 L=vec3(A.x,A.w+2.6,A.y)-p; float dl=max(length(L),0.05), at=max(0.0,1.0-dl/(A.z+8.0));
+      cvL+=vec3(0.55,0.88,0.80)*(3.14159*B.w*at*at*max(dot(n,L)/dl,0.0)*(1.0-smoothstep(A.z+0.5,A.z+2.5,d))*inV); } }
+}
+`;
 /* ── 굴 바위의 참 꼴(눈의 경계 — 사용자 지적: 굴 벽·바위에 붙어 고개를 조금 돌리면 속이 보인다) ──────────────
    예전엔 벽 바위마다 원 하나(반지름의 0.86)로만 몸을 막았다. 바위는 혹(±26 %)이 난 덩이라 넓은 쪽에서는 원보다 한참 나와 있어
    몸은 원 밖인데 눈이 바위 속에 들었다. 이제 ① 몸은 그 바위가 몸 높이에서 실제로 내민 만큼(방위 16 · `prof`) 막히고
@@ -38,6 +70,19 @@ function caveSolid(x,y,z){
   }
   return false;
 }
+/* 바위 속인가 — 눈의 경계(caveSolid)와 달리 부풀리지 않는다(네 모서리 반지름을 겹선형으로 · 1.03 배 없이). skip: 그 바위는 빼고.
+   지형 판 9 가 빛나는 점 · 버섯 · 종유석 자리를 거르는 데 쓴다(caveSolid 로 거르면 제 바위 면에서 0.3 m 밖도 속으로 쳐서 보이는 것까지 절반을 버렸다) */
+function caveIn(x,y,z,skip){
+  const a=CAVE_SOL.get(csKey(Math.floor(x/CSG),Math.floor(z/CSG))); if(!a) return false;
+  for(const s of a){ if(s===skip) continue;
+    const dx=x-s.x, dy=y-s.y, dz=z-s.z; if(dx*dx+dy*dy+dz*dz>s.R*s.R) continue;
+    const m=s.m, qx=(m[0]*dx+m[1]*dy+m[2]*dz)/s.sx, qy=(m[3]*dx+m[4]*dy+m[5]*dz)/s.sy, qz=(m[6]*dx+m[7]*dy+m[8]*dz)/s.sz;
+    const q=Math.sqrt(qx*qx+qy*qy+qz*qz); if(q<1e-6) return true;
+    const W=s.w, Hh=s.h, th=Math.acos(clamp(qy/q,-1,1))/Math.PI*Hh, ph=((Math.atan2(qz,-qx)/6.2832)+1)%1*W;
+    const j=Math.min(Hh-1,Math.floor(th)), i=Math.min(W-1,Math.floor(ph)), fj=th-j, fi=ph-i, K=s.k, r1=W+1;
+    if(q<(K[j*r1+i]*(1-fi)+K[j*r1+i+1]*fi)*(1-fj)+(K[(j+1)*r1+i]*(1-fi)+K[(j+1)*r1+i+1]*fi)*fj) return true; }
+  return false;
+}
 let CAVE_GLOW=null, CAVE_SHROOM=null;                  // 빛나는 점 · 버섯의 재질(굴 전체가 함께 쓴다)
 function caveGlowMat(){
   return CAVE_GLOW||(CAVE_GLOW=new THREE.ShaderMaterial({
@@ -53,15 +98,15 @@ void main(){ float d=length(gl_PointCoord-0.5)*2.0, a=(exp(-d*d*11.0)+0.38*exp(-
     blending:THREE.AdditiveBlending, depthWrite:false, transparent:true}));
 }
 function buildCaves(){
-  for(const m of CAVE_MESH){ scene.remove(m); m.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); } CAVE_MESH.length=0; CAVE_SOL.clear();
+  for(const m of CAVE_MESH){ scene.remove(m); m.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); } CAVE_MESH.length=0; CAVE_SOL.clear(); TERR_U.uCvN.value=0;
   if(typeof CAVES==='undefined'||!CAVES.length) return;
-  const mat=cragMat();                                 // 화강암 재질 + 덩이마다 다른 빛깔(33-crags.js)
+  const mat=cragMat(), TV9=(P.tv|0)>=9;                // 화강암 재질 + 덩이마다 다른 빛깔(33-crags.js) · TV9: 지형 판 9 의 굴 꼴(벽 높이 · 종유석 · 묻힌 빛 버리기)
   const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), S=new THREE.Vector3(), nm=new THREE.Matrix3(), v=new THREE.Vector3();
   const adiff=(a,b)=>{ let d=(a-b)%6.2832; if(d>3.1416) d-=6.2832; if(d<-3.1416) d+=6.2832; return Math.abs(d); };
   for(const c of CAVES){
     if(c.rooms.some(r=>inLanding(r.x,r.z,r.R+8))){ c.off=1; continue; }
     const rnd=mulberry32(c.seed>>>0), P=[], Nn=[], I=[], ML=[], CL=[], TB=0.74+0.34*rnd(), T0=CRAG_TINT[(rnd()*CRAG_TINT.length)|0];
-    const GP=[], GA=[], SP=[], SC=[], SI=[], lamps=[], DRIP=[];   // DRIP: 종유석이 달릴 천장 자리   // 빛나는 점(자리 · 크기/위상/밝기) · 버섯(자리 · 빛깔 · 세모) · 방의 불빛
+    const GP=[], GA=[], GN=[], GS=[], SP=[], SC=[], SI=[], lamps=[], DRIP=[], DS=[];   // DRIP: 종유석이 달릴 천장 자리(x·y·z·면의 법선 y)   // 빛나는 점(자리 · 크기/위상/밝기 · 법선) · 버섯(자리 · 빛깔 · 세모) · 방의 불빛
     /* 바위 한 덩이의 세모(I 의 i0~i1)에서 빛나는 점을 뿌린다 — roof: 아래를 보는 면(천장) · 아니면 방 가운데를 보는 면(벽 안쪽).
        고르게 뿌리지 않고 무리(col)를 짓는다 */
     const p1=rnd()*6.283, p2=rnd()*6.283;
@@ -72,10 +117,10 @@ function buildCaves(){
         if(roof){ if(ny>-0.3||dh>rm.R-0.3||up<1.9) continue; }
         else{ if(dh>rm.R+0.9||up<1.2||up>4.2||(nx*dx+nz*dz)/(dh||1)<0.45) continue; }
         const col=0.5+0.5*Math.sin(cx*1.1+p1)*Math.sin(cz*0.9+p2);
-        if(roof&&up>3.0&&dh<rm.R-1.2&&rnd()<0.045) DRIP.push(cx,cy,cz);             // 천장 높은 데 — 종유석 자리(물이 떨어지는 데)
+        if(roof&&up>3.0&&dh<rm.R-1.2&&rnd()<0.045){ DRIP.push(cx,cy,cz,ny); DS.push(rkS); }   // 천장 높은 데 — 종유석 자리(물이 떨어지는 데) · 그 바위
         if(rnd()>(col>0.5?(roof?0.90:0.30):0.10)) continue;
         let u=rnd(), w=rnd(); if(u+w>1){ u=1-u; w=1-w; } const q=1-u-w;
-        GP.push(P[a]*q+P[b]*u+P[d]*w+nx*0.05, P[a+1]*q+P[b+1]*u+P[d+1]*w+ny*0.05, P[a+2]*q+P[b+2]*u+P[d+2]*w+nz*0.05);
+        GP.push(P[a]*q+P[b]*u+P[d]*w+nx*0.05, P[a+1]*q+P[b+1]*u+P[d+1]*w+ny*0.05, P[a+2]*q+P[b+2]*u+P[d+2]*w+nz*0.05); GN.push(nx,ny,nz); GS.push(rkS);
         GA.push(0.16+rnd()*0.20,rnd(),0.75+rnd()*0.25); } };
     /* 빛나는 버섯 한 송이 — 대(여덟 모) + 갓(반구). 둥글게 빚는다 */
     const shroom=(x,y,z,r,h,lean,la)=>{ const o=SP.length/3, SG=10, lx=Math.cos(la)*lean, lz=Math.sin(la)*lean;
@@ -87,17 +132,28 @@ function buildCaves(){
       for(let k=0;k<RG;k++) for(let j=0;j<SG;j++){ const j1=(j+1)%SG, a=o2+k*SG+j, b=o2+k*SG+j1, e=a+SG, f=b+SG; SI.push(a,e,b, b,e,f); }
       const oc=SP.length/3; SP.push(tx,y+h-r*0.10,tz); SC.push(0.12,0.52,0.42);                       // 갓 밑(주름) — 한 톤 어둡다
       for(let j=0;j<SG;j++) SI.push(oc,o2+j,o2+(j+1)%SG); };
-    let rkO=0, rkN=0;                                  // 방금 빚은 바위의 꼭짓점 자리(P 의 몇 번째부터 몇 개) — 벽 바위의 몸 테두리를 뽑는다
+    /* 고드름 꼴 뿔(지형 판 9 — 종유석 · 석순) — 뿌리(y0)에서 끝으로 가늘어지는 여덟 모 여섯 마디. dn 1: 아래로 · −1: 위로.
+       마디마다 조금 부풀고 끝이 살짝 기운다. 뿌리는 천장(바닥)에 묻혀 안 보이므로 막지 않는다 */
+    const spike=(x,y0,z,len,r0,dn,tone,melt)=>{
+      const o=P.length/3, SG=8, RG=6, cb=(tone||TB)*(0.78+0.44*rnd()), tw=rnd()*6.283, lx=(rnd()-0.5)*0.10*len, lz=(rnd()-0.5)*0.10*len;
+      for(let k=0;k<=RG;k++){ const t=k/RG, rr=r0*Math.pow(1-t,1.3)*(1+0.10*Math.sin(t*11+tw))+0.008, yy=y0-dn*len*t, sl=1.3*r0*Math.pow(1-t+1e-3,0.3)/len, nl=Math.hypot(1,sl);
+        for(let j=0;j<SG;j++){ const an=j/SG*6.283+tw, ca=Math.cos(an), sa=Math.sin(an);
+          P.push(x+ca*rr+lx*t*t,yy,z+sa*rr+lz*t*t); Nn.push(ca/nl,-dn*sl/nl,sa/nl); ML.push(melt); CL.push(cb*T0[0],cb*T0[1],cb*T0[2]); } }
+      for(let k=0;k<RG;k++) for(let j=0;j<SG;j++){ const j1=(j+1)%SG, a=o+k*SG+j, b=o+k*SG+j1, e=a+SG, f=b+SG;
+        if(dn>0) I.push(a,b,e, b,f,e); else I.push(a,e,b, b,e,f); } };   // 바깥이 앞면
+    let rkO=0, rkN=0, rkS=null;                        // 방금 빚은 바위의 꼭짓점 자리(P 의 몇 번째부터 몇 개) — 벽 바위의 몸 테두리를 뽑는다 · 그 바위의 참 꼴(CAVE_SOL)
     const rock=(x,y,z,r,sy,melt,tone)=>{
       const g=SHP.blob(1,(rnd()*1e6)|0,{w:10,h:7,amp:0.26,nb:4}), pa=g.attributes.position.array, na=g.attributes.normal.array, o=P.length/3;
       const cb=(tone||TB)*(0.78+0.44*rnd());          // 덩이마다 밝기가 다르다(tone — 종유석은 밝은 석회빛)
       E.set(rnd()*0.5-0.25,rnd()*6.283,rnd()*0.5-0.25); Q.setFromEuler(E); V.set(x,y,z); S.set(r*(0.9+rnd()*0.3),r*sy,r*(0.9+rnd()*0.3)); M.compose(V,Q,S); nm.getNormalMatrix(M);
       /* 눈의 경계에 쓸 참 꼴 — 공 꼭짓점마다의 반지름(빚기 자리) · 되돌리는 돌림 · 늘인 몫. 종유석처럼 가는 것은 뺀다 */
+      rkS=null;
       if(r*Math.min(1,sy)>=0.35){ const K=new Float32Array(pa.length/3); let km=0; for(let i=0;i<K.length;i++){ K[i]=Math.hypot(pa[i*3],pa[i*3+1],pa[i*3+2]); if(K[i]>km) km=K[i]; }
         const e=new THREE.Matrix4().makeRotationFromQuaternion(Q).elements;     // 열 우선 — 되돌림은 전치(행렬 m 의 행 = 돌림의 열)
         const s={x,y,z,sx:S.x,sy:S.y,sz:S.z,k:K,w:10,h:7,m:[e[0],e[1],e[2],e[4],e[5],e[6],e[8],e[9],e[10]],R:Math.max(S.x,S.y,S.z)*km*1.05};
         for(let gz=Math.floor((z-s.R)/CSG);gz<=Math.floor((z+s.R)/CSG);gz++) for(let gx=Math.floor((x-s.R)/CSG);gx<=Math.floor((x+s.R)/CSG);gx++){
-          const k=csKey(gx,gz); let a=CAVE_SOL.get(k); if(!a) CAVE_SOL.set(k,a=[]); a.push(s); } }
+          const k=csKey(gx,gz); let a=CAVE_SOL.get(k); if(!a) CAVE_SOL.set(k,a=[]); a.push(s); }
+        rkS=s; }
       for(let i=0;i<pa.length;i+=3){ v.set(pa[i],pa[i+1],pa[i+2]).applyMatrix4(M); P.push(v.x,v.y,v.z);
         v.set(na[i],na[i+1],na[i+2]).applyMatrix3(nm).normalize(); Nn.push(v.x,v.y,v.z); ML.push(melt); CL.push(cb*T0[0],cb*T0[1],cb*T0[2]); }
       const ix=g.index.array, i0=I.length; for(let i=0;i<ix.length;i++) I.push(o+ix[i]);
@@ -111,7 +167,12 @@ function buildCaves(){
       const R=rm.R, n1=Math.max(9,Math.round((R+1.7)*6.283/4.1)), n2=Math.max(6,Math.round(R*6.283/5.4)), a0=rnd()*6.283;
       for(let i=0;i<n1;i++){ const a=a0+i/n1*6.283; if(rm.open.some(o=>adiff(a,o)<0.50)) continue;       // 벽 — 터진 데는 비운다
         const r=2.7+rnd()*0.8, d=R+r*0.55, x=rm.x+Math.cos(a)*d, z=rm.z+Math.sin(a)*d, gy=heightAt(x,z);
-        const i0=rock(x,gy+r*0.55,z,r,1.0+rnd()*0.25,1.1); glowOn(i0,I.length,rm,false);
+        /* 지형 판 9 — 비탈 아래쪽 벽 바위는 위를 처마 밑(방 바닥 + 4.4 m)까지 올린다. 예전엔 그 자리 땅에 앉혀 비탈 아래쪽 벽이
+           방 바닥보다 4 m 까지 낮았고, 처마(방 바닥 + 4.9 m 에 걸린 둘째 단)와 사이가 떠서 하늘이 가로로 길게 보였다.
+           밑동(땅 − 0.45r)은 그대로 두고 위만 늘린다(늘인 만큼 가운데가 오른다) · 난수 차례는 그대로 */
+        const sy0=1.0+rnd()*0.25; let cy=gy+r*0.55, sy=sy0;
+        if(TV9&&cy+sy*r<rm.y+4.4){ const b=gy-r*0.45, T=rm.y+4.4; cy=(T+b)/2; sy=(T-b)/(2*r); }
+        const i0=rock(x,cy,z,r,sy,1.1); glowOn(i0,I.length,rm,false);
         const pf=profOf(x,z,Math.min(gy,rm.y)-0.2,Math.max(gy,rm.y)+2.2);
         COLLIDERS.push(pf.mx>0.5?{x,z,r:pf.mx,prof:pf.pr}:{x,z,r:r*0.86}); }
       for(let i=0;i<n2;i++){ const a=a0+0.3+i/n2*6.283, r=2.8+rnd()*0.7, d=R-0.6, x=rm.x+Math.cos(a)*d, z=rm.z+Math.sin(a)*d;   // 둘째 단 — 안으로 기운 처마
@@ -122,17 +183,30 @@ function buildCaves(){
       /* 버섯 무더기 — 벽 밑을 따라 네댓 군데(터진 데는 비운다). 무더기마다 은은한 빛무리 하나 */
       for(let k=0,n=4+((rnd()*3)|0);k<n;k++){ const a=rnd()*6.283; if(rm.open.some(o=>adiff(a,o)<0.7)) continue;
         const d=R-0.5-rnd()*1.3, bx=rm.x+Math.cos(a)*d, bz=rm.z+Math.sin(a)*d;
-        for(let j=0,m=4+((rnd()*6)|0);j<m;j++){ const x=bx+(rnd()-0.5)*0.9, z=bz+(rnd()-0.5)*0.9, r=0.06+rnd()*0.11;
-          shroom(x,heightAt(x,z),z,r,0.10+rnd()*0.22+r,rnd()*0.35,rnd()*6.283); }
-        GP.push(bx,heightAt(bx,bz)+0.22,bz); GA.push(1.9,rnd(),0.34); }
+        for(let j=0,m=4+((rnd()*6)|0);j<m;j++){ const x=bx+(rnd()-0.5)*0.9, z=bz+(rnd()-0.5)*0.9, r=0.06+rnd()*0.11, hy=heightAt(x,z), s0=SP.length, c0=SC.length, t0=SI.length;
+          shroom(x,hy,z,r,0.10+rnd()*0.22+r,rnd()*0.35,rnd()*6.283);
+          if(TV9&&caveIn(x,hy+0.05,z,null)){ SP.length=s0; SC.length=c0; SI.length=t0; } }   // 지형 판 9 — 벽 바위 속에 돋은 것은 버린다(난수는 다 뽑고)
+        GP.push(bx,heightAt(bx,bz)+0.22,bz); GA.push(1.9,rnd(),0.34); GN.push(0,1,0); GS.push(null); }
       lamps.push([rm.x,rm.y+2.6,rm.z,R+8]);
     }
     /* **종유석과 석순** — 천장에서 물이 떨어지는 자리마다 고드름 꼴의 돌이 달리고(길이 0.6~1.9 m), 그 밑 바닥에는 석순이 솟는다
        (셋에 둘 — 더 굵고 짧다). 머리 위 2 m 는 비워 둔다. 밝은 석회빛이다. 몸은 안 막는다(천장에 달렸거나 발목~무릎 높이) */
-    for(let q=0,nd=Math.min(DRIP.length/3,14*c.rooms.length);q<nd;q++){ const x=DRIP[q*3], cy0=DRIP[q*3+1], z=DRIP[q*3+2], fy=heightAt(x,z);
+    for(let q=0,nd=Math.min(DRIP.length/4,14*c.rooms.length);q<nd;q++){ const x=DRIP[q*4], cy0=DRIP[q*4+1], z=DRIP[q*4+2], fy=heightAt(x,z);
+      /* 지형 판 9 — 공을 세로로 늘인 덩이(소시지 꼴 · 뿌리가 천장 면 밖으로 떠 보였다) 대신 뿌리를 천장에 0.35 m 묻은 **고드름 꼴 뿔**.
+         천장이 아니라 벽인 면(법선이 덜 아래를 본다) · 머리 위가 낮은 데 · 다른 바위 속에 숨은 자리에는 안 단다 */
+      if(TV9){ if(DRIP[q*4+3]>-0.55||cy0-fy<2.6||caveIn(x,cy0-0.4,z,DS[q])) continue;
+        const len=Math.min(0.5+1.4*rnd()*rnd(),cy0-fy-2.1), r0=0.07+0.05*len+0.05*rnd();
+        spike(x,cy0+0.35,z,len+0.35,r0,1,1.25,0.02);
+        if(rnd()<0.66){ const h2=0.25+0.6*rnd(), r2=0.12+0.10*h2+0.05*rnd(); spike(x+(rnd()-0.5)*0.15,fy-0.12-r2*0.6,z+(rnd()-0.5)*0.15,h2+0.12+r2*0.6,r2,-1,1.18,0.25); }
+        continue; }
       const len=Math.min(0.6+1.3*rnd()*rnd(),Math.max(0.3,cy0-fy-2.0)), r=0.10+0.10*rnd();
       rock(x,cy0-len*0.42,z,r,len*0.5/r,0.02,1.25);
       if(rnd()<0.66){ const h2=0.25+0.5*rnd(), r2=0.14+0.12*rnd(); rock(x+(rnd()-0.5)*0.15,fy+h2*0.30,z+(rnd()-0.5)*0.15,r2,h2*0.6/r2,0.25,1.18); } }
+    /* 지형 판 9 — 빛나는 점 가운데 이웃 바위 속에 든 것(겹친 바위의 면에 찍힌 것 — 58%)은 버린다. 면에서 0.3 m 밖이 제 바위 아닌 바위 속이면 가려진 것 */
+    if(TV9){ let w=0; for(let i=0;i<GP.length/3;i++){ const o=i*3;
+        if(caveIn(GP[o]+GN[o]*0.3,GP[o+1]+GN[o+1]*0.3,GP[o+2]+GN[o+2]*0.3,GS[i])) continue;
+        for(let k=0;k<3;k++){ GP[w*3+k]=GP[o+k]; GA[w*3+k]=GA[o+k]; } w++; }
+      GP.length=GA.length=w*3; }
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
     g.setAttribute('aMelt',new THREE.Float32BufferAttribute(ML,1)); g.setAttribute('color',new THREE.Float32BufferAttribute(CL,3)); g.setIndex(I); g.computeBoundingSphere();
@@ -143,20 +217,32 @@ function buildCaves(){
     if(SI.length){ const sg=new THREE.BufferGeometry(); sg.setAttribute('position',new THREE.Float32BufferAttribute(SP,3)); sg.setAttribute('color',new THREE.Float32BufferAttribute(SC,3)); sg.setIndex(SI);
       sg.computeBoundingSphere(); const sm=new THREE.Mesh(sg,CAVE_SHROOM||(CAVE_SHROOM=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide})));
       sm.matrixAutoUpdate=false; sm.userData.lightRole='none'; m.add(sm); }
-    for(const l of lamps) LIGHT.addFire(m,{color:0x58ffd0,intensity:2.3,dist:l[3],pos:[l[0],l[1],l[2]]});   // 한밤에도 광석과 벽이 분간된다(횃불 26 m·모닥불 22 m 에 견주면 어둑하다)
+    for(const rm of c.rooms) rm.lamp=lamps.length?2.3:0;   // 방의 불빛 — 한밤에도 광석과 벽이 분간된다(횃불 26 m·모닥불 22 m 에 견주면 어둑하다) · 셰이더가 방 안에만 더한다(위 '굴 속의 빛과 바닥')
     c.glow=GP.length/3;
     scene.add(m); CAVE_MESH.push(m);
   }
   buildColliderGrid();
 }
 /* 먼 굴은 안 그린다(굴 하나에 세모 3천~1만 — 섬에 수십) */
-let _caveT=0;
+let _caveT=0, _caveX=1e9, _caveZ=1e9;
 function updateCaves(){
   if(!CAVE_MESH.length) return;
   if(CAVE_GLOW){ CAVE_GLOW.uniforms.uT.value=performance.now()*0.001;
     CAVE_GLOW.uniforms.uPx.value=((typeof CAMC!=='undefined'&&CAMC.rt)?CAMC.rt.height:renderer.domElement.height)*0.5*camera.projectionMatrix.elements[5]; }
-  if(_caveT++&15) return;
+  /* 열여섯 프레임마다 — 순간이동(불러오기 · 되살아나기 · 개발자 이동)으로 20 m 넘게 옮겼으면 바로 */
+  const cx=camera.position.x, cz=camera.position.z, jump=(cx-_caveX)*(cx-_caveX)+(cz-_caveZ)*(cz-_caveZ)>400;
+  if((_caveT++&15)&&!jump) return;
+  _caveX=cx; _caveZ=cz;
   const px=PL.pos.x, pz=PL.pos.z;
   for(const m of CAVE_MESH){ const c=m.userData.cave, v=(c.x-px)*(c.x-px)+(c.z-pz)*(c.z-pz)<420*420;
     if(m.visible!==v){ m.visible=v; LIGHT.dirtyAt(c.x,c.z,30); } }
+  /* 굴 빛 유니폼 — 눈에서 가까운 방 여섯(360 m 안 굴의 방) */
+  const near=[];
+  for(const m of CAVE_MESH){ const c=m.userData.cave; if((c.x-cx)*(c.x-cx)+(c.z-cz)*(c.z-cz)>360*360) continue;
+    for(const r of c.rooms) near.push([(r.x-cx)*(r.x-cx)+(r.z-cz)*(r.z-cz),r,c]); }
+  near.sort((a,b)=>a[0]-b[0]);
+  const n=Math.min(CAVE_K,near.length), A=TERR_U.uCvA.value, B=TERR_U.uCvB.value;
+  for(let i=0;i<n;i++){ const r=near[i][1], c=near[i][2], e=r===c.rooms[0];
+    A[i].set(r.x,r.z,r.R,r.y); B[i].set(e?Math.cos(c.yaw):0,e?Math.sin(c.yaw):0,e?1:0,r.lamp||0); }
+  TERR_U.uCvN.value=n;
 }

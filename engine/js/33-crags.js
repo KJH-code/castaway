@@ -28,6 +28,7 @@ const CRAG={T:320, S:80, MID:60, NEAR:140, FAR:720, DROP:1050, tiles:new Map(), 
 function cragMat(){
   if(CRAG.mat) return CRAG.mat;
   const m=rockMat('granite',0x7a7872); m.vertexColors=true;
+  m.defines=Object.assign({},m.defines,{RK_OFS:1});   // 덩이마다 무늬를 비킨다(20-terrain.js rockMat)
   return CRAG.mat=m;
 }
 function cragMatFar(){

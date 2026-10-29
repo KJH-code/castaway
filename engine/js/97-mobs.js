@@ -430,10 +430,31 @@ function mobRoster(d,k){
 
 /* ── 다지류 ──────────────────────────────────────────────────────────────── */
 function crawlCoil(m){                                                       // 둥지 방에 똬리 — 가운데에 머리, 바깥으로 감긴 길
-  const cr=m.cr, l=m.lair, T=cr.TRAIL; T.length=0; let th=Math.random()*6.283, r=0.8, len=0, px=l.x+Math.cos(th)*r, pz=l.z+Math.sin(th)*r;
-  cr.head.set(px,0,pz); T.push([px,pz]);
-  while(len<cr.restLen+3){ th+=CRW.STEP/Math.max(r,0.6); r=Math.min(l.R*0.9,0.8+th*0.32); const x=l.x+Math.cos(th)*r, z=l.z+Math.sin(th)*r; len+=Math.hypot(x-px,z-pz); px=x; pz=z; T.push([x,z]); }
-  cr.hdg=th+Math.PI; cr.state='chase';
+  /* 동굴 점검(2026-10-29) — 몸이 41 m 인데 예전엔 둥지 방의 0.9R(5 m 남짓)까지 감고도 남은 길을 그 둘레로 거듭 감아, 몸의 3~60%(둥지마다 ·
+     평균 34%)가 벽 바위 속에 들었다(지금 0~8% · 평균 2%). 이제 ① 둥지 방에서 벽 바위 안쪽 면 안(R − 2.2 m)까지 1.6 m 간격(몸 지름 1.46 m)으로 감고 — 감긴 끝이 터진 데를
+     보게 시작 각을 고른다 ② 남은 꼬리는 터진 데로 나가 앞 방이 있으면 그 방 둘레(R − 2.4 m)를 돌고, 없으면(방 하나짜리 굴) 입구 밖 비탈로
+     굽이치며 나간다. 꺾임은 1.2 m 반지름보다 날카롭지 않게. 반지름은 감은 각으로 센다(예전엔 시작 각 그대로 세어 첫 마디가 2.8 m 튀었다) */
+  const cr=m.cr, l=m.lair, T=cr.TRAIL; T.length=0;
+  const rooms=l.cave&&l.cave.rooms&&l.cave.rooms.length?l.cave.rooms:null, rm=rooms?rooms[rooms.length-1]:null;
+  const op=rm&&rm.open&&rm.open.length?rm.open[0]:Math.random()*6.283, prev=rooms&&rooms.length>1?rooms[rooms.length-2]:null;
+  const ST=CRW.STEP, need=cr.restLen+3, Bk=1.6/6.2832, Rm=Math.max(1.4,l.R-2.2), s=Math.random()<0.5?1:-1;
+  let len=0, px=0, pz=0;
+  const add=(x,z)=>{ if(T.length) len+=Math.hypot(x-px,z-pz); px=x; pz=z; T.push([x,z]); };
+  const th0=op-(Rm-0.8)/Bk+(Math.random()-0.5)*0.3;
+  for(let th=th0, r=0.8; r<Rm&&len<need; ){ add(l.x+Math.cos(th)*r,l.z+Math.sin(th)*r); th+=ST/Math.max(r,0.6); r=0.8+(th-th0)*Bk; }
+  let hd=T.length>1?Math.atan2(pz-T[T.length-2][1],px-T[T.length-2][0]):op, l0=len;
+  const rc=prev?Math.max(1.4,prev.R-2.4):0;
+  while(len<need){
+    let want=op;                                                               // 터진 데로 곧게
+    if(len-l0>Math.max(0,l.R+0.6-Rm)){                                         // 둥지 방을 벗어난 뒤
+      if(prev){ const dx=px-prev.x, dz=pz-prev.z, d=Math.hypot(dx,dz);   // 앞 방 둘레를 돈다(밖이면 안으로 · 안이면 밖으로 바로잡으며)
+        want=Math.atan2(dz,dx)+s*(Math.PI/2+clamp((d-rc)*0.8,-0.8,Math.PI/2)); }
+      else want=op+s*0.5*Math.sin((len-l0)/6); }                              // 입구 밖 — 굽이친다
+    let d=want-hd; while(d>Math.PI) d-=6.2832; while(d<-Math.PI) d+=6.2832;
+    hd+=clamp(d,-ST/1.2,ST/1.2);
+    add(px+Math.cos(hd)*ST,pz+Math.sin(hd)*ST); }
+  cr.head.set(T[0][0],0,T[0][1]);
+  cr.hdg=Math.atan2(T[0][0]-T[1][0],T[0][1]-T[1][1]); cr.state='chase';
 }
 function crawlAttach(m,l,night,e){
   const hp=e&&e.hp>0?e.hp:m.hpMax;                                           // 지난번에 거둘 때 남은 체력으로
