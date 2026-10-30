@@ -227,6 +227,7 @@ function buildCaves(){
 /* 먼 굴은 안 그린다(굴 하나에 세모 3천~1만 — 섬에 수십) */
 let _caveT=0, _caveX=1e9, _caveZ=1e9;
 function updateCaves(){
+  if(typeof cv10Tick==='function'&&(P.tv|0)>=10) cv10Tick();   // 판 10 굴의 격자 · 메시(31-cave10.js) — 아래 돌아가기보다 앞
   if(!CAVE_MESH.length) return;
   if(CAVE_GLOW){ CAVE_GLOW.uniforms.uT.value=performance.now()*0.001;
     CAVE_GLOW.uniforms.uPx.value=((typeof CAMC!=='undefined'&&CAMC.rt)?CAMC.rt.height:renderer.domElement.height)*0.5*camera.projectionMatrix.elements[5]; }

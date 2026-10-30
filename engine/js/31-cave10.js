@@ -443,3 +443,274 @@ function cv10OreCheck(){
     if(!b) continue; const o=cv10Field(b.cave,p.x,p.z); R.n++; if(!(Math.abs(p.top-o.f)<0.05&&o.g>=2.0&&o.u<=0.75)) R.bad++; }
   return R;
 }
+
+
+/* ══ A2 — 격자 · 바위 껍데기 메시 · 굴 자리 그림 · 질의 ═══════════════════════════════════════════════════════════
+   사람이 320 m 안이면 굴 하나씩 프레임마다 3 ms 예산으로 0.5 m 격자(F 바닥 · C 천장 · Hh 땅 · O 열린 데 · M 땅 뚫기 자리 · D 열린 데까지의 거리)를 굽고
+   surface nets 로 이음매 없는 껍데기를 짓는다(밀도 ρ=min(Hh−y, max(F−y,y−C)) — ρ>0 이 바위). 500 m 밖이면 버린다.
+   surface nets 의 칸 → 꼭짓점 하나 · 부호가 바뀐 모서리마다 네모라는 얼개는 mikolalysenko/isosurface `lib/surfacenets.js`(MIT)에서 가져왔고,
+   칸의 y 범위를 기둥 위아래로만 좁히는 생각은 NW2 의 '단면을 한 번 세고 y 에 다시 쓰기'를 따랐다. 땅 겉 면 버리기 · 속성은 이 게임의 것.
+   짓는 차례와 프레임에 상관없이 같은 굴은 같은 메시다(굴 자료와 cv10Field 만 읽는다). */
+CV10.built=new Map(); CV10.onBuild=[]; CV10.onDrop=[]; CV10.mat=null;
+CV10.near=320; CV10.far=500; CV10.budget=3; CV10.maxTri=80000; CV10.cur=null; CV10.maxFrame=0;
+const _cv10Smooth=(a,b,x)=>{ const t=Math.min(1,Math.max(0,(x-a)/(b-a))); return t*t*(3-2*t); };
+const _cv10Cols={karst:0x9a917f,lava:0x3b3836,talus:0x8d8a86,shelter:0xb88a5c}, _cv10Mats={};
+function cv10SeatMat(kind){ return _cv10Mats[kind]||(_cv10Mats[kind]=new THREE.MeshLambertMaterial({color:_cv10Cols[kind]||0x8d8a86})); }
+
+function cv10Init(rec,S){
+  const c=rec.c, b=c.box; rec.S=S; rec.x0=b.x0; rec.z0=b.z0; rec.nx=Math.floor((b.x1-b.x0)/S)+1; rec.nz=Math.floor((b.z1-b.z0)/S)+1;
+  const n=rec.nx*rec.nz; rec.F=new Float32Array(n); rec.C=new Float32Array(n); rec.Hh=new Float32Array(n);
+  rec.O=new Uint8Array(n); rec.M=new Uint8Array(n); rec.D=new Float32Array(n).fill(1e9);
+  rec.state='grid'; rec.ph='grid'; rec.pr=0; rec.ready=false; rec.vmin=1e9; rec.nvoid=0;
+  rec.vp=null; rec.vnrm=null; rec.vn=0; rec.idx=null; rec.ni=0; rec.vi=null; rec.cbase=null; rec.ck0=null; rec.cn=null; rec.tdata=null;
+}
+function cv10Rec(c){
+  let r=CV10.built.get(c); if(r) return r;
+  r={c,state:'grid',S:0.5,mesh:null,tex:null,texInfo:null,cols:[],retried:false,texOver:0,tris:0,verts:0,msGrid:0,msMesh:0};
+  cv10Init(r,0.5); CV10.built.set(c,r); return r;
+}
+const cv10Dist=(c,px,pz)=>{ const b=c.box, dx=Math.max(b.x0-px,0,px-b.x1), dz=Math.max(b.z0-pz,0,pz-b.z1); return Math.hypot(dx,dz); };
+const cv10Ready=c=>{ const r=CV10.built.get(c); return !!(r&&r.ready); };
+
+/* 한 단계를 줄 단위로 — rec.pr 부터 t1 까지. 다 했으면 true */
+function cv10Rows(rec,n,fn,t1,every){
+  const ev=every||1; let c=0;
+  while(rec.pr<n){ fn(rec.pr++); if(++c>=ev){ c=0; if(performance.now()>t1) return rec.pr>=n; } }
+  return true;
+}
+const _cv10Heap={k:[],v:[]};
+function cv10Push(k,v){ const H=_cv10Heap, hk=H.k, hv=H.v; let i=hk.length; hk.push(k); hv.push(v);
+  while(i>0){ const p=(i-1)>>1; if(hk[p]<=k) break; hk[i]=hk[p]; hv[i]=hv[p]; i=p; } hk[i]=k; hv[i]=v; }
+function cv10Pop(){ const H=_cv10Heap, hk=H.k, hv=H.v, tv=hv[0], lk=hk.pop(), lv=hv.pop(), n=hk.length;
+  if(n>0){ let i=0; for(;;){ let l=2*i+1; if(l>=n) break; if(l+1<n&&hk[l+1]<hk[l]) l++; if(hk[l]>=lk) break; hk[i]=hk[l]; hv[i]=hv[l]; i=l; } hk[i]=lk; hv[i]=lv; }
+  return tv; }
+
+/* ρ — 기둥 q 의 높이 y 에서 */
+const cv10Rho=(rec,q,y)=>{ const h=rec.Hh[q]-y, a=rec.F[q]-y, b=y-rec.C[q]; const v=a>b?a:b; return h<v?h:v; };
+/* 칸 모서리 12 — 꼭짓점 비트: 1=+x · 2=+z · 4=+y */
+const _cv10Edges=[[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
+const _cv10Nb=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+
+function cv10Step(rec,t1){
+  const nx=rec.nx, nz=rec.nz, n=nx*nz, c=rec.c, S=rec.S, F=rec.F, C=rec.C, Hh=rec.Hh, O=rec.O, M=rec.M, D=rec.D;
+  for(;;){
+    switch(rec.ph){
+    case 'grid':{
+      const T=performance.now();
+      if(!cv10Rows(rec,nz,j=>{ const z=rec.z0+j*S; for(let i=0;i<nx;i++){ const x=rec.x0+i*S, o=cv10Field(c,x,z), q=j*nx+i;
+          F[q]=o.f; C[q]=o.c; Hh[q]=heightAt(x,z); if(o.g>0.05){ O[q]=o.open?1:0; if(o.f<rec.vmin) rec.vmin=o.f; rec.nvoid++; } else { O[q]=0; } } },t1)) { rec.msGrid+=performance.now()-T; return false; }
+      rec.msGrid+=performance.now()-T; rec.ph='dinit'; rec.pr=0; break; }
+    case 'dinit':{
+      const T=performance.now();
+      const isV=q=>C[q]-F[q]>0.05; let any=false; _cv10Heap.k.length=0; _cv10Heap.v.length=0;
+      for(let q=0;q<n;q++) if(O[q]&&isV(q)){ D[q]=0; cv10Push(0,q); any=true; }
+      if(!any&&rec.nvoid){ const m=c.mouths[0]; let bq=-1,bd=1e18;
+        for(let q=0;q<n;q++) if(isV(q)){ const dx=rec.x0+(q%nx)*S-m.x, dz=rec.z0+((q/nx)|0)*S-m.z, d=dx*dx+dz*dz; if(d<bd){ bd=d; bq=q; } }
+        if(bq>=0){ D[bq]=0; cv10Push(0,bq); } }
+      rec.msGrid+=performance.now()-T; rec.ph='dijk'; break; }
+    case 'dijk':{
+      const T=performance.now(), R2=S*1.4142135623730951; let cnt=0;
+      while(_cv10Heap.k.length){
+        const dk=_cv10Heap.k[0], q=cv10Pop(); if(dk>D[q]) continue;
+        const i=q%nx, j=(q/nx)|0;
+        for(let e=0;e<8;e++){ const ni=i+_cv10Nb[e][0], nj=j+_cv10Nb[e][1]; if(ni<0||nj<0||ni>=nx||nj>=nz) continue;
+          const r=nj*nx+ni; if(!(C[r]-F[r]>0.05)) continue; const d=dk+(e<4?S:R2); if(d<D[r]){ D[r]=d; cv10Push(d,r); } }
+        if((++cnt&511)===0&&performance.now()>t1) { rec.msGrid+=performance.now()-T; return false; }
+      }
+      rec.msGrid+=performance.now()-T; rec.ph='mdil'; rec.pr=0; break; }
+    case 'mdil':{
+      const T=performance.now();
+      if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ let m=0;
+          for(let dj=-1;dj<=1&&!m;dj++){ const jj=j+dj; if(jj<0||jj>=nz) continue; for(let di=-1;di<=1;di++){ const ii=i+di; if(ii<0||ii>=nx) continue; if(O[jj*nx+ii]){ m=1; break; } } }
+          M[j*nx+i]=m; } },t1)) { rec.msGrid+=performance.now()-T; return false; }
+      rec.msGrid+=performance.now()-T; rec.ph='near1'; rec.pr=0; rec.tmp=new Uint8Array(n); rec.near=new Uint8Array(n); break; }
+    case 'near1':{   /* 빈 데에서 가로로 두 칸 */
+      const T=performance.now();
+      if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ let m=0; for(let di=-2;di<=2;di++){ const ii=i+di; if(ii<0||ii>=nx) continue; const q=j*nx+ii; if(C[q]-F[q]>0.05){ m=1; break; } } rec.tmp[j*nx+i]=m; } },t1)) { rec.msGrid+=performance.now()-T; return false; }
+      rec.msGrid+=performance.now()-T; rec.ph='near2'; rec.pr=0; rec.ymin=1e9; rec.ymax=-1e9; break; }
+    case 'near2':{
+      const T=performance.now();
+      if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ let m=0; for(let dj=-2;dj<=2;dj++){ const jj=j+dj; if(jj<0||jj>=nz) continue; if(rec.tmp[jj*nx+i]){ m=1; break; } }
+          const q=j*nx+i; rec.near[q]=m; if(m){ const lo=C[q]-F[q]>0.05?F[q]:Hh[q]; if(lo<rec.ymin) rec.ymin=lo; if(Hh[q]>rec.ymax) rec.ymax=Hh[q]; } } },t1)) { rec.msGrid+=performance.now()-T; return false; }
+      rec.tmp=null; rec.ready=true; rec.msGrid+=performance.now()-T;
+      if(!rec.nvoid){ rec.state='done'; rec.ph='done'; return true; }
+      rec.ymin=Math.min(rec.ymin,rec.vmin)-1; rec.ymax+=1; rec.ny=Math.ceil((rec.ymax-rec.ymin)/S)+1;
+      rec.cbase=new Int32Array((nx-1)*(nz-1)); rec.ck0=new Int16Array((nx-1)*(nz-1)); rec.cn=new Int16Array((nx-1)*(nz-1)); rec.slot=0;
+      rec.ph='crange'; rec.pr=0; rec.state='mesh'; break; }
+    case 'crange':{
+      const T=performance.now(), ny=rec.ny, ymin=rec.ymin, nxc=nx-1;
+      if(!cv10Rows(rec,nxc,i=>{ for(let j=0;j<nz-1;j++){ const q0=j*nx+i; let any=false, lo=1e9, hi=-1e9;
+          for(let a=0;a<4;a++){ const q=q0+(a&1)+(a>>1)*nx; if(rec.near[q]) any=true; const v=C[q]-F[q]>0.05; const l=v?F[q]:Hh[q], h=v?Math.min(C[q],Hh[q]+1):Hh[q]; if(l<lo) lo=l; if(h>hi) hi=h; }
+          const ci=j*nxc+i; if(!any){ rec.cn[ci]=0; continue; }
+          const k0=Math.max(0,Math.floor((lo-ymin)/S)-1), k1=Math.min(ny-2,Math.ceil((hi-ymin)/S)+1);
+          if(k1<k0){ rec.cn[ci]=0; continue; } rec.ck0[ci]=k0; rec.cn[ci]=k1-k0+1; rec.cbase[ci]=rec.slot; rec.slot+=k1-k0+1; } },t1)) { rec.msMesh+=performance.now()-T; return false; }
+      rec.vi=new Int32Array(rec.slot).fill(-1); rec.cap=4096; rec.vp=new Float32Array(rec.cap*3); rec.vnrm=new Float32Array(rec.cap*3); rec.vn=0;
+      rec.ph='vtx'; rec.pr=0; rec.msMesh+=performance.now()-T; break; }
+    case 'vtx':{
+      const T=performance.now(), ymin=rec.ymin, nxc=nx-1, rho=new Float64Array(8), EX=_cv10Edges;
+      const nzc=nz-1;
+      if(!cv10Rows(rec,nxc*nzc,u=>{ { const i=(u/nzc)|0, j=u-i*nzc, ci=j*nxc+i, cnn=rec.cn[ci]; if(!cnn) return;
+          const q0=j*nx+i;
+          for(let kk=0;kk<cnn;kk++){ const k=rec.ck0[ci]+kk, y0=ymin+k*S, y1=y0+S;
+            let mask=0; for(let a=0;a<4;a++){ const q=q0+(a&1)+(a>>1)*nx, r0=cv10Rho(rec,q,y0), r1=cv10Rho(rec,q,y1); rho[a]=r0; rho[a+4]=r1; if(r0>0) mask|=1<<a; if(r1>0) mask|=1<<(a+4); }
+            if(mask===0||mask===255) continue;
+            let px=0,py=0,pz=0,cnt=0;
+            for(let e=0;e<12;e++){ const a=EX[e][0], b=EX[e][1], ra=rho[a], rb=rho[b]; if((ra>0)===(rb>0)) continue; const t=ra/(ra-rb);
+              const ax=a&1, az=(a>>1)&1, ay=a>>2, bx=b&1, bz=(b>>1)&1, by=b>>2;
+              px+=ax+(bx-ax)*t; pz+=az+(bz-az)*t; py+=ay+(by-ay)*t; cnt++; }
+            let gx=0,gy=0,gz=0; for(let a=0;a<8;a++){ const r=rho[a]; gx+=(a&1)?r:-r; gz+=((a>>1)&1)?r:-r; gy+=(a>>2)?r:-r; }
+            const gl=Math.hypot(gx,gy,gz)||1;
+            if(rec.vn>=rec.cap){ rec.cap*=2; const np=new Float32Array(rec.cap*3), nn=new Float32Array(rec.cap*3); np.set(rec.vp); nn.set(rec.vnrm); rec.vp=np; rec.vnrm=nn; }
+            const o=rec.vn*3; rec.vp[o]=rec.x0+(i+px/cnt)*S; rec.vp[o+1]=y0+(py/cnt)*S; rec.vp[o+2]=rec.z0+(j+pz/cnt)*S;
+            rec.vnrm[o]=-gx/gl; rec.vnrm[o+1]=-gy/gl; rec.vnrm[o+2]=-gz/gl;
+            rec.vi[rec.cbase[ci]+kk]=rec.vn++; } } },t1,8)) { rec.msMesh+=performance.now()-T; return false; }
+      rec.idx=new Uint32Array(6*4096); rec.ni=0; rec.ph='quad'; rec.pr=0; rec.msMesh+=performance.now()-T; break; }
+    case 'quad':{
+      const T=performance.now(), ymin=rec.ymin, ny=rec.ny, nxc=nx-1, nzc=nz-1, q4=[0,0,0,0];
+      const cv=(ci,cj,k)=>{ if(ci<0||cj<0||ci>=nxc||cj>=nzc) return -1; const c0=cj*nxc+ci, k0=rec.ck0[c0], cn=rec.cn[c0]; if(!cn||k<k0||k>=k0+cn) return -1; return rec.vi[rec.cbase[c0]+k-k0]; };
+      const near=(x,z)=>Math.min(nz-1,Math.max(0,Math.round((z-rec.z0)/S)))*nx+Math.min(nx-1,Math.max(0,Math.round((x-rec.x0)/S)));
+      const emit=(rev)=>{ if(q4[0]<0||q4[1]<0||q4[2]<0||q4[3]<0) return;
+        /* 땅 겉 버리기 — 네 꼭짓점이 다 v>0.3 이고 가운데가 M 밖 */
+        let allv=true,mx=0,mz=0;
+        for(let a=0;a<4;a++){ const o=q4[a]*3, x=rec.vp[o], y=rec.vp[o+1], z=rec.vp[o+2]; mx+=x; mz+=z;
+          if(cv10V(rec,x,y,z)<=0.3) allv=false; }
+        if(allv&&!M[near(mx/4,mz/4)]) return;
+        if(rec.ni+6>rec.idx.length){ const ni=new Uint32Array(rec.idx.length*2); ni.set(rec.idx); rec.idx=ni; }
+        const I=rec.idx; let p=rec.ni;
+        if(rev){ I[p++]=q4[0]; I[p++]=q4[2]; I[p++]=q4[1]; I[p++]=q4[0]; I[p++]=q4[3]; I[p++]=q4[2]; }
+        else   { I[p++]=q4[0]; I[p++]=q4[1]; I[p++]=q4[2]; I[p++]=q4[0]; I[p++]=q4[2]; I[p++]=q4[3]; }
+        rec.ni=p; };
+      if(!cv10Rows(rec,nx*nz,u=>{ { const i=u%nx, j=(u/nx)|0;
+          const qa=u; let lo=1e9, hi=-1;
+          for(let di=-1;di<=0;di++) for(let dj=-1;dj<=0;dj++){ const ci=i+di, cj=j+dj; if(ci<0||cj<0||ci>=nxc||cj>=nzc) continue; const c0=cj*nxc+ci; if(!rec.cn[c0]) continue; if(rec.ck0[c0]<lo) lo=rec.ck0[c0]; const h=rec.ck0[c0]+rec.cn[c0]; if(h>hi) hi=h; }
+          if(hi<0) return;
+          for(let k=lo;k<=hi&&k<ny;k++){ const y=ymin+k*S, s0=cv10Rho(rec,qa,y)>0;
+            if(i+1<nx){ if(s0!==(cv10Rho(rec,qa+1,y)>0)){ q4[0]=cv(i,j-1,k-1); q4[1]=cv(i,j,k-1); q4[2]=cv(i,j,k); q4[3]=cv(i,j-1,k); emit(s0); } }
+            if(j+1<nz){ if(s0!==(cv10Rho(rec,qa+nx,y)>0)){ q4[0]=cv(i-1,j,k-1); q4[1]=cv(i,j,k-1); q4[2]=cv(i,j,k); q4[3]=cv(i-1,j,k); emit(!s0); } }
+            if(k+1<ny){ if(s0!==(cv10Rho(rec,qa,y+S)>0)){ q4[0]=cv(i-1,j-1,k); q4[1]=cv(i,j-1,k); q4[2]=cv(i,j,k); q4[3]=cv(i-1,j,k); emit(s0); } }
+          } } },t1,16)) { rec.msMesh+=performance.now()-T; return false; }
+      rec.vi=null; rec.cbase=rec.ck0=rec.cn=null; rec.tris=rec.ni/3;
+      if(rec.tris>CV10.maxTri&&!rec.retried){ const ms=rec.msMesh+performance.now()-T, mg=rec.msGrid; cv10Init(rec,0.6); rec.retried=true; rec.msMesh=ms; rec.msGrid=mg; rec.tris=0; return cv10Step(rec,t1); }
+      rec.ph='remap'; rec.pr=0; rec.rm=new Int32Array(rec.vn).fill(-1); rec.used=0; rec.msMesh+=performance.now()-T; break; }
+    case 'remap':{
+      const T=performance.now(); let p=rec.pr;
+      while(p<rec.ni){ const e=Math.min(rec.ni,p+8192); for(;p<e;p++){ const v=rec.idx[p]; if(rec.rm[v]<0) rec.rm[v]=rec.used++; } rec.pr=p; if(performance.now()>t1&&p<rec.ni) { rec.msMesh+=performance.now()-T; return false; } }
+      rec.pos=new Float32Array(rec.used*3); rec.nor=new Float32Array(rec.used*3); rec.aDeep=new Float32Array(rec.used); rec.aSky=new Float32Array(rec.used); rec.aFl=new Float32Array(rec.used);
+      rec.ord=new Int32Array(rec.used); rec.ph='ord'; rec.pr=0; rec.msMesh+=performance.now()-T; break; }
+    case 'ord':{
+      const T=performance.now();
+      if(!cv10Rows(rec,Math.ceil(rec.vn/2048),b=>{ const e=Math.min(rec.vn,(b+1)*2048); for(let v=b*2048;v<e;v++) if(rec.rm[v]>=0) rec.ord[rec.rm[v]]=v; },t1)) { rec.msMesh+=performance.now()-T; return false; }
+      rec.ph='attr'; rec.pr=0; rec.msMesh+=performance.now()-T; break; }
+    case 'attr':{
+      const T=performance.now();
+      if(!cv10Rows(rec,Math.ceil(rec.used/128),b=>{ const e=Math.min(rec.used,(b+1)*128);
+          for(let m=b*128;m<e;m++){ const v=rec.ord[m], o=v*3, x=rec.vp[o], y=rec.vp[o+1], z=rec.vp[o+2], s=cv10Samp(rec,x,z);
+            const lower=cv10V(rec,x,y,z)>0.3?0.03:0;
+            rec.pos[m*3]=x; rec.pos[m*3+1]=y-lower; rec.pos[m*3+2]=z; rec.nor[m*3]=rec.vnrm[o]; rec.nor[m*3+1]=rec.vnrm[o+1]; rec.nor[m*3+2]=rec.vnrm[o+2];
+            const d=s.d; rec.aDeep[m]=_cv10Smooth(2,16,d); rec.aSky[m]=Math.exp(-d/5);
+            rec.aFl[m]=Math.min(1,Math.max(0,(y-s.f)/Math.max(Math.min(s.c,s.h+1)-s.f,0.1))); } },t1,4)) { rec.msMesh+=performance.now()-T; return false; }
+      rec.ph='tex'; rec.pr=0; rec.msMesh+=performance.now()-T; break; }
+    case 'tex':{
+      const T=performance.now();
+      if(!rec.tdata){ rec.tdata=new Uint8Array(n*4); rec.texOver=0; }
+      const base=rec.vmin-1, td=rec.tdata;
+      if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ const q=j*nx+i, o=q*4, v=C[q]-F[q]>0.05; let r=0,g=0;
+          if(v){ r=(F[q]-base)/0.25; g=(Math.min(C[q],Hh[q]+1)-base)/0.25; if(r>255||g>255) rec.texOver++; r=Math.min(255,Math.max(0,Math.round(r))); g=Math.min(255,Math.max(0,Math.round(g))); }
+          const d=D[q]; td[o]=r; td[o+1]=g; td[o+2]=Math.round(255*_cv10Smooth(2,16,d)); td[o+3]=M[q]?255:Math.round(127*Math.exp(-d/5)); } },t1)) { rec.msMesh+=performance.now()-T; return false; }
+      rec.msMesh+=performance.now()-T; rec.ph='fin'; break; }
+    case 'fin':{
+      const T=performance.now();
+      const geo=new THREE.BufferGeometry(), nv=rec.used, I=nv>65535?new Uint32Array(rec.ni):new Uint16Array(rec.ni);
+      for(let p=0;p<rec.ni;p++) I[p]=rec.rm[rec.idx[p]];
+      geo.setAttribute('position',new THREE.BufferAttribute(rec.pos,3)); geo.setAttribute('normal',new THREE.BufferAttribute(rec.nor,3));
+      geo.setAttribute('aDeep',new THREE.BufferAttribute(rec.aDeep,1)); geo.setAttribute('aSky',new THREE.BufferAttribute(rec.aSky,1)); geo.setAttribute('aFl',new THREE.BufferAttribute(rec.aFl,1));
+      geo.setIndex(new THREE.BufferAttribute(I,1)); geo.computeBoundingSphere();
+      const tex=new THREE.DataTexture(rec.tdata,nx,nz,THREE.RGBAFormat,THREE.UnsignedByteType);
+      tex.magFilter=tex.minFilter=THREE.LinearFilter; tex.wrapS=tex.wrapT=THREE.ClampToEdgeWrapping; tex.generateMipmaps=false; tex.needsUpdate=true;
+      rec.tex=tex; rec.texInfo={x0:rec.x0,z0:rec.z0,w:(nx-1)*S,d:(nz-1)*S,base:rec.vmin-1,step:0.25};
+      const mesh=new THREE.Mesh(geo,CV10.mat?CV10.mat(c.kind):cv10SeatMat(c.kind));
+      mesh.matrixAutoUpdate=false; mesh.castShadow=false; mesh.receiveShadow=true; mesh.userData.lightRole='recv'; mesh.userData.cave=c;
+      scene.add(mesh); rec.mesh=mesh; rec.verts=nv; rec.tris=rec.ni/3;
+      rec.vp=rec.vnrm=rec.idx=rec.rm=rec.ord=rec.pos=rec.nor=rec.aDeep=rec.aSky=rec.aFl=rec.tdata=null;
+      try{ LIGHT.dirtyAt(c.x,c.z,60); }catch(e){}
+      rec.state='done'; rec.ph='done';
+      for(const f of CV10.onBuild){ try{ f(rec); }catch(e){ showErr('굴 onBuild',e); } }
+      rec.msMesh+=performance.now()-T; return true; }
+    default: return true;
+    }
+    if(performance.now()>t1) return rec.state==='done';
+  }
+}
+
+/* 빈 데 점만으로 쌍선형 — 모서리 넷 가운데 빈 데가 하나도 없으면 n=0 */
+const _cv10S={f:0,c:0,h:0,d:1e9,open:false,n:0};
+function cv10Samp(rec,x,z){
+  const S=rec.S, nx=rec.nx, nz=rec.nz; let fx=(x-rec.x0)/S, fz=(z-rec.z0)/S;
+  let i=Math.floor(fx), j=Math.floor(fz); fx-=i; fz-=j; if(i<0){ i=0; fx=0; } if(j<0){ j=0; fz=0; } if(i>nx-2){ i=nx-2; fx=1; } if(j>nz-2){ j=nz-2; fz=1; }
+  const q0=j*nx+i;
+  let w=0,f=0,c=0,h=0,d=0,bw=-1,bq=q0; const F=rec.F, C=rec.C, Hh=rec.Hh, D=rec.D;
+  for(let a=0;a<4;a++){ const q=q0+(a&1)+(a>>1)*nx, wa=((a&1)?fx:1-fx)*((a>>1)?fz:1-fz); if(wa>bw){ bw=wa; bq=q; } if(!(C[q]-F[q]>0.05)||wa<=0) continue; w+=wa; f+=F[q]*wa; c+=C[q]*wa; h+=Hh[q]*wa; d+=Math.min(D[q],1e4)*wa; }
+  const s=_cv10S; s.open=!!rec.O[bq];
+  if(w>0){ s.f=f/w; s.c=c/w; s.h=h/w; s.d=d/w; s.n=w; } else { s.f=F[bq]; s.c=C[bq]; s.h=Hh[bq]; s.d=1e9; s.n=0; }
+  return s;
+}
+
+/* 굴 껍데기에서 이 점까지의 v=max(F−y,y−C) — 빈 데 기둥만으로 보간(빈 데가 둘레에 없으면 땅 겉이라 9) */
+function cv10V(rec,x,y,z){ const s=cv10Samp(rec,x,z); if(s.n<=0) return 9; const a=s.f-y, b=y-s.c; return a>b?a:b; }
+
+/* ── 질의 — 지어 둔(격자가 다 된) 굴에서 이 점이 빈 데인가 ─────────────────────────────────────────────────────── */
+function cv10Q(x,z,y){
+  for(const [c,r] of CV10.built){
+    if(!r.ready) continue; const b=c.box; if(x<b.x0||x>b.x1||z<b.z0||z>b.z1) continue;
+    const S=r.S; if(x>=r.x0+(r.nx-1)*S||z>=r.z0+(r.nz-1)*S) continue;
+    const s=cv10Samp(r,x,z); if(s.n<=0) continue;
+    if(y<s.f-0.6||y>s.c+0.3) continue;
+    return {c,rec:r,f:s.f,ce:s.c,open:s.open,deep:_cv10Smooth(2,16,s.d)};
+  }
+  return null;
+}
+function cv10FloorAt(x,z,y){ const q=cv10Q(x,z,y); return q?q.f:null; }
+
+/* ── 짓기와 버리기 ───────────────────────────────────────────────────────────────────────────────────────── */
+function cv10Drop(rec){
+  for(const f of CV10.onDrop){ try{ f(rec); }catch(e){ showErr('굴 onDrop',e); } }
+  if(rec.mesh){ scene.remove(rec.mesh); rec.mesh.geometry.dispose(); rec.mesh=null; try{ LIGHT.dirtyAt(rec.c.x,rec.c.z,60); }catch(e){} }
+  if(rec.tex){ rec.tex.dispose(); rec.tex=null; }
+  CV10.built.delete(rec.c); if(CV10.cur===rec) CV10.cur=null;
+}
+function cv10Tick(){
+  if((P.tv|0)<10||typeof CAVES==='undefined') return;
+  const px=PL.pos.x, pz=PL.pos.z, T0=performance.now();
+  for(const [c,r] of Array.from(CV10.built)) if(!CAVES.includes(c)||cv10Dist(c,px,pz)>CV10.far) cv10Drop(r);
+  let rec=CV10.cur;
+  if(!rec||rec.state==='done'||!CV10.built.has(rec.c)){
+    CV10.cur=rec=null; let bd=CV10.near, bc=null;
+    for(const c of CAVES){ if(c.tv!==10||c.off||CV10.built.has(c)) continue; const d=cv10Dist(c,px,pz); if(d<bd){ bd=d; bc=c; } }
+    if(!bc) return; rec=cv10Rec(bc); CV10.cur=rec;
+  }
+  const ph=rec.ph;
+  cv10Step(rec,T0+CV10.budget);
+  const dt=performance.now()-T0; if(dt>CV10.maxFrame){ CV10.maxFrame=dt; CV10.maxPh=ph; }
+}
+function cv10Force(c){
+  const rec=cv10Rec(c); while(rec.state!=='done') cv10Step(rec,1e18);
+  return rec;
+}
+
+/* ── 시험 도구 — 사진 · 재기 자리(yaw · pitch 는 PL.yaw · PL.pitch 와 같은 뜻) ───────────────────────────────── */
+function cv10Views(c){
+  const rec=CV10.built.get(c), m=c.mouths[0], out=[], yawOf=(dx,dz)=>Math.atan2(-dx,-dz);
+  const ex=m.x+Math.cos(m.yaw)*10, ez=m.z+Math.sin(m.yaw)*10;
+  out.push({name:'입구 밖',x:ex,y:heightAt(ex,ez)+1.6,z:ez,yaw:yawOf(m.x-ex,m.z-ez),pitch:-0.05});
+  const g0=c.segs.find(g=>!g.pid&&!g.out)||c.segs[0], dx0=g0.bx-g0.ax, dz0=g0.bz-g0.az, l0=Math.hypot(dx0,dz0)||1;
+  const ix=g0.ax+dx0/l0*2, iz=g0.az+dz0/l0*2, f0=cv10Field(c,ix,iz);
+  out.push({name:'입구 안',x:ix,y:(f0.g>0?f0.f:g0.ay)+1.6,z:iz,yaw:yawOf(dx0,dz0),pitch:-0.03});
+  let bg=null,bl=0; for(const g of c.segs){ if(g.out) continue; const l=Math.hypot(g.bx-g.ax,g.bz-g.az); if(l>bl){ bl=l; bg=g; } }
+  if(bg){ const mx=(bg.ax+bg.bx)/2, mz=(bg.az+bg.bz)/2, fo=cv10Field(c,mx,mz);
+    out.push({name:'굴길',x:mx,y:(fo.g>0?fo.f:(bg.ay+bg.by)/2)+1.6,z:mz,yaw:yawOf(bg.bx-bg.ax,bg.bz-bg.az),pitch:-0.03}); }
+  if(rec&&rec.ready){ let bq=-1,bd=-1; const n=rec.nx*rec.nz; for(let q=0;q<n;q++){ if(rec.C[q]-rec.F[q]>0.05&&rec.D[q]<1e8&&rec.D[q]>bd){ bd=rec.D[q]; bq=q; } }
+    if(bq>=0){ const x=rec.x0+(bq%rec.nx)*rec.S, z=rec.z0+((bq/rec.nx)|0)*rec.S; let ba=0,bl2=-1;
+      for(let a=0;a<16;a++){ const an=a*Math.PI/8; let l=0; for(;l<60;l+=1){ if(cv10Samp(rec,x+Math.cos(an)*l,z+Math.sin(an)*l).n<=0) break; } if(l>bl2){ bl2=l; ba=an; } }
+      out.push({name:'깊은 방',x,y:rec.F[bq]+1.6,z,yaw:yawOf(Math.cos(ba),Math.sin(ba)),pitch:-0.03}); } }
+  return out;
+}
