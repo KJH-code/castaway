@@ -104,6 +104,7 @@ function buildCaves(){
   const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), S=new THREE.Vector3(), nm=new THREE.Matrix3(), v=new THREE.Vector3();
   const adiff=(a,b)=>{ let d=(a-b)%6.2832; if(d>3.1416) d-=6.2832; if(d<-3.1416) d+=6.2832; return Math.abs(d); };
   for(const c of CAVES){
+    if(c.tv===10) continue;                             // 지형 판 10 굴은 31-cave10.js 의 자료 — 메시는 따로 짓는다
     if(c.rooms.some(r=>inLanding(r.x,r.z,r.R+8))){ c.off=1; continue; }
     const rnd=mulberry32(c.seed>>>0), P=[], Nn=[], I=[], ML=[], CL=[], TB=0.74+0.34*rnd(), T0=CRAG_TINT[(rnd()*CRAG_TINT.length)|0];
     const GP=[], GA=[], GN=[], GS=[], SP=[], SC=[], SI=[], lamps=[], DRIP=[], DS=[];   // DRIP: 종유석이 달릴 천장 자리(x·y·z·면의 법선 y)   // 빛나는 점(자리 · 크기/위상/밝기 · 법선) · 버섯(자리 · 빛깔 · 세모) · 방의 불빛
@@ -238,7 +239,7 @@ function updateCaves(){
     if(m.visible!==v){ m.visible=v; LIGHT.dirtyAt(c.x,c.z,30); } }
   /* 굴 빛 유니폼 — 눈에서 가까운 방 여섯(360 m 안 굴의 방) */
   const near=[];
-  for(const m of CAVE_MESH){ const c=m.userData.cave; if((c.x-cx)*(c.x-cx)+(c.z-cz)*(c.z-cz)>360*360) continue;
+  for(const m of CAVE_MESH){ const c=m.userData.cave; if(c.tv===10) continue; if((c.x-cx)*(c.x-cx)+(c.z-cz)*(c.z-cz)>360*360) continue;
     for(const r of c.rooms) near.push([(r.x-cx)*(r.x-cx)+(r.z-cz)*(r.z-cz),r,c]); }
   near.sort((a,b)=>a[0]-b[0]);
   const n=Math.min(CAVE_K,near.length), A=TERR_U.uCvA.value, B=TERR_U.uCvB.value;

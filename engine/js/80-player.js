@@ -228,7 +228,17 @@ function toggleDev(on){
 function devCave(step){
   if(!DEV.on||typeof CAVES==='undefined'||!CAVES.length){ toast(CAVES&&CAVES.length?'개발자 모드에서만':'이 섬에는 굴이 없다(지형 판 '+(P.tv|0)+')'); return; }
   DEV.cave=((DEV.cave===undefined?(step>0?-1:0):DEV.cave)+step+CAVES.length)%CAVES.length;
-  const c=CAVES[DEV.cave], r=c.rooms[0], ex=r.x+Math.cos(c.yaw)*(r.R+6), ez=r.z+Math.sin(c.yaw)*(r.R+6);
+  const c=CAVES[DEV.cave];
+  if(c.tv===10){                                                   // 지형 판 10 — 주 입구 바깥 8 m 에서 입구를 본다(31-cave10.js)
+    const m=c.mouths[0], ex=m.x+Math.cos(m.yaw)*8, ez=m.z+Math.sin(m.yaw)*8;
+    PL.pos.set(ex,heightAt(ex,ez)+0.4,ez); PL.vel.set(0,0,0); PL.camY=undefined;
+    PL.yaw=Math.atan2(-(m.x-ex),-(m.z-ez)); PL.pitch=-0.08;
+    let ore=0; for(const p of PROPS) if(p.cave&&p.x>=c.box.x0&&p.x<=c.box.x1&&p.z>=c.box.z0&&p.z<=c.box.z1) ore++;
+    let len=0; for(const g of c.segs) len+=Math.hypot(g.bx-g.ax,g.bz-g.az);
+    toast('굴 '+(DEV.cave+1)+'/'+CAVES.length+' — '+({karst:'석회암 종유굴',lava:'용암굴',talus:'바위틈 굴',shelter:'바위그늘'}[c.kind]||c.kind)+' · 방 '+c.rooms.length+'개 · 굴길 '+Math.round(len)+' m · 광석 '+ore+'개');
+    return;
+  }
+  const r=c.rooms[0], ex=r.x+Math.cos(c.yaw)*(r.R+6), ez=r.z+Math.sin(c.yaw)*(r.R+6);
   PL.pos.set(ex,heightAt(ex,ez)+0.4,ez); PL.vel.set(0,0,0); PL.camY=undefined;
   PL.yaw=Math.atan2(-(r.x-ex),-(r.z-ez)); PL.pitch=-0.08;
   let ore=0; for(const p of PROPS) if(p.cave&&c.rooms.some(q=>Math.hypot(p.x-q.x,p.z-q.z)<q.R+1)) ore++;   // 굴 속 광석(p.cave — 10-worldgen.js)

@@ -545,6 +545,7 @@ function caveAt(x,z,pad){
 }
 function caveSites(seed){
   CAVES=[]; CAVE_GRID.clear(); if((P.tv|0)<2) return;
+  if((P.tv|0)>=10) return caveSites10(seed);                            // 지형 판 10 — 비탈 속으로 파고드는 굴(31-cave10.js) · 판 9 까지는 아래 길 그대로
   const rnd=mulberry32((seed^0xca7e5)>>>0), WS=CELL/GCELL, want=Math.round(9*WS*WS/4+6);
   let hi=0; for(let i=0;i<F.elev.length;i++) if(F.elev[i]>hi) hi=F.elev[i];
   const okAt=(x,z)=>{ const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2); if(gx<4||gz<4||gx>N-5||gz>N-5) return false;
@@ -595,6 +596,54 @@ function caveSites(seed){
   PROPS=PROPS.filter(p=>p.cave||!caveAt(p.x,p.z,4.4));   // 굴 자리에 서 있던 나무·바위는 치운다(지붕을 뚫고 나온다)
   if(TV6) surfaceRocks();
 }
+/* ── 동굴 자리(지형 판 10) ────────────────────────────────────────────────────────────────────────────────
+   자리 고르기는 판 9 까지와 같은 난수(mulberry32(seed^0xca7e5))·같은 want. 조건만 다르다: 비탈 F.slope 0.18~0.9(바위그늘은 0.5 넘게) · 굴끼리 200 m.
+   종류는 그 자리 바위(cv10Kind) — 다 뽑고도 섬에 없는 종류는 그 바위 땅에서만 2,000 번 더 찾아본다(같은 난수로 이어서). 굴을 못 짜면(cv10Layout) 그 자리를 버린다.
+   CAVE_GRID 에는 방 대신 **겉이 뚫리는 데**(cv10Zones — 입구 마당 · 빛구멍 · 처마)의 원을 넣는다. 광석은 판 9 와 같은 길(가까운 광석 → 방)로 놓고
+   cv10OreFix 가 굴 바닥 높이(p.top)를 준다 */
+function caveSites10(seed){
+  const rnd=mulberry32((seed^0xca7e5)>>>0), WS=CELL/GCELL, want=Math.round(9*WS*WS/4+6);
+  CV10.hi=null; let hi=0; for(let i=0;i<F.elev.length;i++) if(F.elev[i]>hi) hi=F.elev[i];
+  const tryCell=(gx,gz,only,evict)=>{
+    const i=IDX(gx,gz), h=F.elev[i];
+    if(h<3*WS||h>hi*0.8||F.river[i]||F.slope[i]<0.18||F.slope[i]>0.9) return false;
+    const x=(gx-N/2)*CELL+(rnd()-0.5)*CELL*0.6, z=(gz-N/2)*CELL+(rnd()-0.5)*CELL*0.6;
+    const kd=cv10Kind(x,z); if(only&&kd!==only) return false; if(kd==='shelter'&&F.slope[i]<=0.5) return false;
+    const near=CAVES.filter(c=>Math.hypot(c.x-x,c.z-z)<200);
+    if(near.length&&!evict) return false;
+    if(near.some(c=>CAVES.filter(q=>q.kind===c.kind).length<2)) return false;           // 하나뿐인 종류는 내쫓지 않는다
+    const yaw=Math.atan2(-(F.elev[i+N]-F.elev[i-N]),-(F.elev[i+1]-F.elev[i-1]));
+    const c={x,z,y:heightAt(x,z),yaw,seed:(rnd()*1e9)|0,tv:10};
+    if(!cv10Layout(c)) return false;
+    for(const q of near) CAVES.splice(CAVES.indexOf(q),1);
+    CAVES.push(c); return true; };
+  for(let tries=0;tries<90000&&CAVES.length<want;tries++){ const gx=6+((rnd()*(N-12))|0), gz=6+((rnd()*(N-12))|0); tryCell(gx,gz,null); }
+  for(const kd of ['karst','lava','talus','shelter']){ if(CAVES.some(c=>c.kind===kd)) continue;
+    /* 종류마다 하나는 — 그 바위 땅(비탈 조건까지 맞는 칸)에서만 2,000 번 같은 난수로 이어서 */
+    const cells=[]; for(let gz=6;gz<N-6;gz++) for(let gx=6;gx<N-6;gx++){ const i=IDX(gx,gz), sl=F.slope[i];
+      if(F.elev[i]<3*WS||F.elev[i]>hi*0.8||F.river[i]||sl<0.18||sl>0.9||(kd==='shelter'&&sl<=0.5)) continue;
+      if(cv10Kind((gx-N/2)*CELL,(gz-N/2)*CELL)===kd) cells.push(gx*4096+gz); }
+    let got=false;                                                                     // 200 m 안에 이미 굴이 있어 못 놓으면(작은 섬) 둘 이상인 종류의 굴을 내쫓고 놓는다
+    for(const evict of [false,true]) for(let t=0;t<2000&&cells.length&&!got;t++){ const e=cells[(rnd()*cells.length)|0]; got=tryCell((e/4096)|0,e%4096,kd,evict); } }
+  for(const c of CAVES){ for(const r of c.rooms) r.cave=c;
+    for(const zc of cv10Zones(c)){ zc.cave=c; zc.y=c.y; const k=caveKey(Math.floor(zc.x/CAVE_G),Math.floor(zc.z/CAVE_G)); let a=CAVE_GRID.get(k); if(!a) CAVE_GRID.set(k,a=[]); a.push(zc); } }
+  const ore=[]; for(let k=0;k<PROPS.length;k++){ const p=PROPS[k]; if(CAVE_ORE.indexOf(p.k)>=0) ore.push(p); }
+  for(const c of CAVES){
+    const near=[]; for(const p of ore){ if(p.cave) continue; const d=(p.x-c.x)*(p.x-c.x)+(p.z-c.z)*(p.z-c.z); if(d<600*600) near.push([d,p]); }
+    near.sort((a,b)=>a[0]-b[0]);
+    const n=Math.min(near.length,c.rooms.length*(8+((rnd()*5)|0))), put=[];
+    for(let k=0;k<n;k++){ const p=near[k][1], rm=c.rooms[k%c.rooms.length];
+      const at=caveOreSpot(rm,(PROP_FOOT[p.k]||1)*Math.min(p.s,0.95),put,rnd);
+      p.x=at[0]; p.z=at[1]; p.y=heightAt(p.x,p.z); p.s=Math.min(p.s,0.95); p.cave=1; }
+    c.ore=n;
+  }
+  oreToCaves(rnd);
+  caveOreRelax();
+  cv10OreFix();
+  CV10.ore=cv10OreCheck();                                // 놓은 직후 검사(굴 광석 수 · 어긋난 수 — 시험용)
+  PROPS=PROPS.filter(p=>p.cave||!caveAt(p.x,p.z,4.4));   // 겉이 뚫리는 데 둘레의 나무·바위만 치운다(그 밖의 땅 위는 서도 된다)
+  surfaceRocks();
+}
 /* 지형 판 6 — **광석은 굴 속에만**(늪철광은 늪에). 굴마다 가까운 것을 채우고도 남은 바깥 광석 중 굴에 너무 적게 든 광종(열둘
    아래)은 가장 가까운 굴 방으로 더 옮기고, 나머지는 surfaceRocks 가 그 자리의 바위로 바꾼다 */
 function oreToCaves(rnd){
@@ -641,7 +690,7 @@ function caveOreRelax(){
         const k=(need-d)/2; a.x-=dx*k; a.z-=dz*k; b.x+=dx*k; b.z+=dz*k; moved=true; }
       for(const p of L){ const dx=p.x-rm.x, dz=p.z-rm.z, d=Math.hypot(dx,dz); if(d>lim){ p.x=rm.x+dx/d*lim; p.z=rm.z+dz/d*lim; } }
       if(!moved) break; }
-    for(const p of L) p.y=heightAt(p.x,p.z); }
+    if((P.tv|0)<10) for(const p of L) p.y=heightAt(p.x,p.z); }                    // 판 10 은 굴 바닥 높이(p.top)를 cv10OreFix 가 준다
 }
 function bogAt(x,z){ const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2);
   return gx>=0&&gz>=0&&gx<N&&gz<N&&F.biome[IDX(gx,gz)]===B.MARSH; }

@@ -6,10 +6,14 @@
    기본 목록에서 빠져 있다(이름을 직접 대면 검사한다). */
 import {PAGES, pageInfo, launch, open} from './pages.mjs';
 
-const only = process.argv.slice(2);
-const list = only.length ? only.map(pageInfo)
+const args = process.argv.slice(2);
+let qOv = null;                                   // --q '?ws=2&tv=10' — 기본 쿼리 대신
+const qi = args.indexOf('--q'); if (qi >= 0) { qOv = args[qi + 1]; args.splice(qi, 2); }
+const only = args;
+const list = only.length ? only.map(f => pageInfo(f))
                          : PAGES.filter(p => p.f !== 'beta/mimic_arena.html');
 
+if (qOv !== null) for (const i of list) i.q = qOv;
 const browser = await launch();
 let bad = 0;
 
