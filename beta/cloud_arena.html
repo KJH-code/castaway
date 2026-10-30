@@ -201,7 +201,9 @@ function renderFrame(){
   renderer.setClearColor(noSky?scene.fog.color:skyScene.background,1);   // 물속이면 하늘 대신 물빛(updatePlayer 가 정한 안개색)
   renderer.clear();
   if(!noSky){ renderer.render(skyScene,skyCam); renderer.clearDepth(); }
+  const sm=typeof surfMask==='function'?surfMask():null;   // 땅속이면 땅 위를 가리고 그린다(98-surface.js)
   renderer.render(scene,camera);
+  if(sm) surfUnmask(sm);
   if(tape) camcEnd(skyUnder);           // 그림판을 화면에 테이프 화질로 옮긴다
   renderer.autoClear=true; skyUnder=false;
 }

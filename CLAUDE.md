@@ -122,6 +122,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `97-sheep.js` | 양 |
 | `97-wyvern.js` | 애쉬스케일(`wyvMake`) |
 | `98-dew.js` · `98-bag.js` | 이슬 · 가방 화면 |
+| `98-surface.js` | 땅속에 완전히 들어가 있는 동안 땅 위를 가림(`SURF` · `surfList`) |
 | `99-main.js` | `loop` · 게임을 켜는 줄 |
 
 함수는 이름으로 찾는 편이 빠르다: `grep -n "^const ITEMS\|^function updateSky" engine/js/*.js`.
@@ -353,6 +354,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 물 셰이더 — 실수 텍스처 금지(헤드리스가 0 을 읽는다) · 시각은 `uWT`(`uTime` 은 envPatch 것) · 눈→물 방향은 `vVD` · 파도 수를 바꾸면 `96-foam.js` · 땅 셰이더의 젖은 띠 · `seaSurfAt` 를 같이(water).
 - `COPY_DIST` 를 바꾸면 `TRUNK_DIST`(= +12)도 · 가지 꺾임 식은 `barkMat` ↔ `limbBend` · 가지 행렬은 `getLimbM`/`setLimbM` 으로만 · `camera.far` 는 못 줄인다(하늘 돔 · 별 · trees).
 - 압축 인스턴스(`instCompact`) 셰이더는 `instanceMatrix` 대신 `INST_MAT`(앞에 `${INST_GUARD}`) · 그 행렬은 `instGetM`/`instSetM` · 그림자용 깊이·거리 재질도 압축으로 단다(perf).
+- 땅 위에 새 메시 계통(scene 에 바로 붙는 땅 위의 것)을 만들면 `surfList`(98-surface.js)에 더할 것 — 땅속에 완전히 들어가 있는 동안 그 목록만 가린다 · 빛을 품은 것은 넣지 않는다(perf).
 - 동결한 것(`freezeStatics`)을 옮기면 `updateMatrix()` · 칸 메시를 새로 만들거나 처음보다 크게·멀리 옮기면 `boundTiles()` · 칸·청크를 새로 지으면 `_tvForce`/`_tlK`(perf).
 - HUD 글·스타일은 `hudT`/`hudH`/`hudS` 로(바뀔 때만 DOM — HUD 밖에서 HUD 요소의 스타일을 바꿀 때도 `hudS` · perf).
 - 짓는 동안 그리는 프레임에 무거운 것을 켜 두지 말 것(`LIGHT.live` · `propGroup` 숨김) · 자주 쓰는 새 효과 재질은 `precompPlan` 견본에 · `TITLE` 에 새 칸을 달 때 이름 겹침 금지(perf).

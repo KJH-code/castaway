@@ -37,14 +37,14 @@ function loop(){
     const dh=dt*timeScale/60;                  // 실시간 1분 = 게임 1시간 (하루 24분)
     gameHours+=dh; hourOfDay=(hourOfDay+dh)%24;
     updateShip(dt);                            // 보급선이 내려놓고 떠난다
-    updateTorch(dt,dh); updateLamp(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh); updateStoreTags(); updateRubble(); updateFlora(); updateSea(dt); updateReef(dt); updateFoam(); updateWildlife(dt); updatePush(dt); updateCamcorder(dt);
-    updateWeapon(dt); updatePower(dt); updateDecay(dh); updateGeo(dt); updateFalls(dt);
+    updateTorch(dt,dh); updateLamp(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh); updateStoreTags(); updateRubble(); updateFlora(); updateSea(dt); updateReef(dt); if(!SURF.hide) updateFoam(); updateWildlife(dt); updatePush(dt); updateCamcorder(dt);
+    updateWeapon(dt); updatePower(dt); updateDecay(dh); updateGeo(dt); if(!SURF.hide) updateFalls(dt);
     updateOcean(now*0.001);
     if(PO) tp=PERF.lap(4,tp);
     updateSky();
     if(PO) tp=PERF.lap(0,tp);
     updateClouds(dt);
-    updateRain(dt);
+    if(!SURF.hide) updateRain(dt);        // 땅속에선 비를 안 그린다(98-surface.js)
     if(PO) tp=PERF.lap(1,tp);
     LIGHT.update(dt);           // 해 그림자 상자를 사람에게 옮기고 불빛에 그림자를 나눈다
     if(PO) tp=PERF.lap(2,tp);
@@ -64,20 +64,22 @@ function loop(){
                          :'화면을 클릭하면 시점 조작이 시작됩니다';
         if(h.textContent!==want) h.textContent=want;
       }
-      updateBuild(); updateLevel(); updateCaves(); updateCrags(); updateTlit(dt); updateDew();
+      updateBuild(); updateLevel(); updateCaves(); if(!SURF.hide) updateCrags(); updateTlit(dt); if(!SURF.hide) updateDew();
       updateHarvest(dt);
       updateGather(dt);           // 덩굴·덤불·열매·버섯·조개 — 누르고 있는 동안 막대가 찬다(95-flora.js)
       updateCraft(dt);
       updateRegrow();
       updatePlayer(dt);
-      updateUnder(dt);            // 땅속 — 빛을 끄고 바닥·천장 칸 · 방의 꾸밈 · 생물(96-underworld.js — updateSky 다음에 그 빛에 곱한다)
+      updateUnder(dt); surfTick(dt);            // 땅속 — 빛을 끄고 바닥·천장 칸 · 방의 꾸밈 · 생물(96-underworld.js — updateSky 다음에 그 빛에 곱한다)
       updateGiantFalls(dt);       // 벤 노거수가 넘어간다 · 땅을 치면 화면이 흔들린다(사람 시점 다음에 얹는다 — 95-giants.js)
       updateMobs(dt);             // 몬스터 — 다지류 · 가고일 · 스킨워커 · 맞으면 화면이 흔들린다(사람 시점 다음에 얹는다 — 97-mobs.js)
     }
     }                           // hold — 세상이 멈춘 동안은 위를 통째로 건너뛴다
     if(PO) tp=PERF.lap(4,tp);
+    if(!SURF.hide){             // 땅속에선 땅 위를 안 그리니 보이기·LOD 도 쉰다(98-surface.js)
     updateTileVis();            // 150 m 밖의 나무 칸을 끈다
     updateTerrainLOD();         // 먼 지형 청크는 성긴 격자로
+    }
     if(PO) tp=PERF.lap(3,tp);
     if(landed&&!PL.dead&&!hold){ autoT+=dt; if(autoT>=AUTO_EVERY) autoSave('놀이 5분'); }
     updateHUD(dt);
