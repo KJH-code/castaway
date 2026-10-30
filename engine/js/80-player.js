@@ -113,7 +113,7 @@ const HPMAX=100;
 const HP_FALL_V=17,  HP_FALL_K=6;    // 이보다 빨리 떨어지면 그 초과분만큼 다친다
                                      // 한 층 2.4 m — 세 층(7.2 m)에서 뛰어내려도 거의 안 다친다
 const HP_DROWN=14, HP_STARVE=0.8, HP_THIRST=1.2, HP_REGEN=0.7;   // 초당
-const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, LUNGE_V=12, LUNGE_UP=3.0, LUNGE_STAM=10,   // 돌진(예전의 뛰기 자리 — 사용자 요청)
+const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, JUMP=7.6, JUMP_STAM=9, LUNGE_V=12, LUNGE_UP=3.0, LUNGE_STAM=10,   // 뛰기(Space — 2026-10-30 되살림 · 돌진 전 값 그대로) · 돌진(Q)
       EYE=1.66, EYE_C=0.98, PRAD=0.42, MAXSLOPE=1.15,   // 49° 넘는 사면은 오르지 못함
       STEPUP=0.55;                                      // 이 높이 이하 턱은 그냥 올라선다
 const PL={pos:new THREE.Vector3(),vel:new THREE.Vector3(),yaw:0,pitch:0,
@@ -380,6 +380,9 @@ function wallTick(dt){
 }
 const NO_KEYS={};
 function updatePlayer(dt){
+  /* 누르는 순간(톡)은 맨 앞에서 센다 — 밧줄 · 나무 · 벼랑이 그 프레임을 가져가 아래로 안 내려와도 '누른 채'는 이어지게.
+     안 그러면 벼랑 위로 올라서거나 나무에서 내려선 뒤 누르고 있던 Space · Q 로 곧바로 다시 뛰거나 돌진했다 */
+  const jumpTap=!!keys.jump&&!PL._sp0, dashTap=!!keys.dash&&!PL._dq0; PL._sp0=!!keys.jump; PL._dq0=!!keys.dash;
   if(PL.dead) return;                              // 쓰러져 있는 동안에는 아무것도 안 한다
   if(DEV.on){ devFly(dt); return; }                // 개발자 모드 — 날기(위)
   if(underRopeTick(dt)) return;                    // 수직굴 밧줄을 타는 중(96-underworld.js)
@@ -391,7 +394,6 @@ function updatePlayer(dt){
   /* 가방(소지품·제작)을 연 동안에는 세상은 흐르지만 몸은 선다 — 누르고 있던 걷기·뛰기 키를 안 받는다.
      설비를 들고 옮기는 동안(MOVE.t — 60-stations.js)도 같다 — 시점만 돌린다(베타 신고: 짐이 든 상자를 들고 걸어 무게 없이 날랐다) */
   const K=(invOpen||craftOpen||MOVE.t)?NO_KEYS:keys;
-  const dashTap=!!K.dash&&!PL._dq0; PL._dq0=!!K.dash;          // 돌진 키(Q)를 누르는 순간 — Space 에서 뗐다(2026-10-30 · 93-keys.js)
   if(PL.lungeCd>0) PL.lungeCd-=dt;
   const ox=p.x, oz=p.z, oy=p.y;                                   // 이번 프레임 앞의 자리(눈이 바위에 들면 되돌린다 — eyeHit)
   const fwd=(K.fwd?1:0)-(K.back?1:0);
@@ -473,8 +475,8 @@ function updatePlayer(dt){
     /* **돌진**(사용자 요청 — 예전의 위로 뛰기 대신) — 돌진 키(Q)를 **누르는 순간** 가는 쪽(누른 방향 · 없으면 보는 쪽)으로 낮게 몸을 날린다
        (초속 12 m · 살짝 뜬다 — 2~3 m 를 나가고 0.8 m 턱까지는 넘는다). 기력 10(짐이 무거우면 더 · 멀리 못 간다) · 0.55초에 한 번.
        **물에서는 못 한다**(무릎 넘게 잠기면). 예전엔 Space 였는데, 밧줄 → 나무 → 벼랑이 먼저 Space 를 받아 그 곁에서는 돌진이 안 나갔다(사용자 요청
-       2026-10-30 — Q 로). Space 는 이제 매달리기 · 나무 · 밧줄 · 떠오르기만 — 빈 땅에서 톡 누르면 아무것도 안 한다 */
-    else if(dashTap&&PL.grounded&&PL.lungeCd<=0&&!slide){             // 미끄러지는 중에는 못 한다(벽을 돌진으로 건너지 않게)
+       2026-10-30 — Q 로) */
+    else if(dashTap&&K.dash&&PL.grounded&&PL.lungeCd<=0&&!slide){      // 미끄러지는 중에는 못 한다(벽을 돌진으로 건너지 않게)
       const cost=LUNGE_STAM*(1+load*1.6);
       if(depth>0.45){ if(!PL._jw||performance.now()-PL._jw>2500){ PL._jw=performance.now(); toast('물에서는 돌진할 수 없다'); } }
       else if(PL.stam>=cost){
@@ -482,6 +484,16 @@ function updatePlayer(dt){
         PL.vel.x=lx*v; PL.vel.z=lz*v; PL.vel.y=LUNGE_UP; PL.grounded=false; DROP.t=0; PL.stam-=cost; PL.lungeCd=0.55;
         footstep(); }
       else if(!PL._jt||performance.now()-PL._jt>2500){ PL._jt=performance.now(); toast(load>0.6?'짐이 무거워 돌진할 기력이 없다':'돌진할 기력이 없다'); }
+    }
+    /* **뛰기**(사용자 요청 2026-10-30 '점프 스페이스' — 돌진을 Q 로 옮긴 뒤 Space 에 되살렸다 · 돌진 전 값 그대로) — Space 를 **누르는 순간** 위로
+       초속 7.6 m(1.3 m 쯤 · 짐이 무거우면 낮게 — 만재 0.6배) · 기력 9(짐이 무거우면 더 · 만재 2.6배) · 기력이 모자라면 못 뛴다.
+       **물에서는 못 뛴다**(무릎 넘게 잠기면 — 예전엔 물에서 Space 를 연타하면 헤엄보다 빨리 건넜다) · 미끄러지는 중에도 못 뛴다(벽을 뛰어 오르지 않게).
+       벼랑 · 나무 · 수직굴 앞에서는 그쪽(매달리기 · 오르기 · 밧줄)이 먼저 Space 를 받는다(wallTick · climbTick · underRopeTick) — 누르고 있어도 다시 안 뛴다 */
+    else if(jumpTap&&K.jump&&PL.grounded&&!slide){
+      const cost=JUMP_STAM*(1+load*1.6);
+      if(depth>0.45){ if(!PL._jw||performance.now()-PL._jw>2500){ PL._jw=performance.now(); toast('물에서는 뛸 수 없다'); } }
+      else if(PL.stam>=cost){ PL.vel.y=JUMP*(1-0.4*load); PL.grounded=false; DROP.t=0; PL.stam-=cost; }
+      else if(!PL._jt||performance.now()-PL._jt>2500){ PL._jt=performance.now(); toast(load>0.6?'짐이 무거워 뛸 기력이 없다':'뛸 기력이 없다'); }
     }
     PL.oxy=clamp(PL.oxy+18*dt,0,100);
     airTube(false,dt);                                 // 뭍에서는 공기통이 다시 찬다
