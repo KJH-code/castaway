@@ -316,7 +316,11 @@ if(touchOnly){
   });
   const bind=(id,fn)=>document.getElementById(id)
     .addEventListener('touchstart',e=>{fn();e.stopPropagation();e.preventDefault();},{passive:false});
-  bind('tJump',()=>{keys.jump=true;setTimeout(()=>keys.jump=false,120);});
+  bind('tDash',()=>{keys.dash=true;setTimeout(()=>keys.dash=false,120);});        // 돌진 — 톡(키보드 Q)
+  { const tj=document.getElementById('tJump');                                    // 오르기 — 누르고 있는 동안(벼랑 매달리기 · 물속 떠오르기 · 키보드 Space)
+    tj.addEventListener('touchstart',e=>{keys.jump=true;e.stopPropagation();e.preventDefault();},{passive:false});
+    tj.addEventListener('touchend',e=>{keys.jump=false;e.stopPropagation();},{passive:false});
+    tj.addEventListener('touchcancel',()=>{keys.jump=false;}); }
   bind('tRun',()=>{keys.run=!keys.run;});
   bind('tLight',()=>{ toggleLamp(); });
   bind('tAtk',attack);

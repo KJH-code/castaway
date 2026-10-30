@@ -726,7 +726,7 @@ function enterBuild(kind,tier){
   ghostRebuild();
   bldSig=null; bldBar();
   toast('짓기 — '+BTIER[BUILD.tier].n+' '+BKIND_N[BUILD.kind]
-    +' (1~9 조각 · 0 등급 · R 방향 · Q 삼각 벽 좌우 · 좌클릭 놓기 · G 걷어내기 · Z·우클릭 끝)');
+    +' (1~9 조각 · 0 등급 · R 방향 · F 삼각 벽 좌우 · 좌클릭 놓기 · G 걷어내기 · Z·우클릭 끝)');
 }
 function exitBuild(){
   BUILD.on=false;
