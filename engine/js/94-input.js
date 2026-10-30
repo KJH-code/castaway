@@ -97,8 +97,8 @@ addEventListener('keydown',e=>{
     timeScale = timeScale===1?20:(timeScale===20?60:(timeScale===60?300:1));
     toast('시간 '+timeScale+'배 — 하루가 '+(24*60/timeScale).toFixed(0)+'초');
   }
-  if(kbHit(e,'bRot')&&BUILD.on){ buildRotate(1); return; }   // 짓기 중엔 방향 돌리기
-  if(kbHit(e,'mRot')&&MOVE.t){ moveRotate(e.shiftKey?-1:1); return; }   // 옮기는 중엔 돌리기
+  if(kbHit(e,'rot')&&BUILD.on){ buildRotate(1); return; }    // 돌리기 — 짓는 중엔 조각 방향
+  if(kbHit(e,'rot')&&MOVE.t){ moveRotate(e.shiftKey?-1:1); return; }   // 옮기는 중엔 설비(Shift 반대)
   if(kbHit(e,'move')&&!e.repeat&&!uiOpen()&&!BUILD.on){ if(MOVE.t) moveCancel(); else moveStart(); }   // 옮기기 — 집어 들기 · 그만두기(60-stations.js)
   if(kbHit(e,'newIsle')){ newIsland(generateWorld); }
   if(kbHit(e,'build')){                         // 짓기 모드
