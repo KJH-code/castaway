@@ -292,7 +292,7 @@ function solidAt(x,z,y){
    걸어 못 오르는 벼랑(가파른 땅 · 큰 바위 벽)을 마주 보고 **Space 를 누르고 있으면 매달린다** — 손(Space)을 떼면 떨어진다.
    W·S 오르내리기 · A·D 옆으로 · 매달려 있기만 해도 기력이 들고(초당 6) 움직이면 더 든다(초당 13 · 짐이 무거우면 더) · 기력이 다하면 떨어진다.
    벼랑 위에 손이 닿으면 올라서고, 내려가다 발이 바닥에 닿으면 선다. 몸은 벽에서 0.5 m 떨어져 붙는다(눈이 벽을 뚫지 않게 — eyeHit) */
-const WALL={on:false, sp:false, sh:false, lt:0, lc:0, lu:0, ls:0, dx:0, dz:0, hint:false, end:''};   // end — 마지막에 손을 놓은 까닭(시험용)
+const WALL={on:false, sp:false, sh:false, dq:false, lt:0, lc:0, lu:0, ls:0, dx:0, dz:0, hint:false, end:''};   // end — 마지막에 손을 놓은 까닭(시험용)
 /* 벽까지의 거리(몸에서 · d0~d1 m 를 0.1 m 걸음으로) — 가슴(발+0.8) · 손(발+1.5) · 눈 위(발+1.95) 가운데 가까운 쪽. 없으면 -1 */
 function wallDist(x,z,y,fx,fz,d0,d1){
   for(let d=d0;d<=d1+1e-6;d+=0.1){ const sx=x+fx*d, sz=z+fz*d; if(solidAt(sx,sz,y+0.8)||solidAt(sx,sz,y+1.5)||solidAt(sx,sz,y+1.95)) return d; }
@@ -329,7 +329,7 @@ function wallTick(dt){
       if(PL.stam<5){ toast('매달릴 기력이 없다'); return false; }
       WALL.on=true; WALL.dx=-Math.sin(PL.yaw); WALL.dz=-Math.cos(PL.yaw); PL.vel.set(0,0,0);
       _wO.x=p.x; _wO.y=p.y; _wO.z=p.z; if(wallBack(_wO,WALL.dx,WALL.dz)){ p.x=_wO.x; p.z=_wO.z; }
-      WALL.sh=true; toast('벼랑에 매달렸다 — Space 를 누른 채 W·S 오르내리기 · A·D 옆으로 · Shift 몸 던지기 · 손을 떼면 떨어진다');
+      WALL.sh=WALL.dq=true; toast('벼랑에 매달렸다 — Space 를 누른 채 W·S 오르내리기 · A·D 옆으로 · Q·Shift 몸 던지기 · 손을 떼면 떨어진다');
     }
     /* 처음 한 번 — 오를 벼랑 앞에 서면 알려 준다(0.5초마다만 본다) */
     if(!WALL.on&&!WALL.hint&&landed&&PL.grounded&&(WALL.ht=(WALL.ht||0)+dt)>0.5){ WALL.ht=0;
@@ -343,9 +343,9 @@ function wallTick(dt){
   if(!sp) return let_go('',1.2);                                                   // 손을 뗐다
   if(PL.stam<=0) return let_go('기력이 다해 손을 놓쳤다',0.8);
   const ox=p.x, oy=p.y, oz=p.z, spd=1.1*(1-0.4*load);
-  /* **매달려 돌진**(사용자 요청: 오르기에 돌진이 빠졌다) — 매달린 채 Shift 를 톡 누르면 누른 쪽(W·A·D · 없으면 위)으로 1.4 m 를 몸을 던져
-     다음 손잡이를 잡는다(0.25초 · 기력 18 · 0.8초에 한 번) */
-  const sh=!!K.run, shTap=sh&&!WALL.sh; WALL.sh=sh;
+  /* **매달려 돌진**(사용자 요청: 오르기에 돌진이 빠졌다) — 매달린 채 돌진 키(Q)나 Shift 를 톡 누르면 누른 쪽(W·A·D · 없으면 위)으로 1.4 m 를
+     몸을 던져 다음 손잡이를 잡는다(0.25초 · 기력 18 · 0.8초에 한 번). 돌진이 Q 로 옮겨 간 뒤(2026-10-30)에도 Shift 는 그대로 듣는다 */
+  const sh=!!K.run, dq=!!K.dash, shTap=(sh&&!WALL.sh)||(dq&&!WALL.dq); WALL.sh=sh; WALL.dq=dq;
   if(WALL.lc>0) WALL.lc-=dt;
   if(shTap&&!(WALL.lt>0)&&!(WALL.lc>0)){
     if(PL.stam>=18){ const u=up>=0?(up||(side?0:1)):-1, l=Math.hypot(u,side)||1; WALL.lu=u/l; WALL.ls=side/l; WALL.lt=0.25; WALL.lc=0.8; PL.stam-=18; footstep(); }
@@ -391,7 +391,7 @@ function updatePlayer(dt){
   /* 가방(소지품·제작)을 연 동안에는 세상은 흐르지만 몸은 선다 — 누르고 있던 걷기·뛰기 키를 안 받는다.
      설비를 들고 옮기는 동안(MOVE.t — 60-stations.js)도 같다 — 시점만 돌린다(베타 신고: 짐이 든 상자를 들고 걸어 무게 없이 날랐다) */
   const K=(invOpen||craftOpen||MOVE.t)?NO_KEYS:keys;
-  const spTap=!!K.jump&&!PL._sp0; PL._sp0=!!K.jump;            // Space 를 누르는 순간(돌진)
+  const dashTap=!!K.dash&&!PL._dq0; PL._dq0=!!K.dash;          // 돌진 키(Q)를 누르는 순간 — Space 에서 뗐다(2026-10-30 · 93-keys.js)
   if(PL.lungeCd>0) PL.lungeCd-=dt;
   const ox=p.x, oz=p.z, oy=p.y;                                   // 이번 프레임 앞의 자리(눈이 바위에 들면 되돌린다 — eyeHit)
   const fwd=(K.fwd?1:0)-(K.back?1:0);
@@ -470,10 +470,11 @@ function updatePlayer(dt){
     if(K.jump&&K.crouch&&PL.grounded&&p.y>heightAt(p.x,p.z)+0.9){
       DROP.t=0.45; DROP.y=p.y; PL.grounded=false; PL.vel.y=-1.2;
     }
-    /* **돌진**(사용자 요청 — 예전의 위로 뛰기 대신) — Space 를 **누르는 순간** 가는 쪽(누른 방향 · 없으면 보는 쪽)으로 낮게 몸을 날린다
+    /* **돌진**(사용자 요청 — 예전의 위로 뛰기 대신) — 돌진 키(Q)를 **누르는 순간** 가는 쪽(누른 방향 · 없으면 보는 쪽)으로 낮게 몸을 날린다
        (초속 12 m · 살짝 뜬다 — 2~3 m 를 나가고 0.8 m 턱까지는 넘는다). 기력 10(짐이 무거우면 더 · 멀리 못 간다) · 0.55초에 한 번.
-       **물에서는 못 한다**(무릎 넘게 잠기면). 누르고 있는 Space 는 벼랑에 매달리는 데 쓴다(wallTick) — 돌진은 누르는 순간만 */
-    else if(spTap&&PL.grounded&&PL.lungeCd<=0&&!slide){             // 미끄러지는 중에는 못 한다(벽을 돌진으로 건너지 않게)
+       **물에서는 못 한다**(무릎 넘게 잠기면). 예전엔 Space 였는데, 밧줄 → 나무 → 벼랑이 먼저 Space 를 받아 그 곁에서는 돌진이 안 나갔다(사용자 요청
+       2026-10-30 — Q 로). Space 는 이제 매달리기 · 나무 · 밧줄 · 떠오르기만 — 빈 땅에서 톡 누르면 아무것도 안 한다 */
+    else if(dashTap&&PL.grounded&&PL.lungeCd<=0&&!slide){             // 미끄러지는 중에는 못 한다(벽을 돌진으로 건너지 않게)
       const cost=LUNGE_STAM*(1+load*1.6);
       if(depth>0.45){ if(!PL._jw||performance.now()-PL._jw>2500){ PL._jw=performance.now(); toast('물에서는 돌진할 수 없다'); } }
       else if(PL.stam>=cost){

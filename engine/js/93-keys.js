@@ -7,14 +7,18 @@
    · 이미 쓰는 글쇠를 고르면 **같은 범위에서 그 글쇠를 쓰던 칸은 비운다**(사용자가 정함) — 비운 행동은 창에서 붉게 보인다.
    · 고정 — Esc · 숫자 0~9(빠른 칸 · 짓기 조각) · F11(전체 화면) · F12(개발자 도구) · 마우스(사용자가 정함 — 마우스는 안 바꾼다).
    · 저장 — 브라우저 저장소 `castaway.keys`(기본값과 다른 행동만). 데스크톱 판도 같은 저장소다.
-   · 안내 — 사전 '조작' 탭(CONTROLS_GUIDE 의 {행동} 자리)과 일시정지 화면의 글쇠 줄(#ov .k)이 지금 키로 그려진다. 알림 글 속 글쇠 이름은 그대로다. */
+   · 안내 — 사전 '조작' 탭(CONTROLS_GUIDE 의 {행동} 자리)과 일시정지 화면의 글쇠 줄(#ov .k)이 지금 키로 그려진다. 알림 글 속 글쇠 이름은 그대로다.
+   · 2026-10-30(사용자 요청) — 돌진을 Space 에서 Q 로 뗐다(`dash`). Space 하나가 돌진 · 벼랑 · 나무 · 밧줄 · 떠오르기를 다 맡아, 벼랑·나무·수직굴
+     곁에서 톡 누르면 돌진 대신 매달리거나 올랐다(밧줄 → 나무 → 벼랑 → 돌진 차례로 본다). 짓는 중의 삼각 벽 뒤집기는 Q 에서 F 로(설비 옮기기 F 는
+     짓는 동안 안 듣는다 · R 돌리기 · G 걷어내기 곁). 빈 땅에서 Space 를 톡 누르면 이제 아무것도 안 한다(위로 뛰기는 예전에 사용자 요청으로 뺐다). */
 const KB_ACTS=[
   // id · 이름 · 묶음 · 기본 키 · 범위
   {id:'fwd',     n:'앞으로',                         g:'움직이기', d:['KeyW']},
   {id:'back',    n:'뒤로',                           g:'움직이기', d:['KeyS']},
   {id:'left',    n:'왼쪽',                           g:'움직이기', d:['KeyA']},
   {id:'right',   n:'오른쪽',                         g:'움직이기', d:['KeyD']},
-  {id:'jump',    n:'돌진 · 매달리기 · 떠오르기',     g:'움직이기', d:['Space']},
+  {id:'jump',    n:'매달리기 · 오르기 · 떠오르기',    g:'움직이기', d:['Space']},
+  {id:'dash',    n:'돌진 · 매달려 몸 던지기',         g:'움직이기', d:['KeyQ']},
   {id:'run',     n:'달리기 · 매달려 몸 던지기',      g:'움직이기', d:['ShiftLeft']},
   {id:'crouch',  n:'앉기 · 물속에서 가라앉기',       g:'움직이기', d:['ControlLeft','KeyC']},
   {id:'bag',     n:'가방',                           g:'창',       d:['KeyI']},
@@ -28,7 +32,7 @@ const KB_ACTS=[
   {id:'lamp',    n:'전등 켜기·끄기',                 g:'행동',     d:['KeyL']},
   {id:'build',   n:'짓기 시작·끝',                   g:'짓기',     d:['KeyZ']},
   {id:'bRot',    n:'짓는 중 — 방향 돌리기',          g:'짓기',     d:['KeyR'], sc:'build'},
-  {id:'bFlip',   n:'짓는 중 — 삼각 벽 뒤집기',       g:'짓기',     d:['KeyQ'], sc:'build'},
+  {id:'bFlip',   n:'짓는 중 — 삼각 벽 뒤집기',       g:'짓기',     d:['KeyF'], sc:'build'},
   {id:'bUndo',   n:'짓는 중 — 걷어내기',             g:'짓기',     d:['KeyG'], sc:'build'},
   {id:'mRot',    n:'옮기는 중 — 돌리기(Shift 반대)', g:'짓기',     d:['KeyR'], sc:'move'},
   {id:'save',    n:'저장',                           g:'저장 · 화면', d:['F5']},
@@ -52,7 +56,10 @@ function kbIndex(){
 function kbLoad(){
   KB={}; for(const a of KB_ACTS) KB[a.id]=[a.d[0]||'',a.d[1]||''];
   try{ const o=JSON.parse(localStorage.getItem(KB_SAVE)||'{}');
-    for(const id in o) if(KB_ACT[id]&&Array.isArray(o[id])) KB[id]=[0,1].map(i=>typeof o[id][i]==='string'&&!KB_FIXED(o[id][i])?o[id][i]:''); }catch(e){}
+    for(const id in o) if(KB_ACT[id]&&Array.isArray(o[id])) KB[id]=[0,1].map(i=>typeof o[id][i]==='string'&&!KB_FIXED(o[id][i])?o[id][i]:'');
+    /* 새로 생긴 기본 키(예: 돌진 Q · 뒤집기 F)가 사용자가 단 키와 같은 범위에서 겹치면 사용자 쪽이 이긴다 — 기본 칸을 비운다(창에서 붉게) */
+    for(const a of KB_ACTS){ if(o[a.id]) continue;
+      for(let i=0;i<2;i++){ const c=KB[a.id][i]; if(c&&KB_ACTS.some(b=>b!==a&&b.sc===a.sc&&o[b.id]&&KB[b.id].includes(c))) KB[a.id][i]=''; } } }catch(e){}
   kbIndex();
 }
 function kbSaveNow(){
@@ -95,7 +102,8 @@ function kbReset(){ for(const a of KB_ACTS) KB[a.id]=[a.d[0]||'',a.d[1]||'']; kb
 
 /* 일시정지(시작) 화면의 글쇠 줄 — 한 줄에 글쇠 하나(첫 칸 span 을 여는 화면 그림 titleText 가 읽는다 · 91-title.js) */
 const KB_OV=[
-  [['fwd','left','back','right'],'이동'], [['run'],'달리기'], [['jump'],'돌진 · 벼랑을 보고 누르고 있으면 매달려 오르기'],
+  [['fwd','left','back','right'],'이동'], [['run'],'달리기'], [['dash'],'돌진 — 가는 쪽으로 몸을 날린다 · 매달려서는 몸 던지기'],
+  [['jump'],'벼랑을 보고 누르고 있으면 매달려 오르기 · 나무·밧줄 타기 · 물속 떠오르기'],
   [['crouch'],'앉기 · +{jump} 지붕에서 내려가기'], ['좌클릭','쓰기 · 공격 · 먹기 · 캐기 · 설비 열기'], ['우클릭','저격총 조준경 · 전등·드릴 충전'],
   [['close'],'열린 상자·모닥불·숫돌 창 닫기 · 배 타기'], [['move'],'설비 옮기기 — 휠·{mRot} 돌리기 · 좌클릭 놓기'], [['bag'],'가방 — 소지품 · 제작'],
   [['dex'],'사전'], ['1~5','빠른 칸 — 손의 것과 맞바꾸기'], [['drop'],'고른 것 버리기'], [['lamp'],'전등 켜기 · 끄기'], [['fly'],'자유 카메라'],
