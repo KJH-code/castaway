@@ -35,6 +35,7 @@ CLAUDE.md 에는 새로 생긴 '깨뜨리면 안 되는 것' · '같이 고칠 �
 | `40-light.js` | **`LIGHT` 46**(배역 · 해 그림자 상자 · 점·집중광 예산) · `renderFrame` |
 | `66-decay.js` | 상하는 먹을 것(칸의 `t` · `ITEMS[].rot` · `freshMerge` · `updateDecay` · 파리) · 비에 꺼지는 불(`fireShelter` · `fireRain`) |
 | `98-dew.js` | 이슬 — 가까운 잎 위의 물방울 메시 `updateDew`(양은 `TERR_U.uDew` — 41-terrain-light.js 가 정하고, 잎·풀밭의 반짝임은 envPatch·땅 셰이더가 그린다) |
+| `98-surface.js` | 땅속 세계에 완전히 들어가 있는 동안 땅 위를 가린다 — `SURF.when` · `surfTick` · `surfMask`/`surfUnmask`(그리는 동안만 visible 끔) · `surfList` |
 | `41-terrain-light.js` | 섬 크기의 빛 텍스처 `TLIT` — R 산 그림자(`tlitSweepStep`) · G 하늘 트임 · B 숲 덮임 · A 잔 기복 가림막 · `tlitBuild` · `updateTlit` |
 | `45-sky.js` | `SKY` 8 · `updateWeather` 357 · 구름 명암 `litQueue` 905 · `updateClouds` 1476 · `SKY_LUT` 1967 · **`updateSky` 2107**(노을·달밤 색조 `SKYL.grade` 포함) — **`beta/cloud_arena.html` 의 원본** |
 | `46-camcorder.js` | 캠코더 화면(480줄 그림판 → 테이프 셰이더) · 배터리 · 손 발전기 · 다치면 여는 화면처럼 치지직 · 깨진 금(`CAMC.hurt` — 지금 체력 · `camcCrackTex`) |
