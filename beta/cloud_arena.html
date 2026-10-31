@@ -202,8 +202,8 @@ function renderFrame(){
   renderer.clear();
   if(!noSky){ renderer.render(skyScene,skyCam); renderer.clearDepth(); }
   const sm=typeof surfMask==='function'?surfMask():null;   // 땅속이면 땅 위를 가리고 그린다(98-surface.js)
-  renderer.render(scene,camera);
-  if(sm) surfUnmask(sm);
+  try{ renderer.render(scene,camera); }
+  finally{ if(sm) surfUnmask(sm); }     // 그리다 던져도 가린 것을 되돌린다(안 그러면 다음 프레임이 거짓을 되돌릴 값으로 적어 땅 위가 영영 안 보인다)
   if(tape) camcEnd(skyUnder);           // 그림판을 화면에 테이프 화질로 옮긴다
   renderer.autoClear=true; skyUnder=false;
 }

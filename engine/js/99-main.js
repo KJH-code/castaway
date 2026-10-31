@@ -70,12 +70,13 @@ function loop(){
       updateCraft(dt);
       updateRegrow();
       updatePlayer(dt);
-      updateUnder(dt); surfTick(dt);            // 땅속 — 빛을 끄고 바닥·천장 칸 · 방의 꾸밈 · 생물(96-underworld.js — updateSky 다음에 그 빛에 곱한다)
+      updateUnder(dt);            // 땅속 — 빛을 끄고 바닥·천장 칸 · 방의 꾸밈 · 생물(96-underworld.js — updateSky 다음에 그 빛에 곱한다)
       updateGiantFalls(dt);       // 벤 노거수가 넘어간다 · 땅을 치면 화면이 흔들린다(사람 시점 다음에 얹는다 — 95-giants.js)
       updateMobs(dt);             // 몬스터 — 다지류 · 가고일 · 스킨워커 · 맞으면 화면이 흔들린다(사람 시점 다음에 얹는다 — 97-mobs.js)
     }
     }                           // hold — 세상이 멈춘 동안은 위를 통째로 건너뛴다
     if(PO) tp=PERF.lap(4,tp);
+    surfTick(dt);               // 땅 위를 가릴지(98-surface.js) — 날기 갈래 밖에서 늘 센다(날기를 켜면 곧바로 풀리게)
     if(!SURF.hide){             // 땅속에선 땅 위를 안 그리니 보이기·LOD 도 쉰다(98-surface.js)
     updateTileVis();            // 150 m 밖의 나무 칸을 끈다
     updateTerrainLOD();         // 먼 지형 청크는 성긴 격자로

@@ -131,7 +131,7 @@ CLAUDE.md 에는 새로 생긴 '깨뜨리면 안 되는 것' · '같이 고칠 �
 ## 땅속에 있을 땐 땅 위를 안 그린다 (사용자 요청 2026-10-30 — "지하 통로 안에 있을 때는 나무를 로드 안 되게 하면 성능 좋을 것")
 
 - **무엇** — `engine/js/98-surface.js`. `SURF.when`(숨길 조건 함수들 — 지금은 `UNDER.ok && PL.under && UNDER.u>=0.999 && !UNDER.rope && !flyMode && !PL.dead` 하나 · 얕은 땅속 굴(지형 판 10)은 조건만 더한다) →
-  `surfTick(dt)`(99-main.js, `updateUnder` 다음)가 `SURF.hide` 를 정한다 → `renderFrame`(45-sky.js)이 `surfMask()`/`surfUnmask()` 로 **scene 을 그리는 동안만** 목록(`surfList`)의 `visible` 을 끄고 되돌린다
+  `surfTick(dt)`(99-main.js — **날기 갈래 밖**, `updateTileVis` 앞)가 `SURF.hide` 를 정한다 → `renderFrame`(45-sky.js)이 `surfMask()`/`surfUnmask()` 로 **scene 을 그리는 동안만** 목록(`surfList`)의 `visible` 을 끄고 되돌린다
   (먼 굴 · 암벽 칸 · 식생 단계가 프레임마다 visible 을 바꾸므로 한 번 꺼 두는 방식은 안 된다). 숨김이 풀리면 `qualApply()`(나무 칸 보이기 · 식생 다시 세기). 목록은 숨김 시작 때 짓고 숨긴 동안 1초마다 다시 짓는다.
 - **목록** — 지형 청크(`TERR_BLK[].m`) · `TPATCH.m` · 바다 · 하천 · `propGroup`(그룹 자체만 — 자식 visible 은 접근자) · 자갈 · 보급선 · 배 · 비 · 굴 바위 · 암벽 칸 · 거품 · 식생(`FLORA` 의 메시 전부) · 노거수 · 바닷가 · 지열 · 폭포 · 신전 · 바다 생물 · 산호 · 물고기 · 새·벌레·둥지 · 이슬.
   `surfWalk` 가 뿌리 객체를 얕게 훑어 `parent===scene` 인 Object3D 만 모은다(표 키 `picks`·`cols`·`taken`… 는 건너뜀). 빛을 품은 것은 `traverse` 로 걸러 뺀다(광원 수가 바뀌면 재질을 다시 짠다) — 지금 목록에 든 빛은 0.
@@ -149,4 +149,6 @@ CLAUDE.md 에는 새로 생긴 '깨뜨리면 안 되는 것' · '같이 고칠 �
   | 땅 위 · surfMask 없이 | 214 | 696,732 | 3 | 28 |
 
   땅 위 화면은 화소 2,160,000 바이트 중 0 이 다르다(`CAMC.lines=0`) · 숨김을 억지로 켜면 96,961 바이트가 다르다(읽기가 유효하다는 증거). 숨김 전후 `programs` 가 같다(32 → 32 — 28 → 32 는 땅속에 들어갈 때 `UNDER.grp` 가 켜져서). 나온 뒤 `propGroup.visible` 은 true · `_tvForce` 는 true.
+- **review 뒤 고침**(사용자 결정 2026-10-31 '둘 다 고쳐') — ① `surfTick` 이 `if(flyMode){…}else{…}` 의 else 쪽에만 있어 숨긴 채 개발자 날기를 켜면 숨김이 안 풀렸다(`!flyMode` 조건을 세지 않음) → 날기 갈래 밖으로 옮겼다.
+  ② `renderer.render` 가 한 번 던지면 visible=false 가 남고 다음 프레임이 그 거짓을 되돌릴 값으로 적어 땅 위가 영영 안 보였다(review 재현: 나온 뒤 `propGroup` · 바다 꺼진 채) → `try{ render }finally{ surfUnmask }`.
 - **같이 고칠 짝** — 땅 위에 새 메시 계통을 만들면 `surfList`(뿌리 객체를 더한다). 하늘(`45-sky.js`)에서 `surfMask` 를 `typeof` 로 가드해 부른다(구름 시험장에는 `SURF` 가 없다 — `mk-cloud-arena` 로 다시 만들었다).
