@@ -38,12 +38,11 @@ function cv10Kind(x,z){
 }
 /* 그 자리 둘레 반지름 r 안의 가장 낮은 땅(가운데 + 여덟 방위) — 지붕 두께를 보수적으로 잰다 */
 function cv10Hm(x,z,r){ let m=heightAt(x,z); for(let k=0;k<8;k++){ const a=k*0.7853982, v=heightAt(x+Math.cos(a)*r,z+Math.sin(a)*r); if(v<m) m=v; } return m; }
-/* 굴을 낼 수 있는 자리인가 — 섬 안 · 바다 위 아님(땅 높이 1 m 위) · 착륙 자리 아님 · (rv>0 이면) 둘레 rv m 에 강 칸 없음 */
+/* 굴을 낼 수 있는 자리인가 — 섬 안 · 바다 위 아님(땅 높이 1 m 위) · (rv>0 이면) 둘레 rv m 에 강 칸 없음 */
 function cv10Free(x,z,r,rv){
   const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2);
   if(gx<6||gz<6||gx>N-7||gz>N-7) return false;
   if(heightAt(x,z)<=1) return false;
-  if(typeof inLanding==='function'&&inLanding(x,z,r+2)) return false;
   if(rv>0){ const k=Math.ceil(rv/CELL)+1;
     for(let dz=-k;dz<=k;dz++) for(let dx=-k;dx<=k;dx++){ const X=gx+dx, Z=gz+dz; if(X<0||Z<0||X>=N||Z>=N||!F.river[IDX(X,Z)]) continue;
       if(Math.hypot((X-N/2)*CELL-x,(Z-N/2)*CELL-z)<=rv+CELL*0.75) return false; } }
@@ -174,7 +173,7 @@ function cv10Zones(c){
 }
 /* 상자를 step(기본 1 m) 격자로 훑어 센다 — cells 빈 칸 · open 열린 칸 · thin(입구 마당 · 빛구멍 밖인데 지붕이 얇아 열린 칸) · minCover(마당 밖 닫힌 칸의 h−c 최솟값)
    · maxSlope(바닥 가운데 쪽 u≤0.55 인 이웃 빈 칸 사이 |Δf|/거리 — 들머리 · 무너진 돌 비탈 · 단(열쇠 구멍 · 선반) 뺀다) · len(굴길 길이 합) */
-function cv10Stats(c,step){
+function cv10Stats(c,step,noReach){
   step=step||1; const P=c._P||cv10Prep(c), b=c.box, Z=cv10Zones(c), nx=Math.floor((b.x1-b.x0)/step)+1, nz=Math.floor((b.z1-b.z0)/step)+1;
   let cells=0,open=0,thin=0,minCover=1e9,maxSlope=0,len=0; const fa=new Float32Array(nx*nz).fill(NaN);
   const inZ=(x,z)=>{ for(let k=0;k<Z.length;k++){ const q=Z[k], dx=x-q.x, dz=z-q.z; if(dx*dx+dz*dz<q.R*q.R) return true; } return false; };
@@ -188,7 +187,27 @@ function cv10Stats(c,step){
     if(i+1<nx){ const d=fa[j*nx+i+1]; if(d===d){ const s=Math.abs(d-a)/step; if(s>maxSlope) maxSlope=s; } }
     if(j+1<nz){ const d=fa[(j+1)*nx+i]; if(d===d){ const s=Math.abs(d-a)/step; if(s>maxSlope) maxSlope=s; } } }
   for(const g of c.segs) if(!g.out) len+=Math.hypot(g.bx-g.ax,g.bz-g.az);
-  return {cells,open,thin,minCover:minCover===1e9?99:minCover,maxSlope,len};
+  const R=noReach?{}:cv10Reach(c);
+  return {cells,open,thin,minCover:minCover===1e9?99:minCover,maxSlope,len,reach:R.reach,reachStand:R.reachStand};
+}
+/* 이어짐 — 주 입구(용암굴은 채광창 가장자리 땅 높이)에서 빈 데 칸을 따라(0.5 m 격자 · 이웃 단차 ≤0.5 m) 머리 위가 PG 이상으로 모든 방 가운데(2 m 안)에 닿는가.
+   reach: 쪼그려(≥1.3 m)로 닿는 방 수 · reachStand: 선 채로(≥1.9 m)로 닿는 방 수 (방 총수는 c.rooms.length) */
+function cv10Reach(c){
+  const P=c._P||cv10Prep(c), b=c.box, st=0.5, nx=Math.floor((b.x1-b.x0)/st)+1, nz=Math.floor((b.z1-b.z0)/st)+1, A=new Array(nx*nz), m=c.mouths[0];
+  for(let j=0;j<nz;j++) for(let i=0;i<nx;i++) A[j*nx+i]=cv10Eval(c,P,b.x0+i*st,b.z0+j*st);
+  const out=[];
+  for(const PG of [1.3,1.9]){
+    const seen=new Uint8Array(nx*nz), q=[];
+    for(let j=0;j<nz;j++) for(let i=0;i<nx;i++){ const o=A[j*nx+i]; if(!(o.g>=PG)) continue; const x=b.x0+i*st, z=b.z0+j*st;
+      if(o.f>=o.h-0.6&&Math.hypot(x-m.x,z-m.z)<(m.sky?m.r*1.3+1:3)&&(m.sky?o.open:true)){ seen[j*nx+i]=1; q.push(j*nx+i); } }
+    while(q.length){ const k=q.pop(), i=k%nx, j=(k/nx)|0, a=A[k];
+      for(let d=0;d<4;d++){ const I=i+(d===0?1:d===1?-1:0), J=j+(d===2?1:d===3?-1:0); if(I<0||J<0||I>=nx||J>=nz) continue; const kk=J*nx+I; if(seen[kk]) continue; const o=A[kk];
+        if(!(o.g>=PG)||Math.abs(o.f-a.f)>0.5) continue; seen[kk]=1; q.push(kk); } }
+    let n=0; for(const r of c.rooms){ let ok=false;
+      for(let dz=-2;dz<=2&&!ok;dz+=0.5) for(let dx=-2;dx<=2&&!ok;dx+=0.5){ const i=Math.round((r.x+dx-b.x0)/st), j=Math.round((r.z+dz-b.z0)/st); if(i>=0&&j>=0&&i<nx&&j<nz&&seen[j*nx+i]) ok=true; }
+      if(ok) n++; }
+    out.push(n); }
+  return {reach:out[0],reachStand:out[1]};
 }
 
 /* ── 자리 짜기 ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -354,9 +373,9 @@ function cv10Lava(ctx){
   const ystar=q=>cv10Hm(q.x,q.z,w/2)-cover0-H;
   if(!cv10Floor(main,{y0:null,y0f:q=>hM-cover0-H,cov:k.minCover+0.6,exempt:rS+2,
       target:(i,yp,d)=>Math.min(yp,Math.max(ystar(main[i]),yp-0.12*d))})) return false;
-  const y0=main[0].y, ry=c.yaw, he=heightAt(c.x+Math.cos(ry)*rS,c.z+Math.sin(ry)*rS), kr=(he-y0)/(1.8*rS);
+  const y0=main[0].y, ry=c.yaw+Math.PI, he=heightAt(c.x+Math.cos(ry)*rS,c.z+Math.sin(ry)*rS), kr=(he-y0)/(1.8*rS);
   if(kr>1.2) return false;
-  const mouths=[{x:c.x,z:c.z,y:y0,yaw:c.yaw,w:rS*2,h:H,sky:true,r:rS,ramp:ry,he,kr:Math.max(0.5,kr),s:0}];
+  const mouths=[{x:c.x,z:c.z,y:y0,yaw:ry,w:rS*2,h:H,sky:true,r:rS,ramp:ry,he,kr:Math.max(0.5,kr),s:0}];
   if(!cv10Free(c.x,c.z,rS+1,4+rS)) return false;
   ctx.paths.push(main);
   /* 채광창 더 — 1~2 (사람이 못 올라오는 구멍) */
@@ -396,8 +415,9 @@ function cv10Shelter(ctx){
 function cv10Layout(c){
   const kind=cv10Kind(c.x,c.z); c.kind=kind; c.tv=10;
   const rnd=mulberry32(c.seed>>>0), K=CV10.K[kind];
-  c._n=null;
+  c._n=null; const yaw0=c.yaw;
   for(let att=0;att<8;att++){
+    c.yaw=yaw0;
     const ctx={c,rnd,kind,K:CV10.K,att,paths:[]};
     c.mouths=[]; c.segs=[]; c.rooms=[];
     let ok;
@@ -407,30 +427,39 @@ function cv10Layout(c){
     c.x=m0.x; c.z=m0.z; c.y=m0.y; c.yaw=m0.yaw;
     if(kind==='shelter'){ c.y=m0.y; }
     cv10Finish(c);
-    const st=cv10Stats(c,1);
-    if(st.cells>150&&st.thin===0&&st.minCover>=K.minCover+0.1&&st.maxSlope<=0.30&&(kind!=='shelter'||st.open<=st.cells*0.8)) return true;
+    const st=cv10Stats(c,1,true);
+    if(st.cells>150&&st.thin===0&&st.minCover>=K.minCover+0.1&&st.maxSlope<=0.30&&(kind!=='shelter'||st.open<=st.cells*0.8)&&cv10Reach(c).reach===c.rooms.length) return true;
   }
   return false;
 }
 
 /* 굴 광석 — 놓은 자리가 그 방의 빈 데 안(g≥2.0 · u≤0.75)이 아니면 방 가운데 쪽으로 0.5 m 씩 당긴다(난수 없이). p.top = 굴 바닥 높이 */
+const cv10OreNeed=(a,b)=>((PROP_FOOT[a.k]||1)*a.s+(PROP_FOOT[b.k]||1)*b.s)*0.75;
+const cv10OreOk=(c,x,z)=>{ const o=cv10Field(c,x,z); return o.g>=2.0&&o.u<=0.75&&!o.open; };
+/* p 를 방 rm 안 빈 데에서 다른 광석(others)과 가장 덜 겹치는 자리로 — 방 가운데에서 0.5 m 간격 고리(방 밖 10 m 까지 — 굴길 바닥도 후보)에 16~24 방위 후보 · 난수 없음.
+   avoid={x,z,r} 이면 그 원 안은 뺀다(수직굴). 같은 점수면 지금 자리에 가까운 쪽. 후보가 하나도 없으면 null */
+function cv10OreSpot(c,rm,p,others,avoid){
+  let best=null,bs=-1e9;
+  const sc=(x,z)=>{ let m=1e9; for(const q of others){ if(q===p) continue; const d=Math.hypot(q.x-x,q.z-z)-cv10OreNeed(p,q); if(d<m) m=d; } return Math.min(m,0.5); };
+  for(let r=0;r<=rm.R+10;r+=0.5) for(let k=0;k<(r===0?1:r<=rm.R?16:24);k++){ const a=k*(r<=rm.R?0.3927:0.2618), x=rm.x+Math.cos(a)*r, z=rm.z+Math.sin(a)*r;
+    if(avoid&&Math.hypot(x-avoid.x,z-avoid.z)<avoid.r) continue;
+    if(!cv10OreOk(c,x,z)) continue;
+    const v=sc(x,z)-Math.hypot(x-p.x,z-p.z)*0.01; if(v>bs){ bs=v; best=[x,z]; } }
+  return best;
+}
 function cv10OreFix(){
   const rooms=[]; for(const c of CAVES) if(c.tv===10) for(const r of c.rooms) rooms.push(r);
   if(!rooms.length) return;
-  const ok=(c,x,z)=>{ const o=cv10Field(c,x,z); return o.g>=2.0&&o.u<=0.75&&!o.open; };
   const by=new Map();
   for(const p of PROPS){ if(!p.cave) continue;
     let b=null,bd=1e18; for(const r of rooms){ const d=(r.x-p.x)*(r.x-p.x)+(r.z-p.z)*(r.z-p.z); if(d<bd){ bd=d; b=r; } }
     if(!b) continue; const c=b.cave;
-    for(let t=0;t<80&&!ok(c,p.x,p.z);t++){ const dx=b.x-p.x, dz=b.z-p.z, d=Math.hypot(dx,dz); if(d<0.5){ p.x=b.x; p.z=b.z; break; } p.x+=dx/d*0.5; p.z+=dz/d*0.5; }
+    for(let t=0;t<80&&!cv10OreOk(c,p.x,p.z);t++){ const dx=b.x-p.x, dz=b.z-p.z, d=Math.hypot(dx,dz); if(d<0.5){ p.x=b.x; p.z=b.z; break; } p.x+=dx/d*0.5; p.z+=dz/d*0.5; }
     let L=by.get(b); if(!L) by.set(b,L=[]); L.push(p); }
-  for(const [rm,L] of by){ const c=rm.cave;                                       // 서로 겹친 광석은 방 안에서 0.5 m 씩 밀어 뗀다(옮긴 자리도 빈 데 안이어야)
-    for(let it=0;it<8;it++){ let moved=false;
-      for(let i=0;i<L.length;i++) for(let j=i+1;j<L.length;j++){ const a=L[i], b=L[j], need=((PROP_FOOT[a.k]||1)*a.s+(PROP_FOOT[b.k]||1)*b.s)*0.75;
-        let dx=b.x-a.x, dz=b.z-a.z; const d=Math.hypot(dx,dz); if(d>=need) continue;
-        if(d<1e-3){ dx=Math.cos(i*2.4+j); dz=Math.sin(i*2.4+j); } else { dx/=d; dz/=d; }
-        const ax=a.x-dx*0.25, az=a.z-dz*0.25, bx=b.x+dx*0.25, bz=b.z+dz*0.25;
-        if(ok(c,ax,az)&&ok(c,bx,bz)){ a.x=ax; a.z=az; b.x=bx; b.z=bz; moved=true; } }
+  for(const [rm,L] of by){ const c=rm.cave;                                       // 겹친 광석은 방 안 빈 데에서 덜 겹치는 자리로(난수 없이 · 여섯 번까지)
+    for(let pass=0;pass<6;pass++){ let moved=false;
+      for(const p of L){ let m=1e9; for(const q of L) if(q!==p){ const d=Math.hypot(q.x-p.x,q.z-p.z)-cv10OreNeed(p,q); if(d<m) m=d; }
+        if(m>=0) continue; const at=cv10OreSpot(c,rm,p,L,null); if(!at) continue; p.x=at[0]; p.z=at[1]; moved=true; }
       if(!moved) break; } }
   for(const p of PROPS){ if(!p.cave) continue; let b=null,bd=1e18; for(const r of rooms){ const d=(r.x-p.x)*(r.x-p.x)+(r.z-p.z)*(r.z-p.z); if(d<bd){ bd=d; b=r; } }
     if(!b) continue; const o=cv10Field(b.cave,p.x,p.z); p.top=o.f; p.y=p.top; }

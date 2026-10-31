@@ -230,7 +230,7 @@ function devCave(step){
   DEV.cave=((DEV.cave===undefined?(step>0?-1:0):DEV.cave)+step+CAVES.length)%CAVES.length;
   const c=CAVES[DEV.cave];
   if(c.tv===10){                                                   // 지형 판 10 — 주 입구 바깥 8 m 에서 입구를 본다(31-cave10.js)
-    const m=c.mouths[0], ex=m.x+Math.cos(m.yaw)*8, ez=m.z+Math.sin(m.yaw)*8;
+    const m=c.mouths[0], dd=m.sky?m.r+4:8, ex=m.x+Math.cos(m.yaw)*dd, ez=m.z+Math.sin(m.yaw)*dd;      // 채광창이면 구멍 반지름 밖에 선다
     PL.pos.set(ex,heightAt(ex,ez)+0.4,ez); PL.vel.set(0,0,0); PL.camY=undefined;
     PL.yaw=Math.atan2(-(m.x-ex),-(m.z-ez)); PL.pitch=-0.08;
     let ore=0; for(const p of PROPS) if(p.cave&&p.x>=c.box.x0&&p.x<=c.box.x1&&p.z>=c.box.z0&&p.z<=c.box.z1) ore++;

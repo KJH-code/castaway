@@ -104,7 +104,7 @@ function buildCaves(){
   const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), S=new THREE.Vector3(), nm=new THREE.Matrix3(), v=new THREE.Vector3();
   const adiff=(a,b)=>{ let d=(a-b)%6.2832; if(d>3.1416) d-=6.2832; if(d<-3.1416) d+=6.2832; return Math.abs(d); };
   for(const c of CAVES){
-    if(c.tv===10) continue;                             // 지형 판 10 굴은 31-cave10.js 의 자료 — 메시는 따로 짓는다
+    if(c.tv===10){ c.off=cv10Zones(c).some(q=>inLanding(q.x,q.z,q.R+2))?1:0; continue; }   // 지형 판 10 굴은 31-cave10.js 의 자료 — 메시는 따로 짓는다 · 착륙 자리에 걸린 굴은 끈다(판 9 처럼 섬을 다 지은 뒤 — 자리를 정할 땐 LANDING 이 아직 없다)
     if(c.rooms.some(r=>inLanding(r.x,r.z,r.R+8))){ c.off=1; continue; }
     const rnd=mulberry32(c.seed>>>0), P=[], Nn=[], I=[], ML=[], CL=[], TB=0.74+0.34*rnd(), T0=CRAG_TINT[(rnd()*CRAG_TINT.length)|0];
     const GP=[], GA=[], GN=[], GS=[], SP=[], SC=[], SI=[], lamps=[], DRIP=[], DS=[];   // DRIP: 종유석이 달릴 천장 자리(x·y·z·면의 법선 y)   // 빛나는 점(자리 · 크기/위상/밝기 · 법선) · 버섯(자리 · 빛깔 · 세모) · 방의 불빛

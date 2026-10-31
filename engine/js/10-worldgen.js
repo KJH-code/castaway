@@ -611,7 +611,7 @@ function caveSites10(seed){
     const kd=cv10Kind(x,z); if(only&&kd!==only) return false; if(kd==='shelter'&&F.slope[i]<=0.5) return false;
     const near=CAVES.filter(c=>Math.hypot(c.x-x,c.z-z)<200);
     if(near.length&&!evict) return false;
-    if(near.some(c=>CAVES.filter(q=>q.kind===c.kind).length<2)) return false;           // 하나뿐인 종류는 내쫓지 않는다
+    if(near.some(c=>CAVES.filter(q=>q.kind===c.kind).length-near.filter(q=>q.kind===c.kind).length<1)) return false;   // 내쫓은 뒤 그 종류가 0 이 되면 안 된다
     const yaw=Math.atan2(-(F.elev[i+N]-F.elev[i-N]),-(F.elev[i+1]-F.elev[i-1]));
     const c={x,z,y:heightAt(x,z),yaw,seed:(rnd()*1e9)|0,tv:10};
     if(!cv10Layout(c)) return false;

@@ -77,10 +77,8 @@ function underSites(seed){
       let m=1e9; for(const p of ore) m=Math.min(m,Math.hypot(p.x-x,p.z-z)); if(m>best){ best=m; px=x; pz=z; ok10=true; } }
     if(T10) for(const p of ore){ const dx=p.x-px, dz=p.z-pz;
       if(!ok10||Math.hypot(dx,dz)>=2.4) continue;
-      const a0=Math.atan2(dz,dx); let bx=null,bz=null,bm=-1e9;
-      for(let k=0;k<14&&bx===null;k++){ const aa=a0+(k&1?1:-1)*Math.ceil(k/2)*0.45, x=px+Math.cos(aa)*2.6, z=pz+Math.sin(aa)*2.6, o=cv10Field(c,x,z);
-        if(o.g>=2.0&&o.u<=0.75){ bx=x; bz=z; } }
-      if(bx===null){ bx=p.x; bz=p.z; for(let t=0;t<80;t++){ const o=cv10Field(c,bx,bz), dd=Math.hypot(bx-px,bz-pz); if(o.g>=2.0&&o.u<=0.75&&dd>=2.4) break;
+      const at=cv10OreSpot(c,rm,p,ore,{x:px,z:pz,r:2.4}); let bx=p.x, bz=p.z;
+      if(at){ bx=at[0]; bz=at[1]; } else { for(let t=0;t<80;t++){ const o=cv10Field(c,bx,bz), dd=Math.hypot(bx-px,bz-pz); if(o.g>=2.0&&o.u<=0.75&&dd>=2.4) break;
           const ex=rm.x-bx, ez=rm.z-bz, el=Math.hypot(ex,ez); if(el<0.5) break; bx+=ex/el*0.5; bz+=ez/el*0.5; } }
       p.x=bx; p.z=bz; p.top=p.y=cv10Field(c,bx,bz).f; }
     else for(const p of ore){ const dx=p.x-px, dz=p.z-pz, d=Math.hypot(dx,dz); if(d>=2.4) continue;
