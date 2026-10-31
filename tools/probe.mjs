@@ -13,6 +13,7 @@
    --run  <파일>    파일 내용을 페이지 안에서 실행하고 돌려준 값을 찍는다.
                     표현식 대신 쓴다 — 여러 단계를 재야 할 때.
    --shot <경로>    화면을 찍는다. 눈으로 봐야 할 때만.
+   --q    <쿼리>    그 대상의 기본 쿼리(pages.mjs 의 q) 대신 쓴다 — 예 --q '?ws=2&tv=10'
    --keep           오류가 나도 0 으로 끝낸다 (재보는 게 목적일 때).
 
    표현식은 페이지의 전역에서 그대로 평가된다. 던지면 '오류: …' 로 찍고 넘어간다.
@@ -31,7 +32,7 @@ if (!argv.length) {
 
 const file = argv.shift();
 const dos = [], exprs = [];
-let tick = 0, runFile = null, shot = null, keep = false;
+let tick = 0, runFile = null, shot = null, keep = false, qOv = null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--do')        dos.push(argv[++i]);
@@ -39,6 +40,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--run')  runFile = argv[++i];
   else if (a === '--shot') shot = argv[++i];
   else if (a === '--keep') keep = true;
+  else if (a === '--q')    qOv = argv[++i];
   else exprs.push(a);
 }
 
@@ -56,7 +58,7 @@ const browser = await launch();
 let bad = 0;
 try {
   const t0 = Date.now();
-  const {page, errs} = await open(browser, file, pageInfo(file));
+  const {page, errs} = await open(browser, file, qOv === null ? pageInfo(file) : {...pageInfo(file), q: qOv});
   console.log(`■ ${file} — ${((Date.now() - t0) / 1000).toFixed(1)}초에 준비됨`);
 
   for (const d of dos) {
