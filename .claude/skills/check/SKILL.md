@@ -5,7 +5,7 @@ description: 사용자가 "/check test", "/check debug 증상", "/check review"�
 
 # check — 서브에이전트로 test / debug / review
 
-> 원본: orchestrate 플러그인 v2.0.0(사용자가 올림 2026-10-30). 이 레포에서는 checker 를 `.claude/agents/checker.md` 로 둔다. 병합 규칙은 orchestrate 스킬 머리의 '이 레포에서 바꾼 셋'.
+> 원본: orchestrate 플러그인 v2.0.0(사용자가 올림 2026-10-30 · 11-02 판으로 맞춤 2026-11-04 — test 모드 haiku · high). 이 레포에서는 checker 를 `.claude/agents/checker.md` 로 둔다. 병합 규칙은 orchestrate 스킬 머리의 '이 레포에서 바꾼 셋'.
 
 목적: 메인 대화가 믿는 걸 같이 믿지 않는 **독립 검증**. 그래서 대화 내용은 넘기지 않는다.
 
@@ -15,7 +15,7 @@ description: 사용자가 "/check test", "/check debug 증상", "/check review"�
 
 | 모드 | 하는 일 | model | effort |
 |---|---|---|---|
-| test | 빌드·테스트·실행 결과만 확인 (기계적) | sonnet | low |
+| test | 빌드·테스트·실행 결과만 확인 (기계적) | haiku | high |
 | review | 검증 기준 판정 + 테스트가 못 잡는 버그·스펙 어긋남 (판단) | opus | high |
 | debug | 증상 재현, 원인 후보, 수정 제안 | opus | high |
 
