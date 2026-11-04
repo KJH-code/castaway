@@ -1649,7 +1649,7 @@ function buildWater(){
   // 둘레 점의 수위 — 가까운(4×4 칸) 물길 칸 수위의 평균
   /* **물길이 아닌 격자점은 늘 땅 밑으로 묻는다**(2026-11-04 사용자 사진 — 둑에 짙은 물 판이 비스듬히 떠 검은 쐐기 · 네모가 섰다). 예전엔 물길 칸에
      닿은 둑의 격자점이 그 물길의 수위를 그대로 받아, 둑이 수위보다 낮은 데(비탈을 비껴 흐르는 물길 · 폭포 밑)에서 판이 땅 위로 2~4 m 떴다 */
-  const vw2=(x,z)=>{ const v=vw(x,z); if(v!==null){ const i=IDX(x,z); return wet(i)?v:Math.min(v,F.elev[i]-0.05); } let sm=0,n=0;
+  const vw2=(x,z)=>{ const v=vw(x,z); if(v!==null){ const i=IDX(x,z); return wet(i)?v:Math.min(v,F.elev[i]+0.15); } let sm=0,n=0;   // 둑 격자점은 땅보다 15 cm 위까지만 — 판이 이어지고(물이 조각나지 않게) 둑에서 얕아져 스러진다(예전 땅 밑 5 cm 는 물이 네모 조각으로 끊겼다 — 2026-11-04 사용자 사진) let sm=0,n=0;
     for(let zz=z-2;zz<=z+1;zz++) for(let xx=x-2;xx<=x+1;xx++){
       if(xx<0||zz<0||xx>=N||zz>=N) continue; const j=IDX(xx,zz); if(wet(j)){ sm+=RL[j]; n++; } }
     /* 둘레 점은 **그 자리 땅 밑으로 한 뼘 묻는다** — 낮은 둑에선 판이 땅 위로 떠서 칸 모양대로 곧게 끊겼다(물가가 네모났다).

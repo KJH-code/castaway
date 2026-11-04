@@ -258,7 +258,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         // 큰 얼룩 — 밝기와 색조를 천천히 흔든다(마른 데는 누렇게, 젖은 데는 푸르게)
         c*=1.0+0.22*(n1.b-0.5)+0.12*(n2.b-0.5);
         c*=mix(vec3(0.96,0.99,1.04),vec3(1.05,1.01,0.93),n1.a);
-        float steep=1.0-smoothstep(0.56,0.88,normalize(vTN).y), flat1=1.0-steep;   // 넓게 넘어간다(사용자 요청: 결이 맞닿는 데에 그러데이션)
+        float steep=1.0-smoothstep(0.62,0.76,normalize(vTN).y+(n2.r-0.5)*0.06), flat1=1.0-steep;   // 풀 ↔ 바위가 좁은 띠에서 갈린다(넓게 섞였더니 벼랑에 풀빛이 번졌다 — 2026-11-04 사용자 지적)   // 넓게 넘어간다(사용자 요청: 결이 맞닿는 데에 그러데이션)
         /* 물밑 — **모래는 얕은 데까지만**. 수심 2~5 m(자리마다 다르다) 밑은 암반이고, 물밑에서는 조금만 가팔라도 바위가
            드러난다(사용자 지적: 물밑이 끝없는 모래라 기괴하다) */
         float subRock=0.0;
@@ -328,16 +328,12 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         #ifndef GND_MOUND
         { float nyc=normalize(vTN).y, cliff=smoothstep(0.80,0.66,nyc+(n2.r-0.5)*0.08);
           if(cliff>0.005){
-            float yy=vTW.y+(n1.g-0.5)*3.5+dot(p,vec2(0.011,0.006));
-            float bh=1.6+1.4*n1.b, Lc=yy/bh, li=floor(Lc), lf=fract(Lc), tn=fract(sin(li*12.9898+78.233)*43758.5453);
-            float fam=texture2D(uNz,p/1100.0+vec2(0.61,0.23)).g;                                             // 바위 갈래 — 넓은 얼룩으로 부드럽게 넘어간다
-            vec3 rc=mix(mix(vec3(0.30,0.29,0.28),vec3(0.50,0.35,0.25),smoothstep(0.32,0.50,fam)),vec3(0.55,0.52,0.46),smoothstep(0.58,0.76,fam));
-            rc=mix(rc,rc*vec3(1.06,0.97,0.88),tn*0.5)*(0.86+0.24*tn);
-            rc*=mix(0.68,1.0,smoothstep(0.0,0.18,lf))*mix(1.0,1.08,smoothstep(0.85,1.0,lf));
-            vec2 spp=mix(vTW.xy,vTW.zy,wSx); float jf=abs(fract(spp.x/(3.0+2.5*tn)+tn*3.7+(n2.b-0.5)*0.6)-0.5);
-            rc*=mix(1.0,mix(0.72,1.0,smoothstep(0.0,0.03,jf)),smoothstep(0.55,0.38,nyc));   // 세로 절리는 거의 곧은 벽에만(둥근 언덕에선 위에서 보면 바퀴살처럼 섰다)
-            rc*=0.72+0.56*dot(det,vec3(0.333));
-            rc*=1.0-0.25*smoothstep(0.55,0.8,texture2D(uNz,vec2(spp.x/9.0,yy/60.0)).r);                       // 빗물 자국(세로로 늘인 얼룩)
+            /* 그린 켜 · 금(예전)은 걷고 **바위 사진**(위에서 섞은 rk — 벼랑 면은 옆 투영)을 그대로 쓴다(2026-11-04 사용자 지적: 결이 진짜 같지 않다).
+               바위 갈래는 1.1 km 얼룩으로 빛깔만(검은 현무암 → 녹슨 사암 → 흰 석회암) · 빗물 자국 · 아래쪽은 습기로 조금 짙게 */
+            float fam=texture2D(uNz,p/1100.0+vec2(0.61,0.23)).g;
+            vec3 tint=mix(mix(vec3(0.78,0.78,0.80),vec3(1.08,0.88,0.72),smoothstep(0.32,0.50,fam)),vec3(1.12,1.08,1.00),smoothstep(0.58,0.76,fam));
+            vec2 spp=mix(vTW.xy,vTW.zy,wSx);
+            vec3 rc=c*tint*(1.0-0.22*smoothstep(0.55,0.8,texture2D(uNz,vec2(spp.x/9.0,vTW.y/60.0)).r));
             c=mix(c,rc,cliff); } }
         #endif
         /* 눈 — 눈선(TERR_U.uSnow · 37-geo-meshes.js 가 높은 봉우리에 맞춰 정한다) 위의 덜 가파른 데. 바람에 쓸려 가장자리가 들쭉날쭉 */

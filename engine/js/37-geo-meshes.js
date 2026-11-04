@@ -52,7 +52,7 @@ function geoStamp(name,x,z,y,S,yaw,tint,o){
     const h00=Hh[iv*R+iu], h10=Hh[iv*R+iu+1], h01=Hh[(iv+1)*R+iu], h11=Hh[(iv+1)*R+iu+1];
     if(Math.min(h00,h10,h01,h11)<0.04) continue;                                           // 모형 밖 · 가장자리(밑면 자락)
     const t=(h00*(1-fu)+h10*fu)*(1-fv)+(h01*(1-fu)+h11*fu)*fv, sl=Math.max(h00,h10,h01,h11)-Math.min(h00,h10,h01,h11);
-    const i=gz*N+gx, top=y+t*S-(o.inset!==undefined?o.inset:2.0+Math.min(10,S*0.010)+sl*S*0.6);   // 모형 겉이 땅 위로 드러나게 — 가파를수록 더 낮게
+    const i=gz*N+gx, top=y+t*S-(o.inset!==undefined?o.inset:3.0+Math.min(14,S*0.02)+sl*S*0.8);   // 모형 겉이 땅 위로 드러나게 — 가파를수록 더 낮게
     if(top>F.elev[i]){ F.elev[i]=top; if(top>0.5&&F.river[i]){ F.river[i]=0; F.wlev[i]=0; } if(o.biome!==undefined&&top>0.5) F.biome[i]=o.biome; } }
   GEO_LF.list.push({name,x,z,y,S,yaw,tint:tint||[1,1,1]});
 }
@@ -126,6 +126,32 @@ function geoStacks(rnd){
     geoStamp(nm,x,z,e-2,S,rnd()*6.283,nm==='red_rock_sentinel'?[1.1,0.8,0.62]:[0.95,0.94,0.9],{biome:B.ROCK,inset:0.4});
     placed.push({x,z}); }
 }
+/* ── 호수 · 저수지 — 강이 아무 데서나 솟지 않게(2026-11-04 사용자 요청) ──
+   실제 강은 샘 · 호수 · 늪에서 시작한다 — 비탈이 누그러진 오목한 데에 물이 고였다가 넘쳐 흘러나간다(넘침 어귀 = 강의 시작).
+   물길의 머리(위쪽으로 이어진 물길 칸이 없는 칸)마다, 그 바로 위 오르막 쪽에 둥근 분지(반지름 25~65 m · 깊이 3~7 m)를 파고
+   분지 테두리의 가장 낮은 높이 바로 밑까지 물을 채운다(물 칸 = 물길 칸 · 수위 = 테두리 − 0.3 m) — 그 낮은 테두리로 물이 넘쳐 강이 된다.
+   높은 데(눈선 밑) · 서로 350 m 넘게 · 열넷까지 */
+function geoLakes(rnd){
+  const h=F.elev, R=F.river, heads=[];
+  for(let z=3;z<N-3;z++) for(let x=3;x<N-3;x++){ const i=z*N+x; if(!R[i]||h[i]<6) continue;
+    let up=false; for(const d of [-1,1,-N,N,-N-1,-N+1,N-1,N+1]){ const j=i+d; if(R[j]&&F.flow[j]<F.flow[i]) { up=true; break; } }
+    if(!up) heads.push(i); }
+  heads.sort((a,b)=>F.flow[b]-F.flow[a]||h[b]-h[a]);
+  const lakes=[];
+  for(const i of heads){ if(lakes.length>=14) break;
+    const x=(i%N-N/2)*CELL, z=(((i/N)|0)-N/2)*CELL; if(lakes.some(l=>Math.hypot(l.x-x,l.z-z)<350)) continue;
+    const gs=groundSlope(x,z,CELL), gl=Math.hypot(gs[0],gs[1])||1, ux=-gs[0]/gl, uz=-gs[1]/gl;     // 오르막 쪽
+    const r=25+rnd()*40, cx=x+ux*r*0.9, cz=z+uz*r*0.9, dep=3+rnd()*4;
+    const gx0=Math.max(2,Math.floor((cx-r*1.4)/CELL+N/2)), gx1=Math.min(N-3,Math.ceil((cx+r*1.4)/CELL+N/2)), gz0=Math.max(2,Math.floor((cz-r*1.4)/CELL+N/2)), gz1=Math.min(N-3,Math.ceil((cz+r*1.4)/CELL+N/2));
+    let rim=1e9; const ring=[], basin=[];
+    for(let gz=gz0;gz<=gz1;gz++) for(let gx=gx0;gx<=gx1;gx++){ const wx=(gx-N/2)*CELL, wz=(gz-N/2)*CELL, d=Math.hypot(wx-cx,wz-cz)/r, j=gz*N+gx;
+      if(d<1.0) basin.push([j,d]); else if(d<1.25){ ring.push(j); if(h[j]<rim) rim=h[j]; } }
+    if(!basin.length||!(rim<1e8)||rim<4) continue;
+    const lvl=rim-0.3;
+    for(const [j,d] of basin){ const floor=lvl-dep*(1-d*d); if(floor<h[j]) h[j]=floor; if(h[j]<lvl){ R[j]=1; F.wlev[j]=lvl; F.biome[j]=B.RIVER; } }
+    lakes.push({x:cx,z:cz,r,lvl}); }
+  GEO_LF.lakes=lakes;
+}
 /* 섬을 지을 때 — 다 키운 뒤 · 자원 놓기 전(90-init.js) · 매끈한 땅 섬만 · 제 난수 */
 function geoLandforms(seed){
   GEO_LF.list.length=0; TERR_U.uSnow.value=1e4;
@@ -135,6 +161,7 @@ function geoLandforms(seed){
   geoCanyon(rnd);
   const top=geoRange(rnd);
   geoStacks(rnd);
+  geoLakes(mulberry32((seed^0x1a4e)>>>0));
   if(top>0) TERR_U.uSnow.value=Math.max(220,top*0.58);
   computeSlope();
 }
@@ -145,6 +172,10 @@ function geoMat(){
   const prev=m.onBeforeCompile;
   m.onBeforeCompile=(sh,r)=>{ prev(sh,r); sh.uniforms.uSnow=TERR_U.uSnow;
     sh.fragmentShader='uniform float uSnow;\n'+sh.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+      ${TERR_U.uRk?'':'/*'}{ // 큰 결 — 바위 사진을 큰 배율(11 m)로 세 방향에서 한 번 더(넓은 풍화 얼룩 · 반복이 덜 보인다)
+        vec3 gn0=normalize(vRN), tw0=pow(abs(gn0),vec3(4.0)); tw0/=tw0.x+tw0.y+tw0.z+1e-4;
+        vec3 mac=texture(uRk,vec3(vRW.zy/11.0,0.0)).rgb*tw0.x+texture(uRk,vec3(vRW.xz/11.0,1.0)).rgb*tw0.y+texture(uRk,vec3(vRW.xy/11.0,2.0)).rgb*tw0.z;
+        diffuseColor.rgb*=0.55+0.9*dot(mac,vec3(0.333)); }${TERR_U.uRk?'':'*/'}
       { /* 눈 — 눈선 위 · 위를 보는 면(가파른 벽엔 안 붙는다 · 바람에 쌓인 자리는 들쭉날쭉) */
         vec3 gn=normalize(vRN); float sk=smoothstep(uSnow-30.0,uSnow+40.0,vRW.y+sin(vRW.x*0.031)*18.0+sin(vRW.z*0.027)*14.0)*smoothstep(0.30,0.70,gn.y);
         diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.90,0.92,0.96),sk); }`); };

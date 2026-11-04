@@ -103,8 +103,20 @@ function cragShapes(){
   if(CRAG.shapes) return CRAG.shapes;
   const RES=[[[22,15],[10,7]],[[14,10],[7,5]],[[10,7],[7,5]]], S=[];   // [가까이 촘촘 · 멀리 성김] — 잔 울퉁불퉁이 보이게 가까운 꼴을 곱게(예전 13×9 · 9×6 · 7×5)
   for(let lv=0;lv<3;lv++){ S.push([]); for(let v=0;v<8;v++){ const sd=0xa11+lv*977+v*131; S[lv].push([cragShape(sd,RES[lv][1][0],RES[lv][1][1]),cragShape(sd,RES[lv][0][0],RES[lv][0][1])]); }
-    for(let v=0;v<4;v++){ const sd=0x7c01+v*313; S[lv].push([cragPrism(sd,3,6),cragPrism(sd,6,16)]); } }      // 8~11: 절벽 벽 기둥(cragGrowWall)
+    for(let v=0;v<4;v++){ const sd=0x7c01+v*313; S[lv].push([cragPrism(sd,3,6),cragPrism(sd,6,16)]); }      // 8~11: 예전 절벽 기둥(이제 안 씀)
+    for(const nm of CRAG_MESHY) S[lv].push([cragMeshy(nm,'tiny'),cragMeshy(nm,lv===0?'far':'tiny')]); }   // 12~: 사용자 Meshy 벼랑 · 바위(cragGrowWall)
   return CRAG.shapes=S;
+}
+/* 사용자 Meshy 모형(37-geo-meshes.js 자료)을 바위 꼴로 — 상자 [−1,1]³ 에 맞추고 정점 오목함(cav)을 들고 간다(틈을 짙게) */
+const CRAG_MESHY=['cliffside_rock_face','stonecliff_plateau','rugged_granite_boulder','stone_sentinel','granite_peaks','jagged_stone_peak'];
+function cragMeshy(nm,lod){
+  if(typeof GEO_MESH_DATA==='undefined'||!GEO_MESH_DATA[nm]) return cragPrism(7,3,6);
+  const g=geoMeshGeo(nm,lod); g.computeBoundingBox(); const b=g.boundingBox, P=g.attributes.position.array, Nn=g.attributes.normal.array, C=g.attributes.color.array, n=P.length/3;
+  const cx=(b.min.x+b.max.x)/2, cy=(b.min.y+b.max.y)/2, cz=(b.min.z+b.max.z)/2, hx=(b.max.x-b.min.x)/2, hy=(b.max.y-b.min.y)/2, hz=(b.max.z-b.min.z)/2;
+  const pos=new Float32Array(n*3), nor=new Float32Array(n*3), cav=new Float32Array(n);
+  for(let i=0;i<n;i++){ pos[i*3]=(P[i*3]-cx)/hx; pos[i*3+1]=(P[i*3+1]-cy)/hy; pos[i*3+2]=(P[i*3+2]-cz)/hz;
+    let x=Nn[i*3]*hx, y=Nn[i*3+1]*hy, z=Nn[i*3+2]*hz; const l=Math.hypot(x,y,z)||1; nor[i*3]=x/l; nor[i*3+1]=y/l; nor[i*3+2]=z/l; cav[i]=C[i*3]; }
+  const I=g.index.array; return {pos,nor,idx:I instanceof Uint16Array?I:Uint16Array.from(I),cav};
 }
 /* 절벽 기둥 — 모서리가 날카로운 곧은 각기둥(위아래 판판) · 옆면은 세로로 길게 들쭉날쭉(절리 면이 조금씩 꺾인다) · 둥글게 닳은 끝이 없다 */
 function cragPrism(seed,ws,hs){
@@ -194,22 +206,21 @@ function cragGrow(s,B){
    벽 속으로 들여 박고 꼭대기는 턱보다 조금 들쭉날쭉하게. 너비 · 깊이 · 높이가 기둥마다 달라 면이 앞뒤로 들락날락한다(그늘진 틈 = 절리).
    발치엔 떨어진 돌 몇(애추). 땅 지오메트리는 15 m 세모라 벽을 못 세운다 — 이 기둥들이 벽이 되고, 몸 · 발 딛기도 그대로 이 꼴을 쓴다 */
 function cragGrowWall(s,B,Y0){
+  /* **벼랑은 사용자가 준 Meshy 벼랑 · 바위 모형으로**(2026-11-04 사용자 요청 — 기둥 말고 · 모형을 잘라서라도 다 쓸 것 · 거칠기와 바위 놓임을 살릴 것):
+     벼랑 자리마다 모형 한두 개를 등고선을 따라, 낙차만 한 높이로 세운다 — 밑은 땅속으로(모형 아랫부분을 잘라 묻는다) · 위는 비탈 위 땅 높이(풀 턱이 이어진다).
+     봉우리 모형도 잘라 쓴다(꼭대기 쪽만 드러나게 깊이 묻으면 바위 벼랑이 된다). 바위 칸 메시에 합쳐 그리고(cragMesh — 거리 단계 · 먼 칸은 안 그림) 몸도 그 꼴이 막는다 */
   const rnd=mulberry32((s.seed^0x5ea11)>>>0), dx=s.dx, dz=s.dz, tx=-dz, tz=dx;
-  const tint=CRAG_TINT[(rnd()*CRAG_TINT.length)|0], tb=0.85+0.25*rnd();
-  const put=(x,y,z,rx,ry,rz,lv)=>{ const b=tb*(0.94+0.12*rnd());
-    B.push(x,y,z,rx,ry,rz,(rnd()-0.5)*0.05,Y0+(rnd()-0.5)*0.10,(rnd()-0.5)*0.05,lv,lv===0?8+((rnd()*4)|0):(rnd()*8)|0,b*tint[0],b*tint[1],b*tint[2],lv===0?2.0:0.6); CRAG.blobs++; };
-  const span=CELL*(2.2+2.6*rnd()), nC=Math.max(4,Math.round(span/(1.6+1.4*rnd())));
-  let off=-span/2;
-  for(let k=0;k<nC;k++){
-    const w=span/nC*(0.8+0.5*rnd()), cx=s.x+tx*(off+w/2), cz=s.z+tz*(off+w/2); off+=span/nC;
-    const reach=CELL*0.9, lo=heightAt(cx+dx*reach,cz+dz*reach), hi=heightAt(cx-dx*reach,cz-dz*reach);
-    const drop=hi-lo; if(drop<3.5) continue;
-    const top=hi+(rnd()-0.4)*1.2, base=Math.max(lo-2.0-drop*0.15,-4), ry=Math.min(48,(top-base)/2), dep=CELL*(0.55+0.35*rnd());   // 둥근 끝은 위 · 아래 땅속에 묻는다 — 곧은 면만 드러난다
-    const inK=reach*0.30+dep*0.25+rnd()*0.8;                                                          // 벽 속으로 — 기둥마다 앞뒤로 들락날락
-    put(cx-dx*inK,base+ry,cz-dz*inK,w*0.85,ry,dep*0.62,0);
-    cragCollide(cx-dx*inK,cz-dz*inK,w*0.5);
-    if(rnd()<0.35){ const q=0.5+1.2*rnd(), fx=cx+dx*(reach*0.7+q), fz=cz+dz*(reach*0.7+q), g=heightAt(fx,fz);   // 발치의 떨어진 돌
-      if(g>-q) put(fx,g+q*0.3,fz,q,q*0.7,q*0.9,1); }
+  const reach=CELL*1.1, lo=heightAt(s.x+dx*reach,s.z+dz*reach), hi=heightAt(s.x-dx*reach,s.z-dz*reach), drop=hi-lo;
+  if(drop<4) return;
+  const tint=CRAG_TINT[(rnd()*CRAG_TINT.length)|0], tb=0.88+0.2*rnd(), n=drop>16?2:1;
+  for(let k=0;k<n;k++){
+    const v=(rnd()*CRAG_MESHY.length)|0, nm=CRAG_MESHY[v], W=GEO_MESH_DATA[nm].w, peak=v>=4;
+    const H=Math.min(80,drop*(peak?2.2:1.15)), sx=W[0]*H, sz=W[2]*H;                  // 봉우리 모형은 높게 세워 위쪽만 드러낸다(아래는 묻힌다)
+    const along=(k-(n-1)/2)*sx*0.55+(rnd()-0.5)*CELL*0.4, inK=sz*0.25+rnd()*CELL*0.3;
+    const x=s.x+tx*along-dx*inK, z=s.z+tz*along-dz*inK, top=hi+(rnd()-0.4)*1.5, y=top-H/2;
+    const b=tb*(0.94+0.12*rnd());
+    B.push(x,y,z,sx/2,H/2,sz/2,(rnd()-0.5)*0.06,Y0+(rnd()-0.5)*0.4,(rnd()-0.5)*0.06,0,12+v,b*tint[0],b*tint[1],b*tint[2],2.2); CRAG.blobs++;
+    cragCollide(x,z,Math.min(sx,sz)*0.35);
   }
 }
 /* 섬의 암벽 자리를 뽑고 무리를 기른다 — 자원을 다 놓은 뒤 한 번(placeResources). 그 칸에 서 있던 나무·바위는 치운다 */
@@ -330,7 +341,7 @@ function cragMesh(t,lod){
       pos[c]=e[0]*x+e[4]*y+e[8]*z+X; pos[c+1]=e[1]*x+e[5]*y+e[9]*z+Y; pos[c+2]=e[2]*x+e[6]*y+e[10]*z+Z;
       const nx=sn[a]/rx, ny=sn[a+1]/ry, nz=sn[a+2]/rz; let wx=e[0]*nx+e[4]*ny+e[8]*nz, wy=e[1]*nx+e[5]*ny+e[9]*nz, wz=e[2]*nx+e[6]*ny+e[10]*nz; const l=Math.hypot(wx,wy,wz)||1;
       nor[c]=wx/l; nor[c+1]=wy/l; nor[c+2]=wz/l;
-      const mt=0.95+0.10*(((i*2654435761)>>>0)&255)/255; col[c]=cr*mt; col[c+1]=cg*mt; col[c+2]=cb*mt; mel[v+i]=ml; }
+      const mt=(0.95+0.10*(((i*2654435761)>>>0)&255)/255)*(sh.cav?sh.cav[i]:1); col[c]=cr*mt; col[c+1]=cg*mt; col[c+2]=cb*mt; mel[v+i]=ml; }
     for(let i=0;i<si.length;i++) idx[q+i]=v+si[i];
     v+=n; q+=si.length; }
   const g=new THREE.BufferGeometry();

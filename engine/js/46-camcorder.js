@@ -176,6 +176,13 @@ function camcInit(){
           col.r=mix(col.r,lb.r,bm); col.b=mix(col.b,rb.b,bm); col.g*=1.0-0.12*gK*bOn;
           col*=1.0+0.18*gK*bOn*(hq(vec2(fz,41.0))-0.5); }
         if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0) col=vec3(0.0);
+        /* **또렷함 · 대비 · 밝음 · 넓은 밝기 폭**(2026-11-04 사용자 요청 — brilliance · sharpness · contrast · dynamic range · 매끈한 파스텔 그림 결):
+           이웃 넷의 평균과의 차이를 더해 윤곽을 세우고(언샵 마스크) · 빛깔을 조금 짙게 · 가운데를 S 자로 눌러 대비 · 밝은 데는 한 번 더 밝힌다 */
+        { float py=1.0/uRes.y; vec3 nb=(texture2D(tD,uv+vec2(px,0.0)).rgb+texture2D(tD,uv-vec2(px,0.0)).rgb+texture2D(tD,uv+vec2(0.0,py)).rgb+texture2D(tD,uv-vec2(0.0,py)).rgb)*0.25;
+          col+=(a-nb)*0.65;
+          float Yg=dot(col,vec3(0.299,0.587,0.114)); col=mix(vec3(Yg),col,1.14);
+          vec3 cc=clamp(col,0.0,1.0); col=mix(col,cc*cc*(3.0-2.0*cc)+max(col-1.0,0.0),0.30);
+          col+=max(col-0.62,0.0)*0.18; col=max(col,0.0); }
         /* **밝은 데의 어깨** — 그림판이 반정밀 실수(uHdr)면 1 을 넘는 볕(한낮의 흰 바위·모래·물비늘)이 잘리지 않고 들어온다.
            0.80 까지는 그대로 두고 그 위를 1.0 으로 서서히 눕힌다 — 하얗게 뭉개지던 면에 결이 남는다. 8비트 그림판이면 손대지 않는다 */
         if(uHdr>0.5) col=mix(col,0.80+0.20*(1.0-exp(-(col-0.80)/0.20)),step(0.80,col));
