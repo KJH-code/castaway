@@ -432,6 +432,20 @@ function biomeSlopes(){
   }
   computeSlope();
 }
+/* ── 바닷가는 바다 쪽으로 기운다(매끈한 땅 P.sm — 2026-11-04 사용자 사진: 풀밭에 바닷물이 들어와 물가처럼 보인다) ─────────────
+   바다 곁의 낮은 땅이 해수면 높이(0.2~0.4 m)로 넓게 판판해, 파도(±0.6 m)가 풀밭 위로 넘나들고 물가 거품이 풀밭 한복판에 깔렸다.
+   실제 해빈의 앞바닷가는 바다 쪽으로 1:10~1:30 기운다(파도가 모래를 밀어 올려 쌓는 턱 — 버름). 그래서 물에서 d m 떨어진 뭍은
+   적어도 d/28 m 는 되게 올리고(60 m 안 · 2.1 m 까지), 2 m 밑의 바닷가 풀밭 · 덤불 · 숲은 모래 해변으로 바꾼다. 하천 칸과 그 둑은 안 건드린다
+   (하천 판의 수위가 둑에 맞춰져 있다). 습지 · 바위는 그대로. 섬 배율을 키운 **뒤**(F.dWater 가 m) · 자원을 놓기 **전**에 부른다 */
+function coastRaise(){
+  if(!P.sm) return;
+  const h=F.elev, b=F.biome, R=F.river, D=F.dWater;
+  for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=IDX(x,z), e=h[i];
+    if(e<=0||D[i]>60||R[i]||R[i-1]||R[i+1]||R[i-N]||R[i+N]) continue;
+    const want=D[i]/28; if(e<want) h[i]=want;
+    const k=b[i]; if(h[i]<2.0&&(k===B.MEADOW||k===B.SCRUB||k===B.BROADLEAF||k===B.CONIFER||k===B.BAMBOO)) b[i]=B.BEACH; }
+  computeSlope();
+}
 /* ============================================================================
    8) 자원 배치 — 지질 규칙
    ========================================================================== */
@@ -720,7 +734,7 @@ function surfaceRocks(){
   }
 }
 function worldRescale(S){
-  S=(S>=1&&S<=6)?Math.round(S):1;                      // 1~6배(6배 = 한 변 11.5 km)
+  S=(S>=1&&S<=6)?Math.round(S*4)/4:1;                  // 1~6배 · 0.25 눈금(6배 = 한 변 11.5 km · 기본 4.25배 = 8.2 km)
   setWorldScale(S);
   if(S===1) return;
   const e=F.elev, w=F.wlev, a=F.dWater, b=F.dRiver;
@@ -1073,7 +1087,7 @@ const RELIEF_GRAIN=(()=>{ const a=new Uint8Array(16).fill(70); a[B.BEACH]=18; a[
 /* 가림막 — 물(바다·하천)에서 한 칸은 0 · 그다음 칸은 절반 · 그 밖은 1. 낮은 뭍(0.6~2.6 m)에서 차츰 선다 */
 function reliefMask(){
   const M=RELIEF.M||(RELIEF.M=new Uint8Array(N*N)), h=F.elev, W=new Uint8Array(N*N);
-  M.fill(0); RELIEF.on=false; TERR_U.uTri.value=0;
+  M.fill(0); RELIEF.on=false; TERR_U.uTri.value=0; TERR_U.uSm.value=0;
   if((P.tv|0)<3||typeof GND==='undefined'||!GND.relQ) return;
   for(let i=0;i<N*N;i++) W[i]=(h[i]<=0.3||F.river[i])?2:0;
   for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=z*N+x; if(W[i]) continue;
@@ -1084,7 +1098,21 @@ function reliefMask(){
   { const G=RELIEF.G||(RELIEF.G=new Uint8Array(N*N)), T=new Uint8Array(N*N);                // 거칠기 — 바이옴 + 비탈, 한 번 흐린다
     for(let i=0;i<N*N;i++) T[i]=Math.min(255,RELIEF_GRAIN[F.biome[i]]+Math.max(0,F.slope[i]-0.3)*190);
     G.set(T); for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=z*N+x; G[i]=(T[i]*4+T[i-1]+T[i+1]+T[i-N]+T[i+N])>>3; } }
-  RELIEF.on=true; TERR_U.uTri.value=1;
+  RELIEF.on=true; TERR_U.uTri.value=1; TERR_U.uSm.value=P.sm?1:0;
+}
+/* **매끈한 땅**(P.sm — 2026-11-04 사용자 지적: 언덕이 피라미드 · 벼랑이 톱니 · 물가가 다각형) — 격자점을 그대로 지나는 캣멀-롬 쌍삼차 면.
+   6배 섬의 칸은 15 m 라 세모 면으로는 봉우리가 뾰족한 각뿔이 되고, 벼랑 줄이 세모마다 꺾여 톱니가 섰다. 칸 네 꼭짓점의 높이 범위를 넘으면
+   자른다 — 벼랑 앞뒤로 생기는 넘침(0,0,0,1 의 7% — 50 m 벼랑이면 밑에 3.7 m 도랑 · 위에 턱)을 막는다. 격자점 높이는 그대로라 하천 · 바다의 높이는
+   안 바뀐다. **같은 식이 셋** — 이것 · 덧판 `TPATCH_GLSL` 의 `pS` · 물 셰이더의 `bedAt`(20-terrain.js). 하나를 고치면 셋 다 */
+function cr4(a,b,c,d,t){ return b+0.5*t*(c-a+t*(2*a-5*b+4*c-d+t*(3*(b-c)+d-a))); }
+function hSmooth(gx,gz){
+  const x=gx|0, z=gz|0, fx=gx-x, fz=gz-z, h=F.elev, M=N-1;
+  const xa=x>0?x-1:0, xd=x+2<M?x+2:M, za=(z>0?z-1:0)*N, zb=z*N, zc=zb+N, zd=(z+2<M?z+2:M)*N;
+  const r0=cr4(h[za+xa],h[za+x],h[za+x+1],h[za+xd],fx), r1=cr4(h[zb+xa],h[zb+x],h[zb+x+1],h[zb+xd],fx),
+        r2=cr4(h[zc+xa],h[zc+x],h[zc+x+1],h[zc+xd],fx), r3=cr4(h[zd+xa],h[zd+x],h[zd+x+1],h[zd+xd],fx);
+  const H=cr4(r0,r1,r2,r3,fz), a=h[zb+x], b=h[zb+x+1], c=h[zc+x], d=h[zc+x+1];
+  const lo=Math.min(a,b,c,d), hi=Math.max(a,b,c,d);
+  return H<lo?lo:H>hi?hi:H;
 }
 function heightAt(wx,wz){
   const gx=clamp(wx/CELL+N/2,0,N-1.001), gz=clamp(wz/CELL+N/2,0,N-1.001);
@@ -1093,7 +1121,7 @@ function heightAt(wx,wz){
   if(!RELIEF.on) return h[i]*a+h[i+1]*b+h[i+N]*c+h[i+N+1]*d;
   /* 지형 판 3 — 바탕은 **그려지는 세모 면**이다(칸의 빗금은 10–01 — 20-terrain.js `terrainLodIndex`). 쌍선형 면은 칸이 뒤틀린 데서
      메시와 한 뼘~1 m 어긋나, 먼 비탈의 나무·바위·풀이 뜨거나 묻혔다(사용자 지적). 사람 둘레의 덧판도 같은 면을 쓴다(`uTri`) */
-  const y=fx+fz<=1?h[i]+(h[i+1]-h[i])*fx+(h[i+N]-h[i])*fz:h[i+N+1]+(h[i+N]-h[i+N+1])*(1-fx)+(h[i+1]-h[i+N+1])*(1-fz);
+  const y=P.sm?hSmooth(gx,gz):fx+fz<=1?h[i]+(h[i+1]-h[i])*fx+(h[i+N]-h[i])*fz:h[i+N+1]+(h[i+N]-h[i+N+1])*(1-fx)+(h[i+1]-h[i+N+1])*(1-fz);
   const M=RELIEF.M, m=M[i]*a+M[i+1]*b+M[i+N]*c+M[i+N+1]*d;
   if(!(m>0)) return y;
   const G=RELIEF.G, r=0.20+0.55/255*(G[i]*a+G[i+1]*b+G[i+N]*c+G[i+N+1]*d);         // 프랙털의 비 — 거칠수록 잔 겹이 크다

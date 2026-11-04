@@ -129,9 +129,9 @@ async function restore(d){
   /* 한 군데가 틀려도 나머지는 살린다 — 예전엔 중간에 하나만 터져도 그 뒤(집·상자·소지품)가 통째로 안 돌아왔다 */
   const bad=[];
   const safe=(what,fn)=>{ try{ fn(); }catch(e){ console.error('[불러오기] '+what,e); bad.push(what); } };
-  P.ws=1; P.tv=1;                              // 섬 배율·지형 판이 없는 옛 저장은 1(1.9 km 섬 · 예전 지형) — 예전 섬 그대로 열린다
+  P.ws=1; P.tv=1; P.sm=0;                      // 섬 배율·지형 판·매끈한 땅이 없는 옛 저장은 1·1·0(1.9 km 섬 · 예전 지형 · 세모 면) — 예전 섬 그대로 열린다
   Object.assign(P,d.P);
-  if(!(P.ws>=1&&P.ws<=6)) P.ws=1; P.ws=Math.round(P.ws);
+  if(!(P.ws>=1&&P.ws<=6)) P.ws=1; P.ws=Math.round(P.ws*4)/4;
   if(d.guar!==undefined){ GUARANTEE=!!d.guar; const bg=document.getElementById('bGuar'); if(bg) bg.classList.toggle('on',GUARANTEE); }
   // 슬라이더도 저장값에 맞춘다
   const setv=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
@@ -414,7 +414,7 @@ function offerLoadOnStart(){
 /* 새 섬은 지금 섬을 버린다 — 상륙했으면 한 번 묻고 자동 저장에 남긴 뒤 만든다(예전엔 R 한 번에 그냥 사라졌다) */
 function newIsland(go,cancel){
   if(busy||askOpen){ if(cancel) cancel(); return; }
-  { const g0=go; go=()=>{ P.tv=9; g0(); }; }       // 새 섬은 늘 새 지형 판 — 옛 저장을 불러온 뒤(P.tv 1)에 만드는 섬도
+  { const g0=go; go=()=>{ P.tv=9; P.sm=1; g0(); }; }       // 새 섬은 늘 새 지형 판 · 매끈한 땅 — 옛 저장을 불러온 뒤(P.tv 1)에 만드는 섬도
   if(!landed){ go(); return; }
   ask('새 섬을 만들겠습니까?','지금 섬은 자동 저장에 남깁니다(다음 자동 저장이 덮어씁니다) · Y 예 · N 아니오',
       ()=>{ autoSave('새 섬을 만들기 전'); go(); }, cancel);
