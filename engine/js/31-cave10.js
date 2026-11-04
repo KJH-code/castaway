@@ -495,11 +495,11 @@ function cv10Init(rec,S){
 }
 function cv10Rec(c){
   let r=CV10.built.get(c); if(r) return r;
-  r={c,state:'grid',S:0.5,mesh:null,tex:null,texInfo:null,cols:[],retried:false,texOver:0,tris:0,verts:0,msGrid:0,msMesh:0};
+  r={c,state:'grid',S:0.5,mesh:null,tex:null,texInfo:null,cols:[],retried:false,q0:null,texOver:0,tris:0,verts:0,msGrid:0,msMesh:0};
   cv10Init(r,0.5); CV10.built.set(c,r); return r;
 }
 const cv10Dist=(c,px,pz)=>{ const b=c.box, dx=Math.max(b.x0-px,0,px-b.x1), dz=Math.max(b.z0-pz,0,pz-b.z1); return Math.hypot(dx,dz); };
-const cv10Ready=c=>{ const r=CV10.built.get(c); return !!(r&&r.ready); };
+const cv10Ready=c=>{ const r=CV10.built.get(c); return !!(r&&(r.ready||r.q0)); };   // 다시 짓는 동안(q0)도 질의는 된다
 
 /* 한 단계를 줄 단위로 — rec.pr 부터 t1 까지. 다 했으면 true */
 function cv10Rows(rec,n,fn,t1,every){
@@ -572,7 +572,7 @@ function cv10Step(rec,t1){
       const T=performance.now();
       if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ let m=0; for(let dj=-2;dj<=2;dj++){ const jj=j+dj; if(jj<0||jj>=nz) continue; if(rec.tmp[jj*nx+i]){ m=1; break; } }
           const q=j*nx+i; rec.near[q]=m; if(m){ const lo=C[q]-F[q]>0.05?F[q]:Hh[q]; if(lo<rec.ymin) rec.ymin=lo; if(Hh[q]>rec.ymax) rec.ymax=Hh[q]; } } },t1)) { rec.msGrid+=performance.now()-T; return false; }
-      rec.tmp=null; rec.ready=true; rec.msGrid+=performance.now()-T;
+      rec.tmp=null; rec.ready=true; rec.q0=null; rec.msGrid+=performance.now()-T;
       if(!rec.nvoid){ rec.state='done'; rec.ph='done'; return true; }
       rec.ymin=Math.min(rec.ymin,rec.vmin)-1; rec.ymax+=1; rec.ny=Math.ceil((rec.ymax-rec.ymin)/S)+1;
       rec.cbase=new Int32Array((nx-1)*(nz-1)); rec.ck0=new Int16Array((nx-1)*(nz-1)); rec.cn=new Int16Array((nx-1)*(nz-1)); rec.slot=0;
@@ -630,7 +630,9 @@ function cv10Step(rec,t1){
             if(k+1<ny){ if(s0!==(cv10Rho(rec,qa,y+S)>0)){ q4[0]=cv(i-1,j-1,k); q4[1]=cv(i,j-1,k); q4[2]=cv(i,j,k); q4[3]=cv(i-1,j,k); emit(s0); } }
           } } },t1,16)) { rec.msMesh+=performance.now()-T; return false; }
       rec.vi=null; rec.cbase=rec.ck0=rec.cn=null; rec.tris=rec.ni/3;
-      if(rec.tris>CV10.maxTri&&!rec.retried){ const ms=rec.msMesh+performance.now()-T, mg=rec.msGrid; cv10Init(rec,0.6); rec.retried=true; rec.msMesh=ms; rec.msGrid=mg; rec.tris=0; return cv10Step(rec,t1); }
+      if(rec.tris>CV10.maxTri&&!rec.retried){ const ms=rec.msMesh+performance.now()-T, mg=rec.msGrid;
+        /* 옛 격자(0.5 m)를 떼어 두고 다시 짓는 동안 질의는 그것으로 답한다 — 안 그러면 굴 안의 사람 발밑이 잠깐 빈다(cv10Init 은 새 배열을 만들어 옛것은 그대로다) */
+        const q0={S:rec.S,x0:rec.x0,z0:rec.z0,nx:rec.nx,nz:rec.nz,F:rec.F,C:rec.C,Hh:rec.Hh,O:rec.O,D:rec.D}; cv10Init(rec,0.6); rec.q0=q0; rec.retried=true; rec.msMesh=ms; rec.msGrid=mg; rec.tris=0; return cv10Step(rec,t1); }
       rec.ph='remap'; rec.pr=0; rec.rm=new Int32Array(rec.vn).fill(-1); rec.used=0; rec.msMesh+=performance.now()-T; break; }
     case 'remap':{
       const T=performance.now(); let p=rec.pr;
@@ -735,9 +737,9 @@ function cv10V(rec,x,y,z){ const s=cv10Samp(rec,x,z); if(s.n<=0) return 9; const
 /* ── 질의 — 지어 둔(격자가 다 된) 굴에서 이 점이 빈 데인가 ─────────────────────────────────────────────────────── */
 function cv10Q(x,z,y){
   for(const [c,r] of CV10.built){
-    if(!r.ready||c.off) continue; const b=c.box; if(x<b.x0||x>b.x1||z<b.z0||z>b.z1) continue;
-    const S=r.S; if(x>=r.x0+(r.nx-1)*S||z>=r.z0+(r.nz-1)*S) continue;
-    const s=cv10Samp(r,x,z); if(s.n<=0) continue;
+    const g=r.ready?r:r.q0; if(!g||c.off) continue; const b=c.box; if(x<b.x0||x>b.x1||z<b.z0||z>b.z1) continue;   // g — 지금 격자 · 다시 짓는 동안은 옛 격자
+    const S=g.S; if(x>=g.x0+(g.nx-1)*S||z>=g.z0+(g.nz-1)*S) continue;
+    const s=cv10Samp(g,x,z); if(s.n<=0) continue;
     if(y<s.f-0.6||y>s.c+0.3) continue;
     return {c,rec:r,f:s.f,ce:s.c,open:s.open,deep:_cv10Smooth(2,16,s.d)};
   }
