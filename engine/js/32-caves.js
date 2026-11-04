@@ -37,7 +37,7 @@ TERR_U.uCvB={value:Array.from({length:CAVE_K},()=>new THREE.Vector4())};   // �
    지어 둔 굴(`CV10.built`) 가운데 카메라에 가장 가까운 둘의 '굴 자리 그림'(`rec.tex` — 31-cave10.js)을 1024×512 한 장의 왼쪽·오른쪽 칸에 옮겨 담는다.
    R,G = 바닥·천장 높이((값·0.25)+base) · B = 깊이 · A = 255 땅 뚫기 자리(M) 아니면 sky×127. 칸이 512 보다 크면 정수 배로 솎는다(걸음도 그만큼).
    땅 셰이더(`TERR_HOLE` — 20-terrain.js)가 A≥0.9 를 버리고, `cvEval`(아래)이 빈 데의 높이 안이면 굴 속 어둠을 센다 */
-const CV10_GLOW={karst:[0.55,0.88,0.80,1.6], talus:[0.55,0.88,0.80,1.0], lava:[0.95,0.72,0.40,0.45], shelter:[0,0,0,0]};   // 굴 불빛 빛깔 rgb · 세기(D 도 읽는다)
+const CV10_GLOW={karst:[0.55,0.88,0.80,0.55], talus:[0.55,0.88,0.80,0.6], lava:[0.95,0.72,0.40,0.45], shelter:[0,0,0,0]};   // 굴 불빛 빛깔 rgb · 세기(D 도 읽는다)
 TERR_U.uCv10T={value:(()=>{ const t=new THREE.DataTexture(new Uint8Array(4),1,1,THREE.RGBAFormat,THREE.UnsignedByteType); t.needsUpdate=true; return t; })()};   // 굴이 없는 동안은 1×1 빈 점
 TERR_U.uCv10R={value:[new THREE.Vector4(),new THREE.Vector4()]};   // x0 · z0 · 칸 걸음(m) · 가로+1024×세로(칸의 점 수)
 TERR_U.uCv10B={value:[new THREE.Vector4(),new THREE.Vector4()]};   // base · 높이 걸음(0.25) · 켜짐(0/1) · 칸 번호
