@@ -87,6 +87,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `24-shapes.js` | 식물·바다 생물이 같이 쓰는 모양 도구(`SHP`) |
 | `30-props.js` | 칸 보이기 `updateTileVis` · 참나무·전나무 단계 `TL` · 먼 나무 그림 · `buildProps`(`HABIT`) · 자갈 · 베리 · 보급선 · 충돌 `resolveProps` |
 | `31-cave10.js` | 동굴 지형 판 10 의 자료(`P.tv>=10` 일 때만) — 종류 `cv10Kind` · 자리 `cv10Layout` · 굴 부피 `cv10Field` · 겉 비울 원 `cv10Zones`(설계 `docs/notes/caves.md`) |
+| `31-cave10deco.js` | 동굴 판 10 의 안팎 장식 — 종유석 · 석순 · 기둥 · 휴석 웅덩이 · 고드름 · 돌 · 뿌리 · 고사리 · 이끼 · 빛나는 것 · 딸 것 `CV10.picks`(`cv10Deco` · 설계 `docs/notes/caves.md` 구현 메모(E)) |
 | `32-caves.js` | 동굴(바위 굴집) `buildCaves` · 굴 바위의 참 꼴 `caveSolid`/`caveIn` · 굴 속 빛·바닥 `CAVE_GLSL`(가까운 방 여섯 — envPatch · 땅 셰이더가 읽는다) · `updateCaves` |
 | `33-crags.js` | 암벽 — 큰 바위 무리 `cragSites` · `cragMesh` · `cragFloor` |
 | `34-coast.js` | 바닷가 — 시스택·해식 아치·주상절리(`coastFloor` · `coastSolid`) |
