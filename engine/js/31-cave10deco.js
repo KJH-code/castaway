@@ -15,7 +15,7 @@
      `ethanpil/marine-scene` 의 돌림 단면 식(종유석 0.26(1−v)^1.25 · 기둥 |2v−1|^1.7 — 식만 보고 다시 짰다). 라이선스 없는 코드는 읽기만 하고 베끼지 않았다.
    이름은 cv10Deco · cvd 로 시작한다(전역 이름이 겹치면 그 파일이 통째로 안 읽힌다). 설계와 잰 값은 docs/notes/caves.md '구현 메모(E)'. */
 const CVD={ hooked:false, mats:null, maxTri:30000, maxPick:90, q:[], cur:null, tEnd:0, k:0, budget:2 };
-const cvdT=()=>(++CVD.k&15)===0&&performance.now()>CVD.tEnd;      // 이번 틱의 시간이 다 됐나 — 장식 짓기는 제너레이터라 여기서 쉰다
+const cvdT=()=>performance.now()>CVD.tEnd;      // 이번 틱의 시간이 다 됐나 — 장식 짓기는 제너레이터라 여기서 쉰다
 CV10.picks=[];
 
 /* ── 재질 · 줍기 종류(처음 지을 때 — 95-flora.js 는 이 파일보다 뒤에 읽힌다) ───────────────────────────────────── */
@@ -45,6 +45,11 @@ function cvdInit(){
 const cvdSS=(a,b,x)=>{ const t=Math.min(1,Math.max(0,(x-a)/(b-a))); return t*t*(3-2*t); };
 const cvdAcc=()=>({p:[],n:[],c:[],i:[],tr:0});
 const cvdLerp4=(a,q,nx,u,w)=>(a[q]*(1-u)+a[q+1]*u)*(1-w)+(a[q+nx]*(1-u)+a[q+nx+1]*u)*w;
+function cvdBil(X,arr,x,z){                                      // 격자 쌍선형(가장자리는 붙잡는다) — 검사가 쓰는 것과 같은 식
+  const S=X.S, nx=X.nx, nz=X.nz; let fx=(x-X.x0)/S, fz=(z-X.z0)/S, i=Math.floor(fx), j=Math.floor(fz); fx-=i; fz-=j;
+  if(i<0){ i=0; fx=0; } if(j<0){ j=0; fz=0; } if(i>nx-2){ i=nx-2; fx=1; } if(j>nz-2){ j=nz-2; fz=1; }
+  const q=j*nx+i; return (arr[q]*(1-fx)+arr[q+1]*fx)*(1-fz)+(arr[q+nx]*(1-fx)+arr[q+nx+1]*fx)*fz;
+}
 function cvdNoise(X,x,z,sc,k){                                   // 값 잡음 [0,1) — 굴 씨로 갈린다
   const fx=x/sc, fz=z/sc, i=Math.floor(fx), j=Math.floor(fz), u=fx-i, w=fz-j, su=u*u*(3-2*u), sw=w*w*(3-2*w), s=X.seed+k*131;
   const a=cv10H(i,j,s), b=cv10H(i+1,j,s), c=cv10H(i,j+1,s), d=cv10H(i+1,j+1,s); return (a+(b-a)*su)*(1-sw)+(c+(d-c)*su)*sw;
@@ -108,10 +113,16 @@ function cvdRock(A,X,x,z,R,sy,tone,base){                       // base: 바닥 
     const qx=px*cy+pz*sy2, qz=-px*sy2+pz*cy; px=qx; pz=qz;     // 돌림(위쪽 축)
     const qy=py*cs(tx)-pz*sn(tx); pz=py*sn(tx)+pz*cs(tx); py=qy; const qy2=py*cs(tz)-px*sn(tz); px=py*sn(tz)+px*cs(tz); py=qy2;
     return [px,py,pz]; });
-  let cyBase=1e9;                                                // 밑동: 각 정점이 제 자리 바닥(F)보다 −0.03 아래로 안 가게 가장 낮은 정점 기준
-  for(const w of W){ const s=cv10Samp(X.rec,x+w[0],z+w[2]), f=base!==undefined?base:s.f; cyBase=Math.min(cyBase,w[1]-f); }
-  let fAtBot=0; { let mn=1e9; for(const w of W){ const s=cv10Samp(X.rec,x+w[0],z+w[2]), f=base!==undefined?base:s.f; if(w[1]-f<mn){ mn=w[1]-f; fAtBot=f; } } }
-  const y0=-0.03-cyBase, v0=A.p.length/3, P=CVD_PAL[X.kind]||CVD_PAL.talus; let ymx=-1e9, ymn=1e9; for(const w of W){ ymx=Math.max(ymx,y0+w[1]); ymn=Math.min(ymn,y0+w[1]); }
+  /* 앉히기 — 발자국 아래쪽 꼭짓점마다 그 자리 바닥(격자 쌍선형 F)보다 높이 뜨지 않게(묻히는 것은 된다) 가라앉히고,
+     돌 가운데 밑이 그 자리 F ±0.1 m 가 아니거나 꼭짓점 자리가 벽 가까워 바닥을 믿을 수 없으면 버린다(null) */
+  let wmin=1e9; for(const w of W) if(w[1]<wmin) wmin=w[1];
+  let hmax=-1e9; for(const w of W) if(w[1]>hmax) hmax=w[1];
+  let y0=1e9; const low=wmin+0.3*(hmax-wmin);
+  for(const w of W){ if(w[1]>low) continue; let f;
+    if(base!==undefined) f=base; else { const sm=cv10Samp(X.rec,x+w[0],z+w[2]); f=cvdBil(X,X.F,x+w[0],z+w[2]); if(sm.n<=0||Math.abs(sm.f-f)>0.05) return null; }
+    y0=Math.min(y0,f-w[1]+0.02); }
+  const fc=base!==undefined?base:cvdBil(X,X.F,x,z); if(Math.abs(y0+wmin-fc)>0.1) return null;
+  const v0=A.p.length/3, P=CVD_PAL[X.kind]||CVD_PAL.talus; let ymx=-1e9, ymn=1e9; for(const w of W){ ymx=Math.max(ymx,y0+w[1]); ymn=Math.min(ymn,y0+w[1]); }
   for(const f of CVD_IF){ const a=W[f[0]], b=W[f[1]], c=W[f[2]];
     let nx=(b[1]-a[1])*(c[2]-a[2])-(b[2]-a[2])*(c[1]-a[1]), ny=(b[2]-a[2])*(c[0]-a[0])-(b[0]-a[0])*(c[2]-a[2]), nz=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
     const nl=Math.hypot(nx,ny,nz)||1; nx/=nl; ny/=nl; nz/=nl;
@@ -121,7 +132,7 @@ function cvdRock(A,X,x,z,R,sy,tone,base){                       // base: 바닥 
     for(const w of (flip?[a,c,b]:[a,b,c])){ A.p.push(x+w[0],y0+w[1],z+w[2]); A.n.push(nx,ny,nz);
       A.c.push((P.b[0]*(1-pm)+P.a[0]*pm)*sh,(P.b[1]*(1-pm)+P.a[1]*pm)*sh,(P.b[2]*(1-pm)+P.a[2]*pm)*sh); }
     A.i.push(o,o+1,o+2); A.tr++; }
-  return {v0,v1:A.p.length/3,top:ymx,bot:fAtBot-0.03,botF:fAtBot};
+  return {v0,v1:A.p.length/3,top:ymx,bot:ymn,botF:fc};
 }
 /* 고사리 한 포기 — 활처럼 휜 잎 여섯~여덟 장(양면 시트) */
 function cvdFern(A,X,x,y,z,sc){
@@ -202,7 +213,7 @@ function* cvdKarstSpeleo(X){
     const tone=0.85+0.3*rnd(), ph=rnd()*6, cf=cvdCol(X,tone,0.6,ph), by=0.03+Math.min(0.07,r*0.3), r0=r;
     const it=cvdRev(A,x,f-by,z,0,1,0,h+by,t=>r0*Math.sqrt(Math.max(0,1-Math.pow(t,2.4)))*(1+0.35*Math.pow(1-t,4)),8,6,cf); it.acc=A; cvdLog(X,'stalagmite',x,z,f-by,f+h,r);
     if(r>0.25) cvdBlock(X,x,z,r*1.1,f,f+h); else if(h<=1.0&&rnd()<0.35) cvdPick(X,'cvcalcite',x,f,z,f+h*0.6,Math.max(0.2,r),it); };
-  for(const s of st){ if(!cvdBudget(X,19000)) break; if(s.L>0.4&&rnd()<0.6) mk(s.x+(rnd()-0.5)*0.1,s.z+(rnd()-0.5)*0.1,s.g-s.L-0.35,false); }
+  for(const s of st){ if(cvdT()) yield; if(!cvdBudget(X,19000)) break; if(s.L>0.4&&rnd()<0.6) mk(s.x+(rnd()-0.5)*0.1,s.z+(rnd()-0.5)*0.1,s.g-s.L-0.35,false); }
   for(const q of cells){ if(cvdT()) yield; if(!cvdBudget(X,19500)) break; if(rnd()>0.012) continue; cvdAt(X,q,rnd(),rnd(),o); if(o.c-o.f<2.6||o.sf>0.5) continue; mk(o.x,o.z,1.6,false); }
   /* 기둥 — 낮은 방 자리(천장−바닥 < 3.2). 낮은 자리가 없으면 가장 낮은 두어 곳 */
   const cand=[], colMk=(x,z,f,c,wd)=>{ const rmin=0.14+0.16*rnd(), rmax=rmin*(1.5+0.7*rnd()), ph=rnd()*6, cf=cvdCol(X,0.9+0.2*rnd(),0.8,ph), h=c-f+0.2;
@@ -309,7 +320,7 @@ function* cvdRubble(X,sel,p,Rmax,cap,tone){                       // sel(o,q) �
     let R=0.12+(Rmax-0.12)*Math.pow(rnd(),2.2); const big=R>=0.3;
     if(big&&!(o.wd>=R+0.9&&o.d>3&&cvdFar(X.big,o.x,o.z,R+1.0))) R=0.14+0.14*rnd();
     if(o.sf>0.7) continue;
-    const it=cvdRock(A,X,o.x,o.z,R,0.55+0.4*rnd(),tone*(0.85+0.3*rnd())); it.acc=A; n++; cvdLog(X,'rock',o.x,o.z,it.bot,it.top,R,false,it.botF);
+    const it=cvdRock(A,X,o.x,o.z,R,0.55+0.4*rnd(),tone*(0.85+0.3*rnd())); if(!it) continue; it.acc=A; n++; cvdLog(X,'rock',o.x,o.z,it.bot,it.top,R,false,it.botF);
     if(R>=0.3) cvdBlock(X,o.x,o.z,R*0.85,o.f,it.top); else if(rnd()<0.3) cvdPick(X,'cvrubble',o.x,o.f,o.z,o.f+R*0.6,Math.max(0.2,R),it); }
 }
 function* cvdSlabs(X){                                             // 바위그늘 — 앞쪽에 떨어진 판돌(몸을 막는다) 몇 장 + 잔돌
@@ -373,11 +384,13 @@ function* cvdEntrance(X){
   let nv=0;
   for(let j=1;j<nz-1&&nv<28;j++) for(let i=1;i<nx-1&&nv<28;i++){ if(cvdT()) yield; const q=j*nx+i;
     if(!E[q]||O[q]||X.Hh[q]-X.C[q]<0.8||!(E[q+1]&&O[q+1]||E[q-1]&&O[q-1]||E[q+nx]&&O[q+nx]||E[q-nx]&&O[q-nx])||rnd()>0.4||!cvdBudget(X)) continue;
-    const x=X.x0+i*S+(rnd()-0.5)*0.3, z=X.z0+j*S+(rnd()-0.5)*0.3, s=cv10Samp(X.rec,x,z); if(s.n<=0||s.open) continue; const Lm=Math.min(2.5,s.c-s.f-1.9); if(Lm<0.5) continue;
+    const x=X.x0+i*S+(rnd()-0.5)*0.3, z=X.z0+j*S+(rnd()-0.5)*0.3, cq=Math.floor((z-X.z0)/S)*nx+Math.floor((x-X.x0)/S); if(!X.ceil[cq]) continue;   // 둘레 네 기둥이 다 빈 데이고 열린 데 아닌 자리만(열린 기둥의 C 는 가짜다)
+    const Lm=Math.min(2.5,cvdBil(X,X.C,x,z)-cvdBil(X,X.F,x,z)-1.9); if(Lm<0.5) continue;
     const v0=B.p.length/3, nb=1+((rnd()*3)|0); let ytip=1e9;
-    for(let k=0;k<nb;k++){ const L=0.5+(Lm-0.5)*Math.pow(rnd(),0.9), vx=x+(rnd()-0.5)*0.3, vz=z+(rnd()-0.5)*0.3, sm=cv10Samp(X.rec,vx,vz), cc=sm.n>0?sm.c:s.c, hw=0.025+0.03*rnd(), ph=rnd()*6, an=rnd()*3.1416, sx=Math.cos(an), sz=Math.sin(an), g=0.8+0.4*rnd();
+    for(let k=0;k<nb;k++){ const L=0.5+(Lm-0.5)*Math.pow(rnd(),0.9), vx=x+(rnd()-0.5)*0.3, vz=z+(rnd()-0.5)*0.3, vq=Math.floor((vz-X.z0)/S)*nx+Math.floor((vx-X.x0)/S); if(!X.ceil[vq]) continue; const cc=cvdBil(X,X.C,vx,vz), hw=0.025+0.03*rnd(), ph=rnd()*6, an=rnd()*3.1416, sx=Math.cos(an), sz=Math.sin(an), g=0.8+0.4*rnd();
       const nodes=[], cols=[]; for(let a=0;a<=5;a++){ const t=a/5, sw=0.12*Math.sin(t*3+ph)*t, px=vx+sw*sz, pz=vz-sw*sx, py=cc+0.06-L*t; nodes.push([[px-sx*hw,py,pz-sz*hw],[px+sx*hw,py,pz+sz*hw]]); const c=[(0.12+0.1*t)*g,(0.28+0.12*t)*g,(0.07+0.04*t)*g]; cols.push([c,c]); }
       cvdGrid(B,nodes,cols,[sz,0,-sx]); ytip=Math.min(ytip,cc-L); cvdLog(X,'vine',vx,vz,cc+0.06,cc-L,hw); }
+    if(ytip>1e8) continue;
     nv++; cvdPick(X,'vine',x,ytip,z,ytip+0.5,0.3,{acc:B,v0,v1:B.p.length/3}); }
   /* 굴 안 빛 드는 데(입구 거리 작음) — 고사리 · 이끼 (용암굴 채광창 밑이 가장 짙다) */
   const dF=X.kind==='lava'?7:X.kind==='shelter'?6:4.5, pF=X.kind==='lava'?0.07:0.035;
@@ -391,7 +404,7 @@ function* cvdEntrance(X){
     const r0=rnd(), x=X.x0+(i+rnd()-0.5)*S, z=X.z0+(j+rnd()-0.5)*S; const y=heightAt(x,z);
     if(r0<0.03&&d<5&&ng<26){ const sc=0.8+0.7*rnd(), it=cvdFern(B,X,x,y-0.02,z,sc); it.acc=B; ng++; cvdLog(X,'fern',x,z,y,y+0.5*sc,0.4*sc,true); cvdPick(X,'fern',x,y,z,y+0.3*sc,0.35*sc,it); }
     else if(r0<0.06&&d<5&&nmm<18){ cvdMoss(B,X,x,y,z,0.2+0.4*rnd(),0.05+0.06*rnd(),0,1,0); nmm++; cvdLog(X,'moss',x,z,y,y,0.3,true); }
-    else if(r0>0.93&&d>2&&nr<40){ const R=0.07+0.16*rnd(), it=cvdRock(A,X,x,z,R,0.5+0.4*rnd(),0.9+0.2*rnd(),y); it.acc=A; nr++; cvdLog(X,'rubble',x,z,it.bot,it.top,R,true,y);
+    else if(r0>0.93&&d>2&&nr<40){ const R=0.07+0.16*rnd(), it=cvdRock(A,X,x,z,R,0.5+0.4*rnd(),0.9+0.2*rnd(),y); if(!it) continue; it.acc=A; nr++; cvdLog(X,'rubble',x,z,it.bot,it.top,R,true,y);
       if(rnd()<0.4) cvdPick(X,'cvrubble',x,y,z,y+R*0.6,Math.max(0.2,R),it); } }
 }
 
