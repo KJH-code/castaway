@@ -1737,7 +1737,7 @@ function envPatch(m){
   const amip=lam&&m.alphaTest>0&&!!m.map;             // 잘라 그리는 잎 판 — 멀어져도 안 성기게(아래 '잎 판의 덮개')   // 잎 — 해를 등진 면에 비쳐 드는 빛을 준다(아래 '잎에 비쳐 드는 빛')
   /* 바람 흔들림은 껐다(`WIND_ON`) — 풀·잎·베리·가지 정점마다 사인파를 셌는데, 정점이 한 프레임에
      수백만 개라 가장 비싼 축에 들었다. 켜려면 true 로(코드는 그대로 남아 있다). */
-  const wind=WIND_ON&&m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';
+  const wind=(WIND_ON||m.userData.wind==='grass')&&m.userData.wind&&WIND_GLSL[m.userData.wind]?m.userData.wind:'';   // 풀만은 늘 바람을 탄다(사바나 풀밭이 물결치게 · 2026-11-04)
   if(!lam&&!(dep&&wind)) return;
   /* 굴 속의 빛과 바닥(32-caves.js `CAVE_GLSL`) — 굴 속 몫 cvK 가 하늘빛·햇빛을 깎고, 굴 불빛 cvL 을 더하고, 바닥 몫 cvF 가 녹아드는 밑동의
      빛깔을 굴 바닥으로 바꾼다. 화소마다 세려고 세계 높이(vCsY)와 세계 법선(vCsN)을 넘긴다. 굴이 없는 데(구름 시험장)는 통째로 뺀다 */

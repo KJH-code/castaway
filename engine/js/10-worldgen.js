@@ -749,8 +749,8 @@ async function placeResources(seed){    // async — 긴 고리 사이 숨을 �
 
   // 적합도 0..1 — 각 광종의 실제 산출 환경을 근거로 함
   const suit={
-    oak:i=> b[i]===B.BROADLEAF?1 : (b[i]===B.MEADOW?0.16:0),
-    fir:i=> b[i]===B.CONIFER?1 : (b[i]===B.SCRUB&&h[i]>HI*0.55?0.15:0),
+    oak:i=> b[i]===B.BROADLEAF?(P.sm?0.8:1) : (b[i]===B.MEADOW?(P.sm?0.05:0.16):0),          // 매끈한 땅(P.sm) — 풀밭의 나무는 띄엄띄엄(사용자 지적 2026-11-04)
+    fir:i=> b[i]===B.CONIFER?(P.sm?0.85:1) : (b[i]===B.SCRUB&&h[i]>HI*0.55?(P.sm?0.04:0.15):0),
     // 부싯돌: 처트 단괴가 해빈 자갈·하상 자갈에 잔류
     flint:i=> (b[i]===B.BEACH?0.8:0) + (F.dRiver[i]<8&&h[i]>0?1:0),
     // 돌멩이: 하상 자갈, 해빈 원력, 애추 사면과 급사면 아래 붕적층
@@ -767,7 +767,7 @@ async function placeResources(seed){    // async — 긴 고리 사이 숨을 �
     reed:i=> (b[i]===B.MARSH?1:0) + (F.dRiver[i]<6&&h[i]>0?0.6:0),
     // 풀숲: 초원이 본진, 활엽수림 임상 하층과 습지 가장자리까지. 암반·해빈에는 안 남
     grass:i=> b[i]===B.MEADOW?1 : (b[i]===B.BROADLEAF?0.55 : b[i]===B.BAMBOO?0.12 :
-              (b[i]===B.MARSH?0.40 : (b[i]===B.SCRUB?0.35 :
+              (b[i]===B.MARSH?0.40 : (b[i]===B.SCRUB?(P.sm?0.9:0.35) :
               (b[i]===B.DUNE?0.18 : (b[i]===B.CONIFER?0.22:0))))),
     // 공작석: 구리 광화대의 산화대 — 중고도 암반에 소규모 맥
     copper:i=> ((b[i]===B.ROCK||b[i]===B.SCREE) && h[i]>HI*0.35)?1:0,
@@ -851,12 +851,17 @@ async function placeResources(seed){    // async — 긴 고리 사이 숨을 �
     /* 지형 판 2: 금속 광석은 겉에 절반만 나고(나머지는 굴 속에 모인다 — caveSites) 화강암이 그만큼 흔하다 */
     const TVM=(P.tv|0)>=2?(R.k==='granite'?1.7:CAVE_ORE.indexOf(R.k)>=0?0.6:1):1;
     const WS=CELL/GCELL, cap=R.max*WS*WS*Math.max(1,TVM);
+    /* 매끈한 땅(P.sm) — **상한을 섬 전체에 고르게**(2026-11-04): 북쪽 줄부터 채우다 상한(cap)에 닿으면 그 아래 줄은 통째로 비었다
+       (4.25배 섬의 풀이 남쪽 3분의 1에서 한 포기도 없었다). 먼저 다 놓으면 몇 개가 될지 어림해 몫을 줄인다(난수 차례는 그대로) */
+    let GS=1;
+    if(P.sm){ let tot=0; for(let z=2;z<N-2;z++) for(let x=2;x<N-2;x++){ const i=IDX(x,z); if(h[i]>0.3) tot+=Math.min(1,Math.max(0,fn(i)))*R.d*DSCALE*TVM; }
+      GS=Math.min(1,0.9*cap/Math.max(1,tot)); }
     for(let z=2;z<N-2 && placed<cap;z++){
       if(!(z&63)) await breathe();
       for(let x=2;x<N-2 && placed<cap;x++){
         const i=IDX(x,z);
         if(h[i]<=0.3) continue;
-        const p=Math.min(1,fn(i))*R.d*DSCALE*TVM;
+        const p=Math.min(1,fn(i))*R.d*DSCALE*TVM*GS;
         if(WS===1){
           if(p<=0 || rnd()>p) continue;
           push(R.k,x,z);

@@ -217,6 +217,7 @@ function pause(){
 function start(){
   if(!landed&&gameHours<0.01) setTimeout(()=>toast('가방(I)에 생존 안내서가 있다 — 눌러서 읽어 보라'),1800);   // 처음 상륙
   landed=true;
+  if(typeof ITEM_SEEN!=='undefined') for(const sl of INV.slots) ITEM_SEEN.add(sl.id);   // 지니고 상륙한 것은 '새 재료' 로 안 알린다(55-craft.js)
   if(PL.dead) revivePL();
   paused=false; initAudio(); audioPause(false);
   fireWarm();                                       // 불꽃 셰이더를 미리 짠다(62-build.js — 놀이 때와 같은 광원 수에서 · 한 번만)
@@ -415,6 +416,14 @@ document.getElementById('pNoise').addEventListener('input',e=>{
   document.getElementById('vNoise').textContent=['끔','보통','짙게'][v];
 });
 document.getElementById('vNoise').textContent='보통';
+/* 물속 안개 — 0 끔(맑은 물 · 멀리까지) · 1 옅게 · 2 보통(사용자 요청 2026-11-04 — 물속 뿌연 것을 끌 수 있게) · 80-player.js eyeWater 가 곱한다 */
+let UW_HAZE=1;
+document.getElementById('pHaze').addEventListener('input',e=>{ const v=clamp(parseInt(e.target.value)||0,0,2); UW_HAZE=[0.07,0.45,1][v];
+  document.getElementById('vHaze').textContent=['끔','옅게','보통'][v]; });
+document.getElementById('vHaze').textContent='보통';
+/* 음악 크기 — 0 끔(98-music.js) */
+document.getElementById('pMusic').addEventListener('input',e=>{ const v=clamp(parseFloat(e.target.value)||0,0,1); if(typeof musicVol==='function') musicVol(v);
+  document.getElementById('vMusic').textContent=v<=0?'끔':Math.round(v*100)+'%'; });
 document.getElementById('bBench').onclick=()=>benchStart();
 document.getElementById('pSlot').addEventListener('change',e=>{
   curSlot=e.target.value; document.getElementById('bSave').disabled=curSlot==='auto';
@@ -424,16 +433,16 @@ document.getElementById('pSlot').addEventListener('change',e=>{
    브라우저 저장소에 둔다(데스크톱 판도 같은 저장소가 userData 에 남는다). 섬 모양(시드·크기…)은 저장 파일이 가진다.
    손으로 바꿀 때(change)만 적는다 — 불러올 때 맞추는 input 은 다시 적지 않는다 */
 const SET_KEY='castaway.settings';
-const SET={res:1, far:1, shadow:2, limb:0.8, vol:0.9, sens:1, slot:'1', cap:0, cam:2, noise:1, auto:1, mobs:2};
+const SET={res:1, far:1, shadow:2, limb:0.8, vol:0.9, sens:1, slot:'1', cap:0, cam:2, noise:1, auto:1, mobs:2, haze:2, music:0.6};
 function saveSettings(){ try{ localStorage.setItem(SET_KEY,JSON.stringify(SET)); }catch(e){} }
-for(const [id,k] of [['pRes','res'],['pFar','far'],['pShadow','shadow'],['pLimb','limb'],['pVol','vol'],['pSens','sens'],['pCap','cap'],['pCam','cam'],['pNoise','noise'],['pAuto','auto'],['pMobs','mobs']])
+for(const [id,k] of [['pRes','res'],['pFar','far'],['pShadow','shadow'],['pLimb','limb'],['pVol','vol'],['pSens','sens'],['pCap','cap'],['pCam','cam'],['pNoise','noise'],['pAuto','auto'],['pMobs','mobs'],['pHaze','haze'],['pMusic','music']])
   document.getElementById(id).addEventListener('change',e=>{ SET[k]=parseFloat(e.target.value); saveSettings(); });
 function applySettings(){
   try{ const o=JSON.parse(localStorage.getItem(SET_KEY)||'{}'); for(const k in SET) if(k in o) SET[k]=o[k]; }catch(e){}
   const put=(id,v)=>{ const el=document.getElementById(id); if(!el||typeof v!=='number'||!isFinite(v)) return;
     el.value=v; el.dispatchEvent(new Event('input')); };
   put('pRes',SET.res); put('pFar',SET.far); put('pShadow',SET.shadow); put('pLimb',SET.limb); put('pVol',SET.vol); put('pSens',SET.sens);
-  put('pCap',SET.cap); put('pCam',SET.cam); put('pNoise',SET.noise); put('pAuto',SET.auto); put('pMobs',SET.mobs);
+  put('pCap',SET.cap); put('pCam',SET.cam); put('pNoise',SET.noise); put('pAuto',SET.auto); put('pMobs',SET.mobs); put('pHaze',SET.haze); put('pMusic',SET.music);
   curSlot=(SET.slot==='2'||SET.slot==='3')?SET.slot:'1'; drawSlots();
 }
 document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.value);

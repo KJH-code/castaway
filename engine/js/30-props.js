@@ -1439,6 +1439,10 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
           Q.premultiply(_pQt);
         }else{ E.set(lx,p.r,lz); Q.setFromEuler(E); }
         V.set(p.x,gy+off,p.z); S.set(p.s,p.s,p.s);
+        /* **사바나 풀**(매끈한 땅 P.sm · 사용자 요청 2026-11-04 — 메마른 땅엔 키 큰 풀밭이 바람에 물결치게): 덤불 땅 · 메마른 풀밭(습도 0.3 밑)의
+           풀포기는 허리~어깨 키(3~4배)로 세운다. 바람에 휜다(풀 재질만 바람을 켠다 — 45-sky.js envPatch) */
+        if(P.sm&&R.k==='grass'){ const ci=IDX(clamp(Math.round(p.x/CELL+N/2),0,N-1),clamp(Math.round(p.z/CELL+N/2),0,N-1)), bb=F.biome[ci];
+          if(bb===B.SCRUB||(bb===B.MEADOW&&F.moist[ci]<0.30)){ const t=3.0+1.2*((((p._hash|0)>>>11))%100)/100; S.set(p.s*1.15,p.s*t,p.s*1.15); } }
         M.compose(V,Q,S); ms[gi].setMatrixAt(ix,M);
       });
 
@@ -1615,7 +1619,12 @@ function updateRubble(force){
     /* 벼랑 밑의 돌무더기(지형 판 3) — 가파른 칸과 그 이웃 칸에는 굴러떨어진 돌이 쌓인다(바이옴이 자갈밭이 아니어도).
        가파를수록 촘촘하고, 큰 돌이 섞이는 비율도 는다(열여섯에 하나 → 여덟에 셋) */
     /* **소금 더께**(지형 판 3 · 사용자 요청) — 모래 해변의 물가 위(0.35~1.6 m)에 드문드문 흰 더께가 앉는다. 곡괭이로 캔다(95-flora.js `salt`) */
-    const salt=(P.tv|0)>=3&&F.biome[ci]===B.BEACH&&F.elev[ci]>0.35&&F.elev[ci]<1.6&&((h>>>16)&1023)<30;
+    /* 매끈한 땅(P.sm) 섬은 **사브카(해안 염전)에만**(2026-11-04 사용자 지적 — 소금 더께가 아무 해변에나 있다): 소금 더께는 바닷물이 가끔 넘쳐 들어와
+       고였다 마르는 **건조한** 바닷가의 낮고 판판한 땅(파도 턱 뒤 · 물에서 6~90 m · 비탈 0.08 밑 · 습도 0.32 밑)에서만 앉는다. 습한 해변은 비가 씻어 낸다.
+       그런 땅 안에서도 염전은 넓은 얼룩으로 몰려 있다(큰 잡음) — 그 안은 촘촘히 · 납작하게 바닥에 붙는다 */
+    const salt=(P.tv|0)>=3&&(P.sm?(F.biome[ci]===B.BEACH||F.biome[ci]===B.DUNE||F.biome[ci]===B.SCRUB)&&F.elev[ci]>0.35&&F.elev[ci]<2.6&&F.moist[ci]<0.32&&F.slope[ci]<0.08
+          &&F.dWater[ci]>6&&F.dWater[ci]<90&&SHP.vn3(wx*0.006,wz*0.006,2.3,0x5a17)>0.58&&((h>>>16)&1023)<180
+          :F.biome[ci]===B.BEACH&&F.elev[ci]>0.35&&F.elev[ci]<1.6&&((h>>>16)&1023)<30);
     let gk=salt?1:(GRAVEL_K[F.biome[ci]]||0), tal=0;
     if((P.tv|0)>=3){ tal=smoothstep(0.42,0.95,Math.max(F.slope[ci],F.slope[ci-1],F.slope[ci+1],F.slope[ci-N],F.slope[ci+N])); if(tal*0.85>gk) gk=tal*0.85; }
     if(!(gk>0)) continue;
@@ -1630,8 +1639,9 @@ function updateRubble(force){
     r*=clamp((R-d)/8,0.2,1);                            // 가장자리에서 갑자기 생기지 않게 작게 시작
     const gs0=groundSlope(wx,wz,Math.max(0.25,r)), sl0=Math.hypot(gs0[0],gs0[1]);
     if(sl0>1.25) continue;                              // 52° 넘는 벽에는 돌이 얹혀 있을 수 없다(벽에 붙어 떠 보였다)
-    const sy=salt?0.26:0.5+0.35*((h2>>>9)&15)/15;
-    _rbE.set(((h2>>>13)&63)/63*0.7-0.35,((h2>>>19)&255)/255*6.283,((h2>>>27)&31)/31*0.7-0.35);
+    const sy=salt?(P.sm?0.07:0.26):0.5+0.35*((h2>>>9)&15)/15;
+    if(salt&&P.sm) r*=1.8;                               // 염전의 더께는 넓고 얇은 판(손바닥 두께)
+    _rbE.set(salt&&P.sm?0:((h2>>>13)&63)/63*0.7-0.35,((h2>>>19)&255)/255*6.283,salt&&P.sm?0:((h2>>>27)&31)/31*0.7-0.35);
     _rbQ.setFromEuler(_rbE);
     _rbV.set(wx,heightAt(wx,wz)+r*sy*0.42-r*Math.min(0.9,sl0)*0.55,wz);   // 비탈에서는 더 묻는다(아래쪽이 뜨지 않게)
     _rbS.set(r*(0.85+0.4*((h>>>4)&15)/15),r*sy,r);
@@ -1860,6 +1870,15 @@ function placePod(seed){
     let best=-1,bv=1e9;
     for(let k=0;k<N*N;k++) if(F.elev[k]>0.4&&F.elev[k]<bv){bv=F.elev[k];best=k;}
     if(best>=0) i=best;
+  }
+  /* 매끈한 땅(P.sm)이면 **배가 설 자리까지 본다**(2026-11-04 사용자 사진 — 보급선이 물속에 서 있다): 배는 캡슐에서 바다 쪽으로 9 m 에 내려앉는데,
+     바닷가를 바다 쪽으로 기울인 뒤(coastRaise) 물가에 바짝 붙은 해변 칸을 뽑으면 배 다리가 파도 속에 섰다. 배 네모(±9 m)의 다섯 점이 다
+     1.1 m(파도가 안 닿는 높이) 위 · 비탈 0.35 밑인 칸만 고른다(400 번까지 뽑아 본다) */
+  if(P.sm&&beaches.length){
+    const ok=k=>{ const x=(k%N-N/2)*CELL, z=(((k/N)|0)-N/2)*CELL, l=Math.hypot(x,z)||1, ax=x/l, az=z/l, cx=x+ax*9, cz=z+az*9;
+      for(const [u,v] of [[0,0],[9,9],[-9,9],[9,-9],[-9,-9]]){ const h=heightAt(cx+u,cz+v); if(!(h>1.1)) return false; }
+      return heightAt(x,z)>1.1&&F.slope[k]<0.35; };
+    for(let t=0;t<400&&!ok(i);t++) i=beaches[(rnd()*beaches.length)|0];
   }
   const x=(i%N-N/2)*CELL, z=(((i/N)|0)-N/2)*CELL;
   podPos.set(x,Math.max(0.3,heightAt(x,z)),z);
