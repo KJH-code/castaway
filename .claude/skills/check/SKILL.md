@@ -5,7 +5,7 @@ description: 사용자가 "/check test", "/check debug 증상", "/check review"�
 
 # check — 서브에이전트로 test / debug / review
 
-> 원본: orchestrate 플러그인 v2.0.0(사용자가 올림 2026-10-30 · 11-02 판으로 맞춤 2026-11-04 — test 모드 haiku · high). 이 레포에서는 checker 를 `.claude/agents/checker.md` 로 둔다. 병합 규칙은 orchestrate 스킬 머리의 '이 레포에서 바꾼 셋'.
+> 원본: orchestrate 플러그인(사용자가 올림) — v2.0.0(2026-10-30) → 11-02 판 → v2.2.0(2026-11-04 · test 는 `checker-test` · review · debug 는 `checker` · 모델 · 노력은 파일에 고정). 이 레포에서는 `.claude/agents/` 에 둔다. 병합 규칙은 orchestrate 스킬 머리의 '이 레포에서 바꾼 셋'.
 
 목적: 메인 대화가 믿는 걸 같이 믿지 않는 **독립 검증**. 그래서 대화 내용은 넘기지 않는다.
 
@@ -13,13 +13,13 @@ description: 사용자가 "/check test", "/check debug 증상", "/check review"�
 
 ## 모드와 모델
 
-| 모드 | 하는 일 | model | effort |
-|---|---|---|---|
-| test | 빌드·테스트·실행 결과만 확인 (기계적) | haiku | high |
-| review | 검증 기준 판정 + 테스트가 못 잡는 버그·스펙 어긋남 (판단) | opus | high |
-| debug | 증상 재현, 원인 후보, 수정 제안 | opus | high |
+| 모드 | 하는 일 | 에이전트 | model | effort |
+|---|---|---|---|---|
+| test | 빌드·테스트·실행 결과만 확인 (기계적) | `checker-test` | haiku | high |
+| review | 검증 기준 판정 + 테스트가 못 잡는 버그·스펙 어긋남 (판단) | `checker` | opus | high |
+| debug | 증상 재현, 원인 후보, 수정 제안 | `checker` | opus | high |
 
-- Agent 도구를 부를 때 `model`과 `effort`를 위 표대로 직접 넣는다 (checker.md 기본값은 opus/high라서 test 모드는 호출 때 낮춰야 한다)
+- 모델·노력은 에이전트 파일에 고정돼 있다. 호출할 때 `model`·`effort`를 넘기지 않는다 (넘기면 파일 설정을 덮어쓴다)
 - orchestrate 검수는 **test → (통과하면) review** 순서로 두 번 띄운다. test 가 실패하면 review 는 띄우지 않는다 — 안 돌아가는 코드를 리뷰하는 건 낭비다
 
 ## 1. 시작 상태 기록
@@ -51,9 +51,10 @@ git diff HEAD > <scratchpad>/check.diff    # 커밋 안 된 변경. 비어 있�
 
 ## 3. 서브에이전트 띄우기
 
-- 이 레포의 `checker` 에이전트(`.claude/agents/checker.md`)를 쓴다 — 도구를 읽기·실행으로 줄여 가볍다
-- 로드되지 않았으면(그 파일을 막 만든 세션) general-purpose 에이전트를 쓰고, 프롬프트 맨 앞에 `.claude/agents/checker.md` 본문의 규칙(수정 금지, 태그, 출력 형식)을 그대로 붙인다 — 고정 비용이 5.8만 토큰이라 이때만
-- opus 호출이 실패하면(요금제·한도) review·debug 는 `inherit` + high 로 다시 띄우고, 낮췄다고 보고에 적는다
+- test 모드는 `checker-test`, review·debug 모드는 `checker` 에이전트를 쓴다 (이 레포 `.claude/agents/checker-test.md` · `checker.md` — 각 파일에 'CASTAWAY 에서' 절)
+- 로드되지 않았으면 general-purpose 에이전트를 쓰고, 그때만 `model`·`effort`를 위 표대로 넘긴다. 프롬프트 맨 앞에 해당 에이전트 파일(`.claude/agents/checker-test.md` 또는 `checker.md`) 본문의 규칙(수정 금지, 태그, 출력 형식)을 그대로 붙인다
+- opus 호출이 실패하면(요금제·한도) review·debug 는 같은 `checker`를 `model: "inherit"`로 다시 띄우고, 낮췄다고 보고에 적는다
+- general-purpose 의 고정 비용이 5.8만 토큰이라 에이전트가 안 잡힐 때만
 - 모드를 프롬프트에 명시한다: `모드: test`, `모드: debug` 또는 `모드: review`
 
 ## 4. 끝난 뒤 확인
