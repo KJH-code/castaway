@@ -210,16 +210,29 @@ function caveColHit(cols,x,z,y,rad){
     const d1=Math.hypot(x-o.x,z-o.z), R=o.r+rad; if(d1<R&&d1<Math.hypot(PL.pos.x-o.x,PL.pos.z-o.z)) return true; }
   return false;
 }
+/* 기둥 — 걸음은 거절하지 않고 원 밖(r+몸 반지름)으로 밀어내며 접선 쪽으로 미끄러진다(정면으로 걸어도 돌아서 지난다). 원 안에 머무는 걸음은 없다 */
+function caveColPush(p){
+  const q=caveHere(p.x,p.z,p.y); if(!q) return; const cols=q.rec.cols; if(!cols.length) return;
+  for(let it=0;it<2;it++) for(let i=0;i<cols.length;i++){ const o=cols[i]; if(p.y+1.75<o.y0||p.y>o.y1) continue;
+    let dx=p.x-o.x, dz=p.z-o.z, d=Math.hypot(dx,dz); const R=o.r+PRAD; if(d>=R) continue;
+    if(d<1e-4){ dx=-Math.sin(PL.yaw); dz=-Math.cos(PL.yaw); d=1; }              // 한복판이면 보는 쪽 반대로
+    const nx=dx/d, nz=dz/d, pen=R-d, sg=(Math.sin(PL.yaw)*nz-Math.cos(PL.yaw)*nx)>=0?1:-1;      // 가는 쪽(보는 쪽) 접선 방향 — 속도가 0 이어도 한쪽으로 정해진다
+    const tx=p.x+nx*pen-nz*sg*pen*1.2, tz=p.z+nz*pen+nx*sg*pen*1.2;
+    if(caveHere(tx,tz,p.y)){ p.x=tx; p.z=tz; } else { p.x+=nx*pen; p.z+=nz*pen; }
+    PL.vel.x*=0.7; PL.vel.z*=0.7; }
+}
 /* 굴 속 걷기 — true/false 면 그 답, undefined 면 땅 규칙으로 */
 function caveWalk(x,z,fromH){
-  const q=caveHere(x,z,fromH+0.3);
+  const q=caveHere(x,z,fromH);                              // floorAt 과 같은 창(발 높이) — 걷기 · 바닥이 어긋나면 걸음은 굴 안인데 바닥은 지표를 줬다
   if(q){                                                  // 가려는 자리가 빈 데
     if(q.f-fromH>STEPUP) return false;                     // 한 번에 오르기엔 높은 턱(내리막은 통과)
     if(q.ce-q.f<(PL.crouch?1.15:1.95)){                    // 머리 위가 낮다 — 서서는 눈(1.66)+머리 0.25 가 들어야 하고, 숙이면(눈 0.98) 1.15 m 면 지난다
       if(!PL.crouch&&q.ce-q.f>=1.15&&(!PL._lowT||performance.now()-PL._lowT>3000)){ PL._lowT=performance.now(); toast('천장이 낮다 — 숙여서(Ctrl) 지나간다'); }
       return false; }
-    const cols=q.rec.cols; if(cols.length&&caveColHit(cols,x,z,fromH,PRAD)) return false;
-    if(q.f-fromH>0.02){ const g=floorGrad(x,z,fromH); if(Math.hypot(g[0],g[1])>MAXSLOPE) return false; }   // 오르막은 땅과 같은 한도(49°) — 한 걸음 턱(0.55 m)만 보면 벽도 걸음마다 오른다
+    if(q.f-fromH>0.02){ const g=floorGrad(x,z,fromH);                  // 오르막은 땅과 같은 한도(49°) — 한 걸음 턱(0.55 m)만 보면 벽도 걸음마다 오른다
+      if(Math.hypot(g[0],g[1])>MAXSLOPE){                              // 다만 턱(STEPUP 안)은 오른다: 0.6 m 앞이 그 높이에서 이어지면(판판한 윗면) 벽이 아니라 턱
+        const dx=x-PL.pos.x, dz=z-PL.pos.z, dl=Math.hypot(dx,dz)||1, hx=caveHere(x+dx/dl*0.6,z+dz/dl*0.6,q.f+0.3);
+        if(!(hx&&Math.abs(hx.f-q.f)<0.25)) return false; } }
     return true;
   }
   if(PL.cave) return fromH>=heightAt(x,z)-0.35?undefined:false;   // 굴에서 벽 쪽 — 열린 데로 나가는 길(발이 땅 높이)만 땅 규칙으로
@@ -576,6 +589,7 @@ function updatePlayer(dt){
   const fh=PL.grounded?gy:Math.max(gy,p.y);
   if(walkable(p.x+mx,p.z,fh)) p.x+=mx; else PL.vel.x*=0.4;
   if(walkable(p.x,p.z+mz,fh)) p.z+=mz; else PL.vel.z*=0.4;
+  if(PL.cave) caveColPush(p);                                      // 굴 기둥(rec.cols)에서 밀려나 미끄러진다
   if(!PL.under&&!PL.cvUnder){                  // 땅속 · 굴 속(판 10)에서는 땅 위의 것(바위·나무·보급선)에 안 걸린다
   resolveProps(p,PRAD);
   rubbleCollide(p,PRAD);                       // 벼랑 밑 큰 돌(무릎 넘는 것 — 30-props.js)
@@ -592,6 +606,7 @@ function updatePlayer(dt){
   if(DROP.t>0){ DROP.t-=dt; }
   let ng=PL.cvUnder?floorAt(p.x,p.z,p.y):Math.max(floorAt(p.x,p.z,p.y),shipFloor(p.x,p.z,p.y),rubbleFloor(p.x,p.z,p.y));   // 지은 바닥 · 보급선 날개·몸 위 · 낮은 큰 돌 위에 선다
   if(DROP.t>0) ng=Math.min(ng, floorAt(p.x,p.z,DROP.y-1.0));   // 뚫고 내려가는 중
+  if(PL.cvUnder&&ng-oy>STEPUP+0.05){ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; ng=floorAt(ox,oz,p.y); }   // 굴 안에서 한 걸음에 바닥이 턱보다 높이 오른다 = 지표로 튀는 것 — 앞 자리로
   if(p.y<=ng){
     if(PL.vel.y<-13 && !PL.swim && depth<0.5){
       PL.stam=clamp(PL.stam-Math.abs(PL.vel.y+13)*4,0,100);
@@ -651,7 +666,7 @@ function updatePlayer(dt){
     if(PL.dist>(PL.run?2.0:2.6)){ PL.dist=0; footstep(); }
   }
   const bob=(PL.grounded&&!PL.swim)?Math.sin(PL.bob*2)*Math.min(hs*0.013,0.055):0;
-  PL.eye+=(((PL.crouch?EYE_C:EYE)+(PL.swim?-0.9:0))-PL.eye)*clamp(10*dt,0,1);
+  PL.eye+=(((PL.crouch?(PL.caveQ?0.88:EYE_C):EYE)+(PL.swim?-0.9:0))-PL.eye)*clamp(10*dt,0,1);
   // 작은 턱을 올라설 때 시점이 톡톡 튀지 않게 세로만 부드럽게 따라간다
   if(PL.camY===undefined||!PL.grounded||Math.abs(p.y-PL.camY)>1.2) PL.camY=p.y;
   else PL.camY+=(p.y-PL.camY)*clamp(16*dt,0,1);
