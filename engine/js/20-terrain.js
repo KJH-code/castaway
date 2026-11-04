@@ -1043,6 +1043,11 @@ vec2 grain(vec3 p){
         vec3 V=-normalize(vRV), nv=normalize(mat3(viewMatrix)*n), sv=normalize(mat3(viewMatrix)*uSunDir);
         float sp=pow(max(dot(reflect(-sv,nv),V),0.0),24.0)*uRkMet*max(uSunDir.y,0.0);
         c+=vec3(sp*0.7);
+        /* **젖은 바위의 번들거림**(2026-11-04 사용자 요청 — 젖은 바위가 빛나고 반짝이는 것) — 물가(해수면 −1.5~2.2 m)의 바위는 젖어 짙어지고 해를 좁고 밝게 되비친다 ·
+           마른 바위도 아주 옅은 윤기(밝은 데가 살아 보이게). 비스듬히 볼 때는 하늘빛이 비친다(프레넬) */
+        { float wet=smoothstep(2.2,0.3,p.y)*smoothstep(-1.5,-0.2,p.y), gl=max(uSunDir.y,0.0);
+          float sw=pow(max(dot(reflect(-sv,nv),V),0.0),70.0)*(0.12+0.88*wet)*gl, fr=pow(1.0-max(dot(nv,V),0.0),3.0);
+          c=c*mix(1.0,0.68,wet)+vec3(sw*(0.5+1.6*wet))+vec3(0.10,0.12,0.14)*fr*wet; }
         diffuseColor.rgb=c;
       }`);
   };

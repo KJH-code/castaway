@@ -56,14 +56,14 @@ function bagTipHtml(el){
       +R.in.map(r=>{ const hv=countMat(r); return '<div class="'+(hv>=r.n?'g':'b')+'">'+matName(r)+' '+hv+' / '+r.n+'</div>'; }).join('');
     if(R.need&&R.need.length) h+='<div class="tk">도구(닳지 않는다)</div>'+R.need.map(r=>'<div class="'+(countMat(r)>=r.n?'g':'b')+'">'+matName(r)+'</div>').join('');
     if(R.station) h+='<div class="tk">자리</div><div class="'+(stationOK(R)?'g':'b')+'">'+STATION[R.station].n+' 곁</div>';
-    if(R.out){ const us=craftUsers(R.out.id);
+    if(R.out){ const us=craftUsers(R.out.id).filter(craftKnown);
       h+='<div class="tk">이것으로 만드는 것'+(us.length?' · '+us.length:'')+'</div>'
         +(us.length?us.slice(0,8).map(U=>'<div>'+U.n+'</div>').join('')+(us.length>8?'<div class="d">… 그 밖에 '+(us.length-8)+'</div>':'')
                    :'<div class="d">없다 — 그대로 쓰는 물건이다</div>'); }
     return h;
   }
   const id=el.dataset.tipi, T=ITEMS[id]; if(!T) return '';
-  const us=RECIPES.filter(R=>R.in.some(r=>bagUses(id,r))||(R.need||[]).some(r=>bagUses(id,r)));
+  const us=RECIPES.filter(R=>craftKnown(R)&&(R.in.some(r=>bagUses(id,r))||(R.need||[]).some(r=>bagUses(id,r))));
   return '<b>'+T.n+'</b><div class="d">'+T.use+'</div><div class="tk">이것으로 만들 수 있는 것'+(us.length?' · '+us.length:'')+'</div>'
     +(us.length?us.slice(0,8).map(R=>'<div class="'+(canCraft(R)?'g':'')+'">'+R.n+' <span class="d">— '
         +R.in.map(r=>matName(r)+' '+r.n).join(' · ')+'</span></div>').join('')+(us.length>8?'<div class="d">… 그 밖에 '+(us.length-8)+'</div>':'')
@@ -185,7 +185,7 @@ function selRecipe(){
   if(R.need&&R.need.length) h+='<div class="sS">도구(닳지 않는다)</div><div class="sP">'+R.need.map(r=>{ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];
       return '<div class="'+(hv>=r.n?'g':'b')+'">'+matName(r)+(hv<r.n&&mk.length?' '+link(mk[0]):'')+'</div>'; }).join('')+'</div>';
   if(R.station) h+='<div class="sS">작업 자리</div><div class="sP"><div class="'+(stationOK(R)?'g':'b')+'">'+STATION[R.station].n+' 곁에서</div></div>';
-  if(R.out){ const us=craftUsers(R.out.id);
+  if(R.out){ const us=craftUsers(R.out.id).filter(craftKnown);
     h+='<div class="sS">이것으로 만드는 것 <span class="q">'+us.length+'</span></div>'
       +(us.length?'<div class="sP">'+us.slice(0,24).map(U=>'<div class="'+(canCraft(U)?'g':'')+'">'+link(U)+'</div>').join('')+'</div>':'<div class="sE2">없다 — 그대로 쓰는 물건이다</div>'); }
   return h;
