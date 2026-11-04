@@ -387,6 +387,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 셰이더 글 — 음수를 그대로 끼우지 말 것(`y-${-0.02}` → 괄호로) · GLSL 예약어 `patch` 를 변수로 쓰지 말 것 · 템플릿 글(백틱) 셰이더의 주석에 백틱 금지.
 - 몹을 본편에 들일 때 — 몸은 `scene` 에 숨겨 두고 돌려 쓴다 · `lightRole:'recv'` · 전역 이름 겹침은 '확인하는 법' 의 이어 붙이기 검사로 · 움직이면 `LIGHT.dirtyAt` · `q.slerpQuaternions(q0,q,w)` 에 자기를 넣지 말 것(r128 · mobs).
 - 애쉬스케일 `wClimb` 은 `wyv-sync` 가 안 옮긴다(wyvern · battle · night · siege 넷) · 본편 스킨워커 값은 아레나 `MP`/`SPD` 그대로(`MIM_P`/`MIM_SPD` — 아레나를 고치면 같이 · mobs).
+- 굴 속(지형 판 10)에서 땅 높이를 쓰는 새 놀이는 `heightAt` 대신 `groundY(x,z,y)` · 걷기 · 눈은 `caveHere`(좁은 질의 · `cv10Q` 는 넉넉해 벽 속까지 받는다 · 80-player.js · caves).
 - battle ↔ night ↔ azure_night 는 글자 그대로 · 다지류 모듈과 총 꾸러미는 crawler ↔ battle 글자 그대로(arenas).
 
 ## 함정
