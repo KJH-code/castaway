@@ -14,7 +14,7 @@
    · 옮긴 코드 — NW2 `PierfrancescoSoffritti/doodles` CaveMeshData.js(Apache-2.0)의 '밀도로 뿌리 자리를 검사'하는 생각 ·
      `ethanpil/marine-scene` 의 돌림 단면 식(종유석 0.26(1−v)^1.25 · 기둥 |2v−1|^1.7 — 식만 보고 다시 짰다). 라이선스 없는 코드는 읽기만 하고 베끼지 않았다.
    이름은 cv10Deco · cvd 로 시작한다(전역 이름이 겹치면 그 파일이 통째로 안 읽힌다). 설계와 잰 값은 docs/notes/caves.md '구현 메모(E)'. */
-const CVD={ hooked:false, mats:null, maxTri:30000, maxPick:90, q:[], cur:null, tEnd:0, k:0, budget:2 };
+const CVD={ hooked:false, mats:null, maxTri:30000, q:[], cur:null, tEnd:0, k:0, budget:2 };
 const cvdT=()=>performance.now()>CVD.tEnd;      // 이번 틱의 시간이 다 됐나 — 장식 짓기는 제너레이터라 여기서 쉰다
 CV10.picks=[];
 
@@ -33,11 +33,18 @@ function cvdInit(){
     Object.assign(FLORA_PICK,{
       cvcalcite:{item:'limestone',n:'동굴 석회 조각',verb:'떼기',    regrow:9999,cnt:[1,1],dur:1.2,stam:3},
       cvrubble :{item:'pebble',   n:'무너진 돌',     verb:'줍기',    regrow:9999,cnt:[1,2],dur:0.5,stam:1.5},
-      cvroot   :{item:'fiber',    n:'나무뿌리',       verb:'뜯기',    regrow:96,  cnt:[1,2],dur:1.0,stam:2}
+      cvroot   :{item:'fiber',    n:'나무뿌리',       verb:'뜯기',    regrow:96,  cnt:[1,2],dur:1.0,stam:2},
+      cvstraw  :{item:'limestone',n:'빨대 종유석',   verb:'꺾기',    regrow:9999,cnt:[1,1],dur:0.6,stam:1.5},
+      cvcurtain:{item:'limestone',n:'동굴 커튼(유석)',verb:'떼기',    regrow:9999,cnt:[1,2],dur:1.4,stam:3},
+      cvpearl  :{item:'limestone',n:'동굴 진주',     verb:'줍기',    regrow:9999,cnt:[1,1],dur:0.5,stam:1},
+      cvsalt   :{item:'salt',     n:'소금꽃',         verb:'긁어 모으기',regrow:9999,cnt:[1,1],dur:0.8,stam:1.5},
+      cvmoss   :{item:'fiber',    n:'이끼',           verb:'뜯기',    regrow:96,  cnt:[1,1],dur:0.6,stam:1},
+      cvflake  :{item:'pebble',   n:'광물 딱지',      verb:'긁어내기',regrow:9999,cnt:[1,1],dur:0.8,stam:2},
+      cvmush   :{item:'mushroom', n:'굴 버섯',        verb:'따기',    regrow:36,  cnt:[1,1],dur:0.5,stam:1}
     });
   if(!CVD.hooked&&typeof floraFindLook==='function'){          // 매 프레임 딴 것을 숨기고 다시 난 것을 보인다 + 빛나는 점의 시각(32-caves.js 는 판 9 굴이 없으면 안 돌린다)
     CVD.hooked=true; const f0=floraFindLook;
-    floraFindLook=function(){ if(CV10.built.size){ cv10DecoRun(CVD.budget); cv10DecoSync(); } f0(); };
+    floraFindLook=function(){ if(CV10.built.size){ try{ cv10DecoRun(CVD.budget); cv10DecoSync(); }catch(e){ showErr('굴 장식',e); } } f0(); };   // 장식이 던져도 원래 floraFindLook 은 늘 부른다
   }
 }
 
@@ -55,13 +62,18 @@ function cvdNoise(X,x,z,sc,k){                                   // 값 잡음 [
   const a=cv10H(i,j,s), b=cv10H(i+1,j,s), c=cv10H(i,j+1,s), d=cv10H(i+1,j+1,s); return (a+(b-a)*su)*(1-sw)+(c+(d-c)*su)*sw;
 }
 function cvdFar(list,x,z,d){ const d2=d*d; for(let k=0;k<list.length;k++){ const dx=list[k].x-x, dz=list[k].z-z; if(dx*dx+dz*dz<d2) return false; } return true; }
-function cvdChamfer(X,src){                                      // src[q]=1 인 칸에서의 거리(m) — 두 번 훑는 근사
+function* cvdTyped(T,arr){                                        // 숫자 배열 → 형 배열(큰 것은 덩이마다 쉬며 옮긴다)
+  const out=new T(arr.length);
+  for(let i=0;i<arr.length;i+=8192){ const e=Math.min(arr.length,i+8192); for(let k=i;k<e;k++) out[k]=arr[k]; if(e<arr.length&&cvdT()) yield; }
+  return out;
+}
+function* cvdChamfer(X,src){                                     // src[q]=1 인 칸에서의 거리(m) — 두 번 훑는 근사(줄 묶음마다 쉰다)
   const nx=X.nx, nz=X.nz, S=X.S, S2=S*1.4142, d=new Float32Array(nx*nz);
   for(let q=0;q<d.length;q++) d[q]=src[q]?0:1e4;
-  for(let j=0;j<nz;j++) for(let i=0;i<nx;i++){ const q=j*nx+i; let v=d[q];
-    if(i>0&&d[q-1]+S<v) v=d[q-1]+S; if(j>0){ if(d[q-nx]+S<v) v=d[q-nx]+S; if(i>0&&d[q-nx-1]+S2<v) v=d[q-nx-1]+S2; if(i<nx-1&&d[q-nx+1]+S2<v) v=d[q-nx+1]+S2; } d[q]=v; }
-  for(let j=nz-1;j>=0;j--) for(let i=nx-1;i>=0;i--){ const q=j*nx+i; let v=d[q];
-    if(i<nx-1&&d[q+1]+S<v) v=d[q+1]+S; if(j<nz-1){ if(d[q+nx]+S<v) v=d[q+nx]+S; if(i<nx-1&&d[q+nx+1]+S2<v) v=d[q+nx+1]+S2; if(i>0&&d[q+nx-1]+S2<v) v=d[q+nx-1]+S2; } d[q]=v; }
+  for(let j=0;j<nz;j++){ if((j&7)===7&&cvdT()) yield; for(let i=0;i<nx;i++){ const q=j*nx+i; let v=d[q];
+    if(i>0&&d[q-1]+S<v) v=d[q-1]+S; if(j>0){ if(d[q-nx]+S<v) v=d[q-nx]+S; if(i>0&&d[q-nx-1]+S2<v) v=d[q-nx-1]+S2; if(i<nx-1&&d[q-nx+1]+S2<v) v=d[q-nx+1]+S2; } d[q]=v; } }
+  for(let j=nz-1;j>=0;j--){ if((j&7)===0&&cvdT()) yield; for(let i=nx-1;i>=0;i--){ const q=j*nx+i; let v=d[q];
+    if(i<nx-1&&d[q+1]+S<v) v=d[q+1]+S; if(j<nz-1){ if(d[q+nx]+S<v) v=d[q+nx]+S; if(i<nx-1&&d[q+nx+1]+S2<v) v=d[q+nx+1]+S2; if(i>0&&d[q+nx-1]+S2<v) v=d[q+nx-1]+S2; } d[q]=v; } }
   return d;
 }
 /* 종류별 바탕 빛깔 b · 띠 빛깔 a (방해석 크림 + 철분 주황 / 용암 검정 + 붉은 산화 / 화강암 회색 + 분홍 / 사암 황갈 + 붉은 켜) */
@@ -151,17 +163,17 @@ function cvdMoss(A,X,x,y,z,r,h,ux,uy,uz){
 }
 
 /* ── 한 굴의 놓기 바탕 ──────────────────────────────────────────────────────────────────────────────────── */
-function cvdCtx(rec){
+function* cvdCtx(rec){
   const c=rec.c, nx=rec.nx, nz=rec.nz, n=nx*nz, F=rec.F, C=rec.C, Hh=rec.Hh, O=rec.O, M=rec.M;
   const X={rec,c,kind:c.kind,nx,nz,S:rec.S,x0:rec.x0,z0:rec.z0,F,C,Hh,O,M,D:rec.D,seed:c.seed|0,rnd:mulberry32((c.seed^0xdec0)>>>0),
     A:{rock:cvdAcc(),sheet:cvdAcc(),water:cvdAcc(),shr:cvdAcc()}, gw:[], gold:[], items:[], log:[], cnt:{}, picks:[], cols:[], big:[], tri:null};
-  const E=X.E=new Uint8Array(n), blocked=new Uint8Array(n); for(let q=0;q<n;q++){ E[q]=C[q]-F[q]>0.3?1:0; blocked[q]=1-E[q]; }
-  X.blocked=blocked;
+  const E=X.E=new Uint8Array(n), blocked=new Uint8Array(n);
+  for(let j=0;j<nz;j++){ if((j&7)===7&&cvdT()) yield; for(let i=0;i<nx;i++){ const q=j*nx+i; E[q]=C[q]-F[q]>0.3?1:0; blocked[q]=1-E[q]; } }
   const cells=[], ceil=X.ceil=new Uint8Array(n);
-  for(let j=0;j<nz-1;j++) for(let i=0;i<nx-1;i++){ const q=j*nx+i;
+  for(let j=0;j<nz-1;j++){ if((j&7)===7&&cvdT()) yield; for(let i=0;i<nx-1;i++){ const q=j*nx+i;
     if(E[q]&&E[q+1]&&E[q+nx]&&E[q+nx+1]){ cells.push(q);
-      if(!O[q]&&!O[q+1]&&!O[q+nx]&&!O[q+nx+1]&&Hh[q]-C[q]>=0.8&&Hh[q+1]-C[q+1]>=0.8&&Hh[q+nx]-C[q+nx]>=0.8&&Hh[q+nx+1]-C[q+nx+1]>=0.8) ceil[q]=1; } }
-  X.cells=cells;
+      if(!O[q]&&!O[q+1]&&!O[q+nx]&&!O[q+nx+1]&&Hh[q]-C[q]>=0.8&&Hh[q+1]-C[q+1]>=0.8&&Hh[q+nx]-C[q+nx]>=0.8&&Hh[q+nx+1]-C[q+nx+1]>=0.8) ceil[q]=1; } } }
+  X.cells=cells; X.blocked=blocked;
   return X;
 }
 /* 칸 q 안의 (u,w) 점의 값들 — 바닥 f · 천장 c · 땅 h · 벽 거리 wd · 입구 거리 d · 바닥 기울기 sf · 천장 기울기 sc(셋째 인자 out) */
@@ -176,7 +188,6 @@ function cvdAt(X,q,u,w,o){
 }
 const cvdCluster=(X,x,z,sc,k,a,b)=>0.12+0.88*cvdSS(a===undefined?0.30:a,b===undefined?0.65:b,cvdNoise(X,x,z,sc,k));
 function cvdPick(X,kind,x,y,z,ay,r,it){                          // 딸 것 하나 — it: 이 장식의 정점 범위({acc,v0,v1})
-  if(X.picks.length>=CVD.maxPick) return false;
   const idx=X.picks.length, p={kind,x,y,z,ay,key:'CV'+X.seed+'_'+idx,r,tree:false}, item={pick:p,kind,key:p.key,acc:it.acc,v0:it.v0,v1:it.v1,vis:true,saved:null};
   p.cv=item; X.picks.push(p); X.items.push(item); return true;
 }
@@ -201,9 +212,11 @@ function* cvdKarstSpeleo(X){
   for(const q of cells){ if(cvdT()) yield; if(!X.ceil[q]||nstraw>=230||!cvdBudget(X,15500)) continue;             // 빨대 종유석 — 평평한 천장에 빽빽이
     cvdAt(X,q,0.5,0.5,o); if(o.sc>0.4||o.c-o.f<2.6) continue;
     if(rnd()>0.22*cvdCluster(X,o.x,o.z,3,2)) continue;
+    const sg0=A.p.length/3; let sp=null;
     for(let k=0,m=1+((rnd()*3)|0);k<m;k++){ cvdAt(X,q,rnd(),rnd(),o); const Lm=Math.min(0.1+0.7*Math.pow(rnd(),1.4),o.c-o.f-2.2); if(Lm<0.1) continue;
       const r0=0.006+0.006*rnd(), cf=cvdCol(X,1.05+0.1*rnd(),0.2,rnd()*6), y0=o.c+0.04+Math.min(0.05,r0*o.sc);
-      cvdRev(A,o.x,y0,o.z,0,-1,0,Lm+0.04+(y0-o.c-0.04),t=>r0*(1-0.55*t)*(t>=0.999?0:1),5,2,cf); nstraw++; cvdLog(X,'straw',o.x,o.z,y0,o.c-Lm,r0); } }
+      cvdRev(A,o.x,y0,o.z,0,-1,0,Lm+0.04+(y0-o.c-0.04),t=>r0*(1-0.55*t)*(t>=0.999?0:1),5,2,cf); nstraw++; cvdLog(X,'straw',o.x,o.z,y0,o.c-Lm,r0); if(!sp) sp=[o.x,o.z,o.c-Lm]; }
+    if(sp) cvdPick(X,'cvstraw',sp[0],sp[2],sp[1],sp[2]+0.05,0.15,{acc:A,v0:sg0,v1:A.p.length/3}); }
   /* 석순 — 큰 종유석 밑에 60% · 가끔 혼자 */
   const mk=(x,z,hMax,wantBig)=>{ const s=cv10Samp(X.rec,x,z); if(s.n<=0||s.open) return; const f=s.f, c=s.c, sl=0;
     let h=0.2+2.3*Math.pow(rnd(),1.8); h=Math.min(h,hMax); if(h<0.2) return;
@@ -236,7 +249,7 @@ function* cvdKarstFlow(X){
       const row=[], rc=[];
       for(let r=0;r<3;r++){ const v=r/2; row.push([px+gx*wob*(0.3+v)+gx*0.0,cc+0.06-hk*v,pz+gz*wob*(0.3+v)]); const m=Math.max(0,Math.sin(v*5+ph+k*0.3)-0.2)*0.8; rc.push([(P.b[0]*(1-m)+P.a[0]*m)*(0.95-0.1*v),(P.b[1]*(1-m)+P.a[1]*m)*(0.95-0.1*v),(P.b[2]*(1-m)+P.a[2]*m)*(0.95-0.1*v)]); }
       nodes.push(row); cols.push(rc); }
-    cvdGrid(B,nodes,cols,[gx,0,gz]); cvdLog(X,'curtain',o.x,o.z,o.c+0.06,o.c-H,W/2); }
+    const cit=cvdGrid(B,nodes,cols,[gx,0,gz]); cit.acc=B; cvdLog(X,'curtain',o.x,o.z,o.c+0.06,o.c-H,W/2); cvdPick(X,'cvcurtain',o.x,o.c-H*0.7,o.z,o.c-H*0.7,Math.max(0.3,W/2),cit); }
   for(const q of cells){ if(cvdT()) yield; if(!cvdBudget(X,24000)) break;                                          // 유석 둔덕 — 벽 밑 바닥
     cvdAt(X,q,0.5,0.5,o); if(o.wd<0.1||o.wd>1.0||o.sf>0.45||rnd()>0.05) continue;
     const u=rnd(), w=rnd(); cvdAt(X,q,u,w,o); const r=0.25+0.5*rnd(), tiers=1+((rnd()*2)|0), ph=rnd()*6; let yb=o.f-0.04-Math.min(0.1,r*o.sf), first=null, last=null;
@@ -264,8 +277,10 @@ function* cvdKarstFlow(X){
       for(let a=0;a<NA;a++){ const [ex,ez]=arc[a]; let L=0.15; for(let l=0.15;l<3;l+=0.1){ const s2=cv10Samp(X.rec,ex-dx*l,ez-dz*l); if(s2.n<=0){ break; } L=l; if(s2.f>=yw-0.005) break; }
         wn.push([[ex-dx*0.02,yw,ez-dz*0.02],[ex-dx*L,yw,ez-dz*L]]); wc.push([[1,1,1],[1,1,1]]); if(L>0.2) any=true; }
       if(any) cvdGrid(W,wn,wc,[0,1,0]);
+      const pg0=A.p.length/3; let pp=null;
       for(let k=0,m=2+((rnd()*3)|0);k<m;k++){ const a=1+((rnd()*(NA-2))|0), L=Math.hypot(wn[a][1][0]-wn[a][0][0],wn[a][1][2]-wn[a][0][2])*(0.25+0.5*rnd()), px=arc[a][0]-dx*L, pz=arc[a][1]-dz*L, sm=cv10Samp(X.rec,px,pz), pr=0.02+0.02*rnd();
-        if(sm.n>0&&sm.f<yw-0.02) cvdRev(A,px,sm.f+0.005,pz,0,1,0,pr*2,t=>pr*Math.sin(3.1416*Math.min(1,t+0.001)),6,3,()=>[0.93,0.91,0.85]); }
+        if(sm.n>0&&sm.f<yw-0.02){ cvdRev(A,px,sm.f+0.005,pz,0,1,0,pr*2,t=>pr*Math.sin(3.1416*Math.min(1,t+0.001)),6,3,()=>[0.93,0.91,0.85]); if(!pp) pp=[px,sm.f,pz]; } }
+      if(pp) cvdPick(X,'cvpearl',pp[0],pp[1],pp[2],pp[1]+0.03,0.2,{acc:A,v0:pg0,v1:A.p.length/3});
       cvdLog(X,'dam',x,z,fs[4],fs[4]+hd,hw); made++; np++;
       x+=dx*(0.9+0.5*rnd()); z+=dz*(0.9+0.5*rnd()); }
     if(made) X.cnt.pool=(X.cnt.pool||0)+1; }
@@ -284,7 +299,7 @@ function* cvdGlow(X,dWorm,pWorm,dShr,pShr,capW){
     for(let k=0;k<n;k++){ cvdAt(X,q,rnd(),rnd(),o); const r=0.04+0.06*rnd(), h=0.06+0.14*rnd(), lean=(rnd()-0.5)*0.05, y=o.f-0.02, g=0.8+0.3*rnd();
       cvdRev(Bs,o.x,y,o.z,lean,1,0,h+0.02,t=>r*0.3,6,1,()=>[0.10,0.34,0.29]);
       cvdRev(Bs,o.x+lean*h,y+h-0.1*r,o.z,0,1,0,r*0.8,t=>r*Math.sqrt(Math.max(0,1-t*t)),6,3,t=>[(0.22+0.34*t)*g,(0.86+0.14*t)*g,(0.68+0.22*t)*g]); ymin=Math.min(ymin,y); cvdLog(X,'mushroom',o.x,o.z,y,y+h+r*0.7,r); }
-    cvdPick(X,'mushroom',o.x,o.f,o.z,o.f+0.08,0.12,{acc:Bs,v0,v1:Bs.p.length/3}); }
+    cvdPick(X,'cvmush',o.x,o.f,o.z,o.f+0.08,0.12,{acc:Bs,v0,v1:Bs.p.length/3}); }
 }
 
 /* ── 용암굴 — 고드름 · 작은 석순 · 뿌리 ────────────────────────────────────────────────────────────────────── */
@@ -337,18 +352,19 @@ function* cvdSlabs(X){                                             // 바위그�
 }
 
 /* ── 껍데기 세모에서 벽 자리 뽑기 — 광물 딱지 · 소금꽃 · 벽 이끼 · 금빛 점 ───────────────────────────────────── */
-function cvdTris(X){
-  if(X.tri) return X.tri; const g=X.rec.mesh.geometry, Pp=g.attributes.position.array, Nn=g.attributes.normal.array, I=g.index.array, wall=[], cum=[]; let tot=0;
-  for(let t=0;t<I.length;t+=3){ const a=I[t]*3, b=I[t+1]*3, c=I[t+2]*3, ny=(Nn[a+1]+Nn[b+1]+Nn[c+1])/3; if(Math.abs(ny)>0.6) continue;
+function* cvdTris(X){                                             // 껍데기 세모에서 벽 세모를 가려 둔다(덩이마다 쉰다)
+  const g=X.rec.mesh.geometry, Pp=g.attributes.position.array, Nn=g.attributes.normal.array, I=g.index.array, wall=[], cum=[]; let tot=0;
+  for(let t=0;t<I.length;t+=3){ if((t%1500)===0&&t&&cvdT()) yield;
+    const a=I[t]*3, b=I[t+1]*3, c=I[t+2]*3, ny=(Nn[a+1]+Nn[b+1]+Nn[c+1])/3; if(Math.abs(ny)>0.6) continue;
     const ux=Pp[b]-Pp[a], uy=Pp[b+1]-Pp[a+1], uz=Pp[b+2]-Pp[a+2], vx=Pp[c]-Pp[a], vy=Pp[c+1]-Pp[a+1], vz=Pp[c+2]-Pp[a+2], ar=0.5*Math.hypot(uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx);
     tot+=ar; wall.push(t); cum.push(tot); }
   /* 법선이 굴 안쪽을 보는지(부호) — 벽 세모 몇십 개의 안쪽 0.3 m 가 빈 데인지 투표 */
   let vote=0; for(let k=0;k<Math.min(60,wall.length);k++){ const t=wall[(k*wall.length/60)|0], a=I[t]*3, mx=Pp[a], my=Pp[a+1], mz=Pp[a+2], nx=Nn[a], nz=Nn[a+2], s1=cv10Samp(X.rec,mx+nx*0.3,mz+nz*0.3), s2=cv10Samp(X.rec,mx-nx*0.3,mz-nz*0.3);
     const in1=s1.n>0&&my>s1.f&&my<s1.c, in2=s2.n>0&&my>s2.f&&my<s2.c; vote+=(in1?1:0)-(in2?1:0); }
-  return X.tri={P:Pp,N:Nn,I,wall,cum,tot,sign:vote>=0?1:-1};
+  X.tri={P:Pp,N:Nn,I,wall,cum,tot,sign:vote>=0?1:-1};
 }
 function cvdWallPt(X,o){                                          // 벽 세모 하나의 무작위 점 → o.{x,y,z,nx,ny,nz} (굴 안쪽 법선)
-  const T=cvdTris(X); if(!T.wall.length) return false; const rnd=X.rnd, r=rnd()*T.tot; let lo=0, hi=T.cum.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(T.cum[m]<r) lo=m+1; else hi=m; }
+  const T=X.tri; if(!T||!T.wall.length) return false; const rnd=X.rnd, r=rnd()*T.tot; let lo=0, hi=T.cum.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(T.cum[m]<r) lo=m+1; else hi=m; }
   const t=T.wall[lo], a=T.I[t]*3, b=T.I[t+1]*3, c=T.I[t+2]*3; let u=rnd(), w=rnd(); if(u+w>1){ u=1-u; w=1-w; } const q=1-u-w, P=T.P, N=T.N;
   let nx=N[a]*q+N[b]*u+N[c]*w, ny=N[a+1]*q+N[b+1]*u+N[c+1]*w, nz=N[a+2]*q+N[b+2]*u+N[c+2]*w; const nl=Math.hypot(nx,ny,nz)||1; nx*=T.sign/nl; ny*=T.sign/nl; nz*=T.sign/nl;
   o.x=P[a]*q+P[b]*u+P[c]*w; o.y=P[a+1]*q+P[b+1]*u+P[c+1]*w; o.z=P[a+2]*q+P[b+2]*u+P[c+2]*w; o.nx=nx; o.ny=ny; o.nz=nz; return true;
@@ -365,16 +381,17 @@ function* cvdWallDecals(X,kind,n){                                 // 'flake' �
   for(let k=0;k<tries&&made<n&&cvdBudget(X);k++){ if(cvdT()) yield; if(!cvdWallPt(X,o)) return; const s=cv10Samp(X.rec,o.x+o.nx*0.1,o.z+o.nz*0.1); if(s.n<=0||o.y<s.f+0.2||o.y>s.c-0.1) continue;
     if(cvdNoise(X,o.x,o.z,3,5)<0.45) continue;                    // 얼룩져 모여 있다
     if(kind==='gold'){ X.gold.push(o.x+o.nx*0.02,o.y+o.ny*0.02,o.z+o.nz*0.02); X.cnt.gold=(X.cnt.gold||0)+1; made++; continue; }
+    const dg0=A.p.length/3;
     for(let m=0,mm=3+((rnd()*4)|0);m<mm;m++){ const ox=(rnd()-0.5)*0.35, oy=(rnd()-0.5)*0.35, r=0.03+0.07*rnd();
       const col=kind==='salt'?[0.93,0.92,0.88]:(rnd()<0.5?[0.88,0.86,0.78]:[0.86,0.74,0.26]);
       cvdDisc(A,o.x,o.y,o.z,o.nx,o.ny,o.nz,r,col,ox,oy); }
-    made++; cvdLog(X,kind==='salt'?'salt':'flake',o.x+o.nx*0.15,o.z+o.nz*0.15,o.y,o.y,0.1); }
+    made++; cvdLog(X,kind==='salt'?'salt':'flake',o.x+o.nx*0.15,o.z+o.nz*0.15,o.y,o.y,0.1); cvdPick(X,kind==='salt'?'cvsalt':'cvflake',o.x,o.y,o.z,o.y,0.3,{acc:A,v0:dg0,v1:A.p.length/3}); }
 }
 function* cvdWallMoss(X,dMax,n){                                   // 입구 쪽 벽 이끼(어스름이 드는 데)
   const rnd=X.rnd, o={}, B=X.A.sheet; let made=0;
   for(let k=0;k<n*8&&made<n&&cvdBudget(X);k++){ if(cvdT()) yield; if(!cvdWallPt(X,o)) return; const s=cv10Samp(X.rec,o.x+o.nx*0.1,o.z+o.nz*0.1); if(s.n<=0||s.d>dMax||o.y<s.f+0.1||o.y>s.c+4) continue;
     if(rnd()>0.9*cvdSS(0,dMax,dMax-s.d)||cvdNoise(X,o.x,o.z,3,6)<0.4) continue;
-    cvdMoss(B,X,o.x,o.y,o.z,0.15+0.3*rnd(),0.03+0.05*rnd(),o.nx,o.ny,o.nz); made++; cvdLog(X,'wallmoss',o.x+o.nx*0.15,o.z+o.nz*0.15,o.y,o.y,0.2); }
+    const mi=cvdMoss(B,X,o.x,o.y,o.z,0.15+0.3*rnd(),0.03+0.05*rnd(),o.nx,o.ny,o.nz); mi.acc=B; made++; cvdLog(X,'wallmoss',o.x+o.nx*0.15,o.z+o.nz*0.15,o.y,o.y,0.2); cvdPick(X,'cvmoss',o.x,o.y,o.z,o.y,0.3,mi); }
 }
 
 /* ── 입구 — 이마의 덩굴 · 입구 둘레 땅의 고사리 · 이끼 · 너덜 · 굴 안 빛 드는 데 고사리 · 이끼 ─────────────────── */
@@ -397,13 +414,13 @@ function* cvdEntrance(X){
   let nf=0, nm=0;
   for(const q of X.cells){ if(cvdT()) yield; if((nf>=34&&nm>=40)||!cvdBudget(X)) break; cvdAt(X,q,rnd(),rnd(),o); if(o.d>10||o.sf>0.6||o.wd<0.1) continue;
     if(nf<34&&o.d<dF&&rnd()<pF){ const sc=0.7+0.7*rnd(), it=cvdFern(B,X,o.x,o.f-0.02,o.z,sc); it.acc=B; nf++; cvdLog(X,'fern',o.x,o.z,o.f,o.f+0.5*sc,0.4*sc); cvdPick(X,'fern',o.x,o.f,o.z,o.f+0.3*sc,0.35*sc,it); }
-    else if(nm<40&&rnd()<0.06*(1-o.d/10)){ cvdMoss(B,X,o.x,o.f,o.z,0.15+0.35*rnd(),0.04+0.05*rnd(),0,1,0); nm++; cvdLog(X,'moss',o.x,o.z,o.f,o.f,0.3); } }
+    else if(nm<40&&rnd()<0.06*(1-o.d/10)){ const mi=cvdMoss(B,X,o.x,o.f,o.z,0.15+0.35*rnd(),0.04+0.05*rnd(),0,1,0); mi.acc=B; nm++; cvdLog(X,'moss',o.x,o.z,o.f,o.f,0.3); cvdPick(X,'cvmoss',o.x,o.f,o.z,o.f+0.04,0.3,mi); } }
   /* 입구 둘레 땅 위(M 바깥 0.7~6 m) — 고사리 · 이끼 · 작은 너덜 */
   let ng=0, nmm=0, nr=0; const gH=X.rec.gH;
   for(let j=1;j<nz-1;j++) for(let i=1;i<nx-1;i++){ if(cvdT()) yield; const q=j*nx+i, d=X.md[q]; if(E[q]||X.M[q]||d<0.7||d>6||!cvdBudget(X)) continue; if(gH&&gH[q]<0.8) continue;
     const r0=rnd(), x=X.x0+(i+rnd()-0.5)*S, z=X.z0+(j+rnd()-0.5)*S; const y=heightAt(x,z);
     if(r0<0.03&&d<5&&ng<26){ const sc=0.8+0.7*rnd(), it=cvdFern(B,X,x,y-0.02,z,sc); it.acc=B; ng++; cvdLog(X,'fern',x,z,y,y+0.5*sc,0.4*sc,true); cvdPick(X,'fern',x,y,z,y+0.3*sc,0.35*sc,it); }
-    else if(r0<0.06&&d<5&&nmm<18){ cvdMoss(B,X,x,y,z,0.2+0.4*rnd(),0.05+0.06*rnd(),0,1,0); nmm++; cvdLog(X,'moss',x,z,y,y,0.3,true); }
+    else if(r0<0.06&&d<5&&nmm<18){ const mi=cvdMoss(B,X,x,y,z,0.2+0.4*rnd(),0.05+0.06*rnd(),0,1,0); mi.acc=B; nmm++; cvdLog(X,'moss',x,z,y,y,0.3,true); cvdPick(X,'cvmoss',x,y,z,y+0.04,0.3,mi); }
     else if(r0>0.93&&d>2&&nr<40){ const R=0.07+0.16*rnd(), it=cvdRock(A,X,x,z,R,0.5+0.4*rnd(),0.9+0.2*rnd(),y); if(!it) continue; it.acc=A; nr++; cvdLog(X,'rubble',x,z,it.bot,it.top,R,true,y);
       if(rnd()<0.4) cvdPick(X,'cvrubble',x,y,z,y+R*0.6,Math.max(0.2,R),it); } }
 }
@@ -420,7 +437,9 @@ function cv10DecoRun(ms){
     while(!CVD.cur&&CVD.q.length){ const r=CVD.q.shift(); if(r.decoGen&&CV10.built.get(r.c)===r) CVD.cur=r; }
     const r=CVD.cur; if(!r) return;
     if(!r.decoGen||CV10.built.get(r.c)!==r){ CVD.cur=null; continue; }
-    CVD.tEnd=end; const t1=performance.now(), st=r.decoGen.next(); r.decoMs=(r.decoMs||0)+performance.now()-t1;
+    CVD.tEnd=end; const t1=performance.now(); let st;
+    try{ st=r.decoGen.next(); }catch(e){ showErr('굴 장식',e); cv10DecoDrop(r); CVD.cur=null; continue; }   // 던진 굴은 짓기를 멈추고 붙은 것을 치운다
+    r.decoMs=(r.decoMs||0)+performance.now()-t1;
     if(st.done){ r.decoGen=null; CVD.cur=null; if(r.deco) r.deco.ms=r.decoMs; }
     if(performance.now()>=end) return;
   }
@@ -429,29 +448,34 @@ const cv10DecoFlush=()=>cv10DecoRun(1e9);                          // 시험 · 
 function* cvdGen(rec){
   const c=rec.c, kind=c.kind;
   rec.cols=rec.cols.filter(o=>!o.deco);
-  const X=cvdCtx(rec); yield; X.wd=cvdChamfer(X,X.blocked); yield; X.md=cvdChamfer(X,rec.M); X.blocked=null; yield;
+  const D=rec.deco={meshes:[],items:[],log:[],cnt:{},tris:0,draws:0,picks:[],ms:0,cols:[]};   // 짓기 시작할 때 먼저 세운다 — 붙인 자식은 버릴 때 반드시 떼어 낸다(cv10DecoDrop)
+  const X=yield* cvdCtx(rec); yield;
+  X.wd=yield* cvdChamfer(X,X.blocked); X.md=yield* cvdChamfer(X,rec.M); X.blocked=null; yield* cvdTris(X); yield;
   if(kind==='karst'){ yield* cvdKarstSpeleo(X); yield* cvdKarstFlow(X); yield* cvdGlow(X,12,0.30,8,0.05,420); yield* cvdRoots(X,0.05,10); }
   else if(kind==='lava'){ yield* cvdLavaTeeth(X); yield* cvdRubble(X,(o)=>o.d<7&&o.wd>0.2,0.30,1.0,60,1.0); yield* cvdRoots(X,0.14,40); yield* cvdWallDecals(X,'flake',70); yield* cvdWallDecals(X,'gold',220); }
   else if(kind==='talus'){ yield* cvdRubble(X,(o)=>o.wd>0.15,0.06,1.0,160,1.0); yield* cvdGlow(X,6,0.22,5,0.02,200); yield* cvdWallMoss(X,9,22); yield* cvdRoots(X,0.05,10); }
   else if(kind==='shelter'){ yield* cvdSlabs(X); yield* cvdRubble(X,(o)=>o.d<14&&o.wd>0.2,0.03,0.4,30,1.0); yield* cvdWallDecals(X,'salt',90); yield* cvdWallMoss(X,6,8); }
   yield* cvdEntrance(X);
   if(kind==='karst') yield* cvdWallMoss(X,8,14);
-  yield;
-  /* 합쳐서 메시로 */
-  const mats=CVD.mats, parent=rec.mesh, out=[], accOf=new Map();
-  const mk=(A,mat,lr)=>{ if(!A.p.length) return null; const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(A.p,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(A.n,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(A.c,3));
-    g.setIndex(A.p.length/3>65535?new THREE.Uint32BufferAttribute(A.i,1):new THREE.Uint16BufferAttribute(A.i,1)); g.computeBoundingSphere();
-    const m=new THREE.Mesh(g,mat); m.matrixAutoUpdate=false; m.userData.cvDeco=1; if(lr) m.userData.lightRole=lr; if(mat===mats.water) m.renderOrder=2; parent.add(m); out.push(m); accOf.set(A,m); return m; };
-  mk(X.A.rock,mats.rock); yield; mk(X.A.sheet,mats.sheet); yield; mk(X.A.water,mats.water); yield; mk(X.A.shr,mats.shr,'none');
+  /* 합쳐서 메시로 — 배열을 숫자 배열로 바꾸는 일도 한 장씩 쉬며 */
+  const mats=CVD.mats, parent=rec.mesh, accOf=new Map();
+  for(const [A,mat,lr] of [[X.A.rock,mats.rock],[X.A.sheet,mats.sheet],[X.A.water,mats.water],[X.A.shr,mats.shr,'none']]){ if(!A.p.length) continue;
+    const g=new THREE.BufferGeometry(); yield;
+    g.setAttribute('position',new THREE.BufferAttribute(yield* cvdTyped(Float32Array,A.p),3));
+    g.setAttribute('normal',new THREE.BufferAttribute(yield* cvdTyped(Float32Array,A.n),3));
+    g.setAttribute('color',new THREE.BufferAttribute(yield* cvdTyped(Float32Array,A.c),3));
+    g.setIndex(new THREE.BufferAttribute(yield* cvdTyped(A.p.length/3>65535?Uint32Array:Uint16Array,A.i),1));
+    g.computeBoundingSphere(); yield;
+    const m=new THREE.Mesh(g,mat); m.matrixAutoUpdate=false; m.userData.cvDeco=1; if(lr) m.userData.lightRole=lr; if(mat===mats.water) m.renderOrder=2; parent.add(m); D.meshes.push(m); accOf.set(A,m); }
   if(X.gw.length){ const g=new THREE.BufferGeometry(), P=[], G=[]; for(let k=0;k<X.gw.length;k+=6){ P.push(X.gw[k],X.gw[k+1],X.gw[k+2]); G.push(X.gw[k+3],X.gw[k+4],X.gw[k+5]); }
     g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('aG',new THREE.Float32BufferAttribute(G,3)); g.computeBoundingSphere();
-    const pt=new THREE.Points(g,caveGlowMat()); pt.matrixAutoUpdate=false; pt.userData.cvDeco=1; parent.add(pt); out.push(pt); }
+    const pt=new THREE.Points(g,caveGlowMat()); pt.matrixAutoUpdate=false; pt.userData.cvDeco=1; parent.add(pt); D.meshes.push(pt); }
   if(X.gold.length){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(X.gold,3)); g.computeBoundingSphere();
-    const pt=new THREE.Points(g,mats.gold); pt.matrixAutoUpdate=false; pt.userData.cvDeco=1; parent.add(pt); out.push(pt); }
+    const pt=new THREE.Points(g,mats.gold); pt.matrixAutoUpdate=false; pt.userData.cvDeco=1; parent.add(pt); D.meshes.push(pt); }
   for(const it of X.items) it.mesh=accOf.get(it.acc);
   for(const col of X.cols) rec.cols.push(col);
-  const tr=X.A.rock.tr+X.A.sheet.tr+X.A.water.tr+X.A.shr.tr;
-  rec.deco={meshes:out,items:X.items,log:X.log,cnt:X.cnt,tris:tr,draws:out.length,picks:X.picks,ms:0,cols:X.cols};
+  D.items=X.items; D.log=X.log; D.cnt=X.cnt; D.picks=X.picks; D.cols=X.cols; D.draws=D.meshes.length;
+  D.tris=X.A.rock.tr+X.A.sheet.tr+X.A.water.tr+X.A.shr.tr;
   /* 이미 따간 것은 숨기고, 아닌 것만 딸 것 목록에 */
   for(const it of X.items){ if(cvdTaken(it)) cvdSet(it,false); else CV10.picks.push(it.pick); }
 }
@@ -473,9 +497,9 @@ function cv10DecoSync(){
     CAVE_GLOW.uniforms.uPx.value=((typeof CAMC!=='undefined'&&CAMC.rt)?CAMC.rt.height:renderer.domElement.height)*0.5*camera.projectionMatrix.elements[5]; }
 }
 function cv10DecoDrop(rec){
-  rec.decoGen=null; const d=rec.deco; if(!d) return;
-  for(const it of d.items){ const k=CV10.picks.indexOf(it.pick); if(k>=0) CV10.picks.splice(k,1); }
-  for(const m of d.meshes){ if(m.parent) m.parent.remove(m); m.geometry.dispose(); }
+  rec.decoGen=null; const d=rec.deco;
+  if(d) for(const it of d.items){ const k=CV10.picks.indexOf(it.pick); if(k>=0) CV10.picks.splice(k,1); }
+  if(rec.mesh) for(const m of rec.mesh.children.slice()) if(m.userData.cvDeco){ rec.mesh.remove(m); m.geometry.dispose(); }   // 짓다 만 것까지(rec.deco 가 아직 없어도) 껍데기에서 떼고 지오메트리를 버린다
   rec.cols=rec.cols.filter(o=>!o.deco); rec.deco=null;
 }
 CV10.onBuild.push(cv10Deco); CV10.onDrop.push(cv10DecoDrop);
