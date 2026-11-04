@@ -1099,7 +1099,7 @@ function reliefMask(){
     if(W[i-1]===2||W[i+1]===2||W[i-N]===2||W[i+N]===2||W[i-N-1]===2||W[i-N+1]===2||W[i+N-1]===2||W[i+N+1]===2) W[i]=1; }
   for(let z=2;z<N-2;z++) for(let x=2;x<N-2;x++){ const i=z*N+x; if(W[i]) continue;
     const near=W[i-1]===1||W[i+1]===1||W[i-N]===1||W[i+N]===1;
-    M[i]=Math.round(255*(near?0.5:1)*smoothstep(0.6,2.6,h[i])); }
+    M[i]=Math.round(255*(near?0.5:1)*smoothstep(0.6,2.6,h[i])*(P.sm?1-0.85*smoothstep(0.25,0.8,F.slope[i]):1)); }   // 매끈한 땅 — 비탈 · 벼랑엔 잔 기복이 거의 없다(울퉁불퉁한 땅 — 사용자 지적 2026-11-04)
   { const G=RELIEF.G||(RELIEF.G=new Uint8Array(N*N)), T=new Uint8Array(N*N);                // 거칠기 — 바이옴 + 비탈, 한 번 흐린다
     for(let i=0;i<N*N;i++) T[i]=Math.min(255,RELIEF_GRAIN[F.biome[i]]+Math.max(0,F.slope[i]-0.3)*190);
     G.set(T); for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=z*N+x; G[i]=(T[i]*4+T[i-1]+T[i+1]+T[i-N]+T[i+N])>>3; } }
