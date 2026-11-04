@@ -215,9 +215,12 @@ function cragGrowWall(s,B,Y0){
   const tint=CRAG_TINT[(rnd()*CRAG_TINT.length)|0], tb=0.88+0.2*rnd(), n=drop>16?2:1;
   for(let k=0;k<n;k++){
     const v=(rnd()*CRAG_MESHY.length)|0, nm=CRAG_MESHY[v], W=GEO_MESH_DATA[nm].w, peak=v>=4;
-    const H=Math.min(80,drop*(peak?2.2:1.15)), sx=W[0]*H, sz=W[2]*H;                  // 봉우리 모형은 높게 세워 위쪽만 드러낸다(아래는 묻힌다)
+    const H0=Math.min(80,drop*(peak?2.2:1.15)), sx=W[0]*H0, sz=W[2]*H0;
     const along=(k-(n-1)/2)*sx*0.55+(rnd()-0.5)*CELL*0.4, inK=sz*0.25+rnd()*CELL*0.3;
-    const x=s.x+tx*along-dx*inK, z=s.z+tz*along-dz*inK, top=hi+(rnd()-0.4)*1.5, y=top-H/2;
+    const x=s.x+tx*along-dx*inK, z=s.z+tz*along-dz*inK, top=hi+(rnd()-0.4)*1.5;
+    /* 밑은 늘 그 자리 땅 밑까지(뜨지 않게 — 2026-11-04 사진: 바위 조각이 허공에 떴다) · 봉우리 모형은 더 깊이 묻어 위쪽만 */
+    let bot=Math.min(lo,heightAt(x,z),heightAt(x+tx*sx*0.4,z+tz*sx*0.4),heightAt(x-tx*sx*0.4,z-tz*sx*0.4),heightAt(x+dx*sz*0.4,z+dz*sz*0.4))-1.5;
+    let H=Math.max(H0,top-bot); if(peak) H*=1.5; const y=top-H/2;
     const b=tb*(0.94+0.12*rnd());
     B.push(x,y,z,sx/2,H/2,sz/2,(rnd()-0.5)*0.06,Y0+(rnd()-0.5)*0.4,(rnd()-0.5)*0.06,0,12+v,b*tint[0],b*tint[1],b*tint[2],2.2); CRAG.blobs++;
     cragCollide(x,z,Math.min(sx,sz)*0.35);
