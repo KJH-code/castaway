@@ -125,16 +125,16 @@ function cv10Eval(c,P,x,z){
     const B_=P.S[si]; if(x<B_.x0||x>B_.x1||z<B_.z0||z>B_.z1) continue;
     const m=B_.m, dx=x-m.x, dz=z-m.z, rr=Math.sqrt(dx*dx+dz*dz), ca=rr>1e-6?dx/rr:1, sa=rr>1e-6?dz/rr:0;
     const rN=m.r*(1+0.25*n(ca*0.6+m.x*0.019+1.3,sa*0.6+m.z*0.023+8.8)), rd=rr/rN; if(rd>=1) continue;
-    inSky=true;
+    inSky=true; const hadC=cnt>0;
     /* 구멍 밑 바닥 — 큰 구멍(채광창)은 가장자리 안쪽에서 평평한 구멍 바닥(m.y)으로 바뀌고, 가장자리에서 굴길 바닥과 매끈하게 이어진다. 가운데 둘레는 무너진 돌로 조금 둔덕 */
     const rise=Math.min(0.4,0.05*m.r), bump=rise*smoothstep(0.3,0.6,rd)*(1-smoothstep(0.6,1,rd));
     if(cnt===0){ F_=m.y+bump; C_=F_+1; Fb=F_; }
     else{ const mw=(1-smoothstep(0.5,1,rd))*smoothstep(1.5,3,m.r); F_=F_+(m.y-F_)*mw+bump; Fb=Fb+(m.y-Fb)*mw+bump; }
     cnt++; if(rd<U||bg<0){ U=rd; S=m.s||0; bg=Math.max(bg,1); }
-    if(m.ramp!==null&&m.ramp!==undefined){                           // 무너진 돌 비탈 — 구멍 가장자리(땅)에서 안쪽으로 내려간다
+    if(m.ramp!==null&&m.ramp!==undefined){                           // 무너진 돌 비탈 — 굴길이 이미 있는 데(hadC)서는 구멍 가장자리 쪽으로 굴길 바닥에 녹아든다(안 그러면 가장자리에서 바닥이 1 m 넘게 툭 뛰었다 — B 검수) — 구멍 가장자리(땅)에서 안쪽으로 내려간다
       const ca2=Math.cos(m.ramp), sa2=Math.sin(m.ramp), a=dx*ca2+dz*sa2, l=-dx*sa2+dz*ca2;
       const ry=m.he-m.kr*Math.max(0,m.r-a)-5*smoothstep(0.55,1,Math.abs(l)/m.r);
-      if(ry>F_){ F_=ry; Fb=ry; rp=true; }
+      if(ry>F_){ const wr=hadC?1-smoothstep(0.55,1,rd):1; F_+=(ry-F_)*wr; Fb=F_; rp=true; }
     }
   }
   if(cnt===0) return _cv10None(Yn);
@@ -374,7 +374,7 @@ function cv10Lava(ctx){
   if(!cv10Floor(main,{y0:null,y0f:q=>hM-cover0-H,cov:k.minCover+0.6,exempt:rS+2,
       target:(i,yp,d)=>Math.min(yp,Math.max(ystar(main[i]),yp-0.12*d))})) return false;
   const y0=main[0].y, ry=c.yaw+Math.PI, he=heightAt(c.x+Math.cos(ry)*rS,c.z+Math.sin(ry)*rS), kr=(he-y0)/(1.8*rS);
-  if(kr>1.2) return false;
+  if(kr>1.0) return false;                                           // 무너진 돌 비탈이 걸을 수 있는 기울기(MAXSLOPE 1.15 안 · 가장자리 흐림을 더해도)
   const mouths=[{x:c.x,z:c.z,y:y0,yaw:ry,w:rS*2,h:H,sky:true,r:rS,ramp:ry,he,kr:Math.max(0.5,kr),s:0}];
   if(!cv10Free(c.x,c.z,rS+1,4+rS)) return false;
   ctx.paths.push(main);
@@ -389,6 +389,15 @@ function cv10Lava(ctx){
   return true;
 }
 
+/* 입구 밖 접근 — 입구 앞 3~10 m 의 입구가 보는 쪽 ±30° 땅이 걸을 수 있는 기울기(≤1.0)인가(B 검수 — 6 m 밖에서 미끄러져 못 들어가던 굴). 채광창이면 구멍 가장자리 밖에서 잰다 */
+function cv10Approach(c){
+  const m=c.mouths[0], r0=m.sky?m.r:0;
+  for(const d of [3,5,7,10]) for(const da of [-0.5236,0,0.5236]){
+    const a=m.yaw+da, x=m.x+Math.cos(a)*(r0+d), z=m.z+Math.sin(a)*(r0+d);
+    const gx=(heightAt(x+0.5,z)-heightAt(x-0.5,z)), gz=(heightAt(x,z+0.5)-heightAt(x,z-0.5));
+    if(Math.hypot(gx,gz)>1.0) return false; }
+  return true;
+}
 /* 바위그늘 — 비탈의 너른 처마(굴길 한 토막을 둥근 끝으로 · 안쪽으로 내려앉는 바닥) · 반은 뒤에 작은 굴길 */
 function cv10Shelter(ctx){
   const c=ctx.c, rnd=ctx.rnd, k=ctx.K.shelter, att=ctx.att;
@@ -428,7 +437,7 @@ function cv10Layout(c){
     if(kind==='shelter'){ c.y=m0.y; }
     cv10Finish(c);
     const st=cv10Stats(c,1,true);
-    if(st.cells>150&&st.thin===0&&st.minCover>=K.minCover+0.1&&st.maxSlope<=0.30&&(kind!=='shelter'||st.open<=st.cells*0.8)&&cv10Reach(c).reach===c.rooms.length) return true;
+    if(st.cells>150&&st.thin===0&&st.minCover>=K.minCover+0.1&&st.maxSlope<=0.30&&(kind!=='shelter'||st.open<=st.cells*0.8)&&cv10Reach(c).reach===c.rooms.length&&cv10Approach(c)) return true;
   }
   return false;
 }

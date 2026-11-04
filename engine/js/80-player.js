@@ -625,6 +625,9 @@ function updatePlayer(dt){
         for(let rr=0.25;rr<=1.5&&!ok;rr+=0.25) for(let k=0;k<8&&!ok;k++){ const a=k/8*6.2832, tx=p.x+Math.cos(a)*rr, tz=p.z+Math.sin(a)*rr;
           if(!eyeHit(tx,p.y+e,tz)&&!solidAt(tx,tz,p.y+0.3)){ p.x=tx; p.z=tz; ok=true; } } }
     } }
+  if(PL.cave){                                                         // 굴 속 — 눈 되돌림 뒤에 기둥 겹침과 바닥 아래를 한 번 더 바로잡는다(밀어내기 · 바닥 붙이기는 max)
+    caveColPush(p);
+    if(PL.grounded){ const f2=floorAt(p.x,p.z,p.y+0.3); if(p.y<f2&&f2-p.y<0.3) p.y=f2; } }
 
   /* 배고픔 — 가만히 있어도 줄고, 움직이고 일할수록 빨리 준다.
      굶으면 기력 한도가 내려가고, 바닥나면 달리지 못하고 기력이 도로 빠진다. */
