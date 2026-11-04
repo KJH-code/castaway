@@ -656,7 +656,7 @@ function floraLayer(L,which){
       /* 강어귀와 늪 가의 얕은 물 — 맹그로브가 띠를 이룬다(얼룩 잡음이 높은 데만 · 민물과 바다가 만나는 자리가 가려진다) */
       if(floraVal(wx,wz,26,41)>0.50&&u<FLORA_MANGROVE[1]) pick=FLORA_MANGROVE;
     }else{
-      if(el<0.4||F.river[ci]||F.slope[ci]>0.75) continue;
+      if(el<0.4||F.river[ci]||F.slope[ci]>(smOn()?(far?0.45:0.6):0.75)) continue;   // 매끈한 땅 — 벼랑엔 나무 · 덤불이 안 선다
       let cm=floraCommAt(wx,wz,bi); if(!cm) continue;
       if(cm.low&&el>cm.low) cm=FLORA_COMM[bi][1];     // 맹그로브는 바닷가 낮은 늪에만 — 산 위 이탄지는 고사리 늪
       if(tr>=((far?cm.dense:cm.nearDense)||1)) break;   // 이 군락은 칸마다 이만큼만 굴린다
@@ -749,7 +749,7 @@ function* floraPlantAllG(){
       /* 강어귀와 늪 가의 얕은 물 — 맹그로브가 띠를 이룬다(얼룩 잡음이 높은 데만 · 민물과 바다가 만나는 자리가 가려진다) */
       if(floraVal(wx,wz,26,41)>0.50&&u<FLORA_MANGROVE[1]) pick=FLORA_MANGROVE;
     }else{
-      if(el<0.4||F.river[ci]||F.slope[ci]>0.75) continue;
+      if(el<0.4||F.river[ci]||F.slope[ci]>(smOn()?0.45:0.75)) continue;   // 매끈한 땅 — 벼랑 · 가파른 비탈엔 나무가 안 선다(2026-11-04 사용자 지적)
       let cm=floraCommAt(wx,wz,bi); if(!cm) continue;
       if(cm.low&&el>cm.low) cm=FLORA_COMM[bi][1];     // 맹그로브는 바닷가 낮은 늪에만 — 산 위 이탄지는 고사리 늪
       if(tr>=(cm.dense||1)) break;

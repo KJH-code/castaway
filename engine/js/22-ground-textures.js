@@ -171,7 +171,7 @@ function gndTerrainFrag(frag,extra){
   return `uniform vec3 uSunDir;${RK?'\nuniform mediump sampler2DArray uRk;':''}
 uniform sampler2D uRel; uniform sampler2D uTL; uniform float uShR, uWet, uDew;
 float gndSun=1.0, gndAmb=1.0;
-uniform sampler2D uBio; uniform sampler2D uBio2; uniform sampler2D uNz; uniform float uBioN, uCell, uShT;
+uniform sampler2D uBio; uniform sampler2D uBio2; uniform sampler2D uNz; uniform float uBioN, uCell, uShT; uniform float uSnow;
 uniform mediump sampler2DArray uGnd;
 varying vec3 vTW;
 varying vec3 vTN;
@@ -258,7 +258,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         // 큰 얼룩 — 밝기와 색조를 천천히 흔든다(마른 데는 누렇게, 젖은 데는 푸르게)
         c*=1.0+0.22*(n1.b-0.5)+0.12*(n2.b-0.5);
         c*=mix(vec3(0.96,0.99,1.04),vec3(1.05,1.01,0.93),n1.a);
-        float steep=1.0-smoothstep(0.56,0.88,normalize(vTN).y), flat1=1.0-steep;   // 넓게 넘어간다(사용자 요청: 결이 맞닿는 데에 그러데이션)
+        float steep=1.0-smoothstep(0.62,0.76,normalize(vTN).y+(n2.r-0.5)*0.06), flat1=1.0-steep;   // 풀 ↔ 바위가 좁은 띠에서 갈린다(넓게 섞였더니 벼랑에 풀빛이 번졌다 — 2026-11-04 사용자 지적)   // 넓게 넘어간다(사용자 요청: 결이 맞닿는 데에 그러데이션)
         /* 물밑 — **모래는 얕은 데까지만**. 수심 2~5 m(자리마다 다르다) 밑은 암반이고, 물밑에서는 조금만 가팔라도 바위가
            드러난다(사용자 지적: 물밑이 끝없는 모래라 기괴하다) */
         float subRock=0.0;
@@ -322,6 +322,23 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         /* 모래는 사진 결을 반만 — 모래밭이 혼자 튀었다(사용자 지적). 대신 넓은 얼룩(젖은 데·마른 데)으로 바탕과 섞는다 */
         c*=mix(vec3(1.0),det*2.0,mix(1.0,0.6,smoothstep(50.0,160.0,vTD))*mix(1.0,0.50,wSand));    // 멀리선 조금 옅게
         c*=mix(1.0,0.84+0.30*n1.r+0.10*(n2.g-0.5),wSand);
+        /* **지층 벼랑**(2026-11-04 사용자 사진 — 바닷가 벼랑 · 골짜기 · 폭포 벽: 진짜 벼랑은 켜켜이 쌓인 지층이 깎여 드러난 면이다). 가파른 면(약 37° 넘게)은
+           사진 결 덩이 대신 **지층**으로 칠한다: 켜(1.6~3 m · 섬 전체로 조금 기운다 · 켜마다 빛깔이 다르다) · 켜의 윗단은 볕을 받는 턱(밝다) · 아랫단은 처마 밑(짙다) ·
+           세로 절리(2.5~4 m 마다 검은 금) · 바위 갈래는 큰 얼룩으로(검은 현무암 · 녹슨 사암 · 흰 석회암). 풀은 그 비탈 밑에서 또렷이 끊긴다 */
+        #ifndef GND_MOUND
+        { float nyc=normalize(vTN).y, cliff=smoothstep(0.80,0.66,nyc+(n2.r-0.5)*0.08);
+          if(cliff>0.005){
+            /* 그린 켜 · 금(예전)은 걷고 **바위 사진**(위에서 섞은 rk — 벼랑 면은 옆 투영)을 그대로 쓴다(2026-11-04 사용자 지적: 결이 진짜 같지 않다).
+               바위 갈래는 1.1 km 얼룩으로 빛깔만(검은 현무암 → 녹슨 사암 → 흰 석회암) · 빗물 자국 · 아래쪽은 습기로 조금 짙게 */
+            float fam=texture2D(uNz,p/1100.0+vec2(0.61,0.23)).g;
+            vec3 tint=mix(mix(vec3(0.78,0.78,0.80),vec3(1.08,0.88,0.72),smoothstep(0.32,0.50,fam)),vec3(1.12,1.08,1.00),smoothstep(0.58,0.76,fam));
+            vec2 spp=mix(vTW.xy,vTW.zy,wSx);
+            vec3 rc=c*tint*(1.0-0.22*smoothstep(0.55,0.8,texture2D(uNz,vec2(spp.x/9.0,vTW.y/60.0)).r));
+            c=mix(c,rc,cliff); } }
+        #endif
+        /* 눈 — 눈선(TERR_U.uSnow · 37-geo-meshes.js 가 높은 봉우리에 맞춰 정한다) 위의 덜 가파른 데. 바람에 쓸려 가장자리가 들쭉날쭉 */
+        { float sk=smoothstep(uSnow-30.0,uSnow+40.0,vTW.y+(n1.r-0.5)*40.0)*smoothstep(0.50,0.80,normalize(vTN).y+(n2.g-0.5)*0.15);
+          c=mix(c,vec3(0.90,0.92,0.96)*(0.92+0.10*n2.b),sk); }
         ${extra||''}
         /* **모래 알갱이** — 0.5~0.7 mm 알(석영 8 · 검은 광물 1.2 · 조개 부스러기 0.8 의 몫)의 빛깔이 알마다 다르다. 화소 발자국만 한
            칸(2의 거듭제곱 · 두 단계를 섞어 튀지 않게)마다 알 하나를 뽑고, 칸에 알이 (칸/알)² 개 섞인 만큼(흔들림 ∝ 알/칸) 눅인다 —
@@ -570,7 +587,7 @@ function moundMat(kind,R,col,H,bury){
           transformed=(inverse(IM)*vec4(w,1.0)).xyz; }
         vTW=w; vTN=normalize(nP+nW/max(dot(nW,uW),0.2)-uW); vTD=length((viewMatrix*vec4(w,1.0)).xyz);
         vMd=vec2(length(position.xz)/${R.toFixed(2)},position.y); }`);
-    sh.fragmentShader=gndTerrainFrag('varying vec2 vMd;\n'+sh.fragmentShader,EXTRA);
+    sh.fragmentShader=gndTerrainFrag('#define GND_MOUND\nvarying vec2 vMd;\n'+sh.fragmentShader,EXTRA);   // 둔덕은 지층 벼랑 칠을 안 받는다(둔덕 옆면이 가팔라 빗금이 섰다)
   };
   m.customProgramCacheKey=()=>'mound'+kind;
   return m;

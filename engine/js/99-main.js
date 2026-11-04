@@ -64,7 +64,7 @@ function loop(){
                          :'화면을 클릭하면 시점 조작이 시작됩니다';
         if(h.textContent!==want) h.textContent=want;
       }
-      updateBuild(); updateLevel(); updateCaves(); if(!SURF.hide) updateCrags(); updateTlit(dt); if(!SURF.hide) updateDew();
+      updateBuild(); updateLevel(); updateCaves(); if(!SURF.hide) updateCrags(); if(!SURF.hide) updateGeoMeshes(dt); updateTlit(dt); if(!SURF.hide) updateDew();
       updateHarvest(dt);
       updateGather(dt);           // 덩굴·덤불·열매·버섯·조개 — 누르고 있는 동안 막대가 찬다(95-flora.js)
       updateCraft(dt);

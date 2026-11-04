@@ -39,6 +39,10 @@ function camcCrackTex(){
   bf.fillStyle='#000'; bf.fillRect(0,0,W/2,H/2); bf.globalCompositeOperation='lighten'; bf.lineCap='round'; bf.lineJoin='round'; bf.setTransform(0.5,0,0,0.5,0,0);
   try{ bf.filter='blur(2.5px)'; }catch(e){}
   const col=(r,g,b)=>'rgb('+Math.round(r*255)+','+Math.round(g*255)+','+Math.round(b*255)+')';
+  /* **떨어져 나간 유리 조각**(2026-11-04 사용자 요청 — 금이 간 데서 세모 조각이 빠져 검은 구멍이 나게): 맞은 자리 둘레, 이웃한 두 금과 둘레 잔금이 이루는
+     세모 몇 장을 빼낸다 — 그 자리는 화면이 안 보이고 검다. R 구멍 · G 드러나는 세기(금과 같은 문턱 — 맞은 자리에 가까운 조각부터 빠진다) · 반 크기 그림 */
+  const hc=document.createElement('canvas'); hc.width=W/2; hc.height=H/2; const hf=hc.getContext('2d');
+  hf.fillStyle='#000'; hf.fillRect(0,0,W/2,H/2); hf.globalCompositeOperation='lighten'; hf.setTransform(0.5,0,0,0.5,0,0);
   const seg=(pts,w0,a0,t0,t1)=>{ const n=pts.length-1;
     for(let i=0;i<n;i++){ const t=i/n, w=(w0*Math.pow(1-t,0.55)+0.35)*1.3, al=a0*(1-0.75*t), p=pts[i], q=pts[i+1], rv=1-(t0+(t1-t0)*(i+1)/n);
       f.strokeStyle=col(0,0.85*al,rv); f.lineWidth=w*2.6; f.beginPath(); f.moveTo(p[0]+1.8,p[1]+2.1); f.lineTo(q[0]+1.8,q[1]+2.1); f.stroke();
@@ -49,6 +53,9 @@ function camcCrackTex(){
     for(let i=0;i<nr;i++){ const big=i%3===0, a=i/nr*6.283+rnd()*0.4, L=W*sc*(big?0.34+rnd()*0.22:0.08+rnd()*0.16), n=7, pts=[[ix,iy]]; let x=ix,y=iy,aa=a;
       for(let k=0;k<n;k++){ aa+=(rnd()-0.5)*0.36; x+=Math.cos(aa)*L/n; y+=Math.sin(aa)*L/n; pts.push([x,y]); } pts.big=big; rays.push(pts); }
     const sp=s1-s0;
+    for(let i=0;i<rays.length;i++) for(let k=0;k<=2;k++){ if(rnd()>[0.55,0.40,0.22][k]) continue;   // 빠진 조각 — 금 둘(i · i+1)과 둘레 잔금 사이 세모(두 마디씩 걸쳐 크게)
+      const a=rays[i][k], b=rays[i][k+2], q=rays[(i+1)%rays.length][k+1], rv=1-(s0+sp*(k+2)/7);
+      hf.fillStyle=col(1,rv,0); hf.beginPath(); hf.moveTo(a[0],a[1]); hf.lineTo(b[0],b[1]); hf.lineTo(q[0],q[1]); hf.closePath(); hf.fill(); }
     for(const pts of rays) seg(pts,pts.big?2.2:1.3,0.95,s0,s0+sp*(pts.big?1:0.6));
     for(const pts of rays) if(pts.big){ const n=pts.length-1;                                                    // 금 띠 — 굵은 금만
       for(let i=0;i<n;i++){ const t=i/n, p=pts[i], q=pts[i+1], rv=1-(s0+sp*(i+1)/n);
@@ -61,7 +68,7 @@ function camcCrackTex(){
     f.fillStyle=g0; f.beginPath(); f.arc(ix,iy,W*0.05,0,6.283); f.fill();
     f.fillStyle='rgb(255,0,'+rv+')'; f.beginPath(); f.arc(ix,iy,2.8,0,6.283); f.fill(); }
   const tex=cv=>{ const t=new THREE.CanvasTexture(cv); t.minFilter=t.magFilter=THREE.LinearFilter; t.generateMipmaps=false; return t; };
-  return {crk:tex(c), band:tex(bc)};
+  return {crk:tex(c), band:tex(bc), hole:tex(hc)};
 }
 function camcInit(){
   CAMC.scene=new THREE.Scene(); CAMC.cam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
@@ -70,11 +77,11 @@ function camcInit(){
     depthTest:false, depthWrite:false, fog:false,
     uniforms:{tD:{value:null}, uRes:{value:new THREE.Vector2(640,480)}, uT:{value:0}, uBat:{value:1}, uUnder:{value:0},
               uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}, uHdr:{value:0}, uIll:{value:0},
-              uHurtN:{value:0}, uHit:{value:0}, tCrk:{value:CK.crk}, tBand:{value:CK.band}, uAsp:{value:16/9}, uWet:{value:0}, uDive:{value:0}},
+              uHurtN:{value:0}, uHit:{value:0}, tCrk:{value:CK.crk}, tBand:{value:CK.band}, tHole:{value:CK.hole}, uAsp:{value:16/9}, uWet:{value:0}, uDive:{value:0}},
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
     fragmentShader:`
       precision highp float;
-      uniform sampler2D tD, tCrk, tBand; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurtN,uHit,uAsp,uWet,uDive;
+      uniform sampler2D tD, tCrk, tBand, tHole; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurtN,uHit,uAsp,uWet,uDive;
       varying vec2 vUv;
       float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
       float hq(vec2 p){ vec3 q=fract(vec3(p.xyx)*0.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }   // 정수 칸 해시(Hoskins) — h21 은 화면 화소 칸에서 세로 줄무늬가 졌다
@@ -169,6 +176,13 @@ function camcInit(){
           col.r=mix(col.r,lb.r,bm); col.b=mix(col.b,rb.b,bm); col.g*=1.0-0.12*gK*bOn;
           col*=1.0+0.18*gK*bOn*(hq(vec2(fz,41.0))-0.5); }
         if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0) col=vec3(0.0);
+        /* **또렷함 · 대비 · 밝음 · 넓은 밝기 폭**(2026-11-04 사용자 요청 — brilliance · sharpness · contrast · dynamic range · 매끈한 파스텔 그림 결):
+           이웃 넷의 평균과의 차이를 더해 윤곽을 세우고(언샵 마스크) · 빛깔을 조금 짙게 · 가운데를 S 자로 눌러 대비 · 밝은 데는 한 번 더 밝힌다 */
+        { float py=1.0/uRes.y; vec3 nb=(texture2D(tD,uv+vec2(px,0.0)).rgb+texture2D(tD,uv-vec2(px,0.0)).rgb+texture2D(tD,uv+vec2(0.0,py)).rgb+texture2D(tD,uv-vec2(0.0,py)).rgb)*0.25;
+          col+=(a-nb)*0.65;
+          float Yg=dot(col,vec3(0.299,0.587,0.114)); col=mix(vec3(Yg),col,1.14);
+          vec3 cc=clamp(col,0.0,1.0); col=mix(col,cc*cc*(3.0-2.0*cc)+max(col-1.0,0.0),0.30);
+          col+=max(col-0.62,0.0)*0.18; col=max(col,0.0); }
         /* **밝은 데의 어깨** — 그림판이 반정밀 실수(uHdr)면 1 을 넘는 볕(한낮의 흰 바위·모래·물비늘)이 잘리지 않고 들어온다.
            0.80 까지는 그대로 두고 그 위를 1.0 으로 서서히 눕힌다 — 하얗게 뭉개지던 면에 결이 남는다. 8비트 그림판이면 손대지 않는다 */
         if(uHdr>0.5) col=mix(col,0.80+0.20*(1.0-exp(-(col-0.80)/0.20)),step(0.80,col));
@@ -233,6 +247,10 @@ function camcInit(){
         col*=1.0-0.40*pow(length(c)*1.25,2.6);                                 // 가장자리 어둡게
         col*=1.0-0.25*weak*step(0.5,h21(vec2(floor(uT*9.0),1.0)));             // 배터리가 약하면 깜빡인다
         col=mix(col,vec3(Y*0.30)+n*0.22,dead);                                 // 다 닳으면 어둡고 흐린 흑백
+        /* 떨어져 나간 유리 조각 — 그 자리는 화면이 안 보이고 검다(가장자리에 유리 단면이 희미하게 빛난다) */
+        { vec4 ho=texture2D(tHole,vUv); float hOn=smoothstep(0.35,0.65,ho.r)*smoothstep(1.0-ho.g,1.0-ho.g+0.05,uHurtN)*step(0.004,ho.g);
+          float rim=smoothstep(0.15,0.45,ho.r)*(1.0-smoothstep(0.55,0.85,ho.r))*smoothstep(1.0-ho.g,1.0-ho.g+0.05,uHurtN);
+          col=mix(col,vec3(0.0),hOn); col+=vec3(0.55,0.62,0.70)*rim*0.35; }
         gl_FragColor=vec4(col,1.0);
       }`});
   const q=new THREE.Mesh(new THREE.PlaneGeometry(2,2),CAMC.mat); q.frustumCulled=false; CAMC.scene.add(q);
