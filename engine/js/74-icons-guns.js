@@ -282,6 +282,9 @@ function wKey(o,K,p){
   o.px=wlerp(a[4],b[4],e); o.py=wlerp(a[5],b[5],e); o.pz=wlerp(a[6],b[6],e);
 }
 let HOLD_T=0;
+/* 든 것의 몸짓(2026-11-04 사용자 요청 — 도구마다 움직임): 바꿔 들 때 아래에서 올라온다(HA.eq) · 걸으면 걸음에 맞춰 흔들린다(HA.ph) · 서 있으면 숨 ·
+   돌면 손이 조금 늦게 따라온다(HA.lag) · 휘두르지 않는 도구(라이터 · 활비비 · 그물 · 잠자리채 · 횃불 …)는 누르면 앞으로 내민다(HA.poke) · 채집하는 동안은 손을 뻗어 집는다 */
+const HA={id:null, eq:0, ph:0, lag:0, yaw:0, poke:0, down:false};
 function initWeaponFx(){ setWeaponFx(null); }
 const equippedWeapon=()=>{
   const e=equippedTool();
@@ -723,6 +726,7 @@ function burnTick(c,dt){
   if(b.t<=1e-6) c.burn=null;
 }
 /* 휘두르는 결 — 창은 찌르고, 검·도끼는 베고, 해머는 내리친다 */
+const rs0=fx=>!!(fx&&fx.userData&&fx.userData.rest);
 function updateWeapon(dt){
   if(ATK.cd>0) ATK.cd=Math.max(0,ATK.cd-dt);
   /* 연사 — 누르고 있는 동안 쿨이 끝날 때마다 한 발씩. 방아쇠를 딸깍이는
@@ -765,6 +769,22 @@ function updateWeapon(dt){
   }
   const vv=W.weapon?(ATK.v|0):(Math.floor(HOLD_T*1.3)&1);               // 이어 치기의 결 · 캐는 도구는 번갈아 곧게 · 비스듬히
   const H=WEAPON_HOME, o=swingPose(style,p,vv);
+  { if(HA.id!==w.id){ HA.id=w.id; HA.eq=1; }                                          // 바꿔 듦 — 아래에서 올라온다
+    HA.eq=Math.max(0,HA.eq-dt/0.32); const ke=HA.eq*HA.eq;
+    o.py-=0.30*ke; o.rx+=0.55*ke; o.pz+=0.06*ke;
+    const sp=Math.hypot(PL.vel.x,PL.vel.z), mv=PL.grounded&&!CLIMB.on?clamp(sp/4.5,0,1.4):0, t=performance.now()*0.001;
+    HA.ph+=sp*dt*1.7;                                                                  // 걸음 박자 — 간 거리로
+    o.px+=Math.sin(HA.ph)*0.014*mv; o.py+=(Math.abs(Math.cos(HA.ph))-0.6)*0.020*mv; o.rz+=Math.sin(HA.ph)*0.025*mv;
+    o.py+=Math.sin(t*1.7)*0.0045*(1-Math.min(1,mv)); o.rx+=Math.sin(t*1.3+0.7)*0.006*(1-Math.min(1,mv));   // 숨
+    let dy=PL.yaw-HA.yaw; dy-=Math.PI*2*Math.round(dy/(Math.PI*2)); HA.yaw=PL.yaw;      // 돌면 손이 늦게 따라온다
+    HA.lag=clamp(HA.lag*Math.exp(-dt*9)+dy*0.9,-0.25,0.25); o.px-=HA.lag*0.20; o.rz-=HA.lag*0.35; o.ry+=HA.lag*0.25;
+    const plain=!W.weapon&&!W.axe&&!W.pick&&!W.drill&&!W.gun;                       // 휘두르지 않는 도구 — 누르면 내민다
+    if(plain&&useDown&&!HA.down&&!uiOpen()&&!BUILD.on) HA.poke=1; HA.down=useDown;
+    HA.poke=Math.max(0,HA.poke-dt/0.34); const kp=Math.sin((1-HA.poke)*Math.PI)*(HA.poke>0?1:0);
+    o.pz-=0.16*kp; o.py+=0.03*kp; o.rx-=0.30*kp;
+    if(typeof GATHER!=='undefined'&&GATHER.on){ const kg=0.5+0.5*Math.sin(t*7.5);        // 채집 — 손을 뻗어 집는다
+      o.py-=0.10+0.05*kg; o.pz-=0.10*kg; o.rx-=0.35+0.15*kg; o.px-=0.04; }
+    if(W.light||rs0(weaponFx)){ o.rz+=Math.sin(t*2.3)*0.012; o.rx+=Math.sin(t*1.9+1.1)*0.010; } }   // 횃불 · 등잔 · 그물 — 들고 선 것이 살짝 흔들린다
   if(ATK.hitStop>0){ const t=performance.now()*0.001; o.px+=Math.sin(t*173)*0.006; o.py+=Math.sin(t*151)*0.006; }   // 박힌 날이 떤다
   if(typeof MON!=='undefined'&&Math.abs(MON.roll)>0.005){ o.rz+=MON.roll*2.2; o.py-=Math.abs(MON.roll)*0.6; o.px+=MON.roll*0.4; }   // 맞으면 든 것이 흔들린다
   /* 드릴 — 휘두르지 않는다. 0.25초에 걸쳐 앞으로 밀어 대고(DRILL_K), 대는 동안 잘게 떨며 날이 돈다 */

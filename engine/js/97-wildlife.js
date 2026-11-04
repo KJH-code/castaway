@@ -330,8 +330,13 @@ function climbLook(){
     if(d<bd&&dc>0.05&&(dx*hx+dz*hz)/dc>0.6){ bd=d; best=g.cl||(g.cl={k:'giant',g,x:g.x,y:g.y,z:g.z,s:g.s,felled:false,R}); } }
   return best;
 }
-const climbTop=p=>p.k==='giant'?GIANT_BOLE[p.g.v].H*p.s*0.45:nestH(p)+0.9;     // 오를 수 있는 높이
-const climbRad=p=>p.k==='giant'?p.R*1.12+0.40:((p.k==='oak'?0.46:0.40)*p.s)+0.34;   // 줄기에서 몸까지(노거수는 판근 · 혹이 있어 조금 더)
+/* 노거수는 **줄기 꼭대기(가지가 갈라지는 데)까지** 오른다(2026-11-04 사용자 지적 — 큰 나무를 끝까지 못 오른다 · 예전엔 키의 45% 에서 멈췄다).
+   벌마다 키 배율(GIANT.hk)이 다르다. 몸은 그 높이의 줄기 굵기를 따라 붙는다(줄기는 위로 갈수록 가늘다 — 95-giants.js giantBoleR 의 평균) */
+const climbH=p=>GIANT_BOLE[p.g.v].H*((GIANT.hk[p.g.v]||[])[p.g.w]||1)*p.s;
+const climbTop=p=>p.k==='giant'?climbH(p)*0.94:nestH(p)+0.9;     // 오를 수 있는 높이
+const climbRad=(p,h)=>{ if(p.k!=='giant') return ((p.k==='oak'?0.46:0.40)*p.s)+0.34;   // 줄기에서 몸까지
+  const B=GIANT_BOLE[p.g.v], y=Math.max(0,(h||0)/p.s), t=clamp(y*p.s/climbH(p),0,1);
+  return Math.max(p.R*0.25,p.s*(B.r0+(B.r1-B.r0)*t)*(1+B.but*0.55*Math.exp(-y/2.2))*1.04)+0.40; };
 /* 프레임마다 — 오르는 중이면 몸과 눈을 줄기에 붙여 옮기고 true(걷기 처리를 건너뛴다). updatePlayer 가 맨 먼저 부른다 */
 function climbTick(dt){
   const sp=!!keys.jump, tap=sp&&!CLIMB.sp; CLIMB.sp=sp;
@@ -339,10 +344,10 @@ function climbTick(dt){
     if(tap&&PL.grounded&&!(invOpen||craftOpen)&&!MOVE.t){ let p=climbLook();
       if(p&&typeof wallAhead==='function'){ const wd=wallAhead(); if(wd&&wd<Math.hypot(p.x-PL.pos.x,p.z-PL.pos.z)) p=null; }   // 벼랑이 나무보다 가까우면 벼랑에 매달린다(80-player.js)
       /* 눈이 바위에 들지 않는 쪽에서 매달린다 — 바위에 붙어 선 나무면 줄기를 돌아 빈 쪽을 찾고, 없으면 못 오른다 */
-      let ang=null; if(p){ const a0=Math.atan2(PL.pos.z-p.z,PL.pos.x-p.x), rad=climbRad(p);
+      let ang=null; if(p){ const a0=Math.atan2(PL.pos.z-p.z,PL.pos.x-p.x), rad=climbRad(p,0.3);
         for(let k=0;k<12&&ang===null;k++){ const a=a0+(k%2?1:-1)*Math.ceil(k/2)*0.52; if(!eyeHit(p.x+Math.cos(a)*rad,p.y+0.3+EYE,p.z+Math.sin(a)*rad)) ang=a; }
         if(ang===null){ toast('바위가 막아 이 나무는 오를 수 없다'); keys.jump=false; return false; } }
-      if(p){ CLIMB.on=true; CLIMB.p=p; CLIMB.h=0.3; CLIMB.top=climbTop(p); CLIMB.ang=ang;
+      if(p){ CLIMB.on=true; CLIMB.p=p; CLIMB.h=0.3; CLIMB.top=climbTop(p); CLIMB.ang=ang; CLIMB.ph=0; CLIMB.k=0;
         keys.jump=false; toast('나무를 오른다 — W·S 오르내리기 · A·D 줄기 돌기 · Space 뛰어내리기'); } }
     return CLIMB.on;
   }
@@ -351,12 +356,17 @@ function climbTick(dt){
   const h0=CLIMB.h, a0=CLIMB.ang;
   CLIMB.h=clamp(CLIMB.h+up*1.5*dt,0,CLIMB.top); CLIMB.ang+=turn*1.4*dt;
   PL.stam=clamp(PL.stam-(up?4.5:1.2)*dt,0,100);
-  const rad=climbRad(p);
+  const rad=climbRad(p,CLIMB.h);
   /* 눈이 바위·땅에 들 자리로는 안 돈다·안 오른다(80-player.js eyeHit — 사용자 요청: 카메라 경계를 엄하게) */
   if(eyeHit(p.x+Math.cos(CLIMB.ang)*rad,p.y+CLIMB.h+EYE,p.z+Math.sin(CLIMB.ang)*rad)){ CLIMB.h=h0; CLIMB.ang=a0; }
   PL.pos.set(p.x+Math.cos(CLIMB.ang)*rad,p.y+CLIMB.h,p.z+Math.sin(CLIMB.ang)*rad); PL.vel.set(0,0,0); PL.grounded=false; PL.swim=false;
   PL.camY=PL.pos.y; PL.eye+=(EYE-PL.eye)*clamp(10*dt,0,1);
-  camera.position.set(PL.pos.x,PL.pos.y+PL.eye,PL.pos.z); camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
+  /* **오르는 몸짓**(2026-11-04 사용자 요청) — 손을 번갈아 뻗어 끌어올리는 박자로 몸이 오르내리고(한 번 끌 때 0.07 m) 어깨가 좌우로 기운다.
+     오른 거리 · 돈 거리로 박자를 민다(프레임과 무관) · 멈추면 잦아든다. 줄기 쪽으로 몸을 붙였다 뗀다 */
+  const mv=Math.abs(CLIMB.h-h0)+Math.abs(CLIMB.ang-a0)*rad*0.6;
+  CLIMB.ph=(CLIMB.ph||0)+mv*5.2; CLIMB.k=(CLIMB.k||0)+((mv>1e-4?1:0)-(CLIMB.k||0))*clamp(6*dt,0,1);
+  const bob=Math.sin(CLIMB.ph)*0.07*CLIMB.k, roll=Math.sin(CLIMB.ph*0.5)*0.045*CLIMB.k, lean=(0.5+0.5*Math.cos(CLIMB.ph))*0.06*CLIMB.k;
+  camera.position.set(PL.pos.x-Math.cos(CLIMB.ang)*lean,PL.pos.y+PL.eye+bob,PL.pos.z-Math.sin(CLIMB.ang)*lean); camera.rotation.set(PL.pitch,PL.yaw,roll,'YXZ');
   const off=tap||PL.stam<=0||p.felled||(CLIMB.h<=0&&up<0);
   if(off){ CLIMB.on=false; if(PL.stam<=0) toast('기력이 다해 손을 놓쳤다');
     PL.pos.x+=Math.cos(CLIMB.ang)*0.35; PL.pos.z+=Math.sin(CLIMB.ang)*0.35; PL.vel.y=tap?2.5:0; return false; }   // 줄기에서 떨어져 떨어진다(높으면 다친다)
