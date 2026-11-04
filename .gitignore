@@ -17,3 +17,8 @@ beta/builds/
 # 맥·편집기가 남기는 파일
 .DS_Store
 *.swp
+
+# 사용자가 준 Meshy 원본(STL · 119 MB) — 레포에 안 담는다(tools/geo-mesh.py 가 data-geo-meshes.js 로 줄인다)
+meshes/
+Meshy_AI_*.stl
+orchestrate-plugin.zip_*/

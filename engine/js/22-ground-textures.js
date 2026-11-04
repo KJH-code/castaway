@@ -171,7 +171,7 @@ function gndTerrainFrag(frag,extra){
   return `uniform vec3 uSunDir;${RK?'\nuniform mediump sampler2DArray uRk;':''}
 uniform sampler2D uRel; uniform sampler2D uTL; uniform float uShR, uWet, uDew;
 float gndSun=1.0, gndAmb=1.0;
-uniform sampler2D uBio; uniform sampler2D uBio2; uniform sampler2D uNz; uniform float uBioN, uCell, uShT;
+uniform sampler2D uBio; uniform sampler2D uBio2; uniform sampler2D uNz; uniform float uBioN, uCell, uShT; uniform float uSnow;
 uniform mediump sampler2DArray uGnd;
 varying vec3 vTW;
 varying vec3 vTN;
@@ -325,6 +325,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         /* **지층 벼랑**(2026-11-04 사용자 사진 — 바닷가 벼랑 · 골짜기 · 폭포 벽: 진짜 벼랑은 켜켜이 쌓인 지층이 깎여 드러난 면이다). 가파른 면(약 37° 넘게)은
            사진 결 덩이 대신 **지층**으로 칠한다: 켜(1.6~3 m · 섬 전체로 조금 기운다 · 켜마다 빛깔이 다르다) · 켜의 윗단은 볕을 받는 턱(밝다) · 아랫단은 처마 밑(짙다) ·
            세로 절리(2.5~4 m 마다 검은 금) · 바위 갈래는 큰 얼룩으로(검은 현무암 · 녹슨 사암 · 흰 석회암). 풀은 그 비탈 밑에서 또렷이 끊긴다 */
+        #ifndef GND_MOUND
         { float nyc=normalize(vTN).y, cliff=smoothstep(0.80,0.66,nyc+(n2.r-0.5)*0.08);
           if(cliff>0.005){
             float yy=vTW.y+(n1.g-0.5)*3.5+dot(p,vec2(0.011,0.006));
@@ -334,10 +335,14 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
             rc=mix(rc,rc*vec3(1.06,0.97,0.88),tn*0.5)*(0.86+0.24*tn);
             rc*=mix(0.68,1.0,smoothstep(0.0,0.18,lf))*mix(1.0,1.08,smoothstep(0.85,1.0,lf));
             vec2 spp=mix(vTW.xy,vTW.zy,wSx); float jf=abs(fract(spp.x/(3.0+2.5*tn)+tn*3.7+(n2.b-0.5)*0.6)-0.5);
-            rc*=mix(0.72,1.0,smoothstep(0.0,0.03,jf));
+            rc*=mix(1.0,mix(0.72,1.0,smoothstep(0.0,0.03,jf)),smoothstep(0.55,0.38,nyc));   // 세로 절리는 거의 곧은 벽에만(둥근 언덕에선 위에서 보면 바퀴살처럼 섰다)
             rc*=0.72+0.56*dot(det,vec3(0.333));
             rc*=1.0-0.25*smoothstep(0.55,0.8,texture2D(uNz,vec2(spp.x/9.0,yy/60.0)).r);                       // 빗물 자국(세로로 늘인 얼룩)
             c=mix(c,rc,cliff); } }
+        #endif
+        /* 눈 — 눈선(TERR_U.uSnow · 37-geo-meshes.js 가 높은 봉우리에 맞춰 정한다) 위의 덜 가파른 데. 바람에 쓸려 가장자리가 들쭉날쭉 */
+        { float sk=smoothstep(uSnow-30.0,uSnow+40.0,vTW.y+(n1.r-0.5)*40.0)*smoothstep(0.50,0.80,normalize(vTN).y+(n2.g-0.5)*0.15);
+          c=mix(c,vec3(0.90,0.92,0.96)*(0.92+0.10*n2.b),sk); }
         ${extra||''}
         /* **모래 알갱이** — 0.5~0.7 mm 알(석영 8 · 검은 광물 1.2 · 조개 부스러기 0.8 의 몫)의 빛깔이 알마다 다르다. 화소 발자국만 한
            칸(2의 거듭제곱 · 두 단계를 섞어 튀지 않게)마다 알 하나를 뽑고, 칸에 알이 (칸/알)² 개 섞인 만큼(흔들림 ∝ 알/칸) 눅인다 —
@@ -586,7 +591,7 @@ function moundMat(kind,R,col,H,bury){
           transformed=(inverse(IM)*vec4(w,1.0)).xyz; }
         vTW=w; vTN=normalize(nP+nW/max(dot(nW,uW),0.2)-uW); vTD=length((viewMatrix*vec4(w,1.0)).xyz);
         vMd=vec2(length(position.xz)/${R.toFixed(2)},position.y); }`);
-    sh.fragmentShader=gndTerrainFrag('varying vec2 vMd;\n'+sh.fragmentShader,EXTRA);
+    sh.fragmentShader=gndTerrainFrag('#define GND_MOUND\nvarying vec2 vMd;\n'+sh.fragmentShader,EXTRA);   // 둔덕은 지층 벼랑 칠을 안 받는다(둔덕 옆면이 가팔라 빗금이 섰다)
   };
   m.customProgramCacheKey=()=>'mound'+kind;
   return m;
