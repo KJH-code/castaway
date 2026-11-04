@@ -54,6 +54,7 @@ function surfList(){
   if(typeof BOATS!=='undefined') for(const b of BOATS) T(b&&b.m);
   if(typeof CAVE_MESH!=='undefined') T(CAVE_MESH);
   if(typeof CRAG!=='undefined') T(CRAG.tiles);
+  if(typeof GEO_LF!=='undefined') T(GEO_LF.meshes);
   if(typeof FOAM!=='undefined') T(FOAM);
   if(typeof FLORA!=='undefined') T(FLORA);
   if(typeof GIANT!=='undefined') T(GIANT);

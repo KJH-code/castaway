@@ -763,7 +763,7 @@ async function placeResources(seed){    // async — 긴 고리 사이 숨을 �
     // 점토: 하천 범람원의 세립 퇴적 — 저지·완경사·하천 근접
     clay:i=> ((h[i]<HI*0.35 && s[i]<0.26 && F.dRiver[i]<20)?1:0) + (b[i]===B.MARSH?0.6:0),
     // 모래: 해빈과 사구. 파도와 바람이 골라 쌓아 둔 규사다
-    sand:i=> (b[i]===B.BEACH?1:0) + (b[i]===B.DUNE?0.85:0),
+    sand:i=> P.sm?((b[i]===B.BEACH?0.30:0)+(b[i]===B.DUNE?0.55:0))*smoothstep(0.35,0.7,SHP.vn3(i%N*0.09,((i/N)|0)*0.09,1.7,0x5a2d)):(b[i]===B.BEACH?1:0) + (b[i]===B.DUNE?0.85:0),   // 매끈한 땅(P.sm) — 모래 둔덕은 드문드문 무리 지어(2026-11-04 사용자 지적: 고르게 촘촘하다)
     reed:i=> (b[i]===B.MARSH?1:0) + (F.dRiver[i]<6&&h[i]>0?0.6:0),
     // 풀숲: 초원이 본진, 활엽수림 임상 하층과 습지 가장자리까지. 암반·해빈에는 안 남
     grass:i=> b[i]===B.MEADOW?1 : (b[i]===B.BROADLEAF?0.55 : b[i]===B.BAMBOO?0.12 :
@@ -861,6 +861,7 @@ async function placeResources(seed){    // async — 긴 고리 사이 숨을 �
       for(let x=2;x<N-2 && placed<cap;x++){
         const i=IDX(x,z);
         if(h[i]<=0.3) continue;
+        if(P.sm&&(isTree||R.k==='grass'||R.k==='reed')&&s[i]>(isTree?0.5:0.65)) continue;   // 매끈한 땅 — 벼랑엔 나무 · 풀포기가 안 난다(2026-11-04 사용자 지적: 풀이 벼랑에 섞인다)
         const p=Math.min(1,fn(i))*R.d*DSCALE*TVM*GS;
         if(WS===1){
           if(p<=0 || rnd()>p) continue;
@@ -1099,7 +1100,7 @@ function reliefMask(){
     if(W[i-1]===2||W[i+1]===2||W[i-N]===2||W[i+N]===2||W[i-N-1]===2||W[i-N+1]===2||W[i+N-1]===2||W[i+N+1]===2) W[i]=1; }
   for(let z=2;z<N-2;z++) for(let x=2;x<N-2;x++){ const i=z*N+x; if(W[i]) continue;
     const near=W[i-1]===1||W[i+1]===1||W[i-N]===1||W[i+N]===1;
-    M[i]=Math.round(255*(near?0.5:1)*smoothstep(0.6,2.6,h[i])); }
+    M[i]=Math.round(255*(near?0.5:1)*smoothstep(0.6,2.6,h[i])*(P.sm?1-0.85*smoothstep(0.25,0.8,F.slope[i]):1)); }   // 매끈한 땅 — 비탈 · 벼랑엔 잔 기복이 거의 없다(울퉁불퉁한 땅 — 사용자 지적 2026-11-04)
   { const G=RELIEF.G||(RELIEF.G=new Uint8Array(N*N)), T=new Uint8Array(N*N);                // 거칠기 — 바이옴 + 비탈, 한 번 흐린다
     for(let i=0;i<N*N;i++) T[i]=Math.min(255,RELIEF_GRAIN[F.biome[i]]+Math.max(0,F.slope[i]-0.3)*190);
     G.set(T); for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=z*N+x; G[i]=(T[i]*4+T[i-1]+T[i+1]+T[i-N]+T[i+N])>>3; } }
