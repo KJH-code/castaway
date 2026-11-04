@@ -493,11 +493,28 @@ float snoise(vec2 v){
        (0.74~0.89 R) 높이가 본 땅의 세모 면으로 옮겨 가(0.89~0.985 R) 이음매에서 두 면이 만난다.
      · 그림자도 같아야 한다 — 깊이·거리 재질에 같은 정점 식과 같은 버림을 넣는다(`terrDepthMat`).
    조각 셰이더는 본 땅과 같다(바이옴·사진 결·화소 빛). 사진 결을 못 쓰는 장치(WebGL1)에서는 덧판을 끈다(`uPR` 0) */
-const TPATCH={m:null, R:58, S:0.75, G:160, on:true};
+/* **매끈한 땅(P.sm)이면 덧판이 258 m 까지 넓다**(사용자 지적 2026-11-04 — 피라미드 언덕 · 톱니 벼랑 · 다각형 물가). 15 m 세모 면 대신 매끈한 면을
+   그리려면 정점이 촘촘해야 해서, 판의 정점을 고르지 않게 둔다(`patchLattice`): 가운데 54 m 까지 0.75 m · 78 m 까지 1.5 m · 126 m 까지 3 m · 그 밖 6 m.
+   판은 가장 굵은 눈금(6 m)에 끊어 옮기므로(`uPL`) 어느 띠의 정점도 늘 제 눈금의 세계 자리에 선다 — 걸어도 땅이 일렁이지 않는다. 원(버리기 · 가장자리
+   섞기)의 가운데는 예전처럼 0.75 m 에 끊은 `uPC` 다. 잔 기복은 43~52 m 에서 잦아든다(예전과 같은 거리). 판이 넓은 만큼 본 땅의 LOD 도 그 안은 촘촘하게 둔다 */
+const TPATCH={m:null, R:58, S:0.75, G:160, on:true, RS:258, snap:0.75, built:0};
 TERR_U.uPC={value:new THREE.Vector2(1e9,1e9)}; TERR_U.uPR={value:0}; TERR_U.uTri={value:0};   // uTri 1: 바탕이 세모 면(지형 판 3 — heightAt 과 같다)
-const TPATCH_GLSL=()=>`uniform sampler2D uElev; uniform vec2 uGrid; uniform sampler2D uTL; uniform sampler2D uRel; uniform vec2 uPC; uniform float uPR; uniform float uTri;
+TERR_U.uPL={value:new THREE.Vector2(1e9,1e9)}; TERR_U.uSm={value:0};                            // uPL 판 격자의 가운데 · uSm 1: 매끈한 땅(P.sm — heightAt 과 같다)
+const TPATCH_GLSL=()=>`uniform sampler2D uElev; uniform vec2 uGrid; uniform sampler2D uTL; uniform sampler2D uRel; uniform vec2 uPC; uniform float uPR; uniform float uTri; uniform vec2 uPL; uniform float uSm;
 vec3 patchPos; vec3 patchNor;
 float pE(ivec2 g){ vec4 t=texelFetch(uElev,clamp(g,ivec2(0),ivec2(int(uGrid.x)-1)),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*1200.0-100.0; }
+/* 매끈한 면(10-worldgen.js hSmooth 와 같은 식) — (높이, ∂h/∂gx, ∂h/∂gz). 네 꼭짓점 범위 밖으로 넘치면 잘라 평평하게(기울기 0) */
+float cr4(float a,float b,float c,float d,float t){ return b+0.5*t*(c-a+t*(2.0*a-5.0*b+4.0*c-d+t*(3.0*(b-c)+d-a))); }
+float cr4d(float a,float b,float c,float d,float t){ return 0.5*(c-a+t*(2.0*(2.0*a-5.0*b+4.0*c-d)+t*3.0*(3.0*(b-c)+d-a))); }
+vec3 pS(ivec2 i, vec2 f){
+  float r[4]; float rd[4]; float h00=0.0, h10=0.0, h01=0.0, h11=0.0;
+  for(int k=0;k<4;k++){ int zz=i.y-1+k; float a=pE(ivec2(i.x-1,zz)), b=pE(ivec2(i.x,zz)), c=pE(ivec2(i.x+1,zz)), d=pE(ivec2(i.x+2,zz));
+    r[k]=cr4(a,b,c,d,f.x); rd[k]=cr4d(a,b,c,d,f.x);
+    if(k==1){ h00=b; h10=c; } if(k==2){ h01=b; h11=c; } }
+  float H=cr4(r[0],r[1],r[2],r[3],f.y), lo=min(min(h00,h10),min(h01,h11)), hi=max(max(h00,h10),max(h01,h11));
+  vec2 dg=vec2(cr4(rd[0],rd[1],rd[2],rd[3],f.y),cr4d(r[0],r[1],r[2],r[3],f.y));
+  if(H<lo||H>hi){ H=clamp(H,lo,hi); dg=vec2(0.0); }
+  return vec3(H,dg); }
 float pB(vec2 g){ g=clamp(g,vec2(0.0),vec2(uGrid.x-1.001)); ivec2 i=ivec2(floor(g)); vec2 f=g-vec2(i);
   return mix(mix(pE(i),pE(i+ivec2(1,0)),f.x),mix(pE(i+ivec2(0,1)),pE(i+ivec2(1,1)),f.x),f.y); }
 void patchCalc(vec3 pos){
@@ -506,6 +523,7 @@ void patchCalc(vec3 pos){
   float h00=pE(i), h10=pE(i+ivec2(1,0)), h01=pE(i+ivec2(0,1)), h11=pE(i+ivec2(1,1));
   float ht=(f.x+f.y<=1.0)?h00+(h10-h00)*f.x+(h01-h00)*f.y:h11+(h01-h11)*(1.0-f.x)+(h10-h11)*(1.0-f.y);   // 본 땅의 세모 면(빗금은 10–01)
   float hb=mix(mix(mix(h00,h10,f.x),mix(h01,h11,f.x),f.y),ht,uTri);                              // heightAt 의 면 — 판 1·2 는 쌍선형, 판 3 은 세모 면
+  vec3 sm=vec3(0.0); if(uSm>0.5){ sm=pS(i,f); hb=sm.x; }                                            // 매끈한 땅(P.sm)
   float d=length(pos.xz);
   float m=textureLod(uTL,(g+0.5)/uGrid.x,0.0).a;
   ivec2 gm=ivec2(int(uGrid.x)-1);                                                                 // 땅의 거칠기(표고 텍스처의 B) — 프랙털의 비
@@ -513,10 +531,12 @@ void patchCalc(vec3 pos){
                mix(texelFetch(uElev,clamp(i+ivec2(0,1),ivec2(0),gm),0).b,texelFetch(uElev,clamp(i+ivec2(1,1),ivec2(0),gm),0).b,f.x),f.y);
   float fr=0.20+0.55*gr;
   float rel=((textureLod(uRel,(mat2(0.8253,-0.5646,0.5646,0.8253)*w+vec2(17.0,3.0))/31.0,0.0).r-0.5)
-            +fr*0.5*(textureLod(uRel,(mat2(-0.3233,-0.9463,0.9463,-0.3233)*w+vec2(5.0,41.0))/7.5,0.0).r-0.5))*${RELIEF.amp.toFixed(3)}*m*(1.0-smoothstep(uPR*0.74,uPR*0.89,d));
-  patchPos=vec3(w.x,mix(hb+rel,ht,smoothstep(uPR*0.89,uPR*0.985,d)),w.y);
+            +fr*0.5*(textureLod(uRel,(mat2(-0.3233,-0.9463,0.9463,-0.3233)*w+vec2(5.0,41.0))/7.5,0.0).r-0.5))*${RELIEF.amp.toFixed(3)}*m*(1.0-smoothstep(42.9,51.6,d));        // 잔 기복은 43~52 m 에서 잦아든다(예전 덧판 58 m 의 0.74~0.89 그대로)
+  float ed=smoothstep(uPR*0.89,uPR*0.985,d);
+  patchPos=vec3(w.x,mix(hb+rel,ht,ed),w.y);
   float sw=uGrid.y>=7.5?1.0:2.0;                                                                  // 본 땅의 정점 법선과 같은 폭(buildChunks)
   patchNor=normalize(vec3(-(pB(g+vec2(sw,0.0))-pB(g-vec2(sw,0.0))),2.0*sw*uGrid.y,-(pB(g+vec2(0.0,sw))-pB(g-vec2(0.0,sw)))));
+  if(uSm>0.5) patchNor=normalize(mix(normalize(vec3(-sm.y,uGrid.y,-sm.z)),patchNor,ed));          // 매끈한 면의 법선 — 가장자리에서 본 땅의 정점 법선으로
 }
 `;
 const TERR_HOLE=(sh,v,patch)=>sh.replace(/void main\s*\(\)\s*\{/,'uniform vec2 uPC; uniform float uPR;\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;');
@@ -526,8 +546,9 @@ function terrDepthMat(dist,patch){
   m.onBeforeCompile=sh=>{
     sh.uniforms.uPC=TERR_U.uPC; sh.uniforms.uPR=TERR_U.uPR;
     if(patch){ sh.uniforms.uElev=WATER_U.uElev; sh.uniforms.uGrid=WATER_U.uGrid; sh.uniforms.uTL=TERR_U.uTL; sh.uniforms.uRel=TERR_U.uRel; sh.uniforms.uTri=TERR_U.uTri;
+      sh.uniforms.uPL=TERR_U.uPL; sh.uniforms.uSm=TERR_U.uSm;
       sh.vertexShader='varying vec2 vHXZ;\n'+TPATCH_GLSL().replace('uniform vec2 uPC; uniform float uPR;','uniform vec2 uPC; uniform float uPR;')
-        +sh.vertexShader.replace('#include <begin_vertex>','patchCalc(position);\nvec3 transformed=patchPos;\nvHXZ=transformed.xz;'); }
+        +sh.vertexShader.replace('#include <begin_vertex>','patchCalc(position+vec3(uPL.x-uPC.x,0.0,uPL.y-uPC.y));\nvec3 transformed=patchPos;\nvHXZ=transformed.xz;'); }
     else sh.vertexShader='varying vec2 vHXZ;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvHXZ=(modelMatrix*vec4(transformed,1.0)).xz;');
     sh.fragmentShader='varying vec2 vHXZ;\n'+TERR_HOLE(sh.fragmentShader,'vHXZ',patch);
   };
@@ -536,13 +557,27 @@ function terrDepthMat(dist,patch){
 }
 let TERR_SHADOW=null;                   // 본 땅의 깊이·거리 재질(묶음이 다 같이 쓴다)
 /* 덧판 메시 — 한 번 만들어 둔다(정점은 가운데에서의 자리만 가진다. 높이는 셰이더가 준다) */
-function terrainPatch(){
-  if(TPATCH.m) return;
-  const G=TPATCH.G, S=TPATCH.S, nv=G+1, P=new Float32Array(nv*nv*3), I=new Uint16Array(G*G*6);
-  for(let j=0;j<nv;j++) for(let i=0;i<nv;i++){ const o=(j*nv+i)*3; P[o]=(i-G/2)*S; P[o+2]=(j-G/2)*S; }
+/* 판 정점의 한 축 자리 — 가운데에서 바깥으로 0.75 · 1.5 · 3 · 6 m 띠(띠의 끝은 모두 6 m 의 배수라 어느 띠든 제 눈금이 세계 격자에 맞는다).
+   R 을 덮고 남게(판 가운데 uPL 은 원 가운데 uPC 에서 눈금 반 + 0.4 m 까지 떨어진다). 가장 굵게 쓴 눈금을 돌려준다(판을 그만큼씩 옮긴다) */
+function patchLattice(R){
+  const bands=[[54,0.75],[78,1.5],[126,3],[1e9,6]], ext=R+3.4, o=[0];
+  let x=0, snap=0.75;
+  for(const [end,st] of bands){ while(x<end-1e-6&&x<ext){ x+=st; o.push(x); snap=st; } if(x>=ext) break; }
+  const ax=o.slice(1).reverse().map(v=>-v).concat(o);
+  return {ax, snap};
+}
+function terrainPatchGeo(R){
+  const L=patchLattice(R), ax=L.ax, nv=ax.length, P=new Float32Array(nv*nv*3), G=nv-1;
+  const I=nv*nv>65535?new Uint32Array(G*G*6):new Uint16Array(G*G*6);
+  for(let j=0;j<nv;j++) for(let i=0;i<nv;i++){ const o=(j*nv+i)*3; P[o]=ax[i]; P[o+2]=ax[j]; }
   let q=0; for(let j=0;j<G;j++) for(let i=0;i<G;i++){ const a=j*nv+i, b=a+1, c=a+nv, d=c+1; I[q++]=a; I[q++]=c; I[q++]=b; I[q++]=b; I[q++]=c; I[q++]=d; }
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(P,3)); g.setIndex(new THREE.BufferAttribute(I,1));
-  const m=new THREE.Mesh(g,terrainMat(true)); m.frustumCulled=false; m.matrixAutoUpdate=false; m.updateMatrix(); m.visible=false;
+  TPATCH.snap=L.snap; TPATCH.built=R;
+  return g;
+}
+function terrainPatch(){
+  if(TPATCH.m) return;
+  const m=new THREE.Mesh(terrainPatchGeo(TPATCH.R),terrainMat(true)); m.frustumCulled=false; m.matrixAutoUpdate=false; m.updateMatrix(); m.visible=false;
   m.customDepthMaterial=terrDepthMat(false,true); m.customDistanceMaterial=terrDepthMat(true,true);
   scene.add(m); TPATCH.m=m;
 }
@@ -550,8 +585,12 @@ function terrainPatch(){
 function updateTerrainPatch(){
   const T=TPATCH; if(!T.m) return;
   const on=T.on&&GND_OK();
+  const R=TERR_U.uSm.value>0.5?T.RS:58;                 // 매끈한 땅이면 넓은 판
+  if(R!==T.R||T.built!==R){ T.R=R; const g=terrainPatchGeo(R); T.m.geometry.dispose(); T.m.geometry=g; }
   T.m.visible=on; TERR_U.uPR.value=on?T.R:0;
-  if(on) TERR_U.uPC.value.set(Math.round(camera.position.x/T.S)*T.S,Math.round(camera.position.z/T.S)*T.S);
+  if(on){ const cx=camera.position.x, cz=camera.position.z, k=T.snap;
+    TERR_U.uPC.value.set(Math.round(cx/T.S)*T.S,Math.round(cz/T.S)*T.S);
+    TERR_U.uPL.value.set(Math.round(cx/k)*k,Math.round(cz/k)*k); }
 }
 function terrainMat(patch){
   const m=new THREE.MeshLambertMaterial({vertexColors:!patch});
@@ -559,7 +598,7 @@ function terrainMat(patch){
     Object.assign(sh.uniforms,TERR_U);
     if(patch){ sh.uniforms.uElev=WATER_U.uElev; sh.uniforms.uGrid=WATER_U.uGrid;
       sh.vertexShader='varying vec3 vTW;\nvarying vec3 vTN;\nvarying float vTD;\n'+TPATCH_GLSL()
-        +sh.vertexShader.replace('#include <beginnormal_vertex>','patchCalc(position);\nvec3 objectNormal=patchNor;')
+        +sh.vertexShader.replace('#include <beginnormal_vertex>','patchCalc(position+vec3(uPL.x-uPC.x,0.0,uPL.y-uPC.y));\nvec3 objectNormal=patchNor;')
           .replace('#include <begin_vertex>','vec3 transformed=patchPos;\nvTW=transformed;\nvTN=patchNor;\nvTD=length((modelViewMatrix*vec4(transformed,1.0)).xyz);'); }
     else
     sh.vertexShader='varying vec3 vTW;\nvarying vec3 vTN;\nvarying float vTD;\n'+sh.vertexShader.replace('#include <begin_vertex>',
@@ -1134,10 +1173,11 @@ function updateTerrainLOD(){
   if(cp.x===_tlX&&cp.y===_tlY&&cp.z===_tlZ&&K===_tlK) return;
   _tlX=cp.x; _tlY=cp.y; _tlZ=cp.z; _tlK=K;
   TERR_STAT.fill(0);
+  const near=Math.max(TERR_LOD_NEAR,TERR_U.uPR.value+15);   // 덧판 안은 늘 촘촘하게 — 덧판 가장자리가 본 땅의 세모 면(LOD 1)에 이어진다
   for(const c of chunks){
     const bs=c.bs, d=Math.max(1,cp.distanceTo(bs.center)-bs.radius), E=c.lodErr;
     let lv=0;
-    if(d>TERR_LOD_NEAR) for(let k=E.length-1;k>0;k--) if(E[k]*K/d<TERR_LOD_PX){ lv=k; break; }
+    if(d>near) for(let k=E.length-1;k>0;k--) if(E[k]*K/d<TERR_LOD_PX){ lv=k; break; }
     if(lv!==c.lod){ c.lod=lv; c.blk.dirty=true; }
     TERR_STAT[lv]++;
   }
@@ -1176,6 +1216,7 @@ function waterMat(river){
     Object.assign(sh.uniforms,WATER_U);
     sh.uniforms.uWT=WATER_U.uTime;   // envPatch 가 제 uTime(바람 시계)을 따로 선언하므로 이름을 가른다
     sh.uniforms.uRiver={value:river?1:0};
+    sh.uniforms.uSm=TERR_U.uSm; sh.uniforms.uTri=TERR_U.uTri; sh.uniforms.uPC=TERR_U.uPC; sh.uniforms.uPR=TERR_U.uPR;   // 바닥을 그려진 땅으로 잰다(bedAt)
     const WAVES=`
     const float G=9.81;
     // (방향 각, 파장 m, 진폭 m) — 굵은 셋은 정점, 잔 다섯은 법선만
@@ -1210,6 +1251,7 @@ uniform vec3 uAmb;
 uniform vec3 uSkyZ;
 uniform vec3 uSkyH;
 uniform sampler2D uElev;
+uniform float uSm; uniform float uTri; uniform vec2 uPC; uniform float uPR;
 uniform sampler2D uBedB;
 uniform sampler2D uNz;
 uniform vec2 uGrid;
@@ -1223,6 +1265,20 @@ float elev1(vec2 g){ vec4 t=texture2D(uElev,(g+0.5)/uGrid.x); return (t.r*255.0*
 // 16비트를 나눠 담았으니 텍스처 보간은 못 쓴다 — 네 점을 직접 섞는다
 float elevAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
   return mix(mix(elev1(i),elev1(i+vec2(1,0)),f.x),mix(elev1(i+vec2(0,1)),elev1(i+vec2(1,1)),f.x),f.y); }
+/* **물 밑 바닥 = 그려진 땅**(2026-11-04 — 물가의 거품 띠 · 얕은 물이 땅과 따로 놀았다): 덧판 안(uPR)이고 매끈한 땅(uSm)이면 덧판과 같은
+   캣멀-롬 면(10-worldgen.js hSmooth), 그 밖은 본 땅의 세모 면(uTri) · 옛 섬은 쌍선형. 그래서 알파 · 거품이 실제로 물과 땅이 만나는 금을 따른다 */
+float wcr(float a,float b,float c,float d,float t){ return b+0.5*t*(c-a+t*(2.0*a-5.0*b+4.0*c-d+t*(3.0*(b-c)+d-a))); }
+float wE(vec2 g){ return elev1(clamp(g,vec2(0.0),vec2(uGrid.x-1.0))); }
+float bedAt(vec2 xz){ vec2 g=clamp(xz/uGrid.y+uGrid.x*0.5,vec2(0.0),vec2(uGrid.x-1.001)); vec2 i=floor(g), f=g-i;
+  float h00=wE(i), h10=wE(i+vec2(1,0)), h01=wE(i+vec2(0,1)), h11=wE(i+vec2(1,1));
+  if(uSm>0.5&&distance(xz,uPC)<uPR){
+    float r0=wcr(wE(i+vec2(-1,-1)),wE(i+vec2(0,-1)),wE(i+vec2(1,-1)),wE(i+vec2(2,-1)),f.x);
+    float r1=wcr(wE(i+vec2(-1,0)),h00,h10,wE(i+vec2(2,0)),f.x);
+    float r2=wcr(wE(i+vec2(-1,1)),h01,h11,wE(i+vec2(2,1)),f.x);
+    float r3=wcr(wE(i+vec2(-1,2)),wE(i+vec2(0,2)),wE(i+vec2(1,2)),wE(i+vec2(2,2)),f.x);
+    return clamp(wcr(r0,r1,r2,r3,f.y),min(min(h00,h10),min(h01,h11)),max(max(h00,h10),max(h01,h11))); }
+  if(uTri>0.5) return (f.x+f.y<=1.0)?h00+(h10-h00)*f.x+(h01-h00)*f.y:h11+(h01-h11)*(1.0-f.x)+(h10-h11)*(1.0-f.y);
+  return mix(mix(h00,h10,f.x),mix(h01,h11,f.x),f.y); }
 // 하구의 흙탕물 띠 — 높이 텍스처의 알파 칸(riverPlume · 섬을 지을 때 잰 몫), 네 점을 손으로 섞는다
 float plm1(vec2 g){ return texture2D(uElev,(g+0.5)/uGrid.x).a; }
 float plumeAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
@@ -1310,7 +1366,7 @@ float plumeAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
          물 밖으로 나올 때(리 등): R↑ = 0.52·R/(1−1.7·R). 들어오는 빛(해+하늘)에 π·R↑ 를 곱한다. */
       vec3 tv=refract(-V,Nw,0.7502); float muV=max(-tv.y,0.08);
       vec3 ts=refract(-uSunDir,vec3(0.0,1.0,0.0),0.7502); float muS=max(-ts.y,0.08);
-      float bed=elevAt(vWW.xz);
+      float bed=bedAt(vWW.xz);
       float d=max(0.0,vWW.y-bed);
       /* **물빛에 쓰는 깊이는 흐린 바닥으로**(사용자 지적 — 얕은 청록 바다가 깊은 남색으로 칼로 자른 듯 · 곧은 금으로 바뀌었다).
          바다 밑이 6배 섬에서 수십 m 안에 3 → 15 m 로 꺼지는 데가 많아, 바닥이 비치는 몫 e^(−K·d) 가 거기서 한꺼번에 사라졌다.
@@ -1564,7 +1620,9 @@ function buildWater(){
   const inner=(x,z)=>{ let n=0; for(let d=0;d<4;d++){ const xx=x-(d&1), zz=z-((d>>1)&1);
     if(xx>=0&&zz>=0&&xx<N&&zz<N&&wet(IDX(xx,zz))) n++; } return n/4; };
   // 둘레 점의 수위 — 가까운(4×4 칸) 물길 칸 수위의 평균
-  const vw2=(x,z)=>{ const v=vw(x,z); if(v!==null) return v; let sm=0,n=0;
+  /* **물길이 아닌 격자점은 늘 땅 밑으로 묻는다**(2026-11-04 사용자 사진 — 둑에 짙은 물 판이 비스듬히 떠 검은 쐐기 · 네모가 섰다). 예전엔 물길 칸에
+     닿은 둑의 격자점이 그 물길의 수위를 그대로 받아, 둑이 수위보다 낮은 데(비탈을 비껴 흐르는 물길 · 폭포 밑)에서 판이 땅 위로 2~4 m 떴다 */
+  const vw2=(x,z)=>{ const v=vw(x,z); if(v!==null){ const i=IDX(x,z); return wet(i)?v:Math.min(v,F.elev[i]-0.05); } let sm=0,n=0;
     for(let zz=z-2;zz<=z+1;zz++) for(let xx=x-2;xx<=x+1;xx++){
       if(xx<0||zz<0||xx>=N||zz>=N) continue; const j=IDX(xx,zz); if(wet(j)){ sm+=RL[j]; n++; } }
     /* 둘레 점은 **그 자리 땅 밑으로 한 뼘 묻는다** — 낮은 둑에선 판이 땅 위로 떠서 칸 모양대로 곧게 끊겼다(물가가 네모났다).

@@ -342,9 +342,11 @@ function rng(id,key,vid,fmt,after){
   const u=()=>{ P[key]=parseFloat(el.value); v.textContent=fmt(P[key]); if(after) after(); };
   el.addEventListener('input',u); u();
 }
-rng('pWs','ws','vWs',x=>['','1.9 km','3.8 km','5.8 km','7.7 km','9.6 km','11.5 km'][x]||'');
+rng('pWs','ws','vWs',x=>(1.92*x).toFixed(1)+' km');
 /* 주소에 ?ws=배율(1~6)을 주면 첫 섬을 그 넓이로 만든다 — 구동 검사(tools/pages.mjs)가 작은 섬으로 돌린다(헤드리스에서 6배 섬은 너무 오래 걸린다) */
-try{ const w=parseInt(new URLSearchParams(location.search).get('ws'),10), el=document.getElementById('pWs'); if(w>=1&&w<=6&&el){ el.value=w; el.dispatchEvent(new Event('input')); } }catch(e){}   // 섬 배율 — 새 섬부터(00-core.js)
+try{ const w=parseFloat(new URLSearchParams(location.search).get('ws')), el=document.getElementById('pWs'); if(w>=1&&w<=6&&el){ el.value=w; el.dispatchEvent(new Event('input')); } }catch(e){}   // 섬 배율 — 새 섬부터(00-core.js)
+/* 주소에 ?seed=시드를 주면 첫 섬을 그 시드로 — 사용자가 본 섬을 그대로 다시 짓는다(검사 · 버그 재현) */
+try{ const v=new URLSearchParams(location.search).get('seed'); if(v){ P.seed=v; const el=document.getElementById('pSeed'); if(el) el.value=v; } }catch(e){}
 /* 주소에 ?tv=지형 판(1~10)을 주면 첫 섬의 P.tv 를 그 값으로 — 새 판(10: 굴 — 31-cave10.js)을 기본으로 올리기 전에 시험한다. 새 섬(R · 새로 시작)은 늘 기본 판 */
 try{ const v=parseInt(new URLSearchParams(location.search).get('tv'),10); if(v>=1&&v<=10) P.tv=v; }catch(e){}
 rng('pSize','size','vSize',x=>x.toFixed(2));
@@ -447,7 +449,7 @@ document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.val
     move('pRes',p.res,1); move('pFar',p.far,1); move('pShadow',p.shadow,1); move('pLimb',p.limb,1); move('pCam',p.cam,1); move('pNoise',p.noise,1);
     toast('그래픽 프리셋 — '+p.n+(landed?' (가지 밀도는 새 섬부터)':'')); });
   isle.addEventListener('change',()=>{ const p=ISLAND_PRESETS.find(q=>q.id===isle.value); if(!p) return;
-    move('pWs',p.ws||6); move('pSize',p.size); move('pRidge',p.ridge); move('pEro',p.ero); move('pSea',p.sea); move('pRain',p.rain);
+    move('pWs',p.ws||4.25); move('pSize',p.size); move('pRidge',p.ridge); move('pEro',p.ero); move('pSea',p.sea); move('pRain',p.rain);
     toast('섬 프리셋 — '+p.n+" · '새 섬' 을 누르면 이 모양으로 만든다"); });
   for(const id of ['pRes','pFar','pShadow','pLimb','pCam','pNoise']) document.getElementById(id).addEventListener('change',e=>{ if(e.isTrusted) gfx.value=''; });
   for(const id of ['pWs','pSize','pRidge','pEro','pSea','pRain']) document.getElementById(id).addEventListener('input',e=>{ if(e.isTrusted) isle.value=''; });

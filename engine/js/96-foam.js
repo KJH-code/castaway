@@ -193,6 +193,7 @@ function foamScanJS(px,pz,R,step,level,out,maxOut){
 function foamSync(){
   FOAM.synced=false;
   if(!NATIVE.ok||!NATIVE.x.cw_shore||N>768) return;
+  if(P.sm) return;                                   // 매끈한 땅(P.sm)은 C 판의 땅 면과 다르다 — 자바스크립트 판(heightAt)으로 찾는다
   const X=NATIVE.x;
   new Float32Array(X.memory.buffer,X.cw_elev(),N*N).set(F.elev);
   new Uint8Array(X.memory.buffer,X.cw_river(),N*N).set(F.river);
