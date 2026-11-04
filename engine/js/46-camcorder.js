@@ -127,29 +127,56 @@ function camcInit(){
            · 들어갈 때(uDive 1 → 0 · 0.9초): 렌즈가 크게 일렁이고 하얀 물거품이 번쩍 · 거품 방울이 위로 오른다(아래 색 단계)
            · 나올 때(uWet 1 → 0 · 3.2초): 처음엔 물막이 통째로 흘러내리고(물결 굴절) · 렌즈에 맺힌 물방울(작은 것 · 큰 것)이 뒤의 그림을
              거꾸로 비추고(볼록렌즈 굴절) 테가 어둡다 · 큰 방울 몇은 줄을 남기며 흘러내린다 · 방울은 하나씩 마르며 사라진다 */
-        float wDk=0.0, wHi=0.0; vec2 uvW=uv;
+        float wDk=0.0, wHi=0.0, wBl=0.0; vec2 uvW=uv;
         if(uDive>0.001) uv+=vec2(sin(uv.y*38.0+uT*21.0),cos(uv.x*31.0-uT*17.0))*0.016*uDive*uDive;
         if(uWet>0.001){
           vec2 q=vec2(uv.x*uAsp,uv.y);
           float film=smoothstep(0.70,1.0,uWet), fy=1.0-(1.0-uWet)/0.30;            // 물막 — 위에서 아래로 쓸려 내려간다
           uv+=vec2(sin(q.y*26.0+q.x*5.0+uT*7.0),cos(q.x*19.0-uT*6.0))*0.010*film*smoothstep(fy-0.25,fy,q.y);
-          for(int L=0;L<2;L++){                                                    // 맺힌 방울 — 두 겹(잘고 많은 것 · 크고 드문 것)
-            float cs=L==0?0.045:0.095; vec2 g=q/cs, id=floor(g), f=fract(g)-0.5;
-            float live=h21(id+vec2(9.1,float(L)*7.0));
-            if(live<uWet*(L==0?0.55:0.50)){
-              vec2 c=(vec2(h21(id+vec2(1.3,float(L))),h21(id+vec2(4.7,float(L))))-0.5)*0.55;
-              float rr=(L==0?0.16:0.22)+0.16*h21(id+vec2(2.2,float(L)*3.0));
-              rr*=0.55+0.45*smoothstep(live,live+0.25,uWet);                      // 마르며 작아진다
-              vec2 e=(f-c)/vec2(1.0,1.15); float d=length(e);
-              if(d<rr){ vec2 nn=e/rr; float z=sqrt(max(0.0,1.0-dot(nn,nn)));
-                uv-=nn*(1.0-z*0.6)*rr*cs*1.6/vec2(uAsp,1.0);                       // 볼록렌즈 — 둘레가 크게 꺾인다
-                wDk+=smoothstep(rr*0.70,rr,d)*0.35; wHi+=pow(max(0.0,dot(nn,vec2(-0.6,0.75))),6.0)*z*0.5; } } }
-          /* 흘러내리는 큰 방울 — 세로 칸마다 하나 · 지나간 자리에 가는 물줄기 */
-          { float cw=0.07, col_=floor(q.x/cw), fx=fract(q.x/cw)-0.5, r1=h21(vec2(col_,3.3)), r2=h21(vec2(col_,8.8));
-            if(r1<0.45){ float y0=0.55+0.5*r2, dy=y0-(1.0-uWet)*(0.6+1.4*r1), wob=0.12*sin(q.y*40.0+r2*9.0);
-              float dd=length(vec2((fx-wob*0.3)/0.30,(q.y-dy)/(cw*0.55))), trail=(1.0-smoothstep(0.05,0.13,abs(fx-wob*0.3)))*step(dy,q.y)*step(q.y,y0)*0.6;
-              if(dd<1.0){ uv.y+=(1.0-dd)*0.035; wDk+=smoothstep(0.7,1.0,dd)*0.3; wHi+=(1.0-dd)*0.25; }
-              uv.x+=trail*0.004*sin(q.y*90.0); wDk+=trail*0.05; } }
+          /* **들러붙은 물막**(2026-11-04 사용자 지적 — 방울이 다 동그랗다 · 렌즈가 젖어 보여야 한다): 방울 사이에 얇은 물이 얼룩으로 남아
+             그 자리는 그림이 조금 흐리고 일렁인다(낮은 잡음의 얼룩 · 마르며 줄어든다) */
+          { vec2 fq=q*3.2; float fm=h21(floor(fq))*0.5+h21(floor(fq*2.3)+7.0)*0.3+h21(floor(fq*5.1)+3.0)*0.2;
+            float film2=smoothstep(0.52,0.78,fm)*uWet*0.9;
+            uv+=vec2(sin(q.y*61.0+fm*9.0),cos(q.x*53.0-fm*7.0))*0.0035*film2; wDk+=film2*0.04; wBl+=film2*0.6; }
+          /* **맺힌 방울**(2026-11-05 사용자 지적 — 방울이 동그란 테 두른 타원으로 보인다 · 들쭉날쭉해야 한다):
+             렌즈 겉에 붙은 물은 초점 밖이라 테가 또렷하지 않다 — 뒤의 그림을 흐리게 일그러뜨리는 물렁한 얼룩이고, 가까운 방울끼리 이어 붙는다.
+             칸마다 방울 하나 + 옆에 붙은 작은 방울 하나(아래쪽으로 처질 때가 많다)의 메타볼 장(r²/d² 의 합)이 1 을 넘는 데가 물이다.
+             장의 기울기가 면의 기울기 — 가장자리일수록 크게 꺾고(볼록렌즈) · 안은 흐리게(wBl) · 해 쪽에 작은 반짝임. 테를 검게 긋지 않는다.
+             칸 경계를 건너 이어지게 가까운 칸 넷(2×2)을 같이 센다 */
+          for(int L=0;L<3;L++){
+            float cs=L==0?0.030:L==1?0.058:0.115; vec2 g=q/cs, gi=floor(g-0.5);
+            float fs=0.0; vec2 gs=vec2(0.0);
+            for(int k=0;k<4;k++){ vec2 id=gi+vec2(float(k-(k/2)*2),float(k/2)), f=g-id-0.5;
+              float live=h21(id+vec2(9.1,float(L)*7.0));
+              if(live<uWet*(L==0?0.60:L==1?0.45:0.36)){
+                vec2 c=(vec2(h21(id+vec2(1.3,float(L))),h21(id+vec2(4.7,float(L))))-0.5)*0.55;
+                float rr=(L==0?0.16:L==1?0.19:0.22)+0.16*h21(id+vec2(2.2,float(L)*3.0));
+                rr*=0.55+0.45*smoothstep(live,live+0.25,uWet);                      // 마르며 작아진다
+                float s1=h21(id+vec2(5.5,float(L))), s2=h21(id+vec2(6.6,float(L))), s3=h21(id+vec2(8.4,float(L)));
+                vec2 e=f-c; float an=atan(e.y,e.x);
+                float R=rr*(1.0+0.16*sin(an*2.0+s1*6.28)+0.10*sin(an*3.0+s2*6.28)+0.06*sin(an*5.0+s3*6.28));   // 접촉선이 들쭉날쭉
+                float d2=dot(e,e)+1e-4; fs+=R*R/d2; gs+=-2.0*R*R*e/(d2*d2);
+                vec2 sat=c+vec2(cos(s2*6.28)*0.6,-0.35-0.5*s3)*rr; float r2=rr*(0.45+0.3*s1);   // 붙은 작은 방울(대개 아래로 처진다)
+                vec2 e2=f-sat; float q2=dot(e2,e2)+1e-4; fs+=r2*r2/q2; gs+=-2.0*r2*r2*e2/(q2*q2); } }
+            if(fs>0.80){ float m=smoothstep(0.80,1.30,fs), gl=length(gs)+1e-4; vec2 inw=gs/gl;     // inw = 방울 가운데 쪽
+              float edge=1.0-smoothstep(1.0,3.2,fs);
+              uv+=inw*edge*m*cs*0.45/vec2(uAsp,1.0);                               // 가장자리가 크게 꺾인다 — 테를 긋지 않아도 방울로 읽힌다
+              wBl+=m*(0.55+0.45*edge);                                              // 초점 밖 — 안의 그림이 흐리다
+              wDk+=m*edge*0.035*(0.5+0.5*smoothstep(-0.3,0.6,inw.y));              // 가장자리 아래쪽만 아주 조금 짙게
+              wHi+=m*pow(max(0.0,dot(-inw,vec2(-0.5,0.85))),6.0)*smoothstep(1.3,2.2,fs)*0.30; } }
+          /* 흘러내리는 큰 방울 — 세로 칸마다 하나 · 지나간 자리에 가는 물줄기(2026-11-05 — 예전엔 물기가 그대로면(비) 방울이 한자리에 멈춰
+             테 두른 달걀꼴로 보였다): 시각으로 계속 흘러내리고(칸마다 빠르기 · 출발이 다르다) · 머리는 아래가 불룩한 들쭉날쭉한 덩이 · 테 없이 흐림과 꺾임으로만 */
+          { float cw=0.07, col_=floor(q.x/cw), fx=(fract(q.x/cw)-0.5)*cw, r1=h21(vec2(col_,3.3)), r2=h21(vec2(col_,8.8)), r3=h21(vec2(col_,5.1));
+            float ph=fract(uT*(0.05+0.09*r3)+r2), cyc=floor(uT*(0.05+0.09*r3)+r2);
+            if(h21(vec2(col_,cyc*1.7+3.0))<0.55*uWet){
+              float y0=1.05-0.25*r1, dy=y0-ph*1.5, wob=0.010*sin(q.y*38.0+r2*9.0)+0.006*sin(q.y*91.0+r1*5.0);
+              float hr=cw*(0.13+0.09*h21(vec2(col_,cyc)));
+              vec2 e=vec2(fx-wob,q.y-dy); e.y*=e.y<0.0?0.80:1.25;                              // 아래가 불룩 · 위는 꼬리로 좁아진다
+              float an=atan(e.y,e.x), R=hr*(1.0+0.14*sin(an*2.0+r1*6.28)+0.09*sin(an*3.0+r2*6.28)+0.05*sin(an*5.0+r3*6.28));
+              float d=length(e), m=1.0-smoothstep(R*0.75,R*1.15,d);
+              if(m>0.0){ vec2 nn=e/max(d,1e-4); uv-=nn*(d/R)*m*hr*0.9/vec2(uAsp,1.0); wBl+=m*0.8; wHi+=m*pow(max(0.0,dot(nn,vec2(-0.5,0.85))),6.0)*smoothstep(0.3,0.8,d/R)*0.28; }
+              float trail=(1.0-smoothstep(hr*0.15,hr*0.45,abs(fx-wob)))*step(dy,q.y)*smoothstep(y0+0.02,y0-0.15,q.y)*smoothstep(dy+0.45,dy,q.y);
+              uv.x+=trail*0.003*sin(q.y*90.0); wBl+=trail*0.35; } }
         }
         if(uvW.x>0.0&&uvW.x<1.0&&uvW.y>0.0&&uvW.y<1.0) uv=clamp(uv,0.002,0.998);   // 물 굴절로 화면 밖을 읽어 테가 검게 일렁이지 않게
         float ln=floor(uv.y*uRes.y);
@@ -170,6 +197,9 @@ function camcInit(){
         float px=1.0/uRes.x, spl=2.4+K*3.0+ck.r*ckOn*4.0+(h21(vec2(fz,29.0))<0.035?3.0*K:0.0)+uHit*9.0*h21(vec2(floor(uT*20.0),2.0));   // 다칠수록 · 맞는 순간엔 색이 크게 갈라진다(여는 화면처럼 가끔 더 벌어진다)
         vec3 a=texture2D(tD,uv).rgb, l=texture2D(tD,uv-vec2(px*spl,0.0)).rgb, r=texture2D(tD,uv+vec2(px*spl,0.0)).rgb;   // 색 번짐 — 사용자 요청으로 1.7 → 2.4 화소
         vec3 col=vec3(l.r*0.55+a.r*0.45, a.g*0.64+0.18*(l.g+r.g), r.b*0.55+a.b*0.45);   // 색 번짐 — 빨강·파랑이 옆으로 어긋난다
+        if(wBl>0.01){ float br=min(wBl,1.0)*5.0; vec2 o1=vec2(px*br,0.0), o2=vec2(0.0,br/uRes.y);   // 젖은 렌즈 — 초점 밖 물 아래는 흐리다
+          vec3 bl=(texture2D(tD,uv+o1+o2).rgb+texture2D(tD,uv-o1+o2).rgb+texture2D(tD,uv+o1-o2).rgb+texture2D(tD,uv-o1-o2).rgb)*0.25;
+          col=mix(col,bl*vec3(0.97,0.99,1.01),min(wBl,1.0)*0.85); }
         if(bOn>0.01){ float bs=(4.5+(mod(fz,29.0)<1.0?1.5:0.0))*gK*bOn, bv=1.5*gK*bOn/uRes.y;      // 금 띠 — 빨강은 왼쪽 아래로 · 파랑은 오른쪽 위로(가끔 더 벌어진다)
           vec3 lb=texture2D(tD,uv+vec2(-bs*px,-bv)).rgb, rb=texture2D(tD,uv+vec2(bs*px,bv)).rgb;
           float bm=0.75*bOn*min(1.0,0.45+0.6*uHurtN);
@@ -180,7 +210,7 @@ function camcInit(){
            이웃 넷의 평균과의 차이를 더해 윤곽을 세우고(언샵 마스크) · 빛깔을 조금 짙게 · 가운데를 S 자로 눌러 대비 · 밝은 데는 한 번 더 밝힌다 */
         { float py=1.0/uRes.y; vec3 nb=(texture2D(tD,uv+vec2(px,0.0)).rgb+texture2D(tD,uv-vec2(px,0.0)).rgb+texture2D(tD,uv+vec2(0.0,py)).rgb+texture2D(tD,uv-vec2(0.0,py)).rgb)*0.25;
           col+=(a-nb)*0.65;
-          float Yg=dot(col,vec3(0.299,0.587,0.114)); col=mix(vec3(Yg),col,1.14);
+          float Yg=dot(col,vec3(0.299,0.587,0.114)); col=mix(vec3(Yg),col,1.02);   // 빛깔은 거의 그대로(2026-11-05 사용자 지적: 너무 알록달록하다 — 예전 1.14)
           vec3 cc=clamp(col,0.0,1.0); col=mix(col,cc*cc*(3.0-2.0*cc)+max(col-1.0,0.0),0.30);
           col+=max(col-0.62,0.0)*0.18; col=max(col,0.0); }
         /* **밝은 데의 어깨** — 그림판이 반정밀 실수(uHdr)면 1 을 넘는 볕(한낮의 흰 바위·모래·물비늘)이 잘리지 않고 들어온다.
@@ -294,8 +324,11 @@ function camcEnd(under){
   { const now=performance.now(), dt=Math.min(0.1,(now-(CAMC.wT||now))/1000); CAMC.wT=now;
     if(CAMC.wasU!==undefined&&under!==CAMC.wasU){ if(under){ CAMC.dive=1; CAMC.wet=0; } else CAMC.wet=1; }
     CAMC.wasU=under;
-    CAMC.dive=Math.max(0,(CAMC.dive||0)-dt/0.9); CAMC.wet=Math.max(0,(CAMC.wet||0)-dt/3.2);
-    U.uDive.value=CAMC.dive; U.uWet.value=CAMC.wet; }
+    CAMC.dive=Math.max(0,(CAMC.dive||0)-dt/0.9); CAMC.wet=Math.max(0,(CAMC.wet||0)-dt/6.5);   // 물방울은 천천히 마른다(3.2 → 6.5초)
+    /* 비가 오면 렌즈가 젖는다(물속 · 땅속은 빼고) — 빗발만큼 방울이 맺힌 채 남는다 */
+    const rainL=(typeof WEA!=='undefined'&&!under&&!(typeof PL!=='undefined'&&PL.under))?Math.min(0.85,(WEA.rain||0)*1.1):0;
+    CAMC.rainL=(CAMC.rainL||0)+(rainL-(CAMC.rainL||0))*Math.min(1,dt*0.4);
+    U.uDive.value=CAMC.dive; U.uWet.value=Math.max(CAMC.wet,CAMC.rainL); }
   U.uT.value=(performance.now()/1000)%1000; U.uBat.value=CAMC.bat/100; U.uUnder.value=CAMC.under;
   U.uIll.value+=((PL.ill>0?clamp(PL.ill/6,0,1):0)-U.uIll.value)*0.06;      // 탈 — 서서히 물들고 서서히 걷힌다
   U.uLow.value=G.low; U.uMoon.value=G.moon; U.uNight.value=G.night; U.uDay.value=clamp(1-G.night*1.2,0,1); U.uGrain.value=CAMC.noise;

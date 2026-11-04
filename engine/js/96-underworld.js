@@ -113,8 +113,12 @@ function underSites(seed){
     if(c.pool){ c.pr=c.R*0.32; const q=underQ(c.x,c.z,true); c.wl=q.f0+0.7; } }
   for(const t of UNDER.tu){ const r=t.w*1.3; t.L=Math.hypot(t.x1-t.x0,t.z1-t.z0)||1; put(t,Math.min(t.x0,t.x1)-r,Math.min(t.z0,t.z1)-r,Math.max(t.x0,t.x1)+r,Math.max(t.z0,t.z1)+r); }
   for(const p of UNDER.pits){ const q=underQ(p.x,p.z,true); p.yf=q.f; p.yc=q.c; }
+  /* 구멍 둘레 5 m 는 치운다(사용자 요청 2026-11-05) — 자원은 자리로 찾으므로(92-save.js findSavedProp) 빼도 저장이 어긋나지 않는다 */
+  if(UNDER.pits.length) PROPS=PROPS.filter(q=>!UNDER.pits.some(p=>(q.x-p.x)*(q.x-p.x)+(q.z-p.z)*(q.z-p.z)<25));
   UNDER.ok=C.length>0;
 }
+/* 그 자리가 수직굴 구멍 둘레(r m 안)인가 — 굴 꾸밈(석순 · 버섯)이 구멍 위에 안 서게(32-caves.js) */
+function underPitNear(x,z,r){ for(const p of UNDER.pits) if((x-p.x)*(x-p.x)+(z-p.z)*(z-p.z)<r*r) return true; return false; }
 /* ── 그 자리의 땅속 — {f 바닥, c 천장, g 빈 높이, w 못의 수면(없으면 −1e9)} ─────────── */
 const _uq={x:NaN,z:NaN,f:0,c:0,g:0,w:-1e9,f0:0};
 function uBase(x,z){ const B=UNDER.B, gx=clamp(x/CELL+N/2,0,N-1.001), gz=clamp(z/CELL+N/2,0,N-1.001), ix=Math.floor(gx), iz=Math.floor(gz), fx=gx-ix, fz=gz-iz, i=iz*N+ix;
@@ -358,21 +362,88 @@ function underBuild(){
   UNDER.pitGrp&&scene.remove(UNDER.pitGrp);
   if(!UNDER.ok) return;
   const pg=new THREE.Group(); UNDER.pitGrp=pg; scene.add(pg);
-  const hole=new THREE.MeshBasicMaterial({color:0x020303}), rope=new THREE.MeshLambertMaterial({color:0x8a6a3a}), wood=new THREE.MeshLambertMaterial({color:0x5a4228});
-  const shaftM=new THREE.MeshLambertMaterial({color:0x4a4640,side:THREE.BackSide});
+  const rope=new THREE.MeshLambertMaterial({color:0x8a6a3a}), wood=new THREE.MeshLambertMaterial({color:0x5a4228});
+  /* **구멍**(2026-11-05 사용자 지적 — 구멍이 아니라 검은 점 같다 · 둘레를 치우고 파낸 흙을 조금 쌓아 흙빛으로 · 구멍 벽은 바위처럼 울퉁불퉁하고 젖게):
+     ① 구멍 판 — 검은 판 대신 **판 아래의 굴뚝을 셰이더가 그린다**(속 비추기 · interior mapping): 눈에서 판을 지나는 선이 굴뚝 벽(반지름이 깊이 · 방위마다
+        울퉁불퉁)에 닿는 데를 풀어, 그 벽을 바위 사진으로 칠한다. 위 1 m 는 흙켜(뿌리 · 자갈) · 그 밑은 그 굴의 바위 · 물이 스며 흘러내린 세로 줄은 짙고
+        번들거린다 · 깊을수록 빛이 줄어 30 m 밑은 캄캄하다 · 벽의 혹은 위쪽(구멍 쪽 빛)이 밝다
+     ② 테 — 파낸 흙을 둘레 1.5~3.8 m 에 둥글게 쌓은 낮은 둔덕(높이 0.3~0.5 m · 안쪽 끝은 판보다 조금 낮게 내려 이음매를 덮는다). 속흙 빛(붉은 갈색) · 진흙 사진 결
+     ③ 테 위의 돌 — 파내다 나온 바위 조각(그 굴의 바위 재질) · 둘레 5 m 안의 자원은 치운다(underSites) */
+  const KL={karst:[0,[1.10,1.08,1.02],'karst'],lava:[4,[0.62,0.62,0.64],'basalt'],talus:[2,[0.95,0.93,0.90],'granite'],shelter:[1,[1.02,0.90,0.76],'sandstone']};
+  const dirtM=new THREE.MeshLambertMaterial({vertexColors:true}); gndDetailPatch(dirtM,6,1.6);
   for(const p of UNDER.pits){
     p.ys=heightAt(p.x,p.z);
-    const h=new THREE.Mesh(new THREE.CircleGeometry(1.55,24).rotateX(-Math.PI/2),hole); h.position.set(p.x,p.ys+0.04,p.z); pg.add(h);
-    for(let k=0;k<9;k++){ const a=k/9*6.283, r=0.24+0.12*Math.sin(k*2.3), s=new THREE.Mesh(new THREE.DodecahedronGeometry(r,0),wood.clone()); s.material.color.setHex(0x6e6a62);
-      s.position.set(p.x+Math.cos(a)*1.75,p.ys+r*0.4,p.z+Math.sin(a)*1.75); pg.add(s); }
-    const stake=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.08,1.1,6),wood); stake.position.set(p.x+1.9,p.ys+0.5,p.z); pg.add(stake);
+    const kk=KL[(p.cave&&p.cave.kind)||'karst']||KL.karst, R0=1.55, D=Math.max(6,p.ys-p.yc+0.5);
+    const hm=new THREE.ShaderMaterial({
+      uniforms:{uC:{value:new THREE.Vector3(p.x,p.ys+0.03,p.z)}, uR:{value:R0}, uD:{value:D}, uLay:{value:kk[0]}, uTint:{value:new THREE.Vector3(...kk[1])},
+        uRk:TERR_U.uRk||{value:null}, uL:UNDER_HOLE_L, uRP:{value:(p.x*0.37+p.z*0.11)%6.283}},
+      vertexShader:`varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
+      fragmentShader:`precision highp float; precision mediump sampler2DArray;
+uniform vec3 uC; uniform float uR, uD, uLay, uRP; uniform vec3 uTint; uniform vec3 uL; ${TERR_U.uRk?'uniform sampler2DArray uRk;':''}
+varying vec3 vW;
+float hh(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float vn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hh(i),hh(i+vec2(1,0)),f.x),mix(hh(i+vec2(0,1)),hh(i+vec2(1,1)),f.x),f.y); }
+/* 벽 반지름 — 방위 · 깊이마다 울퉁불퉁(바위 덩이가 튀어나오고 들어간다) */
+float wallR(float an,float y){ return uR*(1.0+0.20*(vn(vec2(an*2.6+uRP,y*0.45))-0.5)*2.0+0.08*(vn(vec2(an*7.0,y*1.3+5.0))-0.5)*2.0); }
+void main(){
+  vec3 rd=normalize(vW-cameraPosition);
+  vec2 o=vW.xz-uC.xz, d=rd.xz; float dd=max(dot(d,d),1e-7), od=dot(o,d);
+  float R=uR, t=0.0; vec3 h=vW;
+  for(int k=0;k<4;k++){ float c0=dot(o,o)-R*R; float dsc=max(od*od-dd*c0,0.0); t=(-od+sqrt(dsc))/dd; h=vW+rd*t;
+    vec2 hw=h.xz-uC.xz; R=max(wallR(atan(hw.y,hw.x),h.y),length(o)+0.02); }
+  float dep=uC.y-h.y; vec2 hw=h.xz-uC.xz; float an=atan(hw.y,hw.x);
+  if(dep>uD){ gl_FragColor=vec4(vec3(0.0),1.0); return; }                     // 바닥까지 — 캄캄하다
+  vec2 uw=vec2(an*uR/1.9,h.y/1.9);
+  ${TERR_U.uRk?'vec3 rk=texture(uRk,vec3(uw,uLay)).rgb;':'vec3 rk=vec3(0.5);'}
+  rk=mix(vec3(dot(rk,vec3(0.30,0.59,0.11))),rk,0.25)*2.0*uTint*0.55;
+  /* 흙켜(위 1 m — 붉은 갈색 속흙 · 자갈 점 · 맨 위는 검은 겉흙) */
+  float soil=smoothstep(0.85,0.45,dep+0.25*(vn(vec2(an*5.0,1.0))-0.5));
+  vec3 sc=mix(vec3(0.30,0.21,0.14),vec3(0.17,0.13,0.10),smoothstep(0.35,0.0,dep))*(0.85+0.3*vn(vec2(an*40.0,h.y*25.0)));
+  sc=mix(sc,vec3(0.45,0.43,0.40),step(0.86,hh(floor(vec2(an*60.0,h.y*40.0))))*0.6);
+  vec3 c=mix(rk,sc,soil);
+  /* 바위 덩이 — 반지름의 기울기로 혹의 위쪽이 밝다(빛은 구멍에서 내려온다) */
+  float r1=wallR(an,h.y+0.25), r0=wallR(an,h.y-0.25); float up=clamp((r0-r1)*3.0+0.5,0.0,1.0);
+  c*=0.70+0.55*up;
+  /* 젖음 — 물이 스며 흘러내린 세로 줄은 짙고 번들거린다 · 깊을수록 축축하다 */
+  float st=smoothstep(0.55,0.85,vn(vec2(an*9.0+uRP,h.y*0.18)))*(1.0-soil*0.6), wet=clamp(st+smoothstep(2.0,10.0,dep)*0.35,0.0,1.0);
+  c*=mix(1.0,0.55,wet);
+  float lit=exp(-dep/6.0)*(0.35+0.65*smoothstep(-1.0,3.0,-dep+3.0*up));
+  vec3 col=c*uL*lit;
+  col+=uL*wet*pow(vn(vec2(an*30.0,h.y*6.0)),6.0)*0.9*exp(-dep/4.0)*up;          // 물 번들거림
+  gl_FragColor=vec4(col,1.0);
+}`});
+    const h=new THREE.Mesh(new THREE.CircleGeometry(R0+0.15,32).rotateX(-Math.PI/2),hm); h.position.set(p.x,p.ys+0.03,p.z); h.renderOrder=1; pg.add(h);
+    /* 테 — 파낸 흙 둔덕 */
+    { const NA=40, NR=7, P=[], C=[], I=[], rr=mulberry32((Math.round(p.x*7)^Math.round(p.z*13))>>>0);
+      const lump=[]; for(let k=0;k<NA;k++) lump.push(0.75+0.5*rr());
+      for(let j=0;j<=NR;j++){ const f=j/NR, r=R0*0.92+Math.pow(f,1.25)*2.5;   // 안쪽 끝은 구멍 판 밑으로 — 둔덕이 구멍 가장자리에서 바로 솟는다
+        for(let k=0;k<NA;k++){ const a=k/NA*6.2832, x=p.x+Math.cos(a)*r, z=p.z+Math.sin(a)*r;
+          const lm=(lump[k]+lump[(k+1)%NA]+lump[(k+NA-1)%NA])/3, prof=j===0?-0.25:0.48*Math.pow(Math.sin(Math.PI*Math.min(1,(f-0.02)/0.98)),0.7)*lm*(1.0-0.25*f);
+          P.push(x,heightAt(x,z)+prof+(j===NR?-0.06:0),z);
+          const sub=0.85+0.3*rr(), top=f>0.75?0.6:0.0, gv=rr()<0.12?1:0;
+          const cr=(0.40*(1-top)+0.26*top)*sub, cg=(0.29*(1-top)+0.21*top)*sub, cb=(0.19*(1-top)+0.15*top)*sub;
+          C.push(gv?0.46:cr,gv?0.44:cg,gv?0.41:cb); } }
+      for(let j=0;j<NR;j++) for(let k=0;k<NA;k++){ const a=j*NA+k, b2=j*NA+(k+1)%NA, c2=(j+1)*NA+k, d2=(j+1)*NA+(k+1)%NA; I.push(a,b2,c2,b2,d2,c2); }   // 위를 보게(반지름 × 방위 차례면 아래를 봐 위에서 안 보였다)
+      const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(C,3)); g.setIndex(I); g.computeVertexNormals();
+      const m=new THREE.Mesh(g,dirtM); pg.add(m); }
+    /* 테 위의 돌 — 그 굴의 바위 */
+    { const rm=rockMat(kk[2],0x8a857c), rr=mulberry32((Math.round(p.x*11)^Math.round(p.z*5)^0x5a5a)>>>0);
+      for(let k=0;k<11;k++){ const a=rr()*6.283, d=R0+0.5+rr()*2.4, r=0.14+0.30*rr()*rr(), x=p.x+Math.cos(a)*d, z=p.z+Math.sin(a)*d;
+        const gg=new THREE.DodecahedronGeometry(r,0), ga=gg.attributes.position;                       // 모난 조각 — 꼭짓점마다 흔들고 납작하게(둥근 알처럼 보였다)
+        { const seen=new Map(); for(let i=0;i<ga.count;i++){ const key=Math.round(ga.getX(i)*1e3)+','+Math.round(ga.getY(i)*1e3)+','+Math.round(ga.getZ(i)*1e3); let k=seen.get(key); if(k===undefined){ k=0.72+0.5*rr(); seen.set(key,k); } ga.setXYZ(i,ga.getX(i)*k,ga.getY(i)*k*0.55,ga.getZ(i)*k); } gg.computeVertexNormals(); }
+        const s=new THREE.Mesh(gg,rm); s.rotation.set((rr()-0.5)*0.6,rr()*6.283,(rr()-0.5)*0.6);
+        s.position.set(x,heightAt(x,z)+0.36*Math.pow(Math.sin(Math.PI*Math.min(1,(d-R0)/2.3)),0.7)+r*0.12,z); pg.add(s); } }
+    const stake=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.08,1.1,6),wood); stake.position.set(p.x+1.9,p.ys+0.75,p.z); pg.add(stake);
     const L=p.ys-p.yf, rp=new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,L+0.9,5),rope); rp.position.set(p.x+0.55,p.ys-L/2+0.45,p.z); pg.add(rp);
     const top=new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,1.4,5),rope); top.rotation.z=Math.PI/2; top.position.set(p.x+1.2,p.ys+0.9,p.z); pg.add(top);
-    const D=p.ys-p.yc+0.5, sh=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.9,D,14,Math.max(1,Math.round(D/4)),true),shaftM);
-    { const a=sh.geometry.attributes.position; for(let i=0;i<a.count;i++){ const x=a.getX(i), y=a.getY(i), z=a.getZ(i), k=1+0.12*Math.sin(y*0.7+Math.atan2(z,x)*3); a.setXYZ(i,x*k,y,z*k); } sh.geometry.computeVertexNormals(); }
+    /* 굴뚝(속에서 볼 때 — 밧줄을 타는 동안) — 그 굴의 바위 재질 · 안쪽 면 */
+    const shaftM=rockMat(kk[2],0x6a665e); shaftM.side=THREE.BackSide;
+    const sh=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.9,D,18,Math.max(1,Math.round(D/2)),true),shaftM);
+    { const a=sh.geometry.attributes.position; for(let i=0;i<a.count;i++){ const x=a.getX(i), y=a.getY(i), z=a.getZ(i), an=Math.atan2(z,x), k=1+0.12*Math.sin(y*0.7+an*3)+0.06*Math.sin(y*1.9+an*7+1.3); a.setXYZ(i,x*k,y,z*k); } sh.geometry.computeVertexNormals(); }
     sh.position.set(p.x,p.ys-D/2+0.02,p.z); pg.add(sh);
   }
 }
+const UNDER_HOLE_L={value:new THREE.Vector3(0.5,0.5,0.5)};   // 구멍 속 빛 — 하늘빛 · 고른 빛의 세기(updateUnder 가 맞춘다)
 /* 수직굴 오르내리기 — Space 를 누른 순간 구멍(땅 위) 또는 밧줄(밑) 곁이면 탄다. 타는 동안은 몸 움직임을 대신 맡는다(80-player.js) */
 function underRopeTick(dt){
   if(!UNDER.ok) return false;
@@ -405,6 +476,7 @@ function underRopeTick(dt){
 const _uC=new THREE.Color();
 function updateUnder(dt){
   if(!UNDER.ok||!UNDER.grp) return;
+  if(typeof amb!=='undefined'&&amb){ const L=UNDER_HOLE_L.value; L.set(amb.color.r*amb.intensity+hemi.color.r*hemi.intensity*0.6,amb.color.g*amb.intensity+hemi.color.g*hemi.intensity*0.6,amb.color.b*amb.intensity+hemi.color.b*hemi.intensity*0.6).multiplyScalar(1.1); }
   const p=PL.pos;
   if(!UNDER.rope&&!PL.dead) PL.under=underIn(p.x,p.z,p.y)&&underQ(p.x,p.z).g>0.2;
   const want=(PL.under||(UNDER.rope&&p.y<UNDER.rope.p.ys-6))?1:0;

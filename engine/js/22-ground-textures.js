@@ -172,6 +172,7 @@ function gndTerrainFrag(frag,extra){
 uniform sampler2D uRel; uniform sampler2D uTL; uniform float uShR, uWet, uDew;
 float gndSun=1.0, gndAmb=1.0;
 uniform sampler2D uBio; uniform sampler2D uBio2; uniform sampler2D uNz; uniform float uBioN, uCell, uShT; uniform float uSnow;
+${GEOL_GLSL}
 uniform mediump sampler2DArray uGnd;
 varying vec3 vTW;
 varying vec3 vTN;
@@ -301,11 +302,12 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         if(wRock>0.02){ vec3 rk=GL(4.0);
           ${RK?`/* 벼랑 면(옆 투영) — 바위 사진 여섯 장 가운데 둘(이끼 낀 3번 빼고)을 113 m 잡음으로 골라 섞는다(사용자 요청: 벼랑도 진짜 바위처럼).
              사암 켜 · 잿빛 벼랑 · 금 간 바위 · 검은 바닷가 바위가 벼랑마다 바뀐다. 한 장이 3.8 m(땅 사진보다 크게 — 벼랑은 크다) */
-          if(stp>0.0){ float sl=clamp(n1.r*1.4-0.2,0.0,0.999)*4.0, si=floor(sl), sf=smoothstep(0.25,0.75,fract(sl));
-            float la=si>2.5?si+1.0:si, lb=si>1.5?si+2.0:si+1.0; const float K=0.55;
+          if(stp>0.0){ /* 그 자리 바위대로(지질도 — 37-geo-meshes.js geolBuild · 2026-11-05 사용자 요청: 어느 바위가 어디에 나는지 맞춰라) */
+            vec4 gw=geoW(p); int gt=geoPick(gw,clamp(n1.r*0.75+n2.g*0.25,0.0,0.999)); float la, lb; geoLay(gt,la,lb);
+            float sf=smoothstep(0.35,0.65,n1.g+(n2.r-0.5)*0.4); const float K=0.55;
             vec3 sa=mix(textureGrad(uRk,vec3(tS1*K,la),gS1x*K,gS1y*K).rgb,textureGrad(uRk,vec3(tS2*K,la),gS2x*K,gS2y*K).rgb,wSx);
             vec3 sb=sf>0.01?mix(textureGrad(uRk,vec3(tS1*K,lb),gS1x*K,gS1y*K).rgb,textureGrad(uRk,vec3(tS2*K,lb),gS2x*K,gS2y*K).rgb,wSx):sa;
-            vec3 sr=mix(sa,sb,sf); sr=mix(vec3(dot(sr,vec3(0.30,0.59,0.11))),sr,0.25);   // 사진의 빛깔은 4분의 1만 — 화산섬의 벼랑은 잿빛·잿갈색이고 빛깔은 풍화 얼룩뿐이다(사용자 지적: 벼랑이 너무 알록달록하다)
+            vec3 sr=mix(sa,sb,sf); sr=mix(vec3(dot(sr,vec3(0.30,0.59,0.11))),sr,geoSat(gw));   // 사진의 빛깔은 4분의 1만 — 화산섬의 벼랑은 잿빛·잿갈색이고 빛깔은 풍화 얼룩뿐이다(사용자 지적: 벼랑이 너무 알록달록하다)
             /* **프랙털 금**(사용자 요청) — 보로노이 경계로 곧게 꺾이는 금을 두 겹(3 m · 1.1 m) · 옆 투영 둘을 면이 보는 쪽대로 섞는다.
                진짜 벼랑(stp 0.4 넘게)에만 — 잡음 등고선으로 그었을 땐 강물 같은 굽은 선이 됐다(사용자 지적) */
             float ck=mix(ckNet(tS1*2.1,1.0/3.0),ckNet(tS2*2.1,1.0/3.0),wSx);
@@ -330,8 +332,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
           if(cliff>0.005){
             /* 그린 켜 · 금(예전)은 걷고 **바위 사진**(위에서 섞은 rk — 벼랑 면은 옆 투영)을 그대로 쓴다(2026-11-04 사용자 지적: 결이 진짜 같지 않다).
                바위 갈래는 1.1 km 얼룩으로 빛깔만(검은 현무암 → 녹슨 사암 → 흰 석회암) · 빗물 자국 · 아래쪽은 습기로 조금 짙게 */
-            float fam=texture2D(uNz,p/1100.0+vec2(0.61,0.23)).g;
-            vec3 tint=mix(mix(vec3(0.78,0.78,0.80),vec3(1.08,0.88,0.72),smoothstep(0.32,0.50,fam)),vec3(1.12,1.08,1.00),smoothstep(0.58,0.76,fam));
+            vec4 gwc=geoW(p); vec3 tint=geoTint(gwc);                                            // 바위 갈래의 빛깔(지질도) — 예전 1.1 km 잡음 얼룩은 갈래와 상관없이 칠했다
             vec2 spp=mix(vTW.xy,vTW.zy,wSx);
             vec3 rc=c*tint*(1.0-0.22*smoothstep(0.55,0.8,texture2D(uNz,vec2(spp.x/9.0,vTW.y/60.0)).r));
             c=mix(c,rc,cliff); } }

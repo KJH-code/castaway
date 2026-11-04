@@ -448,7 +448,8 @@ const TMP_WET=new THREE.Color();
       대신 잔 얼룩의 **기울기와 해 방향의 내적**으로 밝기를 곱해, 햇빛 쪽 면이 밝고 반대가
       어두운 요철을 흉내 낸다(해가 낮을수록 짙다 — 저녁 땅이 거칠어 보이는 것). */
 const TERR_U={uSunDir:{value:new THREE.Vector3(0,1,0)}, uBio:{value:null}, uBio2:{value:null},
-  uBioN:{value:768}, uCell:{value:2.5}};
+  uBioN:{value:768}, uCell:{value:2.5}, uGeo:{value:null}};
+{ const t=new THREE.DataTexture(new Uint8Array([0,0,0,255]),1,1,THREE.RGBAFormat); t.needsUpdate=true; TERR_U.uGeo.value=t; }   // 지질도(37-geo-meshes.js geolBuild) — 짓기 전엔 화강암 하나
 /* 바이옴 색을 정점이 아니라 **텍스처**로 — 정점 색은 삼각형 안에서 직선으로 섞이므로 바이옴이 바뀌는
    자리(2.5 m 칸)마다 삼각형 톱니가 그대로 보였다. 격자 한 칸 = 텍셀 하나로 담아 두고, 셰이더가
    잡음으로 비튼 자리(±3 m)에서 쌍선형으로 읽는다 — 경계가 물결치듯 구불구불해진다. */
@@ -801,6 +802,19 @@ vec2 th2(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.
    ③ 윗면 이끼·지의류 — 위를 향한 면(법선 y>0.55)에 얼룩덜룩 회녹색. 황·진사는 안 낀다
    ④ 밑동 그늘 — 땅에 닿은 아래쪽은 빛이 덜 든다(앰비언트 오클루전 흉내)
    금속 광택(`met`)은 해 방향 반사 하이라이트로 얹는다 — 램버트는 반사가 없어서다. */
+/* 지질도 읽기(37-geo-meshes.js geolBuild) — 땅 셰이더의 벼랑 면과 rockMat 이 같이 쓴다. uBioN · uCell 은 읽는 쪽이 선언한다.
+   갈래마다 바위 사진 두 장 · 빛깔 · 사진 빛깔을 남길 몫(사진은 평균 밝기 0.5 로 맞춰 두었으므로 밝기는 빛깔이 정한다):
+   0 현무암 — 4 검고 고운 바닷가 바위 · 2 금 간 바위 · 짙은 잿빛(반사율 0.1 안팎)
+   1 사암 — 1 켜 진 사암 벼랑 · 담황~옅은 붉은 갈색
+   2 석회암 — 0 잿빛 벼랑 면 · 5 지의류 낀 바위 · 흰빛(반사율 0.3~0.4) · 빛깔은 거의 없다
+   3 화강암 — 0 잿빛 벼랑 면 · 2 금 간 바위 · 옅은 잿빛에 아주 조금 분홍 */
+const GEOL_GLSL=`uniform sampler2D uGeo;
+vec4 geoW(vec2 xz){ return texture2D(uGeo,(xz/uCell+uBioN*0.5+0.5)/uBioN); }
+int geoPick(vec4 w,float u){ float c=w.r; if(u<c) return 0; c+=w.g; if(u<c) return 1; c+=w.b; if(u<c) return 2; return 3; }
+void geoLay(int t,out float la,out float lb){ if(t==0){ la=4.0; lb=2.0; } else if(t==1){ la=1.0; lb=1.0; } else if(t==2){ la=0.0; lb=5.0; } else { la=0.0; lb=2.0; } }
+vec3 geoTint(vec4 w){ return w.r*vec3(0.56,0.56,0.58)+w.g*vec3(1.03,0.92,0.80)+w.b*vec3(1.16,1.14,1.09)+w.a*vec3(0.98,0.96,0.94); }
+float geoSat(vec4 w){ return w.r*0.10+w.g*0.30+w.b*0.05+w.a*0.12; }
+`;
 function rockMat(k,col){
   const m=new THREE.MeshLambertMaterial({color:col});
   const L=LUSTRE[k]||{met:0.05,tex:'speck'};
@@ -815,17 +829,25 @@ function rockMat(k,col){
      스무 남짓) 광원 수가 바뀔 때마다 그 수만큼 다시 짰다(M1 에서 하나에 0.1~0.5초 — 처음 보는 바위마다 멈칫했다). 이제 광물마다
      다른 것(결 갈래 · 각진 면 · 크기 · 금 · 이끼 · 광택 · 종류별 무늬)은 유니폼으로 넘긴다 — 같은 셰이더에 값만 다르다 */
   const KIND={sulfur:1,basalt:2,basaltcol:3,sandstone:4,karst:5}[k]||0;
+  /* 바위 갈래(지질도와 같은 차례 — 0 현무암 · 1 사암 · 2 석회암 · 3 화강암). 광물 바위는 제 갈래로 · 큰 바위(cragMat)와 큰 지형 모형(geoMat)은
+     uRkGeo 를 켜서 그 자리 지질도를 읽는다(37-geo-meshes.js geolBuild) */
+  const GT={basalt:0,basaltcol:0,obsidian:0,sandstone:1,karst:2,limestone:2}[k]; 
   m.userData.rkU={uRkTex:{value:TEX},uRkFacet:{value:FACET},uRkBig:{value:big?1:0},uRkCrack:{value:k.startsWith('temple')?0.22:0.30},
-    uRkKind:{value:KIND},uRkMoss:{value:moss},uRkMet:{value:L.met}};
+    uRkKind:{value:KIND},uRkMoss:{value:moss},uRkMet:{value:L.met},uRkGeo:{value:0},uRkGT:{value:GT===undefined?3:GT}};
   m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,TERR_U); Object.assign(sh.uniforms,m.userData.rkU);
-    sh.vertexShader='varying vec3 vRW;\nvarying vec3 vRN;\nvarying vec3 vRV;\n'+sh.vertexShader.replace('#include <begin_vertex>',
-      '#include <begin_vertex>\nvRW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvRN=normal;\nvRV=(modelViewMatrix*vec4(transformed,1.0)).xyz;');
+    sh.vertexShader='varying vec3 vRW;\nvarying vec3 vRN;\nvarying vec3 vRV;\n#ifdef RK_OFS\nattribute float aOfs;\nvarying float vROf;\n#endif\n'+sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\nvRW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvRN=normal;\nvRV=(modelViewMatrix*vec4(transformed,1.0)).xyz;\n#ifdef RK_OFS\nvROf=aOfs;\n#endif');
     sh.fragmentShader=`uniform vec3 uSunDir;
-uniform int uRkTex, uRkKind; uniform float uRkFacet, uRkBig, uRkCrack, uRkMoss, uRkMet;
+uniform int uRkTex, uRkKind; uniform float uRkFacet, uRkBig, uRkCrack, uRkMoss, uRkMet, uRkGeo, uRkGT;
+uniform float uBioN, uCell; uniform sampler2D uTL;
+${GEOL_GLSL}
 varying vec3 vRW;
 varying vec3 vRN;
 varying vec3 vRV;
+#ifdef RK_OFS
+varying float vROf;
+#endif
 ${PHOTO?'uniform mediump sampler2DArray uGnd;':''}
 ${RPH?`uniform mediump sampler2DArray uRk;
 uniform mediump sampler2DArray uRkN;
@@ -869,7 +891,7 @@ vec2 grain(vec3 p){
         /* 덩이마다 무늬를 비킨다(cragMat 만 — 33-crags.js) — 굴 · 큰 바위는 덩이를 한 메시로 합쳐 세계 좌표로 읽어서, 맞닿은 덩이의 금과 얼룩이
            이음매를 건너 이어져 한 바위를 칼로 자른 것처럼 보였다. 덩이 빛깔(정점 빛깔)이 덩이마다 달라 그것으로 민다.
            정점 빛깔이 한 면 안에서 바뀌는 재질(땅속 세계 등)에 켜면 무늬가 그 기울기만큼 일그러진다 */
-        p+=vColor.rgb*61.7;
+        p+=vec3(61.7,37.3,53.1)*vROf;   // 덩이마다 같은 값(aOfs — 33-crags.js cragMesh). 예전엔 정점 빛깔로 비켜, Meshy 꼴의 오목함(정점마다 다른 빛깔)이 무늬를 수십 m 씩 끌어 줄무늬로 늘였다(2026-11-05)
         #endif
         float dist=length(vRV), nearK=clamp(1.0-dist/60.0,0.0,1.0);   // 카메라 공간에서 잰다(세계 cameraPosition 으로 쟀더니 0 이 나왔다)
         vec3 c=diffuseColor.rgb;
@@ -878,7 +900,7 @@ vec2 grain(vec3 p){
            바위가 면마다 각져 있어(HABIT smooth 0) 면 하나가 한 가지 밝기의 판으로 읽힌다 */
         c*=0.92+0.16*a;
         c*=mix(1.0,0.95+0.10*b,nearK);
-        c*=mix(vec3(1.04,1.0,0.95),vec3(0.95,0.98,1.05),rn(p/3.0+9.1));
+        c*=mix(vec3(1.015,1.0,0.985),vec3(0.985,0.995,1.015),rn(p/3.0+9.1));   // 빛깔 흔들림은 아주 조금(사용자 지적 2026-11-05: 너무 알록달록하다)
         c*=mix(1.0,0.90+0.20*rh(floor(n*5.0+0.5)+floor(p/4.0)),uRkFacet);
         int T=${TEX};   // 결 갈래는 셰이더에 박는다 — 유니폼으로 돌렸더니 공작석 고리(27번)까지 모든 바위가 안고 돌아 GPU 가 10 → 16 ms
         float f=rn(p/0.05+1.3);
@@ -892,12 +914,33 @@ vec2 grain(vec3 p){
         float RS=uRkBig>0.5?1.7:0.35;
         vec3 tw=pow(abs(n),vec3(4.0)); tw/=tw.x+tw.y+tw.z+1e-4;
         vec3 q=p/RS, q2=q*0.83+vec3(0.37,0.11,0.59);
-        float sel=clamp(rn(p/11.0+vec3(3.1,0.7,7.7))*1.3-0.15,0.0,0.999)*4.0;
-        float ia=floor(sel), fb=smoothstep(0.25,0.75,fract(sel)+(rn(p/1.3+2.2)-0.5)*0.55);
-        float la=ia>2.5?ia+1.0:ia, lb=ia>1.5?ia+2.0:ia+1.0;
+        /* **그 자리 바위대로 사진을 고른다**(2026-11-05 사용자 요청 — 예전엔 11 m 잡음으로 아무 사진이나 골라, 한 벼랑에 사암 · 현무암 · 화강암이 얼룩덜룩 섞였다).
+           지질도(큰 바위 · 지형 모형) 또는 광물의 갈래(광물 바위)가 갈래를 정하고, 갈래 안의 두 장은 7 m 잡음으로 섞는다. 갈래 경계는 잡음으로 들쭉날쭉 —
+           사진은 경계에서 바뀌고(지층의 경계처럼) 빛깔은 몫대로 매끄럽게 바뀐다. 지질도는 비키지 않은 세계 좌표(vRW)로 읽는다 */
+        vec4 gw=uRkGeo>0.5?geoW(vRW.xz):vec4(uRkGT<0.5?1.0:0.0,abs(uRkGT-1.0)<0.5?1.0:0.0,abs(uRkGT-2.0)<0.5?1.0:0.0,uRkGT>2.5?1.0:0.0);
+        int gt=geoPick(gw,clamp(rn(p/9.0+vec3(3.1,0.7,7.7))*0.7+rn(p/1.4+2.2)*0.3,0.0,0.999));
+        float la, lb; geoLay(gt,la,lb);
+        float fb=smoothstep(0.30,0.70,rn(p/7.0+vec3(5.3,1.9,0.4))+(rn(p/1.3+2.2)-0.5)*0.5);
         vec3 rk=mix(rkTri(q,tw,la),rkTri(q2,tw,lb),fb);
-        rk=mix(vec3(dot(rk,vec3(0.30,0.59,0.11))),rk,uRkBig>0.5?0.45:0.8);   // 큰 바위는 사진 빛깔을 반쯤만(사암의 주황이 너무 셌다)
+        rk=mix(vec3(dot(rk,vec3(0.30,0.59,0.11))),rk,uRkBig>0.5?geoSat(gw):0.6);   // 큰 바위는 사진 빛깔을 조금만 — 사진의 주황 · 푸른 기가 그대로 나와 알록달록했다
         c*=mix(vec3(1.0),rk*2.0,0.92);
+        if(uRkGeo>0.5){
+          c*=geoTint(gw);
+          float nearG=clamp(1.0-dist/14.0,0.0,1.0);
+          /* 현무암 — 잔 기공(가스 구멍) · 산화된 붉은 갈색 얼룩 */
+          c*=1.0-0.28*gw.r*smoothstep(0.84,0.92,rn(p/0.035))*nearK;
+          c=mix(c,c*vec3(1.14,0.94,0.82),gw.r*0.35*smoothstep(0.55,0.78,rn(p/6.0+11.0)));
+          /* 사암 — 가로 켜(0.3~1.2 m · 세계 높이로 — 이웃 덩이와 이어진다) · 옆면을 타고 내린 검은 사막 칠(빗물이 망간을 남긴 세로 줄) */
+          float st=vRW.y*1.25+(rn(vec3(vRW.x,0.0,vRW.z)/3.0)-0.5)*0.9;
+          c*=mix(1.0,0.90+0.16*rh(vec3(0.0,floor(st),3.0)),gw.g);
+          c*=1.0-gw.g*0.30*smoothstep(0.62,0.92,rn(vec3(vRW.x*1.4,vRW.y*0.07,vRW.z*1.4)))*(1.0-abs(n.y));
+          /* 석회암 — 빗물에 녹은 잔 구멍 · 옆면의 세로 골(카렌) */
+          c*=1.0-0.30*gw.b*smoothstep(0.86,0.94,rn(p/0.08+2.0))*nearK;
+          c*=mix(1.0,0.86,gw.b*smoothstep(0.45,0.85,rn(vec3(vRW.x*3.0,vRW.y*0.25,vRW.z*3.0)))*(1.0-abs(n.y)));
+          /* 화강암 — 장석 · 석영 · 흑운모 알갱이(가까이서만 · 화소보다 잘면 뺀다) */
+          float fw=fwidth(p.x+p.y+p.z);
+          c*=mix(1.0,0.80+0.36*rn(p/0.014),gw.a*nearG*(1.0-smoothstep(0.004,0.012,fw)));
+        }
         /* 결의 높낮이 — 법선 지도로 화소마다 면을 기울여, 볕이 금과 혹을 따라 갈리게 한다(45 m 안 · 많이 섞인 쪽 한 장만 읽는다).
            램버트는 빛을 정점에서 세므로 그 값을 '기울인 면 / 본래 면' 의 볕 차이만큼 밝히고 어둡게 고친다. 패인 데는 하늘을 덜 본다 */
         float nearN=clamp(1.0-dist/45.0,0.0,1.0);
@@ -941,7 +984,9 @@ vec2 grain(vec3 p){
         { c*=1.0-0.38*smoothstep(0.86,0.94,rn(p/0.08+2.0))*nearK;
           c*=mix(1.0,0.88,smoothstep(0.45,0.85,rn(vec3(p.x*3.0,p.y*0.25,p.z*3.0)))*(1.0-abs(n.y))); }
         /* 위를 보는 면에는 이끼 낀 바위 사진(3번)이 얼룩지게 앉는다(넓은 잡음으로 군데군데) */
-        { float um=smoothstep(0.45,0.9,n.y)*uRkMoss*smoothstep(0.38,0.62,rn(p/3.3+5.5)+(rn(p/0.6)-0.5)*0.4);
+        { float mk=1.0; if(uRkGeo>0.5){ vec4 gm=geoW(vRW.xz); float can=texture2D(uTL,(vRW.xz/uCell+uBioN*0.5+0.5)/uBioN).b;
+            mk=(0.35+0.9*can)*(1.0-0.85*gm.g)*(1.0-0.5*gm.r); }                                   // 이끼는 숲 그늘의 젖은 바위에 — 마른 사암 · 바닷바람 맞는 현무암엔 드물다
+          float um=smoothstep(0.45,0.9,n.y)*uRkMoss*mk*smoothstep(0.38,0.62,rn(p/3.3+5.5)+(rn(p/0.6)-0.5)*0.4);
           vec3 mz=texture(uRk,vec3(p.xz/(RS*0.9),3.0)).rgb;
           c=mix(c,c0*mz*2.0*vec3(0.95,1.03,0.88),um*0.85); }`
         :PHOTO?`/* 사진 결 — 진짜 바위 사진(4번 층)을 x·y·z 세 방향에서 읽어 면이 보는 쪽대로 섞는다(늘어짐 없이 감긴다).
