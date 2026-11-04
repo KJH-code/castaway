@@ -489,8 +489,8 @@ function cv10SeatMat(kind){ return _cv10Mats[kind]||(_cv10Mats[kind]=new THREE.M
 function cv10Init(rec,S){
   const c=rec.c, b=c.box; rec.S=S; rec.x0=b.x0; rec.z0=b.z0; rec.nx=Math.floor((b.x1-b.x0)/S)+1; rec.nz=Math.floor((b.z1-b.z0)/S)+1;
   const n=rec.nx*rec.nz; rec.F=new Float32Array(n); rec.C=new Float32Array(n); rec.Hh=new Float32Array(n);
-  rec.gF=new Float32Array(n); rec.gC=new Float32Array(n); rec.gH=new Float32Array(n); rec.O=new Uint8Array(n); rec.M=new Uint8Array(n); rec.D=new Float32Array(n).fill(1e9);
-  rec.state='grid'; rec.ph='grid'; rec.pr=0; rec.ready=false; rec.vmin=1e9; rec.nvoid=0;
+  rec.gF=new Float32Array(n); rec.gC=new Float32Array(n); rec.gH=new Float32Array(n); rec.O=new Uint8Array(n); rec.M=new Uint8Array(n); rec.D=new Float64Array(n).fill(1e9);   // D 는 Float64 — 힙 키와 같은 정밀도여야 'dk>D[q]' 가 살아 있는 마디를 안 버린다
+  rec.state='grid'; rec.ph='grid'; rec.pr=0; rec.ready=false; rec.vmin=1e9; rec.nvoid=0; rec.H=null; rec.unreach=0; rec.onb=false;
   rec.vp=null; rec.vnrm=null; rec.vn=0; rec.idx=null; rec.ni=0; rec.vi=null; rec.cbase=null; rec.ck0=null; rec.cn=null; rec.tdata=null;
 }
 function cv10Rec(c){
@@ -507,10 +507,10 @@ function cv10Rows(rec,n,fn,t1,every){
   while(rec.pr<n){ fn(rec.pr++); if(++c>=ev){ c=0; if(performance.now()>t1) return rec.pr>=n; } }
   return true;
 }
-const _cv10Heap={k:[],v:[]};
-function cv10Push(k,v){ const H=_cv10Heap, hk=H.k, hv=H.v; let i=hk.length; hk.push(k); hv.push(v);
+/* 최소 힙 — 굴마다 제 것(rec.H)을 쓴다. 하나를 나눠 쓰면 한 굴의 dijk 도중 다른 굴을 cv10Force 할 때 힙이 비워져 D 가 달라졌다 */
+function cv10Push(H,k,v){ const hk=H.k, hv=H.v; let i=hk.length; hk.push(k); hv.push(v);
   while(i>0){ const p=(i-1)>>1; if(hk[p]<=k) break; hk[i]=hk[p]; hv[i]=hv[p]; i=p; } hk[i]=k; hv[i]=v; }
-function cv10Pop(){ const H=_cv10Heap, hk=H.k, hv=H.v, tv=hv[0], lk=hk.pop(), lv=hv.pop(), n=hk.length;
+function cv10Pop(H){ const hk=H.k, hv=H.v, tv=hv[0], lk=hk.pop(), lv=hv.pop(), n=hk.length;
   if(n>0){ let i=0; for(;;){ let l=2*i+1; if(l>=n) break; if(l+1<n&&hk[l+1]<hk[l]) l++; if(hk[l]>=lk) break; hk[i]=hk[l]; hv[i]=hv[l]; i=l; } hk[i]=lk; hv[i]=lv; }
   return tv; }
 
@@ -541,21 +541,22 @@ function cv10Step(rec,t1){
       rec.msGrid+=performance.now()-T; rec.ph='dinit'; break; }
     case 'dinit':{
       const T=performance.now();
-      const isV=q=>C[q]-F[q]>0.05; let any=false; _cv10Heap.k.length=0; _cv10Heap.v.length=0;
-      for(let q=0;q<n;q++) if(O[q]&&isV(q)){ D[q]=0; cv10Push(0,q); any=true; }
+      const isV=q=>C[q]-F[q]>0.05; let any=false; const H=rec.H={k:[],v:[]};
+      for(let q=0;q<n;q++) if(O[q]&&isV(q)){ D[q]=0; cv10Push(H,0,q); any=true; }
       if(!any&&rec.nvoid){ const m=c.mouths[0]; let bq=-1,bd=1e18;
         for(let q=0;q<n;q++) if(isV(q)){ const dx=rec.x0+(q%nx)*S-m.x, dz=rec.z0+((q/nx)|0)*S-m.z, d=dx*dx+dz*dz; if(d<bd){ bd=d; bq=q; } }
-        if(bq>=0){ D[bq]=0; cv10Push(0,bq); } }
+        if(bq>=0){ D[bq]=0; cv10Push(H,0,bq); } }
       rec.msGrid+=performance.now()-T; rec.ph='dijk'; break; }
     case 'dijk':{
-      const T=performance.now(), R2=S*1.4142135623730951; let cnt=0;
-      while(_cv10Heap.k.length){
-        const dk=_cv10Heap.k[0], q=cv10Pop(); if(dk>D[q]) continue;
+      const T=performance.now(), R2=S*1.4142135623730951, H=rec.H; let cnt=0;
+      while(H.k.length){
+        const dk=H.k[0], q=cv10Pop(H); if(dk>D[q]) continue;
         const i=q%nx, j=(q/nx)|0;
         for(let e=0;e<8;e++){ const ni=i+_cv10Nb[e][0], nj=j+_cv10Nb[e][1]; if(ni<0||nj<0||ni>=nx||nj>=nz) continue;
-          const r=nj*nx+ni; if(!(C[r]-F[r]>0.05)) continue; const d=dk+(e<4?S:R2); if(d<D[r]){ D[r]=d; cv10Push(d,r); } }
+          const r=nj*nx+ni; if(!(C[r]-F[r]>0.05)) continue; const d=dk+(e<4?S:R2); if(d<D[r]){ D[r]=d; cv10Push(H,d,r); } }
         if((++cnt&511)===0&&performance.now()>t1) { rec.msGrid+=performance.now()-T; return false; }
       }
+      rec.H=null; let un=0; for(let q=0;q<n;q++) if(C[q]-F[q]>0.05&&D[q]>=1e8) un++; rec.unreach=un;   // 입구에서 못 닿은 빈 데 기둥(시험이 0 인지 본다)
       rec.msGrid+=performance.now()-T; rec.ph='mdil'; rec.pr=0; break; }
     case 'mdil':{
       const T=performance.now();
@@ -706,7 +707,7 @@ function cv10Step(rec,t1){
       scene.add(mesh); rec.mesh=mesh; rec.verts=nv; rec.tris=rec.ni/3;
       rec.tri=rec.wall=rec.vp=rec.vnrm=rec.idx=rec.rm=rec.ord=rec.pos=rec.nor=rec.aDeep=rec.aSky=rec.aFl=rec.tdata=null;
       try{ LIGHT.dirtyAt(c.x,c.z,60); }catch(e){}
-      rec.state='done'; rec.ph='done';
+      rec.state='done'; rec.ph='done'; rec.onb=true;
       for(const f of CV10.onBuild){ try{ f(rec); }catch(e){ showErr('굴 onBuild',e); } }
       rec.msMesh+=performance.now()-T; return true; }
     default: return true;
@@ -734,7 +735,7 @@ function cv10V(rec,x,y,z){ const s=cv10Samp(rec,x,z); if(s.n<=0) return 9; const
 /* ── 질의 — 지어 둔(격자가 다 된) 굴에서 이 점이 빈 데인가 ─────────────────────────────────────────────────────── */
 function cv10Q(x,z,y){
   for(const [c,r] of CV10.built){
-    if(!r.ready) continue; const b=c.box; if(x<b.x0||x>b.x1||z<b.z0||z>b.z1) continue;
+    if(!r.ready||c.off) continue; const b=c.box; if(x<b.x0||x>b.x1||z<b.z0||z>b.z1) continue;
     const S=r.S; if(x>=r.x0+(r.nx-1)*S||z>=r.z0+(r.nz-1)*S) continue;
     const s=cv10Samp(r,x,z); if(s.n<=0) continue;
     if(y<s.f-0.6||y>s.c+0.3) continue;
@@ -746,15 +747,17 @@ function cv10FloorAt(x,z,y){ const q=cv10Q(x,z,y); return q?q.f:null; }
 
 /* ── 짓기와 버리기 ───────────────────────────────────────────────────────────────────────────────────────── */
 function cv10Drop(rec){
-  for(const f of CV10.onDrop){ try{ f(rec); }catch(e){ showErr('굴 onDrop',e); } }
+  if(rec.onb) for(const f of CV10.onDrop){ try{ f(rec); }catch(e){ showErr('굴 onDrop',e); } }   // onBuild 를 받은 굴에만(짓다 만 굴은 받은 것이 없다)
   if(rec.mesh){ scene.remove(rec.mesh); rec.mesh.geometry.dispose(); rec.mesh=null; try{ LIGHT.dirtyAt(rec.c.x,rec.c.z,60); }catch(e){} }
   if(rec.tex){ rec.tex.dispose(); rec.tex=null; }
   CV10.built.delete(rec.c); if(CV10.cur===rec) CV10.cur=null;
 }
+/* 지어 둔 굴을 전부 버린다 — 섬을 새로 짓거나 불러올 때(generateWorld 첫머리). 판 10 섬에서 판 9 섬으로 가면 틱이 안 돌아 옛 메시가 남았다 */
+function cv10Clear(){ for(const r of CV10.built.values()) cv10Drop(r); CV10.cur=null; }
 function cv10Tick(){
   if((P.tv|0)<10||typeof CAVES==='undefined') return;
   const px=PL.pos.x, pz=PL.pos.z, T0=performance.now();
-  for(const [c,r] of Array.from(CV10.built)) if(!CAVES.includes(c)||cv10Dist(c,px,pz)>CV10.far) cv10Drop(r);
+  for(const [c,r] of CV10.built) if(c.off||!CAVES.includes(c)||cv10Dist(c,px,pz)>CV10.far) cv10Drop(r);   // 도는 중에 지워도 된다(Map)
   let rec=CV10.cur;
   if(!rec||rec.state==='done'||!CV10.built.has(rec.c)){
     CV10.cur=rec=null; let bd=CV10.near, bc=null;
@@ -766,6 +769,7 @@ function cv10Tick(){
   const dt=performance.now()-T0; if(dt>CV10.maxFrame){ CV10.maxFrame=dt; CV10.maxPh=ph; }
 }
 function cv10Force(c){
+  if(c.off) return null;                // 상륙 자리와 겹쳐 끈 굴은 안 짓는다(buildCaves)
   const rec=cv10Rec(c); while(rec.state!=='done') cv10Step(rec,1e18);
   return rec;
 }

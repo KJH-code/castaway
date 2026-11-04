@@ -363,6 +363,7 @@ async function generateWorld(){
   GAME_ID=newGameId(); _propGrid=null;  // 새 판 번호(불러오기는 restore 가 저장의 번호로 되돌린다)
   paused=true;                          // 덮개('상륙')가 떠 있는 동안 세상이 뒤에서 흘러가지 않게 — 놀다가 불러와도(F9) 상륙을 눌러야 시간이 간다
   LIGHT.live=false;                     // 짓는 동안은 배역을 안 준다(LIGHT.flush) — 다 지은 뒤 refresh 한 번
+  cv10Clear();                          // 지어 둔 판 10 굴을 버린다(31-cave10.js) — 판이 바뀌어도 옛 메시가 남지 않게
   RELIEF.on=false;                      // 잔 기복은 섬을 키운 뒤에 켠다(reliefMask — 10-worldgen.js)
   try{
   document.getElementById('ov').style.display='flex';
