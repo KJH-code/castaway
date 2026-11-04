@@ -102,8 +102,20 @@ function cragShape(seed,w,h){
 function cragShapes(){
   if(CRAG.shapes) return CRAG.shapes;
   const RES=[[[22,15],[10,7]],[[14,10],[7,5]],[[10,7],[7,5]]], S=[];   // [가까이 촘촘 · 멀리 성김] — 잔 울퉁불퉁이 보이게 가까운 꼴을 곱게(예전 13×9 · 9×6 · 7×5)
-  for(let lv=0;lv<3;lv++){ S.push([]); for(let v=0;v<8;v++){ const sd=0xa11+lv*977+v*131; S[lv].push([cragShape(sd,RES[lv][1][0],RES[lv][1][1]),cragShape(sd,RES[lv][0][0],RES[lv][0][1])]); } }
+  for(let lv=0;lv<3;lv++){ S.push([]); for(let v=0;v<8;v++){ const sd=0xa11+lv*977+v*131; S[lv].push([cragShape(sd,RES[lv][1][0],RES[lv][1][1]),cragShape(sd,RES[lv][0][0],RES[lv][0][1])]); }
+    for(let v=0;v<4;v++){ const sd=0x7c01+v*313; S[lv].push([cragPrism(sd,3,6),cragPrism(sd,6,16)]); } }      // 8~11: 절벽 벽 기둥(cragGrowWall)
   return CRAG.shapes=S;
+}
+/* 절벽 기둥 — 모서리가 날카로운 곧은 각기둥(위아래 판판) · 옆면은 세로로 길게 들쭉날쭉(절리 면이 조금씩 꺾인다) · 둥글게 닳은 끝이 없다 */
+function cragPrism(seed,ws,hs){
+  const g=new THREE.BoxGeometry(2,2,2,ws,hs,ws), p=g.attributes.position, rnd=mulberry32(seed>>>0), ph=[rnd()*9,rnd()*9,rnd()*9];
+  for(let i=0;i<p.count;i++){ const x=p.getX(i), y=p.getY(i), z=p.getZ(i);
+    if(Math.abs(y)>0.999) continue;
+    const a=Math.atan2(z,x), f=1+0.10*Math.sin(a*3+ph[0]+y*0.8)+0.06*Math.sin(a*7+ph[1]-y*1.9)+0.05*Math.sin(y*5.3+ph[2]);
+    p.setXYZ(i,x*f,y,z*f); }
+  g.computeVertexNormals();
+  const o={pos:Float32Array.from(p.array), nor:Float32Array.from(g.attributes.normal.array), idx:Uint16Array.from(g.index.array)};
+  g.dispose(); return o;
 }
 function cragClear(){
   for(const t of CRAG.tiles.values()) cragDrop(t);
@@ -138,6 +150,7 @@ function cragGrow(s,B){
   /* **무리의 덩이는 같은 쪽으로 선다**(절리 틀이 나란하게 — cragShape) — 예전엔 새끼 덩이를 아무 쪽으로나 돌려 세워 공 더미로 보였다.
      밝기도 무리 안에서는 조금만 흔든다(한 벼랑의 돌이다 — 예전엔 덩이마다 0.8~1.2배라 조각보 같았다) */
   const Y0=Math.atan2(-tz,tx)+(rnd()-0.5)*0.3;
+  if(P.sm) return cragGrowWall(s,B,Y0);                 // 매끈한 땅 섬 — 바위 더미 대신 깎아지른 절벽 벽(아래)
   const put=(x,y,z,rx,ry,rz,lv)=>{ const b=TB*(0.92+0.16*rnd())*(lv===2?1.03:1), m=rnd(), j=()=>0.97+0.06*rnd();
     B.push(x,y,z,rx,ry,rz,(rnd()-0.5)*(lv?0.32:0.18),Y0+(rnd()-0.5)*(lv?0.55:0.25),(rnd()-0.5)*(lv?0.32:0.18)+(type===3&&!lv?0.18:0),
            lv,(rnd()*8)|0,b*lerp(T0[0],T1[0],m)*j(),b*lerp(T0[1],T1[1],m)*j(),b*lerp(T0[2],T1[2],m)*j(),lv===0?2.6:lv===1?1.4:0.7);   // 녹아드는 높이 — 밑동이 흙 · 풀빛으로 넉넉히 스민다(2026-11-04 사용자 지적: 바위와 풀이 칼로 자른 듯 만난다)
@@ -174,6 +187,29 @@ function cragGrow(s,B){
     if(type===2) for(let i=0,n=2+((rnd()*4)|0);i<n;i++){          // 발치에 굴러떨어진 돌
       const d=r*(0.9+1.3*rnd()), x=px+dx*d+tx*(rnd()-0.5)*r*1.6, z=pz+dz*d+tz*(rnd()-0.5)*r*1.6, q=r*(0.18+0.28*rnd()), gy2=heightAt(x,z); if(gy2<-q) continue;
       put(x,Math.min(gy2+q*0.35,heightAt(x+dx*q*0.7,z+dz*q*0.7)+q*0.30),z,q*(0.9+0.3*rnd()),q*(0.7+0.4*rnd()),q*(0.9+0.3*rnd()),1); if(q>1.2) cragCollide(x,z,q*0.8); }
+  }
+}
+/* **절벽 벽**(2026-11-04 사용자 사진 — 진짜 벼랑은 비탈에 얹힌 바위 더미가 아니라 깎아지른 벽이다: 세로 절리로 갈라진 기둥이 빈틈없이 늘어서고 꼭대기는 풀 덮인 턱).
+   비탈의 등고선을 따라 기둥을 나란히 세운다 — 기둥 하나는 비탈 밑(내리막 쪽 땅)에서 비탈 위(오르막 쪽 땅)까지 곧추선 모난 덩이(높이 = 그 자리 낙차)로,
+   벽 속으로 들여 박고 꼭대기는 턱보다 조금 들쭉날쭉하게. 너비 · 깊이 · 높이가 기둥마다 달라 면이 앞뒤로 들락날락한다(그늘진 틈 = 절리).
+   발치엔 떨어진 돌 몇(애추). 땅 지오메트리는 15 m 세모라 벽을 못 세운다 — 이 기둥들이 벽이 되고, 몸 · 발 딛기도 그대로 이 꼴을 쓴다 */
+function cragGrowWall(s,B,Y0){
+  const rnd=mulberry32((s.seed^0x5ea11)>>>0), dx=s.dx, dz=s.dz, tx=-dz, tz=dx;
+  const tint=CRAG_TINT[(rnd()*CRAG_TINT.length)|0], tb=0.85+0.25*rnd();
+  const put=(x,y,z,rx,ry,rz,lv)=>{ const b=tb*(0.94+0.12*rnd());
+    B.push(x,y,z,rx,ry,rz,(rnd()-0.5)*0.05,Y0+(rnd()-0.5)*0.10,(rnd()-0.5)*0.05,lv,lv===0?8+((rnd()*4)|0):(rnd()*8)|0,b*tint[0],b*tint[1],b*tint[2],lv===0?2.0:0.6); CRAG.blobs++; };
+  const span=CELL*(2.2+2.6*rnd()), nC=Math.max(4,Math.round(span/(1.6+1.4*rnd())));
+  let off=-span/2;
+  for(let k=0;k<nC;k++){
+    const w=span/nC*(0.8+0.5*rnd()), cx=s.x+tx*(off+w/2), cz=s.z+tz*(off+w/2); off+=span/nC;
+    const reach=CELL*0.9, lo=heightAt(cx+dx*reach,cz+dz*reach), hi=heightAt(cx-dx*reach,cz-dz*reach);
+    const drop=hi-lo; if(drop<3.5) continue;
+    const top=hi+(rnd()-0.4)*1.2, base=Math.max(lo-2.0-drop*0.15,-4), ry=Math.min(48,(top-base)/2), dep=CELL*(0.55+0.35*rnd());   // 둥근 끝은 위 · 아래 땅속에 묻는다 — 곧은 면만 드러난다
+    const inK=reach*0.30+dep*0.25+rnd()*0.8;                                                          // 벽 속으로 — 기둥마다 앞뒤로 들락날락
+    put(cx-dx*inK,base+ry,cz-dz*inK,w*0.85,ry,dep*0.62,0);
+    cragCollide(cx-dx*inK,cz-dz*inK,w*0.5);
+    if(rnd()<0.35){ const q=0.5+1.2*rnd(), fx=cx+dx*(reach*0.7+q), fz=cz+dz*(reach*0.7+q), g=heightAt(fx,fz);   // 발치의 떨어진 돌
+      if(g>-q) put(fx,g+q*0.3,fz,q,q*0.7,q*0.9,1); }
   }
 }
 /* 섬의 암벽 자리를 뽑고 무리를 기른다 — 자원을 다 놓은 뒤 한 번(placeResources). 그 칸에 서 있던 나무·바위는 치운다 */
