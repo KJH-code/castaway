@@ -450,9 +450,16 @@ function throwGrenade(w,W){
 function updateGrenades(dt){
   for(let i=GRENADES.length-1;i>=0;i--){
     const g=GRENADES[i], p=g.m.position;
+    const gx0=p.x, gy0=p.y, gz0=p.z;
     g.v.y-=9.8*dt; p.addScaledVector(g.v,dt);
+    const gq=CV10.built.size?cv10Q(p.x,p.z,p.y):null;                  // 지형 판 10 굴 빈 데 — 바닥 · 천장에서 튄다(땅 높이는 굴 위 비탈이다)
+    if(gq){ g.cv=1;
+      if(p.y<gq.f+0.07){ p.y=gq.f+0.07; g.v.y=Math.abs(g.v.y)*0.3; g.v.x*=0.55; g.v.z*=0.55; }
+      else if(p.y>gq.ce-0.1&&gq.ce<heightAt(p.x,p.z)){ p.y=gq.ce-0.1; g.v.y=-Math.abs(g.v.y)*0.3; } }
+    else if(g.cv&&p.y<heightAt(p.x,p.z)-0.5){ p.set(gx0,gy0,gz0); g.v.x*=-0.4; g.v.z*=-0.4; g.v.y*=0.5; }   // 굴 벽에 맞았다 — 앞 자리로 되튄다(땅 위로 튀어 오르지 않게)
+    else{ g.cv=0;
     const gy=Math.max(heightAt(p.x,p.z),-0.2)+0.07;
-    if(p.y<gy){ p.y=gy; g.v.y=Math.abs(g.v.y)*0.3; g.v.x*=0.55; g.v.z*=0.55; }   // 튀며 구른다
+    if(p.y<gy){ p.y=gy; g.v.y=Math.abs(g.v.y)*0.3; g.v.x*=0.55; g.v.z*=0.55; } }   // 튀며 구른다
     if(shipInside(p.x,p.y,p.z)){ p.addScaledVector(g.v,-dt); g.v.x*=-0.4; g.v.z*=-0.4; g.v.y=Math.abs(g.v.y)*0.3; }   // 보급선 몸에 튕긴다
     g.m.rotation.x+=dt*8*Math.hypot(g.v.x,g.v.z)*0.2;
     g.t-=dt;
@@ -517,7 +524,8 @@ function updateRockets(dt){
     let hit=false;
     for(let k=0;k<n&&!hit;k++){
       p.addScaledVector(R.v,dt/n);
-      if(p.y<=Math.max(heightAt(p.x,p.z),-0.3)+0.05||shipInside(p.x,p.y,p.z)) hit=true;   // 땅 · 보급선
+      const rq=CV10.built.size?cv10Q(p.x,p.z,p.y):null;                   // 지형 판 10 굴 빈 데 — 굴 바닥 · 천장(벽은 아래 땅 규칙: 굴 밖 땅 밑이면 맞는다)
+      if(rq?(p.y<=rq.f+0.05||(p.y>=rq.ce&&rq.ce<heightAt(p.x,p.z))):p.y<=Math.max(heightAt(p.x,p.z),-0.3)+0.05||shipInside(p.x,p.y,p.z)) hit=true;   // 땅 · 보급선
       for(const c of CREATURES){
         if(c.hp>0 && Math.hypot(c.x-p.x,(c.y||0)+1-p.y,c.z-p.z)<(c.r||1.5)){
           hit=true; p.set(c.x,c.y||0,c.z); break;                // 몸에 맞으면 그 자리에서 터진다(420 그대로)

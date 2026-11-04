@@ -136,6 +136,7 @@ function builtFloorAt(x,z){
 function floorAt(x,z,fromY){
   const h0=heightAt(x,z);
   if(PL.under&&fromY!==undefined&&fromY<h0-3) return underFloorAt(x,z);   // 땅속에 있고 땅 밑 3 m 아래 — 땅속의 바닥(96-underworld.js · 땅 위 벼랑 앞에서 땅속으로 빠지지 않게 사람이 땅속일 때만)
+  if(fromY!==undefined&&CV10.built.size){ const q=caveHere(x,z,fromY); if(q) return q.f; }   // 지형 판 10 굴 빈 데 — 굴 바닥(지은 바닥 · 큰 바위 윗면은 굴 속에 없다 · 80-player.js)
   let t=h0+giantRootAt(x,z);                    // 노거수의 뿌리는 땅이다(95-giants.js)
   t=cragFloor(x,z,fromY,t);                     // 벼랑의 큰 바위 — 낮으면 딛고 높으면 벽이다(33-crags.js)
   t=coastFloor(x,z,fromY,t);                    // 주상절리 기둥 위(34-coast.js)
@@ -719,6 +720,7 @@ const canBuild=(k,tier)=>buildCost(k,tier).every(r=>countMat(r)>=r.n);
 
 /* ---- 짓기 모드 ---- */
 function enterBuild(kind,tier){
+  if(PL.cvUnder){ toast('굴 속에서는 지을 수 없다'); return; }              // 지형 판 10 굴 속(80-player.js cavePlace)
   BUILD.on=true;
   if(kind) BUILD.kind=kind;
   if(tier!==undefined) BUILD.tier=tier;

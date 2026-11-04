@@ -361,7 +361,7 @@ function underBuild(){
   const hole=new THREE.MeshBasicMaterial({color:0x020303}), rope=new THREE.MeshLambertMaterial({color:0x8a6a3a}), wood=new THREE.MeshLambertMaterial({color:0x5a4228});
   const shaftM=new THREE.MeshLambertMaterial({color:0x4a4640,side:THREE.BackSide});
   for(const p of UNDER.pits){
-    p.ys=heightAt(p.x,p.z);
+    if((P.tv|0)<10) p.ys=heightAt(p.x,p.z);                                  // 판 10 은 underSites 가 굴 바닥으로 정했다(cv10Field.f)
     const h=new THREE.Mesh(new THREE.CircleGeometry(1.55,24).rotateX(-Math.PI/2),hole); h.position.set(p.x,p.ys+0.04,p.z); pg.add(h);
     for(let k=0;k<9;k++){ const a=k/9*6.283, r=0.24+0.12*Math.sin(k*2.3), s=new THREE.Mesh(new THREE.DodecahedronGeometry(r,0),wood.clone()); s.material.color.setHex(0x6e6a62);
       s.position.set(p.x+Math.cos(a)*1.75,p.ys+r*0.4,p.z+Math.sin(a)*1.75); pg.add(s); }
@@ -385,7 +385,8 @@ function underRopeTick(dt){
     PL.under=p.y<R.p.ys-4;
     camera.position.set(p.x,p.y+PL.eye,p.z); camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
     if(s>=1){ UNDER.rope=null;
-      if(R.dir>0){ const a=Math.atan2(R.p.rm.z-R.p.z,R.p.rm.x-R.p.x); p.set(R.p.x+Math.cos(a)*2.4,heightAt(R.p.x+Math.cos(a)*2.4,R.p.z+Math.sin(a)*2.4)+0.05,R.p.z+Math.sin(a)*2.4); PL.under=false; toast('땅 위로 올라왔다'); }
+      if(R.dir>0){ const a=Math.atan2(R.p.rm.z-R.p.z,R.p.rm.x-R.p.x), ax=R.p.x+Math.cos(a)*2.4, az=R.p.z+Math.sin(a)*2.4;
+        p.set(ax,((P.tv|0)>=10&&R.p.cave&&R.p.cave.tv===10?cv10Field(R.p.cave,ax,az).f:heightAt(ax,az))+0.05,az); PL.under=false; toast((P.tv|0)>=10?'굴로 올라왔다':'땅 위로 올라왔다'); }   // 판 10 은 굴 바닥에 선다
       else{ p.y=R.p.yf; PL.under=true; toast('땅속 — 어둡다. 횃불이나 전등을 들어라 · 밧줄 곁에서 Space 로 올라간다'); }
       PL.camY=undefined; PL.grounded=true; }
     return true;
@@ -406,10 +407,13 @@ const _uC=new THREE.Color();
 function updateUnder(dt){
   if(!UNDER.ok||!UNDER.grp) return;
   const p=PL.pos;
-  if(!UNDER.rope&&!PL.dead) PL.under=underIn(p.x,p.z,p.y)&&underQ(p.x,p.z).g>0.2;
-  const want=(PL.under||(UNDER.rope&&p.y<UNDER.rope.p.ys-6))?1:0;
+  if(!UNDER.rope&&!PL.dead) PL.under=!PL.cave&&underIn(p.x,p.z,p.y)&&underQ(p.x,p.z).g>0.2;     // 판 10 굴 속은 땅속 세계가 아니다(굴 밑에 땅속 세계 방이 있어도)
+  const inW=PL.under||(UNDER.rope&&p.y<UNDER.rope.p.ys-6);
+  const want=inW?1:(PL.caveQ&&!PL.dead?PL.caveQ.deep:0);                                         // 판 10 굴 — 깊을수록 어둡다(입구 거리 deep: 2 m 0 ~ 16 m 1)
   UNDER.u+=(want-UNDER.u)*clamp(dt*1.6,0,1); if(Math.abs(UNDER.u-want)<0.002) UNDER.u=want;
-  const u=UNDER.u, show=u>0.01||!!UNDER.rope;
+  /* 땅속 세계 칸 묶음(UNDER.grp)은 땅속 세계에 있을 때(밧줄 포함)만 — 굴 속에서 u 가 올라도 땅속 세계 칸은 안 짓는다. 땅 위로 올라오는 동안 어둠이 걷히는 사이는 그대로 보인다 */
+  if(inW||UNDER.rope) UNDER.wf=true; else if(UNDER.u<=0.01||PL.caveQ) UNDER.wf=false;     // 굴로 올라오면(밧줄 끝) 땅속 세계 칸은 곧바로 숨긴다
+  const u=UNDER.u, show=!!UNDER.rope||(UNDER.wf&&u>0.01);
   if(u===0&&UNDER.g0){ hemi.groundColor.copy(UNDER.g0); UNDER.g0=null; }              // 땅 위로 — 하늘빛의 땅 쪽 색을 되돌린다
   UNDER.grp.visible=show;
   if(u>0){                                          // 해·하늘빛을 끄고 어둠 안개(updateSky 다음 — 그 값에 곱한다)
