@@ -80,8 +80,8 @@ function seaBuildMeshes(){
         limb(b,unit(d[0]+(rnd()-0.5)*1.4,d[1]+0.3+rnd()*0.4,d[2]+(rnd()-0.5)*1.4),len*0.66,r*0.66,depth-1);
       }
     };
-    for(let i=0;i<4;i++){ const a=i/4*6.283+rnd()*0.8;
-      limb([Math.cos(a)*0.05,-0.05,Math.sin(a)*0.05],unit(Math.cos(a)*0.55,1,Math.sin(a)*0.55),0.42+rnd()*0.2,0.078,2); }
+    for(let i=0;i<6;i++){ const a=i/6*6.283+rnd()*0.8;                      // 사슴뿔 산호 — 가늘고 끝이 둥근 가지가 두 갈래씩 거듭 갈라진다(예전 넷 · 굵게)
+      limb([Math.cos(a)*0.05,-0.05,Math.sin(a)*0.05],unit(Math.cos(a)*0.55,1,Math.sin(a)*0.55),0.40+rnd()*0.22,0.050,2); }
     return SHP.merge(parts,false,GR); })();
   // 둥근(뇌) 산호 — 잔 혹이 진 반구
   const dome=SHP.merge([{g:SHP.blob(0.5,11,{w:16,h:9,amp:0.15,nb:7,freq:5.5,sy:0.72,base:0.24})}],false,[0.66,1.1]);
@@ -114,8 +114,9 @@ function seaBuildMeshes(){
       const g=new THREE.ConeGeometry(0.010,0.17,4,1,true); g.translate(0,0.085,0);
       parts.push({g,x:d.x*0.06,y:0.07+d.y*0.06,z:d.z*0.06,q:new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),d)}); }
     return SHP.merge(parts); })();
-  const mk=(geo,cap,two,sway)=>{
+  const mk=(geo,cap,two,sway,cor)=>{
     const mat=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:two?THREE.DoubleSide:THREE.FrontSide});
+    if(cor) coralSurf(mat,cor);
     if(sway){                                         // 바닷말은 물살에 흔들린다 — 높이의 제곱만큼
       mat.onBeforeCompile=sh=>{ sh.uniforms.uSeaT=SEA_U.uSeaT;
         sh.vertexShader='uniform float uSeaT;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
@@ -172,14 +173,50 @@ function seaBuildMeshes(){
   // 물밑 바위 — 등성이에 놓인다(진짜 바위 사진의 결을 입는다)
   const rockG=SHP.merge([{g:SHP.blob(1,77,{w:14,h:10,amp:0.30,nb:5,sy:0.72})}]);
   const rockIM=mk(rockG,1500,false); rockDetailPatch(rockIM.material,1.1,0.0);   // 바다 바위 — 이끼는 없다(바위 암초 · 석회조류 빛깔은 인스턴스 색)
-  SEA.m={ coral:[mk(branch,900,true),mk(dome,700,false),mk(fan,420,true),mk(tube,420,true),
-                 mk(table,600,true),mk(pillar,500,false),mk(sponge,480,true)],
+  SEA.m={ coral:[mk(branch,1500,true,false,'p'),mk(dome,1100,false,false,'brain'),mk(fan,700,true,false,'fan'),mk(tube,700,true,false,'p'),
+                 mk(table,1000,true,false,'tab'),mk(pillar,700,false,false,'p'),mk(sponge,700,true,false,'sp')],
           anem:mk(anem,360,true,true), star:mk(star,160,true), kelp:mk(kelp,900,true,true), rock:rockIM,
           weed:mk(weed,900,true,true), clam:mk(clam,160,false), oyster:mk(oyster,220,false), urchin:mk(urchin,420,true) };
+}
+/* **산호의 겉**(2026-11-04 사용자 요청 — 실제 산호초를 보고): 산호는 매끈한 덩이가 아니라 1~3 mm 폴립(산호충) 수천이 모인 군체다 —
+   겉이 잘게 오톨도톨하고(폴립 컵 · 화소마다 점) · 아래쪽 · 안쪽은 빛이 덜 들어 짙다. 갈래마다 제 결:
+     · brain(뇌 산호) — 폴립이 줄지어 이어 붙은 구불구불한 골과 등성이(잡음의 등고선)
+     · fan(부채 산호 · 고르고니안) — 판이 아니라 가는 가지가 그물로 얽힌 망(그물 사이는 뚫렸다 — 물이 지나간다)
+     · sp(해면) — 숨구멍(작고 검은 구멍)이 흩어진 겉 */
+function coralSurf(mat,kind){
+  const prev=mat.onBeforeCompile;
+  mat.onBeforeCompile=(sh,r)=>{ if(prev) prev(sh,r);
+    sh.vertexShader='varying vec3 vCP;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvCP=position;');
+    sh.fragmentShader='varying vec3 vCP;\nfloat ch3(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }\n'
+      +'float cn3(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(mix(ch3(i),ch3(i+vec3(1,0,0)),f.x),mix(ch3(i+vec3(0,1,0)),ch3(i+vec3(1,1,0)),f.x),f.y),mix(mix(ch3(i+vec3(0,0,1)),ch3(i+vec3(1,0,1)),f.x),mix(ch3(i+vec3(0,1,1)),ch3(i+vec3(1,1,1)),f.x),f.y),f.z); }\n'
+      +sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+      { vec3 q=vCP;
+        float pol=ch3(floor(q*95.0)); diffuseColor.rgb*=0.86+0.22*pol;                                  // 폴립 컵
+        diffuseColor.rgb*=mix(0.62,1.0,smoothstep(-0.05,0.35,q.y));                                     // 아래 · 안쪽은 짙다
+        ${kind==='p'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.95,0.93,0.86),smoothstep(0.45,0.95,q.y)*0.55);`:''}   // 자라는 끝은 공생 조류가 아직 없어 희다
+        ${kind==='tab'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.95,0.93,0.86),smoothstep(0.46,0.62,length(q.xz))*0.6);
+        diffuseColor.rgb*=0.86+0.24*step(0.5,ch3(floor(vec3(q.x,0.0,q.z)*60.0)));`:''}   // 상 산호 — 가장자리가 희고 윗면이 잔가지로 오톨도톨
+        ${kind==='brain'?`float w=cn3(q*5.5)*0.65+cn3(q*11.0+3.1)*0.35; float rg=abs(fract(w*7.0)-0.5)*2.0;
+        diffuseColor.rgb*=mix(0.48,1.12,smoothstep(0.25,0.7,rg));`:''}
+        ${kind==='fan'?`vec2 g=q.xy*26.0+vec2(cn3(q*4.0),cn3(q*4.0+7.0))*2.2; vec2 fg=abs(fract(g)-0.5);
+        float vein=min(fg.x,fg.y); if(vein>0.17&&length(q.xy)>0.12) discard; diffuseColor.rgb*=mix(1.08,0.85,smoothstep(0.0,0.17,vein));`:''}
+        ${kind==='sp'?`float ho=ch3(floor(q*40.0)); diffuseColor.rgb*=1.0-0.75*step(0.93,ho);`:''}
+      }`); };
+  const k0=mat.customProgramCacheKey&&mat.customProgramCacheKey.bind(mat);
+  mat.customProgramCacheKey=()=>(k0?k0():'')+'coral-'+kind;
 }
 /* 산호 한 포기의 키(크기 1 일 때) — 수면 위로 솟지 않게 수심에 맞춰 줄인다 */
 const SEA_CORAL_H=[1.05,0.40,0.72,0.72,0.72,1.15,0.46];
 const SEA_CORAL_C=[[0.91,0.31,0.29],[0.94,0.54,0.23],[0.95,0.71,0.78],[0.66,0.42,0.82],[0.94,0.82,0.38],[0.35,0.72,0.78],[0.91,0.88,0.82]];
+/* **꼴마다 실제 빛깔**(2026-11-04 사용자 사진 — 산호초는 갈색 · 황토 · 보라 바탕에 끝이 희고, 붉은 · 분홍 연산호와 노란 대롱이 섞인다):
+   가지(사슴뿔 — 갈색 · 보라 · 푸른빛 · 붉은 연산호) · 뇌(황토 · 꿀빛 · 녹갈) · 부채(붉은 · 보라 · 주황 고르고니안) · 대롱(노랑 · 주황) · 상(녹슨 갈색 · 적갈) · 기둥(황갈) · 해면(보라 · 노랑) */
+const SEA_CORAL_TY=[[[0.72,0.48,0.32],[0.62,0.40,0.55],[0.46,0.58,0.74],[0.92,0.30,0.32],[0.95,0.48,0.62],[0.80,0.62,0.40]],
+  [[0.80,0.66,0.44],[0.70,0.56,0.36],[0.56,0.60,0.38],[0.86,0.72,0.50]],
+  [[0.88,0.26,0.24],[0.62,0.26,0.58],[0.94,0.55,0.22]],
+  [[0.96,0.78,0.26],[0.92,0.46,0.20]],
+  [[0.72,0.46,0.30],[0.80,0.36,0.26],[0.62,0.56,0.42],[0.68,0.50,0.58]],
+  [[0.84,0.74,0.56],[0.74,0.62,0.48]],
+  [[0.58,0.32,0.64],[0.92,0.74,0.22],[0.90,0.45,0.20]]];
 /* 바닷말 빛깔 — 풀빛이 아니라 갈조·홍조의 누런 갈색·짙은 올리브·붉은 갈색 */
 const SEA_WEED_C=[[0.34,0.33,0.12],[0.16,0.32,0.20],[0.44,0.25,0.15],[0.40,0.37,0.11]];
 const _seaM=new THREE.Matrix4(), _seaQ=new THREE.Quaternion(), _seaE=new THREE.Euler(), _seaV=new THREE.Vector3(),
@@ -224,7 +261,7 @@ function seaScatter(){
     const coral=(ty,s0,ox,oz,first)=>{ const im=M.coral[ty], k='c'+ty; if(n[k]>=im.instanceMatrix.count) return;
       const hh=seaHash(gx,gz,7+ty+(first?0:9)), cx=wx+ox, cz=wz+oz, dd=first?dep:seaDepthAt(cx,cz); if(dd<0.5) return;
       const sc=Math.min(s0*edge,(dd-0.35)/SEA_CORAL_H[ty]/1.15);
-      put(im,n[k]++,cx,-dd,cz,sc,sc*(0.85+0.3*((hh>>>16)&7)/7),yaw+(first?0:1.7),0.12,SEA_CORAL_C[(hh>>>19)%SEA_CORAL_C.length],tv);
+      const PAL=SEA_CORAL_TY[ty]; put(im,n[k]++,cx,-dd,cz,sc,sc*(0.85+0.3*((hh>>>16)&7)/7),yaw+(first?0:1.7),0.12,PAL[(hh>>>19)%PAL.length],tv);
       if(first) kp('coral',SEA_CORAL_H[ty]*sc*0.4); };
     const pickTy=(w,r)=>{ let t=0; for(let i=0;i<w.length;i++) t+=w[i]; let q=r*t; for(let i=0;i<w.length;i++){ if(q<w[i]) return i; q-=w[i]; } return 0; };
     const v2=((h2>>>24)&255)/255;
@@ -241,7 +278,10 @@ function seaScatter(){
           if(v2<0.45&&n.rock<M.rock.instanceMatrix.count){ const sr=(0.7+1.3*v)*edge;   // 초의 뼈대 — 산호가 쌓아 올린 석회암 덩이(돌기를 솟게 한다)
             put(M.rock,n.rock++,wx+(u-0.5)*1.2,y+sr*0.05,wz+(v2-0.2)*1.2,sr,sr*0.5,yaw+0.9,0.2,[[0.72,0.62,0.55],[0.66,0.58,0.62],[0.70,0.66,0.52]][(h2>>>21)%3],tv); }
           if(u<0.82){ coral(pickTy([30,15,4,4,24,16,7],v2),0.8+1.4*v*v*(spur>0.6?1.4:1),0,0,true);
-            if(v>0.35) coral(pickTy([30,20,2,4,20,18,6],1-v2),0.6+0.9*v,(v2-0.5)*1.4,(u-0.4)*1.6,false); }
+            if(v>0.35) coral(pickTy([30,20,2,4,20,18,6],1-v2),0.6+0.9*v,(v2-0.5)*1.4,(u-0.4)*1.6,false);
+            /* 산호 덩이(사용자 사진 — 산호초는 빈틈없이 겹겹이 쌓인 덩이다): 등성이엔 둘레에 두셋 더 — 서로 기대 붙는다 */
+            if(spur>0.2){ coral(pickTy([28,14,8,8,22,8,10],(v2*7.3)%1),0.5+0.8*v2,(u-0.5)*1.8,(v-0.5)*1.8,false);
+              if(spur>0.55) coral(pickTy([24,10,10,10,18,6,12],(u*5.1)%1),0.45+0.7*u,(v-0.6)*2.0,(v2-0.4)*2.0,false); } }
           else if(u<0.87&&n.anem<M.anem.instanceMatrix.count){ put(M.anem,n.anem++,wx,y,wz,(0.8+0.9*v)*edge,(0.8+0.9*v)*edge,yaw,0.05,SEA_CORAL_C[(h2>>>19)%SEA_CORAL_C.length],tv); kp('anem',0.2); }
           else if(u<0.92) n.urchin=pick('urchin',M.urchin,n.urchin,0.9+0.6*v,[0.22,0.15,0.28]);
         }else{                                        // 골 — 하얀 모래 · 부서진 산호 조각 · 조개 · 불가사리
@@ -390,16 +430,25 @@ function fishGeo(S){
   }
   const fc=[cb[0]*0.8,cb[1]*0.8,cb[2]*0.8], x0=-0.5*L, th=S.sword?0.30:0.24;
   const fin=(a,b,c,ra,rb,rc)=>{ for(const [v,r] of [[a,ra],[b,rb],[c,rc]]){ P.push(v[0],v[1],v[2]); Cc.push(fc[0],fc[1],fc[2]); AF.push(r,0,1); } };   // AF.x — 지느러미 살의 자리
-  // 꼬리 — 위아래로 갈라진 V(살은 꼬리 자루에서 부채꼴로)
-  const tw=th*L*Math.max(0.5,S.tall*1.6);
-  fin([x0+0.04*L,0,0],[x0-0.20*L,tw,0],[x0-0.07*L,0,0],0,1,0.5);
-  fin([x0+0.04*L,0,0],[x0-0.07*L,0,0],[x0-0.20*L,-tw,0],0,0.5,1);
-  // 등지느러미(엔젤피시는 위아래로 길다)
-  const hy=S.tall*L*0.5, fh=(S.fin?0.55:0.22)*L*Math.max(0.35,S.tall);
-  fin([-0.02*L,hy*0.9,0],[0.20*L,hy*0.95,0],[-0.16*L,hy+fh,0],0,1,0.5);
-  if(S.fin) fin([-0.02*L,-hy*0.9,0],[-0.16*L,-hy-fh,0],[0.20*L,-hy*0.95,0],0,0.5,1);
-  // 가슴지느러미 둘
-  for(const s of [-1,1]){ const z=prof(0.66)*S.thick*L*0.5*s; fin([0.16*L,-hy*0.15,z],[0.04*L,-hy*0.45,z*1.6],[0.02*L,-hy*0.05,z*1.5],0,1,0.6); }
+  /* **지느러미는 살이 부채꼴로 퍼진 막**(2026-11-04 사용자 지적 — 물고기가 이상하다: 꼬리가 종이 세모 둘 · 등지느러미 세모 하나였다).
+     부채(`fan`) — 밑동 한 점에서 끝 가장자리의 여러 점으로 세모를 펼친다. aF.x = 살의 자리(가장자리를 따라) · aF.y = 밑동 0 → 끝 1(끝은 얇아 비친다) */
+  const fan=(b,tips)=>{ const n=tips.length-1; for(let i=0;i<n;i++){ const a0=i/n*1.6, a1=(i+1)/n*1.6;
+      P.push(b[0],b[1],b[2]); Cc.push(fc[0],fc[1],fc[2]); AF.push((a0+a1)/2,0,1);
+      P.push(tips[i][0],tips[i][1],tips[i][2]); Cc.push(fc[0],fc[1],fc[2]); AF.push(a0,1,1);
+      P.push(tips[i+1][0],tips[i+1][1],tips[i+1][2]); Cc.push(fc[0],fc[1],fc[2]); AF.push(a1,1,1); } };
+  // 꼬리 — 갈라진 꼬리(위아래 끝이 길고 가운데가 패였다 · 살은 꼬리 자루에서 부채꼴로)
+  const tw=th*L*Math.max(0.5,S.tall*1.6), tail=[];
+  for(let k=0;k<=10;k++){ const a=(k/10)*2-1, fork=0.09+0.15*Math.pow(Math.abs(a),1.4); tail.push([x0-fork*L, a*tw, 0]); }
+  fan([x0+0.05*L,0,0],tail);
+  // 등지느러미 — 앞이 높고 뒤로 낮아지는 둥근 막(엔젤피시는 위아래로 길다)
+  const hy=S.tall*L*0.5, fh=(S.fin?0.55:0.22)*L*Math.max(0.35,S.tall), dor=[], anal=[];
+  for(let k=0;k<=8;k++){ const u=k/8, x=(0.22-0.42*u)*L, y=hy*0.92+fh*Math.sin(Math.PI*Math.pow(u,0.7))*(1-0.35*u); dor.push([x,y,0]); anal.push([x*0.8,-y,0]); }
+  fan([0.0,hy*0.80,0],dor);
+  if(S.fin) fan([0.0,-hy*0.80,0],anal);
+  // 가슴지느러미 둘 — 둥근 부채(아가미 뒤에서 뒤로 눕는다)
+  for(const s of [-1,1]){ const z=prof(0.66)*S.thick*L*0.5*s, pec=[];
+    for(let k=0;k<=6;k++){ const a=-0.9+k/6*1.5; pec.push([0.14*L-Math.cos(a)*0.13*L, -hy*0.15+Math.sin(a)*0.08*L, z*(1.4+0.3*Math.cos(a))]); }
+    fan([0.15*L,-hy*0.15,z],pec); }
   if(S.sword){ const n=0.5*L; fin([n-0.02*L,0.012*L,0],[n+0.34*L,0,0],[n-0.02*L,-0.012*L,0],0,0,0);    // 주둥이 칼
                fin([n-0.02*L,0,0.012*L],[n+0.34*L,0,0],[n-0.02*L,0,-0.012*L],0,0,0); }
   // 눈 — 검은 눈동자에 밝은 테
@@ -435,9 +484,9 @@ function fishMat(){
           float yy=abs(fract(vFA.y/12.0+0.25)-0.5);                       // 옆줄 — 몸 옆 가운데(둘레 1/4 자리)
           diffuseColor.rgb*=1.0-0.22*(1.0-smoothstep(0.004,0.012,abs(yy-0.25)))*smoothstep(1.0,4.0,vFA.x);
         }else if(vFA.z<1.5){
-          float r=abs(fract(vFA.x*9.0)-0.5);                              // 지느러미 살
+          float r=abs(fract(vFA.x*9.0)-0.5);                              // 지느러미 살(부채꼴로 퍼진다)
           diffuseColor.rgb*=0.80+0.30*smoothstep(0.08,0.30,r);
-          diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*1.25+0.04,smoothstep(0.6,1.0,vFA.x));   // 끝은 얇아 비친다
+          diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*1.25+0.04,smoothstep(0.55,1.0,max(vFA.y,vFA.x*0.0)));   // 끝(밑동에서 먼 데)은 얇아 비친다
         } }`)
       .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
       if(vFA.z<0.5){ vec3 n=normalize(vFN), v=normalize(vFV); if(dot(n,v)<0.0) n=-n;
