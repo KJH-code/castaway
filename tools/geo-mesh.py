@@ -50,8 +50,8 @@ def pack(P,F):
 out={}
 for p in sys.argv[1:]:
     name=re.sub(r'^Meshy_AI_|_\d{8}_generate\.stl$','',os.path.basename(p)).lower()
-    V=load(p); near=fit(V,16000); far=fit(V,2500)
-    out[name]={'near':pack(*near),'far':pack(*far),'w':[round(float(x),4) for x in (V.max(0)-V.min(0))]}
-    print(name,'tris',len(V)//3,'-> near',len(near[1]),'far',len(far[1]),'size(w,h,d)',out[name]['w'])
+    V=load(p); near=fit(V,16000); far=fit(V,2500); tiny=fit(V,600)
+    out[name]={'near':pack(*near),'far':pack(*far),'tiny':pack(*tiny),'w':[round(float(x),4) for x in (V.max(0)-V.min(0))]}
+    print(name,'tris',len(V)//3,'-> near',len(near[1]),'far',len(far[1]),'tiny',len(tiny[1]),'size(w,h,d)',out[name]['w'])
 js='/* data-geo-meshes.js — tools/geo-mesh.py 가 Meshy STL 에서 만든다(읽지 말 것 · base64) — 37-geo-meshes.js 가 푼다 */\nconst GEO_MESH_DATA='+json.dumps(out,separators=(',',':'))+';\n'
 open('engine/js/data-geo-meshes.js','w').write(js); print('bytes',len(js))

@@ -861,6 +861,7 @@ async function placeResources(seed){    // async — 긴 고리 사이 숨을 �
       for(let x=2;x<N-2 && placed<cap;x++){
         const i=IDX(x,z);
         if(h[i]<=0.3) continue;
+        if(P.sm&&(isTree||R.k==='grass'||R.k==='reed')&&s[i]>(isTree?0.5:0.65)) continue;   // 매끈한 땅 — 벼랑엔 나무 · 풀포기가 안 난다(2026-11-04 사용자 지적: 풀이 벼랑에 섞인다)
         const p=Math.min(1,fn(i))*R.d*DSCALE*TVM*GS;
         if(WS===1){
           if(p<=0 || rnd()>p) continue;
