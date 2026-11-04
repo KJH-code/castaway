@@ -395,6 +395,7 @@ async function generateWorld(){
                                     coastRaise();                            // 바닷가는 바다 쪽으로 기운다(매끈한 땅 P.sm · 10-worldgen.js)
                                     await breathe(); fallsSites();           // 폭포 자리 — 하천 수면이 4 m 넘게 떨어지는 데(36-falls.js · 지형 판 5)
                                     await breathe(); templeLandSite(seed);   // 섬 한가운데의 옛 신전 — 터를 다진다(97-temples.js · 지형 판 8)
+                                    await breathe(); geoLandforms(seed);    // 큰 지형 모형 — 산맥 · 협곡 · 시스택(매끈한 땅 P.sm · 37-geo-meshes.js)
                                     await breathe(); reliefMask();           // 잔 기복의 가림막(지형 판 3) — 이 뒤로 heightAt 이 둔덕·골을 안다
                                     await breathe(); await placeResources(seed);
                                     await breathe(); underSites(seed);       // 땅속 세계 — 굴 방 · 굴길 · 수직굴 자리(96-underworld.js · 지형 판 7)
@@ -471,4 +472,4 @@ async function generateWorld(){
   }
   busy=false;                           // 실패해도 잠기지 않게 반드시 해제
 }
-async function placeProps_(seed){ placePod(seed); await breathe(); await buildProps(); await breathe(); buildCrags(); templeBuild(); await breathe(); buildCaves(); await breathe(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다
+async function placeProps_(seed){ placePod(seed); await breathe(); await buildProps(); await breathe(); buildCrags(); geoBuild(); templeBuild(); await breathe(); buildCaves(); await breathe(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다

@@ -1823,7 +1823,7 @@ float cloudSh(){
     if(amip) sh.fragmentShader=sh.fragmentShader.replace('#include <alphatest_fragment>',
       '#ifdef USE_MAP\n\t{ vec2 amS=vec2(textureSize(map,0)), amX=dFdx(vUv*amS), amY=dFdy(vUv*amS); diffuseColor.a*=1.0+0.30*max(0.0,0.5*log2(max(dot(amX,amX),dot(amY,amY)))); }\n#endif\n#include <alphatest_fragment>');
     if(leaf) sh.fragmentShader=sh.fragmentShader.replace('vec4 lambW = ( gl_FrontFacing ) ? vLambW : vLambWB;',
-      'vec4 lambW = ( gl_FrontFacing ) ? vLambW : vLambWB;\n\t\tlambW.x += ( ( gl_FrontFacing ) ? vLambWB.x : vLambW.x ) * 0.40;');
+      'vec4 lambW = ( gl_FrontFacing ) ? vLambW : vLambWB;\n\t\tlambW.x += ( ( gl_FrontFacing ) ? vLambWB.x : vLambW.x ) * 0.80;   // 잎을 뚫고 오는 볕 0.40 → 0.80(2026-11-04 사용자 요청 — 잎에 빛이 드는 것 · 세상이 너무 칙칙하다)');
     /* 이슬 맺힌 잎의 반짝임(98-dew.js ②) — 세계 좌표의 잔 칸(거리에 비례 — 화소 하나쯤)마다 난수 하나, 문턱을 넘는 칸이 해의 빛깔로 빛난다.
        해의 몫(그림자·구름 그늘·산 그림자)에 곱하니 그늘에서는 안 반짝인다. 눈이 움직이면 자리가 바뀐다 */
     if(leaf){ const OUT='vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;';

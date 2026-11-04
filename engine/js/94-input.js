@@ -104,6 +104,7 @@ addEventListener('keydown',e=>{
   if(kbHit(e,'build')){                         // 짓기 모드
     if(BUILD.on){ exitBuild(); toast('짓기 끝'); }
     else if(PL.under) toast('땅속에서는 지을 수 없다');
+    else if(PL.cvUnder) toast('굴 속에서는 지을 수 없다');                  // 지형 판 10 굴 속(80-player.js cavePlace)
     else enterBuild(null);
   }
   if(kbHit(e,'reload')){                       // 재장전
@@ -217,7 +218,7 @@ function pause(){
 function start(){
   if(!landed&&gameHours<0.01) setTimeout(()=>toast('가방(I)에 생존 안내서가 있다 — 눌러서 읽어 보라'),1800);   // 처음 상륙
   landed=true;
-  if(typeof ITEM_SEEN!=='undefined') for(const sl of INV.slots) ITEM_SEEN.add(sl.id);   // 지니고 상륙한 것은 '새 재료' 로 안 알린다(55-craft.js)
+  if(typeof ITEM_SEEN!=="undefined") for(const sl of INV.slots) seenAdd(sl.id);   // 지니고 상륙한 것은 '새 재료' 로 안 알린다(55-craft.js)
   if(PL.dead) revivePL();
   paused=false; initAudio(); audioPause(false);
   fireWarm();                                       // 불꽃 셰이더를 미리 짠다(62-build.js — 놀이 때와 같은 광원 수에서 · 한 번만)

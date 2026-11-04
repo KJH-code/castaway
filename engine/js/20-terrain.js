@@ -300,8 +300,8 @@ let LIMB_FAR_MAT=null, LIMB_MAT_C=null, LIMB_DEPTH_C=null, LIMB_DIST_C=null;
 function barkMat(col,kind){
   const m=new THREE.MeshLambertMaterial({color:col});
   m.onBeforeCompile=sh=>{
-    sh.vertexShader='varying vec3 vBk;\nvarying vec2 vBkP;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
-      float bkLen=1.0, bkR=1.0;
+    sh.vertexShader='varying vec3 vBk;\nvarying vec2 vBkP;\nvarying float vBkT;\nvarying float vBkY0;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+      float bkLen=1.0, bkR=1.0; vBkT=0.0;
       ${INST_GUARD}
       #ifdef USE_INSTANCING
         bkLen=length(INST_MAT[1].xyz); bkR=length(INST_MAT[0].xyz);
@@ -318,9 +318,15 @@ function barkMat(col,kind){
         transformed.z+=(k2-0.5)*2.4*on;
       }
       #endif`:''}
-      vBk=vec3(0.0, transformed.y*bkLen, length(position.xz)*bkR); vBkP=position.xz;`);
+      ${kind==='trunk'?`
+      #ifdef USE_INSTANCING
+        vBkT=(fract(sin(dot(INST_MAT[3].xz,vec2(12.9898,78.233)))*43758.5453)-0.5)*0.55;   // 나선 목리 — 그루마다 꼬임 세기 · 방향(라디안/m)
+      #endif`:''}
+      vBk=vec3(0.0, transformed.y*bkLen, length(position.xz)*bkR); vBkP=position.xz; vBkY0=position.y;`);
     sh.fragmentShader=`varying vec3 vBk;
 varying vec2 vBkP;
+varying float vBkT;
+varying float vBkY0;
 float bh(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float bn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(bh(i),bh(i+vec2(1,0)),f.x),mix(bh(i+vec2(0,1)),bh(i+vec2(1,1)),f.x),f.y); }
@@ -328,7 +334,7 @@ float bn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
       {
         /* 둘레의 각은 **화소에서** 센다(사용자 지적: 나무껍질이 깨진다) — 정점에서 세어 넘기면 +π → −π 로 넘어가는 이음매의
            세모 한 줄에서 각이 거꾸로 한 바퀴를 훑어, 줄기마다 결이 뭉개진 세로 금이 났다 */
-        float ang=atan(vBkP.y,vBkP.x);
+        float ang=atan(vBkP.y,vBkP.x)+vBk.y*vBkT;                    // 나선 목리 — 골이 높이를 따라 돌아간다(2026-11-04)
         /* 둘레 길이(m) = 각 × 반지름 — 굵은 줄기는 골이 많고 가는 가지는 적다 */
         float circ=6.2832*max(vBk.z,0.02);
         float nAround=max(2.0,floor(circ/0.13));
@@ -349,6 +355,16 @@ float bn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
         br*=0.82+0.30*bn(vec2(ang*14.0,vBk.y*24.0));                    // 잔 세로 결
         br=mix(0.70,br,aa);                                            // 멀면 평균 밝기(골·판·잔 결의 평균)
         br*=0.9+0.2*bn(vec2(ang,vBk.y)*vec2(1.1,0.9));                 // 큰 얼룩(멀어도 남긴다)
+        /* **실제 껍질처럼**(2026-11-04 사용자 요청) — 골이 그물처럼 갈라졌다 합친다(코르크층이 자라며 찢어진 금은 비스듬히 엇갈려 길쭉한 마름모 판을 남긴다) ·
+           골 밑은 더 깊고 검다 · 껍질 판 등은 바래서 밝다 · 밑동 1.5 m 안 그늘진 쪽엔 이끼, 판 위엔 회백 지의류 점 */
+        { float sl=ang/6.2832*nAround, x2=fract(sl+vBk.y*1.9+bn(vec2(vBk.y*2.3,sl*0.5))*0.8), x3=fract(sl-vBk.y*1.9+bn(vec2(vBk.y*2.1+4.0,sl*0.5))*0.8);
+          float net=min(smoothstep(0.0,0.09,x2)*smoothstep(1.0,0.91,x2),smoothstep(0.0,0.09,x3)*smoothstep(1.0,0.91,x3));
+          br*=mix(1.0,mix(0.55,1.0,net),aa*0.6);
+          br*=mix(1.0,1.12,fis*aa*0.6);
+          float moss=smoothstep(-1.2,-2.4,vBkY0)*smoothstep(0.45,0.70,bn(vec2(ang*2.0,vBk.y*3.0)+11.0))*(0.5+0.5*sin(ang));
+          diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.20,0.30,0.10),moss*0.55);
+          float lic=smoothstep(0.80,0.86,bn(vec2(ang*9.0,vBk.y*11.0)+5.0))*fis*aa;
+          diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.62,0.64,0.56)/max(br,0.2),lic*0.35); }
         diffuseColor.rgb*=br;
       }`);
   };
@@ -999,6 +1015,8 @@ vec2 grain(vec3 p){
         /* **화강암 토르의 겉**(2026-11-04 사용자 지적 — 실제 바위처럼): 빗물이 흘러내린 검은 물때 줄(옆면 · 세로로 늘인 잡음) ·
            껍질 지의류 — 회백색 얼룩(레카노라 · 온 면) · 주황 점(크산토리아 — 새 앉는 윗면) */
         { float sd=1.0-abs(n.y);
+          float yb=p.y+rn(p/7.0)*1.6, lb=fract(yb/1.1);                                                     // 층리 — 켜마다 빛깔 · 처마 밑 그늘
+          c*=(0.84+0.30*fract(sin(floor(yb/1.1)*12.9898)*43758.5453))*mix(0.70,1.0,smoothstep(0.0,0.12,lb)*(0.4+0.6*sd)+(1.0-sd)*0.6);
           c*=1.0-0.30*smoothstep(0.55,0.85,rn(vec3(p.x*1.6,p.y*0.10,p.z*1.6)+3.3))*sd;
           float li=rn(p/0.45+7.1)*0.6+rn(p/0.13+2.9)*0.4;
           c=mix(c,vec3(0.60,0.61,0.56),smoothstep(0.64,0.70,li)*(0.45+0.4*smoothstep(-0.2,0.6,n.y))*0.6);
@@ -1028,6 +1046,11 @@ vec2 grain(vec3 p){
         vec3 V=-normalize(vRV), nv=normalize(mat3(viewMatrix)*n), sv=normalize(mat3(viewMatrix)*uSunDir);
         float sp=pow(max(dot(reflect(-sv,nv),V),0.0),24.0)*uRkMet*max(uSunDir.y,0.0);
         c+=vec3(sp*0.7);
+        /* **젖은 바위의 번들거림**(2026-11-04 사용자 요청 — 젖은 바위가 빛나고 반짝이는 것) — 물가(해수면 −1.5~2.2 m)의 바위는 젖어 짙어지고 해를 좁고 밝게 되비친다 ·
+           마른 바위도 아주 옅은 윤기(밝은 데가 살아 보이게). 비스듬히 볼 때는 하늘빛이 비친다(프레넬) */
+        { float wet=smoothstep(2.2,0.3,p.y)*smoothstep(-1.5,-0.2,p.y), gl=max(uSunDir.y,0.0);
+          float sw=pow(max(dot(reflect(-sv,nv),V),0.0),70.0)*(0.12+0.88*wet)*gl, fr=pow(1.0-max(dot(nv,V),0.0),3.0);
+          c=c*mix(1.0,0.68,wet)+vec3(sw*(0.5+1.6*wet))+vec3(0.10,0.12,0.14)*fr*wet; }
         diffuseColor.rgb=c;
       }`);
   };
@@ -1634,7 +1657,7 @@ function buildWater(){
   // 둘레 점의 수위 — 가까운(4×4 칸) 물길 칸 수위의 평균
   /* **물길이 아닌 격자점은 늘 땅 밑으로 묻는다**(2026-11-04 사용자 사진 — 둑에 짙은 물 판이 비스듬히 떠 검은 쐐기 · 네모가 섰다). 예전엔 물길 칸에
      닿은 둑의 격자점이 그 물길의 수위를 그대로 받아, 둑이 수위보다 낮은 데(비탈을 비껴 흐르는 물길 · 폭포 밑)에서 판이 땅 위로 2~4 m 떴다 */
-  const vw2=(x,z)=>{ const v=vw(x,z); if(v!==null){ const i=IDX(x,z); return wet(i)?v:Math.min(v,F.elev[i]-0.05); } let sm=0,n=0;
+  const vw2=(x,z)=>{ const v=vw(x,z); if(v!==null){ const i=IDX(x,z); return wet(i)?v:Math.min(v,F.elev[i]+0.15); } let sm=0,n=0;   // 둑 격자점은 땅보다 15 cm 위까지만 — 판이 이어지고(물이 조각나지 않게) 둑에서 얕아져 스러진다(예전 땅 밑 5 cm 는 물이 네모 조각으로 끊겼다 — 2026-11-04 사용자 사진) let sm=0,n=0;
     for(let zz=z-2;zz<=z+1;zz++) for(let xx=x-2;xx<=x+1;xx++){
       if(xx<0||zz<0||xx>=N||zz>=N) continue; const j=IDX(xx,zz); if(wet(j)){ sm+=RL[j]; n++; } }
     /* 둘레 점은 **그 자리 땅 밑으로 한 뼘 묻는다** — 낮은 둑에선 판이 땅 위로 떠서 칸 모양대로 곧게 끊겼다(물가가 네모났다).

@@ -73,12 +73,12 @@ function cragShape(seed,w,h){
   /* **둥글게 닳은 절리 덩이**(2026-11-04 사용자 지적 — 네모 상자 같다 · 실제 바위처럼): 화강암 토르는 땅속에서 절리를 따라 스며든 물이
      모서리부터 갉아 먹어(구상 풍화) 덩이가 둥근 베개 꼴(핵석)이 되고, 땅 위로 드러나면 그 둥근 덩이가 켜켜이 쌓인 채 남는다. 그래서 상자 쪽으로는
      조금만 당기고(0.30~0.48) 절리 면은 얕게 깎는다(모서리가 넓게 둥글다) */
-  const box=0.30+rnd()*0.18, C=[], L=[];
+  const box=0.72+rnd()*0.18, C=[], L=[];   // 지층 덩이 — 모난 판(2026-11-04 사용자 사진: 벼랑은 켜켜이 쌓인 모난 바위다 · 둥근 감자 더미가 아니라)
   for(let i=0;i<3;i++){ let x=rnd()*2-1, y=rnd()*2-1, z=rnd()*2-1; const l=Math.hypot(x,y,z)||1; L.push([x/l,y/l,z/l,1.1+rnd()*1.6,rnd()*6.283,rnd()*2-1]); }
   /* 절리 면 여섯 — 축마다 ±, 18° 안팎으로 기울이고 깊이(0.70~0.95)를 들쭉날쭉하게 */
   const AX=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
   for(const a of AX){ let x=a[0]+(rnd()-0.5)*0.34, y=a[1]+(rnd()-0.5)*(a[1]?0.18:0.30), z=a[2]+(rnd()-0.5)*0.34; const l=Math.hypot(x,y,z)||1;
-    C.push([x/l,y/l,z/l,(a[1]>0?0.84:0.80)+rnd()*0.16]); }
+    C.push([x/l,y/l,z/l,(a[1]>0?0.70:0.72)+rnd()*0.20]); }
   for(let i=0,n=2+((rnd()*3)|0);i<n;i++){ let x=rnd()*2-1, y=(rnd()*2-1)*0.8, z=rnd()*2-1; const l=Math.hypot(x,y,z)||1; C.push([x/l,y/l,z/l,0.80+rnd()*0.22]); }   // 모서리를 떼어 낸 면
   const lay=5+rnd()*6, lp=rnd()*6.283, cut=new Int8Array(p.count).fill(-1);
   for(let i=0;i<p.count;i++){ let x=p.getX(i), y=p.getY(i), z=p.getZ(i);
@@ -95,15 +95,39 @@ function cragShape(seed,w,h){
   /* 깎은 면의 점은 그 면의 법선으로(85%) — 면 하나가 한 볕을 받아 모난 덩이로 읽힌다. 면과 면 사이 한 줄만 둥글게 이어진다 */
   const nr=g.attributes.normal;
   for(let i=0;i<p.count;i++){ const ci=cut[i]; if(ci<0) continue; const c=C[ci];
-    let x=nr.getX(i)*0.45+c[0]*0.55, y=nr.getY(i)*0.45+c[1]*0.55, z=nr.getZ(i)*0.45+c[2]*0.55; const l=Math.hypot(x,y,z)||1; nr.setXYZ(i,x/l,y/l,z/l); }   // 면 법선은 반만 — 닳은 면이라 볕이 부드럽게 넘어간다
+    let x=nr.getX(i)*0.15+c[0]*0.85, y=nr.getY(i)*0.15+c[1]*0.85, z=nr.getZ(i)*0.15+c[2]*0.85; const l=Math.hypot(x,y,z)||1; nr.setXYZ(i,x/l,y/l,z/l); }   // 면 법선은 반만 — 닳은 면이라 볕이 부드럽게 넘어간다
   const o={pos:Float32Array.from(p.array), nor:Float32Array.from(nr.array), idx:Uint16Array.from(g.index.array)};
   g.dispose(); return o;
 }
 function cragShapes(){
   if(CRAG.shapes) return CRAG.shapes;
   const RES=[[[22,15],[10,7]],[[14,10],[7,5]],[[10,7],[7,5]]], S=[];   // [가까이 촘촘 · 멀리 성김] — 잔 울퉁불퉁이 보이게 가까운 꼴을 곱게(예전 13×9 · 9×6 · 7×5)
-  for(let lv=0;lv<3;lv++){ S.push([]); for(let v=0;v<8;v++){ const sd=0xa11+lv*977+v*131; S[lv].push([cragShape(sd,RES[lv][1][0],RES[lv][1][1]),cragShape(sd,RES[lv][0][0],RES[lv][0][1])]); } }
+  for(let lv=0;lv<3;lv++){ S.push([]); for(let v=0;v<8;v++){ const sd=0xa11+lv*977+v*131; S[lv].push([cragShape(sd,RES[lv][1][0],RES[lv][1][1]),cragShape(sd,RES[lv][0][0],RES[lv][0][1])]); }
+    for(let v=0;v<4;v++){ const sd=0x7c01+v*313; S[lv].push([cragPrism(sd,3,6),cragPrism(sd,6,16)]); }      // 8~11: 예전 절벽 기둥(이제 안 씀)
+    for(const nm of CRAG_MESHY) S[lv].push([cragMeshy(nm,'tiny'),cragMeshy(nm,lv===0?'far':'tiny')]); }   // 12~: 사용자 Meshy 벼랑 · 바위(cragGrowWall)
   return CRAG.shapes=S;
+}
+/* 사용자 Meshy 모형(37-geo-meshes.js 자료)을 바위 꼴로 — 상자 [−1,1]³ 에 맞추고 정점 오목함(cav)을 들고 간다(틈을 짙게) */
+const CRAG_MESHY=['cliffside_rock_face','stonecliff_plateau','rugged_granite_boulder','stone_sentinel','granite_peaks','jagged_stone_peak'];
+function cragMeshy(nm,lod){
+  if(typeof GEO_MESH_DATA==='undefined'||!GEO_MESH_DATA[nm]) return cragPrism(7,3,6);
+  const g=geoMeshGeo(nm,lod); g.computeBoundingBox(); const b=g.boundingBox, P=g.attributes.position.array, Nn=g.attributes.normal.array, C=g.attributes.color.array, n=P.length/3;
+  const cx=(b.min.x+b.max.x)/2, cy=(b.min.y+b.max.y)/2, cz=(b.min.z+b.max.z)/2, hx=(b.max.x-b.min.x)/2, hy=(b.max.y-b.min.y)/2, hz=(b.max.z-b.min.z)/2;
+  const pos=new Float32Array(n*3), nor=new Float32Array(n*3), cav=new Float32Array(n);
+  for(let i=0;i<n;i++){ pos[i*3]=(P[i*3]-cx)/hx; pos[i*3+1]=(P[i*3+1]-cy)/hy; pos[i*3+2]=(P[i*3+2]-cz)/hz;
+    let x=Nn[i*3]*hx, y=Nn[i*3+1]*hy, z=Nn[i*3+2]*hz; const l=Math.hypot(x,y,z)||1; nor[i*3]=x/l; nor[i*3+1]=y/l; nor[i*3+2]=z/l; cav[i]=C[i*3]; }
+  const I=g.index.array; return {pos,nor,idx:I instanceof Uint16Array?I:Uint16Array.from(I),cav};
+}
+/* 절벽 기둥 — 모서리가 날카로운 곧은 각기둥(위아래 판판) · 옆면은 세로로 길게 들쭉날쭉(절리 면이 조금씩 꺾인다) · 둥글게 닳은 끝이 없다 */
+function cragPrism(seed,ws,hs){
+  const g=new THREE.BoxGeometry(2,2,2,ws,hs,ws), p=g.attributes.position, rnd=mulberry32(seed>>>0), ph=[rnd()*9,rnd()*9,rnd()*9];
+  for(let i=0;i<p.count;i++){ const x=p.getX(i), y=p.getY(i), z=p.getZ(i);
+    if(Math.abs(y)>0.999) continue;
+    const a=Math.atan2(z,x), f=1+0.10*Math.sin(a*3+ph[0]+y*0.8)+0.06*Math.sin(a*7+ph[1]-y*1.9)+0.05*Math.sin(y*5.3+ph[2]);
+    p.setXYZ(i,x*f,y,z*f); }
+  g.computeVertexNormals();
+  const o={pos:Float32Array.from(p.array), nor:Float32Array.from(g.attributes.normal.array), idx:Uint16Array.from(g.index.array)};
+  g.dispose(); return o;
 }
 function cragClear(){
   for(const t of CRAG.tiles.values()) cragDrop(t);
@@ -138,6 +162,7 @@ function cragGrow(s,B){
   /* **무리의 덩이는 같은 쪽으로 선다**(절리 틀이 나란하게 — cragShape) — 예전엔 새끼 덩이를 아무 쪽으로나 돌려 세워 공 더미로 보였다.
      밝기도 무리 안에서는 조금만 흔든다(한 벼랑의 돌이다 — 예전엔 덩이마다 0.8~1.2배라 조각보 같았다) */
   const Y0=Math.atan2(-tz,tx)+(rnd()-0.5)*0.3;
+  if(P.sm) return cragGrowWall(s,B,Y0);                 // 매끈한 땅 섬 — 바위 더미 대신 깎아지른 절벽 벽(아래)
   const put=(x,y,z,rx,ry,rz,lv)=>{ const b=TB*(0.92+0.16*rnd())*(lv===2?1.03:1), m=rnd(), j=()=>0.97+0.06*rnd();
     B.push(x,y,z,rx,ry,rz,(rnd()-0.5)*(lv?0.32:0.18),Y0+(rnd()-0.5)*(lv?0.55:0.25),(rnd()-0.5)*(lv?0.32:0.18)+(type===3&&!lv?0.18:0),
            lv,(rnd()*8)|0,b*lerp(T0[0],T1[0],m)*j(),b*lerp(T0[1],T1[1],m)*j(),b*lerp(T0[2],T1[2],m)*j(),lv===0?2.6:lv===1?1.4:0.7);   // 녹아드는 높이 — 밑동이 흙 · 풀빛으로 넉넉히 스민다(2026-11-04 사용자 지적: 바위와 풀이 칼로 자른 듯 만난다)
@@ -174,6 +199,31 @@ function cragGrow(s,B){
     if(type===2) for(let i=0,n=2+((rnd()*4)|0);i<n;i++){          // 발치에 굴러떨어진 돌
       const d=r*(0.9+1.3*rnd()), x=px+dx*d+tx*(rnd()-0.5)*r*1.6, z=pz+dz*d+tz*(rnd()-0.5)*r*1.6, q=r*(0.18+0.28*rnd()), gy2=heightAt(x,z); if(gy2<-q) continue;
       put(x,Math.min(gy2+q*0.35,heightAt(x+dx*q*0.7,z+dz*q*0.7)+q*0.30),z,q*(0.9+0.3*rnd()),q*(0.7+0.4*rnd()),q*(0.9+0.3*rnd()),1); if(q>1.2) cragCollide(x,z,q*0.8); }
+  }
+}
+/* **절벽 벽**(2026-11-04 사용자 사진 — 진짜 벼랑은 비탈에 얹힌 바위 더미가 아니라 깎아지른 벽이다: 세로 절리로 갈라진 기둥이 빈틈없이 늘어서고 꼭대기는 풀 덮인 턱).
+   비탈의 등고선을 따라 기둥을 나란히 세운다 — 기둥 하나는 비탈 밑(내리막 쪽 땅)에서 비탈 위(오르막 쪽 땅)까지 곧추선 모난 덩이(높이 = 그 자리 낙차)로,
+   벽 속으로 들여 박고 꼭대기는 턱보다 조금 들쭉날쭉하게. 너비 · 깊이 · 높이가 기둥마다 달라 면이 앞뒤로 들락날락한다(그늘진 틈 = 절리).
+   발치엔 떨어진 돌 몇(애추). 땅 지오메트리는 15 m 세모라 벽을 못 세운다 — 이 기둥들이 벽이 되고, 몸 · 발 딛기도 그대로 이 꼴을 쓴다 */
+function cragGrowWall(s,B,Y0){
+  /* **벼랑은 사용자가 준 Meshy 벼랑 · 바위 모형으로**(2026-11-04 사용자 요청 — 기둥 말고 · 모형을 잘라서라도 다 쓸 것 · 거칠기와 바위 놓임을 살릴 것):
+     벼랑 자리마다 모형 한두 개를 등고선을 따라, 낙차만 한 높이로 세운다 — 밑은 땅속으로(모형 아랫부분을 잘라 묻는다) · 위는 비탈 위 땅 높이(풀 턱이 이어진다).
+     봉우리 모형도 잘라 쓴다(꼭대기 쪽만 드러나게 깊이 묻으면 바위 벼랑이 된다). 바위 칸 메시에 합쳐 그리고(cragMesh — 거리 단계 · 먼 칸은 안 그림) 몸도 그 꼴이 막는다 */
+  const rnd=mulberry32((s.seed^0x5ea11)>>>0), dx=s.dx, dz=s.dz, tx=-dz, tz=dx;
+  const reach=CELL*1.1, lo=heightAt(s.x+dx*reach,s.z+dz*reach), hi=heightAt(s.x-dx*reach,s.z-dz*reach), drop=hi-lo;
+  if(drop<4) return;
+  const tint=CRAG_TINT[(rnd()*CRAG_TINT.length)|0], tb=0.88+0.2*rnd(), n=drop>16?2:1;
+  for(let k=0;k<n;k++){
+    const v=(rnd()*CRAG_MESHY.length)|0, nm=CRAG_MESHY[v], W=GEO_MESH_DATA[nm].w, peak=v>=4;
+    const H0=Math.min(80,drop*(peak?2.2:1.15)), sx=W[0]*H0, sz=W[2]*H0;
+    const along=(k-(n-1)/2)*sx*0.55+(rnd()-0.5)*CELL*0.4, inK=sz*0.25+rnd()*CELL*0.3;
+    const x=s.x+tx*along-dx*inK, z=s.z+tz*along-dz*inK, top=hi+(rnd()-0.4)*1.5;
+    /* 밑은 늘 그 자리 땅 밑까지(뜨지 않게 — 2026-11-04 사진: 바위 조각이 허공에 떴다) · 봉우리 모형은 더 깊이 묻어 위쪽만 */
+    let bot=Math.min(lo,heightAt(x,z),heightAt(x+tx*sx*0.4,z+tz*sx*0.4),heightAt(x-tx*sx*0.4,z-tz*sx*0.4),heightAt(x+dx*sz*0.4,z+dz*sz*0.4))-1.5;
+    let H=Math.max(H0,top-bot); if(peak) H*=1.5; const y=top-H/2;
+    const b=tb*(0.94+0.12*rnd());
+    B.push(x,y,z,sx/2,H/2,sz/2,(rnd()-0.5)*0.06,Y0+(rnd()-0.5)*0.4,(rnd()-0.5)*0.06,0,12+v,b*tint[0],b*tint[1],b*tint[2],2.2); CRAG.blobs++;
+    cragCollide(x,z,Math.min(sx,sz)*0.35);
   }
 }
 /* 섬의 암벽 자리를 뽑고 무리를 기른다 — 자원을 다 놓은 뒤 한 번(placeResources). 그 칸에 서 있던 나무·바위는 치운다 */
@@ -294,7 +344,7 @@ function cragMesh(t,lod){
       pos[c]=e[0]*x+e[4]*y+e[8]*z+X; pos[c+1]=e[1]*x+e[5]*y+e[9]*z+Y; pos[c+2]=e[2]*x+e[6]*y+e[10]*z+Z;
       const nx=sn[a]/rx, ny=sn[a+1]/ry, nz=sn[a+2]/rz; let wx=e[0]*nx+e[4]*ny+e[8]*nz, wy=e[1]*nx+e[5]*ny+e[9]*nz, wz=e[2]*nx+e[6]*ny+e[10]*nz; const l=Math.hypot(wx,wy,wz)||1;
       nor[c]=wx/l; nor[c+1]=wy/l; nor[c+2]=wz/l;
-      const mt=0.95+0.10*(((i*2654435761)>>>0)&255)/255; col[c]=cr*mt; col[c+1]=cg*mt; col[c+2]=cb*mt; mel[v+i]=ml; }
+      const mt=(0.95+0.10*(((i*2654435761)>>>0)&255)/255)*(sh.cav?sh.cav[i]:1); col[c]=cr*mt; col[c+1]=cg*mt; col[c+2]=cb*mt; mel[v+i]=ml; }
     for(let i=0;i<si.length;i++) idx[q+i]=v+si[i];
     v+=n; q+=si.length; }
   const g=new THREE.BufferGeometry();

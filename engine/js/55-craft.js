@@ -1296,10 +1296,19 @@ const craftUsers=id=>RECIPES.filter(R=>R.in.some(r=>r.id===id)||(R.need||[]).som
 const ITEM_SEEN=new Set();
 function craftFrom(id){ const T=ITEMS[id]||{}, tg=T.tags||[];
   return RECIPES.filter(R=>!R.proc&&(R.in.some(r=>r.id===id||(r.tag&&tg.indexOf(r.tag)>=0))||(R.need||[]).some(r=>r.id===id||(r.tag&&tg.indexOf(r.tag)>=0)))); }
+/* **마인크래프트처럼 — 재료를 한 번이라도 손에 넣어야 그 제작법이 보인다**(2026-11-04 사용자 요청). 재료가 하나도 없는 제작법(맨손)은 늘 보인다.
+   본 것은 ITEM_SEEN(저장 'seen') + 지금 지닌 것 · 태그 재료는 그 태그를 단 것을 본 적이 있으면 */
+const SEEN_TAGS=new Set();
+function seenAdd(id){ if(ITEM_SEEN.has(id)) return false; ITEM_SEEN.add(id); for(const t of (ITEMS[id]&&ITEMS[id].tags)||[]) SEEN_TAGS.add(t); craftDirty=true; return true; }
+function craftKnown(R){
+  if(!R||!R.in||!R.in.length) return true;
+  for(const sl of INV.slots) if(sl) seenAdd(sl.id);
+  return R.in.some(r=>r.id?ITEM_SEEN.has(r.id):SEEN_TAGS.has(r.tag));
+}
 function itemFirstSeen(id){
-  if(ITEM_SEEN.has(id)) return; ITEM_SEEN.add(id);
+  if(!seenAdd(id)) return;
   if(typeof landed==='undefined'||!landed||busy) return;
-  const L=craftFrom(id); if(!L.length) return;
+  const L=craftFrom(id).filter(craftKnown); if(!L.length) return;
   const names=[...new Set(L.map(R=>R.n))], head=names.slice(0,3).join(' · ');
   toast('새 재료 '+(ITEMS[id].n)+' → '+head+(names.length>3?' 외 '+(names.length-3):''));
 }
@@ -1331,20 +1340,20 @@ function drawCraft(){
   const tabs=document.getElementById('crfT');
   /* 탭 줄 — 갈래마다 지금 만들 수 있는 수 / 전체 */
   if(tabs){
-    const th=CRAFT_TABS.map(([k,n])=>{ const g=RECIPES.filter(R=>craftCat(R)===k), ok=g.filter(canCraft).length;
+    const th=CRAFT_TABS.map(([k,n])=>{ const g=RECIPES.filter(R=>craftCat(R)===k&&craftKnown(R)), ok=g.filter(canCraft).length;
       return '<button data-tab="'+k+'" class="'+(k===craftTab&&!q?'on':'')+'">'+n+'<span>'+ok+'/'+g.length+'</span></button>'; }).join('');
     if(tabs._html!==th){ tabs.innerHTML=th; tabs._html=th; }
   }
   let html='';
   if(q){                                            // ── 검색: 걸리는 것만 목록으로
-    const hit=RECIPES.filter(craftMatch).filter(R=>!craftOnly||canCraft(R));
+    const hit=RECIPES.filter(craftMatch).filter(R=>craftKnown(R)&&(!craftOnly||canCraft(R)));
     if(nEl) nEl.textContent=hit.length+' / '+RECIPES.length;
     html=hit.length?'<div class="tl">'+hit.map(R=>{ const i=RECIPES.indexOf(R);
         return '<div class="nd row '+(canCraft(R)?'ok':'no')+(i===CRAFT.sel?' sel':'')+'" data-i="'+i+'">'
           +(R.out?iconTagSoon(R.out.id,ITEMS[R.out.id]):'<i class="sw pl"></i>')+'<span>'+R.n+'</span><em>'+TIER_LABEL[R.tier]+'</em></div>'; }).join('')+'</div>'
       :'<div style="color:var(--dim);font-size:12px;padding:10px 2px">\''+_cEsc(q)+'\' 에 걸리는 제작법이 없다</div>';
   }else{                                            // ── 나무: 단이 왼쪽에서 오른쪽으로
-    const list=RECIPES.map((R,i)=>({R,i})).filter(o=>craftCat(o.R)===craftTab);
+    const list=RECIPES.map((R,i)=>({R,i})).filter(o=>craftCat(o.R)===craftTab&&craftKnown(o.R));   // 본 적 있는 재료로 만드는 것만
     if(nEl) nEl.textContent=list.filter(o=>canCraft(o.R)).length+' / '+list.length+' 가능';
     html='<div class="tw">';
     const cols=craftTab==='chem'?chemCols(list):TIER_ORDER.map(t=>[TIER_LABEL[t],list.filter(o=>o.R.tier===t)]);
@@ -1357,6 +1366,7 @@ function drawCraft(){
             +'<span>'+R.n+'</span>'+(R.out&&R.out.n>1?'<em>×'+R.out.n+'</em>':'')+'</div>'; }).join('')+'</div>';
     }
     html+='</div>';
+    if(!list.length) html='<div style="color:var(--dim);font-size:12px;padding:14px 4px">아직 아는 제작법이 없다 — 재료를 주우면 그것으로 만드는 법이 열린다</div>';
   }
   if(crfL._html!==html){
     const sx=crfL.scrollLeft, sy=crfL.scrollTop; crfL.innerHTML=html; crfL._html=html; crfL.scrollLeft=sx; crfL.scrollTop=sy;
@@ -1414,7 +1424,7 @@ function ctreeShow(i,anchor){
   for(const r of (R.need||[])){ const hv=countMat(r), mk=r.id?craftMakers(r.id):[];
     needs.push({cls:(hv>=r.n?'g':'b')+' t', go:mk.length?RECIPES.indexOf(mk[0]):-1, html:_cEsc(matName(r))+' <small>도구</small>'}); }
   if(R.station) needs.push({cls:(stationOK(R)?'g':'b')+' t', go:-1, html:_cEsc(STATION[R.station].n)+' <small>곁에서</small>'});
-  if(R.out) for(const U of craftUsers(R.out.id)) uses.push({cls:canCraft(U)?'g':'', go:RECIPES.indexOf(U), html:_cEsc(U.n)});
+  if(R.out) for(const U of craftUsers(R.out.id).filter(craftKnown)) uses.push({cls:canCraft(U)?'g':'', go:RECIPES.indexOf(U), html:_cEsc(U.n)});
   const ico=R.out?iconSoon(R.out.id):'';
   el.innerHTML='<div class="ctT">조합 나무</div><div class="ctR">'
     +'<div class="ctC l">'+ctreeBranches(needs,'l')+'</div>'

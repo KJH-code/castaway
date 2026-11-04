@@ -136,8 +136,9 @@ function fallsFoamTex(){
      · 가장자리는 들쭉날쭉 찢기고 · 밑동은 물보라에 묻혀 흐려진다
    그래서 무늬를 v 에 따라 흐르는 빠르기를 늘린(가속) 좌표로 읽는다 — 세로로 늘인 잡음 세 겹을 서로 비틀고(도메인 휨) 흐른 거리 s=v²으로 민다.
    빛은 램버트(그늘 · 해 그림자 · 구름 그림자를 다 받는다) + 등 뒤 해에 비치는 몫(얇은 물 판이 빛을 통과시킨다) */
-function fallsMat(){
+function fallsMat(veil){
   const m=new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,depthWrite:false,side:THREE.DoubleSide,emissive:0x1c2226});
+  if(veil) m.defines={FALLS_VEIL:1};
   m.onBeforeCompile=sh=>{ sh.uniforms.uFT=FALLS.U.uFT; if(TERR_U.uSunDir) sh.uniforms.uSunDir=TERR_U.uSunDir;
     sh.vertexShader='varying vec2 vFU;\nvarying vec3 vFW;\nvarying vec3 vFV;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvFU=uv; vFW=(modelMatrix*vec4(transformed,1.0)).xyz; vFV=vFW-cameraPosition;');
     sh.fragmentShader='uniform float uFT;\n'+(TERR_U.uSunDir?'uniform vec3 uSunDir;\n':'const vec3 uSunDir=vec3(0.3,0.8,0.2);\n')+'varying vec2 vFU;\nvarying vec3 vFW;\nvarying vec3 vFV;\n'
@@ -162,31 +163,69 @@ function fallsMat(){
         float rag=0.10+0.10*aer+0.10*(fn(vec2(s*4.0-t*2.0,u*3.0))-0.5);
         float edge=smoothstep(0.0,rag,u)*smoothstep(1.0,1.0-rag,u);
         float body=mix(0.62,0.95,white)*(0.75+0.25*smoothstep(0.2,0.6,clump));
-        diffuseColor.a=edge*body*smoothstep(0.0,0.05,v)*mix(1.0,0.55+0.45*smoothstep(0.25,0.6,clump),smoothstep(0.85,1.0,v)); }`)
+        diffuseColor.a=edge*body*smoothstep(0.0,0.05,v)*mix(1.0,0.55+0.45*smoothstep(0.25,0.6,clump),smoothstep(0.85,1.0,v));
+        #ifdef FALLS_VEIL
+        /* 물보라 장막 — 물살 앞에 떠 흩어지는 물안개 판(떨어질수록 짙다 · 성긴 덩이 · 희다) */
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.94,0.96,0.97),0.75);
+        diffuseColor.a*=0.32*smoothstep(0.15,0.6,v)*(0.4+0.6*smoothstep(0.35,0.7,fb(vec2(u*4.0,s*0.9-t*0.8))));
+        #endif
+      }`)
       .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
       { /* 등 뒤 해 — 얇은 물 판을 해가 뒤에서 비추면 밝게 빛난다(맑은 물 쪽이 더) */
         vec3 vd=normalize(vFV); float bk=pow(max(dot(vd,normalize(uSunDir)),0.0),4.0)*smoothstep(0.0,0.2,uSunDir.y);
         totalEmissiveRadiance+=vec3(0.55,0.62,0.55)*bk*0.5; }`); };
-  m.customProgramCacheKey=()=>'falls2'; return m;
+  m.customProgramCacheKey=()=>'falls3'+(veil?'v':''); return m;
+}
+/* 소의 거품 — 내리꽂힌 물이 바닥에서 되솟아 사방으로 퍼지는 흰 물(가운데가 끓듯 가장 희고 · 바깥으로 흐르며 가닥이 찢기고 · 가장자리에서 맑은 물로 스러진다).
+   예전엔 흰 원판 하나였다(사용자 지적: 소가 판판한 흰 원이다) */
+function fallsPoolMat(){
+  if(FALLS.poolMat) return FALLS.poolMat;
+  const m=new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,depthWrite:false});
+  m.onBeforeCompile=sh=>{ sh.uniforms.uFT=FALLS.U.uFT;
+    sh.vertexShader='varying vec2 vPU;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvPU=uv;');
+    sh.fragmentShader='uniform float uFT;\nvarying vec2 vPU;\n'
+      +'float ph(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }\n'
+      +'float pn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(ph(i),ph(i+vec2(1,0)),f.x),mix(ph(i+vec2(0,1)),ph(i+vec2(1,1)),f.x),f.y); }\n'
+      +'float pb(vec2 p){ return pn(p)*0.55+pn(p*2.1+5.0)*0.3+pn(p*4.3+1.0)*0.15; }\n'
+      +sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+      { vec2 c=vPU*2.0-1.0; float r=length(c), a=atan(c.y,c.x), t=uFT;
+        float boil=pb(vec2(c.x*3.0+t*0.7,c.y*3.0-t*0.9));                                   // 가운데 끓는 물
+        float out_=pb(vec2(a*2.4+pb(vec2(a*1.3,r*2.0))*1.5, r*5.0-t*1.6));                     // 바깥으로 흐르는 가닥
+        float lace=smoothstep(0.42,0.66,out_)*smoothstep(1.0,0.45,r);
+        float core=smoothstep(0.55,0.0,r)*(0.6+0.4*boil);
+        float w=clamp(max(core,lace*(0.85-0.5*r)),0.0,1.0);
+        diffuseColor.rgb=mix(vec3(0.20,0.34,0.36),vec3(0.94,0.97,0.98),w);
+        diffuseColor.a=smoothstep(1.0,0.82,r)*(0.25+0.75*w); }`); };
+  m.customProgramCacheKey=()=>'fallspool'; return FALLS.poolMat=m;
+}
+/* 물살 판 — 가로로 여러 줄(C)에 바깥쪽으로 볼록하게(물살은 가운데가 두껍다) · 줄마다 [x,y,z,폭 배율] · (ox,oz) 볼록한 쪽 */
+function fallsSheet(rows,w,ox,oz,tx,tz,mat,bow,push){
+  const C=6, P=[], UV=[], I=[];
+  rows.forEach((r,k)=>{ for(let c=0;c<=C;c++){ const sv=c/C*2-1, b=(1-sv*sv)*bow*w+push;
+    P.push(r[0]+tx*sv*w*0.5*r[3]+ox*b, r[1], r[2]+tz*sv*w*0.5*r[3]+oz*b); UV.push(c/C,k/(rows.length-1)); } });
+  for(let k=0;k<rows.length-1;k++) for(let c=0;c<C;c++){ const a=k*(C+1)+c, b2=a+C+1; I.push(a,a+1,b2+1,a,b2+1,b2); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('uv',new THREE.Float32BufferAttribute(UV,2));
+  g.setIndex(I); g.computeVertexNormals(); g.computeBoundingSphere();
+  const m=new THREE.Mesh(g,mat); m.renderOrder=4; scene.add(m); FALLS.meshes.push(m); return m;
 }
 function fallsBuild(){
   for(const m of FALLS.meshes){ scene.remove(m); if(m.geometry) m.geometry.dispose(); } FALLS.meshes.length=0;
   if(!FALLS.list.length) return;
-  const mat=fallsMat(), foam=new THREE.MeshLambertMaterial({color:0xf2f6f6,map:fallsFoamTex(),transparent:true,opacity:0.85,depthWrite:false});   // 소의 거품 — 가운데서 스러지는 무늬
+  const mat=fallsMat(), veil=fallsMat(true), foam=fallsPoolMat();   // 물살 · 물보라 장막 · 소의 거품(셰이더)
+  FALLS.veil=veil;
   for(const f of FALLS.list){
     if(f.res){ fallsBuildRes(f,mat,foam); continue; }
     /* 물살 판 — 윗 칸 뒤 반 칸에서 아랫 칸 앞 반 칸까지, 하천 바닥(+0.2 m)을 따라 14 마디 */
-    const P=[], UV=[], I=[], S=14, nx=-f.dz, nz=f.dx, L=Math.hypot(f.x1-f.x0,f.z1-f.z0);
+    /* 물살 — 마루를 넘으며 앞으로 내뻗었다가(처음 빠르기 √(2g·0.3)) 떨어지며 아래로 휜다(포물선) · 하천 바닥(+0.25 m) 밑으론 안 간다 */
+    const S=14, nx=-f.dz, nz=f.dx, L=Math.hypot(f.x1-f.x0,f.z1-f.z0), rows=[];
     for(let k=0;k<=S;k++){ const t=k/S, a=-0.5+t*2.0, x=f.x0+f.dx*L*a, z=f.z0+f.dz*L*a;
       const y=Math.max(heightAt(x,z)+0.25,Math.min(f.y0,f.y0+(f.y1-f.y0)*clamp(a,0,1)));
-      for(const s of [-1,1]){ P.push(x+nx*s*f.w*0.5,y,z+nz*s*f.w*0.5); UV.push(s<0?0:1,t); } }
-    for(let k=0;k<S;k++){ const a=k*2; I.push(a,a+1,a+3,a,a+3,a+2); }
-    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('uv',new THREE.Float32BufferAttribute(UV,2));
-    g.setIndex(I); g.computeVertexNormals(); g.computeBoundingSphere();
-    const m=new THREE.Mesh(g,mat); m.renderOrder=4; scene.add(m); FALLS.meshes.push(m);
-    /* 소 — 아래 끝의 흰 거품 원판 */
+      rows.push([x,y,z,1+0.25*t]); }
+    fallsSheet(rows,f.w,f.dx,f.dz,nx,nz,mat,0.08,0);
+    fallsSheet(rows.slice(Math.floor(S*0.35)),f.w*1.25,f.dx,f.dz,nx,nz,veil,0.12,0.35);
+    /* 소 — 되솟는 흰 물(셰이더) */
     f.px=f.x0+f.dx*L*1.4; f.pz=f.z0+f.dz*L*1.4; f.py=Math.max(f.y1,heightAt(f.px,f.pz)+0.3);
-    const pool=new THREE.Mesh(new THREE.CircleGeometry(f.w*0.75,24).rotateX(-Math.PI/2),foam); pool.position.set(f.px,f.py+0.05,f.pz); pool.renderOrder=4; scene.add(pool); FALLS.meshes.push(pool);
+    const pool=new THREE.Mesh(new THREE.CircleGeometry(f.w*1.35,32).rotateX(-Math.PI/2),foam); pool.position.set(f.px,f.py+0.05,f.pz); pool.renderOrder=4; scene.add(pool); FALLS.meshes.push(pool);
   }
   /* 연어 — 몸 75 cm · 등은 짙은 청회 · 배는 은빛 · 산란기의 붉은 옆구리 */
   const sal={id:'salmon',len:0.75,tall:0.27,thick:0.18,c:[0x4a5a6a,0xd8d4cc,0xa8463a],pat:'spots'};
@@ -197,9 +236,9 @@ function fallsBuild(){
   /* 물보라 */
   const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d'), gr=x.createRadialGradient(32,32,2,32,32,31);
   gr.addColorStop(0,'rgba(255,255,255,0.9)'); gr.addColorStop(1,'rgba(255,255,255,0)'); x.fillStyle=gr; x.fillRect(0,0,64,64);
-  const mg=new THREE.BufferGeometry(); mg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(240*3).fill(-9999),3));
-  const mist=new THREE.Points(mg,new THREE.PointsMaterial({map:new THREE.CanvasTexture(c),size:3.2,transparent:true,opacity:0.22,depthWrite:false})); mist.frustumCulled=false; scene.add(mist); FALLS.meshes.push(mist);
-  FALLS.mist={p:mist, v:new Float32Array(240*3), life:new Float32Array(240)};
+  const MN=420, mg=new THREE.BufferGeometry(); mg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(MN*3).fill(-9999),3));
+  const mist=new THREE.Points(mg,new THREE.PointsMaterial({map:new THREE.CanvasTexture(c),size:4.8,transparent:true,opacity:0.26,depthWrite:false})); mist.frustumCulled=false; scene.add(mist); FALLS.meshes.push(mist);
+  FALLS.mist={p:mist, n:MN, v:new Float32Array(MN*3), life:new Float32Array(MN)};
 }
 /* 저수지 폭포의 물 — 저수지 가장자리에서 둑을 넘어(가로 세 마디) 턱 앞으로 곧게 떨어진다(세로 열넷 · 떨어지며 앞으로 휜다 · 아래로 갈수록 넓어진다) */
 function fallsBuildRes(f,mat,foam){
@@ -207,14 +246,11 @@ function fallsBuildRes(f,mat,foam){
   for(let k=0;k<=4;k++){ const a=top-(top+0.3)*k/4; rows.push([fx+f.ux*a,f.y0+0.24+0.03*k,fz+f.uz*a,1]); }   // 저수지 끝에서 바위 마루를 넘어 오는 물(마루보다 조금 위)
   for(let k=1;k<=14;k++){ const t=k/14, off=0.8+2.4*Math.pow(t,1.6);
     rows.push([fx-f.ux*off,f.y0+0.2-H*t,fz-f.uz*off,1+0.35*t]); }
-  rows.forEach((r,k)=>{ for(const s of [-1,1]){ P.push(r[0]+tx*s*f.w*0.5*r[3],r[1],r[2]+tz*s*f.w*0.5*r[3]); UV.push(s<0?0:1,k/(rows.length-1)); } });
-  for(let k=0;k<rows.length-1;k++){ const a=k*2; I.push(a,a+1,a+3,a,a+3,a+2); }
-  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('uv',new THREE.Float32BufferAttribute(UV,2));
-  g.setIndex(I); g.computeVertexNormals(); g.computeBoundingSphere();
-  const m=new THREE.Mesh(g,mat); m.renderOrder=4; scene.add(m); FALLS.meshes.push(m);
+  fallsSheet(rows,f.w,-f.ux,-f.uz,tx,tz,mat,0.08,0);                                   // 물살 — 가운데가 두껍게 바깥으로 볼록
+  fallsSheet(rows.slice(7),f.w*1.3,-f.ux,-f.uz,tx,tz,FALLS.veil||mat,0.14,0.45);        // 물보라 장막 — 떨어지는 아래쪽 앞에
   /* 소 — 물이 내리꽂히는 자리(턱 앞)가 가장 하얗다 */
   const lx=fx-f.ux*3.0, lz=fz-f.uz*3.0;
-  const pool=new THREE.Mesh(new THREE.CircleGeometry(f.w*0.95,28).rotateX(-Math.PI/2),foam); pool.position.set(lx,f.py+0.06,lz); pool.renderOrder=4; scene.add(pool); FALLS.meshes.push(pool);
+  const pool=new THREE.Mesh(new THREE.CircleGeometry(f.w*1.6,32).rotateX(-Math.PI/2),foam); pool.position.set(lx,f.py+0.06,lz); pool.renderOrder=4; scene.add(pool); FALLS.meshes.push(pool);
   f.lx=lx; f.lz=lz;
 }
 const _flsM=new THREE.Matrix4(), _flsQ=new THREE.Quaternion(), _flsE=new THREE.Euler(), _flsV=new THREE.Vector3(), _flsS=new THREE.Vector3(1,1,1);
@@ -241,9 +277,9 @@ function updateFalls(dt){
   M.count=n; M.instanceMatrix.needsUpdate=true;
   /* 물보라 — 소 위로 피어오른다 */
   { const S=FALLS.mist, a=S.p.geometry.attributes.position.array;
-    for(let i=0;i<240;i++){ S.life[i]-=dt;
-      if(S.life[i]<=0){ const f=near[i%near.length], cx=f.res?f.lx:f.px, cz=f.res?f.lz:f.pz; a[i*3]=cx+(Math.random()-0.5)*f.w*0.8; a[i*3+1]=f.py+0.2; a[i*3+2]=cz+(Math.random()-0.5)*f.w*0.8;
-        S.v[i*3]=(Math.random()-0.5)*1.2; S.v[i*3+1]=0.8+Math.random()*1.4; S.v[i*3+2]=(Math.random()-0.5)*1.2; S.life[i]=1.5+Math.random()*2; continue; }
+    for(let i=0;i<S.n;i++){ S.life[i]-=dt;
+      if(S.life[i]<=0){ const f=near[i%near.length], cx=f.res?f.lx:f.px, cz=f.res?f.lz:f.pz; a[i*3]=cx+(Math.random()-0.5)*f.w*1.2; a[i*3+1]=f.py+0.2; a[i*3+2]=cz+(Math.random()-0.5)*f.w*1.2;
+        S.v[i*3]=(Math.random()-0.5)*1.8; S.v[i*3+1]=0.9+Math.random()*1.8; S.v[i*3+2]=(Math.random()-0.5)*1.8; S.life[i]=1.6+Math.random()*2.4; continue; }
       a[i*3]+=S.v[i*3]*dt; a[i*3+1]+=S.v[i*3+1]*dt; a[i*3+2]+=S.v[i*3+2]*dt; }
     S.p.geometry.attributes.position.needsUpdate=true; }
 }

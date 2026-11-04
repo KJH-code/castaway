@@ -43,7 +43,7 @@
   CLAUDE.md 에는 새로 생긴 '깨뜨리면 안 되는 것' · '같이 고칠 짝'만 한 줄로 더한다(사용자 요청 2026-10-29 — 예전엔 모든 기록을 CLAUDE.md 에 적었다).
 - **재고 말한다** — '빨라졌다' · '고쳤다' 대신 숫자(삼각형 · ms · 화소 차이). 화면을 바꾸면 전후 사진을 같은 페이지 안에서 찍어 견준다.
 - 커밋 메시지에 모델 이름 · 모델 ID 를 넣지 않는다. 사용자 이메일을 어디에도 보내지 않는다.
-- **분업은 orchestrate 스킬대로**(사용자 결정 2026-10-30 · CLAUDE.md '작업 흐름'의 '분업') — 인터뷰 → 지시서 → 워커(`worker` · 구현 sonnet · medium) → 검수(`checker` test haiku · high → review opus · high) · 병합은 메인(Opus)이 · 읽기만 하는 조사는 `Explore` + 모델.
+- **분업은 orchestrate 스킬대로**(사용자 결정 2026-10-30 · 플러그인 v2.2.0 2026-11-04 · CLAUDE.md '작업 흐름'의 '분업') — 인터뷰 → 지시서 → 워커(`w-implement` sonnet · medium 등 — 모델 · 노력은 에이전트 파일에 고정 · 부를 때 넘기면 훅이 막는다) → 검수(`checker-test` haiku · high → `checker` review opus · high) · 병합은 메인(Opus)이 · 큰 일은 `/super`(사용자가 부를 때만) · 읽기만 하는 조사는 `Explore` + 모델.
 
 ### 깨뜨리면 안 되는 것(자세한 까닭은 CLAUDE.md '규칙' · `docs/notes/`)
 

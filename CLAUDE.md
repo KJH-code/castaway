@@ -87,11 +87,13 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `24-shapes.js` | 식물·바다 생물이 같이 쓰는 모양 도구(`SHP`) |
 | `30-props.js` | 칸 보이기 `updateTileVis` · 참나무·전나무 단계 `TL` · 먼 나무 그림 · `buildProps`(`HABIT`) · 자갈 · 베리 · 보급선 · 충돌 `resolveProps` |
 | `31-cave10.js` | 동굴 지형 판 10 의 자료(`P.tv>=10` 일 때만) — 종류 `cv10Kind` · 자리 `cv10Layout` · 굴 부피 `cv10Field` · 겉 비울 원 `cv10Zones`(설계 `docs/notes/caves.md`) |
+| `31-cave10deco.js` | 동굴 판 10 의 안팎 장식 — 종유석 · 석순 · 기둥 · 휴석 웅덩이 · 고드름 · 돌 · 뿌리 · 고사리 · 이끼 · 빛나는 것 · 딸 것 `CV10.picks`(`cv10Deco` · 설계 `docs/notes/caves.md` 구현 메모(E)) |
 | `32-caves.js` | 동굴(바위 굴집) `buildCaves` · 굴 바위의 참 꼴 `caveSolid`/`caveIn` · 굴 속 빛·바닥 `CAVE_GLSL`(가까운 방 여섯 — envPatch · 땅 셰이더가 읽는다) · `updateCaves` |
 | `33-crags.js` | 암벽 — 큰 바위 무리 `cragSites` · `cragMesh` · `cragFloor` |
 | `34-coast.js` | 바닷가 — 시스택·해식 아치·주상절리(`coastFloor` · `coastSolid`) |
 | `35-geo.js` | 지열 지대(전역 이름 `GEOT` — `GEO` 는 64-dex.js 것이다. 겹치면 그 파일이 통째로 안 읽힌다) |
 | `36-falls.js` | 폭포·연어 · 저수지 폭포 `fallsCarve` |
+| `37-geo-meshes.js` · `data-geo-meshes.js` | 큰 지형 모형(사용자 Meshy STL → `tools/geo-mesh.py`) — 산맥 · 눈 덮인 봉우리 · 협곡 · 시스택을 표고에 찍고(`geoStamp`) 모형으로 그린다(매끈한 땅 섬 · `docs/notes/terrain.md`) · 자료는 base64 — 읽지 말 것 |
 | `40-light.js` | `LIGHT`(배역 · 해 그림자 · 점·집중광 예산 · 불빛 풀 `addFire`) · `renderFrame` |
 | `41-terrain-light.js` | 섬 크기의 빛 텍스처 `TLIT`(산 그림자 · 하늘 트임 · 숲 덮임) · `envPatch` |
 | `45-sky.js` | `SKY` · 날씨 `updateWeather` · 구름 `updateClouds`/`litQueue` · `SKY_LUT` · `updateSky` — `beta/cloud_arena.html` 의 원본 |
@@ -230,16 +232,17 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 
 ### 분업 — 메인이 지휘하고 워커가 일한다(orchestrate)
 
-사용자 결정(2026-10-30) — 사용자가 올린 orchestrate 플러그인(v2.0.0)을 이 레포에 들였다: `.claude/skills/orchestrate/`(지휘 절차 · 지시서 양식 · 워커 머리말) ·
-`.claude/skills/check/`(독립 검증 `/check test·review·debug`) · `.claude/agents/checker.md` · `.claude/agents/worker.md`. **절차는 그 스킬을 따른다.** 이 레포에서 바꾼 셋:
+사용자 결정(2026-10-30) — 사용자가 올린 orchestrate 플러그인(지금 v2.2.0 · 2026-11-04)을 이 레포에 들였다: `.claude/skills/orchestrate/`(지휘 절차 · 지시서 양식) ·
+`.claude/skills/check/`(독립 검증 `/check test·review·debug`) · `.claude/skills/super/`(`/super` — 설계 후보 셋 · 다관점 리뷰 · 반박 검증 · 한도를 많이 쓴다 · 사용자가 부를 때만) ·
+`.claude/agents/`(역할마다 모델 · 노력이 파일에 고정된 `w-*` · `su-*` · `checker-test` · `checker` — **부를 때 `model` · `effort` 를 넘기지 않는다**: `.claude/settings.json` 의 훅 `.claude/hooks/enforce-tiers.js` 가 거절한다 · `model:"inherit"` 만 허용). **절차는 그 스킬을 따른다.** 이 레포에서 바꾼 셋:
 - **병합은 메인(Opus)이 한다**(사용자 결정) — 위 '작업 흐름'대로 늘 main 에 합친다(checker test 통과 · review 에 '실패' 없음이면). review 에 실패·의심이 있으면 그대로 보고하고 답을 기다린다.
   워커 · checker 는 푸시 · PR · 병합을 안 한다(워커는 제 작업 트리에 커밋까지).
 - **구현 위임 · 인터뷰는 플러그인대로**(사용자 결정 — 예전 '구현은 맡기지 않는다 · Explore 만' 규칙을 바꿨다) — 작업이 독립적인 부분 둘 이상으로 나뉘거나 사용자가
-  '/orchestrate · 분업으로' 할 때: 인터뷰(CLAUDE.md · 노트에서 알 수 있는 건 안 묻는다) → 쪼개기 → 지시서 → 워커(구현은 sonnet · medium · 병렬이면 worktree) →
-  checker(test haiku · high → 통과하면 review opus · high) → 보고. 한 번에 끝나는 수정 · 질문은 메인이 직접 한다. 판단(설계 결정 · 원인 모를 디버깅 · 결과 해석 ·
+  '/orchestrate · 분업으로' 할 때: 인터뷰(CLAUDE.md · 노트에서 알 수 있는 건 안 묻는다) → 쪼개기 → 지시서 → 워커(구현은 `w-implement` sonnet · medium · 병렬이면 worktree) →
+  검수(`checker-test` haiku · high → 통과하면 `checker` review opus · high) → 보고. 한 번에 끝나는 수정 · 질문은 메인이 직접 한다. 판단(설계 결정 · 원인 모를 디버깅 · 결과 해석 ·
   결정론 · 지형 판 · 정본/복사본)은 메인이 쥔다.
 - **비용(메인이 정함)** — `general-purpose` 를 띄우는 고정 비용 **5.8만 토큰**(2026-10-30 · haiku · 한 줄 답 · CLAUDE.md 43 KB — 265 KB 때 18.9~19.3만).
-  그래서 워커는 `worker`, 검수는 `checker`(도구를 줄인 이 레포 에이전트)로 띄우고 general-purpose 는 그것이 안 잡힐 때만(에이전트 파일을 막 만든 세션 —
+  그래서 워커는 `w-*`, 검수는 `checker-test` · `checker`(도구를 줄인 이 레포 에이전트 · 각 파일 끝에 CASTAWAY 절)로 띄우고 general-purpose 는 그것이 안 잡힐 때만(그때만 `model` · `effort` 를 넘김 · 에이전트 파일을 막 만든 세션 —
   그 세션에선 목록에 없다 · 두 에이전트의 고정 비용은 새 세션에서 잴 것). 워커 하나에 맡길 일이 작으면(파일 한두 개 · 몇십 줄) 나누지 않는다 — 고정 비용이 일보다 크다.
 - 읽기만 하는 조사(웹 조사 · 큰 시험장 여럿 비교 · 개발 대화 원문에서 까닭 찾기 · 사진 여러 장 훑기)는 그대로 `Explore` + `model`(CLAUDE.md 를 안 읽는다) — 지시에
   목표 · 볼 경로 · 하지 말 것(`engine/js/data-*.js` · 전사 원문 · 10 MB 넘는 시험장은 통째로 말고 `grep … | cut -c1-200`) · 돌려줄 꼴과 길이를 넣는다.
@@ -387,6 +390,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 셰이더 글 — 음수를 그대로 끼우지 말 것(`y-${-0.02}` → 괄호로) · GLSL 예약어 `patch` 를 변수로 쓰지 말 것 · 템플릿 글(백틱) 셰이더의 주석에 백틱 금지.
 - 몹을 본편에 들일 때 — 몸은 `scene` 에 숨겨 두고 돌려 쓴다 · `lightRole:'recv'` · 전역 이름 겹침은 '확인하는 법' 의 이어 붙이기 검사로 · 움직이면 `LIGHT.dirtyAt` · `q.slerpQuaternions(q0,q,w)` 에 자기를 넣지 말 것(r128 · mobs).
 - 애쉬스케일 `wClimb` 은 `wyv-sync` 가 안 옮긴다(wyvern · battle · night · siege 넷) · 본편 스킨워커 값은 아레나 `MP`/`SPD` 그대로(`MIM_P`/`MIM_SPD` — 아레나를 고치면 같이 · mobs).
+- 굴 속(지형 판 10)에서 땅 높이를 쓰는 새 놀이는 `heightAt` 대신 `groundY(x,z,y)` · 걷기 · 눈은 `caveHere`(좁은 질의 · `cv10Q` 는 넉넉해 벽 속까지 받는다 · 80-player.js · caves).
 - battle ↔ night ↔ azure_night 는 글자 그대로 · 다지류 모듈과 총 꾸러미는 crawler ↔ battle 글자 그대로(arenas).
 
 ## 함정
