@@ -133,7 +133,8 @@ function cv10Eval(c,P,x,z){
     cnt++; if(rd<U||bg<0){ U=rd; S=m.s||0; bg=Math.max(bg,1); }
     if(m.ramp!==null&&m.ramp!==undefined){                           // 무너진 돌 비탈 — 굴길이 이미 있는 데(hadC)서는 구멍 가장자리 쪽으로 굴길 바닥에 녹아든다(안 그러면 가장자리에서 바닥이 1 m 넘게 툭 뛰었다 — B 검수) — 구멍 가장자리(땅)에서 안쪽으로 내려간다
       const ca2=Math.cos(m.ramp), sa2=Math.sin(m.ramp), a=dx*ca2+dz*sa2, l=-dx*sa2+dz*ca2;
-      const ry=m.he-m.kr*Math.max(0,m.r-a)-5*smoothstep(0.55,1,Math.abs(l)/m.r);
+      let ry=m.he-m.kr*Math.max(0,m.r-a)-5*smoothstep(0.55,1,Math.abs(l)/m.r);
+      { const tt=smoothstep(0.3*m.r,m.r,a)*(1-smoothstep(0.55,1,Math.abs(l)/m.r)); if(tt>0){ const hh=heightAt(x,z)-0.06; if(ry<hh) ry+=(hh-ry)*tt; } }   // 땅 쪽 가장자리는 그 자리 땅에 이어 붙는다(구멍 반지름이 he 를 잰 데보다 멀면 비탈 끝이 땅 밑에 남아 1 m 넘는 턱이 섰다)
       if(ry>F_){ const wr=hadC?1-smoothstep(0.55,1,rd):1; F_+=(ry-F_)*wr; Fb=F_; rp=true; }
     }
   }
@@ -374,7 +375,7 @@ function cv10Lava(ctx){
   if(!cv10Floor(main,{y0:null,y0f:q=>hM-cover0-H,cov:k.minCover+0.6,exempt:rS+2,
       target:(i,yp,d)=>Math.min(yp,Math.max(ystar(main[i]),yp-0.12*d))})) return false;
   const y0=main[0].y, ry=c.yaw+Math.PI, he=heightAt(c.x+Math.cos(ry)*rS,c.z+Math.sin(ry)*rS), kr=(he-y0)/(1.8*rS);
-  if(kr>1.0) return false;                                           // 무너진 돌 비탈이 걸을 수 있는 기울기(MAXSLOPE 1.15 안 · 가장자리 흐림을 더해도)
+  if(kr>0.8) return false;                                           // 무너진 돌 비탈이 걸을 수 있는 기울기(MAXSLOPE 1.15 안 · 가장자리 흐림을 더해도)
   const mouths=[{x:c.x,z:c.z,y:y0,yaw:ry,w:rS*2,h:H,sky:true,r:rS,ramp:ry,he,kr:Math.max(0.5,kr),s:0}];
   if(!cv10Free(c.x,c.z,rS+1,4+rS)) return false;
   ctx.paths.push(main);

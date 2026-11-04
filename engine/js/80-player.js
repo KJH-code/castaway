@@ -619,7 +619,10 @@ function updatePlayer(dt){
      옆걸음을 되돌린다 · 오르던 중이면 높이도. 이미 걸린 채면(바위가 새로 생겼다 등) 걸리지 않는 쪽으로 조금씩 밀어낸다 */
   { const e=PL.eye;
     if(eyeHit(p.x,p.y+e,p.z)){
-      if(!eyeHit(ox,p.y+e,oz)){ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; }
+      if(!eyeHit(ox,p.y+e,oz)){
+        if(PL.cave&&!eyeHit(p.x,p.y+e,oz)){ p.z=oz; PL.vel.z=0; }              // 굴 속 — 한쪽 축만 눈이 걸리면 다른 축으로 벽을 따라 미끄러진다(대각선으로 벽에 부딪혀 서 버리지 않게)
+        else if(PL.cave&&!eyeHit(ox,p.y+e,p.z)){ p.x=ox; PL.vel.x=0; }
+        else{ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; } }
       else if(p.y>oy&&!eyeHit(ox,oy+e,oz)){ p.set(ox,oy,oz); PL.vel.set(0,Math.min(0,PL.vel.y),0); }
       else{ let ok=false;                                        // 0.25 m 씩 1.5 m 까지 둘레를 찾아 눈도 몸도 바위 밖인 자리로
         for(let rr=0.25;rr<=1.5&&!ok;rr+=0.25) for(let k=0;k<8&&!ok;k++){ const a=k/8*6.2832, tx=p.x+Math.cos(a)*rr, tz=p.z+Math.sin(a)*rr;
