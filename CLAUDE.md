@@ -235,8 +235,8 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - **병합은 메인(Opus)이 한다**(사용자 결정) — 위 '작업 흐름'대로 늘 main 에 합친다(checker test 통과 · review 에 '실패' 없음이면). review 에 실패·의심이 있으면 그대로 보고하고 답을 기다린다.
   워커 · checker 는 푸시 · PR · 병합을 안 한다(워커는 제 작업 트리에 커밋까지).
 - **구현 위임 · 인터뷰는 플러그인대로**(사용자 결정 — 예전 '구현은 맡기지 않는다 · Explore 만' 규칙을 바꿨다) — 작업이 독립적인 부분 둘 이상으로 나뉘거나 사용자가
-  '/orchestrate · 분업으로' 할 때: 인터뷰(CLAUDE.md · 노트에서 알 수 있는 건 안 묻는다) → 쪼개기 → 지시서 → 워커(구현은 sonnet · low · 병렬이면 worktree) →
-  checker(test sonnet · low → 통과하면 review opus · high) → 보고. 한 번에 끝나는 수정 · 질문은 메인이 직접 한다. 판단(설계 결정 · 원인 모를 디버깅 · 결과 해석 ·
+  '/orchestrate · 분업으로' 할 때: 인터뷰(CLAUDE.md · 노트에서 알 수 있는 건 안 묻는다) → 쪼개기 → 지시서 → 워커(구현은 sonnet · medium · 병렬이면 worktree) →
+  checker(test haiku · high → 통과하면 review opus · high) → 보고. 한 번에 끝나는 수정 · 질문은 메인이 직접 한다. 판단(설계 결정 · 원인 모를 디버깅 · 결과 해석 ·
   결정론 · 지형 판 · 정본/복사본)은 메인이 쥔다.
 - **비용(메인이 정함)** — `general-purpose` 를 띄우는 고정 비용 **5.8만 토큰**(2026-10-30 · haiku · 한 줄 답 · CLAUDE.md 43 KB — 265 KB 때 18.9~19.3만).
   그래서 워커는 `worker`, 검수는 `checker`(도구를 줄인 이 레포 에이전트)로 띄우고 general-purpose 는 그것이 안 잡힐 때만(에이전트 파일을 막 만든 세션 —
