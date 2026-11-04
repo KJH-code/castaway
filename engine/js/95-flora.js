@@ -963,11 +963,15 @@ function floraFindLook(){
       const c=(dx*hx+dz*hz)/d; if(c<0.75) continue;
       const sc=d*(2-c); if(sc<bd){ bd=sc; FLORA.look=p; }
     }else{                                             // 낮은 것(고사리·꽃·버섯·덤불·돌) — **조준선이 그 포기를 지나야** 한다(사용자 요청 — 예전엔 ±37° 원뿔이라 빈 모래를 봐도 '풀 뜯기' 가 떴다)
-      const ay=p.ay!==undefined?p.ay:p.y+0.06, dy=ay-ey, d=Math.sqrt(dx*dx+dy*dy+dz*dz); if(d>2.2+(ay>p.y+0.1?p.r:0)||d<0.05) continue;   // 덤불은 몸 반지름만큼 더
-      const t=dx*fx+dy*fy+dz*fz; if(t<0.1) continue;
-      const qx=dx-fx*t, qy=dy-fy*t, qz=dz-fz*t, rr=Math.max(0.10,(p.r||0.12)*1.05);
-      if(qx*qx+qy*qy+qz*qz>rr*rr) continue;
-      const sc=t; if(sc<bd){ bd=sc; FLORA.look=p; }
+      const ay=p.ay!==undefined?p.ay:p.y+0.06, dy=ay-ey, d=Math.sqrt(dx*dx+dy*dy+dz*dz); if(d>2.6+(ay>p.y+0.1?p.r:0)||d<0.05) continue;   // 덤불은 몸 반지름만큼 더
+      /* **포기 전체가 잡힌다**(2026-11-04 사용자 지적 — 고사리 · 꽃의 잡히는 데가 너무 작다): 밑동 점 하나(반지름 0.1 m) 대신 밑동에서 포기 키까지
+         세운 기둥(반지름 = 포기 반지름 × 1.5 · 0.28 m 이상)을 조준선이 지나면 잡는다. 키는 포기 반지름의 2.4배(0.35~1.4 m) */
+      const H=clamp((p.r||0.12)*2.4,0.35,1.4), rr=Math.max(0.28,(p.r||0.12)*1.5);
+      let hit=-1;
+      for(let k=0;k<4;k++){ const yy=dy+(p.ay!==undefined?0:H*k/3), t=dx*fx+yy*fy+dz*fz; if(t<0.1) continue;
+        const qx=dx-fx*t, qy=yy-fy*t, qz=dz-fz*t; if(qx*qx+qy*qy+qz*qz<=rr*rr&&(hit<0||t<hit)) hit=t; }
+      if(hit<0) continue;
+      const sc=hit; if(sc<bd){ bd=sc; FLORA.look=p; }
     }
   }
   }
