@@ -29,6 +29,7 @@ function cragMat(){
   if(CRAG.mat) return CRAG.mat;
   const m=rockMat('granite',0x7a7872); m.vertexColors=true;
   m.defines=Object.assign({},m.defines,{RK_OFS:1});   // 덩이마다 무늬를 비킨다(20-terrain.js rockMat)
+  if(m.userData.rkU) m.userData.rkU.uRkCrack.value=0.14;   // 금은 드물고 옅게(그물처럼 친 금이 지그재그로 보였다 — 사용자 지적 2026-11-04)
   return CRAG.mat=m;
 }
 function cragMatFar(){
@@ -69,12 +70,15 @@ float frn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
      ④ 잔 울퉁불퉁은 깎은 면 위에만 옅게(면은 판판하게 남는다) · 법선은 깎은 면이면 그 면의 법선(모서리만 둥글게 잇는다) */
 function cragShape(seed,w,h){
   const g=new THREE.SphereGeometry(1,w,h), p=g.attributes.position, rnd=mulberry32((seed^0x3c6ef3)>>>0);
-  const box=0.55+rnd()*0.25, C=[], L=[];
+  /* **둥글게 닳은 절리 덩이**(2026-11-04 사용자 지적 — 네모 상자 같다 · 실제 바위처럼): 화강암 토르는 땅속에서 절리를 따라 스며든 물이
+     모서리부터 갉아 먹어(구상 풍화) 덩이가 둥근 베개 꼴(핵석)이 되고, 땅 위로 드러나면 그 둥근 덩이가 켜켜이 쌓인 채 남는다. 그래서 상자 쪽으로는
+     조금만 당기고(0.30~0.48) 절리 면은 얕게 깎는다(모서리가 넓게 둥글다) */
+  const box=0.30+rnd()*0.18, C=[], L=[];
   for(let i=0;i<3;i++){ let x=rnd()*2-1, y=rnd()*2-1, z=rnd()*2-1; const l=Math.hypot(x,y,z)||1; L.push([x/l,y/l,z/l,1.1+rnd()*1.6,rnd()*6.283,rnd()*2-1]); }
   /* 절리 면 여섯 — 축마다 ±, 18° 안팎으로 기울이고 깊이(0.70~0.95)를 들쭉날쭉하게 */
   const AX=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
   for(const a of AX){ let x=a[0]+(rnd()-0.5)*0.34, y=a[1]+(rnd()-0.5)*(a[1]?0.18:0.30), z=a[2]+(rnd()-0.5)*0.34; const l=Math.hypot(x,y,z)||1;
-    C.push([x/l,y/l,z/l,(a[1]>0?0.74:0.70)+rnd()*0.24]); }
+    C.push([x/l,y/l,z/l,(a[1]>0?0.84:0.80)+rnd()*0.16]); }
   for(let i=0,n=2+((rnd()*3)|0);i<n;i++){ let x=rnd()*2-1, y=(rnd()*2-1)*0.8, z=rnd()*2-1; const l=Math.hypot(x,y,z)||1; C.push([x/l,y/l,z/l,0.80+rnd()*0.22]); }   // 모서리를 떼어 낸 면
   const lay=5+rnd()*6, lp=rnd()*6.283, cut=new Int8Array(p.count).fill(-1);
   for(let i=0;i<p.count;i++){ let x=p.getX(i), y=p.getY(i), z=p.getZ(i);
@@ -91,7 +95,7 @@ function cragShape(seed,w,h){
   /* 깎은 면의 점은 그 면의 법선으로(85%) — 면 하나가 한 볕을 받아 모난 덩이로 읽힌다. 면과 면 사이 한 줄만 둥글게 이어진다 */
   const nr=g.attributes.normal;
   for(let i=0;i<p.count;i++){ const ci=cut[i]; if(ci<0) continue; const c=C[ci];
-    let x=nr.getX(i)*0.15+c[0]*0.85, y=nr.getY(i)*0.15+c[1]*0.85, z=nr.getZ(i)*0.15+c[2]*0.85; const l=Math.hypot(x,y,z)||1; nr.setXYZ(i,x/l,y/l,z/l); }
+    let x=nr.getX(i)*0.45+c[0]*0.55, y=nr.getY(i)*0.45+c[1]*0.55, z=nr.getZ(i)*0.45+c[2]*0.55; const l=Math.hypot(x,y,z)||1; nr.setXYZ(i,x/l,y/l,z/l); }   // 면 법선은 반만 — 닳은 면이라 볕이 부드럽게 넘어간다
   const o={pos:Float32Array.from(p.array), nor:Float32Array.from(nr.array), idx:Uint16Array.from(g.index.array)};
   g.dispose(); return o;
 }
@@ -136,7 +140,7 @@ function cragGrow(s,B){
   const Y0=Math.atan2(-tz,tx)+(rnd()-0.5)*0.3;
   const put=(x,y,z,rx,ry,rz,lv)=>{ const b=TB*(0.92+0.16*rnd())*(lv===2?1.03:1), m=rnd(), j=()=>0.97+0.06*rnd();
     B.push(x,y,z,rx,ry,rz,(rnd()-0.5)*(lv?0.32:0.18),Y0+(rnd()-0.5)*(lv?0.55:0.25),(rnd()-0.5)*(lv?0.32:0.18)+(type===3&&!lv?0.18:0),
-           lv,(rnd()*8)|0,b*lerp(T0[0],T1[0],m)*j(),b*lerp(T0[1],T1[1],m)*j(),b*lerp(T0[2],T1[2],m)*j(),lv===0?1.5:lv===1?0.8:0.4);
+           lv,(rnd()*8)|0,b*lerp(T0[0],T1[0],m)*j(),b*lerp(T0[1],T1[1],m)*j(),b*lerp(T0[2],T1[2],m)*j(),lv===0?2.6:lv===1?1.4:0.7);   // 녹아드는 높이 — 밑동이 흙 · 풀빛으로 넉넉히 스민다(2026-11-04 사용자 지적: 바위와 풀이 칼로 자른 듯 만난다)
     CRAG.blobs++; };
   /* 어미(자리 · 반지름) 겉에서 새끼가 돋는다 — 바깥(내리막)·위·옆으로. 땅속에 다 묻히는 것은 버린다 */
   const bud=(px,py,pz,rh,rv,lv,k0,k1,n)=>{ for(let i=0;i<n;i++){

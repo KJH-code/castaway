@@ -799,7 +799,7 @@ function rockMat(k,col){
      스무 남짓) 광원 수가 바뀔 때마다 그 수만큼 다시 짰다(M1 에서 하나에 0.1~0.5초 — 처음 보는 바위마다 멈칫했다). 이제 광물마다
      다른 것(결 갈래 · 각진 면 · 크기 · 금 · 이끼 · 광택 · 종류별 무늬)은 유니폼으로 넘긴다 — 같은 셰이더에 값만 다르다 */
   const KIND={sulfur:1,basalt:2,basaltcol:3,sandstone:4,karst:5}[k]||0;
-  m.userData.rkU={uRkTex:{value:TEX},uRkFacet:{value:FACET},uRkBig:{value:big?1:0},uRkCrack:{value:k.startsWith('temple')?0.22:0.72},
+  m.userData.rkU={uRkTex:{value:TEX},uRkFacet:{value:FACET},uRkBig:{value:big?1:0},uRkCrack:{value:k.startsWith('temple')?0.22:0.30},
     uRkKind:{value:KIND},uRkMoss:{value:moss},uRkMet:{value:L.met}};
   m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,TERR_U); Object.assign(sh.uniforms,m.userData.rkU);
@@ -992,6 +992,15 @@ vec2 grain(vec3 p){
         else if(T==4){ vec2 gr=grain(p/0.07); c*=1.0+step(0.955,gr.x)*smoothstep(0.08,0.25,gr.y)*0.45*nearK; }   // 잔 반짝임 — 드물고 옅게
         else if(T==5){ c*=0.7+0.5*smoothstep(0.2,0.7,rn(p/0.12)); }
         else if(T==6){ c*=0.85+0.25*sin(length(p.xz-floor(p.xz/0.4)*0.4)*40.0)*nearK; }
+        #ifdef RK_OFS
+        /* **화강암 토르의 겉**(2026-11-04 사용자 지적 — 실제 바위처럼): 빗물이 흘러내린 검은 물때 줄(옆면 · 세로로 늘인 잡음) ·
+           껍질 지의류 — 회백색 얼룩(레카노라 · 온 면) · 주황 점(크산토리아 — 새 앉는 윗면) */
+        { float sd=1.0-abs(n.y);
+          c*=1.0-0.30*smoothstep(0.55,0.85,rn(vec3(p.x*1.6,p.y*0.10,p.z*1.6)+3.3))*sd;
+          float li=rn(p/0.45+7.1)*0.6+rn(p/0.13+2.9)*0.4;
+          c=mix(c,vec3(0.60,0.61,0.56),smoothstep(0.64,0.70,li)*(0.45+0.4*smoothstep(-0.2,0.6,n.y))*0.6);
+          c=mix(c,vec3(0.70,0.45,0.16),smoothstep(0.80,0.84,rn(p/0.30+11.3))*smoothstep(0.0,0.5,n.y+0.3)*0.5); }
+        #endif
         // 이끼·지의류 — 위를 향한 면
         float up=smoothstep(0.55,0.85,n.y)*uRkMoss;
         /* 이끼는 둥근 얼룩이 아니라 방석이 번져 붙은 꼴이다 — 자리를 잡음으로 비틀고(도메인 워프)

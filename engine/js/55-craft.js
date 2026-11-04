@@ -619,6 +619,15 @@ const RECIPES=[
        +'바닷물은 쓸 수 없다.',
    in:[{id:'bottle_empty',n:1}]},
 
+  /* 바닷물 → 소금(사용자 요청 2026-11-04) — 바닷물은 염분 3.5%: 토기 한 가득(약 3 L)을 졸이면 소금 100 g 남짓 */
+  {id:'pot_seawater', tier:'나무와 점토', n:'바닷물 긷기', out:{id:'pot_seawater',n:1},
+   time:4, stam:2, station:'sea',
+   note:'바닷가에서 토기에 바닷물.',
+   in:[{id:'pot',n:1}]},
+  {id:'salt_boil', tier:'나무와 점토', n:'소금 졸이기', out:{id:'salt',n:2},
+   time:20, stam:2, station:'fire',
+   note:'바닷물을 끓여 말림 — 흰 소금 · 빈 토기.',
+   in:[{id:'pot_seawater',n:1}], ret:[{id:'pot',n:1}]},
   {id:'pot_water', tier:'나무와 점토', n:'물 긷기', out:{id:'pot_water',n:1},
    time:5, stam:3, station:'water',
    note:'하천이나 분기공 온천에서 토기에 담수를 받는다. 바닷물은 쓸 수 없다.',
@@ -1099,6 +1108,13 @@ function countMat(r){
 }
 const nearLitFire=()=>FIRES.some(f=>f.lit&&Math.hypot(f.x-PL.pos.x,f.z-PL.pos.z)<3.6);
 /* 담수 — 하천과 분기공 온천만. 바닷물은 안 된다. */
+/* 바닷물 곁 — 사람 둘레 4 m 안이 바다(땅이 해수면 0.3 m 밑 · 물길 아님) */
+function nearSea(){
+  for(let k=0;k<9;k++){ const a=k*0.785, r=k?3.5:0, x=PL.pos.x+Math.cos(a)*r, z=PL.pos.z+Math.sin(a)*r;
+    const gx=clamp(Math.round(x/CELL+N/2),1,N-2), gz=clamp(Math.round(z/CELL+N/2),1,N-2);
+    if(heightAt(x,z)<-0.3&&!F.river[IDX(gx,gz)]) return true; }
+  return false;
+}
 function nearFreshWater(){
   const gx=clamp(Math.round(PL.pos.x/CELL+N/2),1,N-2),
         gz=clamp(Math.round(PL.pos.z/CELL+N/2),1,N-2);
@@ -1113,6 +1129,7 @@ const STATION={grind  :{n:'숫돌',      ok:()=>nearGrind()},
                furnace:{n:'제련로',    ok:()=>nearFurnace()},
                anvil  :{n:'모루',      ok:()=>nearAnvil()},
                water  :{n:'담수',      ok:()=>nearFreshWater()},
+               sea    :{n:'바닷물',    ok:()=>nearSea()},
                arc    :{n:'아크로',    ok:()=>nearArc()},
                lathe  :{n:'선반',      ok:()=>nearLathe()}};
 const stationOK=R=>!R.station || STATION[R.station].ok();
@@ -1274,6 +1291,19 @@ function craftCat(R){
 /* 그 물건을 만드는 제작법들 · 그 물건이 드는 제작법들(재료든 도구든) */
 const craftMakers=id=>RECIPES.filter(R=>R.out&&R.out.id===id);
 const craftUsers=id=>RECIPES.filter(R=>R.in.some(r=>r.id===id)||(R.need||[]).some(r=>r.id===id));
+/* **처음 손에 넣은 재료 → 이것으로 만드는 것**(사용자 요청 2026-11-04 — 얻으면 무엇을 만들 수 있는지 보이게). 태그로 받는 제작법도 센다.
+   상륙해서 노는 동안 처음 얻은 것만 알린다(불러오기 · 섬 짓기 중엔 지닌 것을 다 '본 것'으로 친다) */
+const ITEM_SEEN=new Set();
+function craftFrom(id){ const T=ITEMS[id]||{}, tg=T.tags||[];
+  return RECIPES.filter(R=>!R.proc&&(R.in.some(r=>r.id===id||(r.tag&&tg.indexOf(r.tag)>=0))||(R.need||[]).some(r=>r.id===id||(r.tag&&tg.indexOf(r.tag)>=0)))); }
+function itemFirstSeen(id){
+  if(ITEM_SEEN.has(id)) return; ITEM_SEEN.add(id);
+  if(typeof landed==='undefined'||!landed||busy) return;
+  const L=craftFrom(id); if(!L.length) return;
+  const names=[...new Set(L.map(R=>R.n))], head=names.slice(0,3).join(' · ');
+  toast('새 재료 '+(ITEMS[id].n)+' → '+head+(names.length>3?' 외 '+(names.length-3):''));
+}
+{ const inv0=invAdd; invAdd=function(id,n){ const ok=inv0(id,n); if(ok) itemFirstSeen(id); return ok; }; }
 /* '가능만' — 지금 만들 수 있는 마디만 남긴다(main 의 단계별 목록에서 온 단추 — 나무에서도 같은 일을 한다) */
 let craftOnly=false;
 const _cEsc=t=>String(t).replace(/[<>&"]/g,'');

@@ -67,6 +67,12 @@ function pinAt(cx,cz,k){
       toast('핀을 뽑았다');
     }else if(e.button===0){
       if(hit>=0){ pinAct=pinAct===hit?-1:hit; toast(pinAct<0?'핀 따라가기를 멈췄다':'이 핀을 따라간다 — 나침반을 보라'); }
+      else if(DEV.on&&!e.shiftKey){                  // 개발자 모드 — 빈 곳 좌클릭은 그 자리로 순간이동(Shift+좌클릭은 핀 · 사용자 요청 2026-11-04)
+        const x=clamp((cx-N/2)*CELL,-HALF+5,HALF-5), z=clamp((cz-N/2)*CELL,-HALF+5,HALF-5), g=Math.max(heightAt(x,z),0);
+        const up=Math.max(0.4,PL.pos.y-Math.max(heightAt(PL.pos.x,PL.pos.z),0));     // 땅에서 뜬 높이는 그대로(날고 있었으면 그 높이로)
+        PL.pos.set(x,g+up,z); PL.vel.set(0,0,0); PL.camY=undefined;
+        toast('순간이동 — '+Math.round(x)+', '+Math.round(z)+' · 땅 '+Math.round(g)+' m');
+      }
       else{
         if(MAPPINS.length>=PIN_MAX){ toast('핀은 '+PIN_MAX+'개까지 — 우클릭으로 하나 뽑아라'); return; }
         const used=MAPPINS.reduce((a,p)=>Math.max(a,p.n),0);
