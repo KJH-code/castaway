@@ -926,9 +926,14 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
        참나무 다섯 갈래·전나무 여섯 갈래) ② 위로 갈수록 한쪽으로 살짝 굽히고 ③ 세로 골(나무껍질 결)을
        판다. 굽는 폭은 가지가 붙는 높이에서도 줄기 반지름 안이라 가지가 줄기에서 떨어져 보이지 않는다.
        나무마다 줄기를 돌려 세우므로 굽는 쪽은 나무마다 다르다. */
-    oak:    [gnarl(new THREE.CylinderGeometry(0.26,0.5,5.2,8,10),(t,th,r)=>{
+    /* 참나무 줄기 — **꼬이고 혹이 진 줄기**(2026-11-04 사용자 요청 — 실제 나무처럼 · 생물학을 보고): 줄기는 자라며 형성층이 바람 · 무게에 비틀려
+       나뭇결이 나선으로 돈다(나선 목리) — 세로 골(물관 다발 사이 껍질이 갈라진 자리)이 높이에 따라 돌아가게 둔다. 가지가 떨어져 나간 자리 · 상처는
+       형성층이 덮어 자라 둥근 혹(유합 조직 · 버얼)이 된다 — 밑동 쪽에 혹 서넛. 모서리 수를 늘려(8 → 12 · 10 → 16 마디) 혹과 골이 꼴로 드러난다 */
+    oak:    [gnarl(new THREE.CylinderGeometry(0.26,0.5,5.2,12,16),(t,th,r)=>{
               const flare=1+0.6*Math.exp(-t*9)*(1+0.35*Math.cos(5*th));
-              return [r*flare*(1+0.045*Math.sin(th*9+t*7)), 0.16*Math.sin(2.2*t+0.3)*t, 0.10*Math.sin(3.7*t)*t];
+              const dth=a=>{ let d=th-a; d-=6.2832*Math.round(d/6.2832); return d; };
+              const burl=0.20*Math.exp(-(dth(1.1)**2/0.10+(t-0.30)**2/0.004))+0.14*Math.exp(-(dth(3.9)**2/0.08+(t-0.55)**2/0.003))+0.16*Math.exp(-(dth(5.3)**2/0.12+(t-0.16)**2/0.005));
+              return [r*flare*(1+0.055*Math.sin(th*7+t*3.2)+0.03*Math.sin(th*13-t*5.1)+burl), 0.16*Math.sin(2.2*t+0.3)*t, 0.10*Math.sin(3.7*t)*t];
             },5.2)],
     fir:    [gnarl(new THREE.CylinderGeometry(0.2,0.44,7.0,8,10),(t,th,r)=>{
               const flare=1+0.45*Math.exp(-t*10)*(1+0.3*Math.cos(6*th));

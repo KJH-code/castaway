@@ -76,6 +76,7 @@ function snapshot(){
     det:1,                               // 자원 줄에 자리·종류가 들어 있다(propDiff)
     guar:GUARANTEE?1:0,                  // 광종 보장 — 꺼고 켜면 자원 배치가 달라진다
     nprops:PROPS.length,
+    seen:typeof ITEM_SEEN!=='undefined'?[...ITEM_SEEN]:[],      // 손에 넣어 본 것 — 제작법이 보이는 데 쓴다(55-craft.js craftKnown)
     P:Object.assign({},P),
     t:{hour:hourOfDay, gh:gameHours, ts:timeScale},
     pl:{x:PL.pos.x,y:DEV.on?devGround():PL.pos.y,z:PL.pos.z,      // 개발자 모드로 떠 있으면 그 밑 바닥 높이로 적는다(불러와서 떨어지지 않게)
@@ -131,6 +132,7 @@ async function restore(d){
   const safe=(what,fn)=>{ try{ fn(); }catch(e){ console.error('[불러오기] '+what,e); bad.push(what); } };
   P.ws=1; P.tv=1; P.sm=0;                      // 섬 배율·지형 판·매끈한 땅이 없는 옛 저장은 1·1·0(1.9 km 섬 · 예전 지형 · 세모 면) — 예전 섬 그대로 열린다
   Object.assign(P,d.P);
+  if(typeof ITEM_SEEN!=='undefined'){ ITEM_SEEN.clear(); SEEN_TAGS.clear(); for(const id of (d.seen||[])) if(ITEMS[id]) seenAdd(id); }
   if(!(P.ws>=1&&P.ws<=6)) P.ws=1; P.ws=Math.round(P.ws*4)/4;
   if(d.guar!==undefined){ GUARANTEE=!!d.guar; const bg=document.getElementById('bGuar'); if(bg) bg.classList.toggle('on',GUARANTEE); }
   // 슬라이더도 저장값에 맞춘다

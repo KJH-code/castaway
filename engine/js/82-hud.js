@@ -407,7 +407,7 @@ function updateHUD(dt){
   hudT(document.getElementById('iTime'),String(H).padStart(2,'0')+':'+String(M).padStart(2,'0'));
   hudT(document.getElementById('iPos'),Math.round(PL.pos.x)+', '+Math.round(PL.pos.z));
   hudT(document.getElementById('iAlt'),(PL.swim?'수중 ':'')+Math.round(PL.pos.y)+' m');
-  hudT(document.getElementById('iBio'),PL.under?'땅속':caveAt(PL.pos.x,PL.pos.z,-0.5)?'동굴':BIOME_INFO[s.biome].n);
+  hudT(document.getElementById('iBio'),PL.under?'땅속':PL.cave?'동굴 · '+(CV10.NAME[PL.cave.kind]||PL.cave.kind):caveAt(PL.pos.x,PL.pos.z,-0.5)?'동굴':BIOME_INFO[s.biome].n);   // 판 10 굴 빈 데면 종류까지
   hudT(document.getElementById('iFps'),fps);
   const hpF=document.getElementById('hpF'), hpT=document.getElementById('hpT');
   if(hpF){
