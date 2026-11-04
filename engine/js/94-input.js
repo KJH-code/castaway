@@ -345,6 +345,8 @@ function rng(id,key,vid,fmt,after){
 rng('pWs','ws','vWs',x=>['','1.9 km','3.8 km','5.8 km','7.7 km','9.6 km','11.5 km'][x]||'');
 /* 주소에 ?ws=배율(1~6)을 주면 첫 섬을 그 넓이로 만든다 — 구동 검사(tools/pages.mjs)가 작은 섬으로 돌린다(헤드리스에서 6배 섬은 너무 오래 걸린다) */
 try{ const w=parseInt(new URLSearchParams(location.search).get('ws'),10), el=document.getElementById('pWs'); if(w>=1&&w<=6&&el){ el.value=w; el.dispatchEvent(new Event('input')); } }catch(e){}   // 섬 배율 — 새 섬부터(00-core.js)
+/* 주소에 ?tv=지형 판(1~10)을 주면 첫 섬의 P.tv 를 그 값으로 — 새 판(10: 굴 — 31-cave10.js)을 기본으로 올리기 전에 시험한다. 새 섬(R · 새로 시작)은 늘 기본 판 */
+try{ const v=parseInt(new URLSearchParams(location.search).get('tv'),10); if(v>=1&&v<=10) P.tv=v; }catch(e){}
 rng('pSize','size','vSize',x=>x.toFixed(2));
 rng('pRidge','ridge','vRidge',x=>x.toFixed(2));
 rng('pEro','ero','vEro',x=>x.toFixed(2));

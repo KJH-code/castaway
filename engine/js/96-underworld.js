@@ -71,9 +71,17 @@ function underSites(seed){
   for(const c of CAVES){ if(c.off||rnd()<0.45) continue;
     /* 광석에서 가장 먼 자리(열두 번 뽑아) — 그래도 2.4 m 안에 걸리는 광석은 방 가장자리로 비켜 놓는다 */
     const rm=c.rooms[c.rooms.length-1], ore=caveOre.filter(p=>Math.hypot(p.x-rm.x,p.z-rm.z)<rm.R+1); let px=rm.x, pz=rm.z, best=-1;
+    const T10=(P.tv|0)>=10; let ok10=!T10;                                  // 지형 판 10 — 수직굴은 굴의 빈 데 안(g≥3 · u≤0.5)에만(31-cave10.js)
     for(let t=0;t<12;t++){ const a=rnd()*6.283, d=rm.R*(0.25+0.3*rnd()), x=rm.x+Math.cos(a)*d, z=rm.z+Math.sin(a)*d;
-      let m=1e9; for(const p of ore) m=Math.min(m,Math.hypot(p.x-x,p.z-z)); if(m>best){ best=m; px=x; pz=z; } }
-    for(const p of ore){ const dx=p.x-px, dz=p.z-pz, d=Math.hypot(dx,dz); if(d>=2.4) continue;
+      if(T10){ const o=cv10Field(c,x,z); if(!(o.g>=3.0&&o.u<=0.5)) continue; }
+      let m=1e9; for(const p of ore) m=Math.min(m,Math.hypot(p.x-x,p.z-z)); if(m>best){ best=m; px=x; pz=z; ok10=true; } }
+    if(T10) for(const p of ore){ const dx=p.x-px, dz=p.z-pz;
+      if(!ok10||Math.hypot(dx,dz)>=2.4) continue;
+      const at=cv10OreSpot(c,rm,p,ore,{x:px,z:pz,r:2.4}); let bx=p.x, bz=p.z;
+      if(at){ bx=at[0]; bz=at[1]; } else { for(let t=0;t<80;t++){ const o=cv10Field(c,bx,bz), dd=Math.hypot(bx-px,bz-pz); if(o.g>=2.0&&o.u<=0.75&&dd>=2.4) break;
+          const ex=rm.x-bx, ez=rm.z-bz, el=Math.hypot(ex,ez); if(el<0.5) break; bx+=ex/el*0.5; bz+=ez/el*0.5; } }
+      p.x=bx; p.z=bz; p.top=p.y=cv10Field(c,bx,bz).f; }
+    else for(const p of ore){ const dx=p.x-px, dz=p.z-pz, d=Math.hypot(dx,dz); if(d>=2.4) continue;
       const a=d>0.01?Math.atan2(dz,dx):rnd()*6.283;
       if((P.tv|0)>=9){ /* 지형 판 9 — 구멍 둘레 2.6 m 가운데 방 안(가운데에서 R − 2.4 m)이고 다른 광석과 가장 덜 겹치는 쪽으로(예전엔 바로 바깥으로 밀어 벽 바위 밑동에 묻히거나 이웃 광석과 겹쳤다) */
         let best=-1e9, bx=px+Math.cos(a)*2.6, bz=pz+Math.sin(a)*2.6;
@@ -84,8 +92,10 @@ function underSites(seed){
         p.x=bx; p.z=bz; }
       else{ p.x=px+Math.cos(a)*2.6; p.z=pz+Math.sin(a)*2.6; }
       p.y=heightAt(p.x,p.z); }
-    UNDER.ch.push({x:px,z:pz,R:13+rnd()*5,H:10+rnd()*3,sd:(rnd()*1e9)|0,p:[rnd()*6.283,rnd()*6.283,rnd()*6.283],pit:1,shroom:true,web:rnd()<0.3});
-    UNDER.pits.push({x:px,z:pz,cave:c,rm,ys:heightAt(px,pz)});
+    const chd={x:px,z:pz,R:13+rnd()*5,H:10+rnd()*3,sd:(rnd()*1e9)|0,p:[rnd()*6.283,rnd()*6.283,rnd()*6.283],pit:1,shroom:true,web:rnd()<0.3};
+    if(!ok10) continue;
+    UNDER.ch.push(chd);
+    UNDER.pits.push({x:px,z:pz,cave:c,rm,ys:T10?cv10Field(c,px,pz).f:heightAt(px,pz)});
   }
   /* ④ 굴길 — 방마다 가까운 둘(700 m 안)에. 길은 여섯 토막으로 굽힌다 */
   const C=UNDER.ch, seen=new Set();
