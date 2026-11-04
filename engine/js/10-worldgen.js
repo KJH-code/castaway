@@ -763,7 +763,7 @@ async function placeResources(seed){    // async — 긴 고리 사이 숨을 �
     // 점토: 하천 범람원의 세립 퇴적 — 저지·완경사·하천 근접
     clay:i=> ((h[i]<HI*0.35 && s[i]<0.26 && F.dRiver[i]<20)?1:0) + (b[i]===B.MARSH?0.6:0),
     // 모래: 해빈과 사구. 파도와 바람이 골라 쌓아 둔 규사다
-    sand:i=> (b[i]===B.BEACH?1:0) + (b[i]===B.DUNE?0.85:0),
+    sand:i=> P.sm?((b[i]===B.BEACH?0.30:0)+(b[i]===B.DUNE?0.55:0))*smoothstep(0.35,0.7,SHP.vn3(i%N*0.09,((i/N)|0)*0.09,1.7,0x5a2d)):(b[i]===B.BEACH?1:0) + (b[i]===B.DUNE?0.85:0),   // 매끈한 땅(P.sm) — 모래 둔덕은 드문드문 무리 지어(2026-11-04 사용자 지적: 고르게 촘촘하다)
     reed:i=> (b[i]===B.MARSH?1:0) + (F.dRiver[i]<6&&h[i]>0?0.6:0),
     // 풀숲: 초원이 본진, 활엽수림 임상 하층과 습지 가장자리까지. 암반·해빈에는 안 남
     grass:i=> b[i]===B.MEADOW?1 : (b[i]===B.BROADLEAF?0.55 : b[i]===B.BAMBOO?0.12 :

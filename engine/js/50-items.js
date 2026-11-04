@@ -1294,8 +1294,9 @@ function findHarvestTarget(){
       const yh=ey+Math.tan(PL.pitch)*th, top=p.felled?p.y+0.9:p.y+(p.k==='oak'?2.6:3.4)*p.s; if(yh<p.y-0.3||yh>top) return;
       t=th/Math.max(0.2,cp);
     }else{
-      const flat=PROP_FLAT[p.k], soft=PROP_SOFT[p.k], r=Math.max(0.18,(PROP_FOOT[p.k]||0.3)*p.s*(flat?0.85:soft?1:0.8));
-      const rv=flat?0.35:soft?0.45:r*0.7, cy=p.y+(flat?0.05:soft?0.25:rv*0.6);
+      /* 풀·갈대는 포기 전체가 잡힌다(2026-11-04 사용자 지적 — 풀 · 꽃 히트박스가 너무 작다): 반지름 0.35 m 이상 · 키 방향 0.65 m */
+      const flat=PROP_FLAT[p.k], soft=PROP_SOFT[p.k], r=Math.max(soft?0.35:0.18,(PROP_FOOT[p.k]||0.3)*p.s*(flat?0.85:soft?1.4:0.8));
+      const rv=flat?0.35:soft?0.65:r*0.7, cy=p.y+(flat?0.05:soft?0.35:rv*0.6);
       t=ray(p.x,cy,p.z,r,rv);
     }
     if(t<0||t>2.8) return;
