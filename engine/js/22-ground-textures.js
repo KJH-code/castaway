@@ -309,7 +309,7 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
             /* **프랙털 금**(사용자 요청) — 보로노이 경계로 곧게 꺾이는 금을 두 겹(3 m · 1.1 m) · 옆 투영 둘을 면이 보는 쪽대로 섞는다.
                진짜 벼랑(stp 0.4 넘게)에만 — 잡음 등고선으로 그었을 땐 강물 같은 굽은 선이 됐다(사용자 지적) */
             float ck=mix(ckNet(tS1*2.1,1.0/3.0),ckNet(tS2*2.1,1.0/3.0),wSx);
-            sr*=1.0-0.50*ck*smoothstep(0.4,0.8,stp);
+            sr*=1.0-0.16*ck*smoothstep(0.4,0.8,stp);   // 옅게 — 그물처럼 진하게 그은 금이 지그재그 무늬로 보였다(사용자 지적 2026-11-04)
             rk=mix(rk,sr,stp); }`
           :`if(stp>0.0) rk=mix(rk,mix(textureGrad(uGnd,vec3(tS1,4.0),gS1x,gS1y).rgb,textureGrad(uGnd,vec3(tS2,4.0),gS2x,gS2y).rgb,wSx),stp);`}
           det+=wRock*rk; }

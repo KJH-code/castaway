@@ -47,15 +47,34 @@ function foamBubbles(){
   return g;
 }
 /* 거품 판의 무늬 — 크고 작은 거품 고리가 엉긴 레이스(캔버스 · 바깥으로 갈수록 옅다) */
+/* 거품 레이스 그림 — **실제 바다 거품의 그물 무늬**(2026-11-04 사용자 지적: 거품이 동그라미라 이상하다 · 실제 거품을 보고 만들 것).
+   물가의 거품은 거품 방울 덩이가 터지며 남은 **얇은 막의 그물**이다 — 방울 벽이 셋씩 만나 굽은 다각형 칸을 이루고(플라토 법칙),
+   큰 방울이 먼저 터져 칸 속은 비고 벽만 흰 줄로 남는다. 그래서 동그라미가 아니라 보로노이 칸의 테두리(F2−F1 이 작은 데)로 긋는다:
+   굵은 칸(거품 덩이 사이 벽) + 잔 칸(그 안의 작은 방울) · 벽이 만나는 마디는 굵게 · 잡음이 높은 데는 아직 안 터진 하얀 덩이 ·
+   가장자리는 녹인다. 실시간 바다 거품을 보로노이/워리 무늬로 그리는 방식(Worley 1996 — 세포 무늬)을 따랐다 */
 function foamLaceTex(){
   const W=256, c=document.createElement('canvas'); c.width=c.height=W; const g=c.getContext('2d'), rnd=mulberry32(0x1ace);
-  g.clearRect(0,0,W,W);
-  for(let i=0;i<260;i++){ const a=rnd()*6.283, r=Math.sqrt(rnd())*W*0.46, x=W/2+Math.cos(a)*r, y=W/2+Math.sin(a)*r, br=2+rnd()*rnd()*16;
-    g.strokeStyle='rgba(255,255,255,'+(0.35+rnd()*0.55)+')'; g.lineWidth=1+rnd()*2.6; g.beginPath(); g.arc(x,y,br,0,6.283); g.stroke();
-    if(rnd()<0.35){ g.fillStyle='rgba(255,255,255,'+(0.25+rnd()*0.4)+')'; g.beginPath(); g.arc(x,y,br*0.5,0,6.283); g.fill(); } }
-  g.globalCompositeOperation='destination-in';                       // 가장자리를 녹인다
-  const gr=g.createRadialGradient(W/2,W/2,W*0.12,W/2,W/2,W*0.5); gr.addColorStop(0,'rgba(0,0,0,1)'); gr.addColorStop(1,'rgba(0,0,0,0)');
-  g.fillStyle=gr; g.fillRect(0,0,W,W);
+  const img=g.createImageData(W,W), d=img.data;
+  const pts=(n)=>{ const P=new Float32Array(n*n*2); for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const k=(j*n+i)*2; P[k]=(i+0.1+0.8*rnd())/n; P[k+1]=(j+0.1+0.8*rnd())/n; } return P; };
+  const A=18, Bn=42, PA=pts(A), PB=pts(Bn);
+  const wor=(P,n,u,v)=>{ const ci=Math.floor(u*n), cj=Math.floor(v*n); let f1=9, f2=9;
+    for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ const ii=ci+di, jj=cj+dj; if(ii<0||jj<0||ii>=n||jj>=n) continue;
+      const k=(jj*n+ii)*2, dx=P[k]-u, dy=P[k+1]-v, dd=dx*dx+dy*dy; if(dd<f1){ f2=f1; f1=dd; } else if(dd<f2) f2=dd; }
+    return [Math.sqrt(f1)*n, Math.sqrt(f2)*n]; };
+  const vn=(x,y,s)=>{ const X=Math.floor(x*s), Y=Math.floor(y*s), fx=x*s-X, fy=y*s-Y, h=(a,b)=>{ let q=Math.imul(a,374761393)+Math.imul(b,668265263)+0x1ace|0; q=Math.imul(q^(q>>>13),1274126177); return ((q^(q>>>16))>>>0)/4294967296; };
+    const ux=fx*fx*(3-2*fx), uy=fy*fy*(3-2*fy); return (h(X,Y)*(1-ux)+h(X+1,Y)*ux)*(1-uy)+(h(X,Y+1)*(1-ux)+h(X+1,Y+1)*ux)*uy; };
+  const ss=(a,b,x)=>{ const t=Math.min(1,Math.max(0,(x-a)/(b-a))); return t*t*(3-2*t); };
+  for(let y=0;y<W;y++) for(let x=0;x<W;x++){
+    const u=x/W, v=y/W, wu=u+(vn(u,v,6)-0.5)*0.035, wv=v+(vn(u+3.1,v,6)-0.5)*0.035;   // 벽이 곧지 않게 조금 비튼다
+    const [a1,a2]=wor(PA,A,wu,wv), [b1,b2]=wor(PB,Bn,wu,wv);
+    const nz=vn(u,v,5)*0.65+vn(u,v,13)*0.35;
+    const wA=0.05+0.10*nz, lineA=1-ss(0,wA,a2-a1), node=1-ss(0.10,0.30,a1<0.45?a2-a1+a1*0.3:9);
+    const lineB=(1-ss(0,0.09,b2-b1))*ss(0.25,0.55,nz);
+    const clump=ss(0.60,0.78,nz)*(0.55+0.45*ss(0.15,0.45,b1));                     // 아직 안 터진 하얀 덩이(잔 방울 사이만 조금 비친다)
+    const r=Math.hypot(u-0.5,v-0.5)/0.5, fade=1-ss(0.35,1.0,r);
+    const al=Math.min(1,Math.max(lineA*0.85+node*0.25,lineB*0.5,clump*0.8))*fade;
+    const o=(y*W+x)*4; d[o]=d[o+1]=d[o+2]=255; d[o+3]=Math.round(al*255); }
+  g.putImageData(img,0,0);
   const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;
 }
 function foamInit(){
@@ -193,6 +212,7 @@ function foamScanJS(px,pz,R,step,level,out,maxOut){
 function foamSync(){
   FOAM.synced=false;
   if(!NATIVE.ok||!NATIVE.x.cw_shore||N>768) return;
+  if(P.sm) return;                                   // 매끈한 땅(P.sm)은 C 판의 땅 면과 다르다 — 자바스크립트 판(heightAt)으로 찾는다
   const X=NATIVE.x;
   new Float32Array(X.memory.buffer,X.cw_elev(),N*N).set(F.elev);
   new Uint8Array(X.memory.buffer,X.cw_river(),N*N).set(F.river);

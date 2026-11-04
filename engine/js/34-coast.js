@@ -186,7 +186,7 @@ function coastBuild(){
       const col=0.62*c.k;                                                 // 짙은 잿빛 현무암(검게 칠하면 그늘에서 덩어리로 뭉개졌다)
       for(let k=0;k<6;k++){ const p=ring[k], q=ring[(k+1)%6], am=(k+0.5)/6*6.2832+0.5236, n=[Math.cos(am),0,Math.sin(am)];
         const fk=0.84+0.16*(((k*7+Math.floor(c.x*3.1+c.z*1.7))%3+3)%3)/2;    // 면마다 한 톤씩 달라 기둥의 모서리가 읽힌다
-        quad([p[0],c.b,p[1]],[q[0],c.b,q[1]],[q[0],c.t,q[1]],[p[0],c.t,p[1]],n,col*fk); }
+        quad([p[0],c.b,p[1]],[p[0],c.t,p[1]],[q[0],c.t,q[1]],[q[0],c.b,q[1]],n,col*fk); }   // 바깥에서 보아 반시계(2026-11-04 — 예전 차례는 안을 봐 밖에서 거르면 기둥 옆면이 비쳐 보였다)
       const tc=col*1.18;                                                  // 윗면은 조금 밝다(볕 · 바랜 결)
       for(let k=0;k<6;k++){ const p=ring[k], q=ring[(k+1)%6];
         for(const v of [[c.x,c.t,c.z],[q[0],c.t,q[1]],[p[0],c.t,p[1]]]){ P.push(v[0],v[1],v[2]); Nn.push(0,1,0); C.push(tc,tc,tc*1.02); M.push(0.35); } }
@@ -202,7 +202,10 @@ function coastBuild(){
 function coastIsleBuild(I){
   if(I.cols&&I.cols.length){
     const P=[], Nn=[], C=[], M=[];
-    const tri=(a,b,c,n,col)=>{ for(const v of [a,b,c]){ P.push(v[0],v[1],v[2]); Nn.push(n[0],n[1],n[2]); C.push(col,col,col*1.03); M.push(0); } };
+    /* 차례는 법선(n) 쪽에서 보아 반시계로 맞춘다(2026-11-04 — 옆면 · 깎은 모가 안을 보고 있어 밖에서는 걸러져 기둥이 비쳐 보이고 윗면 테두리가 빠졌다) */
+    const tri=(a,b,c,n,col)=>{ const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2], vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2];
+      if((uy*vz-uz*vy)*n[0]+(uz*vx-ux*vz)*n[1]+(ux*vy-uy*vx)*n[2]<0){ const t=b; b=c; c=t; }
+      for(const v of [a,b,c]){ P.push(v[0],v[1],v[2]); Nn.push(n[0],n[1],n[2]); C.push(col,col,col*1.03); M.push(0); } };
     /* **기둥의 단면은 반듯한 육각이 아니다**(사용자 지적: 레고 같다) — 실제 주상절리는 식으며 갈라진 다각형이라 변 길이가 들쭉날쭉하다.
        벌집 격자의 꼭짓점(이웃 기둥 셋이 나눠 쓰는 점)을 그 자리의 해시로 흔들어, 이웃 기둥이 같은 점을 쓰게 한다 — 틈 없이 맞물린다.
        기둥마다 가운데 쪽으로 3.5% 줄여 가는 금(절리)을 남긴다. 윗면은 기둥마다 조금 기울었다(부러진 면) */

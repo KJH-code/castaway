@@ -119,7 +119,7 @@
   <div class="ch"><b>설정</b><button id="bCfgX">닫기 · Tab</button></div>
   <div class="r"><label>시드</label><input type="text" id="pSeed" value="castaway"></div>
   <div class="r"><label>섬 프리셋</label><select id="pIsle" aria-label="섬 프리셋"></select></div>
-  <div class="r"><label>섬 넓이</label><input type="range" id="pWs" min="1" max="6" step="1" value="6"><span class="v" id="vWs"></span></div>
+  <div class="r"><label>섬 넓이</label><input type="range" id="pWs" min="1" max="6" step="0.25" value="4.25"><span class="v" id="vWs"></span></div>
   <div class="r"><label>섬 크기</label><input type="range" id="pSize" min="0.45" max="0.95" step="0.01" value="0.7"><span class="v" id="vSize"></span></div>
   <div class="r"><label>산맥</label><input type="range" id="pRidge" min="0" max="1.4" step="0.02" value="0.85"><span class="v" id="vRidge"></span></div>
   <div class="r"><label>침식</label><input type="range" id="pEro" min="0" max="1" step="0.02" value="0.6"><span class="v" id="vEro"></span></div>
@@ -136,6 +136,8 @@
   <div class="r"><label>캠코더</label><input type="range" id="pCam" min="0" max="3" step="1" value="2"><span class="v" id="vCam"></span></div>
   <div class="r"><label>자동 품질</label><input type="range" id="pAuto" min="0" max="1" step="1" value="1"><span class="v" id="vAuto"></span></div>
   <div class="r"><label>화면 잡음</label><input type="range" id="pNoise" min="0" max="2" step="1" value="1"><span class="v" id="vNoise"></span></div>
+  <div class="r"><label>물속 안개</label><input type="range" id="pHaze" min="0" max="2" step="1" value="2"><span class="v" id="vHaze"></span></div>
+  <div class="r"><label>음악</label><input type="range" id="pMusic" min="0" max="1" step="0.05" value="0.6"><span class="v" id="vMusic"></span></div>
   <div class="r"><label>프레임 제한</label><input type="range" id="pCap" min="0" max="3" step="1" value="0"><span class="v" id="vCap"></span></div>
   <div class="g">
     <button class="p" id="bGen">새 섬</button>
@@ -280,6 +282,7 @@
 <script src="engine/js/98-bag.js"></script>
 <script src="engine/js/98-dew.js"></script>
 <script src="engine/js/98-surface.js"></script>
+<script src="engine/js/98-music.js"></script>
 <script src="engine/js/99-main.js"></script>
 </body>
 </html>

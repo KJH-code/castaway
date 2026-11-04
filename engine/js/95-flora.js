@@ -662,7 +662,11 @@ function floraLayer(L,which){
       if(tr>=((far?cm.dense:cm.nearDense)||1)) break;   // 이 군락은 칸마다 이만큼만 굴린다
       patch=_fp.id;
       /* 얼룩 가장자리로 갈수록 성기다(군락 사이의 빈터) · 그 안에서도 잔 얼룩으로 뭉쳤다 풀렸다 한다 */
-      const dens=clamp(_fp.edge/10,0.12,1)*(0.55+0.9*floraVal(wx,wz,11,43));
+      let dens=clamp(_fp.edge/10,0.12,1)*(0.55+0.9*floraVal(wx,wz,11,43));
+      /* 매끈한 땅(P.sm) 섬은 **더 성기다**(2026-11-04 사용자 지적 — 메마른 땅에 나무가 너무 몰려 있다 · 숲도 빈틈이 있어야 한다):
+         덤불 · 풀밭은 사바나처럼 나무가 띄엄띄엄(물을 두고 뿌리끼리 다툰다) · 숲은 큰 빈터(쓰러진 나무 · 바위 땅)가 군데군데 열린다 */
+      if(smOn()){ if(bi===B.SCRUB||bi===B.DUNE) dens*=0.30; else if(bi===B.MEADOW) dens*=0.45;
+        else dens*=0.30+0.62*smoothstep(0.30,0.62,floraVal(wx,wz,64,17)); }
       for(const t of cm[which]){ const pr=t[1]*dens; if(u<pr){ pick=t; break; } u-=pr; }
     }
     if(!pick) continue;
@@ -750,7 +754,11 @@ function* floraPlantAllG(){
       if(cm.low&&el>cm.low) cm=FLORA_COMM[bi][1];     // 맹그로브는 바닷가 낮은 늪에만 — 산 위 이탄지는 고사리 늪
       if(tr>=(cm.dense||1)) break;
       /* 얼룩 가장자리로 갈수록 성기다(군락 사이의 빈터) · 그 안에서도 잔 얼룩으로 뭉쳤다 풀렸다 한다 */
-      const dens=clamp(_fp.edge/10,0.12,1)*(0.55+0.9*floraVal(wx,wz,11,43));
+      let dens=clamp(_fp.edge/10,0.12,1)*(0.55+0.9*floraVal(wx,wz,11,43));
+      /* 매끈한 땅(P.sm) 섬은 **더 성기다**(2026-11-04 사용자 지적 — 메마른 땅에 나무가 너무 몰려 있다 · 숲도 빈틈이 있어야 한다):
+         덤불 · 풀밭은 사바나처럼 나무가 띄엄띄엄(물을 두고 뿌리끼리 다툰다) · 숲은 큰 빈터(쓰러진 나무 · 바위 땅)가 군데군데 열린다 */
+      if(smOn()){ if(bi===B.SCRUB||bi===B.DUNE) dens*=0.30; else if(bi===B.MEADOW) dens*=0.45;
+        else dens*=0.30+0.62*smoothstep(0.30,0.62,floraVal(wx,wz,64,17)); }
       for(const t of cm.far){ const pr=t[1]*dens; if(u<pr){ pick=t; break; } u-=pr; }
     }
     if(!pick) continue;

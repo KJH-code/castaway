@@ -217,6 +217,7 @@ function pause(){
 function start(){
   if(!landed&&gameHours<0.01) setTimeout(()=>toast('가방(I)에 생존 안내서가 있다 — 눌러서 읽어 보라'),1800);   // 처음 상륙
   landed=true;
+  if(typeof ITEM_SEEN!=='undefined') for(const sl of INV.slots) ITEM_SEEN.add(sl.id);   // 지니고 상륙한 것은 '새 재료' 로 안 알린다(55-craft.js)
   if(PL.dead) revivePL();
   paused=false; initAudio(); audioPause(false);
   fireWarm();                                       // 불꽃 셰이더를 미리 짠다(62-build.js — 놀이 때와 같은 광원 수에서 · 한 번만)
@@ -342,9 +343,11 @@ function rng(id,key,vid,fmt,after){
   const u=()=>{ P[key]=parseFloat(el.value); v.textContent=fmt(P[key]); if(after) after(); };
   el.addEventListener('input',u); u();
 }
-rng('pWs','ws','vWs',x=>['','1.9 km','3.8 km','5.8 km','7.7 km','9.6 km','11.5 km'][x]||'');
+rng('pWs','ws','vWs',x=>(1.92*x).toFixed(1)+' km');
 /* 주소에 ?ws=배율(1~6)을 주면 첫 섬을 그 넓이로 만든다 — 구동 검사(tools/pages.mjs)가 작은 섬으로 돌린다(헤드리스에서 6배 섬은 너무 오래 걸린다) */
-try{ const w=parseInt(new URLSearchParams(location.search).get('ws'),10), el=document.getElementById('pWs'); if(w>=1&&w<=6&&el){ el.value=w; el.dispatchEvent(new Event('input')); } }catch(e){}   // 섬 배율 — 새 섬부터(00-core.js)
+try{ const w=parseFloat(new URLSearchParams(location.search).get('ws')), el=document.getElementById('pWs'); if(w>=1&&w<=6&&el){ el.value=w; el.dispatchEvent(new Event('input')); } }catch(e){}   // 섬 배율 — 새 섬부터(00-core.js)
+/* 주소에 ?seed=시드를 주면 첫 섬을 그 시드로 — 사용자가 본 섬을 그대로 다시 짓는다(검사 · 버그 재현) */
+try{ const v=new URLSearchParams(location.search).get('seed'); if(v){ P.seed=v; const el=document.getElementById('pSeed'); if(el) el.value=v; } }catch(e){}
 /* 주소에 ?tv=지형 판(1~10)을 주면 첫 섬의 P.tv 를 그 값으로 — 새 판(10: 굴 — 31-cave10.js)을 기본으로 올리기 전에 시험한다. 새 섬(R · 새로 시작)은 늘 기본 판 */
 try{ const v=parseInt(new URLSearchParams(location.search).get('tv'),10); if(v>=1&&v<=10) P.tv=v; }catch(e){}
 rng('pSize','size','vSize',x=>x.toFixed(2));
@@ -413,6 +416,14 @@ document.getElementById('pNoise').addEventListener('input',e=>{
   document.getElementById('vNoise').textContent=['끔','보통','짙게'][v];
 });
 document.getElementById('vNoise').textContent='보통';
+/* 물속 안개 — 0 끔(맑은 물 · 멀리까지) · 1 옅게 · 2 보통(사용자 요청 2026-11-04 — 물속 뿌연 것을 끌 수 있게) · 80-player.js eyeWater 가 곱한다 */
+let UW_HAZE=1;
+document.getElementById('pHaze').addEventListener('input',e=>{ const v=clamp(parseInt(e.target.value)||0,0,2); UW_HAZE=[0.07,0.45,1][v];
+  document.getElementById('vHaze').textContent=['끔','옅게','보통'][v]; });
+document.getElementById('vHaze').textContent='보통';
+/* 음악 크기 — 0 끔(98-music.js) */
+document.getElementById('pMusic').addEventListener('input',e=>{ const v=clamp(parseFloat(e.target.value)||0,0,1); if(typeof musicVol==='function') musicVol(v);
+  document.getElementById('vMusic').textContent=v<=0?'끔':Math.round(v*100)+'%'; });
 document.getElementById('bBench').onclick=()=>benchStart();
 document.getElementById('pSlot').addEventListener('change',e=>{
   curSlot=e.target.value; document.getElementById('bSave').disabled=curSlot==='auto';
@@ -422,16 +433,16 @@ document.getElementById('pSlot').addEventListener('change',e=>{
    브라우저 저장소에 둔다(데스크톱 판도 같은 저장소가 userData 에 남는다). 섬 모양(시드·크기…)은 저장 파일이 가진다.
    손으로 바꿀 때(change)만 적는다 — 불러올 때 맞추는 input 은 다시 적지 않는다 */
 const SET_KEY='castaway.settings';
-const SET={res:1, far:1, shadow:2, limb:0.8, vol:0.9, sens:1, slot:'1', cap:0, cam:2, noise:1, auto:1, mobs:2};
+const SET={res:1, far:1, shadow:2, limb:0.8, vol:0.9, sens:1, slot:'1', cap:0, cam:2, noise:1, auto:1, mobs:2, haze:2, music:0.6};
 function saveSettings(){ try{ localStorage.setItem(SET_KEY,JSON.stringify(SET)); }catch(e){} }
-for(const [id,k] of [['pRes','res'],['pFar','far'],['pShadow','shadow'],['pLimb','limb'],['pVol','vol'],['pSens','sens'],['pCap','cap'],['pCam','cam'],['pNoise','noise'],['pAuto','auto'],['pMobs','mobs']])
+for(const [id,k] of [['pRes','res'],['pFar','far'],['pShadow','shadow'],['pLimb','limb'],['pVol','vol'],['pSens','sens'],['pCap','cap'],['pCam','cam'],['pNoise','noise'],['pAuto','auto'],['pMobs','mobs'],['pHaze','haze'],['pMusic','music']])
   document.getElementById(id).addEventListener('change',e=>{ SET[k]=parseFloat(e.target.value); saveSettings(); });
 function applySettings(){
   try{ const o=JSON.parse(localStorage.getItem(SET_KEY)||'{}'); for(const k in SET) if(k in o) SET[k]=o[k]; }catch(e){}
   const put=(id,v)=>{ const el=document.getElementById(id); if(!el||typeof v!=='number'||!isFinite(v)) return;
     el.value=v; el.dispatchEvent(new Event('input')); };
   put('pRes',SET.res); put('pFar',SET.far); put('pShadow',SET.shadow); put('pLimb',SET.limb); put('pVol',SET.vol); put('pSens',SET.sens);
-  put('pCap',SET.cap); put('pCam',SET.cam); put('pNoise',SET.noise); put('pAuto',SET.auto); put('pMobs',SET.mobs);
+  put('pCap',SET.cap); put('pCam',SET.cam); put('pNoise',SET.noise); put('pAuto',SET.auto); put('pMobs',SET.mobs); put('pHaze',SET.haze); put('pMusic',SET.music);
   curSlot=(SET.slot==='2'||SET.slot==='3')?SET.slot:'1'; drawSlots();
 }
 document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.value);
@@ -447,7 +458,7 @@ document.getElementById('pSeed').addEventListener('input',e=>P.seed=e.target.val
     move('pRes',p.res,1); move('pFar',p.far,1); move('pShadow',p.shadow,1); move('pLimb',p.limb,1); move('pCam',p.cam,1); move('pNoise',p.noise,1);
     toast('그래픽 프리셋 — '+p.n+(landed?' (가지 밀도는 새 섬부터)':'')); });
   isle.addEventListener('change',()=>{ const p=ISLAND_PRESETS.find(q=>q.id===isle.value); if(!p) return;
-    move('pWs',p.ws||6); move('pSize',p.size); move('pRidge',p.ridge); move('pEro',p.ero); move('pSea',p.sea); move('pRain',p.rain);
+    move('pWs',p.ws||4.25); move('pSize',p.size); move('pRidge',p.ridge); move('pEro',p.ero); move('pSea',p.sea); move('pRain',p.rain);
     toast('섬 프리셋 — '+p.n+" · '새 섬' 을 누르면 이 모양으로 만든다"); });
   for(const id of ['pRes','pFar','pShadow','pLimb','pCam','pNoise']) document.getElementById(id).addEventListener('change',e=>{ if(e.isTrusted) gfx.value=''; });
   for(const id of ['pWs','pSize','pRidge','pEro','pSea','pRain']) document.getElementById(id).addEventListener('input',e=>{ if(e.isTrusted) isle.value=''; });

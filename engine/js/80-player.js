@@ -605,7 +605,7 @@ function eyeWater(head,surf,gy,inRiver){
        (사용자 지적: 물속이 진짜 같지 않다). 볕이 있는 만큼 밝은 청록, 밤에는 검푸르다. 물안경이 있으면 멀리까지 맑다 */
     const lum=clamp(hemi.intensity*1.1+sun.intensity*0.55,0.03,1.1), rv=inRiver;
     scene.fog.color.setRGB((rv?0.10:0.03)*lum,(rv?0.22:0.30)*lum,(rv?0.16:0.37)*lum);
-    scene.fog.density=hasGear('goggles')?0.030:0.060; skyUnder=true;
+    scene.fog.density=(hasGear('goggles')?0.030:0.060)*(typeof UW_HAZE==='number'?UW_HAZE:1); skyUnder=true;   // 설정 '물속 안개'(94-input.js)
   }
 }
 /* 대통 공기통 — 물속에서 숨이 30 밑이면 가장 많이 남은 통에서 들이마시고(한 번에 숨 가득까지), 물 위에서는 통이 다시 찬다(초당 25) */

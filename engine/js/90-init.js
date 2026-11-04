@@ -392,6 +392,7 @@ async function generateWorld(){
                                     camera.far=Math.max(3000,WORLD*1.15); camera.updateProjectionMatrix();
                                     document.getElementById('mSpan').textContent=Math.round(WORLD)+' m';
                                     await breathe(); if((P.tv|0)>=5) biomeSlopes();   // 바이옴마다 비탈을 다스린다(지형 판 5 · 10-worldgen.js)
+                                    coastRaise();                            // 바닷가는 바다 쪽으로 기운다(매끈한 땅 P.sm · 10-worldgen.js)
                                     await breathe(); fallsSites();           // 폭포 자리 — 하천 수면이 4 m 넘게 떨어지는 데(36-falls.js · 지형 판 5)
                                     await breathe(); templeLandSite(seed);   // 섬 한가운데의 옛 신전 — 터를 다진다(97-temples.js · 지형 판 8)
                                     await breathe(); reliefMask();           // 잔 기복의 가림막(지형 판 3) — 이 뒤로 heightAt 이 둔덕·골을 안다

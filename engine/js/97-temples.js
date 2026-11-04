@@ -106,10 +106,17 @@ function templeBuilder(T,base,moss){
       for(let f=0;f<6;f++){ if(o.noBottom&&f===5) continue; const q=F_[f], a=cor[q[0]], b=cor[q[1]], c=cor[q[2]], d2=cor[q[3]];
         const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2], vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2];
         let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const l=Math.hypot(nx,ny,nz)||1; nx/=l; ny/=l; nz/=l;
+        /* **면은 늘 바깥을 본다**(2026-11-04 사용자 지적 — 신전 벽이 비쳐 보이고 벽 윗면이 엉성하다): 돌림 · 덩이 비틀기에 따라 꼭짓점 차례가 뒤집혀
+           몇 면이 안쪽을 보고 있었다 — 밖에서 보면 뒷면이라 안 그려져(뒷면 거르기) 벽이 뚫려 보이고, 윗면이 빠져 엉성했다. 덩이 가운데에서 면 가운데로
+           가는 쪽과 법선이 어긋나면 차례와 법선을 뒤집는다 */
+        let flip=false;
+        { let cx=0,cy=0,cz=0; for(const v of cor){ cx+=v[0]; cy+=v[1]; cz+=v[2]; }
+          const fx=(a[0]+b[0]+c[0]+d2[0])/4-cx/8, fy=(a[1]+b[1]+c[1]+d2[1])/4-cy/8, fz=(a[2]+b[2]+c[2]+d2[2])/4-cz/8;
+          if(nx*fx+ny*fy+nz*fz<0){ nx=-nx; ny=-ny; nz=-nz; flip=true; } }
         const top=ny>0.6, cc=k*(top?1.06:f===5?0.6:0.95);
         const mg=top?moss*(0.4+0.6*rnd()):moss*0.25*rnd();              // 윗면에 이끼(정점 빛깔 — 푸르게 · 어둡게)
         const cr=base[0]*cc*(1-mg*0.45), cg=base[1]*cc*(1-mg*0.12), cb=base[2]*cc*(1-mg*0.55);
-        for(const v of [a,b,c,a,c,d2]){ P.push(v[0],v[1],v[2]); Nn.push(nx,ny,nz); C.push(cr,cg,cb); M.push(0); } }
+        for(const v of (flip?[a,c,b,a,d2,c]:[a,b,c,a,c,d2])){ P.push(v[0],v[1],v[2]); Nn.push(nx,ny,nz); C.push(cr,cg,cb); M.push(0); } }
       if(o.solid!==false) templeBox(T,lx,ly,lz,w,h,d,ya);
     },
     mesh(mat){ if(!P.length) return null;

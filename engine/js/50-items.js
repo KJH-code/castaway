@@ -266,6 +266,8 @@ const ITEMS={
   pot_water:  {n:'물 담은 토기', kg:3.6, c:0x4f86ae,
                use:'담수 — 마시거나, 우려내고 졸이는 데 쓴다',
                drink:{n:55, empty:'pot'}},
+  pot_seawater:{n:'바닷물 토기', kg:3.7, c:0x3f7a96,
+               use:'짠물 · 못 마심 · 졸이면 소금'},
   bucket_iron:{n:'철 양동이',   kg:2.4, c:0x9aa0a6,
                use:'연철을 두드려 편 통 — 물을 네 모금 담아 나른다'},
   bucket_water:{n:'물 담은 양동이', kg:12.4, c:0x5a86a2,
@@ -580,7 +582,7 @@ const ITEMS={
   fish_dried: {n:'말린 생선',  kg:0.25, c:0x9a8060, use:'배를 갈라 불가에 말렸다 — 가볍게 들고 다닌다',
                food:12},
   /* ── 소금 · 상한 것 · 소금으로 만드는 먹을 것(사용자 요청) ── */
-  salt:       {n:'소금',       kg:0.15, c:0xf0efe8, use:'바닷가의 소금 더께를 곡괭이로 캔다 — 절이면 오래가고, 음식에 넣으면 맛이 난다'},
+  salt:       {n:'소금',       kg:0.15, c:0xf0efe8, use:'건조한 해안 염전의 더께 · 바닷물 졸이기 — 절임 · 간'},
   rot_food:   {n:'상한 음식',  kg:0.2,  c:0x5a6a3a, use:'상한 날생선 — 먹으면 크게 탈이 난다. 버릴 것', food:2, raw:true, spoiled:1},
   fish_salted:{n:'소금절이 생선', kg:0.3, c:0xc8b89a, use:'소금에 절여 오래간다 — 날것이 아니다(허기 14)', food:14, fishy:1},
   meat_salted:{n:'염장 고기',  kg:0.45, c:0x8a4a3a, use:'소금에 절인 고기 — 오래 두고 먹는다(허기 22)', food:22},
