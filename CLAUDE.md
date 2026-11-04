@@ -92,6 +92,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `34-coast.js` | 바닷가 — 시스택·해식 아치·주상절리(`coastFloor` · `coastSolid`) |
 | `35-geo.js` | 지열 지대(전역 이름 `GEOT` — `GEO` 는 64-dex.js 것이다. 겹치면 그 파일이 통째로 안 읽힌다) |
 | `36-falls.js` | 폭포·연어 · 저수지 폭포 `fallsCarve` |
+| `37-geo-meshes.js` · `data-geo-meshes.js` | 큰 지형 모형(사용자 Meshy STL → `tools/geo-mesh.py`) — 산맥 · 눈 덮인 봉우리 · 협곡 · 시스택을 표고에 찍고(`geoStamp`) 모형으로 그린다(매끈한 땅 섬 · `docs/notes/terrain.md`) · 자료는 base64 — 읽지 말 것 |
 | `40-light.js` | `LIGHT`(배역 · 해 그림자 · 점·집중광 예산 · 불빛 풀 `addFire`) · `renderFrame` |
 | `41-terrain-light.js` | 섬 크기의 빛 텍스처 `TLIT`(산 그림자 · 하늘 트임 · 숲 덮임) · `envPatch` |
 | `45-sky.js` | `SKY` · 날씨 `updateWeather` · 구름 `updateClouds`/`litQueue` · `SKY_LUT` · `updateSky` — `beta/cloud_arena.html` 의 원본 |
