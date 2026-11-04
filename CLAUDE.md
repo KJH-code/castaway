@@ -92,7 +92,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `34-coast.js` | 바닷가 — 시스택·해식 아치·주상절리(`coastFloor` · `coastSolid`) |
 | `35-geo.js` | 지열 지대(전역 이름 `GEOT` — `GEO` 는 64-dex.js 것이다. 겹치면 그 파일이 통째로 안 읽힌다) |
 | `36-falls.js` | 폭포·연어 · 저수지 폭포 `fallsCarve` |
-| `37-geo-meshes.js` · `data-geo-meshes.js` | 큰 지형 모형(사용자 Meshy STL → `tools/geo-mesh.py`) — 산맥 · 눈 덮인 봉우리 · 협곡 · 시스택을 표고에 찍고(`geoStamp`) 모형으로 그린다(매끈한 땅 섬 · `docs/notes/terrain.md`) · 자료는 base64 — 읽지 말 것 |
+| `37-geo-meshes.js` · `data-geo-meshes.js` | 큰 지형 모형(사용자 Meshy STL → `tools/geo-mesh.py`) — 산맥 · 눈 덮인 봉우리 · 협곡 · 시스택을 표고에 찍고(`geoStamp`) 모형으로 그린다 · 모형 윗면을 딛는다(`geoFloor`) · **지질도** `geolBuild`/`geolAt`(바위 갈래) · `docs/notes/terrain.md` · 자료는 base64 — 읽지 말 것 |
 | `40-light.js` | `LIGHT`(배역 · 해 그림자 · 점·집중광 예산 · 불빛 풀 `addFire`) · `renderFrame` |
 | `41-terrain-light.js` | 섬 크기의 빛 텍스처 `TLIT`(산 그림자 · 하늘 트임 · 숲 덮임) · `envPatch` |
 | `45-sky.js` | `SKY` · 날씨 `updateWeather` · 구름 `updateClouds`/`litQueue` · `SKY_LUT` · `updateSky` — `beta/cloud_arena.html` 의 원본 |
@@ -370,6 +370,8 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 큰 바위 꼴(`cragShape`)이나 덩이의 돌림·늘림을 바꾸면 메시(`cragMesh`)와 충돌(`cragIndex`·`cragSpan`)이 같은 값을 쓰는지 볼 것 · 비탈에 놓는 것은 묻거나 눕힌다(`groundSlope` · terrain).
 - 새 광물은 `PROP_FOOT` 에도 한 줄(겹침 정리 `resolveOverlaps` — 시드 난수를 다 뽑은 뒤 난수 없이 고친다) · 상륙 자리는 시드로 정한다(`LANDING` — `Math.random` 금지 · terrain).
 - 광원은 `LIGHT.addPoint`/`addSpot`(켜고 끄는 불은 `addFire`)으로 — `decay` 2 · 세기 1.8배. 광원 수(보이는 것 · 그림자)가 바뀌면 모든 재질을 다시 짠다 → 끌 때는 `visible` 대신 세기 0(light).
+- 바위 갈래는 지질도(`TERR_U.uGeo` · `geolBuild` — 37-geo-meshes.js)가 정한다 — 읽는 쪽(`GEOL_GLSL`: 땅 셰이더 벼랑 면 · `rockMat` 의 uRkGeo · `cragMatFar` · `geoMat` 큰 결)의 갈래 → 사진 · 빛깔 표를 같이 · 판 깊이 · 자원 갈래 문턱을 바꾸면 `surfaceRocks` · `cv10Kind` 와 맞출 것(terrain).
+- `RK_OFS`(cragMat) 무늬 비킴은 덩이마다 같은 `aOfs`(cragMesh) — 정점 빛깔로 비키지 말 것(오목함이 무늬를 끌어 늘인다) · 큰 지형 모형 위는 `geoFloor` 가 딛는 높이(`floorAt`) — 땅은 모형 밑 1.2 m 에 묻혀 있다(terrain).
 - 굴 속 빛·바닥(`CAVE_GLSL` — 32-caves.js)은 envPatch 의 해·하늘빛 두 줄 · 녹아들기 빛깔 · 땅 셰이더(`#ifdef CAVE_ON` 의 `cvF`)가 같이 읽는다 — 그 줄을 바꾸거나 땅을 새로 그리는 셰이더를 만들면 같이 · 굴 불빛은 불빛 풀이 아니라 셰이더(`uCvB.w`)다(terrain).
 - 드리우는 것을 `position`/`rotation` 으로 직접 움직이면 `LIGHT.dirtyAt(x,z,r)`(안 부르면 그림자가 1.5초까지 늦다) · 알파 카드(잎·판때기)는 `customDepthMaterial` 을 따로 단다(light).
 - `onBeforeCompile` 을 단 재질은 고유한 `customProgramCacheKey`(`envPatch` 가 이어 붙인다) · 램버트 셰이더에서 거리를 `cameraPosition` − 세계 좌표로 재지 말 것(`modelViewMatrix*위치` · light).
