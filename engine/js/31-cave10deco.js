@@ -389,7 +389,7 @@ function* cvdWallDecals(X,kind,n){                                 // 'flake' �
 }
 function* cvdWallMoss(X,dMax,n){                                   // 입구 쪽 벽 이끼(어스름이 드는 데)
   const rnd=X.rnd, o={}, B=X.A.sheet; let made=0;
-  for(let k=0;k<n*8&&made<n&&cvdBudget(X);k++){ if(cvdT()) yield; if(!cvdWallPt(X,o)) return; const s=cv10Samp(X.rec,o.x+o.nx*0.1,o.z+o.nz*0.1); if(s.n<=0||s.d>dMax||o.y<s.f+0.1||o.y>s.c+4) continue;
+  for(let k=0;k<n*8&&made<n&&cvdBudget(X);k++){ if(cvdT()) yield; if(!cvdWallPt(X,o)) return; const s=cv10Samp(X.rec,o.x+o.nx*0.1,o.z+o.nz*0.1); if(s.n<=0||s.d>dMax||o.y<s.f+0.1||o.y>s.c-0.05) continue;
     if(rnd()>0.9*cvdSS(0,dMax,dMax-s.d)||cvdNoise(X,o.x,o.z,3,6)<0.4) continue;
     const mi=cvdMoss(B,X,o.x,o.y,o.z,0.15+0.3*rnd(),0.03+0.05*rnd(),o.nx,o.ny,o.nz); mi.acc=B; made++; cvdLog(X,'wallmoss',o.x+o.nx*0.15,o.z+o.nz*0.15,o.y,o.y,0.2); cvdPick(X,'cvmoss',o.x,o.y,o.z,o.y,0.3,mi); }
 }
