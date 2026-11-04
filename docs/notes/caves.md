@@ -216,8 +216,8 @@ A 가 먼저(합친 뒤) B~E 를 나란히.
 격자 · 껍데기 메시 · 굴 자리 그림 · 질의를 `31-cave10.js` 끝에 더했다(A1 함수는 안 고쳤다). `32-caves.js` `updateCaves` 첫머리에 `cv10Tick()` 한 줄(판 10 일 때만 · `CAVE_MESH` 가 비어 돌아가기보다 앞).
 
 ### 이름 · 반환 꼴
-- `CV10.built: Map(굴 → rec)` · `CV10.onBuild`/`onDrop`(함수 배열 — 하나가 던져도 나머지는 돈다) · `CV10.mat`(D 가 `kind→재질` 함수를 꽂는다 · null 이면 종류별 램버트 `cv10SeatMat`) · `CV10.near` 320 · `far` 500 · `budget` 3 ms · `maxTri` 8만 · `maxFrame`/`maxPh`(시험용 — 틱 한 번에 쓴 가장 긴 ms 와 그 단계).
-- `rec`: 지시서 그대로 + `ready`(격자 다 됨 — 메시 전) · `vmin`(빈 데 바닥 최소) · `tris` · `verts` · `texOver` · `msGrid`/`msMesh` · `retried`(S 0.6 으로 다시 지음). 단계 `rec.ph`: grid → dinit → dijk → mdil → near1 → near2 → crange → vtx → quad → remap → ord → attr → tex → fin.
+- `CV10.built: Map(굴 → rec)` · `CV10.onBuild`/`onDrop`(함수 배열 — 하나가 던져도 나머지는 돈다) · `CV10.mat`(D 가 `kind→재질` 함수를 꽂는다 · null 이면 종류별 램버트 `cv10SeatMat`) · `CV10.near` 320 · `far` 500 · `budget` 1.5 ms(처음 3 — 아래 'A2 고침') · `maxTri` 8만 · `maxFrame`/`maxPh`(시험용 — 틱 한 번에 쓴 가장 긴 ms 와 그 단계).
+- `rec`: 지시서 그대로 + `ready`(격자 다 됨 — 메시 전) · `vmin`(빈 데 바닥 최소) · `tris` · `verts` · `texOver` · `msGrid`/`msMesh` · `retried`(S 0.6 으로 다시 지음). 단계 `rec.ph`: grid → grad → dinit → dijk → mdil → near1 → near2(여기서 `ready`) → crange → vtx → quad → remap → ord → attr → tri → adjc → adjf → smooth → nrm → tex → fin → done.
 - `cv10Tick()` · `cv10Ready(c)` · `cv10Force(c)`(예산 없이 끝까지 — 시험 · 개발자 이동) · `cv10Q(x,z,y)`→`{c,rec,f,ce,open,deep}`|null · `cv10FloorAt` · `cv10Views(c)`→`[{name,x,y,z,yaw,pitch}]` · `cv10Samp(rec,x,z)`(빈 데 점만으로 쌍선형 — `{f,c,h,d,open,n}` **공유 객체** · n=0 이면 둘레에 빈 데 없음) · `cv10V(rec,x,y,z)`(껍데기 v=max(F−y,y−C) · 빈 데가 둘레에 없으면 9) · `cv10Drop(rec)`.
 - 굴 메시는 `scene` 에 바로(`propGroup` · `surfList` 아님) · 안 드리우고 받기만 · `lightRole='recv'` · 속성 `aDeep` `aSky` `aFl`.
 
@@ -256,7 +256,7 @@ A 가 먼저(합친 뒤) B~E 를 나란히.
 7. 사진 — 레포 밖 `/tmp/cv10shots/<종류>_<입구밖|입구안|굴길|깊은방>.png`(16 장 · 자리 재질 · 본 땅과 소품을 숨기고 굴 메시만 · 캠코더 끔).
 
 ### 남긴 것 · 다음 조각이 알아야 할 것
-- 굴 하나를 지을 때 쓰는 것은 `rec.F/C/Hh/O/M/D`(Float32/Uint8) 뿐이고 메시를 다 지으면 큰 임시 배열은 버린다(`rec.F` 등 격자는 굴이 살아 있는 동안 남는다 — 질의가 쓴다).
+- 굴 하나를 지을 때 쓰는 것은 `rec.F/C/Hh/O/M/D`(Float32/Uint8 · D 만 Float64 — 아래 'A 검수 고침') 뿐이고 메시를 다 지으면 큰 임시 배열은 버린다(`rec.F` 등 격자는 굴이 살아 있는 동안 남는다 — 질의가 쓴다).
 - `cv10Q` 는 `rec.ready`(near2 까지 끝남)부터 답한다 — 메시 전에도 걷기는 된다. `cv10Ready(c)` 로 확인.
 - C(땅 뚫기)는 `rec.tex`/`rec.texInfo` 를 읽는다 — `onBuild` 에서 유니폼에 싣고 `onDrop` 에서 뺀다. 그림 모서리는 `LinearFilter` · `ClampToEdge` · 밉맵 없음.
 - 땅 겉(M 둘레)에서 껍데기 가장자리가 톱니 꼴이다(네모 단위로 버려서) — C 의 땅 뚫기가 같은 M 으로 본 땅을 비워 가리는지 사진으로 볼 것.
@@ -275,3 +275,15 @@ A 가 먼저(합친 뒤) B~E 를 나란히.
 
 - 닫힘(기준 2) 그대로 0 · 0 · 0 · lava 1. 하늘 구멍 0 · 질의 null 0(전부 그대로). 세모 수 같음. 사진 다시 찍음(`/tmp/cv10shots/` — karst_굴길은 살펴본 대로 매끈해졌고 바닥 · 벽이 만나는 데에 작은 톱니가 조금 남는다 · lava_굴길은 결이 흐르는 줄무늬가 남는다).
 - **틱 예산** 3 → 1.5 ms(`CV10.budget`) · 핫 루프의 배열 할당 제거. 세 번 돌린 한 프레임 최장: (3.2 · 4.1 · 2.4 · 2.3) · (3.9 · 2.8 · 1.8 · 5.4) · (7.7 · 2.6 · 2.1 · 4.1) ms. 대부분 4 ms 안이지만 가끔 5~8 ms 튄다 — 튀는 단계가 grid · tex · quad 등으로 흩어지고 단위 일이 0.1 ms 대라 한 단위가 아니라 GC · 기계 흔들림으로 본다(A1 의 `cv10Field` 가 점마다 객체를 돌려줘 grid 단계 할당이 많다). 4 ms 를 못 지켰다.
+
+### A 검수 고침(2026-11-04 · review 실패 둘 · 의심 하나 — 사용자 확인 뒤 메인이 고침)
+- **입구에서의 거리 D 를 `Float64Array` 로**(예전 Float32). Dijkstra 의 힙 키는 float64 인데 D 는 float32 로 반올림되어 `dk>D[q]` 가 살아 있는 마디를 '낡은 항목'으로 버렸다 —
+  빈 데 기둥 대부분이 D=1e9(karst 2211/2649 · lava 4860/5890 · talus 187/707)라 `aDeep` 1 · `aSky` 0 · 그림 B·A · `cv10Q().deep` · `cv10Views` 의 깊은 방이 다 틀렸다.
+  이제 dijk 끝에 못 닿은 빈 데 기둥 수를 `rec.unreach` 에 둔다(빈 데가 한 덩어리면 0 이어야 한다).
+- **섬을 새로 짓거나 불러오면 지어 둔 굴을 전부 버린다**(`cv10Clear` — `generateWorld` 첫머리). 판 10 섬에서 판 9 섬으로 가면 틱(판 10 만 돈다)이 안 돌아 옛 메시 · 그림이 다른 섬 위에 남았다.
+- **힙을 굴마다**(`rec.H` — dinit 에서 만들고 dijk 끝에 버린다 · `cv10Push(H,k,v)`/`cv10Pop(H)`). 하나를 나눠 쓰면 한 굴의 dijk 도중 다른 굴을 `cv10Force` 할 때 힙이 비워져 D 가 달라졌다(결정론).
+- 곁들여: `onDrop` 은 `onBuild` 를 받은 굴에만(`rec.onb`) · 끈 굴(`c.off` — 상륙 자리와 겹침)은 `cv10Q` 가 안 받고 `cv10Force` 는 null · 틱이 버린다 · 틱마다의 `Array.from` 할당을 뺐다.
+- **review 우려 둘(사용자 확인 뒤)**: `cv10Clear()` 를 `generateWorld` 의 `try` 안 첫 줄로(밖에서 던지면 `busy` 가 안 풀려 게임이 잠긴다) · 세모가 많아 S 0.6 으로 **다시 지을 때** 옛 0.5 m 격자를 `rec.q0` 로 떼어 두고 `cv10Q` · `cv10Ready` 가 그것으로 답한다(예전엔 `ready` 가 거짓으로 돌아가 굴 안의 사람 발밑이 잠깐 비었다) — 새 격자가 near2 를 마치면 버린다. `maxTri` 2000 으로 일부러 다시 짓게 한 karst: q0 로 답한 틱 41 · 그동안 빈 데 점 질의 null 0 · 결과 메시는 `cv10Force` 와 같다.
+- **남긴 것(B 가 정한다)**: `cv10Q` 는 둘레 네 점에 빈 데가 하나라도 있으면 빈 데 점만으로 답해, 벽 속 0.4 m · 바닥 0.5 m 밑 · 입구 위 허공(C+0.3)까지 '굴 안'이다. 걷기 · 벽 판정에 쓰려면 좁힐 것.
+  굴마다 비다양체 모서리 0~8 개(surface nets 의 모호한 칸 — 그리기에는 영향 작다).
+
