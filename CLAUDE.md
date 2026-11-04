@@ -124,6 +124,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `97-sheep.js` | 양 |
 | `97-wyvern.js` | 애쉬스케일(`wyvMake`) |
 | `98-dew.js` · `98-bag.js` | 이슬 · 가방 화면 |
+| `98-music.js` | 지형마다 한 곡(열두 곡 — 화성 진행 · 리듬 꼴만 정하고 즉석에서 짓는다) · 악기 표본 빚기(피아노 배음 · 줄 · 실로폰 · 북) · 관악기 합성 · 날씨(맑음 · 비) · 음악 듣기(설정 창 `pJuke`) — `docs/notes/gameplay.md` |
 | `98-surface.js` | 땅속에 완전히 들어가 있는 동안 땅 위를 가림(`SURF` · `surfList`) |
 | `99-main.js` | `loop` · 게임을 켜는 줄 |
 
@@ -385,6 +386,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - HUD 글·스타일은 `hudT`/`hudH`/`hudS` 로(바뀔 때만 DOM — HUD 밖에서 HUD 요소의 스타일을 바꿀 때도 `hudS` · perf).
 - 짓는 동안 그리는 프레임에 무거운 것을 켜 두지 말 것(`LIGHT.live` · `propGroup` 숨김) · 자주 쓰는 새 효과 재질은 `precompPlan` 견본에 · `TITLE` 에 새 칸을 달 때 이름 겹침 금지(perf).
 - 바위 칸 · 나무 칸의 가지는 가까울 때만 빚는다 — `t.m` · `p._batch` · `p._lb` 가 null 일 수 있다 · 프레임을 잴 때는 `QUAL.on=false`(perf).
+- 음악(98-music.js) — 새 곡은 `MU_SONGS` 한 줄 + `MU_ORDER` · 지역은 `musicRegion` · 처음 치기 전에 표본을 미리 빚는다(`muWarm` — 새 악기 표본을 만들면 거기에도) · 시험으로 오프라인 그리기를 할 때는 `MUS.off=true`(일정이 그 소리판을 건드린다 · gameplay).
 - 새 키는 `KB_ACTS` 에 한 줄 · `kbHit`/`keys.행동` 으로 읽는다(`e.code==='KeyX'` 금지) · **한 글쇠는 한 행동만**(사용자 요청 — 범위가 달라도 같은 기본 키 금지 · `kbSet`/`kbLoad` 가 겹친 칸을 비운다) · 조작을 바꾸면 `CONTROLS_GUIDE` ↔ `KB_OV` · 일시정지 글쇠 줄은 `<div><span>글쇠</span><em>설명</em></div>` 꼴(gameplay).
 - 새 제작법은 `tier` 가 `TIER_ORDER` 에 있어야 나무에 선다 · 손에 든 것의 `ITEMS[id].tool` 은 없을 수 있다(`(…tool||{})` · gameplay).
 - 배 모양을 바꾸면 `shipBoxes` 치수도 · 불티 크기는 세계 길이로 · 폭발 불빛은 `BLAST_LIGHT` 하나를 계속 쓴다 · 화면 효과는 캠코더 셰이더 안에서(창 전체 `filter:drop-shadow` 금지 · gameplay).
