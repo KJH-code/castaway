@@ -410,7 +410,7 @@ function updateUnder(dt){
   if(!UNDER.rope&&!PL.dead) PL.under=!PL.cave&&underIn(p.x,p.z,p.y)&&underQ(p.x,p.z).g>0.2;     // 판 10 굴 속은 땅속 세계가 아니다(굴 밑에 땅속 세계 방이 있어도)
   const inW=PL.under||(UNDER.rope&&p.y<UNDER.rope.p.ys-6);
   const want=inW?1:(PL.caveQ&&!PL.dead?PL.caveQ.deep:0);                                         // 판 10 굴 — 깊을수록 어둡다(입구 거리 deep: 2 m 0 ~ 16 m 1)
-  UNDER.u+=(want-UNDER.u)*clamp(dt*1.6,0,1); if(Math.abs(UNDER.u-want)<0.002) UNDER.u=want;
+  UNDER.u+=(want-UNDER.u)*clamp(dt*(PL.caveQ&&!PL.under?3.2:1.6),0,1); if(Math.abs(UNDER.u-want)<0.002) UNDER.u=want;
   /* 땅속 세계 칸 묶음(UNDER.grp)은 땅속 세계에 있을 때(밧줄 포함)만 — 굴 속에서 u 가 올라도 땅속 세계 칸은 안 짓는다. 땅 위로 올라오는 동안 어둠이 걷히는 사이는 그대로 보인다 */
   if(inW||UNDER.rope) UNDER.wf=true; else if(UNDER.u<=0.01||PL.caveQ) UNDER.wf=false;     // 굴로 올라오면(밧줄 끝) 땅속 세계 칸은 곧바로 숨긴다
   const u=UNDER.u, show=!!UNDER.rope||(UNDER.wf&&u>0.01);
