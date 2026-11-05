@@ -42,7 +42,20 @@ function cv10Hm(x,z,r){ let m=cv10Sfc(x,z); for(let k=0;k<8;k++){ const a=k*0.78
 /* 굴이 딛는 겉 높이 — 땅과 큰 지형 모형(37-geo-meshes.js — 매끈한 땅 섬의 산 · 벼랑 · 시스택) 윗면 가운데 높은 것. 모형 밑의 땅은 1~2 m 아래 묻혀 있어,
    땅 높이로 굴을 지으면 입구가 모형 속에 묻혔다(화강암 비탈은 거의 다 모형 밑 — 바위틈 굴이 0 개가 됐다). 굴의 꼴 · 덮개 · 열림 · 입구 높이 · 껍데기 윗면이 다 이걸 읽는다.
    모형 쪽은 굴 자리 그림의 구멍(cv10Hole)을 모형 재질도 읽어 입구를 연다(geoMat) · 묻힌 땅이 빈 데 안에 들면 그 칸도 구멍(A 192~254) */
-function cv10Sfc(x,z){ const h=heightAt(x,z); if(typeof GEO_LF==='undefined'||!GEO_LF.list.length) return h; const g=geoFloor(x,z); return g>h?g:h; }
+function cv10Sfc(x,z){ const h=heightAt(x,z); if(typeof GEO_LF==='undefined'||!GEO_LF.list.length) return h; const g=cv10GeoTop(x,z); return g>h?g:h; }
+/* 큰 지형 모형만의 윗면(geoFloor 에서 바위 조각 GEO_DT 를 뺀 것) — 바위 조각은 굴 자리를 고른 뒤(geoBuild)에 놓여, 굴을 짤 때와 지을 때 겉이 달라졌다(입구 앞에 9 m 바위 날) */
+function cv10GeoTop(x,z){
+  let best=-1e9; for(const L of GEO_LF.list){ if(L.hw===undefined){ const W=GEO_MESH_DATA[L.name].w; L.hw=Math.max(W[0],W[2])*L.S*0.75; L.cy=Math.cos(L.yaw); L.sy=Math.sin(L.yaw); }
+    const wx=x-L.x, wz=z-L.z; if(wx*wx+wz*wz>L.hw*L.hw) continue;
+    const t=geoTopAt(geoTop(L.name),(wx*L.cy-wz*L.sy)/L.S,(wx*L.sy+wz*L.cy)/L.S,false); if(t<0) continue; const y=L.y+t*L.S; if(y>best) best=y; }
+  return best;
+}
+/* 바위 조각(37-geo-meshes.js geoDetailBuild)이 판 10 굴 상자(+조각 반지름 · 4 m)에 걸치나 — 걸치면 안 놓는다(굴 천장으로 박히거나 입구를 덮지 않게) */
+function cv10DetailBlocked(x,z,r){
+  if((P.tv|0)<10||typeof CAVES==='undefined') return false;
+  for(const c of CAVES){ if(c.tv!==10||c.off||!c.box) continue; const b=c.box, m=r+4; if(x>b.x0-m&&x<b.x1+m&&z>b.z0-m&&z<b.z1+m) return true; }
+  return false;
+}
 /* 지어 둔 굴의 상자 안이면 cv10Sfc, 밖이면 heightAt — 눈 · 몸이 바위 속인지 볼 때(80-player.js eyeHit · solidAt). 큰 지형 모형 밑 굴은 땅이 2 m 묻혀 있어 땅 높이로는 벽을 못 잡았다 */
 function cv10BoxSfc(x,z){ for(const c of CV10.built.keys()){ const b=c.box; if(x>=b.x0&&x<=b.x1&&z>=b.z0&&z<=b.z1&&!c.off) return cv10Sfc(x,z); } return heightAt(x,z); }
 function cv10Free(x,z,r,rv){
@@ -424,6 +437,7 @@ function cv10Approach(c){
     for(const l of hw>0?[-1,-0.5,0,0.5,1]:[0]){ const bx=m.x-sa*l*hw, bz=m.z+ca*l*hw, fs=[]; let d=-6, got=false;
       for(;d<=14;d+=0.25){ const o=cv10Eval(c,P,bx+ca*d,bz+sa*d); if(o.g>0.05){ fs.push(o.f); got=true; } else if(got) break; }
       if(!got) continue;
+      for(let i=1;i<fs.length-2;i++) if(Math.abs(fs[i]-fs[i-1])>0.6) return false;   // 들머리 바닥이 0.25 m 사이에 0.6 m 넘게 튄다 — 입구 앞 겉에 얇은 벼랑 날(큰 지형 모형)이 서서 바닥이 9 m 벽을 넘게 짜였다(기본 섬 바위틈)
       const f=fs[Math.max(0,fs.length-3)], sf=Math.max(cv10Sfc(bx+ca*(d+0.25),bz+sa*(d+0.25)),cv10Sfc(bx+ca*(d+0.5),bz+sa*(d+0.5)));   // 걷는 격자(0.5 m · 빈 데 점만)는 끝 0.5 m 의 가파른 바닥을 못 받는다 — 그 안쪽 바닥과 견준다
       if(sf-f>0.75) return false; } }
   return true;

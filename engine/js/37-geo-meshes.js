@@ -358,7 +358,9 @@ function geoDetailBuild(){
       const sl=Math.min(1.6,Math.hypot(nx,nz)/Math.max(1e-6,ny));                              // 그 면의 비탈
       const q=rnd(), ki=q<0.45?0:q<0.70?1:q<0.90?2:3; if(!GEO_MESH_DATA[GEO_DT.kinds[ki]]) continue;
       const Sp=sp*(0.35+0.5*rnd()), w=GEO_MESH_DATA[GEO_DT.kinds[ki]].w, rr=Math.max(w[0],w[2])*Sp*0.5;
-      X.push(px); Y.push(py-rr*sl-Sp*(0.30+0.25*rnd())); Z.push(pz); SS.push(Sp); YW.push(rnd()*6.283); KI.push(ki); } });
+      const yo=Sp*(0.30+0.25*rnd()), yw=rnd()*6.283;                                       // 난수 차례는 예전과 같다(아래에서 안 놓아도 뽑는다)
+      if(typeof cv10DetailBlocked==='function'&&cv10DetailBlocked(px,pz,rr)) continue;           // 판 10 굴 둘레는 비킨다(31-cave10.js — 굴 천장으로 박히거나 입구를 덮었다)
+      X.push(px); Y.push(py-rr*sl-yo); Z.push(pz); SS.push(Sp); YW.push(yw); KI.push(ki); } });
   const n=GEO_DT.n=X.length; GEO_DT.x=Float32Array.from(X); GEO_DT.y=Float32Array.from(Y); GEO_DT.z=Float32Array.from(Z); GEO_DT.s=Float32Array.from(SS);
   GEO_DT.yaw=Float32Array.from(YW); GEO_DT.k=Uint8Array.from(KI); GEO_DT.cy=GEO_DT.yaw.map(Math.cos); GEO_DT.sy=GEO_DT.yaw.map(Math.sin);
   GEO_DT.hw=new Float32Array(n); for(let i=0;i<n;i++){ const w=GEO_MESH_DATA[GEO_DT.kinds[GEO_DT.k[i]]].w; GEO_DT.hw[i]=Math.max(w[0],w[2])*GEO_DT.s[i]*0.75; }
