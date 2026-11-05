@@ -235,7 +235,10 @@ function caveWalk(x,z,fromH){
         if(!(hx&&Math.abs(hx.f-q.f)<0.25)) return false; } }
     return true;
   }
-  if(PL.cave) return fromH>=cv10BoxSfc(x,z)-STEPUP?undefined:false;   // 굴에서 벽 쪽 — 열린 데로 나가는 길(땅이 한 걸음 턱 안)만 땅 규칙으로(턱 · 비탈은 그 규칙이 본다 — 0.35 였을 때 바위그늘 들머리의 0.43 m 턱에 갇혔다)
+  if(PL.cave){ const sf=cv10BoxSfc(x,z); if(fromH>=sf-STEPUP) return undefined;
+    /* 입구 4 m 안(D<4)에서 나가는 걸음은 0.8 m 턱까지 — 굴 바닥은 문턱 0.5 m 사이에 땅으로 솟는데 걷는 격자(0.5 m · 빈 데 점만)는 그 오르막을 못 받는다(바위그늘 들머리 0.58 m) */
+    if(fromH>=sf-0.8&&PL.caveQ&&PL.caveQ.d<4){ const g=floorGrad(x,z,sf); if(Math.hypot(g[0],g[1])<=MAXSLOPE) return true; }
+    return false; }   // 굴에서 벽 쪽 — 열린 데로 나가는 길(땅이 한 걸음 턱 안)만 땅 규칙으로(턱 · 비탈은 그 규칙이 본다 — 0.35 였을 때 바위그늘 들머리의 0.43 m 턱에 갇혔다)
   return undefined;
 }
 /* fromH 는 반드시 '지금 발이 딛고 선 높이'여야 한다.
@@ -455,7 +458,7 @@ const NO_KEYS={}, _cvP={f:0,ce:0,open:false,deep:0,d:0};
    PL.cvUnder(그리고 발이 땅 밑 1 m 아래 — 땅 위 나무 · 바위 · 보급선 · 겉의 물이 닿지 않는 깊이) */
 function cavePlace(){
   const p=PL.pos, q=caveHere(p.x,p.z,p.y+0.3);
-  if(q){ PL.cave=q.c; PL.caveQ=_cvP; _cvP.f=q.f; _cvP.ce=q.ce; _cvP.open=q.open; _cvP.deep=q.deep; _cvP.d=q.d; PL.cvUnder=heightAt(p.x,p.z)-1>p.y; }
+  if(q){ PL.cave=q.c; PL.caveQ=_cvP; _cvP.f=q.f; _cvP.ce=q.ce; _cvP.open=q.open; _cvP.deep=q.deep; _cvP.d=q.d; PL.cvUnder=cv10Sfc(p.x,p.z)-1>p.y; }
   else{ PL.cave=null; PL.caveQ=null; PL.cvUnder=false; }
 }
 function updatePlayer(dt){
