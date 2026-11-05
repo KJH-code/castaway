@@ -619,12 +619,18 @@ function updatePlayer(dt){
      옆걸음을 되돌린다 · 오르던 중이면 높이도. 이미 걸린 채면(바위가 새로 생겼다 등) 걸리지 않는 쪽으로 조금씩 밀어낸다 */
   { const e=PL.eye;
     if(eyeHit(p.x,p.y+e,p.z)){
-      if(!eyeHit(ox,p.y+e,oz)){ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; }
+      if(!eyeHit(ox,p.y+e,oz)){
+        if(PL.cave&&!eyeHit(p.x,p.y+e,oz)){ p.z=oz; PL.vel.z=0; }              // 굴 속 — 한쪽 축만 눈이 걸리면 다른 축으로 벽을 따라 미끄러진다(대각선으로 벽에 부딪혀 서 버리지 않게)
+        else if(PL.cave&&!eyeHit(ox,p.y+e,p.z)){ p.x=ox; PL.vel.x=0; }
+        else{ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; } }
       else if(p.y>oy&&!eyeHit(ox,oy+e,oz)){ p.set(ox,oy,oz); PL.vel.set(0,Math.min(0,PL.vel.y),0); }
       else{ let ok=false;                                        // 0.25 m 씩 1.5 m 까지 둘레를 찾아 눈도 몸도 바위 밖인 자리로
         for(let rr=0.25;rr<=1.5&&!ok;rr+=0.25) for(let k=0;k<8&&!ok;k++){ const a=k/8*6.2832, tx=p.x+Math.cos(a)*rr, tz=p.z+Math.sin(a)*rr;
           if(!eyeHit(tx,p.y+e,tz)&&!solidAt(tx,tz,p.y+0.3)){ p.x=tx; p.z=tz; ok=true; } } }
     } }
+  if(PL.cave){                                                         // 굴 속 — 눈 되돌림 뒤에 기둥 겹침과 바닥 아래를 한 번 더 바로잡는다(밀어내기 · 바닥 붙이기는 max)
+    caveColPush(p);
+    if(PL.grounded){ const f2=floorAt(p.x,p.z,p.y+0.3); if(p.y<f2&&f2-p.y<0.3) p.y=f2; } }
 
   /* 배고픔 — 가만히 있어도 줄고, 움직이고 일할수록 빨리 준다.
      굶으면 기력 한도가 내려가고, 바닥나면 달리지 못하고 기력이 도로 빠진다. */
