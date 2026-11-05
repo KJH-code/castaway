@@ -623,12 +623,13 @@ function caveSites10(seed){
     if(h<3*WS||h>hi*0.8||F.river[i]||F.slope[i]<0.18||F.slope[i]>0.9) return false;
     const x=(gx-N/2)*CELL+(rnd()-0.5)*CELL*0.6, z=(gz-N/2)*CELL+(rnd()-0.5)*CELL*0.6;
     const kd=cv10Kind(x,z); if(only&&kd!==only) return false; if(kd==='shelter'&&F.slope[i]<=0.5) return false;
+    if(cv10GeoAt(x,z)) return false;                                   // 큰 지형 모형(산 · 시스택) 윗면 밑 — 입구가 묻힌다(화강암 비탈은 거의 다 모형 밑이라 바위틈 굴은 모형 발치에 선다)
     const near=CAVES.filter(c=>Math.hypot(c.x-x,c.z-z)<200);
     if(near.length&&!evict) return false;
     if(near.some(c=>CAVES.filter(q=>q.kind===c.kind).length-near.filter(q=>q.kind===c.kind).length<1)) return false;   // 내쫓은 뒤 그 종류가 0 이 되면 안 된다
     const yaw=Math.atan2(-(F.elev[i+N]-F.elev[i-N]),-(F.elev[i+1]-F.elev[i-1]));
     const c={x,z,y:heightAt(x,z),yaw,seed:(rnd()*1e9)|0,tv:10};
-    if(!cv10Layout(c)) return false;
+    if(!cv10Layout(c)||cv10GeoHit(c)) return false;                   // 입구가 큰 지형 모형 밑이면 버린다(31-cave10.js)
     for(const q of near) CAVES.splice(CAVES.indexOf(q),1);
     CAVES.push(c); return true; };
   for(let tries=0;tries<90000&&CAVES.length<want;tries++){ const gx=6+((rnd()*(N-12))|0), gz=6+((rnd()*(N-12))|0); tryCell(gx,gz,null); }
@@ -636,7 +637,7 @@ function caveSites10(seed){
     /* 종류마다 하나는 — 그 바위 땅(비탈 조건까지 맞는 칸)에서만 2,000 번 같은 난수로 이어서 */
     const cells=[]; for(let gz=6;gz<N-6;gz++) for(let gx=6;gx<N-6;gx++){ const i=IDX(gx,gz), sl=F.slope[i];
       if(F.elev[i]<3*WS||F.elev[i]>hi*0.8||F.river[i]||sl<0.18||sl>0.9||(kd==='shelter'&&sl<=0.5)) continue;
-      if(cv10Kind((gx-N/2)*CELL,(gz-N/2)*CELL)===kd) cells.push(gx*4096+gz); }
+      const cx=(gx-N/2)*CELL, cz=(gz-N/2)*CELL; if(cv10Kind(cx,cz)===kd&&!cv10GeoAt(cx,cz)) cells.push(gx*4096+gz); }
     let got=false;                                                                     // 200 m 안에 이미 굴이 있어 못 놓으면(작은 섬) 둘 이상인 종류의 굴을 내쫓고 놓는다
     for(const evict of [false,true]) for(let t=0;t<2000&&cells.length&&!got;t++){ const e=cells[(rnd()*cells.length)|0]; got=tryCell((e/4096)|0,e%4096,kd,evict); } }
   for(const c of CAVES){ for(const r of c.rooms) r.cave=c;

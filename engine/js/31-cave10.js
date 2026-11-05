@@ -176,6 +176,26 @@ function cv10Zones(c){
     for(let d=2;d<=12+1e-6;d+=2) Z.push({x:m.x+ca*(d0+d),z:m.z+sa*(d0+d),R,ap:1}); }
   return Z;
 }
+/* 굴 바위 껍데기(지어 둔 메시)에 (x0,y0,z0)→(x1,y1,z1) 선분이 닿나 — 닿으면 {x,y,z,nx,ny,nz}(바깥쪽 = 빈 데 쪽 법선), 아니면 null.
+   던진 것(수류탄)이 굴 벽에서 튀게 — 바위틈 굴 · 바위그늘의 벽은 땅 위에 쌓인 바위라 땅 높이로는 못 잡는다. 메시는 세계 좌표 그대로다 */
+const _cv10Rc=new THREE.Raycaster(), _cv10Ro=new THREE.Vector3(), _cv10Rd=new THREE.Vector3(), _cv10Rh={x:0,y:0,z:0,nx:0,ny:0,nz:0};
+function cv10Ray(x0,y0,z0,x1,y1,z1){
+  const L=Math.hypot(x1-x0,y1-y0,z1-z0); if(L<1e-6) return null;
+  for(const [c,r] of CV10.built){ if(!r.mesh||c.off) continue; const b=c.box; if(x1<b.x0-1||x1>b.x1+1||z1<b.z0-1||z1>b.z1+1) continue;
+    _cv10Ro.set(x0,y0,z0); _cv10Rd.set((x1-x0)/L,(y1-y0)/L,(z1-z0)/L); _cv10Rc.set(_cv10Ro,_cv10Rd); _cv10Rc.far=L+0.08;
+    const h=_cv10Rc.intersectObject(r.mesh,false); if(!h.length||!h[0].face) continue;
+    const q=_cv10Rh, n=h[0].face.normal; q.x=h[0].point.x; q.y=h[0].point.y; q.z=h[0].point.z; q.nx=n.x; q.ny=n.y; q.nz=n.z; return q; }
+  return null;
+}
+/* 겉이 열리는 데(입구 마당 · 빛구멍 · 접근로 — cv10Zones)가 큰 지형 모형(37-geo-meshes.js — 매끈한 땅 섬의 산 · 협곡 벽 · 시스택) 밑인가.
+   모형 윗면은 땅보다 1~2 m 위라 입구를 덮고(땅 구멍으로 안 뚫린다) 들머리에 2 m 벽이 선다 — 그런 자리는 굴 자리로 안 쓴다(caveSites10) */
+function cv10GeoAt(x,z){ return typeof GEO_LF!=='undefined'&&GEO_LF.list.length>0&&geoFloor(x,z)>heightAt(x,z)+0.3; }
+function cv10GeoHit(c){
+  if(typeof GEO_LF==='undefined'||!GEO_LF.list.length) return false;
+  for(const q of cv10Zones(c)) for(let k=0;k<5;k++){ const a=k*1.2566, r=k?q.R*0.8:0, x=q.x+Math.cos(a)*r, z=q.z+Math.sin(a)*r;
+    if(cv10GeoAt(x,z)) return true; }
+  return false;
+}
 /* 상자를 step(기본 1 m) 격자로 훑어 센다 — cells 빈 칸 · open 열린 칸 · thin(입구 마당 · 빛구멍 밖인데 지붕이 얇아 열린 칸) · minCover(마당 밖 닫힌 칸의 h−c 최솟값)
    · maxSlope(바닥 가운데 쪽 u≤0.55 인 이웃 빈 칸 사이 |Δf|/거리 — 들머리 · 무너진 돌 비탈 · 단(열쇠 구멍 · 선반) 뺀다) · len(굴길 길이 합) */
 function cv10Stats(c,step,noReach){

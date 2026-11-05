@@ -235,7 +235,7 @@ function caveWalk(x,z,fromH){
         if(!(hx&&Math.abs(hx.f-q.f)<0.25)) return false; } }
     return true;
   }
-  if(PL.cave) return fromH>=heightAt(x,z)-0.35?undefined:false;   // 굴에서 벽 쪽 — 열린 데로 나가는 길(발이 땅 높이)만 땅 규칙으로
+  if(PL.cave) return fromH>=heightAt(x,z)-STEPUP?undefined:false;   // 굴에서 벽 쪽 — 열린 데로 나가는 길(땅이 한 걸음 턱 안)만 땅 규칙으로(턱 · 비탈은 그 규칙이 본다 — 0.35 였을 때 바위그늘 들머리의 0.43 m 턱에 갇혔다)
   return undefined;
 }
 /* fromH 는 반드시 '지금 발이 딛고 선 높이'여야 한다.

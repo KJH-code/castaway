@@ -455,6 +455,9 @@ function updateGrenades(dt){
     const g=GRENADES[i], p=g.m.position;
     const gx0=p.x, gy0=p.y, gz0=p.z;
     g.v.y-=9.8*dt; p.addScaledVector(g.v,dt);
+    if(g.cv&&CV10.built.size){ const w=cv10Ray(gx0,gy0,gz0,p.x,p.y,p.z);   // 굴 속에서 바위 껍데기에 닿았다 — 그 면에서 되튄다(바위틈 · 바위그늘의 벽은 땅 높이로 못 잡는다)
+      if(w){ const vn=g.v.x*w.nx+g.v.y*w.ny+g.v.z*w.nz; if(vn<0){ g.v.x-=1.4*vn*w.nx; g.v.y-=1.4*vn*w.ny; g.v.z-=1.4*vn*w.nz; g.v.multiplyScalar(0.55); }
+        p.set(w.x+w.nx*0.08,w.y+w.ny*0.08,w.z+w.nz*0.08); } }
     const gq=CV10.built.size?cv10Q(p.x,p.z,p.y):null;                  // 지형 판 10 굴 빈 데 — 바닥 · 천장에서 튄다(땅 높이는 굴 위 비탈이다)
     if(gq){ g.cv=1;
       if(p.y<gq.f+0.07){ p.y=gq.f+0.07; g.v.y=Math.abs(g.v.y)*0.3; g.v.x*=0.55; g.v.z*=0.55; }
