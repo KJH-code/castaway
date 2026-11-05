@@ -127,12 +127,46 @@ function geoRange(rnd){
   if(!peaks.length) return 0;
   const PK=['granite_peaks','jagged_stone_peak','solitary_stone_peak'];
   let top=0;
-  peaks.forEach((p,k)=>{ const S=(k===0?620:380+rnd()*240), nm=k===0?'granite_peaks':PK[(rnd()*PK.length)|0];
-    geoStamp(nm,p.x,p.z,p.y-S*0.18,S,rnd()*6.283,[0.98,0.96,0.92],{biome:B.SCREE}); top=Math.max(top,p.y-S*0.18+S); });
-  /* 봉우리 사이 — 낮은 봉우리 둘씩으로 능선을 잇는다(산맥은 봉우리 무리가 등성이로 이어진 것) */
-  for(let k=1;k<peaks.length;k++){ const a=peaks[k-1], b2=peaks[k]; if(Math.hypot(a.x-b2.x,a.z-b2.z)>WORLD*0.35) continue;
-    for(const t of [0.35,0.68]){ const x=a.x+(b2.x-a.x)*t+(rnd()-0.5)*120, z=a.z+(b2.z-a.z)*t+(rnd()-0.5)*120, g=heightAt(x,z), S=180+rnd()*150;
-      geoStamp(rnd()<0.5?'jagged_stone_peak':'solitary_stone_peak',x,z,g-S*0.2,S,rnd()*6.283,[0.96,0.95,0.92],{biome:B.ROCK}); } }
+  /* **능선**(2026-11-05 사용자 요청 '산맥의 능선을 더 · 능선을 따라 산이 있고 능선은 산을 가로지른다') — 큰 봉우리를 한 줄로 잇고(가까운 끝에 붙여 가며)
+     양 끝은 봉우리 너머로 더 뻗는다. 등뼈를 따라 ① 땅을 산등성이 꼴로 올리고(꼭대기 높이는 두 봉우리 사이를 잇되 가운데가 안부로 낮다 ·
+     가로는 등뼈에서 멀수록 본디 땅으로) ② 그 위에 봉우리 모형을 능선 방향으로 겹쳐 세운다(간격 = 크기의 0.55 — 이어진 등성이로) */
+  const chain=[peaks[0]], rest=peaks.slice(1);
+  while(rest.length){ let bi=0, bd=1e18, end=1;
+    for(let i=0;i<rest.length;i++){ const r=rest[i], d0=Math.hypot(r.x-chain[0].x,r.z-chain[0].z), d1=Math.hypot(r.x-chain[chain.length-1].x,r.z-chain[chain.length-1].z);
+      if(d0<bd){ bd=d0; bi=i; end=0; } if(d1<bd){ bd=d1; bi=i; end=1; } }
+    if(bd>WORLD*0.45){ rest.splice(bi,1); continue; }
+    const r=rest.splice(bi,1)[0]; if(end) chain.push(r); else chain.unshift(r); }
+  chain.forEach((p,k)=>{ p.S=(p===peaks[0]?620:380+rnd()*240); });
+  const ext=(a,b,L)=>{ const dx=a.x-b.x, dz=a.z-b.z, d=Math.hypot(dx,dz)||1; return {x:a.x+dx/d*L, z:a.z+dz/d*L, y:heightAt(a.x+dx/d*L,a.z+dz/d*L), S:a.S*0.25, tip:1}; };
+  const sp=[];                                                                // 등뼈 점들(양 끝을 늘인 것)
+  if(chain.length===1){ const a=rnd()*6.283, c=chain[0], L=c.S*1.6; sp.push({x:c.x-Math.cos(a)*L,z:c.z-Math.sin(a)*L,y:0,S:c.S*0.25,tip:1},c,{x:c.x+Math.cos(a)*L,z:c.z+Math.sin(a)*L,y:0,S:c.S*0.25,tip:1}); sp[0].y=heightAt(sp[0].x,sp[0].z); sp[2].y=heightAt(sp[2].x,sp[2].z); }
+  else sp.push(ext(chain[0],chain[1],chain[0].S*1.5),...chain,ext(chain[chain.length-1],chain[chain.length-2],chain[chain.length-1].S*1.5));
+  const okAt=(x,z)=>Math.abs(x)<HALF*0.92&&Math.abs(z)<HALF*0.92&&!(LANDING&&Math.hypot(LANDING.x-x,LANDING.z-z)<550)&&!(typeof TEMPLE!=='undefined'&&TEMPLE.land&&Math.hypot(TEMPLE.land.x-x,TEMPLE.land.z-z)<450)&&!(GEO_LF.canyon&&GEO_LF.canyon.some((i,k)=>!(k%4)&&Math.hypot((i%N-N/2)*CELL-x,(((i/N)|0)-N/2)*CELL-z)<160));
+  const crest=(A,B,t)=>{ const ha=A.tip?A.y:A.y+A.S*0.22, hb=B.tip?B.y:B.y+B.S*0.22, sm=Math.min(A.tip?B.S:A.S,B.tip?A.S:B.S);
+    return ha+(hb-ha)*t-sm*0.22*Math.sin(Math.PI*t)*(A.tip||B.tip?0.3:1); };          // 안부 — 두 봉우리 사이 가운데가 낮다
+  const ridgePk=[], rpn=makePerlin((hashStr(String(P.seed))^0x51d9)>>>0);
+  for(let k=0;k<sp.length-1;k++){ const A=sp[k], B=sp[k+1], L=Math.hypot(B.x-A.x,B.z-A.z); if(L<20) continue;
+    const ux=(B.x-A.x)/L, uz=(B.z-A.z)/L;
+    /* ① 산등성이 땅 — 등뼈에서 d 떨어진 칸은 꼭대기 − (d/폭)^1.3 × (꼭대기 − 본디 땅) */
+    const pad=420, x0=Math.min(A.x,B.x)-pad, x1=Math.max(A.x,B.x)+pad, z0=Math.min(A.z,B.z)-pad, z1=Math.max(A.z,B.z)+pad;
+    for(let gz=Math.max(2,Math.floor(z0/CELL+N/2));gz<=Math.min(N-3,Math.ceil(z1/CELL+N/2));gz++) for(let gx=Math.max(2,Math.floor(x0/CELL+N/2));gx<=Math.min(N-3,Math.ceil(x1/CELL+N/2));gx++){
+      const wx=(gx-N/2)*CELL, wz=(gz-N/2)*CELL, t=Math.min(1,Math.max(0,((wx-A.x)*ux+(wz-A.z)*uz)/L)), px=A.x+ux*L*t, pz=A.z+uz*L*t, d=Math.hypot(wx-px,wz-pz);
+      const H=crest(A,B,t), i=gz*N+gx, e=h[i]; if(H<=e) continue;
+      const W=140+0.9*(H-Math.min(A.y,B.y)); if(d>=W) continue;
+      const nv=H-Math.pow(d/W,1.3)*(H-e)+rpn(wx*0.004,wz*0.004)*0.10*(H-e)*(d/W);
+      if(nv>e){ h[i]=nv; if(F.river[i]){ F.river[i]=0; F.wlev[i]=0; } } }
+    /* ② 등성이의 봉우리 — 등뼈를 따라 겹쳐 세운다(봉우리 곁 0.35 S 안은 빼고) */
+    let s=A.tip?L*0.12:A.S*0.45;
+    while(s<L-(B.tip?L*0.12:B.S*0.45)){ const t=s/L, H=crest(A,B,t), lat=(rnd()-0.5)*70, x=A.x+ux*s-uz*lat, z=A.z+uz*s+ux*lat, g=heightAt(x,z);
+      const S=Math.max(120,Math.min(0.62*Math.min(A.tip?B.S:A.S,B.tip?A.S:B.S),(H-g)*0.9+120+rnd()*90));
+      if(okAt(x,z)) ridgePk.push({x,z,g,S,yaw:Math.atan2(ux,uz)+(rnd()-0.5)*0.5,nm:rnd()<0.55?'jagged_stone_peak':rnd()<0.6?'solitary_stone_peak':'granite_peaks'});
+      s+=S*(0.50+0.12*rnd()); } }
+  /* 봉우리를 세운다 — 등성이의 것 먼저(큰 봉우리가 그 위에 덮이게) */
+  for(const q of ridgePk){ const S=q.nm==='granite_peaks'?q.S*0.7:q.S; geoStamp(q.nm,q.x,q.z,q.g-S*0.2,S,q.yaw,[0.96,0.95,0.92],{biome:B.ROCK}); top=Math.max(top,q.g-S*0.2+S); }
+  chain.forEach((p,k)=>{ const nm=p===peaks[0]?'granite_peaks':PK[(rnd()*PK.length)|0], i=chain.indexOf(p), nb=chain[i+1]||chain[i-1];
+    const yaw=nb?Math.atan2(nb.x-p.x,nb.z-p.z)+(rnd()-0.5)*0.6:rnd()*6.283;              // 능선 방향으로
+    geoStamp(nm,p.x,p.z,p.y-p.S*0.18,p.S,yaw,[0.98,0.96,0.92],{biome:B.SCREE}); top=Math.max(top,p.y-p.S*0.18+p.S); });   // 밑면은 본디 높이(능선이 올린 땅 말고)
+  GEO_LF.ridge=sp.map(p=>({x:p.x,z:p.z}));
   return top;
 }
 /* ── 협곡 — 큰 하천을 따라 판다(벽은 붉은 사암 벼랑) ── */
