@@ -225,11 +225,12 @@ function caveColPush(p){
 function caveWalk(x,z,fromH){
   const q=caveHere(x,z,fromH);                              // floorAt 과 같은 창(발 높이) — 걷기 · 바닥이 어긋나면 걸음은 굴 안인데 바닥은 지표를 줬다
   if(q){                                                  // 가려는 자리가 빈 데
-    if(q.f-fromH>STEPUP) return false;                     // 한 번에 오르기엔 높은 턱(내리막은 통과)
+    const lip=PL.caveQ&&PL.caveQ.d<4&&q.d<4;               // 입구 4 m 안 — 문턱의 가파른 오르막(걷는 격자가 못 받는다)은 0.8 m 까지
+    if(q.f-fromH>(lip?0.8:STEPUP)) return false;           // 한 번에 오르기엔 높은 턱(내리막은 통과)
     if(q.ce-q.f<(PL.crouch?1.15:1.95)){                    // 머리 위가 낮다 — 서서는 눈(1.66)+머리 0.25 가 들어야 하고, 숙이면(눈 0.98) 1.15 m 면 지난다
       if(!PL.crouch&&q.ce-q.f>=1.15&&(!PL._lowT||performance.now()-PL._lowT>3000)){ PL._lowT=performance.now(); toast('천장이 낮다 — 숙여서(Ctrl) 지나간다'); }
       return false; }
-    if(q.f-fromH>0.02){ const g=floorGrad(x,z,fromH);                  // 오르막은 땅과 같은 한도(49°) — 한 걸음 턱(0.55 m)만 보면 벽도 걸음마다 오른다
+    if(q.f-fromH>0.02&&!lip){ const g=floorGrad(x,z,fromH);                  // 오르막은 땅과 같은 한도(49°) — 한 걸음 턱(0.55 m)만 보면 벽도 걸음마다 오른다
       if(Math.hypot(g[0],g[1])>MAXSLOPE){                              // 다만 턱(STEPUP 안)은 오른다: 0.6 m 앞이 그 높이에서 이어지면(판판한 윗면) 벽이 아니라 턱
         const dx=x-PL.pos.x, dz=z-PL.pos.z, dl=Math.hypot(dx,dz)||1, hx=caveHere(x+dx/dl*0.6,z+dz/dl*0.6,q.f+0.3);
         if(!(hx&&Math.abs(hx.f-q.f)<0.25)) return false; } }
@@ -237,7 +238,8 @@ function caveWalk(x,z,fromH){
   }
   if(PL.cave){ const sf=cv10BoxSfc(x,z); if(fromH>=sf-STEPUP) return undefined;
     /* 입구 4 m 안(D<4)에서 나가는 걸음은 0.8 m 턱까지 — 굴 바닥은 문턱 0.5 m 사이에 땅으로 솟는데 걷는 격자(0.5 m · 빈 데 점만)는 그 오르막을 못 받는다(바위그늘 들머리 0.58 m) */
-    if(fromH>=sf-0.8&&PL.caveQ&&PL.caveQ.d<4){ const g=floorGrad(x,z,sf); if(Math.hypot(g[0],g[1])<=MAXSLOPE) return true; }
+    if(fromH>=sf-0.8&&PL.caveQ&&PL.caveQ.d<4){ const dx=x-PL.pos.x, dz=z-PL.pos.z, L=Math.hypot(dx,dz)||1, e=0.25;   // 가는 쪽의 오르막만 본다(들머리 둔덕은 밖으로 내려간다)
+      const up=((cv10BoxSfc(x+e,z)-cv10BoxSfc(x-e,z))*dx+(cv10BoxSfc(x,z+e)-cv10BoxSfc(x,z-e))*dz)/(2*e*L); if(up<=MAXSLOPE) return true; }
     return false; }   // 굴에서 벽 쪽 — 열린 데로 나가는 길(땅이 한 걸음 턱 안)만 땅 규칙으로(턱 · 비탈은 그 규칙이 본다 — 0.35 였을 때 바위그늘 들머리의 0.43 m 턱에 갇혔다)
   return undefined;
 }
