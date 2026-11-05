@@ -246,9 +246,31 @@ function cragSites(seed){
   PROPS=PROPS.filter(p=>p.cave||!occ[IDX(clamp(Math.round(p.x/CELL+N/2),0,N-1),clamp(Math.round(p.z/CELL+N/2),0,N-1))]);
   if((P.tv|0)>=5&&typeof coastFeatures==='function') coastFeatures(seed);   // 바닷가 지형 — 시스택 · 해식 아치 · 주상절리(34-coast.js · 지형 판 5)
   if((P.tv|0)>=7&&typeof fallsCrags==='function') fallsCrags(seed);         // 저수지 폭포의 바위벽(36-falls.js · 지형 판 7)
+  if((P.tv|0)>=10) cragCaveClear();                                         // 지형 판 10 — 굴 입구 · 접근로 · 빛구멍을 덮는 덩이를 걷는다(난수를 다 뽑은 뒤 · 아래)
   { const C=CRAG.cols, G=CRAG.cg;                                                          // 원을 16 m 칸에 걸어 둔다(cragNear)
     for(let i=0;i<C.length;i+=3){ const r=C[i+2], x0=Math.floor((C[i]-r)/16), x1=Math.floor((C[i]+r)/16), z0=Math.floor((C[i+1]-r)/16), z1=Math.floor((C[i+1]+r)/16);
       for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const k=(gx+2048)*4096+(gz+2048); let a=G.get(k); if(!a) G.set(k,a=[]); a.push(i); } } }
+}
+/* 지형 판 10 굴의 겉이 뚫리는 데(cv10Zones — 입구 마당 · 빛구멍 · 처마 · 입구 앞 접근로)에 걸친 바위 덩이 · 몸 막기 원을 걷는다.
+   벼랑 벽(cragGrowWall — 사용자 Meshy 벼랑 모형은 수십 m)은 자리 점만 굴을 비켜 보고 등고선을 따라 길게 자라서, 입구를 덮고 그 위가 바닥이 되어
+   들머리에 선 사람이 벼랑 꼭대기로 올라섰다(cragFloor 가 쌓인 덩이를 타고 오른다 · 2026-11-05 굴 걷기 검수). 난수를 안 쓰고 걷기만 한다 */
+function cragCaveClear(){
+  if(!CAVES.length||!CAVE_GRID.size) return;
+  const T=CRAG.T, kill=new Set(), F_=CRAG.F;
+  for(const zs of CAVE_GRID.values()) for(const zc of zs){ if(!zc.cave||zc.cave.tv!==10) continue;
+    /* 그 원 둘레 칸을 걸어 두고(cragSpan 은 사람 둘레만 건다) 원 가운데 · 반지름 0.6 의 네 점 · 0.95 의 여덟 점에서 수직선을 쏜다 */
+    const tx0=Math.floor((zc.x-zc.R-160)/T), tx1=Math.floor((zc.x+zc.R+160)/T), tz0=Math.floor((zc.z-zc.R-160)/T), tz1=Math.floor((zc.z+zc.R+160)/T);
+    for(let a=tz0;a<=tz1;a++) for(let b=tx0;b<=tx1;b++){ const t=CRAG.tiles.get((b+512)*1024+(a+512)); if(t&&!t.ixd) cragIndex(t); }
+    const pts=[[0,0]]; for(let k=0;k<4;k++) pts.push([Math.cos(k*1.5708)*0.6,Math.sin(k*1.5708)*0.6]); for(let k=0;k<8;k++) pts.push([Math.cos(k*0.7854+0.39)*0.95,Math.sin(k*0.7854+0.39)*0.95]);
+    for(const q of pts){ const x=zc.x+q[0]*zc.R, z=zc.z+q[1]*zc.R, g=heightAt(x,z), n=cragSpan(x,z);
+      for(let i=0;i<n;i++){ const sp=_cgS[i]; if(sp.t>g+0.8&&sp.b<g+zc.cave.mouths[0].h+2) kill.add(sp.r); } } }   // 땅 위로 솟아 입구 높이 안을 막는 덩이
+  if(kill.size){ const byT=new Map(); for(const r of kill){ let a=byT.get(r.t); if(!a) byT.set(r.t,a=new Set()); a.add(r.o); }
+    for(const [t,os] of byT){ const B=t.b, K=[]; for(let o=0;o<B.length;o+=F_){ if(os.has(o)) continue; for(let j=0;j<F_;j++) K.push(B[o+j]); } B.length=0; for(const v of K) B.push(v); } }
+  CRAG.ix.clear(); for(const t of CRAG.tiles.values()) t.ixd=false;               // 색인은 다시 걸게(지운 덩이의 옛 자리 · o 가 밀렸다)
+  CRAG.cleared=kill.size;
+  const C=CRAG.cols, K=[];                                                         // 몸 막기 · 나무 비킴 원도 굴 자리 것은 걷는다
+  for(let i=0;i<C.length;i+=3) if(!caveAt(C[i],C[i+1],C[i+2])) K.push(C[i],C[i+1],C[i+2]);
+  C.length=0; for(const v of K) C.push(v);
 }
 /* 그 자리가 큰 바위의 발치(원 + pad) 안인가 — 나무·덤불·노거수가 바위 속에 서지 않게(95-flora.js · 95-giants.js) */
 function cragNear(x,z,pad){
@@ -276,7 +298,7 @@ function cragIndex(t){
   for(let o=0;o<B.length;o+=F_){
     _crE.set(B[o+6],B[o+7],B[o+8]); _crQ.setFromEuler(_crE); _crM.makeRotationFromQuaternion(_crQ); const e=_crM.elements;
     const rx=B[o+3], ry=B[o+4], rz=B[o+5], br=Math.max(rx,ry,rz)*1.55;
-    const r={x:B[o],y:B[o+1],z:B[o+2],rx,ry,rz,br2:br*br,sh:S[B[o+9]][B[o+10]][1],
+    const r={x:B[o],y:B[o+1],z:B[o+2],rx,ry,rz,br2:br*br,sh:S[B[o+9]][B[o+10]][1],t,o,
              m:[e[0],e[1],e[2],e[4],e[5],e[6],e[8],e[9],e[10]]};                  // 돌림 행렬의 세 열
     const x0=Math.floor((r.x-br)/BK), x1=Math.floor((r.x+br)/BK), z0=Math.floor((r.z-br)/BK), z1=Math.floor((r.z+br)/BK);
     for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const k=(gx+4096)*8192+(gz+4096); let a=IX.get(k); if(!a) IX.set(k,a=[]); a.push(r); }
@@ -311,7 +333,7 @@ function cragSpan(x,z){
         const wxn=m[0]*nx+m[3]*ny+m[6]*nz, wyn=m[1]*nx+m[4]*ny+m[7]*nz, wzn=m[2]*nx+m[5]*ny+m[8]*nz, l=Math.hypot(wxn,wyn,wzn)||1;
         hn=Math.abs(wyn)/l; }
     }
-    if(hi>lo){ const s=_cgS[n]||(_cgS[n]={b:0,t:0,sl:0,u:false}); s.b=lo; s.t=hi; s.sl=Math.sqrt(Math.max(0,1-hn*hn))/Math.max(hn,0.02); s.u=false; n++; }
+    if(hi>lo){ const s=_cgS[n]||(_cgS[n]={b:0,t:0,sl:0,u:false,r:null}); s.b=lo; s.t=hi; s.sl=Math.sqrt(Math.max(0,1-hn*hn))/Math.max(hn,0.02); s.u=false; s.r=r; n++; }
   }
   return n;
 }

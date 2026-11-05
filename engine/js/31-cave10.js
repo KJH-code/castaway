@@ -170,6 +170,10 @@ function cv10Zones(c){
   for(const g of c.segs) if(g.zone){ const len=Math.hypot(g.bx-g.ax,g.bz-g.az), k=Math.max(1,Math.ceil(len/2.5));
     for(let i=0;i<=k;i++){ const t=i/k; Z.push({x:g.ax+(g.bx-g.ax)*t,z:g.az+(g.bz-g.az)*t,R:g.w/2+1}); } }
   if(!c.mouths[0].sky&&c.kind!=='shelter') for(let s=-4;s<=CV10.reach+1e-6;s+=2){ const p=at(0,s); if(p) Z.push(p); }
+  /* 입구 앞 접근로(ap) — 입구가 보는 쪽으로 12 m · 벼랑 덩이(33-crags.js · 벼랑 모형)와 나무가 들머리를 막지 않게(caveAt 를 쓰는 것들이 비킨다).
+     바이옴 이름 · 굴 판정에는 안 쓴다(82-hud.js 가 ap 를 거른다) */
+  for(const m of c.mouths){ if(m.s>0) continue; const ca=Math.cos(m.yaw), sa=Math.sin(m.yaw), d0=m.sky?m.r:0, R=Math.max(4,(m.w||4)/2+2.5);
+    for(let d=2;d<=12+1e-6;d+=2) Z.push({x:m.x+ca*(d0+d),z:m.z+sa*(d0+d),R,ap:1}); }
   return Z;
 }
 /* 상자를 step(기본 1 m) 격자로 훑어 센다 — cells 빈 칸 · open 열린 칸 · thin(입구 마당 · 빛구멍 밖인데 지붕이 얇아 열린 칸) · minCover(마당 밖 닫힌 칸의 h−c 최솟값)
