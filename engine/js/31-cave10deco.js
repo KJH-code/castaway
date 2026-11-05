@@ -187,8 +187,13 @@ function cvdAt(X,q,u,w,o){
   return o;
 }
 const cvdCluster=(X,x,z,sc,k,a,b)=>0.12+0.88*cvdSS(a===undefined?0.30:a,b===undefined?0.65:b,cvdNoise(X,x,z,sc,k));
+function cvdHash(str){ let h=2166136261>>>0; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return h.toString(36); }
 function cvdPick(X,kind,x,y,z,ay,r,it){                          // 딸 것 하나 — it: 이 장식의 정점 범위({acc,v0,v1})
-  const idx=X.picks.length, p={kind,x,y,z,ay,key:'CV'+X.seed+'_'+idx,r,tree:false}, item={pick:p,kind,key:p.key,acc:it.acc,v0:it.v0,v1:it.v1,vis:true,saved:null};
+  const fl=cv10Samp(X.rec,x,z).f; if(ay-fl>4.0) return false;     // 서서 닿지 않는 높이는 꼴로만(줍기 목록에 안 넣는다)
+  /* 열쇠 = 굴 씨 + 종류 + 겨눌 점(1 cm 정수)의 짧은 해시 — 장식이 생기는 차례가 바뀌어도 따간 표가 다른 장식에 안 붙는다. 같은 굴 안에서 겹치면 번호를 덧붙인다 */
+  const base='CV'+X.seed+'_'+kind+'_'+cvdHash(kind+'|'+Math.round(x*100)+'|'+Math.round(ay*100)+'|'+Math.round(z*100)); let key=base;
+  if(!X.keys) X.keys=new Set(); for(let n=2;X.keys.has(key);n++) key=base+'.'+n; X.keys.add(key);
+  const p={kind,x,y,z,ay,key,r,tree:false}, item={pick:p,kind,key,acc:it.acc,v0:it.v0,v1:it.v1,vis:true,saved:null};
   p.cv=item; X.picks.push(p); X.items.push(item); return true;
 }
 function cvdLog(X,t,x,z,y0,y1,r,ext,ref){ X.cnt[t]=(X.cnt[t]||0)+1; X.log.push({t,x,z,y0,y1,r,ext:!!ext,ref}); }
@@ -497,7 +502,7 @@ function cv10DecoSync(){
     CAVE_GLOW.uniforms.uPx.value=((typeof CAMC!=='undefined'&&CAMC.rt)?CAMC.rt.height:renderer.domElement.height)*0.5*camera.projectionMatrix.elements[5]; }
 }
 function cv10DecoDrop(rec){
-  rec.decoGen=null; const d=rec.deco;
+  rec.decoGen=null; if(CVD.cur===rec) CVD.cur=null; { const qi=CVD.q.indexOf(rec); if(qi>=0) CVD.q.splice(qi,1); } const d=rec.deco;
   if(d) for(const it of d.items){ const k=CV10.picks.indexOf(it.pick); if(k>=0) CV10.picks.splice(k,1); }
   if(rec.mesh) for(const m of rec.mesh.children.slice()) if(m.userData.cvDeco){ rec.mesh.remove(m); m.geometry.dispose(); }   // 짓다 만 것까지(rec.deco 가 아직 없어도) 껍데기에서 떼고 지오메트리를 버린다
   rec.cols=rec.cols.filter(o=>!o.deco); rec.deco=null;
