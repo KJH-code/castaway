@@ -224,16 +224,16 @@ function caveColPush(p){
 /* 굴 속 걷기 — true/false 면 그 답, undefined 면 땅 규칙으로 */
 function caveWalk(x,z,fromH){
   const q=caveHere(x,z,fromH);                              // floorAt 과 같은 창(발 높이) — 걷기 · 바닥이 어긋나면 걸음은 굴 안인데 바닥은 지표를 줬다
-  if(q){                                                  // 가려는 자리가 빈 데
-    const lip=PL.caveQ&&PL.caveQ.d<4&&q.d<4;               // 입구 4 m 안 — 문턱의 가파른 오르막(걷는 격자가 못 받는다)은 0.8 m 까지
-    if(q.f-fromH>(lip?0.8:STEPUP)) return false;           // 한 번에 오르기엔 높은 턱(내리막은 통과)
-    if(q.ce-q.f<(PL.crouch?1.15:1.95)){                    // 머리 위가 낮다 — 서서는 눈(1.66)+머리 0.25 가 들어야 하고, 숙이면(눈 0.98) 1.15 m 면 지난다
-      if(!PL.crouch&&q.ce-q.f>=1.15&&(!PL._lowT||performance.now()-PL._lowT>3000)){ PL._lowT=performance.now(); toast('천장이 낮다 — 숙여서(Ctrl) 지나간다'); }
+  if(q){ const qf=q.f, qce=q.ce, qd=q.d;                   // 가려는 자리가 빈 데 — 값을 베껴 둔다: caveHere 는 공유 객체(CVQ)라 아래 floorGrad · 0.6 m 앞 질의가 덮어써서 오르막 한도가 늘 통과했다(review B)
+    const lip=PL.caveQ&&PL.caveQ.d<4&&qd<4;               // 입구 4 m 안 — 문턱의 가파른 오르막(걷는 격자가 못 받는다)은 0.8 m 까지
+    if(qf-fromH>(lip?0.8:STEPUP)) return false;           // 한 번에 오르기엔 높은 턱(내리막은 통과)
+    if(qce-qf<(PL.crouch?1.15:1.95)){                    // 머리 위가 낮다 — 서서는 눈(1.66)+머리 0.25 가 들어야 하고, 숙이면(눈 0.98) 1.15 m 면 지난다
+      if(!PL.crouch&&qce-qf>=1.15&&(!PL._lowT||performance.now()-PL._lowT>3000)){ PL._lowT=performance.now(); toast('천장이 낮다 — 숙여서(Ctrl) 지나간다'); }
       return false; }
-    if(q.f-fromH>0.02&&!lip){ const g=floorGrad(x,z,fromH);                  // 오르막은 땅과 같은 한도(49°) — 한 걸음 턱(0.55 m)만 보면 벽도 걸음마다 오른다
+    if(qf-fromH>0.02&&!lip){ const g=floorGrad(x,z,fromH);                  // 오르막은 땅과 같은 한도(49°) — 한 걸음 턱(0.55 m)만 보면 벽도 걸음마다 오른다
       if(Math.hypot(g[0],g[1])>MAXSLOPE){                              // 다만 턱(STEPUP 안)은 오른다: 0.6 m 앞이 그 높이에서 이어지면(판판한 윗면) 벽이 아니라 턱
-        const dx=x-PL.pos.x, dz=z-PL.pos.z, dl=Math.hypot(dx,dz)||1, hx=caveHere(x+dx/dl*0.6,z+dz/dl*0.6,q.f+0.3);
-        if(!(hx&&Math.abs(hx.f-q.f)<0.25)) return false; } }
+        const dx=x-PL.pos.x, dz=z-PL.pos.z, dl=Math.hypot(dx,dz)||1, hx=caveHere(x+dx/dl*0.6,z+dz/dl*0.6,qf+0.3);
+        if(!(hx&&Math.abs(hx.f-qf)<0.25)) return false; } }
     return true;
   }
   if(PL.cave){ const sf=cv10BoxSfc(x,z); if(fromH>=sf-STEPUP) return undefined;
@@ -611,6 +611,9 @@ function updatePlayer(dt){
   if(DROP.t>0){ DROP.t-=dt; }
   let ng=PL.cvUnder?floorAt(p.x,p.z,p.y):Math.max(floorAt(p.x,p.z,p.y),shipFloor(p.x,p.z,p.y),rubbleFloor(p.x,p.z,p.y));   // 지은 바닥 · 보급선 날개·몸 위 · 낮은 큰 돌 위에 선다
   if(DROP.t>0) ng=Math.min(ng, floorAt(p.x,p.z,DROP.y-1.0));   // 뚫고 내려가는 중
+  if(PL.cave&&PL.caveQ&&PL.caveQ.d<4&&DROP.t<=0){                    // 입구 4 m 안 빈 데 가장자리 — 걷는 격자(빈 데 칸만 섞음)는 문턱에서 그려진 바닥보다 0.15 m 낮다 → 해석 바닥과의 가운데로(메시와 거의 같다 · review B)
+    const rc=CV10.built.get(PL.cave); if(rc&&rc.ready){ const sm=cv10Samp(rc,p.x,p.z); if(sm.n>=0.5&&sm.n<0.999){ const gf=sm.f, fo=cv10Field(PL.cave,p.x,p.z);
+      if(fo.g>0.05&&fo.f>gf){ const mid=Math.min(gf+0.25,(gf+fo.f)/2); if(mid>ng&&ng>=gf-0.01) ng=mid; } } } }
   if((PL.cvUnder||PL.cave)&&ng-oy>(PL.caveQ&&PL.caveQ.d<4?0.85:STEPUP+0.05)){   // 굴 안에서 한 걸음에 바닥이 턱보다 높이 오른다 = 지표로 튀는 것 — 앞 자리로(입구 4 m 안은 문턱 0.8 m 까지 · caveWalk)
     p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; const q0=cv10Q(ox,oz,oy+0.3); ng=q0?q0.f:floorAt(ox,oz,oy+0.3); }
   if(p.y<=ng){

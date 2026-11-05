@@ -26,7 +26,7 @@ function cvdInit(){
       sheet:new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}),
       water:new THREE.MeshLambertMaterial({color:0x1d4d52,transparent:true,opacity:0.55,depthWrite:false}),
       shr  :new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide}),
-      gold :new THREE.PointsMaterial({color:0xc49a32,size:0.035,sizeAttenuation:true})
+      gold :new THREE.PointsMaterial({vertexColors:true,size:0.035,sizeAttenuation:true})   // 빛을 안 받는 점 — 빛깔에 그 자리 굴 깊이만큼 어둠을 구워 넣는다(아래 · review C)
     };
     for(const k of ['rock','sheet','water']) envPatch(CVD.mats[k]);   // 굴 속 어둠 · 굴 불빛(CAVE_GLSL)을 받게 — 장식은 LIGHT 배역 훑기에 안 걸려 예전엔 깊은 데에서도 밖처럼 밝았다(독립 검수 C3)
   }
@@ -477,6 +477,8 @@ function* cvdGen(rec){
     g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('aG',new THREE.Float32BufferAttribute(G,3)); g.computeBoundingSphere();
     const pt=new THREE.Points(g,caveGlowMat()); pt.matrixAutoUpdate=false; pt.userData.cvDeco=1; parent.add(pt); D.meshes.push(pt); }
   if(X.gold.length){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(X.gold,3)); g.computeBoundingSphere();
+    { const col=new Float32Array(X.gold.length); for(let i=0;i<X.gold.length;i+=3){ const sm=cv10Samp(X.rec,X.gold[i],X.gold[i+2]), k=1-0.9*_cv10Smooth(2,16,sm.n>0?sm.d:0);   // 깊을수록 어둡게(입구 쪽 1 · 깊은 데 0.1)
+        col[i]=0.769*k; col[i+1]=0.604*k; col[i+2]=0.196*k; } g.setAttribute('color',new THREE.Float32BufferAttribute(col,3)); }
     const pt=new THREE.Points(g,mats.gold); pt.matrixAutoUpdate=false; pt.userData.cvDeco=1; parent.add(pt); D.meshes.push(pt); }
   for(const it of X.items) it.mesh=accOf.get(it.acc);
   for(const col of X.cols) rec.cols.push(col);

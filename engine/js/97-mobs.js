@@ -53,11 +53,14 @@ function crwFree(c,x,z){
 }
 /* 판 10 굴 길 — 가장 안쪽 방에서 주 입구 밖까지 굴길 가운데 선(마디 [x,z] 들 · 방 가운데 → … → 입구 밖). 깨어 나갈 때 · 돌아올 때(뒤집어서) · 똬리 꼬리가 따른다 */
 function crwLairPath(c){
-  if(c._lp) return c._lp;
+  const rec=typeof CV10!=='undefined'?CV10.built.get(c):null, cols=rec&&rec.cols&&rec.cols.length?rec.cols:null, nc=cols?cols.length:0;
+  if(c._lp&&c._lpN===nc) return c._lp;                                    // 굴을 짓고(장식 기둥이 생기면) 다시 센다
   const rm=c.rooms[c.rooms.length-1], m=c.mouths[0], pts=[];
   for(const g of c.segs.filter(g=>(g.pid|0)===0).sort((a,b)=>a.s0-b.s0)){ if(g.s0>rm.s+1e-6) break; pts.push([g.ax,g.az]); }
   pts.reverse(); const dd=m.sky?m.r+6:10; pts.push([m.x+Math.cos(m.yaw)*dd,m.z+Math.sin(m.yaw)*dd]);
-  return c._lp=pts;
+  if(cols) for(const p of pts) for(const o of cols){ const dx=p[0]-o.x, dz=p[1]-o.z, d=Math.hypot(dx,dz), R=o.r+0.6;   // 굴길 가운데 선의 마디가 기둥(장식 석순 · 기둥 · 큰 돌) 안이면 둘레 밖으로(review B)
+    if(d<R){ if(d>1e-4){ p[0]=o.x+dx/d*R; p[1]=o.z+dz/d*R; } else p[0]=o.x+R; } }
+  c._lpN=nc; return c._lp=pts;
 }
 const _crwP={x:0,y:0,z:0};
 

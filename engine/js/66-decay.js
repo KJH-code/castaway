@@ -62,7 +62,7 @@ function updateDecay(dh){
 function fireShelter(f){
   const gx=Math.round(f.x/CELL_B), gz=Math.round(f.z/CELL_B);
   for(let L=0;L<8;L++) if(ROOFS.has(rkey(gx,gz,L))||SLOPES.has(rkey(gx,gz,L))) return '지붕 밑';
-  if((P.tv|0)>=10&&CV10.built.size?!!cv10Q(f.x,f.z,f.y===undefined?heightAt(f.x,f.z):f.y):caveAt(f.x,f.z,-0.5)) return '굴 속';   // 판 10 — 그 물건 높이가 굴 빈 데
+  if((P.tv|0)>=10&&CV10.built.size?!!cv10Q(f.x,f.z,f.y===undefined?heightAt(f.x,f.z):f.y):caveAt(f.x,f.z,-0.5,true)) return '굴 속';   // 판 10 — 그 물건 높이가 굴 빈 데
   if(TLIT.px){ const i=IDX(clamp(Math.round(f.x/CELL+N/2),0,N-1),clamp(Math.round(f.z/CELL+N/2),0,N-1))*4; if(TLIT.px[i+2]>102) return '나무 밑'; }
   return '';
 }

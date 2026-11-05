@@ -58,6 +58,8 @@ function cv10DetailBlocked(x,z,r){
 }
 /* 지어 둔 굴의 상자 안이면 cv10Sfc, 밖이면 heightAt — 눈 · 몸이 바위 속인지 볼 때(80-player.js eyeHit · solidAt). 큰 지형 모형 밑 굴은 땅이 2 m 묻혀 있어 땅 높이로는 벽을 못 잡았다 */
 function cv10BoxSfc(x,z){ for(const c of CV10.built.keys()){ const b=c.box; if(x>=b.x0&&x<=b.x1&&z>=b.z0&&z<=b.z1&&!c.off) return cv10Sfc(x,z); } return heightAt(x,z); }
+/* 지금 섬이 판 10 인가 — 지역 이름 P 가 섬 인자를 가리는 함수(90-init.js precompPlan 의 P=PRECOMP) 안에서 쓴다(smOn 과 같은 까닭) */
+function cv10On(){ return (P.tv|0)>=10; }
 function cv10Free(x,z,r,rv){
   const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2);
   if(gx<6||gz<6||gx>N-7||gz>N-7) return false;

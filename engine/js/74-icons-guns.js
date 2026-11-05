@@ -461,8 +461,8 @@ function updateGrenades(dt){
     const gq=CV10.built.size?cv10Q(p.x,p.z,p.y):null;                  // 지형 판 10 굴 빈 데 — 바닥 · 천장에서 튄다(땅 높이는 굴 위 비탈이다)
     if(gq){ g.cv=1;
       if(p.y<gq.f+0.07){ p.y=gq.f+0.07; g.v.y=Math.abs(g.v.y)*0.3; g.v.x*=0.55; g.v.z*=0.55; }
-      else if(p.y>gq.ce-0.1&&gq.ce<heightAt(p.x,p.z)){ p.y=gq.ce-0.1; g.v.y=-Math.abs(g.v.y)*0.3; } }
-    else if(g.cv&&p.y<heightAt(p.x,p.z)-0.5){ p.set(gx0,gy0,gz0); g.v.x*=-0.4; g.v.z*=-0.4; g.v.y*=0.5; }   // 굴 벽에 맞았다 — 앞 자리로 되튄다(땅 위로 튀어 오르지 않게)
+      else if(p.y>gq.ce-0.1&&gq.ce<cv10BoxSfc(p.x,p.z)){ p.y=gq.ce-0.1; g.v.y=-Math.abs(g.v.y)*0.3; } }
+    else if(g.cv&&p.y<cv10BoxSfc(p.x,p.z)-0.5){ p.set(gx0,gy0,gz0); g.v.x*=-0.4; g.v.z*=-0.4; g.v.y*=0.5; }   // 굴 벽에 맞았다 — 앞 자리로 되튄다(땅 위로 튀어 오르지 않게)
     else{ g.cv=0;
     const gy=Math.max(heightAt(p.x,p.z),-0.2)+0.07;
     if(p.y<gy){ p.y=gy; g.v.y=Math.abs(g.v.y)*0.3; g.v.x*=0.55; g.v.z*=0.55; } }   // 튀며 구른다
@@ -529,9 +529,11 @@ function updateRockets(dt){
     const n=Math.max(1,Math.ceil(step/1.5));
     let hit=false;
     for(let k=0;k<n&&!hit;k++){
+      const rx0=p.x, ry0=p.y, rz0=p.z;
       p.addScaledVector(R.v,dt/n);
-      const rq=CV10.built.size?cv10Q(p.x,p.z,p.y):null;                   // 지형 판 10 굴 빈 데 — 굴 바닥 · 천장(벽은 아래 땅 규칙: 굴 밖 땅 밑이면 맞는다)
-      if(rq?(p.y<=rq.f+0.05||(p.y>=rq.ce&&rq.ce<heightAt(p.x,p.z))):p.y<=Math.max(heightAt(p.x,p.z),-0.3)+0.05||shipInside(p.x,p.y,p.z)) hit=true;   // 땅 · 보급선
+      const rq=CV10.built.size?cv10Q(p.x,p.z,p.y):null;                   // 지형 판 10 굴 빈 데 — 굴 바닥 · 천장(천장 위가 굴이 딛는 겉 밑이면 · 31-cave10.js cv10BoxSfc)
+      if(rq?(p.y<=rq.f+0.05||(p.y>=rq.ce&&rq.ce<cv10BoxSfc(p.x,p.z))):p.y<=Math.max(heightAt(p.x,p.z),-0.3)+0.05||shipInside(p.x,p.y,p.z)) hit=true;   // 땅 · 보급선
+      if(!hit&&CV10.built.size){ const w=cv10Ray(rx0,ry0,rz0,p.x,p.y,p.z); if(w){ p.set(w.x+w.nx*0.1,w.y+w.ny*0.1,w.z+w.nz*0.1); hit=true; } }   // 굴 바위 껍데기 — 땅 위에 쌓인 바위(바위틈 · 바위그늘 · 모형 밑 굴)는 땅 높이로 못 잡아 뚫고 나갔다(review B)
       for(const c of CREATURES){
         if(c.hp>0 && Math.hypot(c.x-p.x,(c.y||0)+1-p.y,c.z-p.z)<(c.r||1.5)){
           hit=true; p.set(c.x,c.y||0,c.z); break;                // 몸에 맞으면 그 자리에서 터진다(420 그대로)

@@ -1795,13 +1795,16 @@ float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.
       vec4 mvPosition=viewMatrix*wpos;
       gl_Position=projectionMatrix*mvPosition;`);
     if(CM) sh.fragmentShader=sh.fragmentShader.replace(/\bvarying\s+float\s+vCv10(?:Sky|Deep)\b[^;]*;/g,'').replace(/\buniform\s+vec4\s+uCv10Glow\s*;/g,'');   // D 의 껍데기 재질이 조각 셰이더에 선언했으면 걷는다 - CAVE_GLSL 이 앞에서 선언한다
+    /* 땅 셰이더는 같은 텍스처(TERR_U.uTL)를 uTL 로 이미 받는다 — uTLe 를 따로 두면 조각 샘플러가 하나 더 들어 품질 '높음' + 손전등에서 17 개(흔한 GPU 한도 16 · review C) → 한 이름으로 */
+    const tlAlias=lam&&/uniform\s+sampler2D\s+uTL\s*;/.test(sh.fragmentShader);
+    if(tlAlias) sh.fragmentShader=sh.fragmentShader.replace(/uniform\s+sampler2D\s+uTL\s*;/,'');
     if(lam) sh.fragmentShader=(CV?(CM?'#define CV10_MESH\n':'')+CAVE_GLSL+'varying float vCsY;\nvarying vec3 vCsN;\n':'')+`uniform sampler2D csFine;
 uniform sampler2D csCoarse;
 uniform vec2 csC;
 uniform float csS;
 uniform float csOn;
 varying vec2 vCsXZ;
-uniform sampler2D uTLe;
+${tlAlias?'uniform sampler2D uTL;\n#define uTLe uTL':'uniform sampler2D uTLe;'}
 uniform vec2 uTLg;
 vec4 tlE(){ return texture2D(uTLe,(vCsXZ/uTLg.y+uTLg.x*0.5+0.5)/uTLg.x); }
 float cloudSh(){

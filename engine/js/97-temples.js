@@ -366,7 +366,7 @@ function yieldK(x,z,y){
   const HI=TEMPLE.hi||60, g=heightAt(x,z), sm=sampleAt(x,z);
   let k=1;
   if(y!==undefined&&y<g-3) k+=0.8;                                         // 땅속
-  if((P.tv|0)>=10&&CV10.built.size&&y!==undefined?!!cv10Q(x,z,y):(typeof caveAt==='function'&&caveAt(x,z,-0.5))) k+=0.5;   // 굴 — 판 10 은 그 광석의 높이가 굴 빈 데
+  if((P.tv|0)>=10&&CV10.built.size&&y!==undefined?!!cv10Q(x,z,y):(typeof caveAt==='function'&&caveAt(x,z,-0.5,true))) k+=0.5;   // 굴 — 판 10 은 그 광석의 높이가 굴 빈 데
   if(g>0) k+=clamp((g/HI-0.45)/0.45,0,1)*0.8+clamp((sm.slope-0.6)/0.8,0,1)*0.4;
   else k+=clamp((-g-6)/30,0,1)*0.9;                                        // 깊은 물 밑
   if(typeof mobLairBonus==='function') k+=mobLairBonus(x,z);               // 다지류가 사는 우거진 숲(97-mobs.js)

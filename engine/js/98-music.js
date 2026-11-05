@@ -564,7 +564,7 @@ function musicRegion(){
   if(typeof PL==='undefined'||typeof F==='undefined'||!F.elev) return 'coastal';
   if(PL.under) return 'amethystcave';                                  // 땅속 세계 — 결정 · 빛나는 것
   const x=PL.pos.x, z=PL.pos.z;
-  if(typeof caveAt==='function'){ const r=caveAt(x,z,0); if(r){ const k=(r.cave&&r.cave.kind)||'karst'; return (k==='talus'||k==='lava')?'granitecave':'limecave'; } }
+  if(typeof caveAt==='function'){ const r=caveAt(x,z,0,true); if(r){ const k=(r.cave&&r.cave.kind)||'karst'; return (k==='talus'||k==='lava')?'granitecave':'limecave'; } }
   if(MUS.hiId!==GAME_ID){ let h=0; for(let i=0;i<F.elev.length;i+=7) if(F.elev[i]>h) h=F.elev[i]; MUS.hi=h; MUS.hiId=GAME_ID; }
   const gx=clamp(Math.round(x/CELL+N/2),1,N-2), gz=clamp(Math.round(z/CELL+N/2),1,N-2), i=IDX(gx,gz), b=F.biome[i], e=F.elev[i];
   if(typeof GEO_LF!=='undefined'&&GEO_LF.canyon){ const P0=GEO_LF.canyon; for(let k=0;k<P0.length;k+=2){ const j=P0[k], dx=(j%N-gx), dz=(((j/N)|0)-gz); if(dx*dx+dz*dz<36) return 'canyon'; } }

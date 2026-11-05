@@ -550,11 +550,11 @@ let CAVES=[];
 const CAVE_ORE=['iron','copper','tin','zinc','galena','coal'];
 const CAVE_GRID=new Map(), CAVE_G=48, caveKey=(gx,gz)=>(gx+2048)*4096+(gz+2048);
 /* 그 자리가 굴(방 반지름 + pad) 안인가 — 그 방을 돌려준다. 덤불·나무·노거수가 굴 속에 서지 않게 하는 데, 화면의 바이옴 이름에 쓴다 */
-function caveAt(x,z,pad){
+function caveAt(x,z,pad,noAp){                                         // noAp — 입구 앞 접근로(판 10 cv10Zones 의 ap)는 굴로 안 친다(불 가림 · 소출 · 음악)
   if(!CAVES.length) return null; pad=pad||0;
   const gx=Math.floor(x/CAVE_G), gz=Math.floor(z/CAVE_G);
   for(let az=-1;az<=1;az++) for(let ax=-1;ax<=1;ax++){ const a=CAVE_GRID.get(caveKey(gx+ax,gz+az)); if(!a) continue;
-    for(const r of a){ const dx=x-r.x, dz=z-r.z, q=r.R+pad; if(dx*dx+dz*dz<q*q) return r; } }
+    for(const r of a){ if(noAp&&r.ap) continue; const dx=x-r.x, dz=z-r.z, q=r.R+pad; if(dx*dx+dz*dz<q*q) return r; } }
   return null;
 }
 function caveSites(seed){
