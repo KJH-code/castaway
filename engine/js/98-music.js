@@ -63,7 +63,7 @@ const MU_SONGS={
     comp:'modal', bass:'walk', bassGhost:0.2, drums:'cobb', lead:'miles', rv:'room', rvA:0.34, cut:4300},
   coastal:{n:'바닷가', d:'보사노바 · 나일론 기타의 짧은 릭(주앙 질베르투풍)', bpm:128, sw:0.5,
     prog:[['G','maj7'],['G','maj7'],['E','m9'],['A','13'],['A','m9'],['D','7b9'],['B','m7'],['E','7b9'],['A','m9'],['D','13'],['G','69'],['D','sus']],
-    comp:'bossa', bass:'bossa', drums:'bossa', lead:'gilberto', rv:'room', rvA:0.28, cut:4800},
+    comp:'bossa', bass:'bossa', drums:'bossa', lead:'gilberto', solo:{every:24,len:8,lead:'gtrSolo'}, rv:'room', rvA:0.28, cut:5600},
   mountains:{n:'산', d:'스윙 · 묵직한 재즈 드럼 · 부드러운 빅밴드', bpm:152, sw:0.64,
     prog:[['Eb','maj7'],['C','m7'],['F','m7'],['Bb','7'],[['G','m7'],['C','7']],[['F','m7'],['Bb','7']],[['Eb','maj7'],['Ab','7']],[['G','m7'],['C','7alt']]],
     comp:'bigband', bass:'walk', drums:'bigswing', lead:'section', rv:'hall', rvA:0.3, cut:5000, gain:{drums:1.25}},
@@ -87,10 +87,11 @@ const MU_LEAD={
   evans:{ins:'piano', rng:[62,86], dens:'medium', phr:[2,3], rest:[1,2], step:[1,3], leap:0.2, appr:0.15, leg:1.0, vel:[0.34,0.58], lay:0.02, sync:0.3, trill:0.15, gl:0.22, chord:0.55},
   chet:{ins:'tpt', rng:[57,77], dens:'sparse', phr:[2,3], rest:[1,2], step:[1,3], leap:0.12, appr:0.1, leg:0.97, vel:[0.38,0.6], lay:0.035, scoop:0.55, fall:0.12, sync:0.3, trill:0.06, gl:0.12, chord:0},
   hardbop:{ins:'unison', rng:[58,79], dens:'riff', phr:[4,4], rest:[0,0], step:[1,3], leap:0.2, appr:0.35, leg:0.85, vel:[0.55,0.8], lay:0, sync:0.45, trill:0.1, gl:0.25, chord:0},
-  gilberto:{ins:'gtr', rng:[57,77], dens:'lick', phr:[1,2], rest:[1,2], step:[1,3], leap:0.1, appr:0.1, leg:0.9, vel:[0.45,0.62], lay:0.01, sync:0.4, trill:0.05, gl:0.3, chord:0.35},
+  gilberto:{ins:'gtr', rng:[62,82], dens:'lick', phr:[1,2], rest:[1,2], step:[1,3], leap:0.1, appr:0.1, leg:0.9, vel:[0.5,0.68], lay:0.01, sync:0.4, trill:0.05, gl:0.3, chord:0.35},
   section:{ins:'section', rng:[67,82], dens:'medium', phr:[2,4], rest:[2,2], step:[1,3], leap:0.15, appr:0.1, leg:0.95, vel:[0.4,0.6], lay:0, sync:0.35, trill:0.1, gl:0.18, chord:0},
   mirror:{ins:'mirror', rng:[64,80], dens:'medium', phr:[2,2], rest:[2,2], step:[1,3], leap:0.2, appr:0.15, leg:0.92, vel:[0.45,0.65], lay:0, sync:0.35, trill:0.1, gl:0.2, chord:0},
   water:{ins:'piano', rng:[64,84], dens:'sparse', phr:[2,3], rest:[2,3], step:[2,4], leap:0.2, appr:0, leg:1.0, vel:[0.3,0.45], lay:0.03, sync:0.1, trill:0.2, gl:0.3, chord:0.3},
+  gtrSolo:{ins:'gtr', rng:[67,90], dens:'medium', mix:0.3, phr:[2,4], rest:[0,1], step:[1,3], leap:0.22, appr:0.3, leg:0.95, vel:[0.55,0.82], lay:0, sync:0.45, trill:0.12, gl:0.4, chord:0.4},   // 바닷가 솔로 — 높게 · 빽빽함을 섞고 · 미끄러짐 · 겹음
   miles:{ins:'tptM', rng:[58,79], dens:'sparse', phr:[2,4], rest:[2,3], step:[1,3], leap:0.2, appr:0.05, leg:1.0, vel:[0.42,0.62], lay:0.04, scoop:0.3, fall:0.18, sync:0.3, trill:0.03, gl:0.1, chord:0},
   none:null
 };
@@ -136,12 +137,27 @@ function muPianoBuf(m,vb){ return muGet('p'+m+'_'+vb,()=>{
 function muBassBuf(m,dead){ return muGet('b'+m+(dead?'d':''),()=>{
   const sr=MU_SR, f0=mtof(m), d=dead?muKS(f0,0.18,0.08,0.34,0.88):muKS(f0,2.8,2.8*Math.pow(55/f0,0.25),0.32,0.86);
   muBQ(d,sr,'lp',dead?420:520,0.6); muBQ(d,sr,'lp',dead?700:900,0.5); muBQ(d,sr,'peak',95,1.4,3); if(!dead) muBQ(d,sr,'peak',400,1.0,-2);
-  muFade(d,sr,dead?0.006:0.012); return muBuf(muNorm(d,dead?0.45:0.8),sr); }); }
+  muFade(d,sr,0.004); muNorm(d,1);
+  /* 펀치 · 줄 타격(사용자 요청 2026-11-05 — '콘트라베이스 특유의 줄 튕기는 소리를 앞에 · 소리를 줄여 펀치하게'):
+     첫 90 ms 만 세게 쳤다가 울림 높이로 내려앉고(뒤의 서스테인은 그대로) · 손가락 살이 줄을 치는 '퉁'(낮은 가운데 700 Hz · 25 ms) ·
+     줄이 손가락을 떠나며 지판을 치는 '탁'(1.9 kHz · 6 ms) — 줄 소리는 거르개를 지난 뒤에 더해 머리에만 밝다 */
+  const pn=Math.floor(sr*0.35); for(let i=0;i<pn&&i<d.length;i++){ const t=i/sr; d[i]*=0.62+0.55*Math.exp(-t/0.09); } for(let i=pn;i<d.length;i++) d[i]*=0.62+0.55*Math.exp(-0.35/0.09);
+  const tl=Math.floor(sr*0.06), th=new Float32Array(tl), sn=new Float32Array(tl);
+  for(let i=0;i<tl;i++){ const t=i/sr; th[i]=(Math.random()*2-1)*Math.exp(-t/0.025)*Math.min(1,t/0.0015); sn[i]=(Math.random()*2-1)*Math.exp(-t/0.006); }
+  muBQ(th,sr,'bp',700,0.9); muBQ(th,sr,'lp',1400,0.7); muBQ(sn,sr,'bp',1900,1.4); muNorm(th,1); muNorm(sn,1);
+  const ka=dead?0.55:0.38, ks=dead?0.3:0.22; for(let i=0;i<tl&&i<d.length;i++){ d[i]+=th[i]*ka+sn[i]*ks; }
+  muFade(d,sr,0.0015); return muBuf(muNorm(d,dead?0.45:0.8),sr); }); }
 /* 나일론 기타 — 손가락 살로 지판 쪽을 무르게(음들이 섞이게 · 사용자 요청 2026-11-05) · 몸통 울림(105 · 220 Hz) · 2.2 kHz 위로 눅인다 · 길게 남는다 */
 function muGtrBuf(m){ return muGet('g'+m,()=>{
   const sr=MU_SR, f0=mtof(m), d=muKS(f0,3.2,2.9*Math.pow(196/f0,0.35),0.33,0.6+0.25*Math.min(1,f0/330));
   muBQ(d,sr,'peak',105,2,4); muBQ(d,sr,'peak',220,1.5,2.5); muBQ(d,sr,'lp',1900,0.6); muBQ(d,sr,'lp',3000,0.5);
   muFade(d,sr,0.005); return muBuf(muNorm(d,0.8),sr); }); }
+/* 솔로 기타(사용자 요청 2026-11-05 — '톤은 두꺼우나 높은 솔로') — 리듬 기타보다 줄 가운데 쪽을 조금 세게 뜯어 또렷하고 ·
+   몸통(110 Hz) · 두께(260 Hz) · 앞으로 나오는 결(1.2 kHz)을 세우고 · 쇳소리는 3.6 kHz 위로 눅인다 */
+function muGtrLBuf(m){ return muGet('gl'+m,()=>{
+  const sr=MU_SR, f0=mtof(m), d=muKS(f0,3.0,2.7*Math.pow(196/f0,0.3),0.24,0.5);
+  muBQ(d,sr,'peak',110,1.6,3); muBQ(d,sr,'peak',260,1.1,4); muBQ(d,sr,'peak',1200,1.2,2.5); muBQ(d,sr,'lp',3600,0.6); muBQ(d,sr,'lp',5200,0.5);
+  muFade(d,sr,0.003); return muBuf(muNorm(d,0.8),sr); }); }
 /* 프렛리스 — 둥글고 길게 우는 줄(무른 들뜸 · 오래 남는다) · '므와' 는 칠 때 거르개로 */
 function muFretBuf(m){ return muGet('f'+m,()=>{
   const sr=MU_SR, f0=mtof(m), d=muKS(f0,3.4,4.0,0.38,0.9);
@@ -206,7 +222,7 @@ function musInit(){
   MUS.dly=C.createDelay(1.5); MUS.dly.delayTime.value=0.42; MUS.dlyFb=C.createGain(); MUS.dlyFb.gain.value=0.3; MUS.dlyLp=C.createBiquadFilter(); MUS.dlyLp.type='lowpass'; MUS.dlyLp.frequency.value=2400;
   MUS.dlyG=C.createGain(); MUS.dlyG.gain.value=0; MUS.bus.connect(MUS.dlyG); MUS.dlyG.connect(MUS.dly); MUS.dly.connect(MUS.dlyLp); MUS.dlyLp.connect(MUS.dlyFb); MUS.dlyFb.connect(MUS.dly); MUS.dlyLp.connect(MUS.gain);
   MUS.ins={};
-  for(const [k,pan,g] of [['piano',-0.25,0.55],['bass',0,0.6],['gtr',-0.15,0.62],['xylo',0.2,0.5],['horn',0.12,0.42],['horn2',-0.3,0.36],['drums',0.05,0.6]]){
+  for(const [k,pan,g] of [['piano',-0.25,0.55],['bass',0,0.5],['gtr',-0.2,0.42],['gtrL',0.18,0.9],['xylo',0.2,0.5],['horn',0.12,0.42],['horn2',-0.3,0.36],['drums',0.05,0.6]]){
     const gn=C.createGain(); gn.gain.value=g; const p=C.createStereoPanner?C.createStereoPanner():null; if(p){ p.pan.value=pan; gn.connect(p); p.connect(MUS.bus); } else gn.connect(MUS.bus);
     MUS.ins[k]={g:gn, base:g}; }
   MUS.noise=A.noise;
@@ -228,7 +244,10 @@ const muHit=(k,t,v,o)=>{ if(v>0.005) muPlay(muDrumBuf(k),t,v*v*0.9,MUS.ins.drums
 function muPiano(m,t,dur,v){ m=Math.round(Math.min(100,Math.max(28,m))); muPlay(muPianoBuf(m,v<0.42?0:v<0.68?1:2),t,0.25+0.75*v*v,MUS.ins.piano.g,{dur,rel:0.24}); }
 function muBass(m,t,dur,v,dead){ m=Math.round(Math.min(64,Math.max(26,m))); muPlay(muBassBuf(m,dead),t,(dead?0.45:0.5+0.5*v)*v,MUS.ins.bass.g,{dur:dead?undefined:dur*1.08,att:0.01,rel:0.16}); }
 function muArco(m,t,dur,v){ m=Math.round(Math.min(60,Math.max(26,m))); muPlay(muFretBuf(m),t,0.55*v,MUS.ins.bass.g,{dur,att:0.22,rel:0.35,off:0.05}); }
-function muGtr(m,t,dur,v,o){ m=Math.round(Math.min(84,Math.max(40,m))); o=o||{}; muPlay(muGtrBuf(m),t,0.4+0.5*v*v,MUS.ins.gtr.g,{dur:dur*1.25,att:0.006,rel:0.3,from:o.slide?Math.pow(2,o.slide/12):0,glide:o.glide||0.07}); }
+function muGtr(m,t,dur,v,o){ o=o||{}; m=Math.round(Math.min(o.lead?90:84,Math.max(40,m)));
+  if(o.lead){ const oo={dur:dur*1.15,att:0.004,rel:0.22,from:o.slide?Math.pow(2,o.slide/12):0,glide:o.glide||0.07}, g=0.45+0.55*v*v;   // 솔로 — 제 소리 길 · 살짝 어긋난 둘째 줄을 얹어 두껍게
+    muPlay(muGtrLBuf(m),t,g,MUS.ins.gtrL.g,oo); muPlay(muGtrLBuf(m),t+0.011,g*0.38,MUS.ins.gtrL.g,Object.assign({},oo,{rate:1.0023})); return; }
+  muPlay(muGtrBuf(m),t,0.4+0.5*v*v,MUS.ins.gtr.g,{dur:dur*1.25,att:0.006,rel:0.3,from:o.slide?Math.pow(2,o.slide/12):0,glide:o.glide||0.07}); }
 function muXylo(m,t,v){ m=Math.round(Math.min(100,Math.max(60,m))); muPlay(muXyloBuf(m),t,0.25+0.75*v*v,MUS.ins.xylo.g); }
 /* 프렛리스 — '므와'(봉우리 거르개가 380 → 950 → 520 Hz) · from: 앞 음에서 미끄러져 · ham: 해머온(뜯지 않고 — 들뜬 머리를 건너뛴다) */
 function muFret(m,t,dur,v,o){
@@ -325,7 +344,7 @@ function muBar(S,t0,bi){
       const tl=muNear(c.pc,st.gl||45,40,52); st.gl=tl; const tf=tl+7>55?tl-5:tl+7;
       muGtr(c.at===0?tl:tl,T(c.at),bt*1.6,0.5); if(c.len===4) muGtr(tf,T(2),bt*1.6,0.45);
       const top=v.slice(1).map(m=>m+(m<55?12:0)), pat=(bi%2===0?[0,0.75,1.5,2.5,3.25]:[0.5,1.5,2.5,3.25]).filter(p=>p>=c.at&&p<c.at+c.len);
-      for(const p of pat) top.forEach((m,k)=>muGtr(m,T(p,0.006)+k*0.006,bt*0.45,muR(0.36,0.46)));
+      const sk=muSolo(S,bi)?0.7:1; for(const p of pat) top.forEach((m,k)=>muGtr(m,T(p,0.006)+k*0.006,bt*0.45,muR(0.36,0.46)*sk));
     }else if(CP==='gtrArp'){
       const lo=muNear(c.pc,st.gl||45,40,52); st.gl=lo; const seq=[lo,v[1]+12>76?v[1]:v[1]+12,v[2],v[3]+12>79?v[3]:v[3]+12,v[2],v[1]];
       for(let e=0;e<c.len*1.5;e++) muGtr(seq[e%seq.length],T(c.at+e*(2/3),0.01),bt*1.6,e%3?0.32:0.4);
@@ -458,16 +477,18 @@ const MU_R={
 function muRhythm(L){
   if(L.dens==='dense'){ const r=[]; const s0=Math.random()<0.35?0.5:0; for(let p=s0;p<4-1e-6;p+=0.5){ if(Math.random()<0.1) continue; if(p%1===0&&Math.random()<0.12){ r.push([p,1/3],[p+1/3,1/3],[p+2/3,1/3]); p+=0.5; continue; } r.push([p,0.5]); } return r; }
   return muPick(MU_R[L.dens]).map(x=>x.slice()); }
+const muSolo=(S,bi)=>!!(S.solo&&(bi%S.solo.every)>=S.solo.every-S.solo.len);   // 솔로 마디인가(사용자 요청 2026-11-05 — 바닷가 보사에 짧은 기타 솔로)
 function muLead(S,bar,nx,bi,T,bt,reg){
-  const L=MU_LEAD[S.lead]; if(!L) return [];
+  const key=muSolo(S,bi)?S.solo.lead:S.lead, L=MU_LEAD[key]; if(!L) return [];
   const st=MUS.st, ls=st.ld||(st.ld={phr:0,rest:2,last:Math.round((L.rng[0]+L.rng[1])/2),dir:1,motif:null,mi:0,call:[],resp:null});
+  if(ls.key!==key){ ls.key=key; ls.phr=0; ls.rest=0; ls.motif=null; ls.last=Math.round((L.rng[0]*0.4+L.rng[1]*0.6)); }   // 솔로로 들고 날 때 구를 새로
   const sh=reg*(L.ins==='xylo'?12:L.ins==='tpt'||L.ins==='alto'?5:7), lo=L.rng[0]+sh, hi=L.rng[1]+sh;
   if(ls.phr<=0){
     if(ls.rest>0){ ls.rest--;
       if(ls.resp&&ls.resp.length){ const R=ls.resp.shift(); for(const n of R) muHorn('tbn',n.m,T(n.p,0.008),n.d*bt*L.leg,n.v,{scoop:0.15}); }   // 벼랑 — 되받는 구는 쉬는 마디에
       return []; }
     ls.phr=muPick([L.phr[0],L.phr[1]]); ls.mi=0; if(Math.random()<0.5||!ls.motif) ls.motif=[]; ls.call=[]; }
-  let rhy; if(ls.motif&&ls.motif[ls.mi]&&Math.random()<0.6) rhy=ls.motif[ls.mi].map(x=>x.slice()); else { rhy=muRhythm(L); if(ls.motif) ls.motif[ls.mi]=rhy; }
+  let rhy; if(L.mix&&Math.random()<L.mix) rhy=muRhythm({dens:'dense'}); else if(ls.motif&&ls.motif[ls.mi]&&Math.random()<0.6) rhy=ls.motif[ls.mi].map(x=>x.slice()); else { rhy=muRhythm(L); if(ls.motif) ls.motif[ls.mi]=rhy; }
   ls.mi++; ls.phr--; const last=ls.phr<=0;
   if(last&&rhy.length){ const e=rhy[rhy.length-1]; e[1]=Math.max(e[1],Math.min(4-e[0],1.5)); }
   if(L.ins==='xylo'&&ls.mi===1&&Math.random()<L.gliss){                 // 실로폰 — 구 앞에서 글리산도로 쓸어 올린다
@@ -502,7 +523,7 @@ function muLead(S,bar,nx,bi,T,bt,reg){
     const gl=!tr&&n.acc&&!leg&&Math.random()<(L.gl||0);
     const ch=n.acc&&!n.orn&&Math.random()<(L.chord||0), below=ch?muScale(c,n.m-11,n.m-1,true).reverse().slice(0,L.ins==='gtr'?1:3):[];
     if(L.ins==='piano'||L.ins==='xylo'||L.ins==='gtr'){
-      const play=L.ins==='piano'?(m,tt,dd,vv)=>muPiano(m,tt,dd*1.1,vv):L.ins==='xylo'?(m,tt,dd,vv)=>muXylo(m,tt,vv):(m,tt,dd,vv,oo)=>muGtr(m,tt,dd,vv,oo);
+      const play=L.ins==='piano'?(m,tt,dd,vv)=>muPiano(m,tt,dd*1.1,vv):L.ins==='xylo'?(m,tt,dd,vv)=>muXylo(m,tt,vv):(m,tt,dd,vv,oo)=>muGtr(m,tt,dd,vv,Object.assign({lead:1},oo));
       if(gl&&L.ins!=='gtr'){ const run=muScale(c,n.m-14,n.m-1,false).slice(-muPick([5,7,9])), sp=L.ins==='xylo'?0.04:0.03;    // 쓸어 올리기
         run.forEach((m,k)=>play(m,t-(run.length-k)*sp,0.12,n.v*(0.3+0.35*k/run.length))); }
       if(tr){ const nk=Math.max(4,Math.floor(dur*0.65/step)); for(let k=0;k<nk;k++) play(k%2?up:n.m,t+k*step,step*1.6,n.v*(k%2?0.62:0.74));
@@ -568,7 +589,8 @@ function muWarm(S){
   add(28,50,m=>muBassBuf(m,false));
   if(S.bassGhost) add(28,50,m=>muBassBuf(m,true));
   if(S.bass==='fretless'||S.bass==='drone'||S.arco) add(28,60,muFretBuf);
-  if(S.comp==='bossa'||S.comp==='gtrArp'||L.ins==='gtr') add(40,80,muGtrBuf);
+  if(S.comp==='bossa'||S.comp==='gtrArp') add(40,80,muGtrBuf);
+  if(L.ins==='gtr'||S.solo) add(52,90,muGtrLBuf);
   if(L.ins==='xylo') add(60,100,muXyloBuf);
   if(/evans|academia|pad|swing|hardbop|bigband|modal/.test(S.comp)||L.ins==='piano'){ add(44,90,m=>muPianoBuf(m,0)); add(44,90,m=>muPianoBuf(m,1)); }
   /* 더 빚을 것(강세의 센 피아노 · 글리산도 · 블록 코드가 닿는 맨 낮은/높은 음) — 곡은 이것을 안 기다리고 시작한다(줄 끝에 남겨 두고 MUS.warmX 로 센다) */
