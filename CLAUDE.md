@@ -388,6 +388,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - HUD 글·스타일은 `hudT`/`hudH`/`hudS` 로(바뀔 때만 DOM — HUD 밖에서 HUD 요소의 스타일을 바꿀 때도 `hudS` · perf).
 - 짓는 동안 그리는 프레임에 무거운 것을 켜 두지 말 것(`LIGHT.live` · `propGroup` 숨김) · 자주 쓰는 새 효과 재질은 `precompPlan` 견본에 · `TITLE` 에 새 칸을 달 때 이름 겹침 금지(perf).
 - 바위 칸 · 나무 칸의 가지는 가까울 때만 빚는다 — `t.m` · `p._batch` · `p._lb` 가 null 일 수 있다 · 프레임을 잴 때는 `QUAL.on=false`(perf).
+- 음악 마스터링 — 곡의 짜임을 바꾸면 곡마다 잰 크기(`MU_RMS0`)를 다시 잴 것 · 새 악기 길은 `MUS.ins` 표에 저역 덜기와 함께(gameplay).
 - 음악(98-music.js) — 새 곡은 `MU_SONGS` 한 줄 + `MU_ORDER` · 지역은 `musicRegion` · 처음 치기 전에 표본을 미리 빚는다(`muWarm` — 새 악기 표본을 만들면 거기에도) · 시험으로 오프라인 그리기를 할 때는 `MUS.off=true`(일정이 그 소리판을 건드린다 · gameplay).
 - 새 키는 `KB_ACTS` 에 한 줄 · `kbHit`/`keys.행동` 으로 읽는다(`e.code==='KeyX'` 금지) · **한 글쇠는 한 행동만**(사용자 요청 — 범위가 달라도 같은 기본 키 금지 · `kbSet`/`kbLoad` 가 겹친 칸을 비운다) · 조작을 바꾸면 `CONTROLS_GUIDE` ↔ `KB_OV` · 일시정지 글쇠 줄은 `<div><span>글쇠</span><em>설명</em></div>` 꼴(gameplay).
 - 새 제작법은 `tier` 가 `TIER_ORDER` 에 있어야 나무에 선다 · 손에 든 것의 `ITEMS[id].tool` 은 없을 수 있다(`(…tool||{})` · gameplay).

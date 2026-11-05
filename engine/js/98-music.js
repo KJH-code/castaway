@@ -214,23 +214,37 @@ function musInit(){
   if(MUS.bus||!A.ctx||!A.master) return !!MUS.bus;
   const C=A.ctx;
   MUS.gain=C.createGain(); MUS.gain.gain.value=0; MUS.gain.connect(A.master);
-  MUS.bus=C.createBiquadFilter(); MUS.bus.type='lowpass'; MUS.bus.frequency.value=4000; MUS.bus.Q.value=0.5; MUS.bus.connect(MUS.gain);
+  /* 마스터링(2026-11-05 사용자 요청 '곡들을 잘 만들고 마스터링해 게임에 맞게'): 섞은 소리(MUS.mix — 마른 소리 + 울림 + 메아리)
+     → 묶음 압축(2.5:1 · −20 dB · 느리게 — 한 덩어리로) → 음색(90 Hz 밑 +1.5 dB 따뜻하게 · 2.8 kHz −3 dB — 발소리 · 총소리 · 안내음 자리를 비운다 · 9 kHz 위 −1.5 dB)
+     → 곡마다 크기 맞춤(MU_TRIM 고정 + 느린 자동 음량 MUS.norm) → 덕킹(다치거나 쏘면 −4 dB) → 리미터(−2 dB · 20:1 · 빠르게) → 크기(MUS.gain) */
+  MUS.lim=C.createDynamicsCompressor(); MUS.lim.threshold.value=-2; MUS.lim.knee.value=0; MUS.lim.ratio.value=20; MUS.lim.attack.value=0.002; MUS.lim.release.value=0.12; MUS.lim.connect(MUS.gain);
+  MUS.duckG=C.createGain(); MUS.duckG.connect(MUS.lim);
+  MUS.norm=C.createGain(); MUS.norm.connect(MUS.duckG);
+  MUS.an=C.createAnalyser(); MUS.an.fftSize=2048; MUS.norm.connect(MUS.an); MUS.anBuf=new Float32Array(2048);
+  let tone=MUS.norm; for(const [ty,f,q,db] of [['highshelf',9000,0.7,-1.5],['peaking',2800,0.8,-3],['lowshelf',90,0.7,1.5]]){ const b=C.createBiquadFilter(); b.type=ty; b.frequency.value=f; b.Q.value=q; b.gain.value=db; b.connect(tone); tone=b; }
+  MUS.glue=C.createDynamicsCompressor(); MUS.glue.threshold.value=-20; MUS.glue.knee.value=10; MUS.glue.ratio.value=2.5; MUS.glue.attack.value=0.02; MUS.glue.release.value=0.25; MUS.glue.connect(tone);
+  MUS.mix=C.createGain(); MUS.mix.connect(MUS.glue);
+  MUS.bus=C.createBiquadFilter(); MUS.bus.type='lowpass'; MUS.bus.frequency.value=4000; MUS.bus.Q.value=0.5; MUS.bus.connect(MUS.mix);
   MUS.rev={}; MUS.revG={};
   for(const [k,s,dk] of [['room',1.6,0],['hall',2.8,0],['cave',5.2,1]]){ const cv=C.createConvolver(); cv.buffer=muIR(s,dk); const g=C.createGain(); g.gain.value=0;
-    MUS.bus.connect(g); g.connect(cv); cv.connect(MUS.gain); MUS.rev[k]=cv; MUS.revG[k]=g; }
+    MUS.bus.connect(g); g.connect(cv); cv.connect(MUS.mix); MUS.rev[k]=cv; MUS.revG[k]=g; }
   /* 협곡의 메아리 — 0.42초 · 되먹임 0.3 · 되돌아올수록 어둡다 */
   MUS.dly=C.createDelay(1.5); MUS.dly.delayTime.value=0.42; MUS.dlyFb=C.createGain(); MUS.dlyFb.gain.value=0.3; MUS.dlyLp=C.createBiquadFilter(); MUS.dlyLp.type='lowpass'; MUS.dlyLp.frequency.value=2400;
-  MUS.dlyG=C.createGain(); MUS.dlyG.gain.value=0; MUS.bus.connect(MUS.dlyG); MUS.dlyG.connect(MUS.dly); MUS.dly.connect(MUS.dlyLp); MUS.dlyLp.connect(MUS.dlyFb); MUS.dlyFb.connect(MUS.dly); MUS.dlyLp.connect(MUS.gain);
+  MUS.dlyG=C.createGain(); MUS.dlyG.gain.value=0; MUS.bus.connect(MUS.dlyG); MUS.dlyG.connect(MUS.dly); MUS.dly.connect(MUS.dlyLp); MUS.dlyLp.connect(MUS.dlyFb); MUS.dlyFb.connect(MUS.dly); MUS.dlyLp.connect(MUS.mix);
   MUS.ins={};
-  for(const [k,pan,g] of [['piano',-0.25,0.55],['bass',0,0.5],['gtr',-0.2,0.42],['gtrL',0.18,0.9],['xylo',0.2,0.5],['horn',0.12,0.42],['horn2',-0.3,0.36],['drums',0.05,0.6]]){
-    const gn=C.createGain(); gn.gain.value=g; const p=C.createStereoPanner?C.createStereoPanner():null; if(p){ p.pan.value=pan; gn.connect(p); p.connect(MUS.bus); } else gn.connect(MUS.bus);
+  /* 악기마다 — 크기 · 저역 덜기(베이스가 아닌 것은 110 Hz 밑 · 베이스는 38 Hz 밑 웅웅거림만 · 북은 30 Hz) · 자리(좌우).
+     선율 피아노(pianoL)는 반주 피아노와 길을 갈라 위로(재 보니 선율이 반주보다 작았다) · 관악기도 조금 올림 */
+  for(const [k,pan,g,hp] of [['piano',-0.25,0.48,110],['pianoL',0.08,0.68,110],['bass',0,0.5,38],['gtr',-0.2,0.42,110],['gtrL',0.18,0.9,110],['xylo',0.2,0.5,140],['horn',0.12,0.55,120],['horn2',-0.3,0.42,90],['drums',0.05,0.6,30]]){
+    const gn=C.createGain(); gn.gain.value=g; const h=C.createBiquadFilter(); h.type='highpass'; h.frequency.value=hp; h.Q.value=0.6; gn.connect(h);
+    const p=C.createStereoPanner?C.createStereoPanner():null; if(p){ p.pan.value=pan; h.connect(p); p.connect(MUS.bus); } else h.connect(MUS.bus);
     MUS.ins[k]={g:gn, base:g}; }
   MUS.noise=A.noise;
   return true;
 }
 /* ── 치기 ── */
 function muPlay(buf,t,gain,dest,o){
-  o=o||{}; const C=A.ctx, s=C.createBufferSource(); s.buffer=buf; const g=C.createGain(); g.gain.value=0;
+  o=o||{}; const C=A.ctx; if(!(t>=C.currentTime)) t=C.currentTime;   // 앞당겨 치는 꾸밈음(글리산도)이 지난 시각으로 가지 않게
+  const s=C.createBufferSource(); s.buffer=buf; const g=C.createGain(); g.gain.value=0;
   if(o.rate) s.playbackRate.setValueAtTime(o.rate,t);
   if(o.from){ s.playbackRate.setValueAtTime(o.from*(o.rate||1),t); s.playbackRate.exponentialRampToValueAtTime(o.rate||1,t+(o.glide||0.08)); }
   const at=o.att||0.001; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(gain,t+at);
@@ -241,7 +255,7 @@ function muPlay(buf,t,gain,dest,o){
   s.start(t,o.off||0); s.stop(Math.min(t+buf.duration/(o.rate||1)+0.05,end+(o.rel||0.08)*6+0.05));
   return s; }
 const muHit=(k,t,v,o)=>{ if(v>0.005) muPlay(muDrumBuf(k),t,v*v*0.9,MUS.ins.drums.g,o); };
-function muPiano(m,t,dur,v){ m=Math.round(Math.min(100,Math.max(28,m))); muPlay(muPianoBuf(m,v<0.42?0:v<0.68?1:2),t,0.25+0.75*v*v,MUS.ins.piano.g,{dur,rel:0.24}); }
+function muPiano(m,t,dur,v,bus){ m=Math.round(Math.min(100,Math.max(28,m))); muPlay(muPianoBuf(m,v<0.42?0:v<0.68?1:2),t,0.25+0.75*v*v,MUS.ins[bus||'piano'].g,{dur,rel:0.24}); }
 function muBass(m,t,dur,v,dead){ m=Math.round(Math.min(64,Math.max(26,m))); muPlay(muBassBuf(m,dead),t,(dead?0.45:0.5+0.5*v)*v,MUS.ins.bass.g,{dur:dead?undefined:dur*1.08,att:0.01,rel:0.16}); }
 function muArco(m,t,dur,v){ m=Math.round(Math.min(60,Math.max(26,m))); muPlay(muFretBuf(m),t,0.55*v,MUS.ins.bass.g,{dur,att:0.22,rel:0.35,off:0.05}); }
 function muGtr(m,t,dur,v,o){ o=o||{}; m=Math.round(Math.min(o.lead?90:84,Math.max(40,m)));
@@ -523,7 +537,7 @@ function muLead(S,bar,nx,bi,T,bt,reg){
     const gl=!tr&&n.acc&&!leg&&Math.random()<(L.gl||0);
     const ch=n.acc&&!n.orn&&Math.random()<(L.chord||0), below=ch?muScale(c,n.m-11,n.m-1,true).reverse().slice(0,L.ins==='gtr'?1:3):[];
     if(L.ins==='piano'||L.ins==='xylo'||L.ins==='gtr'){
-      const play=L.ins==='piano'?(m,tt,dd,vv)=>muPiano(m,tt,dd*1.1,vv):L.ins==='xylo'?(m,tt,dd,vv)=>muXylo(m,tt,vv):(m,tt,dd,vv,oo)=>muGtr(m,tt,dd,vv,Object.assign({lead:1},oo));
+      const play=L.ins==='piano'?(m,tt,dd,vv)=>muPiano(m,tt,dd*1.1,vv,'pianoL'):L.ins==='xylo'?(m,tt,dd,vv)=>muXylo(m,tt,vv):(m,tt,dd,vv,oo)=>muGtr(m,tt,dd,vv,Object.assign({lead:1},oo));
       if(gl&&L.ins!=='gtr'){ const run=muScale(c,n.m-14,n.m-1,false).slice(-muPick([5,7,9])), sp=L.ins==='xylo'?0.04:0.03;    // 쓸어 올리기
         run.forEach((m,k)=>play(m,t-(run.length-k)*sp,0.12,n.v*(0.3+0.35*k/run.length))); }
       if(tr){ const nk=Math.max(4,Math.floor(dur*0.65/step)); for(let k=0;k<nk;k++) play(k%2?up:n.m,t+k*step,step*1.6,n.v*(k%2?0.62:0.74));
@@ -615,6 +629,7 @@ setInterval(()=>{
   const want=MUS.want, tgt=(want&&want===MUS.cur)?Math.max(MUS.vol,juke?0.5:0)*0.6:0;
   MUS.lvl+=(tgt-MUS.lvl)*(tgt>MUS.lvl?0.025:0.05);
   MUS.gain.gain.setTargetAtTime(MUS.lvl,now,0.05);
+  muLoud(now);
   /* 새 곡은 표본을 다 빚은 뒤에(늦어도 10초) */
   if(want!==MUS.cur&&MUS.lvl<0.01&&(!want||MUS.warmQ.length<=(MUS.warmX||0)||now>MUS.warmT)){ MUS.cur=want; if(want){ MUS.st={bl:36}; MUS.nextBar=now+0.15; MUS.bar=0; MUS.curWx=MUS.wx; muApply(MU_SONGS[want],now); } }
   if(MUS.cur&&MUS.wx!==MUS.curWx){ MUS.curWx=MUS.wx; muApply(MU_SONGS[MUS.cur],now); }
@@ -623,11 +638,31 @@ setInterval(()=>{
     while(MUS.nextBar<now+0.6){ const bt=60/(S.bpm*(MUS.curWx==='rain'?0.82:1)); try{ muBar(S,MUS.nextBar,MUS.bar); }catch(e){ console.error('음악',e); }
       MUS.nextBar+=bt*4; MUS.bar++; } }
 },40);
-/* 곡 · 날씨의 소리 길 — 거르개 · 울림 · 메아리 · 악기 크기 */
+/* 곡마다 크기 — 오프라인으로 열두 곡을 마스터 사슬까지 그려 잰 RMS 로 맞춘 고정 보정(muMasterCal) · 그 위에 느린 자동 음량이 ±4 dB 안에서 다듬는다 */
+/* 곡마다 맞출 크기(마스터 사슬의 RMS · 크기 1 일 때) — 동굴 · 물속 · 습지는 조금 작게, 협곡 · 산 · 벼랑 · 밀림은 조금 크게(게임의 결에 맞춰) */
+const MU_LOUD_T={limecave:0.13,granitecave:0.13,amethystcave:0.13,water:0.13,wetland:0.13,canyon:0.16,mountains:0.16,cliff:0.16,jungle:0.16};
+const MU_LOUD=k=>MU_LOUD_T[k]||0.15;
+/* 잰 RMS(보정 없이 · 2026-11-05 오프라인 16 초 · 날씨 보통) — 고정 보정 = 맞출 크기 ÷ 이것 */
+const MU_RMS0={coastal:0.137,conifer:0.1321,jungle:0.1537,drylands:0.1496,mountains:0.1609,cliff:0.1458,canyon:0.1882,wetland:0.0994,limecave:0.138,granitecave:0.1683,amethystcave:0.13,water:0.1565};
+const MU_TRIM={}; for(const k in MU_RMS0) MU_TRIM[k]=Math.min(2,Math.max(0.5,MU_LOUD(k)/MU_RMS0[k]));
+function muLoud(now){
+  if(!MUS.an||!MUS.cur||MUS.lvl<0.05) return;
+  MUS.an.getFloatTimeDomainData(MUS.anBuf); let s=0; const b=MUS.anBuf; for(let i=0;i<b.length;i++) s+=b[i]*b[i];
+  const r=Math.sqrt(s/b.length)/Math.max(1e-4,MUS.norm.gain.value);   // 자동 음량 앞의 크기(고정 보정 뒤 · 크기 1 기준 — 분석기는 MUS.gain 앞이다)
+  if(r>0.004){ MUS.loud=MUS.loud?MUS.loud+(r-MUS.loud)*0.012:r;         // 3초쯤에 걸쳐 · 쉬는 마디는 안 센다
+    const g=Math.min(1.6,Math.max(0.63,MU_LOUD(MUS.cur)/MUS.loud)); MUS.norm.gain.setTargetAtTime(g,now,2.0); }
+  const duck=MUS.duckT&&now-MUS.duckT<1.2?0.63:1; MUS.duckG.gain.setTargetAtTime(duck,now,duck<1?0.03:0.6);   // 다치거나 쏘면 −4 dB · 0.6초에 걸쳐 돌아온다
+}
+function musDuck(){ if(A.ctx) MUS.duckT=A.ctx.currentTime; }
+/* 곡 · 날씨의 소리 길 — 거르개 · 울림 · 메아리 · 악기 크기 · 곡 크기 */
 function muApply(S,now){
   const wx=MUS.curWx, cut=S.cut*(wx==='rain'?0.65:wx==='dry'?1.25:1);
   MUS.bus.frequency.setTargetAtTime(cut,now,0.3);
   for(const k in MUS.revG) MUS.revG[k].gain.setTargetAtTime(k===S.rv?S.rvA+(wx==='rain'?0.1:0):0,now,0.3);
   MUS.dlyG.gain.setTargetAtTime(S.echo?0.28:0,now,0.3);
   for(const k in MUS.ins){ const I=MUS.ins[k], g=(S.gain&&S.gain[k])||1; I.g.gain.setTargetAtTime(I.base*g,now,0.3); }
+  if(MUS.mix){ const key=Object.keys(MU_SONGS).find(k=>MU_SONGS[k]===S); MUS.mix.gain.setTargetAtTime(MU_TRIM[key]||1,now,0.5); MUS.loud=0; }
 }
+/* 덕킹 — 쏘거나 크게 다치면 음악을 잠깐 낮춘다(게임 소리가 먼저 · 74-icons-guns.js shoot · 80-player.js hurtPL 을 감싼다) */
+if(typeof shoot==='function'){ const _mSh=shoot; shoot=function(){ musDuck(); return _mSh.apply(this,arguments); }; }
+if(typeof hurtPL==='function'){ const _mHu=hurtPL; hurtPL=function(d){ if(d>=5) musDuck(); return _mHu.apply(this,arguments); }; }
