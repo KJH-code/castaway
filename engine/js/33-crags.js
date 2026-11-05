@@ -27,21 +27,24 @@
 const CRAG={T:320, S:80, MID:60, NEAR:140, FAR:720, DROP:1050, tiles:new Map(), cols:[], cg:new Map(), ix:new Map(), n:0, blobs:0, shapes:null, mat:null, matFar:null, t:0, F:15, BK:10, slope:0};
 function cragMat(){
   if(CRAG.mat) return CRAG.mat;
-  const m=rockMat('granite',0x7a7872); m.vertexColors=true;
+  const m=rockMat('granite',0x7a7872); m.vertexColors=true; m.userData.rkU.uRkGeo.value=1;   // 그 자리 지질도대로 사진 · 빛깔(37-geo-meshes.js geolBuild)
   m.defines=Object.assign({},m.defines,{RK_OFS:1});   // 덩이마다 무늬를 비킨다(20-terrain.js rockMat)
+  m.side=THREE.DoubleSide;   // Meshy 꼴을 줄이며 생긴 틈 · 열린 밑면으로 속(하늘)이 보였다(2026-11-05 사용자 지적: 바위에 구멍)
   if(m.userData.rkU) m.userData.rkU.uRkCrack.value=0.14;   // 금은 드물고 옅게(그물처럼 친 금이 지그재그로 보였다 — 사용자 지적 2026-11-04)
   return CRAG.mat=m;
 }
 function cragMatFar(){
   if(CRAG.matFar) return CRAG.matFar;
-  const m=new THREE.MeshLambertMaterial({color:0x6f6d66,vertexColors:true}); m.userData.melt=0.5; m.userData.meltAttr=true;
+  const m=new THREE.MeshLambertMaterial({color:0x6f6d66,vertexColors:true}); m.userData.melt=0.5; m.userData.meltAttr=true; m.side=THREE.DoubleSide;
   /* 먼 바위(140 m 밖)도 **바위 사진**을 입는다(사용자 요청) — 가까운 재질(rockMat)과 같은 잡음으로 같은 장을 고르되, 섞지 않고 많이 섞인 쪽
      한 장만 세 방향으로 읽는다(법선 지도 · 이끼 · 금은 없다 — 멀어서 안 보인다). 메시는 세계 좌표로 합쳐져 있어 정점의 자리·법선이 곧 세계 값이다 */
   if(TERR_U.uRk){
     m.onBeforeCompile=sh=>{
-      sh.uniforms.uRk=TERR_U.uRk;
+      sh.uniforms.uRk=TERR_U.uRk; sh.uniforms.uGeo=TERR_U.uGeo; sh.uniforms.uBioN=TERR_U.uBioN; sh.uniforms.uCell=TERR_U.uCell;
       sh.vertexShader='varying vec3 vFW;\nvarying vec3 vFN;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvFW=(modelMatrix*vec4(transformed,1.0)).xyz; vFN=normal;');
       sh.fragmentShader=`uniform mediump sampler2DArray uRk;
+uniform float uBioN, uCell;
+${GEOL_GLSL}
 varying vec3 vFW;
 varying vec3 vFN;
 float frh(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
@@ -50,13 +53,13 @@ float frn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
              mix(mix(frh(i+vec3(0,0,1)),frh(i+vec3(1,0,1)),f.x),mix(frh(i+vec3(0,1,1)),frh(i+vec3(1,1,1)),f.x),f.y),f.z); }
 `+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
         { vec3 p=vFW, n=normalize(vFN), tw=pow(abs(n),vec3(4.0)); tw/=tw.x+tw.y+tw.z+1e-4;
-          float sel=clamp(frn(p/11.0+vec3(3.1,0.7,7.7))*1.3-0.15,0.0,0.999)*4.0, ia=floor(sel);
-          float L=fract(sel)<0.5?(ia>2.5?ia+1.0:ia):(ia>1.5?ia+2.0:ia+1.0); vec3 q=fract(sel)<0.5?p/1.7:(p/1.7)*0.83+vec3(0.37,0.11,0.59);
+          vec4 gw=geoW(p.xz); float la, lb; geoLay(geoPick(gw,frn(p/9.0+vec3(3.1,0.7,7.7))*0.7+0.15),la,lb);   // 그 자리 지질도대로(가까운 재질과 같은 갈래)
+          bool sb=frn(p/7.0+vec3(5.3,1.9,0.4))>0.5; float L=sb?lb:la; vec3 q=sb?(p/1.7)*0.83+vec3(0.37,0.11,0.59):p/1.7;
           vec3 rk=texture(uRk,vec3(q.zy,L)).rgb*tw.x+texture(uRk,vec3(q.xz,L)).rgb*tw.y+texture(uRk,vec3(q.xy,L)).rgb*tw.z;
-          rk=mix(vec3(dot(rk,vec3(0.30,0.59,0.11))),rk,0.45);                // 가까운 재질과 같이 빛깔을 반쯤만
-          diffuseColor.rgb*=mix(vec3(1.0),rk*2.0,0.85)*0.93; }`);
+          rk=mix(vec3(dot(rk,vec3(0.30,0.59,0.11))),rk,geoSat(gw));
+          diffuseColor.rgb*=mix(vec3(1.0),rk*2.0,0.85)*0.93*geoTint(gw); }`);
     };
-    m.customProgramCacheKey=()=>'cragfar-rk';
+    m.customProgramCacheKey=()=>'cragfar-rk2';
   }
   return CRAG.matFar=m;
 }
@@ -154,7 +157,7 @@ function cragCollide(x,z,R){
   for(let rr=R-6;rr>4;rr-=9){ const n=Math.ceil(6.283*rr/8); for(let i=0;i<n;i++){ const a=i/n*6.283; C.push(x+Math.cos(a)*rr,z+Math.sin(a)*rr,6); } }
 }
 /* 무리 하나를 기른다 — 바위 한 덩이는 수 15 개: 자리 3 · 반지름 3 · 돌림 3(기울임 x · 방위 · 기울임 z) · 단계 · 꼴 벌 · 빛깔 3 · 녹아드는 높이 */
-const CRAG_TINT=[[1.06,1.00,0.90],[0.92,0.97,1.06],[1.00,0.90,0.80],[1.08,1.07,1.02],[0.86,0.88,0.86]];
+const CRAG_TINT=[[1.03,1.00,0.96],[0.97,0.99,1.02],[1.01,0.97,0.93],[1.04,1.03,1.01],[0.93,0.94,0.93]];   // 덩이 빛깔은 아주 조금만 — 바위 갈래의 빛깔은 지질도가 정한다(2026-11-05 사용자 지적: 너무 알록달록하다)
 function cragGrow(s,B){
   const rnd=mulberry32(s.seed>>>0), dx=s.dx, dz=s.dz, tx=-dz, tz=dx;                 // 내리막 · 등고선
   const r0=CELL*(0.55+0.75*rnd()*rnd())*(rnd()<0.10?1.6:1), type=(rnd()*4)|0, side=rnd()<0.5?1:-1;
@@ -238,6 +241,7 @@ function cragSites(seed){
     if(occ[i-1]||occ[i+1]||occ[i-N]||occ[i+N]) continue;                              // 무리끼리 한 칸은 띄운다
     const wx=(x-N/2+(rnd()-0.5)*0.6)*CELL, wz=(z-N/2+(rnd()-0.5)*0.6)*CELL, sd=(rnd()*1e9)|0;
     if(caveAt(wx,wz,CELL)) continue;
+    if(P.sm&&geoNear(wx,wz)) continue;                                                // 큰 지형 모형(산 · 협곡 벽 · 시스택)의 자락엔 안 쌓는다 — 모형 앞에 검은 상자 더미가 섰다(2026-11-05 · 난수는 다 뽑은 뒤)
     const gx=F.elev[i+1]-F.elev[i-1], gz=F.elev[i+N]-F.elev[i-N], gl=Math.hypot(gx,gz)||1;
     const k=(Math.floor(wx/T)+512)*1024+(Math.floor(wz/T)+512);
     let t=CRAG.tiles.get(k); if(!t) CRAG.tiles.set(k,t={cx:(Math.floor(wx/T)+0.5)*T,cz:(Math.floor(wz/T)+0.5)*T,r:T*0.75,b:[],near:null,far:null});
@@ -297,7 +301,7 @@ function cragIndex(t){
   const B=t.b, S=cragShapes(), F_=CRAG.F, BK=CRAG.BK, IX=CRAG.ix;
   for(let o=0;o<B.length;o+=F_){
     _crE.set(B[o+6],B[o+7],B[o+8]); _crQ.setFromEuler(_crE); _crM.makeRotationFromQuaternion(_crQ); const e=_crM.elements;
-    const rx=B[o+3], ry=B[o+4], rz=B[o+5], br=Math.max(rx,ry,rz)*1.55;
+    const rx=B[o+3], ry=B[o+4], rz=B[o+5], br=Math.max(rx,ry,rz)*1.75;
     const r={x:B[o],y:B[o+1],z:B[o+2],rx,ry,rz,br2:br*br,sh:S[B[o+9]][B[o+10]][1],t,o,
              m:[e[0],e[1],e[2],e[4],e[5],e[6],e[8],e[9],e[10]]};                  // 돌림 행렬의 세 열
     const x0=Math.floor((r.x-br)/BK), x1=Math.floor((r.x+br)/BK), z0=Math.floor((r.z-br)/BK), z1=Math.floor((r.z+br)/BK);
@@ -317,7 +321,7 @@ function cragSpan(x,z){
     const m=r.m, wy=-r.y;                                 // 선의 한 점(세계 높이 0)과 방향(위)을 덩이 좌표로 — 돌림을 되돌리고 반지름으로 나눈다
     const ox=(m[0]*wx+m[1]*wy+m[2]*wz)/r.rx, oy=(m[3]*wx+m[4]*wy+m[5]*wz)/r.ry, oz=(m[6]*wx+m[7]*wy+m[8]*wz)/r.rz;
     const dx=m[1]/r.rx, dy=m[4]/r.ry, dz=m[7]/r.rz;
-    { const dd=dx*dx+dy*dy+dz*dz, od=ox*dx+oy*dy+oz*dz, c2=ox*ox+oy*oy+oz*oz-od*od/dd; if(c2>2.6) continue; }   // 단위 꼴(반지름 1.6 안)을 스치지도 않는다
+    { const dd=dx*dx+dy*dy+dz*dz, od=ox*dx+oy*dy+oz*dz, c2=ox*ox+oy*oy+oz*oz-od*od/dd; if(c2>3.1) continue; }   // 단위 꼴(반지름 1.76 안 — 상자 [−1,1]³ 의 모서리까지)을 스치지도 않는다
     const P=r.sh.pos, I=r.sh.idx; let lo=1e9, hi=-1e9, hn=1;
     for(let q=0;q<I.length;q+=3){
       const a=I[q]*3, b=I[q+1]*3, c=I[q+2]*3;
@@ -333,6 +337,7 @@ function cragSpan(x,z){
         const wxn=m[0]*nx+m[3]*ny+m[6]*nz, wyn=m[1]*nx+m[4]*ny+m[7]*nz, wzn=m[2]*nx+m[5]*ny+m[8]*nz, l=Math.hypot(wxn,wyn,wzn)||1;
         hn=Math.abs(wyn)/l; }
     }
+    if(hi>-1e8&&hi-lo<0.05) lo=Math.min(lo,r.y-r.ry);   // 한 면만 맞았다 — 밑면이 열린 꼴(Meshy 모형 · 줄이며 생긴 틈). 예전엔 구간이 없다고 쳐 사람이 바위를 뚫고 지나갔다(2026-11-05 사용자 지적)
     if(hi>lo){ const s=_cgS[n]||(_cgS[n]={b:0,t:0,sl:0,u:false,r:null}); s.b=lo; s.t=hi; s.sl=Math.sqrt(Math.max(0,1-hn*hn))/Math.max(hn,0.02); s.u=false; s.r=r; n++; }
   }
   return n;
@@ -355,23 +360,24 @@ function cragMesh(t,lod){
   const B=t.b, S=cragShapes(), F_=CRAG.F; let nv=0, ni=0;
   const fine=lod===1?1:0;
   for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue; const sh=S[lv][B[o+10]][fine]; nv+=sh.pos.length/3; ni+=sh.idx.length; }
-  const pos=new Float32Array(nv*3), nor=new Float32Array(nv*3), col=new Float32Array(nv*3), mel=new Float32Array(nv), idx=new Uint32Array(ni);
+  const pos=new Float32Array(nv*3), nor=new Float32Array(nv*3), col=new Float32Array(nv*3), mel=new Float32Array(nv), ofs=new Float32Array(nv), idx=new Uint32Array(ni);
   let v=0, q=0;
   for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue;
     const sh=S[lv][B[o+10]][fine], sp=sh.pos, sn=sh.nor, si=sh.idx, n=sp.length/3;
     _crE.set(B[o+6],B[o+7],B[o+8]); _crQ.setFromEuler(_crE); _crM.makeRotationFromQuaternion(_crQ); const e=_crM.elements;
     const X=B[o], Y=B[o+1], Z=B[o+2], rx=B[o+3], ry=B[o+4], rz=B[o+5], cr=B[o+11], cg=B[o+12], cb=B[o+13], ml=B[o+14];
+    const of=((Math.imul(Math.round(X*7)|0,374761393)^Math.imul(Math.round(Z*7)|0,668265263))>>>0)/4294967296;   // 덩이마다 무늬를 비킬 값(한 덩이 안은 같다 — rockMat RK_OFS)
     for(let i=0;i<n;i++){ const a=i*3, c=(v+i)*3;
       const x=sp[a]*rx, y=sp[a+1]*ry, z=sp[a+2]*rz;
       pos[c]=e[0]*x+e[4]*y+e[8]*z+X; pos[c+1]=e[1]*x+e[5]*y+e[9]*z+Y; pos[c+2]=e[2]*x+e[6]*y+e[10]*z+Z;
       const nx=sn[a]/rx, ny=sn[a+1]/ry, nz=sn[a+2]/rz; let wx=e[0]*nx+e[4]*ny+e[8]*nz, wy=e[1]*nx+e[5]*ny+e[9]*nz, wz=e[2]*nx+e[6]*ny+e[10]*nz; const l=Math.hypot(wx,wy,wz)||1;
       nor[c]=wx/l; nor[c+1]=wy/l; nor[c+2]=wz/l;
-      const mt=(0.95+0.10*(((i*2654435761)>>>0)&255)/255)*(sh.cav?sh.cav[i]:1); col[c]=cr*mt; col[c+1]=cg*mt; col[c+2]=cb*mt; mel[v+i]=ml; }
+      const mt=(0.95+0.10*(((i*2654435761)>>>0)&255)/255)*(sh.cav?sh.cav[i]:1); col[c]=cr*mt; col[c+1]=cg*mt; col[c+2]=cb*mt; mel[v+i]=ml; ofs[v+i]=of; }
     for(let i=0;i<si.length;i++) idx[q+i]=v+si[i];
     v+=n; q+=si.length; }
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
-  g.setAttribute('color',new THREE.BufferAttribute(col,3)); g.setAttribute('aMelt',new THREE.BufferAttribute(mel,1));
+  g.setAttribute('color',new THREE.BufferAttribute(col,3)); g.setAttribute('aMelt',new THREE.BufferAttribute(mel,1)); g.setAttribute('aOfs',new THREE.BufferAttribute(ofs,1));
   g.setIndex(new THREE.BufferAttribute(idx,1)); g.computeBoundingSphere();
   const m=new THREE.Mesh(g,lod?cragMat():cragMatFar()); m.matrixAutoUpdate=false; m.updateMatrix(); m.visible=false; scene.add(m);
   return m;

@@ -252,7 +252,7 @@ function buildCaves(){
         const d=R-0.5-rnd()*1.3, bx=rm.x+Math.cos(a)*d, bz=rm.z+Math.sin(a)*d;
         for(let j=0,m=4+((rnd()*6)|0);j<m;j++){ const x=bx+(rnd()-0.5)*0.9, z=bz+(rnd()-0.5)*0.9, r=0.06+rnd()*0.11, hy=heightAt(x,z), s0=SP.length, c0=SC.length, t0=SI.length;
           shroom(x,hy,z,r,0.10+rnd()*0.22+r,rnd()*0.35,rnd()*6.283);
-          if(TV9&&caveIn(x,hy+0.05,z,null)){ SP.length=s0; SC.length=c0; SI.length=t0; } }   // 지형 판 9 — 벽 바위 속에 돋은 것은 버린다(난수는 다 뽑고)
+          if((TV9&&caveIn(x,hy+0.05,z,null))||underPitNear(x,z,3.6)){ SP.length=s0; SC.length=c0; SI.length=t0; } }   // 구멍 둘레도 비운다(96-underworld.js)   // 지형 판 9 — 벽 바위 속에 돋은 것은 버린다(난수는 다 뽑고)
         GP.push(bx,heightAt(bx,bz)+0.22,bz); GA.push(1.9,rnd(),0.34); GN.push(0,1,0); GS.push(null); }
       lamps.push([rm.x,rm.y+2.6,rm.z,R+8]);
     }
@@ -264,7 +264,7 @@ function buildCaves(){
       if(TV9){ if(DRIP[q*4+3]>-0.55||cy0-fy<2.6||caveIn(x,cy0-0.4,z,DS[q])) continue;
         const len=Math.min(0.5+1.4*rnd()*rnd(),cy0-fy-2.1), r0=0.07+0.05*len+0.05*rnd();
         spike(x,cy0+0.35,z,len+0.35,r0,1,1.25,0.02);
-        if(rnd()<0.66){ const h2=0.25+0.6*rnd(), r2=0.12+0.10*h2+0.05*rnd(); spike(x+(rnd()-0.5)*0.15,fy-0.12-r2*0.6,z+(rnd()-0.5)*0.15,h2+0.12+r2*0.6,r2,-1,1.18,0.25); }
+        if(rnd()<0.66){ const h2=0.25+0.6*rnd(), r2=0.12+0.10*h2+0.05*rnd(), sx=x+(rnd()-0.5)*0.15, sz=z+(rnd()-0.5)*0.15; if(!underPitNear(sx,sz,3.6)) spike(sx,fy-0.12-r2*0.6,sz,h2+0.12+r2*0.6,r2,-1,1.18,0.25); }
         continue; }
       const len=Math.min(0.6+1.3*rnd()*rnd(),Math.max(0.3,cy0-fy-2.0)), r=0.10+0.10*rnd();
       rock(x,cy0-len*0.42,z,r,len*0.5/r,0.02,1.25);

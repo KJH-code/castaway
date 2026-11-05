@@ -1,7 +1,8 @@
 """tools/geo-mesh.py — Meshy STL(바위 · 벼랑 · 봉우리) → 본편 자료 engine/js/data-geo-meshes.js
 쓰는 법: python3 tools/geo-mesh.py meshes/*.stl [Meshy_AI_Rugged_Granite_Boulder_*.stl]
  · STL 은 Z 위 · 높이 50 · 밑면 z=0 (Meshy 내보내기) → Y 위로 돌린다 · 높이 1 로 줄인다(게임이 키운다)
- · 줄이기는 격자 꼭짓점 묶기(numpy 만 — 칸 안의 점을 평균 하나로) · 두 단계: 가까이(near ~16k 세모) · 멀리(far ~2.5k)
+ · 줄이기는 격자 꼭짓점 묶기(numpy 만 — 칸 안의 점을 평균 하나로) · 단계: 가까이(near ~16k 세모) · 멀리(far ~2.5k) · 아주 멀리(tiny ~600)
+   · 봉우리(이름에 peak)는 곁에서 볼 가장 고운 단계(ultra ~60k · 꼭짓점 65,536 밑이라 번호 16비트)를 하나 더(2026-11-05 — 가까이 가면 15 m 면이 보였다)
  · 정점마다 오목한 정도(aCav 0~255 — 이웃 평균이 법선 반대쪽이면 틈) — 셰이더가 갈라진 틈을 짙게 칠한다
  · 자리 16비트(밑면 기준 상자 안) · 번호 16/32비트 → base64 · 원본 STL 은 레포에 안 담는다(.gitignore)"""
 import numpy as np, sys, os, base64, json, re
@@ -52,6 +53,10 @@ for p in sys.argv[1:]:
     name=re.sub(r'^Meshy_AI_|_\d{8}_generate\.stl$','',os.path.basename(p)).lower()
     V=load(p); near=fit(V,16000); far=fit(V,2500); tiny=fit(V,600)
     out[name]={'near':pack(*near),'far':pack(*far),'tiny':pack(*tiny),'w':[round(float(x),4) for x in (V.max(0)-V.min(0))]}
+    if 'peak' in name:
+        ul=fit(V,60000)
+        while len(ul[0])>=65536: ul=fit(V,len(ul[1])*0.9)
+        out[name]['ultra']=pack(*ul); print('  ultra',len(ul[1]),'verts',len(ul[0]))
     print(name,'tris',len(V)//3,'-> near',len(near[1]),'far',len(far[1]),'tiny',len(tiny[1]),'size(w,h,d)',out[name]['w'])
 js='/* data-geo-meshes.js — tools/geo-mesh.py 가 Meshy STL 에서 만든다(읽지 말 것 · base64) — 37-geo-meshes.js 가 푼다 */\nconst GEO_MESH_DATA='+json.dumps(out,separators=(',',':'))+';\n'
 open('engine/js/data-geo-meshes.js','w').write(js); print('bytes',len(js))

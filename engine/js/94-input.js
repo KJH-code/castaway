@@ -240,7 +240,7 @@ document.getElementById('bOpt').onclick=()=>toggleCfg(true);
 document.getElementById('bCfgX').onclick=()=>toggleCfg(false);
 document.getElementById('bKeys').onclick=()=>kbwToggle(true);   // 키 창(93-keys.js)
 /* 소리 — 일시정지 · 창을 내리면 멈추고, 계속하면 다시 낸다 */
-function audioPause(on){ if(!A.ctx) return; try{ on?A.ctx.suspend():A.ctx.resume(); }catch(e){} }
+function audioPause(on){ if(!A.ctx) return; if(on&&typeof MUS!=='undefined'&&MUS.juke&&!document.hidden&&!winHidden) return; try{ on?A.ctx.suspend():A.ctx.resume(); }catch(e){} }   // 음악 듣기(98-music.js) 중이면 멈춘 동안에도 소리를 둔다
 let winHidden=false;           // 데스크톱 판에서 창을 내렸나(브라우저는 document.hidden 이 알려 준다)
 document.addEventListener('visibilitychange',()=>{ if(document.hidden) audioPause(true); else if(!paused&&!winHidden) audioPause(false); });
 /* 창이 **앞에 있지 않으면** 놀이를 멈추고 소리를 끈다 — 예전엔 창이 가려지지만 않으면(다른 앱을 쓰는 동안에도) 바람·파도 소리가

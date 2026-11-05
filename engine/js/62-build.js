@@ -139,6 +139,7 @@ function floorAt(x,z,fromY){
   if(fromY!==undefined&&CV10.built.size){ const q=caveHere(x,z,fromY); if(q) return q.f; }   // 지형 판 10 굴 빈 데 — 굴 바닥(지은 바닥 · 큰 바위 윗면은 굴 속에 없다 · 80-player.js)
   let t=h0+giantRootAt(x,z);                    // 노거수의 뿌리는 땅이다(95-giants.js)
   t=cragFloor(x,z,fromY,t);                     // 벼랑의 큰 바위 — 낮으면 딛고 높으면 벽이다(33-crags.js)
+  { const gf=geoFloor(x,z); if(gf>t){ t=gf; CRAG.slope=GEO_LF.slope; } }   // 큰 지형 모형(산 · 협곡 벽 · 시스택)의 참 윗면 — 땅은 그 밑에 묻혀 있다(37-geo-meshes.js)
   t=coastFloor(x,z,fromY,t);                    // 주상절리 기둥 위(34-coast.js)
   const gx=Math.round(x/CELL_B), gz=Math.round(z/CELL_B);
   { const pd=PADS.get(fkey(gx,gz)); if(pd&&pd.y>t&&(fromY===undefined||pd.y<=fromY+0.6)) t=pd.y; }   // 다진 터 — 발이 닿는 높이면 그 위를 딛는다

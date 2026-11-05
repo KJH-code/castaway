@@ -402,7 +402,7 @@ async function generateWorld(){
                                     await breathe(); shapeSeabed(seed);      // 바다 바닥의 기복 — 뭍·자원을 다 정한 **뒤에**(같은 시드의 섬은 그대로다)
                                     templeSeaSite(seed);                     // 해구 가장자리의 해저 신전(97-temples.js · 지형 판 8)
                                     mobsSites(seed);                         // 다지류의 둥지 — 우거진 숲 곁의 굴(97-mobs.js · 지형 판 8 · 그 굴은 불빛이 없다)
-  await phase('지형 메시',90);      buildBioTex(); await breathe(); buildChunks(); await breathe(); buildWater();
+  await phase('지형 메시',90);      buildBioTex(); geolBuild(); await breathe(); buildChunks(); await breathe(); buildWater();
   await phase('자원 배치',96);      await placeProps_(seed);
                                     /* 다 지을 때까지 소품·나무는 안 그린다 — 칸을 켜고 끄는 updateTileVis 는 멈춘 동안(짓는 중·
                                        시작 화면) 안 돌아서, 갓 지은 칸 메시가 전부 켜진 채(섬 전체 나무가 가까운 단계로) 그려졌다.
