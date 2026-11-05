@@ -92,7 +92,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `34-coast.js` | 바닷가 — 시스택·해식 아치·주상절리(`coastFloor` · `coastSolid`) |
 | `35-geo.js` | 지열 지대(전역 이름 `GEOT` — `GEO` 는 64-dex.js 것이다. 겹치면 그 파일이 통째로 안 읽힌다) |
 | `36-falls.js` | 폭포·연어 · 저수지 폭포 `fallsCarve` |
-| `37-geo-meshes.js` · `data-geo-meshes.js` | 큰 지형 모형(사용자 Meshy STL → `tools/geo-mesh.py`) — 산맥 · 눈 덮인 봉우리 · 협곡 · 시스택을 표고에 찍고(`geoStamp`) 모형으로 그린다 · 모형 윗면을 딛는다(`geoFloor`) · **지질도** `geolBuild`/`geolAt`(바위 갈래) · `docs/notes/terrain.md` · 자료는 base64 — 읽지 말 것 |
+| `37-geo-meshes.js` · `data-geo-meshes.js` | 큰 지형 모형(사용자 Meshy STL → `node tools/geo-mesh.mjs meshes/*.stl` — QEM 으로 줄임 · 구멍 0) — 산맥 · 눈 덮인 봉우리 · 협곡 · 시스택을 표고에 찍고(`geoStamp` · 드러난 칸은 땅을 안 그린다 `GEO_LF.mask`) 각진 모형으로 그린다 · 모형 윗면을 딛는다(`geoFloor`) · 봉우리 겉의 프랙탈 조각 `GEO_DT` · **지질도** `geolBuild`/`geolAt`(바위 갈래) · `docs/notes/terrain.md` · 자료는 base64 — 읽지 말 것 |
 | `40-light.js` | `LIGHT`(배역 · 해 그림자 · 점·집중광 예산 · 불빛 풀 `addFire`) · `renderFrame` |
 | `41-terrain-light.js` | 섬 크기의 빛 텍스처 `TLIT`(산 그림자 · 하늘 트임 · 숲 덮임) · `envPatch` |
 | `45-sky.js` | `SKY` · 날씨 `updateWeather` · 구름 `updateClouds`/`litQueue` · `SKY_LUT` · `updateSky` — `beta/cloud_arena.html` 의 원본 |
@@ -125,6 +125,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `97-wyvern.js` | 애쉬스케일(`wyvMake`) |
 | `98-dew.js` · `98-bag.js` | 이슬 · 가방 화면 |
 | `98-music.js` | 지형마다 한 곡(열두 곡 — 화성 진행 · 리듬 꼴만 정하고 즉석에서 짓는다) · 악기 표본 빚기(피아노 배음 · 줄 · 실로폰 · 북) · 관악기 합성 · 날씨(맑음 · 비) · 음악 듣기(설정 창 `pJuke`) — `docs/notes/gameplay.md` |
+| `98-savanna.js` | 사바나 풀밭 `SAV` — 덤불 땅 · 메마른 풀밭의 빽빽한 금빛 풀(사람 둘레 110 m · 바람 물결 · 뽑으면 풀잎) |
 | `98-surface.js` | 땅속에 완전히 들어가 있는 동안 땅 위를 가림(`SURF` · `surfList`) |
 | `99-main.js` | `loop` · 게임을 켜는 줄 |
 
@@ -371,6 +372,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 큰 바위 꼴(`cragShape`)이나 덩이의 돌림·늘림을 바꾸면 메시(`cragMesh`)와 충돌(`cragIndex`·`cragSpan`)이 같은 값을 쓰는지 볼 것 · 비탈에 놓는 것은 묻거나 눕힌다(`groundSlope` · terrain).
 - 새 광물은 `PROP_FOOT` 에도 한 줄(겹침 정리 `resolveOverlaps` — 시드 난수를 다 뽑은 뒤 난수 없이 고친다) · 상륙 자리는 시드로 정한다(`LANDING` — `Math.random` 금지 · terrain).
 - 광원은 `LIGHT.addPoint`/`addSpot`(켜고 끄는 불은 `addFire`)으로 — `decay` 2 · 세기 1.8배. 광원 수(보이는 것 · 그림자)가 바뀌면 모든 재질을 다시 짠다 → 끌 때는 `visible` 대신 세기 0(light).
+- 큰 지형 모형 위에 무엇을 놓으면 `geoGround(x,z,heightAt)`(땅은 모형 밑에 묻혀 있고 드러난 칸은 그리지도 않는다 — 땅 화소를 버리는 셰이더는 `TERR_HOLE` 을 거칠 것) · 모형 자료는 `node tools/geo-mesh.mjs`(QEM — 구멍 0 을 찍는다) · 인스턴스 메시는 비면 `visible=false`(0 개여도 그리기 호출이 든다 · perf) · 가까이 가야 생기는 재질은 `precompPlan` 에(바위 칸 `ROCK_KINDS` 처럼 — 처음 다가갈 때 0.2~0.4 초 멈춘다 · perf).
 - 바위 갈래는 지질도(`TERR_U.uGeo` · `geolBuild` — 37-geo-meshes.js)가 정한다 — 읽는 쪽(`GEOL_GLSL`: 땅 셰이더 벼랑 면 · `rockMat` 의 uRkGeo · `cragMatFar` · `geoMat` 큰 결)의 갈래 → 사진 · 빛깔 표를 같이 · 판 깊이 · 자원 갈래 문턱을 바꾸면 `surfaceRocks` · `cv10Kind` 와 맞출 것(terrain).
 - `RK_OFS`(cragMat) 무늬 비킴은 덩이마다 같은 `aOfs`(cragMesh) — 정점 빛깔로 비키지 말 것(오목함이 무늬를 끌어 늘인다) · 큰 지형 모형 위는 `geoFloor` 가 딛는 높이(`floorAt`) — 땅은 모형 밑 1.2 m 에 묻혀 있다(terrain).
 - 굴 속 빛·바닥(`CAVE_GLSL` — 32-caves.js)은 envPatch 의 해·하늘빛 두 줄 · 녹아들기 빛깔 · 땅 셰이더(`#ifdef CAVE_ON` 의 `cvF`)가 같이 읽는다 — 그 줄을 바꾸거나 땅을 새로 그리는 셰이더를 만들면 같이 · 굴 불빛은 불빛 풀이 아니라 셰이더(`uCvB.w`)다(terrain).

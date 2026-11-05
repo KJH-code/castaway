@@ -277,6 +277,12 @@ function precompPlan(){
     P.gc.setAttribute('position',new THREE.Float32BufferAttribute(z9,3)); P.gc.setAttribute('normal',new THREE.Float32BufferAttribute(z9.slice(),3));
     P.gc.setAttribute('color',new THREE.Float32BufferAttribute(z9.slice(),3)); P.gc.setAttribute('aMelt',new THREE.Float32BufferAttribute(new Float32Array(3),1)); }
   if(typeof cragMat==='function') for(const m of [cragMat(),cragMatFar()]){ envPatch(m); lit.set(m.id+'|false|false|3',{m,inst:false,ic:false,g:P.gc}); }
+  /* 바위 소품 칸의 재질(30-props.js ROCK_MAT — 종류마다 하나 · 칸은 가까이 가야 생긴다) — 처음 다가갈 때 rock-u3 · rock-u4 가 짜이며 0.2~0.4 초 멈췄다
+     (2026-11-05 벤치마크에서 새로 짜인 셰이더를 적어 보니 이것이었다). 칸과 같은 꼴(자리 · 법선 · aMelt · 정점 빛깔 없음)로 미리 짠다 */
+  if(typeof ROCK_MAT!=='undefined'&&ROCK_KINDS){
+    if(!P.gr){ P.gr=new THREE.BufferGeometry(); const z9=new Float32Array(9);
+      P.gr.setAttribute('position',new THREE.Float32BufferAttribute(z9,3)); P.gr.setAttribute('normal',new THREE.Float32BufferAttribute(z9.slice(),3)); P.gr.setAttribute('aMelt',new THREE.Float32BufferAttribute(new Float32Array(3),1)); }
+    for(const R of RESOURCES){ if(!ROCK_KINDS[R.k]) continue; if(!ROCK_MAT[R.k]) ROCK_MAT[R.k]=rockMat(R.k,R.c); const m=ROCK_MAT[R.k]; envPatch(m); lit.set(m.id+'|false|false|0',{m,inst:false,ic:false,g:P.gr}); } }
   if(typeof dewInit==='function'&&!DEWD.mesh&&scene) dewInit();
   /* 아직 장면에 없을 수 있는 것 — 모든 불이 나눠 쓰는 불꽃 재질(fireMats)과 총구 불. 첫 불·첫 발에 짜이던 것이다 */
   if(!P.g0) P.g0=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));
@@ -410,7 +416,7 @@ async function generateWorld(){
                                     propGroup.visible=false;
   await phase('상륙 준비',99);      cacheMap(); spawnPlayer(); await breathe(); buildFarTrees(); boundTiles(); await breathe(); freezeStatics();
                                     await breathe(); RUBBLE.seed=seed|0; updateRubble(true);     // 자갈밭의 돌을 사람 둘레에 깐다
-                                    await breathe(); floraReset(seed); await giantsBuild();             // 노거수 — 뿌리가 땅이 되는 큰 나무(군락이 정한 자리)
+                                    await breathe(); floraReset(seed); savBuild(); await giantsBuild();             // 노거수 — 뿌리가 땅이 되는 큰 나무(군락이 정한 자리)
                                     await breathe(); underBuild();                                // 수직굴의 구멍·밧줄·굴뚝 · 땅속 그리기 묶음(96-underworld.js)
                                     await floraFarBuildA(); await breathe(); updateFlora(true);                           // 군락의 나무·덤불을 사람 둘레에 깐다
                                     await breathe(); tlitBuild();                                 // 섬 크기의 빛 — 산 그림자·하늘 트임·숲 덮임(41-terrain-light.js)

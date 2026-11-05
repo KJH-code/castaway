@@ -22,3 +22,7 @@ beta/builds/
 meshes/
 Meshy_AI_*.stl
 orchestrate-plugin.zip_*/
+
+# 사용자가 준 악기 녹음 원본(wav) · 음악 미리 듣기 — 레포에 안 담는다
+sample_audio/
+music_preview/

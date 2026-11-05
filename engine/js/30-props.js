@@ -28,6 +28,7 @@ const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
 /* 참나무·전나무 칸 — 칸 가장자리가 COPY_DIST(125 m) 안이면 그루마다 거리로 단계를 고르고(아래 'TL'),
    그 밖 VIEW_DIST(450 m) 까지는 **수관 그림 판때기** 하나로(나무당 4면), 그 밖은 안 그린다. */
 const ROCK_TILE=64, ROCK_DIST=200, ROCK_SMALL=70, ROCK_KEEP=90, ROCK_TILES=[], ROCK_MAT={};
+let ROCK_KINDS=null;                      // 바위 종류(ROCK_R — buildProps 안의 표) — 셰이더 미리 짜기가 바위 재질을 미리 만든다(90-init.js precompPlan)
 /* **자동 품질**(`QUAL`) — 프레임이 떨어지면 '어디까지 자세히 그리나' 를 스스로 당긴다(마인크래프트의 그리는 거리처럼).
    `QUAL.k`(0.45~1)가 나무의 제 가지·복제 단계 거리 · 풀과 소품이 보이는 거리 · 덤불·작은 나무를 까는 반경에 곱해진다.
    문턱은 아래 `qualTick` — 50 FPS 를 지키는 쪽으로 잡았다. 설정의 '자동 품질' 로 끈다(끄면 늘 1) */
@@ -988,6 +989,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
   const ROCK_R={granite:1.8,copper:1.05,iron:0.95,coal:0.95,zinc:0.85,galena:0.85,
                cinnabar:0.8,tin:0.8,basalt:1.4,karst:1.5,sandstone:1.5,
                 sulfur:0.55,flint:0.18,pebble:0.13};
+  ROCK_KINDS=ROCK_R;
   // 기준 껍질의 '중복 없는 꼭짓점' 목록을 한 번만 뽑아 둔다 (80면 → 꼭짓점 42개)
   function makeShell(detail){
     const g=new THREE.IcosahedronGeometry(1,detail);
@@ -1230,7 +1232,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
     // 1차: 채집 횟수·통나무 수·베리를 먼저 정한다 (가지 총량을 알아야 하므로)
     let _bn=0;
     for(const p of list){ if(!(++_bn&1023)) await breathe();
-      p.y=p.top!==undefined?p.top:heightAt(p.x,p.z);   // 바위섬 꼭대기의 전나무는 제 높이(34-coast.js coastIsle)
+      p.y=p.top!==undefined?p.top:geoGround(p.x,p.z,heightAt(p.x,p.z));   // 바위섬 꼭대기의 전나무는 제 높이(34-coast.js coastIsle) · 큰 지형 모형 위면 그 윗면(땅은 모형 밑에 묻혀 있다)
       if(HARVEST[R.k]||MINE[R.k]){
         const hh=hashStr(R.k+'|'+Math.round(p.x)+'|'+Math.round(p.z));
         p.vanish=!!(HARVEST[R.k]&&HARVEST[R.k].vanish);
@@ -1429,6 +1431,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
     }
 
     // 2차: 행렬 배치
+    const _pCol=new THREE.Color();
     for(let ix=0;ix<list.length;ix++){ const p=list[ix]; if(!(ix&1023)) await breathe();
       const gy=p.y;
       const lh=hashStr('lean|'+Math.round(p.x*7)+'|'+Math.round(p.z*7));
@@ -1447,7 +1450,11 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
         /* **사바나 풀**(매끈한 땅 P.sm · 사용자 요청 2026-11-04 — 메마른 땅엔 키 큰 풀밭이 바람에 물결치게): 덤불 땅 · 메마른 풀밭(습도 0.3 밑)의
            풀포기는 허리~어깨 키(3~4배)로 세운다. 바람에 휜다(풀 재질만 바람을 켠다 — 45-sky.js envPatch) */
         if(P.sm&&R.k==='grass'){ const ci=IDX(clamp(Math.round(p.x/CELL+N/2),0,N-1),clamp(Math.round(p.z/CELL+N/2),0,N-1)), bb=F.biome[ci];
-          if(bb===B.SCRUB||(bb===B.MEADOW&&F.moist[ci]<0.30)){ const t=3.0+1.2*((((p._hash|0)>>>11))%100)/100; S.set(p.s*1.15,p.s*t,p.s*1.15); } }
+          const sav=bb===B.SCRUB||(bb===B.MEADOW&&F.moist[ci]<0.30);
+          if(sav){ const t=3.0+1.2*((((p._hash|0)>>>11))%100)/100; S.set(p.s*1.15,p.s*t,p.s*1.15); }
+          /* 사바나의 풀은 금빛(2026-11-05 사용자 요청) — 풀숲 빛깔 0x55702f 에 곱해 밀짚 · 금빛으로(가까이는 98-savanna.js 풀밭이 덮고, 이것은 그 밖까지 잇는다) ·
+             인스턴스 빛깔은 한 번 달면 모든 포기가 가져야 한다(아니면 검다) */
+          { const v=((p._hash|0)>>>3)%100/100; if(sav) _pCol.setRGB(2.25+0.3*v,1.38+0.18*v,1.45+0.3*v); else _pCol.setRGB(1,1,1); ms[gi].setColorAt(ix,_pCol); } }
         M.compose(V,Q,S); ms[gi].setMatrixAt(ix,M);
       });
 
@@ -1511,6 +1518,8 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
         const tms=geos.map((g,gi)=>{
           const t=new THREE.InstancedMesh(g,mats[gi],b.ix.length);
           { const A=ms[gi].instanceMatrix.array, D=t.instanceMatrix.array, I=b.ix; for(let j=0;j<I.length;j++){ const o=I[j]*16, d=j*16; for(let e=0;e<16;e++) D[d+e]=A[o+e]; } }   // 배열째 베낀다(Matrix4 로 꺼내 넣던 것과 값이 같다 · 조각 배열을 안 만든다)
+          if(ms[gi].instanceColor){ const A=ms[gi].instanceColor.array, D=new Float32Array(b.ix.length*3), I=b.ix; for(let j=0;j<I.length;j++){ const o=I[j]*3; D[j*3]=A[o]; D[j*3+1]=A[o+1]; D[j*3+2]=A[o+2]; }
+            t.instanceColor=new THREE.InstancedBufferAttribute(D,3); }                         // 인스턴스 빛깔도(사바나 풀의 금빛 — 재질을 나눠 쓰는 칸은 다 가져야 한다)
           t.instanceMatrix.needsUpdate=true; t.frustumCulled=false;
           t.userData.lightRole=ms[gi].userData.lightRole;
           propGroup.add(t); return t;
@@ -1642,13 +1651,14 @@ function updateRubble(force){
     const pk=salt||r<0.34, key='S'+gx+','+gz;
     if(pk){ const tk=FLORA.taken.get(key); if(tk!==undefined){ if(gameHours-tk<72) continue; FLORA.taken.delete(key); } }
     r*=clamp((R-d)/8,0.2,1);                            // 가장자리에서 갑자기 생기지 않게 작게 시작
-    const gs0=groundSlope(wx,wz,Math.max(0.25,r)), sl0=Math.hypot(gs0[0],gs0[1]);
+    const g0=heightAt(wx,wz), gy=geoGround(wx,wz,g0), onGeo=gy>g0+0.01;                 // 큰 지형 모형 위면 그 윗면 · 그 면의 비탈
+    const gs0=onGeo?null:groundSlope(wx,wz,Math.max(0.25,r)), sl0=onGeo?GEO_LF.slope:Math.hypot(gs0[0],gs0[1]);
     if(sl0>1.25) continue;                              // 52° 넘는 벽에는 돌이 얹혀 있을 수 없다(벽에 붙어 떠 보였다)
     const sy=salt?(P.sm?0.07:0.26):0.5+0.35*((h2>>>9)&15)/15;
     if(salt&&P.sm) r*=1.8;                               // 염전의 더께는 넓고 얇은 판(손바닥 두께)
     _rbE.set(salt&&P.sm?0:((h2>>>13)&63)/63*0.7-0.35,((h2>>>19)&255)/255*6.283,salt&&P.sm?0:((h2>>>27)&31)/31*0.7-0.35);
     _rbQ.setFromEuler(_rbE);
-    _rbV.set(wx,heightAt(wx,wz)+r*sy*0.42-r*Math.min(0.9,sl0)*0.55,wz);   // 비탈에서는 더 묻는다(아래쪽이 뜨지 않게)
+    _rbV.set(wx,gy+r*sy*0.42-r*Math.min(0.9,sl0)*0.55,wz);   // 비탈에서는 더 묻는다(아래쪽이 뜨지 않게)
     _rbS.set(r*(0.85+0.4*((h>>>4)&15)/15),r*sy,r);
     _rbM.compose(_rbV,_rbQ,_rbS); im.setMatrixAt(n,_rbM);
     /* 주울 돌 여섯에 하나는 **석회석**(희다) — 구우면 석회, 시멘트의 바탕(사용자 요청). 자리의 해시로 정하니 섬의 생김새는 그대로다 */
