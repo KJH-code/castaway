@@ -76,8 +76,21 @@ bool cv10Smp(vec2 xz,int i,out vec4 o){
   if(ws<=0.0001) return false;
   o=acc/ws; return true;
 }
-/* A 192~254 — 큰 지형 모형 밑에 묻힌 땅이 빈 데 안에 드는 칸(구멍만 · 하늘 트임은 (A−192)/62 — 31-cave10.js cv10Sfc) */
+/* A 192~254 — 큰 지형 모형 밑에 묻힌 땅만 비우는 칸(빈 데 안에 들거나 입구 마당 8 m 안 — 비스듬히 보면 모형 구멍 테 밑의 땅이 보였다 · 하늘 트임은 (A−192)/62 — 31-cave10.js cv10Sfc) */
 /* 땅 뚫기 문턱 0.75 — M 은 A=1 · 나머지는 0.5 이하라 쌍선형으로 읽은 A 가 0.75 를 넘는 선이 칸 가장자리와 맞는다(지시서의 0.9 는 가장자리가 한 칸 가까이 안으로 먹었다) */
+/* 큰 지형 모형의 구멍 — M(A=255)만. 묻힌 땅만 비우는 칸(A 192~254)은 모형을 안 뚫는다. 둘레 네 점의 'M 인가'를 쌍선형으로 섞어 0.5 로 자른다 */
+bool cv10HoleM(vec2 xz){
+  for(int i=0;i<2;i++){
+    vec4 B=uCv10B[i], R=uCv10R[i]; if(B.z<0.5) continue;
+    float nz=floor(R.w/1024.0), nx=R.w-nz*1024.0; vec2 c=(xz-R.xy)/R.z;
+    if(c.x<0.0||c.y<0.0||c.x>nx-1.0||c.y>nz-1.0) continue;
+    vec2 c0=floor(c), fr=c-c0; float m=0.0;
+    for(int k=0;k<4;k++){ vec2 d=vec2(float(k-(k/2)*2),float(k/2)); vec2 q=min(c0+d,vec2(nx-1.0,nz-1.0));
+      float a=texture2D(uCv10T,(q+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0)).a;
+      m+=(a>0.998?1.0:0.0)*(d.x>0.5?fr.x:1.0-fr.x)*(d.y>0.5?fr.y:1.0-fr.y); }
+    if(m>=0.5) return true; }
+  return false;
+}
 bool cv10Hole(vec2 xz){
   vec4 t;
   for(int i=0;i<2;i++){ if(cv10In(xz,i,t)&&t.a>=0.75) return true; }

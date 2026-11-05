@@ -529,7 +529,7 @@ function cv10Init(rec,S){
   const c=rec.c, b=c.box; rec.S=S; rec.x0=b.x0; rec.z0=b.z0; rec.nx=Math.floor((b.x1-b.x0)/S)+1; rec.nz=Math.floor((b.z1-b.z0)/S)+1;
   const n=rec.nx*rec.nz; rec.F=new Float32Array(n); rec.C=new Float32Array(n); rec.Hh=new Float32Array(n);
   rec.gF=new Float32Array(n); rec.gC=new Float32Array(n); rec.gH=new Float32Array(n); rec.O=new Uint8Array(n); rec.M=new Uint8Array(n); rec.D=new Float64Array(n).fill(1e9);   // D 는 Float64 — 힙 키와 같은 정밀도여야 'dk>D[q]' 가 살아 있는 마디를 안 버린다
-  rec.state='grid'; rec.ph='grid'; rec.pr=0; rec.ready=false; rec.vmin=1e9; rec.nvoid=0; rec.H=null; rec.Hb=null; rec.unreach=0; rec.onb=false;
+  rec.state='grid'; rec.ph='grid'; rec.pr=0; rec.ready=false; rec.vmin=1e9; rec.nvoid=0; rec.H=null; rec.Hb=null; rec.mdist=null; rec.unreach=0; rec.onb=false;
   rec.vp=null; rec.vnrm=null; rec.vn=0; rec.idx=null; rec.ni=0; rec.vi=null; rec.cbase=null; rec.ck0=null; rec.cn=null; rec.tdata=null;
 }
 function cv10Rec(c){
@@ -728,11 +728,15 @@ function cv10Step(rec,t1){
     case 'tex':{
       const T=performance.now();
       if(!rec.tdata){ rec.tdata=new Uint8Array(n*4); rec.texOver=0; }
+      if(rec.Hb&&!rec.mdist){ const md=rec.mdist=new Uint8Array(n).fill(255);   // M 까지의 칸 거리(두 번 훑기 · 255 에서 자름) — 묻힌 땅을 비울 범위
+        for(let q=0;q<n;q++) if(M[q]) md[q]=0;
+        for(let j=0;j<nz;j++) for(let i=0;i<nx;i++){ const q=j*nx+i; let v=md[q]; if(i>0&&md[q-1]+1<v) v=md[q-1]+1; if(j>0&&md[q-nx]+1<v) v=md[q-nx]+1; md[q]=v; }
+        for(let j=nz-1;j>=0;j--) for(let i=nx-1;i>=0;i--){ const q=j*nx+i; let v=md[q]; if(i<nx-1&&md[q+1]+1<v) v=md[q+1]+1; if(j<nz-1&&md[q+nx]+1<v) v=md[q+nx]+1; md[q]=v; } }
       const base=rec.vmin-1, td=rec.tdata;
       if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ const q=j*nx+i, o=q*4, v=C[q]-F[q]>0.05; let r=0,g=0;
           if(v){ r=(F[q]-base)/0.25; g=(Math.min(C[q],Hh[q]+1)-base)/0.25; if(r>255||g>255) rec.texOver++; r=Math.min(255,Math.max(0,Math.round(r))); g=Math.min(255,Math.max(0,Math.round(g))); }
           const d=D[q]; td[o]=r; td[o+1]=g; td[o+2]=Math.round(255*_cv10Smooth(2,16,d)); td[o+3]=M[q]?255:Math.round(127*Math.exp(-d/5));
-          if(!M[q]&&v&&rec.Hb){ const hb=rec.Hb[q]; if(hb<Hh[q]-0.05&&hb>F[q]-0.3&&hb<C[q]+0.3) td[o+3]=192+Math.round(62*Math.exp(-d/5)); } }  },t1)) { rec.msMesh+=performance.now()-T; return false; }
+          if(!M[q]&&rec.Hb){ const hb=rec.Hb[q]; if(hb<Hh[q]-0.3&&((v&&hb>F[q]-0.3&&hb<C[q]+0.3)||rec.mdist[q]<=16)) td[o+3]=192+Math.round(62*Math.exp(-Math.min(d,60)/5)); } }  },t1)) { rec.msMesh+=performance.now()-T; return false; }
       rec.msMesh+=performance.now()-T; rec.ph='fin'; break; }
     case 'fin':{
       const T=performance.now();
@@ -747,7 +751,7 @@ function cv10Step(rec,t1){
       const mesh=new THREE.Mesh(geo,CV10.mat?CV10.mat(c.kind):cv10SeatMat(c.kind));
       mesh.matrixAutoUpdate=false; mesh.castShadow=false; mesh.receiveShadow=true; mesh.userData.lightRole='recv'; mesh.userData.cave=c;
       scene.add(mesh); rec.mesh=mesh; rec.verts=nv; rec.tris=rec.ni/3;
-      rec.tri=rec.wall=rec.vp=rec.vnrm=rec.idx=rec.rm=rec.ord=rec.pos=rec.nor=rec.aDeep=rec.aSky=rec.aFl=rec.tdata=rec.Hb=null;
+      rec.tri=rec.wall=rec.vp=rec.vnrm=rec.idx=rec.rm=rec.ord=rec.pos=rec.nor=rec.aDeep=rec.aSky=rec.aFl=rec.tdata=rec.Hb=rec.mdist=null;
       try{ LIGHT.dirtyAt(c.x,c.z,60); }catch(e){}
       rec.state='done'; rec.ph='done'; rec.onb=true;
       for(const f of CV10.onBuild){ try{ f(rec); }catch(e){ showErr('굴 onBuild',e); } }
