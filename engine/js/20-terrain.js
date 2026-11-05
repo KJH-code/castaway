@@ -555,12 +555,15 @@ void patchCalc(vec3 pos){
   if(uSm>0.5) patchNor=normalize(mix(normalize(vec3(-sm.y,uGrid.y,-sm.z)),patchNor,ed));          // 매끈한 면의 법선 — 가장자리에서 본 땅의 정점 법선으로
 }
 `;
-const TERR_HOLE=(sh,v,patch)=>sh.replace(/void main\s*\(\)\s*\{/,'uniform vec2 uPC; uniform float uPR;\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;');
+const TERR_HOLE=(sh,v,patch)=>sh.replace(/void main\s*\(\)\s*\{/,()=>{
+  const C10=typeof CV10_COMMON_GLSL!=='undefined';   // 판 10 굴의 땅 뚫기 자리(32-caves.js — 굴 자리 그림 A>=0.9). 굴이 없으면 켜짐 0 이라 건너뛴다
+  return (C10?CV10_COMMON_GLSL:'')+'uniform vec2 uPC; uniform float uPR;\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;'+(C10?'\n\tif(cv10Hole('+v+')) discard;':''); });
 /* 그림자에 찍히는 땅 — 본 땅은 원 안을 버리고, 덧판은 제 정점 식으로 서서 원 밖을 버린다 */
 function terrDepthMat(dist,patch){
   const m=dist?new THREE.MeshDistanceMaterial():new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
   m.onBeforeCompile=sh=>{
     sh.uniforms.uPC=TERR_U.uPC; sh.uniforms.uPR=TERR_U.uPR;
+    if(TERR_U.uCv10T){ sh.uniforms.uCv10T=TERR_U.uCv10T; sh.uniforms.uCv10R=TERR_U.uCv10R; sh.uniforms.uCv10B=TERR_U.uCv10B; }
     if(patch){ sh.uniforms.uElev=WATER_U.uElev; sh.uniforms.uGrid=WATER_U.uGrid; sh.uniforms.uTL=TERR_U.uTL; sh.uniforms.uRel=TERR_U.uRel; sh.uniforms.uTri=TERR_U.uTri;
       sh.uniforms.uPL=TERR_U.uPL; sh.uniforms.uSm=TERR_U.uSm;
       sh.vertexShader='varying vec2 vHXZ;\n'+TPATCH_GLSL().replace('uniform vec2 uPC; uniform float uPR;','uniform vec2 uPC; uniform float uPR;')

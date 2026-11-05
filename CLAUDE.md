@@ -371,7 +371,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 큰 바위 꼴(`cragShape`)이나 덩이의 돌림·늘림을 바꾸면 메시(`cragMesh`)와 충돌(`cragIndex`·`cragSpan`)이 같은 값을 쓰는지 볼 것 · 비탈에 놓는 것은 묻거나 눕힌다(`groundSlope` · terrain).
 - 새 광물은 `PROP_FOOT` 에도 한 줄(겹침 정리 `resolveOverlaps` — 시드 난수를 다 뽑은 뒤 난수 없이 고친다) · 상륙 자리는 시드로 정한다(`LANDING` — `Math.random` 금지 · terrain).
 - 광원은 `LIGHT.addPoint`/`addSpot`(켜고 끄는 불은 `addFire`)으로 — `decay` 2 · 세기 1.8배. 광원 수(보이는 것 · 그림자)가 바뀌면 모든 재질을 다시 짠다 → 끌 때는 `visible` 대신 세기 0(light).
-- 굴 속 빛·바닥(`CAVE_GLSL` — 32-caves.js)은 envPatch 의 해·하늘빛 두 줄 · 녹아들기 빛깔 · 땅 셰이더(`#ifdef CAVE_ON` 의 `cvF`)가 같이 읽는다 — 그 줄을 바꾸거나 땅을 새로 그리는 셰이더를 만들면 같이 · 굴 불빛은 불빛 풀이 아니라 셰이더(`uCvB.w`)다(terrain).
+- 굴 속 빛·바닥(`CAVE_GLSL` — 32-caves.js)은 envPatch 의 해·하늘빛 두 줄 · 녹아들기 빛깔 · 땅 셰이더(`#ifdef CAVE_ON` 의 `cvF`)가 같이 읽는다 — 그 줄을 바꾸거나 땅을 새로 그리는 셰이더를 만들면 같이 · 굴 불빛은 불빛 풀이 아니라 셰이더(`uCvB.w`)다(terrain). **판 10 몫**: 지어 둔 굴 가운데 가까운 둘의 '굴 자리 그림'을 한 장(`uCv10T` 1024×512)에 싣고(`cv10Pick`) 땅 구멍(`TERR_HOLE` → `cv10Hole`)과 `cvEval` 이 읽는다 — 두 셰이더가 선언을 나눠 쓰니 `CV10_COMMON_GLSL`(#ifndef 로 한 번만)을 거칠 것 · D 의 바위 껍데기 재질은 조각 셰이더에 `varying float vCv10Sky` · `vCv10Deep`(이 둘만 한 문장에) 를 선언하고 `uCv10Glow` 를 주면 envPatch 가 `CV10_MESH` 로 정점 값을 읽는다(caves).
 - 드리우는 것을 `position`/`rotation` 으로 직접 움직이면 `LIGHT.dirtyAt(x,z,r)`(안 부르면 그림자가 1.5초까지 늦다) · 알파 카드(잎·판때기)는 `customDepthMaterial` 을 따로 단다(light).
 - `onBeforeCompile` 을 단 재질은 고유한 `customProgramCacheKey`(`envPatch` 가 이어 붙인다) · 램버트 셰이더에서 거리를 `cameraPosition` − 세계 좌표로 재지 말 것(`modelViewMatrix*위치` · light).
 - 하늘에 더하는 것은 `skyScene` 에(땅 카메라 far 에서 잘린다 · `scene.background` 는 null) · 다중 산란은 셰이더와 JS 가 같은 식(`MSL`) · `litCore` 안에서 바깥 이름 금지(워커가 `toString()` 으로 가져간다) ·

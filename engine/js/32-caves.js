@@ -33,11 +33,68 @@ const CAVE_K=6;
 TERR_U.uCvN={value:0};
 TERR_U.uCvA={value:Array.from({length:CAVE_K},()=>new THREE.Vector4())};   // 방 가운데 x · z · 반지름 · 바닥 높이
 TERR_U.uCvB={value:Array.from({length:CAVE_K},()=>new THREE.Vector4())};   // 입구 방향 x · z · 입구가 났나 · 불빛 세기
+/* ── 판 10 굴의 그림 묶음(굴 둘을 한 장에, 샘플러 하나) ──────────────────────────────────────────
+   지어 둔 굴(`CV10.built`) 가운데 카메라에 가장 가까운 둘의 '굴 자리 그림'(`rec.tex` — 31-cave10.js)을 1024×512 한 장의 왼쪽·오른쪽 칸에 옮겨 담는다.
+   R,G = 바닥·천장 높이((값·0.25)+base) · B = 깊이 · A = 255 땅 뚫기 자리(M) 아니면 sky×127. 칸이 512 보다 크면 정수 배로 솎는다(걸음도 그만큼).
+   땅 셰이더(`TERR_HOLE` — 20-terrain.js)가 A≥0.9 를 버리고, `cvEval`(아래)이 빈 데의 높이 안이면 굴 속 어둠을 센다 */
+const CV10_GLOW={karst:[0.55,0.88,0.80,0.55], talus:[0.55,0.88,0.80,0.6], lava:[0.95,0.72,0.40,0.45], shelter:[0,0,0,0]};   // 굴 불빛 빛깔 rgb · 세기(D 도 읽는다)
+TERR_U.uCv10T={value:(()=>{ const t=new THREE.DataTexture(new Uint8Array(4),1,1,THREE.RGBAFormat,THREE.UnsignedByteType); t.needsUpdate=true; return t; })()};   // 굴이 없는 동안은 1×1 빈 점
+TERR_U.uCv10R={value:[new THREE.Vector4(),new THREE.Vector4()]};   // x0 · z0 · 칸 걸음(m) · 가로+1024×세로(칸의 점 수)
+TERR_U.uCv10B={value:[new THREE.Vector4(),new THREE.Vector4()]};   // base · 높이 걸음(0.25) · 켜짐(0/1) · 칸 번호
+TERR_U.uCv10G={value:[new THREE.Vector4(),new THREE.Vector4()]};   // 굴 불빛 빛깔 rgb · 세기
+/* 땅 구멍 셰이더와 envPatch 가 같이 쓴다 — 두 번 선언되지 않게 #ifndef 로 한 번만 */
+const CV10_COMMON_GLSL=`#ifndef CV10_DECL
+#define CV10_DECL
+uniform sampler2D uCv10T;
+uniform vec4 uCv10R[2];
+uniform vec4 uCv10B[2];
+uniform vec4 uCv10G[2];
+bool cv10In(vec2 xz,int i,out vec4 t){
+  vec4 B=uCv10B[i], R=uCv10R[i]; t=vec4(0.0);
+  if(B.z<0.5) return false;
+  float nz=floor(R.w/1024.0), nx=R.w-nz*1024.0;
+  vec2 c=(xz-R.xy)/R.z;
+  if(c.x<0.0||c.y<0.0||c.x>nx-1.0||c.y>nz-1.0) return false;
+  t=texture2D(uCv10T,(c+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0));
+  return true;
+}
+/* 굴 속 값 — 둘레 네 점 가운데 빈 데인 것만으로 쌍선형(31-cave10.js cv10Samp 와 같은 셈: 벽 가장자리도 굴 안으로 친다). 정확한 점 가운데를
+   읽어 가까운 점 값을 얻는다(texelFetch 는 WebGL1 에 없다). o = 바닥 · 천장 · 깊이 · 하늘 트임(M 이면 1) */
+bool cv10Smp(vec2 xz,int i,out vec4 o){
+  vec4 B=uCv10B[i], R=uCv10R[i]; o=vec4(0.0);
+  if(B.z<0.5) return false;
+  float nz=floor(R.w/1024.0), nx=R.w-nz*1024.0;
+  vec2 c=(xz-R.xy)/R.z;
+  if(c.x<0.0||c.y<0.0||c.x>nx-1.0||c.y>nz-1.0) return false;
+  vec2 c0=floor(c), fr=c-c0; float ws=0.0; vec4 acc=vec4(0.0);
+  for(int k=0;k<4;k++){
+    vec2 d=vec2(float(k-(k/2)*2),float(k/2));
+    vec2 q=min(c0+d,vec2(nx-1.0,nz-1.0));
+    vec4 t=texture2D(uCv10T,(q+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0));
+    float w=(d.x>0.5?fr.x:1.0-fr.x)*(d.y>0.5?fr.y:1.0-fr.y);
+    if(t.g>t.r+0.002){ ws+=w; acc+=w*vec4(B.x+t.r*255.0*B.y,B.x+t.g*255.0*B.y,t.b,min(1.0,t.a*255.0/127.0)); } }
+  if(ws<=0.0001) return false;
+  o=acc/ws; return true;
+}
+/* 땅 뚫기 문턱 0.75 — M 은 A=1 · 나머지는 0.5 이하라 쌍선형으로 읽은 A 가 0.75 를 넘는 선이 칸 가장자리와 맞는다(지시서의 0.9 는 가장자리가 한 칸 가까이 안으로 먹었다) */
+bool cv10Hole(vec2 xz){
+  vec4 t;
+  for(int i=0;i<2;i++){ if(cv10In(xz,i,t)&&t.a>=0.75) return true; }
+  return false;
+}
+#endif
+`;
 const CAVE_GLSL=`#define CAVE_ON
+${CV10_COMMON_GLSL}
+#ifdef CV10_MESH
+varying float vCv10Sky, vCv10Deep;     /* D 의 바위 껍데기 재질 — 정점 값(envPatch 가 D 의 조각 셰이더 선언을 걷고 여기서 선언한다) */
+uniform vec4 uCv10Glow;
+#endif
 uniform int uCvN;
 uniform vec4 uCvA[${CAVE_K}];
 uniform vec4 uCvB[${CAVE_K}];
 float cvK=0.0, cvF=0.0; vec3 cvL=vec3(0.0);
+float cvK10=0.0, cvG10=0.0; vec3 cvC10=vec3(0.0);
 void cvEval(vec3 p,vec3 n){
   for(int i=0;i<${CAVE_K};i++){ if(i>=uCvN) break;
     vec4 A=uCvA[i], B=uCvB[i]; float d=length(p.xz-A.xy), rel=p.y-A.w;
@@ -48,6 +105,15 @@ void cvEval(vec3 p,vec3 n){
     cvF=max(cvF,(1.0-smoothstep(A.z+0.6,A.z+2.2,d))*(1.0-smoothstep(4.0,5.0,rel))*lo);
     if(B.w>0.0){ vec3 L=vec3(A.x,A.w+2.6,A.y)-p; float dl=max(length(L),0.05), at=max(0.0,1.0-dl/(A.z+8.0));
       cvL+=vec3(0.55,0.88,0.80)*(3.14159*B.w*at*at*max(dot(n,L)/dl,0.0)*(1.0-smoothstep(A.z+0.5,A.z+2.5,d))*inV); } }
+#ifdef CV10_MESH
+  cvK10=1.0-vCv10Sky; cvG10=vCv10Deep; cvC10=uCv10Glow.rgb*uCv10Glow.a;
+#else
+  vec4 s;
+  for(int i=0;i<2;i++){
+    if(!cv10Smp(p.xz,i,s)||p.y<s.x-0.5||p.y>s.y+0.5) continue;
+    float k=1.0-s.w;
+    if(k>cvK10){ cvK10=k; cvG10=s.z; cvC10=uCv10G[i].rgb*uCv10G[i].a; } }
+#endif
 }
 `;
 /* ── 굴 바위의 참 꼴(눈의 경계 — 사용자 지적: 굴 벽·바위에 붙어 고개를 조금 돌리면 속이 보인다) ──────────────
@@ -225,9 +291,36 @@ function buildCaves(){
   buildColliderGrid();
 }
 /* 먼 굴은 안 그린다(굴 하나에 세모 3천~1만 — 섬에 수십) */
-let _caveT=0, _caveX=1e9, _caveZ=1e9;
+let _caveT=0, _caveX=1e9, _caveZ=1e9, _cv10T=0;
+const CV10C={atlas:null,slot:[null,null]};
+/* 판 10 — 지어 둔 굴 가운데 카메라에 가장 가까운 둘을 그림 묶음에 싣는다(바뀔 때만 옮긴다). skip: 막 버려지는 굴 */
+function cv10Pick(skip){
+  const cx=camera.position.x, cz=camera.position.z, L=[];
+  for(const rec of CV10.built.values()){ if(rec===skip||rec.state!=='done'||!rec.tex||!rec.texInfo) continue;
+    const ti=rec.texInfo, dx=Math.max(ti.x0-cx,0,cx-(ti.x0+ti.w)), dz=Math.max(ti.z0-cz,0,cz-(ti.z0+ti.d)); L.push([dx*dx+dz*dz,rec]); }
+  L.sort((a,b)=>a[0]-b[0]);
+  const want=L.slice(0,2).map(e=>e[1]), cur=CV10C.slot, nxt=[null,null];
+  for(const r of want){ const k=cur.indexOf(r); if(k>=0) nxt[k]=r; }
+  for(const r of want){ if(nxt.indexOf(r)<0) nxt[nxt[0]?1:0]=r; }
+  let ch=false;
+  for(let k=0;k<2;k++){ const r=nxt[k]; if(r===cur[k]) continue; ch=true; cur[k]=r;
+    const B=TERR_U.uCv10B.value[k], R=TERR_U.uCv10R.value[k], G=TERR_U.uCv10G.value[k];
+    if(!CV10C.atlas){ const t=new THREE.DataTexture(new Uint8Array(1024*512*4),1024,512,THREE.RGBAFormat,THREE.UnsignedByteType);
+      t.magFilter=t.minFilter=THREE.LinearFilter; t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping; t.generateMipmaps=false; CV10C.atlas=t; }
+    const dst=CV10C.atlas.image.data;
+    for(let y=0;y<512;y++) dst.fill(0,(y*1024+k*512)*4,(y*1024+k*512+512)*4);
+    if(!r){ B.set(0,0.25,0,k); continue; }
+    const img=r.tex.image, nx=img.width, nz=img.height, st=Math.max(1,Math.ceil(Math.max(nx,nz)/512)), ne=Math.ceil(nx/st), me=Math.ceil(nz/st), src=img.data, ti=r.texInfo, S=nx>1?ti.w/(nx-1):0.5;
+    for(let j=0;j<me;j++) for(let i=0;i<ne;i++){ const so=((j*st)*nx+i*st)*4, d=(j*1024+k*512+i)*4; dst[d]=src[so]; dst[d+1]=src[so+1]; dst[d+2]=src[so+2]; dst[d+3]=src[so+3]; }
+    R.set(ti.x0,ti.z0,S*st,ne+1024*me); B.set(ti.base,ti.step,1,k);
+    const gl=CV10_GLOW[r.c.kind]||CV10_GLOW.shelter; G.set(gl[0],gl[1],gl[2],gl[3]);
+  }
+  if(ch){ CV10C.atlas.needsUpdate=true; TERR_U.uCv10T.value=CV10C.atlas; }
+}
+if(typeof CV10!=='undefined'){ CV10.onBuild.push(()=>cv10Pick()); CV10.onDrop.push(rec=>cv10Pick(rec)); }
 function updateCaves(){
-  if(typeof cv10Tick==='function'&&(P.tv|0)>=10) cv10Tick();   // 판 10 굴의 격자 · 메시(31-cave10.js) — 아래 돌아가기보다 앞
+  if(typeof cv10Tick==='function'&&(P.tv|0)>=10){ cv10Tick();   // 판 10 굴의 격자 · 메시(31-cave10.js) — 아래 돌아가기보다 앞
+    if(!(_cv10T++&15)) cv10Pick(); }   // 가까운 굴 둘의 그림 묶음(열여섯 프레임마다)
   if(!CAVE_MESH.length) return;
   if(CAVE_GLOW){ CAVE_GLOW.uniforms.uT.value=performance.now()*0.001;
     CAVE_GLOW.uniforms.uPx.value=((typeof CAMC!=='undefined'&&CAMC.rt)?CAMC.rt.height:renderer.domElement.height)*0.5*camera.projectionMatrix.elements[5]; }
