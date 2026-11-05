@@ -418,14 +418,14 @@ function cv10Approach(c){
     const a=m.yaw+da, x=m.x+Math.cos(a)*(r0+d), z=m.z+Math.sin(a)*(r0+d);
     const gx=(cv10Sfc(x+0.5,z)-cv10Sfc(x-0.5,z)), gz=(cv10Sfc(x,z+0.5)-cv10Sfc(x,z-0.5));
     if(Math.hypot(gx,gz)>1.0) return false; }
-  /* 문턱 — 입구에서 밖으로 나가며 빈 데가 끝나기 0.5 m 앞 바닥과 끝 0.25 m 밖 겉 높이의 차가 한 걸음 턱(0.45 m — STEPUP 0.55 안)을 넘으면 못 나간다
+  /* 문턱 — 입구에서 밖으로 나가며 빈 데가 끝나기 0.5 m 앞 바닥과 끝 0.25 · 0.5 m 밖 겉 높이의 차가 0.3 m 를 넘으면 못 나간다(걸음 한 번에 0.17 m 를 더 가 그 자리 겉은 0.55 m 턱을 넘었다)
      (바위그늘은 앞 너비를 다섯 점 · 빛구멍 입구는 돌 비탈이 받는다). 매끈한 땅 섬에서 바위그늘 들머리 땅이 굴 바닥보다 0.93 m 높았다 */
   if(!m.sky){ const P=c._P||cv10Prep(c), ca=Math.cos(m.yaw), sa=Math.sin(m.yaw), hw=c.kind==='shelter'?(m.w||4)*0.4:0;
     for(const l of hw>0?[-1,-0.5,0,0.5,1]:[0]){ const bx=m.x-sa*l*hw, bz=m.z+ca*l*hw, fs=[]; let d=-6, got=false;
       for(;d<=14;d+=0.25){ const o=cv10Eval(c,P,bx+ca*d,bz+sa*d); if(o.g>0.05){ fs.push(o.f); got=true; } else if(got) break; }
       if(!got) continue;
-      const f=fs[Math.max(0,fs.length-3)], ex=bx+ca*(d+0.25), ez=bz+sa*(d+0.25);     // 걷는 격자(0.5 m · 빈 데 점만)는 끝 0.5 m 의 가파른 바닥을 못 받는다 — 그 안쪽 바닥과 견준다
-      if(cv10Sfc(ex,ez)-f>0.45) return false; } }
+      const f=fs[Math.max(0,fs.length-3)], sf=Math.max(cv10Sfc(bx+ca*(d+0.25),bz+sa*(d+0.25)),cv10Sfc(bx+ca*(d+0.5),bz+sa*(d+0.5)));   // 걷는 격자(0.5 m · 빈 데 점만)는 끝 0.5 m 의 가파른 바닥을 못 받는다 — 그 안쪽 바닥과 견준다
+      if(sf-f>0.3) return false; } }
   return true;
 }
 /* 바위그늘 — 비탈의 너른 처마(굴길 한 토막을 둥근 끝으로 · 안쪽으로 내려앉는 바닥) · 반은 뒤에 작은 굴길 */
