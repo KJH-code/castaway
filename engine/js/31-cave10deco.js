@@ -28,6 +28,7 @@ function cvdInit(){
       shr  :new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide}),
       gold :new THREE.PointsMaterial({color:0xc49a32,size:0.035,sizeAttenuation:true})
     };
+    for(const k of ['rock','sheet','water']) envPatch(CVD.mats[k]);   // 굴 속 어둠 · 굴 불빛(CAVE_GLSL)을 받게 — 장식은 LIGHT 배역 훑기에 안 걸려 예전엔 깊은 데에서도 밖처럼 밝았다(독립 검수 C3)
   }
   if(typeof FLORA_PICK!=='undefined'&&!FLORA_PICK.cvcalcite)
     Object.assign(FLORA_PICK,{
