@@ -107,7 +107,7 @@ function cv10Eval(c,P,x,z){
     if(e.tl) yc+=e.tl*(bqx*e.tnx+bqz*e.tnz);
     const u=bu, H=sH/sw, fl=0.5*(1-Math.sqrt(1-cv10Pow(u,e.p))), ce=0.5+0.5*Math.sqrt(1-cv10Pow(u,e.q)), w1=1-u;
     let fb=yc+H*fl+w1*0.08*n(x/2+3.3,z/2+7.1), ff=fb, cc=yc+H*ce;
-    if(e.pit) ff-=e.pit*(1-smoothstep(0.3,0.38,u));
+    if(e.pit) ff-=e.pit*(1-smoothstep(0.3,0.38,u))*smoothstep(12,16,e.s0+ba);   // 열쇠 구멍 홈 — s 12~16 m 에 걸쳐 깊어진다(곧장 1.2~1.8 m 로 꺼지면 들어갈 수는 있어도 되돌아 오르지 못했다)
     if(e.lava) ff+=0.18*H*smoothstep(0.70,0.74,u)*(1-smoothstep(0.86,1,u));
     cc+=w1*(H*0.08*n(x/3+1.9,z/3+5.5)+0.15*n(x/1.1+9.1,z/1.1+4.4));
     const g=cc-ff;

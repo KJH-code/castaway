@@ -218,7 +218,7 @@ function caveColPush(p){
     if(d<1e-4){ dx=-Math.sin(PL.yaw); dz=-Math.cos(PL.yaw); d=1; }              // 한복판이면 보는 쪽 반대로
     const nx=dx/d, nz=dz/d, pen=R-d, sg=(Math.sin(PL.yaw)*nz-Math.cos(PL.yaw)*nx)>=0?1:-1;      // 가는 쪽(보는 쪽) 접선 방향 — 속도가 0 이어도 한쪽으로 정해진다
     const tx=p.x+nx*pen-nz*sg*pen*1.2, tz=p.z+nz*pen+nx*sg*pen*1.2;
-    if(caveHere(tx,tz,p.y)){ p.x=tx; p.z=tz; } else { p.x+=nx*pen; p.z+=nz*pen; }
+    if(caveHere(tx,tz,p.y)){ p.x=tx; p.z=tz; } else if(caveHere(p.x+nx*pen,p.z+nz*pen,p.y)){ p.x+=nx*pen; p.z+=nz*pen; }   // 빈 데 밖(바위 속)으로는 안 민다 — 밀린 자리의 바닥이 지표라 22 m 위로 튀었다(기본 섬 석회암)
     PL.vel.x*=0.7; PL.vel.z*=0.7; }
 }
 /* 굴 속 걷기 — true/false 면 그 답, undefined 면 땅 규칙으로 */
@@ -611,7 +611,8 @@ function updatePlayer(dt){
   if(DROP.t>0){ DROP.t-=dt; }
   let ng=PL.cvUnder?floorAt(p.x,p.z,p.y):Math.max(floorAt(p.x,p.z,p.y),shipFloor(p.x,p.z,p.y),rubbleFloor(p.x,p.z,p.y));   // 지은 바닥 · 보급선 날개·몸 위 · 낮은 큰 돌 위에 선다
   if(DROP.t>0) ng=Math.min(ng, floorAt(p.x,p.z,DROP.y-1.0));   // 뚫고 내려가는 중
-  if(PL.cvUnder&&ng-oy>STEPUP+0.05){ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; ng=floorAt(ox,oz,p.y); }   // 굴 안에서 한 걸음에 바닥이 턱보다 높이 오른다 = 지표로 튀는 것 — 앞 자리로
+  if((PL.cvUnder||PL.cave)&&ng-oy>(PL.caveQ&&PL.caveQ.d<4?0.85:STEPUP+0.05)){   // 굴 안에서 한 걸음에 바닥이 턱보다 높이 오른다 = 지표로 튀는 것 — 앞 자리로(입구 4 m 안은 문턱 0.8 m 까지 · caveWalk)
+    p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; const q0=cv10Q(ox,oz,oy+0.3); ng=q0?q0.f:floorAt(ox,oz,oy+0.3); }
   if(p.y<=ng){
     if(PL.vel.y<-13 && !PL.swim && depth<0.5){
       PL.stam=clamp(PL.stam-Math.abs(PL.vel.y+13)*4,0,100);
