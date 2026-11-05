@@ -328,7 +328,7 @@ function drawBox(){
   document.getElementById('boxK').textContent=contStatus(st);
   document.getElementById('boxF').textContent=contHint(st);
   const w1=document.getElementById('boxW1'), w2=document.getElementById('boxW2');
-  w1.textContent=invWeight().toFixed(1)+' / '+INV.max+' kg';
+  w1.textContent=invWeight().toFixed(1)+' / '+(INV.max>=1e5?'∞':INV.max)+' kg';
   w1.className=invLoad()>0.85?'over':'';
   const sw=contWeight(st);
   w2.textContent=sw.toFixed(1)+' / '+st.cap+' kg';
@@ -586,12 +586,12 @@ function drawDex(){
        먹으면 · 입으면 · 성능 · 얻는 법 · 넣어 두면(모닥불·제련로) · 이것으로 만드는 것. 위의 찾기 칸으로 거른다 */
     const q=(document.getElementById('dexS')||{value:''}).value.trim();
     const order=Object.keys(ITEMS).filter(id=>!q||ITEMS[id].n.indexOf(q)>=0||(ITEMS[id].use||'').indexOf(q)>=0);
-    h+='<div class="dt">아이템 '+order.length+'종'+(q?' — \''+q.replace(/[<>&"']/g,'')+'\' 찾기':'')+'</div>';
+    h+='<div class="dt">아이템 '+order.length+'종'+(q?' — \''+q.replace(/[<>&"']/g,'')+'\' 찾기':'')+(DEV.on?' · <button class="dgive" data-all="1">개발자 — 모두 하나씩 받기</button>':'')+'</div>';
     for(const id of order){
       const it=ITEMS[id], got=obtainOf(id), ico=ITEM_ICON[id];
       h+='<div class="de" id="dx_'+id+'">'+(ico?'<img class="ic" src="'+ico+'" alt="">':'')
         +'<div class="dn"><span>'+it.n+'</span>'
-        +'<span class="dw">'+it.kg+' kg</span></div>'
+        +'<span class="dw">'+it.kg+' kg'+(DEV.on?' <button class="dgive" data-give="'+id+'" data-n="1">+1</button><button class="dgive" data-give="'+id+'" data-n="10">+10</button>':'')+'</span></div>'
         +'<div class="du">'+it.use+'</div>';
       const st=[];
       if(it.food) st.push('허기 +'+it.food); if(it.water) st.push('목마름 +'+it.water); if(it.drink) st.push('목마름 +'+it.drink.n);
@@ -638,6 +638,12 @@ function drawDex(){
   }
   L.innerHTML=h;
 }
+/* 개발자 모드 — 사전에서 아이템을 바로 받는다(사용자 요청 2026-11-05 '개발자 모드에서 모든 아이템을 적재량 무시하고') */
+function devGive(id,n){ if(!DEV.on||!ITEMS[id]) return 0; let k=0; for(let i=0;i<n;i++) if(invAdd(id,1)) k++; invDirty=true; return k; }
+document.getElementById('dexL').addEventListener('click',e=>{ const b=e.target.closest&&e.target.closest('button.dgive'); if(!b||!DEV.on) return; e.stopPropagation();
+  if(b.dataset.all){ let k=0; for(const id in ITEMS) k+=devGive(id,1); toast('개발자 — 아이템 '+k+'개를 받았다'); }
+  else { const k=devGive(b.dataset.give,+b.dataset.n||1); toast(ITEMS[b.dataset.give].n+' ×'+k+' 받음'); }
+  sfx('bind'); });
 /* 가방의 '사전에서 자세히' — 사전을 아이템 탭으로 열고 그 물건으로 굴려 밝힌다. 사전을 닫으면 가방으로 돌아간다 */
 let dexBack=false;
 function dexShow(id){
@@ -651,7 +657,7 @@ function dexShow(id){
   if(el){ el.classList.add('hl'); el.scrollIntoView({block:'center'}); }
 }
 function toggleDex(){
-  if(!INV.slots.some(s=>s.id==='codex')){ toast('사전을 가지고 있지 않다'); return; }
+  if(!DEV.on&&!INV.slots.some(s=>s.id==='codex')){ toast('사전을 가지고 있지 않다'); return; }   // 개발자 모드면 사전 없이도 연다
   dexOpen=!dexOpen;
   if(!dexOpen&&dexBack){ dexBack=false; document.getElementById('dex').style.display='none'; openBag(); return; }
   if(dexOpen) dexBack=false;

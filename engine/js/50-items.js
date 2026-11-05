@@ -730,7 +730,7 @@ function wornSum(key){
 }
 function refreshWear(){
   for(const k in WEAR) if(WEAR[k] && INV.slots.indexOf(WEAR[k])<0) WEAR[k]=null;
-  INV.max=INV.base+wornSum('carry');
+  INV.max=(typeof DEV!=='undefined'&&DEV.on)?1e6:INV.base+wornSum('carry');   // 개발자 모드 — 무게를 안 따진다(사용자 요청 2026-11-05)
 }
 const armorTotal =()=>wornSum('armor');
 /* 갑옷이 깎는 피해 — 예전에는 방어/24 를 곧장 빼고 0.72 에서 잘랐다.
@@ -783,7 +783,7 @@ function invRemove(idx,n){
 let invDirty=true, invOpen=false;
 function drawInv(){
   const L=document.getElementById('invL'), w=invWeight();
-  const wt=w.toFixed(1)+' / '+INV.max+' kg';
+  const wt=w.toFixed(1)+' / '+(INV.max>=1e5?'∞':INV.max)+' kg';
   const b=document.getElementById('invW');
   b.textContent=wt; b.className=invLoad()>0.85?'over':'';
   document.getElementById('wgT').textContent=wt;

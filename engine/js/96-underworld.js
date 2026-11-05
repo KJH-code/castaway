@@ -12,7 +12,7 @@
      · 기준 높이 Y0 는 땅 위(둘레 50 m 의 가장 낮은 땅을 넓게 흐린 것)를 따라가되 늘 땅 밑 40 m 아래다.
        바닥 = Y0 − 0.3g (+ 잔 기복) · 천장 = Y0 + 0.7g (+ 울퉁불퉁). g 가 0 인 데는 바위 속이다(바닥과 천장이 맞붙는다).
    · 사람 둘레 190 m 의 바닥·천장을 48 m 칸으로 그린다(2 m 격자 · 벼랑 바위와 같은 사진 재질). 땅속에 있을 때만 그린다.
-   · **드나드는 길 — 수직굴**: 땅 위 굴(32-caves.js) 둘에 하나꼴로 마지막 방 바닥에 구멍이 나 있고 밧줄이 드리워 있다.
+   · **드나드는 길 — 함몰 입구**(2026-11-05 · underDolines): 산 사면이 꺼진 우묵땅의 벼랑 밑에서 굴길로 걸어 내려간다(예전 수직굴은 없앴다 — 아래 밧줄 코드는 남겨 둔다).
      구멍 위에서 Space — 밧줄을 타고 내려간다(30~60 m). 밑에서 밧줄 곁에 서서 Space — 올라간다(기력이 든다 · 다하면 미끄러진다).
      밑에서 올려다보면 굴 구멍으로 하늘빛이 보인다.
    · **어둡다** — 땅속에 들면 해·하늘빛이 꺼지고 짙은 어둠 안개가 낀다. 방마다 빛나는 버섯·결정·반딧불이 유충이 희미하게 밝힌다.
@@ -22,15 +22,15 @@
      · **큰 동굴지네**(어둠 속에서 다가와 문다 · 독 — 켠 횃불·전등을 들고 있으면 가까이 오지 않는다)
    · 자리는 시드가 정한다(저장에 안 넣는다). 지형 판 7 밑(옛 저장)에는 없다. 땅속에서는 집을 지을 수 없다.
    ========================================================================== */
-const UNDER={ok:false, ch:[], tu:[], pits:[], G:160, grid:new Map(), B:null, tiles:new Map(), T:48, S:2, R:190, mat:null,
+const UNDER={ok:false, ch:[], tu:[], pits:[], ad:[], dol:[], G:160, grid:new Map(), B:null, tiles:new Map(), T:48, S:2, R:190, mat:null,
   u:0, cx:1e9, cz:1e9, deco:new Map(), picks:[], grp:null, rope:null, sp0:false, hint:false, bats:null, fish:null, crick:null, cent:null, t:0};
 const UGK=(gx,gz)=>(gx+2048)*4096+(gz+2048);
 function underClear(){
   for(const t of UNDER.tiles.values()) underTileDrop(t); UNDER.tiles.clear();
   for(const d of UNDER.deco.values()) underDecoDrop(d); UNDER.deco.clear();
   if(UNDER.grp){ scene.remove(UNDER.grp); UNDER.grp.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); UNDER.grp=null; }
-  UNDER.ok=false; UNDER.ch.length=0; UNDER.tu.length=0; UNDER.pits.length=0; UNDER.grid.clear(); UNDER.B=null; UNDER.picks.length=0;
-  UNDER.rope=null; UNDER.u=0; UNDER.cx=UNDER.cz=1e9; UNDER.map=null; if(typeof PL!=='undefined') PL.under=false;
+  UNDER.ok=false; UNDER.ch.length=0; UNDER.tu.length=0; UNDER.pits.length=0; UNDER.ad.length=0; UNDER.dol.length=0; UNDER.grid.clear(); UNDER.B=null; UNDER.picks.length=0;
+  UNDER.rope=null; UNDER.u=0; UNDER.cx=UNDER.cz=1e9; UNDER.map=null; if(typeof PL!=='undefined') PL.under=false; if(TERR_U.uUdN) TERR_U.uUdN.value=0;
 }
 /* ── 자리 정하기(섬을 지을 때 · placeResources 다음) ──────────────────────────── */
 /* 기준 높이의 자바스크립트 판 — C 판(engine/native/light.c cw_under_base)이 못 켜졌을 때. 두 판은 같은 값을 낸다 */
@@ -66,37 +66,7 @@ function underSites(seed){
     if(!landAt(x,z)||!landAt(x+R*0.7,z)||!landAt(x-R*0.7,z)||!landAt(x,z+R*0.7)||!landAt(x,z-R*0.7)) continue;
     UNDER.ch.push({x,z,R,H,sd,p:[rnd()*6.283,rnd()*6.283,rnd()*6.283],...f});
   }
-  /* ③ 수직굴 — 땅 위 굴 둘에 하나꼴, 마지막 방 바닥(광석이 없는 자리). 밑에는 작은 방을 하나 둔다 */
-  const caveOre=PROPS.filter(p=>p.cave);                                    // 굴 속 광석만 한 번 추린다(소품 전체를 굴마다 뒤지면 굴 88 × 수십만)
-  for(const c of CAVES){ if(c.off||rnd()<0.45) continue;
-    /* 광석에서 가장 먼 자리(열두 번 뽑아) — 그래도 2.4 m 안에 걸리는 광석은 방 가장자리로 비켜 놓는다 */
-    const rm=c.rooms[c.rooms.length-1], ore=caveOre.filter(p=>Math.hypot(p.x-rm.x,p.z-rm.z)<rm.R+1); let px=rm.x, pz=rm.z, best=-1;
-    const T10=(P.tv|0)>=10; let ok10=!T10;                                  // 지형 판 10 — 수직굴은 굴의 빈 데 안(g≥3 · u≤0.5)에만(31-cave10.js)
-    for(let t=0;t<12;t++){ const a=rnd()*6.283, d=rm.R*(0.25+0.3*rnd()), x=rm.x+Math.cos(a)*d, z=rm.z+Math.sin(a)*d;
-      if(T10){ const o=cv10Field(c,x,z); if(!(o.g>=3.0&&o.u<=0.5)) continue; }
-      let m=1e9; for(const p of ore) m=Math.min(m,Math.hypot(p.x-x,p.z-z)); if(m>best){ best=m; px=x; pz=z; ok10=true; } }
-    if(T10) for(const p of ore){ const dx=p.x-px, dz=p.z-pz;
-      if(!ok10||Math.hypot(dx,dz)>=2.4) continue;
-      const at=cv10OreSpot(c,rm,p,ore,{x:px,z:pz,r:2.4}); let bx=p.x, bz=p.z;
-      if(at){ bx=at[0]; bz=at[1]; } else { for(let t=0;t<80;t++){ const o=cv10Field(c,bx,bz), dd=Math.hypot(bx-px,bz-pz); if(o.g>=2.0&&o.u<=0.75&&dd>=2.4) break;
-          const ex=rm.x-bx, ez=rm.z-bz, el=Math.hypot(ex,ez); if(el<0.5) break; bx+=ex/el*0.5; bz+=ez/el*0.5; } }
-      p.x=bx; p.z=bz; p.top=p.y=cv10Field(c,bx,bz).f; }
-    else for(const p of ore){ const dx=p.x-px, dz=p.z-pz, d=Math.hypot(dx,dz); if(d>=2.4) continue;
-      const a=d>0.01?Math.atan2(dz,dx):rnd()*6.283;
-      if((P.tv|0)>=9){ /* 지형 판 9 — 구멍 둘레 2.6 m 가운데 방 안(가운데에서 R − 2.4 m)이고 다른 광석과 가장 덜 겹치는 쪽으로(예전엔 바로 바깥으로 밀어 벽 바위 밑동에 묻히거나 이웃 광석과 겹쳤다) */
-        let best=-1e9, bx=px+Math.cos(a)*2.6, bz=pz+Math.sin(a)*2.6;
-        for(let k=0;k<14;k++){ const aa=a+(k&1?1:-1)*Math.ceil(k/2)*0.45, x=px+Math.cos(aa)*2.6, z=pz+Math.sin(aa)*2.6;
-          if(Math.hypot(x-rm.x,z-rm.z)>Math.max(0.6,rm.R-2.4)) continue;
-          let m=1e9; for(const q of ore) if(q!==p) m=Math.min(m,Math.hypot(q.x-x,q.z-z)-((PROP_FOOT[q.k]||1)*q.s+(PROP_FOOT[p.k]||1)*p.s)*0.75);
-          if(m>best){ best=m; bx=x; bz=z; } if(m>=0) break; }
-        p.x=bx; p.z=bz; }
-      else{ p.x=px+Math.cos(a)*2.6; p.z=pz+Math.sin(a)*2.6; }
-      p.y=heightAt(p.x,p.z); }
-    const chd={x:px,z:pz,R:13+rnd()*5,H:10+rnd()*3,sd:(rnd()*1e9)|0,p:[rnd()*6.283,rnd()*6.283,rnd()*6.283],pit:1,shroom:true,web:rnd()<0.3};
-    if(!ok10) continue;
-    UNDER.ch.push(chd);
-    UNDER.pits.push({x:px,z:pz,cave:c,rm,ys:T10?cv10Field(c,px,pz).f:heightAt(px,pz)});
-  }
+  /* ③ 수직굴은 없앴다(2026-11-05 사용자 요청 '구멍으로 들어가는 게 아니라 산 사면을 함몰시켜 그 아래로 동굴계') — 드나드는 길은 ⑥ 함몰 입구 */
   /* ④ 굴길 — 방마다 가까운 둘(700 m 안)에. 길은 여섯 토막으로 굽힌다 */
   const C=UNDER.ch, seen=new Set();
   for(let i=0;i<C.length;i++){ const near=[];
@@ -105,18 +75,100 @@ function underSites(seed){
     for(const [d,j] of near.slice(0,C[i].pit?1:2)){ if(d>(C[i].pit||C[j].pit?1100:700)) continue; const k=i<j?i*65536+j:j*65536+i; if(seen.has(k)) continue; seen.add(k);
       const a=C[i], b=C[j], dx=(b.x-a.x)/d, dz=(b.z-a.z)/d, w=4.5+rnd()*3, h=6+rnd()*3, amp=Math.min(60,d*0.12)*(rnd()<0.5?-1:1), ph=rnd()*6.283, pts=[];
       for(let s=0;s<=6;s++){ const t=s/6, o=amp*Math.sin(Math.PI*t)*Math.sin(t*3+ph)*(s&&s<6?1:0); pts.push([a.x+dx*d*t-dz*o,a.z+dz*d*t+dx*o]); }
-      for(let s=0;s<6;s++) UNDER.tu.push({x0:pts[s][0],z0:pts[s][1],x1:pts[s+1][0],z1:pts[s+1][1],w,h,ph:ph+s}); } }
+      const wet=rnd()<0.35;                                                  // 지하수 — 굴길 셋에 하나꼴은 바닥 가운데로 물이 흐른다
+      for(let s=0;s<6;s++) UNDER.tu.push({x0:pts[s][0],z0:pts[s][1],x1:pts[s+1][0],z1:pts[s+1][1],w,h,ph:ph+s,wet}); } }
+  /* ⑥ 함몰 입구 — 산 사면이 꺼진 우묵땅과 그 밑으로 내려가는 굴길(underDolines) */
+  underDolines(mulberry32((seed^0x7c0de5)>>>0));
   /* ⑤ 칸에 건다(160 m) */
   const put=(o,x0,z0,x1,z1)=>{ for(let gz=Math.floor(z0/UNDER.G);gz<=Math.floor(z1/UNDER.G);gz++) for(let gx=Math.floor(x0/UNDER.G);gx<=Math.floor(x1/UNDER.G);gx++){
       const k=UGK(gx,gz); let a=UNDER.grid.get(k); if(!a) UNDER.grid.set(k,a=[]); a.push(o); } };
   for(const c of C){ const r=c.R*1.3; put(c,c.x-r,c.z-r,c.x+r,c.z+r);
     if(c.pool){ c.pr=c.R*0.32; const q=underQ(c.x,c.z,true); c.wl=q.f0+0.7; } }
   for(const t of UNDER.tu){ const r=t.w*1.3; t.L=Math.hypot(t.x1-t.x0,t.z1-t.z0)||1; put(t,Math.min(t.x0,t.x1)-r,Math.min(t.z0,t.z1)-r,Math.max(t.x0,t.x1)+r,Math.max(t.z0,t.z1)+r); }
+  for(const t of UNDER.ad){ const r=t.w*1.4; put(t,Math.min(t.x0,t.x1)-r,Math.min(t.z0,t.z1)-r,Math.max(t.x0,t.x1)+r,Math.max(t.z0,t.z1)+r); }
   for(const p of UNDER.pits){ const q=underQ(p.x,p.z,true); p.yf=q.f; p.yc=q.c; }
+  /* 석주 — 방마다 바닥에서 천장까지(사용자가 준 종유석 · 석순 모형 · 2026-11-05) · 자리는 시드 · 그 자리는 바위로 친다(underQ — 뚫고 못 지나간다) */
+  for(const c of C){ const rr=mulberry32((c.sd^0x2c01)>>>0), n=Math.round(c.R*0.30), cols=[];
+    for(let k=0;k<n;k++){ const a=rr()*6.283, d=c.R*Math.sqrt(rr())*0.72, x=c.x+Math.cos(a)*d, z=c.z+Math.sin(a)*d, q=underQ(x,z,true), gap=q.c-q.f;
+      if(gap<4||q.w>-1e8||(c.pr&&Math.hypot(x-c.x,z-c.z)<c.pr+3)) continue;
+      const sxz=Math.min(9,Math.max(2.5,gap*0.42)); cols.push({x,z,f:q.f,gap,s:sxz,r:sxz*0.33,yaw:rr()*6.283}); }
+    c.cols=cols; }
   /* 구멍 둘레 5 m 는 치운다(사용자 요청 2026-11-05) — 자원은 자리로 찾으므로(92-save.js findSavedProp) 빼도 저장이 어긋나지 않는다 */
   if(UNDER.pits.length) PROPS=PROPS.filter(q=>!UNDER.pits.some(p=>(q.x-p.x)*(q.x-p.x)+(q.z-p.z)*(q.z-p.z)<25));
+  if(UNDER.dol.length) PROPS=PROPS.filter(q=>!UNDER.dol.some(d=>Math.hypot(q.x-d.x,q.z-d.z)<d.R*1.25));   // 우묵땅 안의 자원은 치운다
   UNDER.ok=C.length>0;
 }
+/* ── 함몰 입구(2026-11-05 사용자 요청 '산 사면을 함몰시켜 그 아래로 동굴계 · 지하수 · 종유석 · 석주') ─────────────────
+   산의 사면(큰 지형 모형 둘레의 드러난 땅 — 모형이 없으면 높은 땅의 비탈)이 밑의 빈 굴로 꺼져 내린 우묵땅(붕괴 돌리네):
+   오르막 쪽은 가파른 벼랑(드러난 바위 — 벼랑 모형을 박는다) · 내리막 쪽은 무너진 돌 비탈(자갈밭 바이옴). 벼랑 밑에 굴 입구가 있고
+   거기서 굴길이 비탈 속으로 0.30 의 내리막으로 내려가 땅속 방(지하수 못)에 닿는다 · 그 방은 가까운 굴 방과 굴길로 잇는다.
+   자리는 시드(제 난수 — 앞의 방 · 굴길 차례를 안 건드린다) */
+function underDolines(rnd){
+  const h=F.elev, cand=[]; let hi=1; for(let i=0;i<N*N;i++) if(h[i]>hi) hi=h[i];
+  const peaks=(typeof GEO_LF!=='undefined'&&GEO_LF.list)?GEO_LF.list.filter(L=>L.stamped&&/peak/.test(L.name)&&L.S>200):[];
+  const gi=(x,z)=>clamp(Math.round(z/CELL+N/2),1,N-2)*N+clamp(Math.round(x/CELL+N/2),1,N-2), elev=(x,z)=>h[gi(x,z)];
+  const masked=i=>!!(GEO_LF.mask&&GEO_LF.mask[i]);
+  for(let gz=8;gz<N-8;gz+=2) for(let gx=8;gx<N-8;gx+=2){ const i=gz*N+gx, e=h[i]; if(e<18||F.river[i]||F.slope[i]<0.18||F.slope[i]>0.95||masked(i)) continue;
+    const x=(gx-N/2)*CELL, z=(gz-N/2)*CELL; let near=false;
+    if(peaks.length){ for(const L of peaks){ const W=GEO_MESH_DATA[L.name].w, r=Math.max(W[0],W[2])*L.S*0.5, d=Math.hypot(x-L.x,z-L.z); if(d>r*0.55&&d<r*1.3){ near=true; break; } } }
+    else near=e>hi*0.35;
+    if(!near||(LANDING&&Math.hypot(LANDING.x-x,LANDING.z-z)<300)) continue;
+    cand.push([gx,gz]); }
+  for(let i=cand.length-1;i>0;i--){ const j=(rnd()*(i+1))|0, t=cand[i]; cand[i]=cand[j]; cand[j]=t; }
+  for(const [gx,gz] of cand){ if(UNDER.dol.length>=4) break;
+    const x=(gx-N/2)*CELL, z=(gz-N/2)*CELL; if(UNDER.dol.some(d=>Math.hypot(d.x-x,d.z-z)<700)) continue;
+    const e=CELL*2, hx=elev(x+e,z)-elev(x-e,z), hz=elev(x,z+e)-elev(x,z-e), hl=Math.hypot(hx,hz); if(hl<1e-3) continue;
+    const ux=hx/hl, uz=hz/hl, vx=-uz, vz=ux;                                      // 오르막 · 옆
+    const Rb=42+rnd()*18, D=11+rnd()*6;
+    let ok=true; for(let a=0;a<12&&ok;a++){ const xx=x+Math.cos(a*0.524)*Rb*1.4, zz=z+Math.sin(a*0.524)*Rb*1.4, k=gi(xx,zz); if(masked(k)||F.river[k]||h[k]<4) ok=false; }
+    if(!ok) continue;
+    /* 굴길 — 입구(벼랑 밑)에서 오르막 쪽으로 · 바닥은 0.30 내리막 · 끝은 새 방 한가운데 */
+    const Eb=elev(x,z)-D;                                                        // 우묵땅 바닥(평평)
+    const mx=x+ux*Rb*0.26, mz=z+uz*Rb*0.26, Fm=Eb;                                 // 입구 — 벼랑 밑, 바닥 높이
+    const w=3.4+rnd()*0.9, ah=5.0+rnd()*1.5, Hr=13+rnd()*5, bend=(rnd()-0.5)*0.5;
+    const at=(L,t)=>{ const a=bend*Math.sin(Math.PI*t)*L*0.25; return [mx+ux*L*t+vx*a, mz+uz*L*t+vz*a]; };
+    let L=0, Fe=0;
+    for(let l=50;l<=330;l+=6){ const [ex,ez]=at(l,1); Fe=uBase(ex,ez)-0.3*Hr; if(Fm-0.30*l<=Fe){ L=l; break; } }
+    if(!L){ L=330; const [ex,ez]=at(L,1); Fe=uBase(ex,ez)-0.3*Hr; if((Fm-Fe)/L>0.45) continue; }
+    /* 우묵땅을 판다 — 오르막 쪽은 짧게(가파른 벼랑) · 내리막 쪽은 길게(너덜 비탈) · 그 안은 자갈밭 */
+    const r=Rb*1.4;
+    for(let zz=Math.floor((z-r)/CELL+N/2);zz<=Math.ceil((z+r)/CELL+N/2);zz++) for(let xx=Math.floor((x-r)/CELL+N/2);xx<=Math.ceil((x+r)/CELL+N/2);xx++){
+      if(xx<1||zz<1||xx>N-2||zz>N-2) continue; const wx=(xx-N/2)*CELL-x, wz=(zz-N/2)*CELL-z, s2=wx*ux+wz*uz, l2=wx*vx+wz*vz;
+      const u=Math.hypot(l2/Rb,s2>0?s2/(Rb*0.62):s2/(Rb*1.15)); if(u>=1) continue;
+      /* 바닥은 평평(Eb) · 가장자리로 갈수록 본디 땅으로 — 오르막 쪽은 짧게 올라 벼랑이 되고 내리막 쪽은 골짜기로 열린다(본디 땅이 바닥보다 낮으면 그대로) */
+      const k=zz*N+xx, w2=Math.pow(Math.max(0,(u-0.42)/0.58),1.6), ne=Eb+(h[k]-Eb)*w2+(s2>0?0:Math.max(0,-s2-Rb*0.3)*0.0);
+      if(ne<h[k]){ h[k]=ne; if(u<0.95){ F.biome[k]=B.SCREE; F.river[k]=0; F.wlev[k]=0; } } }
+    const segs=[], NS=4;
+    for(let k=0;k<NS;k++){ const [x0,z0]=at(L,k/NS), [x1,z1]=at(L,(k+1)/NS), f0=Fm+(Fe-Fm)*k/NS, f1=Fm+(Fe-Fm)*(k+1)/NS;
+      const sg={ad:1,x0,z0,x1,z1,f0,f1,w,h:ah,ph:rnd()*6.283,L:Math.hypot(x1-x0,z1-z0)||1,s0:L*k/NS}; segs.push(sg); UNDER.ad.push(sg); }
+    const [ex,ez]=at(L,1), room={x:ex,z:ez,R:16+rnd()*8,H:Hr,sd:(rnd()*1e9)|0,p:[rnd()*6.283,rnd()*6.283,rnd()*6.283],pool:true,bats:rnd()<0.4,crys:rnd()<0.35,shroom:true,web:rnd()<0.4,cent:false,adit:segs,aL:L};
+    UNDER.ch.push(room);
+    /* 그 방을 가까운 굴 방과 잇는다 */
+    let bj=null, bd=1e9; for(const c of UNDER.ch){ if(c===room) continue; const d=Math.hypot(c.x-ex,c.z-ez); if(d<bd){ bd=d; bj=c; } }
+    if(bj&&bd<1000){ const d=bd, dx=(bj.x-ex)/d, dz=(bj.z-ez)/d, tw=4.5+rnd()*3, th=6+rnd()*3, amp=Math.min(60,d*0.12)*(rnd()<0.5?-1:1), ph=rnd()*6.283, pts=[], wet=rnd()<0.5;
+      for(let s=0;s<=6;s++){ const t=s/6, o=amp*Math.sin(Math.PI*t)*Math.sin(t*3+ph)*(s&&s<6?1:0); pts.push([ex+dx*d*t-dz*o,ez+dz*d*t+dx*o]); }
+      for(let s=0;s<6;s++) UNDER.tu.push({x0:pts[s][0],z0:pts[s][1],x1:pts[s+1][0],z1:pts[s+1][1],w:tw,h:th,ph:ph+s,wet}); }
+    /* 벼랑 — 입구 양옆에 벼랑 모형 · 입구 위 비탈엔 판판한 벼랑 모형(드러난 바위) — 큰 지형 모형으로 그리고 딛는다(37-geo-meshes.js) */
+    if(typeof GEO_LF!=='undefined'&&typeof GEO_MESH_DATA!=='undefined'&&GEO_MESH_DATA.cliffside_rock_face){
+      const S=Math.min(16,Math.max(9,D*0.9)), yaw=Math.atan2(-ux,-uz), T=[0.94,0.92,0.88];
+      for(const sd of [-1,1]){ const off=w+1.2+S*0.95, px=mx+vx*sd*off+ux*S*0.2, pz=mz+vz*sd*off+uz*S*0.2;
+        GEO_LF.list.push({name:'cliffside_rock_face',x:px,z:pz,y:elev(px,pz)-S*0.45,S,yaw:yaw+sd*0.35+(rnd()-0.5)*0.2,tint:T}); }
+    }
+    UNDER.dol.push({x,z,R:Rb,D,mx,mz,ux,uz,Fm,w,ah,segs,room}); }
+  if(UNDER.dol.length) computeSlope();
+  /* 땅 셰이더가 입구 쪽 땅을 굴 모양으로 뚫는다(20-terrain.js TERR_HOLE — 굴길 처음 두 토막) */
+  const A=TERR_U.uUdA.value, Bv=TERR_U.uUdB.value; let n=0;
+  for(const d of UNDER.dol) for(const sg of d.segs.slice(0,2)){ if(n>=8) break; A[n].set(sg.x0,sg.z0,sg.x1,sg.z1); Bv[n].set(sg.f0,sg.f1,sg.s0===0?-sg.w:sg.w,sg.h); n++; }   // 너비가 음수면 첫 토막(입구 뒤는 안 뚫는다)
+  TERR_U.uUdN.value=n;
+}
+/* 그 자리가 입구 굴길 안(바닥 높이 y 근처)인가 — 땅 위에서 굴로 걸어 드는 길(62-build.js floorAt) */
+function underAditAt(x,z,y){
+  if(!UNDER.ad.length) return false;
+  for(const o of UNDER.ad){ const vx=o.x1-o.x0, vz=o.z1-o.z0, t0=((x-o.x0)*vx+(z-o.z0)*vz)/(o.L*o.L); if(o.s0===0&&t0<0) continue; const t=clamp(t0,0,1), px=o.x0+vx*t-x, pz=o.z0+vz*t-z;
+    if(px*px+pz*pz>o.w*o.w*0.81) continue; const f=o.f0+(o.f1-o.f0)*t; if(Math.abs(f-y)<1.6) return true; }
+  return false;
+}
+TERR_U.uUdA={value:Array.from({length:8},()=>new THREE.Vector4())}; TERR_U.uUdB={value:Array.from({length:8},()=>new THREE.Vector4())}; TERR_U.uUdN={value:0};
 /* 그 자리가 수직굴 구멍 둘레(r m 안)인가 — 굴 꾸밈(석순 · 버섯)이 구멍 위에 안 서게(32-caves.js) */
 function underPitNear(x,z,r){ for(const p of UNDER.pits) if((x-p.x)*(x-p.x)+(z-p.z)*(z-p.z)<r*r) return true; return false; }
 /* ── 그 자리의 땅속 — {f 바닥, c 천장, g 빈 높이, w 못의 수면(없으면 −1e9)} ─────────── */
@@ -129,22 +181,32 @@ function underQ(x,z,fresh){
   q.x=x; q.z=z; q.w=-1e9;
   if(!UNDER.ok&&!fresh){ q.g=0; q.f=q.c=-1e4; return q; }
   const a=UNDER.grid.get(UGK(Math.floor(x/UNDER.G),Math.floor(z/UNDER.G)));
-  let g=0, pool=null, pd=0;
+  let g=0, pool=null, pd=0, adg=0, adf=0, adc=0, ads=0, wetT=-1;
   if(a) for(const o of a){
     if(o.R!==undefined){ const dx=x-o.x, dz=z-o.z, d2=dx*dx+dz*dz, rm=o.R*1.3; if(d2>rm*rm) continue;
       const d=Math.sqrt(d2), an=Math.atan2(dz,dx), Rn=o.R*(1+0.14*Math.sin(3*an+o.p[0])+0.09*Math.sin(5*an+o.p[1])+0.05*Math.sin(9*an+o.p[2]));
-      if(d<Rn){ const v=o.H*Math.sqrt(1-(d/Rn)*(d/Rn)); if(v>g) g=v; }
+      let inCol=false; if(o.cols) for(const cl of o.cols){ const ex=x-cl.x, ez=z-cl.z; if(ex*ex+ez*ez<cl.r*cl.r){ inCol=true; break; } }
+      if(d<Rn&&!inCol){ const u=d/Rn, v=o.H*Math.pow(1-Math.pow(u,8),0.25); if(v>g) g=v; }   // 벽은 수직에 가깝게(2026-11-05 사용자 요청 — 예전 렌즈 꼴 √(1−u²)) · 석주 속은 바위
       if(o.pool&&o.pr&&d<o.pr){ pool=o; pd=d; } }
+    else if(o.ad){ const vx=o.x1-o.x0, vz=o.z1-o.z0, t0=((x-o.x0)*vx+(z-o.z0)*vz)/(o.L*o.L); if(o.s0===0&&t0<0) continue;   // 입구 뒤(바깥)는 안 연다
+      const t=clamp(t0,0,1), px=o.x0+vx*t-x, pz=o.z0+vz*t-z, d=Math.sqrt(px*px+pz*pz);
+      const Rw=o.w*(1+0.18*Math.sin(t*o.L/9+o.ph)); if(d<Rw){ const u=d/Rw, pr=Math.pow(1-Math.pow(u,8),0.25), fa=o.f0+(o.f1-o.f0)*t+uN(x*1.3,z*1.3)*0.18;
+        const ar=Math.sqrt(Math.max(0,1-u*u)), ga=o.h*pr; if(ga>adg){ adg=ga; adf=fa+(1-pr)*o.h*0.45; adc=fa+o.h*0.45+o.h*0.55*ar+uN(x*2.1+7,z*2.1)*0.25*ar; ads=o.s0+o.L*t; } } }   // 아래는 곧은 벽 · 위는 둥근 아치
     else{ const vx=o.x1-o.x0, vz=o.z1-o.z0, t=clamp(((x-o.x0)*vx+(z-o.z0)*vz)/(o.L*o.L),0,1), px=o.x0+vx*t-x, pz=o.z0+vz*t-z, d=Math.sqrt(px*px+pz*pz);
-      const Rw=o.w*(1+0.22*Math.sin(t*o.L/23+o.ph)); if(d<Rw){ const v=o.h*Math.sqrt(1-(d/Rw)*(d/Rw)); if(v>g) g=v; } }
+      const Rw=o.w*(1+0.22*Math.sin(t*o.L/23+o.ph)); if(d<Rw){ const u=d/Rw, v=o.h*Math.pow(1-Math.pow(u,8),0.25); if(v>g){ g=v; wetT=o.wet?u:-1; } } }
   }
   const Y0=uBase(x,z), n=uN(x,z);
-  q.g=g; q.f0=Y0-0.3*g;
-  if(g<=0){ q.f=q.c=Y0; return q; }
-  const k=Math.min(1,g/4);
-  q.f=Y0-0.3*g+n*0.45*k;
-  q.c=Y0+0.7*g+(uN(x*1.7+31,z*1.7-17)*1.1+uN(x*4.1,z*4.1)*0.35)*k;
-  if(pool){ const s=1-(pd/pool.pr)*(pd/pool.pr); q.f-=1.5*s; q.w=pool.wl; }
+  q.g=g; q.f0=Y0-0.3*g; q.as=-1; q.st=false;
+  if(g<=0){ q.f=q.c=Y0; }
+  else{
+    const k=Math.min(1,g/4);
+    q.f=Y0-0.3*g+n*0.45*k;
+    q.c=Y0+0.7*g+(uN(x*1.7+31,z*1.7-17)*1.1+uN(x*4.1,z*4.1)*0.35)*k;
+    if(pool){ const s=1-(pd/pool.pr)*(pd/pool.pr); q.f-=1.5*s; q.w=pool.wl; }
+    else if(wetT>=0&&wetT<0.42){ const s=1-(wetT/0.42)*(wetT/0.42), f0=q.f; q.f-=0.7*s; q.w=f0-0.12; q.st=true; }   // 물길 — 바닥 가운데를 판 고랑에 물이 흐른다(지하수)
+  }
+  /* 입구 굴길(함몰 입구에서 내려가는 길) — 제 바닥 · 천장(방 · 굴길과 겹치면 둘을 합친 빈 데) */
+  if(adg>0.05){ if(g<=0){ q.f=adf; q.c=adc; q.w=-1e9; } else { q.f=Math.min(q.f,adf); q.c=Math.max(q.c,adc); } if(adg>g){ q.g=adg; q.as=ads; } }
   return q;
 }
 /* ── 몸 · 눈 · 물 ───────────────────────────────────────────────────────── */
@@ -171,24 +233,39 @@ function underMat(){
   m.userData.melt=0; m.userData.meltAttr=false;          // '땅에 녹아들기'(45-sky.js envPatch)는 땅 위 표고를 잰다 — 땅속에서는 온통 묻힌 것으로 쳐서 바닥을 흙빛으로 칠하고 천장의 법선을 위로 눕혔다
   return UNDER.mat=m;
 }
-function underTileDrop(t){ for(const m of [t.fl,t.ce]) if(m){ UNDER.grp&&UNDER.grp.remove(m); m.geometry.dispose(); } }
+function underRockIM(){
+  if(UNDER.rkm) return UNDER.rkm;
+  const base=geoMat(), m=base.clone(); m.onBeforeCompile=base.onBeforeCompile; m.customProgramCacheKey=base.customProgramCacheKey; if(base.userData.rkU) m.userData=Object.assign({},base.userData);
+  m.color.setRGB(0.40,0.39,0.37); m.shadowSide=THREE.BackSide;                 // 젖은 돌 — 짙게(물이 스민 석회암 · 화강암)
+  return UNDER.rkm=m;
+}
+function underTileDrop(t){ for(const m of [t.fl,t.ce,t.wa]) if(m){ UNDER.grp&&UNDER.grp.remove(m); m.geometry.dispose(); } }
 function underTile(tx,tz){
   const T=UNDER.T, S=UNDER.S, n=T/S+1, x0=tx*T, z0=tz*T, NV=n*n;
-  const F0=new Float32Array(NV), C0=new Float32Array(NV), G0=new Float32Array(NV); let any=false;
-  for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const q=underQ(x0+i*S,z0+j*S), k=j*n+i; F0[k]=q.f; C0[k]=q.c; G0[k]=q.g; if(q.g>0) any=true; }
+  const F0=new Float32Array(NV), C0=new Float32Array(NV), G0=new Float32Array(NV), A0=new Float32Array(NV), W0=new Float32Array(NV), H0=new Float32Array(NV); let any=false, wet=false;
+  for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const q=underQ(x0+i*S,z0+j*S), k=j*n+i; F0[k]=q.f; C0[k]=q.c; G0[k]=q.g; A0[k]=q.as; H0[k]=q.as>=0?heightAt(x0+i*S,z0+j*S):1e9; W0[k]=q.st?q.w:-1e9; if(q.g>0) any=true; if(q.st&&q.w>q.f+0.05) wet=true; }
   const t={tx,tz,fl:null,ce:null}; if(!any) return t;
   const mk=(Y,down)=>{ const P=new Float32Array(NV*3), Cc=new Float32Array(NV*3), Ml=new Float32Array(NV), I=[];
     for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const k=j*n+i, x=x0+i*S, z=z0+j*S; P[k*3]=x; P[k*3+1]=Y[k]; P[k*3+2]=z;
-      const ao=0.42+0.58*clamp(G0[k]/7,0,1), wt=down?0.82:(0.9+0.12*uN(x*0.7+5,z*0.7));      // 벽 밑·구석은 어둡다
+      const ao=0.42+0.58*clamp(G0[k]/7,0,1), wt=(down?0.82:(0.9+0.12*uN(x*0.7+5,z*0.7)))*(A0[k]>=0?0.32+0.68*Math.exp(-Math.max(0,A0[k]-4)/14):1)*0.86;   // 벽 밑·구석은 어둡다 · 입구 굴길은 들어갈수록 어둡다(밖의 빛이 못 닿는다) · 젖은 돌(×0.86)
       Cc[k*3]=ao*wt*(down?0.92:1.0); Cc[k*3+1]=ao*wt*(down?0.92:0.96); Cc[k*3+2]=ao*wt*(down?0.95:0.90); }
     for(let j=0;j<n-1;j++) for(let i=0;i<n-1;i++){ const a=j*n+i, b=a+1, c=a+n, d=c+1;
       if(G0[a]<=0&&G0[b]<=0&&G0[c]<=0&&G0[d]<=0) continue;
+      /* 입구 굴길 — 천장은 언덕이 덮는 데만 · 바닥은 땅이 그 높이로 덮는 데(바깥)는 안 그린다(문틀처럼 삐져나왔다) */
+      if(down){ if(H0[a]<C0[a]+0.3||H0[b]<C0[b]+0.3||H0[c]<C0[c]+0.3||H0[d]<C0[d]+0.3) continue; }
+      else if(H0[a]<=F0[a]+0.5&&H0[b]<=F0[b]+0.5&&H0[c]<=F0[c]+0.5&&H0[d]<=F0[d]+0.5) continue;
       if(down) I.push(a,b,c, b,d,c); else I.push(a,c,b, b,c,d); }
     if(!I.length) return null;
     const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(P,3)); g.setAttribute('color',new THREE.BufferAttribute(Cc,3));
     g.setAttribute('aMelt',new THREE.BufferAttribute(Ml,1)); g.setIndex(I); g.computeVertexNormals(); g.computeBoundingSphere();
     const m=new THREE.Mesh(g,underMat()); m.matrixAutoUpdate=false; m.updateMatrix(); m.userData.lightRole='recv'; UNDER.grp.add(m); return m; };
   t.fl=mk(F0,false); t.ce=mk(C0,true);
+  /* 물길의 물(지하수 — 굴길 바닥 가운데 고랑) — 네 꼭짓점이 다 물인 칸만 */
+  if(wet){ const P=new Float32Array(NV*3), I=[];
+    for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const k=j*n+i; P[k*3]=x0+i*S; P[k*3+1]=W0[k]>-1e8?W0[k]:F0[k]-1; P[k*3+2]=z0+j*S; }
+    for(let j=0;j<n-1;j++) for(let i=0;i<n-1;i++){ const a=j*n+i, b=a+1, c=a+n, d=c+1; if(W0[a]>-1e8&&W0[b]>-1e8&&W0[c]>-1e8&&W0[d]>-1e8) I.push(a,c,b, b,c,d); }
+    if(I.length){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(P,3)); g.setIndex(I); g.computeVertexNormals(); g.computeBoundingSphere();
+      t.wa=new THREE.Mesh(g,underGeos().pool); t.wa.matrixAutoUpdate=false; t.wa.updateMatrix(); t.wa.renderOrder=3; UNDER.grp.add(t.wa); } }
   return t;
 }
 /* ── 방의 꾸밈 — 종유석·석순 · 결정 · 빛나는 버섯 · 반딧불이 유충 · 못 · 거미줄 · 구아노 · 불빛(가까운 방만 짓는다) ── */
@@ -217,7 +294,7 @@ function underDeco(c){
   const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), V=new THREE.Vector3(), Sc=new THREE.Vector3(), E=new THREE.Euler();
   const inst=(geo,mat,list)=>{ if(!list.length) return; const im=new THREE.InstancedMesh(geo,mat,list.length);
     list.forEach((o,i)=>{ E.set(o[6]||0,o[7]||0,o[8]||0); Q.setFromEuler(E); V.set(o[0],o[1],o[2]); Sc.set(o[3],o[4],o[5]); M.compose(V,Q,Sc); im.setMatrixAt(i,M); });
-    im.instanceMatrix.needsUpdate=true; im.userData.lightRole='recv'; grp.add(im); };
+    im.instanceMatrix.needsUpdate=true; im.frustumCulled=false; im.userData.lightRole='recv'; grp.add(im); };   // 인스턴스는 화면 거르기를 끈다(꼴의 경계구는 원점에 있다)
   const spot=(k)=>{ const a=rnd()*6.283, r=c.R*Math.sqrt(rnd())*k; return [c.x+Math.cos(a)*r,c.z+Math.sin(a)*r]; };
   /* 종유석(천장에서 아래로) · 석순(바닥에서 위로) — 방이 클수록 많다 */
   const st=[], sm=[], nS=Math.round(c.R*0.9);
@@ -226,6 +303,24 @@ function underDeco(c){
     st.push([x,q.c+0.3,z,r,-L-0.3,r,0,rnd()*6,0]);
     if(rnd()<0.55){ const h=Math.min((q.c-q.f)*0.25,0.4+rnd()*rnd()*2.6); sm.push([x+(rnd()-0.5)*0.4,q.f-0.15,z+(rnd()-0.5)*0.4,0.18+h*0.16,h+0.15,0.18+h*0.16,0,rnd()*6,0]); } }
   inst(G.cone,G.lime,st); inst(G.cone,G.rock,sm);
+  /* 석주 · 젖은 바닥 · 천장(사용자가 준 모형을 잘라 붙인다 — 2026-11-05 '종유석 · 석주는 준 모형으로 · 천장 · 바닥은 젖은 돌로 절벽 모형 일부를 잘라 합성') */
+  if(typeof geoMeshGeo==='function'&&typeof GEO_MESH_DATA!=='undefined'){
+    const RM=underRockIM(), im=(nm,lod,list)=>{ if(!list.length||!GEO_MESH_DATA[nm]) return; const m=new THREE.InstancedMesh(geoMeshGeo(nm,lod,true),RM,list.length);
+      list.forEach((o,i)=>{ E.set(o[6]||0,o[7]||0,o[8]||0); Q.setFromEuler(E); V.set(o[0],o[1],o[2]); Sc.set(o[3],o[4],o[5]); M.compose(V,Q,Sc); m.setMatrixAt(i,M); });
+      m.instanceMatrix.needsUpdate=true; m.frustumCulled=false; m.userData.lightRole='recv'; grp.add(m); };
+    im('cave_stalactites_and_stalagmites','far',(c.cols||[]).map(o=>[o.x,o.f-0.3,o.z,o.s,o.gap+0.6,o.s*0.9,0,o.yaw,0]));
+    const fl=[], ce=[], put=(x,z,big)=>{ const q=underQ(x,z,true); if(q.g<1.5) return;
+      if(q.as>=0){ const hh=heightAt(x,z); if(hh<q.c+1.5) return; }                    // 입구 굴길 — 언덕이 덮는 데만(밖에선 허공에 떴다)
+      if(q.w<-1e8&&rnd()<0.75){ const S=(0.5+rnd()*0.6)*(big?1:0.8); fl.push([x,q.f-S*0.6,z,S,S,S,(rnd()-0.5)*0.2,rnd()*6.283,(rnd()-0.5)*0.2]); }
+      if(q.c-q.f>4.5&&rnd()<0.7){ const S=(1.5+rnd()*2.0)*(big?1:0.6); ce.push([x,q.c+S*0.55,z,S,S,S,Math.PI+(rnd()-0.5)*0.3,rnd()*6.283,(rnd()-0.5)*0.3]); } };
+    for(let k=0,nP=Math.round(c.R*0.55);k<nP;k++){ const [x,z]=spot(0.92); put(x,z,true); }
+    /* 벽 — 방 둘레에 벼랑 면 모형을 세워 박는다(곧은 벽의 바위 결 · 2026-11-05) */
+    const wl=[]; { const P0=c.R*6.283; for(let s=0;s<P0;s+=4.5+rnd()*2.5){ const a=s/c.R, Rn=c.R*(1+0.14*Math.sin(3*a+c.p[0])+0.09*Math.sin(5*a+c.p[1])+0.05*Math.sin(9*a+c.p[2])), x=c.x+Math.cos(a)*Rn*0.95, z=c.z+Math.sin(a)*Rn*0.95;
+        const q=underQ(c.x+Math.cos(a)*Rn*0.85,c.z+Math.sin(a)*Rn*0.85,true); if(q.g<2) continue; const S=Math.max(2.5,(q.c-q.f)*(0.55+0.3*rnd()));
+        wl.push([x,q.f-S*0.15,z,S*0.9,S,S*0.9,(rnd()-0.5)*0.15,Math.atan2(c.x-x,c.z-z)+(rnd()-0.5)*0.5,(rnd()-0.5)*0.15]); } }
+    im('cliffside_rock_face','far',wl);
+    if(c.adit) for(const sg of c.adit) for(let s=0;s<sg.L;s+=5){ const t=s/sg.L, l=(rnd()-0.5)*sg.w*1.2; put(sg.x0+(sg.x1-sg.x0)*t-(sg.z1-sg.z0)/sg.L*l,sg.z0+(sg.z1-sg.z0)*t+(sg.x1-sg.x0)/sg.L*l,false); }
+    im('stonecliff_plateau','tiny',fl); im('cliffside_rock_face','tiny',ce); }
   const GP=[], GA=[], lamps=[];
   /* 결정 무리 — 바닥 가장자리에서 비스듬히 솟는다 · 보랏빛으로 은은히 빛난다 */
   if(c.crys){ const cr=[]; for(let k=0;k<3;k++){ const a=rnd()*6.283, x0=c.x+Math.cos(a)*c.R*0.7, z0=c.z+Math.sin(a)*c.R*0.7, q0=underQ(x0,z0,true), y0=q0.f; if(q0.g<2) continue;   // underQ 는 같은 그릇을 돌려준다 — 값은 바로 받아 둔다
@@ -481,7 +576,8 @@ function updateUnder(dt){
   if(!UNDER.rope&&!PL.dead) PL.under=underIn(p.x,p.z,p.y)&&underQ(p.x,p.z).g>0.2;
   const want=(PL.under||(UNDER.rope&&p.y<UNDER.rope.p.ys-6))?1:0;
   UNDER.u+=(want-UNDER.u)*clamp(dt*1.6,0,1); if(Math.abs(UNDER.u-want)<0.002) UNDER.u=want;
-  const u=UNDER.u, show=u>0.01||!!UNDER.rope;
+  const nearDol=UNDER.dol.some(d=>Math.hypot(d.mx-p.x,d.mz-p.z)<100);           // 함몰 입구 곁 — 땅 위에서도 굴 속을 그린다(입구로 들여다보인다)
+  const u=UNDER.u, show=u>0.01||!!UNDER.rope||nearDol;
   if(u===0&&UNDER.g0){ hemi.groundColor.copy(UNDER.g0); UNDER.g0=null; }              // 땅 위로 — 하늘빛의 땅 쪽 색을 되돌린다
   UNDER.grp.visible=show;
   if(u>0){                                          // 해·하늘빛을 끄고 어둠 안개(updateSky 다음 — 그 값에 곱한다)
@@ -506,8 +602,8 @@ function updateUnder(dt){
   if(!UNDER.bats) underFauna();
   if(Math.hypot(p.x-UNDER.cx,p.z-UNDER.cz)>12){ UNDER.cx=p.x; UNDER.cz=p.z;
     for(const c of UNDER.ch){ const d=Math.hypot(c.x-p.x,c.z-p.z), has=UNDER.deco.get(c);
-      if(d<220+c.R&&!has){ const dd=underDeco(c); UNDER.deco.set(c,dd); underPopulate(dd); }
-      else if(d>300+c.R&&has){ underUnpopulate(has); underDecoDrop(has); UNDER.deco.delete(c); } }
+      if(d<220+c.R+(c.aL||0)&&!has){ const dd=underDeco(c); UNDER.deco.set(c,dd); underPopulate(dd); }   // 입구 굴길이 딸린 방은 굴길 길이만큼 더 멀리서부터
+      else if(d>300+c.R+(c.aL||0)&&has){ underUnpopulate(has); underDecoDrop(has); UNDER.deco.delete(c); } }
     UNDER.picks.length=0; for(const d of UNDER.deco.values()) for(const q of d.picks) UNDER.picks.push(q); }
   if(PL.under) underCreatures(dt);
 }

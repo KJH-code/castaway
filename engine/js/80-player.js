@@ -219,10 +219,13 @@ function toggleDev(on){
   const b=document.getElementById('bDev'); if(b) b.classList.toggle('on',DEV.on);
   hudS(document.getElementById('devTag'),'display',DEV.on?'block':'none');
   PL.vel.set(0,0,0); PL.camY=undefined;
-  if(DEV.on){ hurtFlash=0; PL.dead=false; }
+  if(DEV.on){ hurtFlash=0; PL.dead=false; devKeep(); }
   else{ PL.pos.y=devGround(); PL.grounded=true; }
-  toast(DEV.on?'개발자 모드 — 날아서 둘러본다 · 다치지 않는다 · ; 로 끈다':'개발자 모드 끔');
+  refreshWear();                                   // 무게 한도(개발자 모드면 없음 — 50-items.js)
+  toast(DEV.on?'개발자 모드 — 날아서 둘러본다 · 다치지 않는다 · 허기 · 목마름 · 기력 · 배터리가 줄지 않는다 · 무게 무시 · 사전에서 아이템을 받는다 · ; 로 끈다':'개발자 모드 끔');
 }
+/* 개발자 모드 동안은 몸 상태를 늘 가득(사용자 요청 2026-11-05 '배터리랑 허기 같은 건 무시') */
+function devKeep(){ PL.food=100; PL.water=100; PL.stam=100; PL.oxy=100; PL.ill=0; if(typeof CAMC!=='undefined'){ CAMC.bat=100; CAMC.warned=false; } }
 /* 개발자 모드 — 굴 둘러보기(사용자 요청: 굴이 제대로 지어졌나 보고 싶다). ] 다음 굴 · [ 앞 굴 — 입구 앞 6 m 에서 굴 속을 보고 선다.
    지도에는 굴이 번호 붙은 청록 동그라미로 뜬다(개발자 모드일 때만 — 82-hud.js drawMap) */
 function devCave(step){
@@ -394,7 +397,7 @@ function updatePlayer(dt){
      안 그러면 벼랑 위로 올라서거나 나무에서 내려선 뒤 누르고 있던 Space · Q 로 곧바로 다시 뛰거나 돌진했다 */
   const jumpTap=!!keys.jump&&!PL._sp0, dashTap=!!keys.dash&&!PL._dq0; PL._sp0=!!keys.jump; PL._dq0=!!keys.dash;
   if(PL.dead) return;                              // 쓰러져 있는 동안에는 아무것도 안 한다
-  if(DEV.on){ devFly(dt); return; }                // 개발자 모드 — 날기(위)
+  if(DEV.on){ devKeep(); devFly(dt); return; }                // 개발자 모드 — 날기(위)
   if(underRopeTick(dt)) return;                    // 수직굴 밧줄을 타는 중(96-underworld.js)
   if(UNDER.ok) PL.under=underIn(PL.pos.x,PL.pos.z,PL.pos.y)&&underQ(PL.pos.x,PL.pos.z).g>0.2;   // 땅속인가 — 몸을 움직이기 전에(불러온 저장 · 순간 이동이 땅 위로 튀지 않게)
   if(climbTick(dt)) return;                        // 나무를 오르는 중 — 몸은 줄기에 붙어 있다(97-wildlife.js)

@@ -585,3 +585,6 @@
   /* 글자 — 테이프의 낮은 해상도처럼 아주 살짝 번진다 */
   body.camc #bag .bagB,body.camc #dex,body.camc #box,body.camc #cfg,body.camc #gws{font-smooth:never;-webkit-font-smoothing:none}
 
+/* 개발자 모드 — 사전의 아이템 받기 단추(64-dex.js devGive) */
+#dexL button.dgive{font:inherit;font-size:11px;padding:1px 6px;margin-left:4px;border:1px solid rgba(160,220,200,.45);background:rgba(40,70,64,.6);color:#cfe;cursor:pointer;border-radius:3px}
+#dexL button.dgive:hover{background:rgba(70,120,108,.8)}

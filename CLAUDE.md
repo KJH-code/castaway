@@ -116,7 +116,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `95-flora.js` | 군락 식생 · 따기 `FLORA_PICK`/`GATHER` · 먼 단계 `floraFar` |
 | `95-giants.js` | 노거수 · 판근 `giantRootAt` · 베기 |
 | `96-sea.js` · `96-reef.js` · `96-dishes.js` · `96-foam.js` | 바다 생물 · 물고기 · 요리 · 물가 거품 |
-| `96-underworld.js` | 땅속 세계(지형 판 7 · `PL.under`) |
+| `96-underworld.js` | 땅속 세계(지형 판 7 · `PL.under`) — 수직 벽 단면 · 산 사면의 함몰 입구와 내리막 굴길(`underDolines` · `UNDER.ad`) · 석주 · 지하수 물길 |
 | `97-wildlife.js` | 새 · 알 · 꿀 · 새총 · 나무 오르기 · 벌레 |
 | `97-temples.js` | 옛 신전 둘 · `templeNear` · 험한 데의 더 나은 소출 `yieldK` |
 | `97-mob-rigs.js` · `data-mob-*.js` | 몬스터의 몸(시험장에서 옮김 — 아르크토스 · 다지류 · 가고일 공용 구역) |
@@ -375,6 +375,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 큰 지형 모형 위에 무엇을 놓으면 `geoGround(x,z,heightAt)`(땅은 모형 밑에 묻혀 있고 드러난 칸은 그리지도 않는다 — 땅 화소를 버리는 셰이더는 `TERR_HOLE` 을 거칠 것) · 모형 자료는 `node tools/geo-mesh.mjs`(QEM — 구멍 0 을 찍는다) · 인스턴스 메시는 비면 `visible=false`(0 개여도 그리기 호출이 든다 · perf) · 가까이 가야 생기는 재질은 `precompPlan` 에(바위 칸 `ROCK_KINDS` 처럼 — 처음 다가갈 때 0.2~0.4 초 멈춘다 · perf).
 - 바위 갈래는 지질도(`TERR_U.uGeo` · `geolBuild` — 37-geo-meshes.js)가 정한다 — 읽는 쪽(`GEOL_GLSL`: 땅 셰이더 벼랑 면 · `rockMat` 의 uRkGeo · `cragMatFar` · `geoMat` 큰 결)의 갈래 → 사진 · 빛깔 표를 같이 · 판 깊이 · 자원 갈래 문턱을 바꾸면 `surfaceRocks` · `cv10Kind` 와 맞출 것(terrain).
 - `RK_OFS`(cragMat) 무늬 비킴은 덩이마다 같은 `aOfs`(cragMesh) — 정점 빛깔로 비키지 말 것(오목함이 무늬를 끌어 늘인다) · 큰 지형 모형 위는 `geoFloor` 가 딛는 높이(`floorAt`) — 땅은 모형 밑 1.2 m 에 묻혀 있다(terrain).
+- 땅속 세계 입구 굴길 — 바닥 · 천장 식(underQ 의 `o.ad` 갈래)을 바꾸면 땅 셰이더의 입구 뚫기(`TERR_HOLE` 의 uUdA/uUdB)와 걸어 들기(`underAditAt` · 62-build.js floorAt)를 같이 · 석주 자리(`c.cols`)는 걷기 판정도 쓴다(terrain).
 - 굴 속 빛·바닥(`CAVE_GLSL` — 32-caves.js)은 envPatch 의 해·하늘빛 두 줄 · 녹아들기 빛깔 · 땅 셰이더(`#ifdef CAVE_ON` 의 `cvF`)가 같이 읽는다 — 그 줄을 바꾸거나 땅을 새로 그리는 셰이더를 만들면 같이 · 굴 불빛은 불빛 풀이 아니라 셰이더(`uCvB.w`)다(terrain).
 - 드리우는 것을 `position`/`rotation` 으로 직접 움직이면 `LIGHT.dirtyAt(x,z,r)`(안 부르면 그림자가 1.5초까지 늦다) · 알파 카드(잎·판때기)는 `customDepthMaterial` 을 따로 단다(light).
 - `onBeforeCompile` 을 단 재질은 고유한 `customProgramCacheKey`(`envPatch` 가 이어 붙인다) · 램버트 셰이더에서 거리를 `cameraPosition` − 세계 좌표로 재지 말 것(`modelViewMatrix*위치` · light).

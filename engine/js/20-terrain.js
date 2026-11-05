@@ -557,7 +557,10 @@ void patchCalc(vec3 pos){
 }
 `;
 /* 땅 화소 버리기 — ① 덧판 원(본 땅은 원 안 · 덧판은 원 밖) ② 큰 지형 모형의 안쪽(37-geo-meshes.js 가림막 uGeoM — 모형이 땅을 덮는다 · 2026-11-05) */
-const TERR_HOLE=(sh,v,patch)=>sh.replace(/void main\s*\(\)\s*\{/,'uniform vec2 uPC; uniform float uPR; uniform sampler2D uGeoM; uniform vec3 uGeoMG;\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;\n\tif(uGeoMG.z>0.5&&texture2D(uGeoM,('+v+'/uGeoMG.y+uGeoMG.x*0.5+0.5)/uGeoMG.x).r>0.5) discard;');
+/* ③ 함몰 입구의 굴길(96-underworld.js underDolines — 처음 두 토막) — 굴 천장 밑의 땅 화소를 버려 비탈에 굴 입구가 열린다(높이 vy 를 아는 땅 셰이더만) */
+const TERR_HOLE=(sh,v,patch,vy)=>sh.replace(/void main\s*\(\)\s*\{/,'uniform vec2 uPC; uniform float uPR; uniform sampler2D uGeoM; uniform vec3 uGeoMG;'+(vy?' uniform vec4 uUdA[8]; uniform vec4 uUdB[8]; uniform int uUdN;':'')+'\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;\n\tif(uGeoMG.z>0.5&&texture2D(uGeoM,('+v+'/uGeoMG.y+uGeoMG.x*0.5+0.5)/uGeoMG.x).r>0.5) discard;'
+  +(vy?'\n\tfor(int k=0;k<8;k++){ if(k>=uUdN) break; vec4 A=uUdA[k], Bq=uUdB[k]; vec2 ab=A.zw-A.xy; float t0=dot('+v+'-A.xy,ab)/max(dot(ab,ab),1e-4); if(Bq.z<0.0&&t0<0.0) continue; float t=clamp(t0,0.0,1.0), w=abs(Bq.z); float d=length(A.xy+ab*t-'+v+');'
+    +' if(d<w){ float u=d/w, f=mix(Bq.x,Bq.y,t), c=f+Bq.w*0.45+Bq.w*0.55*sqrt(max(0.0,1.0-u*u)); if('+vy+'<c+0.4&&'+vy+'>f-2.0) discard; } }':''));
 /* 그림자에 찍히는 땅 — 본 땅은 원 안을 버리고, 덧판은 제 정점 식으로 서서 원 밖을 버린다 */
 function terrDepthMat(dist,patch){
   const m=dist?new THREE.MeshDistanceMaterial():new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
@@ -622,7 +625,7 @@ function terrainMat(patch){
     sh.vertexShader='varying vec3 vTW;\nvarying vec3 vTN;\nvarying float vTD;\n'+sh.vertexShader.replace('#include <begin_vertex>',
       '#include <begin_vertex>\nvTW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvTN=normal;\nvTD=length((modelViewMatrix*vec4(transformed,1.0)).xyz);');
     /* 사진 결(22-ground-textures.js)을 쓸 수 있으면 조각 쪽은 그쪽 것을 쓴다 — 훨씬 가볍다. 아래 수식 판은 WebGL1 용으로 남긴다 */
-    if(GND_OK()){ sh.fragmentShader=TERR_HOLE(gndTerrainFrag(sh.fragmentShader),'vTW.xz',patch); return; }
+    if(GND_OK()){ sh.fragmentShader=TERR_HOLE(gndTerrainFrag(sh.fragmentShader),'vTW.xz',patch,'vTW.y'); return; }
     sh.fragmentShader=`uniform vec3 uSunDir;
 uniform sampler2D uBio; uniform sampler2D uBio2; uniform float uBioN, uCell;
 varying vec3 vTW;
