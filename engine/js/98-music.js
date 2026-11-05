@@ -41,10 +41,10 @@ const MU_Q={
 const MU_SONGS={
   limecave:{n:'석회 동굴', d:'어둡고 느린 쿨 재즈 · 단조 · 낮게 깔린 베이스 · 스네어 고스트', bpm:62, sw:0.62, cave:1,
     prog:[['C','m9'],['C','m9'],['Ab','maj7'],['G','7alt'],['C','m9'],['F','m9'],['D','m7b5'],['G','7b9']],
-    comp:'evansLow', bass:'two', bassGhost:0.35, drums:'ghost', lead:'dark', rv:'cave', rvA:0.55, cut:2600, gain:{bass:1.25}},
+    comp:'evansLow', bass:'two', bassGhost:0.35, drums:'ghost', lead:'dark', rv:'cave', rvA:0.55, cut:2600, gain:{bass:1.05}},
   granitecave:{n:'화강암 동굴', d:'다크 아카데미아 재즈 · 쪼개진 화음 · 무거운 베이스 · 또렷한 하이햇', bpm:84, sw:0.6, cave:1,
     prog:[['D','mmaj7'],['D','m7'],['Bb','maj7'],['A','7b9'],['G','m9'],['Eb','maj7s11'],['E','m7b5'],['A','7alt']],
-    comp:'academia', bass:'walk', bassGhost:0.15, arco:1, drums:'hats', lead:'academia', rv:'cave', rvA:0.45, cut:3400, gain:{bass:1.2}},
+    comp:'academia', bass:'walk', bassGhost:0.15, arco:1, drums:'hats', lead:'academia', rv:'cave', rvA:0.45, cut:3400, gain:{bass:1.0}},
   amethystcave:{n:'자수정 동굴', d:'실로폰 · 글리산도 · 반짝이는 리디아 화음 · 깊은 울림', bpm:76, sw:0.5, cave:1,
     prog:[['E','maj7s11'],['E','maj7s11'],['C#','m9'],['C#','m9'],['A','maj7s11'],['A','maj7s11'],['B','sus'],['B','sus']],
     comp:'pad', bass:'drone', drums:'mallet', lead:'xylo', rv:'cave', rvA:0.65, cut:6000},
@@ -71,7 +71,7 @@ const MU_SONGS={
     comp:'bigband', bass:'walk', drums:'bigswing', lead:'mirror', rv:'hall', rvA:0.34, cut:5000, gain:{drums:1.1}},
   wetland:{n:'습지', d:'느리게 · 프렛리스 베이스의 미끄러짐과 해머온', bpm:58, sw:0.58,
     prog:[['D','m9'],['G','13'],['D','m9'],['G','13'],['Bb','maj7'],['A','sus'],['D','m9'],[['E','m7b5'],['A','7b9']]],
-    comp:'gtrArp', bass:'fretless', drums:'wet', lead:'none', rv:'hall', rvA:0.42, cut:3000, gain:{bass:1.3}},
+    comp:'gtrArp', bass:'fretless', drums:'wet', lead:'none', rv:'hall', rvA:0.42, cut:3000, gain:{bass:1.1}},
   water:{n:'물속', d:'느리고 서늘한 보사 · 물에 잠긴 소리', bpm:84, sw:0.5, cave:1,
     prog:[['F','maj7'],['F','maj7'],['E','m9'],['E','m9'],['Eb','maj7s11'],['Eb','maj7s11'],['D','m9'],['Db','maj7']],
     comp:'bossa', bass:'bossa', drums:'none', lead:'water', rv:'hall', rvA:0.6, cut:1300}
@@ -127,21 +127,21 @@ function muPianoBuf(m,vb){ return muGet('p'+m+'_'+vb,()=>{
   const hl=Math.floor(sr*0.014), hm=new Float32Array(hl); for(let i=0;i<hl;i++) hm[i]=(Math.random()*2-1)*(1-i/hl);
   muBQ(hm,sr,'lp',900+900*br,0.7); for(let i=0;i<hl;i++) d[i]+=hm[i]*0.35*br;
   muFade(d,sr,0.002); return muBuf(muNorm(d,0.8),sr); }); }
-/* 콘트라베이스 — 무른 손가락 뜯기 · 몸통(90 Hz) · 줄 소리는 1.1 kHz 위로 눅인다 · dead: 죽은 음(손으로 눌러 막은 고스트) */
+/* 콘트라베이스 — 손가락 살로 무르게 뜯기(들뜸을 많이 눅여 튕김을 줄인다 · 사용자 요청 2026-11-05) · 몸통(90 Hz) · 줄 소리는 520 Hz 위로 두 번 눅인다 ·
+   길게 남는다(t60 2.8 s) · dead: 죽은 음(손으로 눌러 막은 고스트) */
 function muBassBuf(m,dead){ return muGet('b'+m+(dead?'d':''),()=>{
-  const sr=MU_SR, f0=mtof(m), d=dead?muKS(f0,0.16,0.07,0.3,0.8):muKS(f0,1.9,1.5*Math.pow(55/f0,0.25),0.22,0.55);
-  muBQ(d,sr,'lp',dead?650:1150,0.7); muBQ(d,sr,'peak',95,1.4,4); if(!dead) muBQ(d,sr,'peak',650,1.2,-3);
-  const tl=Math.floor(sr*0.008); for(let i=0;i<tl;i++) d[i]+=(Math.random()*2-1)*0.12*(1-i/tl);
-  muFade(d,sr,0.003); return muBuf(muNorm(d,dead?0.5:0.85),sr); }); }
-/* 나일론 기타 — 밝게 뜯고(소리 구멍 쪽) · 몸통 울림(105 · 220 Hz) · 2.5 kHz 의 결 */
+  const sr=MU_SR, f0=mtof(m), d=dead?muKS(f0,0.18,0.08,0.34,0.88):muKS(f0,2.8,2.8*Math.pow(55/f0,0.25),0.32,0.86);
+  muBQ(d,sr,'lp',dead?420:520,0.6); muBQ(d,sr,'lp',dead?700:900,0.5); muBQ(d,sr,'peak',95,1.4,3); if(!dead) muBQ(d,sr,'peak',400,1.0,-2);
+  muFade(d,sr,dead?0.006:0.012); return muBuf(muNorm(d,dead?0.45:0.8),sr); }); }
+/* 나일론 기타 — 손가락 살로 지판 쪽을 무르게(음들이 섞이게 · 사용자 요청 2026-11-05) · 몸통 울림(105 · 220 Hz) · 2.2 kHz 위로 눅인다 · 길게 남는다 */
 function muGtrBuf(m){ return muGet('g'+m,()=>{
-  const sr=MU_SR, f0=mtof(m), d=muKS(f0,2.6,2.2*Math.pow(196/f0,0.4),0.17,0.3);
-  muBQ(d,sr,'peak',105,2,5); muBQ(d,sr,'peak',220,1.5,3); muBQ(d,sr,'peak',2500,1,2); muBQ(d,sr,'lp',5200,0.7);
-  muFade(d,sr,0.0015); return muBuf(muNorm(d,0.8),sr); }); }
+  const sr=MU_SR, f0=mtof(m), d=muKS(f0,3.2,2.9*Math.pow(196/f0,0.35),0.33,0.6+0.25*Math.min(1,f0/330));
+  muBQ(d,sr,'peak',105,2,4); muBQ(d,sr,'peak',220,1.5,2.5); muBQ(d,sr,'lp',1900,0.6); muBQ(d,sr,'lp',3000,0.5);
+  muFade(d,sr,0.005); return muBuf(muNorm(d,0.8),sr); }); }
 /* 프렛리스 — 둥글고 길게 우는 줄(무른 들뜸 · 오래 남는다) · '므와' 는 칠 때 거르개로 */
 function muFretBuf(m){ return muGet('f'+m,()=>{
-  const sr=MU_SR, f0=mtof(m), d=muKS(f0,3.4,3.6,0.36,0.84);
-  muBQ(d,sr,'lp',1700,0.7); muBQ(d,sr,'peak',80,1.2,3);
+  const sr=MU_SR, f0=mtof(m), d=muKS(f0,3.4,4.0,0.38,0.9);
+  muBQ(d,sr,'lp',800,0.6); muBQ(d,sr,'lp',1300,0.5); muBQ(d,sr,'peak',80,1.2,3);
   muFade(d,sr,0.004); return muBuf(muNorm(d,0.85),sr); }); }
 /* 실로폰 — 장미목 막대: 모드 1 · 3(열두째음에 맞춘 첫 배음) · 6.2 · 9.9 · 위로 갈수록 짧다 · 채 소리 */
 function muXyloBuf(m){ return muGet('x'+m,()=>{
@@ -200,7 +200,7 @@ function musInit(){
   MUS.dly=C.createDelay(1.5); MUS.dly.delayTime.value=0.42; MUS.dlyFb=C.createGain(); MUS.dlyFb.gain.value=0.3; MUS.dlyLp=C.createBiquadFilter(); MUS.dlyLp.type='lowpass'; MUS.dlyLp.frequency.value=2400;
   MUS.dlyG=C.createGain(); MUS.dlyG.gain.value=0; MUS.bus.connect(MUS.dlyG); MUS.dlyG.connect(MUS.dly); MUS.dly.connect(MUS.dlyLp); MUS.dlyLp.connect(MUS.dlyFb); MUS.dlyFb.connect(MUS.dly); MUS.dlyLp.connect(MUS.gain);
   MUS.ins={};
-  for(const [k,pan,g] of [['piano',-0.25,0.55],['bass',0,0.8],['gtr',-0.15,0.62],['xylo',0.2,0.5],['horn',0.12,0.42],['horn2',-0.3,0.36],['drums',0.05,0.6]]){
+  for(const [k,pan,g] of [['piano',-0.25,0.55],['bass',0,0.6],['gtr',-0.15,0.62],['xylo',0.2,0.5],['horn',0.12,0.42],['horn2',-0.3,0.36],['drums',0.05,0.6]]){
     const gn=C.createGain(); gn.gain.value=g; const p=C.createStereoPanner?C.createStereoPanner():null; if(p){ p.pan.value=pan; gn.connect(p); p.connect(MUS.bus); } else gn.connect(MUS.bus);
     MUS.ins[k]={g:gn, base:g}; }
   MUS.noise=A.noise;
@@ -220,15 +220,15 @@ function muPlay(buf,t,gain,dest,o){
   return s; }
 const muHit=(k,t,v,o)=>{ if(v>0.005) muPlay(muDrumBuf(k),t,v*v*0.9,MUS.ins.drums.g,o); };
 function muPiano(m,t,dur,v){ m=Math.round(Math.min(100,Math.max(28,m))); muPlay(muPianoBuf(m,v<0.42?0:v<0.68?1:2),t,0.25+0.75*v*v,MUS.ins.piano.g,{dur,rel:0.11}); }
-function muBass(m,t,dur,v,dead){ m=Math.round(Math.min(64,Math.max(26,m))); muPlay(muBassBuf(m,dead),t,(dead?0.55:0.4+0.6*v)*v,MUS.ins.bass.g,{dur:dead?undefined:dur,rel:0.06}); }
+function muBass(m,t,dur,v,dead){ m=Math.round(Math.min(64,Math.max(26,m))); muPlay(muBassBuf(m,dead),t,(dead?0.45:0.5+0.5*v)*v,MUS.ins.bass.g,{dur:dead?undefined:dur*1.08,att:0.01,rel:0.16}); }
 function muArco(m,t,dur,v){ m=Math.round(Math.min(60,Math.max(26,m))); muPlay(muFretBuf(m),t,0.55*v,MUS.ins.bass.g,{dur,att:0.22,rel:0.35,off:0.05}); }
-function muGtr(m,t,dur,v,o){ m=Math.round(Math.min(84,Math.max(40,m))); o=o||{}; muPlay(muGtrBuf(m),t,0.3+0.7*v*v,MUS.ins.gtr.g,{dur,rel:0.09,from:o.slide?Math.pow(2,o.slide/12):0,glide:0.07}); }
+function muGtr(m,t,dur,v,o){ m=Math.round(Math.min(84,Math.max(40,m))); o=o||{}; muPlay(muGtrBuf(m),t,0.4+0.5*v*v,MUS.ins.gtr.g,{dur:dur*1.25,att:0.006,rel:0.3,from:o.slide?Math.pow(2,o.slide/12):0,glide:0.07}); }
 function muXylo(m,t,v){ m=Math.round(Math.min(100,Math.max(60,m))); muPlay(muXyloBuf(m),t,0.25+0.75*v*v,MUS.ins.xylo.g); }
 /* 프렛리스 — '므와'(봉우리 거르개가 380 → 950 → 520 Hz) · from: 앞 음에서 미끄러져 · ham: 해머온(뜯지 않고 — 들뜬 머리를 건너뛴다) */
 function muFret(m,t,dur,v,o){
   o=o||{}; m=Math.round(Math.min(64,Math.max(26,m))); const C=A.ctx;
-  const flt=(s,tt)=>{ const p=C.createBiquadFilter(); p.type='peaking'; p.Q.value=2.2; p.gain.value=6; p.frequency.setValueAtTime(380,tt); p.frequency.linearRampToValueAtTime(950,tt+0.12); p.frequency.setTargetAtTime(520,tt+0.14,0.25); s.connect(p); oo.fltOut=p; };
-  const oo={dur,rel:0.15,att:o.ham?0.012:0.004,off:o.ham?0.045:0,flt,from:o.from!=null?mtof(o.from)/mtof(m):0,glide:o.glide||0.14};
+  const flt=(s,tt)=>{ const p=C.createBiquadFilter(); p.type='peaking'; p.Q.value=1.6; p.gain.value=3.5; p.frequency.setValueAtTime(320,tt); p.frequency.linearRampToValueAtTime(700,tt+0.14); p.frequency.setTargetAtTime(430,tt+0.16,0.3); s.connect(p); oo.fltOut=p; };
+  const oo={dur:dur*1.08,rel:0.22,att:o.ham?0.015:0.01,off:o.ham?0.045:0,flt,from:o.from!=null?mtof(o.from)/mtof(m):0,glide:o.glide||0.14};
   muPlay(muFretBuf(m),t,(0.35+0.65*v)*v,MUS.ins.bass.g,oo); }
 /* 관악기 — 톱니파 둘(앙상블로 조금 어긋나게) · 세기를 따라 열리는 거르개 · 포먼트 · 숨소리 · 퍼올림 · 늦게 오는 떨림 · 떨어뜨리기 */
 const MU_HORN={
