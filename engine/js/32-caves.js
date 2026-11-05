@@ -72,10 +72,11 @@ bool cv10Smp(vec2 xz,int i,out vec4 o){
     vec2 q=min(c0+d,vec2(nx-1.0,nz-1.0));
     vec4 t=texture2D(uCv10T,(q+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0));
     float w=(d.x>0.5?fr.x:1.0-fr.x)*(d.y>0.5?fr.y:1.0-fr.y);
-    if(t.g>t.r+0.002){ ws+=w; acc+=w*vec4(B.x+t.r*255.0*B.y,B.x+t.g*255.0*B.y,t.b,min(1.0,t.a*255.0/127.0)); } }
+    if(t.g>t.r+0.002){ ws+=w; float a8=t.a*255.0; acc+=w*vec4(B.x+t.r*255.0*B.y,B.x+t.g*255.0*B.y,t.b,a8>254.5?1.0:(a8>191.5?(a8-192.0)/62.0:min(1.0,a8/127.0))); } }
   if(ws<=0.0001) return false;
   o=acc/ws; return true;
 }
+/* A 192~254 — 큰 지형 모형 밑에 묻힌 땅이 빈 데 안에 드는 칸(구멍만 · 하늘 트임은 (A−192)/62 — 31-cave10.js cv10Sfc) */
 /* 땅 뚫기 문턱 0.75 — M 은 A=1 · 나머지는 0.5 이하라 쌍선형으로 읽은 A 가 0.75 를 넘는 선이 칸 가장자리와 맞는다(지시서의 0.9 는 가장자리가 한 칸 가까이 안으로 먹었다) */
 bool cv10Hole(vec2 xz){
   vec4 t;

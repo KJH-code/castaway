@@ -423,7 +423,7 @@ function* cvdEntrance(X){
   /* 입구 둘레 땅 위(M 바깥 0.7~6 m) — 고사리 · 이끼 · 작은 너덜 */
   let ng=0, nmm=0, nr=0; const gH=X.rec.gH;
   for(let j=1;j<nz-1;j++) for(let i=1;i<nx-1;i++){ if(cvdT()) yield; const q=j*nx+i, d=X.md[q]; if(E[q]||X.M[q]||d<0.7||d>6||!cvdBudget(X)) continue; if(gH&&gH[q]<0.8) continue;
-    const r0=rnd(), x=X.x0+(i+rnd()-0.5)*S, z=X.z0+(j+rnd()-0.5)*S; const y=heightAt(x,z);
+    const r0=rnd(), x=X.x0+(i+rnd()-0.5)*S, z=X.z0+(j+rnd()-0.5)*S; const y=cv10Sfc(x,z);
     if(r0<0.03&&d<5&&ng<26){ const sc=0.8+0.7*rnd(), it=cvdFern(B,X,x,y-0.02,z,sc); it.acc=B; ng++; cvdLog(X,'fern',x,z,y,y+0.5*sc,0.4*sc,true); cvdPick(X,'fern',x,y,z,y+0.3*sc,0.35*sc,it); }
     else if(r0<0.06&&d<5&&nmm<18){ const mi=cvdMoss(B,X,x,y,z,0.2+0.4*rnd(),0.05+0.06*rnd(),0,1,0); mi.acc=B; nmm++; cvdLog(X,'moss',x,z,y,y,0.3,true); cvdPick(X,'cvmoss',x,y,z,y+0.04,0.3,mi); }
     else if(r0>0.93&&d>2&&nr<40){ const R=0.07+0.16*rnd(), it=cvdRock(A,X,x,z,R,0.5+0.4*rnd(),0.9+0.2*rnd(),y); if(!it) continue; it.acc=A; nr++; cvdLog(X,'rubble',x,z,it.bot,it.top,R,true,y);

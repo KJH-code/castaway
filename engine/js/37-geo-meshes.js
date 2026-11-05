@@ -260,6 +260,9 @@ function geoMat(){
   m.side=THREE.DoubleSide;   // 줄인 모형의 틈 · 밑면 없는 데로 속이 들여다보이지 않게(뒷면도 바위로 그린다)
   const prev=m.onBeforeCompile;
   m.onBeforeCompile=(sh,r)=>{ prev(sh,r); sh.uniforms.uSnow=TERR_U.uSnow;
+    if(typeof CV10_COMMON_GLSL!=='undefined'){                    // 지형 판 10 굴 — 굴 자리 그림의 구멍(입구 마당 · 빛구멍)을 모형도 비운다(31-cave10.js cv10Sfc — 굴이 모형 윗면을 땅으로 삼는다)
+      for(const k of ['uCv10T','uCv10R','uCv10B','uCv10G']) sh.uniforms[k]=TERR_U[k];
+      sh.fragmentShader=CV10_COMMON_GLSL+sh.fragmentShader.replace(/void main\s*\(\)\s*\{/,'void main() {\n\tif(cv10Hole(vRW.xz)) discard;'); }
     sh.fragmentShader='uniform float uSnow;\n'+sh.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
       ${TERR_U.uRk?'':'/*'}{ // 큰 결 — 바위 사진을 큰 배율(11 m)로 세 방향에서 한 번 더(넓은 풍화 얼룩 · 반복이 덜 보인다)
         vec3 gn0=normalize(vRN), tw0=pow(abs(gn0),vec3(4.0)); tw0/=tw0.x+tw0.y+tw0.z+1e-4;

@@ -235,7 +235,7 @@ function caveWalk(x,z,fromH){
         if(!(hx&&Math.abs(hx.f-q.f)<0.25)) return false; } }
     return true;
   }
-  if(PL.cave) return fromH>=heightAt(x,z)-STEPUP?undefined:false;   // 굴에서 벽 쪽 — 열린 데로 나가는 길(땅이 한 걸음 턱 안)만 땅 규칙으로(턱 · 비탈은 그 규칙이 본다 — 0.35 였을 때 바위그늘 들머리의 0.43 m 턱에 갇혔다)
+  if(PL.cave) return fromH>=cv10BoxSfc(x,z)-STEPUP?undefined:false;   // 굴에서 벽 쪽 — 열린 데로 나가는 길(땅이 한 걸음 턱 안)만 땅 규칙으로(턱 · 비탈은 그 규칙이 본다 — 0.35 였을 때 바위그늘 들머리의 0.43 m 턱에 갇혔다)
   return undefined;
 }
 /* fromH 는 반드시 '지금 발이 딛고 선 높이'여야 한다.
@@ -337,7 +337,7 @@ function eyeHit(x,y,z){
       if(q){ if(y<=q.f+0.15||y>=q.ce-0.15) return true; const cols=q.rec.cols;
         for(let i=0;i<cols.length;i++){ const w=cols[i]; if(y>=w.y0-EYE_V&&y<=w.y1+EYE_V&&Math.hypot(sx-w.x,sz-w.z)<w.r) return true; }
         continue; } }
-    if(heightAt(sx,sz)>y-0.15) return true;
+    if((CV10.built.size?cv10BoxSfc(sx,sz):heightAt(sx,sz))>y-0.15) return true;   // 굴 상자 안은 굴이 딛는 겉(큰 지형 모형 윗면 — 31-cave10.js)
     if(CRAG.n){ const n=cragSpan(sx,sz); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y+EYE_V&&s.t>y-EYE_V) return true; } }
     if(coastSolid(sx,sz,y-EYE_V,y+EYE_V)) return true;                     // 주상절리 기둥
     if(CAVE_SOL.size&&(caveSolid(sx,y,sz)||caveSolid(sx,y-EYE_V,sz)||caveSolid(sx,y+EYE_V,sz))) return true;   // 굴 바위(벽 · 처마 · 지붕 — 32-caves.js)
@@ -356,7 +356,7 @@ function solidAt(x,z,y){
   const h0=heightAt(x,z);
   if(PL.under&&y<h0-3) return underSolid(x,z,y);                             // 땅속
   if(CV10.built.size){ const q=caveHere(x,z,y); if(q&&y>q.f&&y<q.ce) return false; }   // 지형 판 10 굴 빈 데
-  if(h0>y) return true;
+  if((CV10.built.size?cv10BoxSfc(x,z):h0)>y) return true;
   if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y&&s.t>y) return true; } }
   return coastSolid(x,z,y);
 }

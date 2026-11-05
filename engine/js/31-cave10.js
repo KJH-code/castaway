@@ -37,8 +37,14 @@ function cv10Kind(x,z){
        : (h<hi*0.35||(h<hi*0.50&&b!==B.ROCK&&b!==B.SCREE)) ? 'karst' : 'talus';
 }
 /* 그 자리 둘레 반지름 r 안의 가장 낮은 땅(가운데 + 여덟 방위) — 지붕 두께를 보수적으로 잰다 */
-function cv10Hm(x,z,r){ let m=heightAt(x,z); for(let k=0;k<8;k++){ const a=k*0.7853982, v=heightAt(x+Math.cos(a)*r,z+Math.sin(a)*r); if(v<m) m=v; } return m; }
+function cv10Hm(x,z,r){ let m=cv10Sfc(x,z); for(let k=0;k<8;k++){ const a=k*0.7853982, v=cv10Sfc(x+Math.cos(a)*r,z+Math.sin(a)*r); if(v<m) m=v; } return m; }
 /* 굴을 낼 수 있는 자리인가 — 섬 안 · 바다 위 아님(땅 높이 1 m 위) · (rv>0 이면) 둘레 rv m 에 강 칸 없음 */
+/* 굴이 딛는 겉 높이 — 땅과 큰 지형 모형(37-geo-meshes.js — 매끈한 땅 섬의 산 · 벼랑 · 시스택) 윗면 가운데 높은 것. 모형 밑의 땅은 1~2 m 아래 묻혀 있어,
+   땅 높이로 굴을 지으면 입구가 모형 속에 묻혔다(화강암 비탈은 거의 다 모형 밑 — 바위틈 굴이 0 개가 됐다). 굴의 꼴 · 덮개 · 열림 · 입구 높이 · 껍데기 윗면이 다 이걸 읽는다.
+   모형 쪽은 굴 자리 그림의 구멍(cv10Hole)을 모형 재질도 읽어 입구를 연다(geoMat) · 묻힌 땅이 빈 데 안에 들면 그 칸도 구멍(A 192~254) */
+function cv10Sfc(x,z){ const h=heightAt(x,z); if(typeof GEO_LF==='undefined'||!GEO_LF.list.length) return h; const g=geoFloor(x,z); return g>h?g:h; }
+/* 지어 둔 굴의 상자 안이면 cv10Sfc, 밖이면 heightAt — 눈 · 몸이 바위 속인지 볼 때(80-player.js eyeHit · solidAt). 큰 지형 모형 밑 굴은 땅이 2 m 묻혀 있어 땅 높이로는 벽을 못 잡았다 */
+function cv10BoxSfc(x,z){ for(const c of CV10.built.keys()){ const b=c.box; if(x>=b.x0&&x<=b.x1&&z>=b.z0&&z<=b.z1&&!c.off) return cv10Sfc(x,z); } return heightAt(x,z); }
 function cv10Free(x,z,r,rv){
   const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2);
   if(gx<6||gz<6||gx>N-7||gz>N-7) return false;
@@ -94,7 +100,7 @@ function cv10Eval(c,P,x,z){
     /* 바닥 가운데 높이 yc · 높이 H — 꺾이는 길의 안쪽에서 두 토막이 서로 다른 값을 내므로, 가장 가까운 토막과 u 가 0.15 안에 드는 토막을 거리에 따라 섞는다(안 그러면 이음매에서 바닥이 툭 뛴다) */
     let sw=0,syc=0,sH=0;
     for(let k=0;k<nc;k++){ const wk=1-(_cvU[k]-bu)/0.15; if(wk<=0) continue; const ek=_cvE[k], ak=_cvA[k];
-      const y=ek.out?heightAt(ek.ax+ek.ux*ak,ek.az+ek.uz*ak)-0.2:ek.ay+(ek.by-ek.ay)*(ak/ek.len);
+      const y=ek.out?cv10Sfc(ek.ax+ek.ux*ak,ek.az+ek.uz*ak)-0.2:ek.ay+(ek.by-ek.ay)*(ak/ek.len);
       sw+=wk; syc+=wk*y; sH+=wk*ek.H; }
     let yc=syc/sw;
     if(bu>=1){ if(bu<ub){ ub=bu; Yn=yc; } continue; }
@@ -134,7 +140,7 @@ function cv10Eval(c,P,x,z){
     if(m.ramp!==null&&m.ramp!==undefined){                           // 무너진 돌 비탈 — 굴길이 이미 있는 데(hadC)서는 구멍 가장자리 쪽으로 굴길 바닥에 녹아든다(안 그러면 가장자리에서 바닥이 1 m 넘게 툭 뛰었다 — B 검수) — 구멍 가장자리(땅)에서 안쪽으로 내려간다
       const ca2=Math.cos(m.ramp), sa2=Math.sin(m.ramp), a=dx*ca2+dz*sa2, l=-dx*sa2+dz*ca2;
       let ry=m.he-m.kr*Math.max(0,m.r-a)-5*smoothstep(0.55,1,Math.abs(l)/m.r);
-      { const tt=smoothstep(0.3*m.r,m.r,a)*(1-smoothstep(0.55,1,Math.abs(l)/m.r)); if(tt>0){ const hh=heightAt(x,z)-0.06; if(ry<hh) ry+=(hh-ry)*tt; } }   // 땅 쪽 가장자리는 그 자리 땅에 이어 붙는다(구멍 반지름이 he 를 잰 데보다 멀면 비탈 끝이 땅 밑에 남아 1 m 넘는 턱이 섰다)
+      { const tt=smoothstep(0.3*m.r,m.r,a)*(1-smoothstep(0.55,1,Math.abs(l)/m.r)); if(tt>0){ const hh=cv10Sfc(x,z)-0.06; if(ry<hh) ry+=(hh-ry)*tt; } }   // 땅 쪽 가장자리는 그 자리 땅에 이어 붙는다(구멍 반지름이 he 를 잰 데보다 멀면 비탈 끝이 땅 밑에 남아 1 m 넘는 턱이 섰다)
       if(ry>F_){ const wr=hadC?1-smoothstep(0.55,1,rd):1; F_+=(ry-F_)*wr; Fb=F_; rp=true; }
     }
   }
@@ -149,7 +155,7 @@ function cv10Eval(c,P,x,z){
       if(d<bd){ bd=d; bv=cv10H(i,j,P.vs+2)*2-1; } }
     C_+=(1-U)*0.6*bv;
   }
-  const h=heightAt(x,z);
+  const h=cv10Sfc(x,z);
   let open=inSky;
   if(!open&&h-C_<P.bT) open=true;
   if(open) C_=h+6;
@@ -186,15 +192,6 @@ function cv10Ray(x0,y0,z0,x1,y1,z1){
     const h=_cv10Rc.intersectObject(r.mesh,false); if(!h.length||!h[0].face) continue;
     const q=_cv10Rh, n=h[0].face.normal; q.x=h[0].point.x; q.y=h[0].point.y; q.z=h[0].point.z; q.nx=n.x; q.ny=n.y; q.nz=n.z; return q; }
   return null;
-}
-/* 겉이 열리는 데(입구 마당 · 빛구멍 · 접근로 — cv10Zones)가 큰 지형 모형(37-geo-meshes.js — 매끈한 땅 섬의 산 · 협곡 벽 · 시스택) 밑인가.
-   모형 윗면은 땅보다 1~2 m 위라 입구를 덮고(땅 구멍으로 안 뚫린다) 들머리에 2 m 벽이 선다 — 그런 자리는 굴 자리로 안 쓴다(caveSites10) */
-function cv10GeoAt(x,z){ return typeof GEO_LF!=='undefined'&&GEO_LF.list.length>0&&geoFloor(x,z)>heightAt(x,z)+0.3; }
-function cv10GeoHit(c){
-  if(typeof GEO_LF==='undefined'||!GEO_LF.list.length) return false;
-  for(const q of cv10Zones(c)) for(let k=0;k<5;k++){ const a=k*1.2566, r=k?q.R*0.8:0, x=q.x+Math.cos(a)*r, z=q.z+Math.sin(a)*r;
-    if(cv10GeoAt(x,z)) return true; }
-  return false;
 }
 /* 상자를 step(기본 1 m) 격자로 훑어 센다 — cells 빈 칸 · open 열린 칸 · thin(입구 마당 · 빛구멍 밖인데 지붕이 얇아 열린 칸) · minCover(마당 밖 닫힌 칸의 h−c 최솟값)
    · maxSlope(바닥 가운데 쪽 u≤0.55 인 이웃 빈 칸 사이 |Δf|/거리 — 들머리 · 무너진 돌 비탈 · 단(열쇠 구멍 · 선반) 뺀다) · len(굴길 길이 합) */
@@ -262,7 +259,7 @@ function cv10Route(ctx,o){
         if(!cv10Free(px,pz,o.w/2+1.5,(o.river&&s+ds*k<=CV10.reach+4)?4+o.w/2:0)||!clear(px,pz,nodes.length+k-1)){ ok=false; break; } pts.push([px,pz]); }
       if(!ok) continue;
       const e=pts[pts.length-1];
-      const sc=o.mode==='contour' ? -Math.abs((heightAt(e[0],e[1])-heightAt(x,z))/(ds*nn)+0.12)*10+rnd()*0.05
+      const sc=o.mode==='contour' ? -Math.abs((cv10Sfc(e[0],e[1])-cv10Sfc(x,z))/(ds*nn)+0.12)*10+rnd()*0.05
                                   : cv10Hm(e[0],e[1],o.w/2+1)+rnd()*0.3;
       if(sc>bs){ bs=sc; best={a,pts}; }
     }
@@ -330,7 +327,7 @@ function cv10RoomAt(nodes,q){
 
 /* 석회암 종유굴 · 바위틈 굴 — 입구에서 비탈 속으로 파고드는 굽이굽이 굴길 */
 function cv10Tunnel(ctx,talus){
-  const c=ctx.c, rnd=ctx.rnd, k=talus?ctx.K.talus:ctx.K.karst, att=ctx.att, hM=heightAt(c.x,c.z);
+  const c=ctx.c, rnd=ctx.rnd, k=talus?ctx.K.talus:ctx.K.karst, att=ctx.att, hM=cv10Sfc(c.x,c.z);
   const w0=k.w[0]+rnd()*(k.w[1]-k.w[0]), Hb=k.h[0]+rnd()*(k.h[1]-k.h[0]);
   const pr=talus?'talus':(rnd()<0.25?'keyhole':rnd()<0.2?'canyon':'tube');
   const w=pr==='canyon'?Math.max(2.5,w0*0.7):w0, Hm=pr==='canyon'?Math.max(Hb,4.0):Hb;
@@ -387,7 +384,7 @@ function cv10Tunnel(ctx,talus){
 
 /* 용암굴 — 비탈 위쪽 채광창(무너진 돌 비탈로 내려간다)에서 내리막을 따라 부드럽게 굽이치는 넓은 반원 관 */
 function cv10Lava(ctx){
-  const c=ctx.c, rnd=ctx.rnd, k=ctx.K.lava, att=ctx.att, hM=heightAt(c.x,c.z);
+  const c=ctx.c, rnd=ctx.rnd, k=ctx.K.lava, att=ctx.att, hM=cv10Sfc(c.x,c.z);
   const w=k.w[0]+rnd()*(k.w[1]-k.w[0]), H=k.h[0]+rnd()*(k.h[1]-k.h[0]), len=k.len[0]+rnd()*(k.len[1]-k.len[0]);
   const cover0=att>=3?k.cover[0]:k.cover[0]+rnd()*(k.cover[1]-k.cover[0]), rS=6.5+rnd()*2.5;
   const main=cv10Route(ctx,{x:c.x,z:c.z,hd:c.yaw,s0:0,pid:0,w,len,entry:null,turn:[0,30],mode:'contour',river:true});
@@ -398,7 +395,7 @@ function cv10Lava(ctx){
   const ystar=q=>cv10Hm(q.x,q.z,w/2)-cover0-H;
   if(!cv10Floor(main,{y0:null,y0f:q=>hM-cover0-H,cov:k.minCover+0.6,exempt:rS+2,
       target:(i,yp,d)=>Math.min(yp,Math.max(ystar(main[i]),yp-0.12*d))})) return false;
-  const y0=main[0].y, ry=c.yaw+Math.PI, he=heightAt(c.x+Math.cos(ry)*rS,c.z+Math.sin(ry)*rS), kr=(he-y0)/(1.8*rS);
+  const y0=main[0].y, ry=c.yaw+Math.PI, he=cv10Sfc(c.x+Math.cos(ry)*rS,c.z+Math.sin(ry)*rS), kr=(he-y0)/(1.8*rS);
   if(kr>0.8) return false;                                           // 무너진 돌 비탈이 걸을 수 있는 기울기(MAXSLOPE 1.15 안 · 가장자리 흐림을 더해도)
   const mouths=[{x:c.x,z:c.z,y:y0,yaw:ry,w:rS*2,h:H,sky:true,r:rS,ramp:ry,he,kr:Math.max(0.5,kr),s:0}];
   if(!cv10Free(c.x,c.z,rS+1,4+rS)) return false;
@@ -419,8 +416,16 @@ function cv10Approach(c){
   const m=c.mouths[0], r0=m.sky?m.r:0;
   for(const d of [3,5,7,10]) for(const da of [-0.5236,0,0.5236]){
     const a=m.yaw+da, x=m.x+Math.cos(a)*(r0+d), z=m.z+Math.sin(a)*(r0+d);
-    const gx=(heightAt(x+0.5,z)-heightAt(x-0.5,z)), gz=(heightAt(x,z+0.5)-heightAt(x,z-0.5));
+    const gx=(cv10Sfc(x+0.5,z)-cv10Sfc(x-0.5,z)), gz=(cv10Sfc(x,z+0.5)-cv10Sfc(x,z-0.5));
     if(Math.hypot(gx,gz)>1.0) return false; }
+  /* 문턱 — 입구에서 밖으로 나가며 빈 데가 끝나기 0.5 m 앞 바닥과 끝 0.25 m 밖 겉 높이의 차가 한 걸음 턱(0.45 m — STEPUP 0.55 안)을 넘으면 못 나간다
+     (바위그늘은 앞 너비를 다섯 점 · 빛구멍 입구는 돌 비탈이 받는다). 매끈한 땅 섬에서 바위그늘 들머리 땅이 굴 바닥보다 0.93 m 높았다 */
+  if(!m.sky){ const P=c._P||cv10Prep(c), ca=Math.cos(m.yaw), sa=Math.sin(m.yaw), hw=c.kind==='shelter'?(m.w||4)*0.4:0;
+    for(const l of hw>0?[-1,-0.5,0,0.5,1]:[0]){ const bx=m.x-sa*l*hw, bz=m.z+ca*l*hw, fs=[]; let d=-6, got=false;
+      for(;d<=14;d+=0.25){ const o=cv10Eval(c,P,bx+ca*d,bz+sa*d); if(o.g>0.05){ fs.push(o.f); got=true; } else if(got) break; }
+      if(!got) continue;
+      const f=fs[Math.max(0,fs.length-3)], ex=bx+ca*(d+0.25), ez=bz+sa*(d+0.25);     // 걷는 격자(0.5 m · 빈 데 점만)는 끝 0.5 m 의 가파른 바닥을 못 받는다 — 그 안쪽 바닥과 견준다
+      if(cv10Sfc(ex,ez)-f>0.45) return false; } }
   return true;
 }
 /* 바위그늘 — 비탈의 너른 처마(굴길 한 토막을 둥근 끝으로 · 안쪽으로 내려앉는 바닥) · 반은 뒤에 작은 굴길 */
@@ -428,7 +433,7 @@ function cv10Shelter(ctx){
   const c=ctx.c, rnd=ctx.rnd, k=ctx.K.shelter, att=ctx.att;
   const W=k.W[0]+rnd()*(k.W[1]-k.W[0]), D=k.D[0]+rnd()*(k.D[1]-k.D[0]), H=k.h[0]+rnd()*(k.h[1]-k.h[0]);
   const ca=Math.cos(c.yaw), sa=Math.sin(c.yaw), cx=c.x-ca*D*0.35, cz=c.z-sa*D*0.35, ax=-sa, az=ca, half=Math.max(1,(W-D)/2);
-  const tl=-(0.2+att*0.01), hF=heightAt(c.x+ca*D*0.15,c.z+sa*D*0.15), yc=hF-0.4+tl*D/2;     // 앞 가장자리 바닥이 땅에 닿게
+  const tl=-(0.2+att*0.01), hF=cv10Sfc(c.x+ca*D*0.15,c.z+sa*D*0.15), yc=hF-0.4+tl*D/2;     // 앞 가장자리 바닥이 땅에 닿게
   const A={x:cx-ax*half,z:cz-az*half}, Bp={x:cx+ax*half,z:cz+az*half};
   for(const p of [A,Bp,{x:cx,z:cz},{x:c.x,z:c.z}]) if(!cv10Free(p.x,p.z,D/2+1,4+D/2)) return false;
   c.mouths=[{x:c.x,z:c.z,y:yc,yaw:c.yaw,w:W,h:H,sky:false,r:0,ramp:null}];
@@ -524,7 +529,7 @@ function cv10Init(rec,S){
   const c=rec.c, b=c.box; rec.S=S; rec.x0=b.x0; rec.z0=b.z0; rec.nx=Math.floor((b.x1-b.x0)/S)+1; rec.nz=Math.floor((b.z1-b.z0)/S)+1;
   const n=rec.nx*rec.nz; rec.F=new Float32Array(n); rec.C=new Float32Array(n); rec.Hh=new Float32Array(n);
   rec.gF=new Float32Array(n); rec.gC=new Float32Array(n); rec.gH=new Float32Array(n); rec.O=new Uint8Array(n); rec.M=new Uint8Array(n); rec.D=new Float64Array(n).fill(1e9);   // D 는 Float64 — 힙 키와 같은 정밀도여야 'dk>D[q]' 가 살아 있는 마디를 안 버린다
-  rec.state='grid'; rec.ph='grid'; rec.pr=0; rec.ready=false; rec.vmin=1e9; rec.nvoid=0; rec.H=null; rec.unreach=0; rec.onb=false;
+  rec.state='grid'; rec.ph='grid'; rec.pr=0; rec.ready=false; rec.vmin=1e9; rec.nvoid=0; rec.H=null; rec.Hb=null; rec.unreach=0; rec.onb=false;
   rec.vp=null; rec.vnrm=null; rec.vn=0; rec.idx=null; rec.ni=0; rec.vi=null; rec.cbase=null; rec.ck0=null; rec.cn=null; rec.tdata=null;
 }
 function cv10Rec(c){
@@ -562,7 +567,7 @@ function cv10Step(rec,t1){
     case 'grid':{
       const T=performance.now();
       if(!cv10Rows(rec,nz,j=>{ const z=rec.z0+j*S; for(let i=0;i<nx;i++){ const x=rec.x0+i*S, o=cv10Field(c,x,z), q=j*nx+i;
-          F[q]=o.f; C[q]=o.c; Hh[q]=heightAt(x,z); if(o.g>0.05){ O[q]=o.open?1:0; if(o.f<rec.vmin) rec.vmin=o.f; rec.nvoid++; } else { O[q]=0; } } },t1)) { rec.msGrid+=performance.now()-T; return false; }
+          F[q]=o.f; C[q]=o.c; { const hb=heightAt(x,z), hs=cv10Sfc(x,z); Hh[q]=hs; if(hs>hb+0.05){ if(!rec.Hb) rec.Hb=new Float32Array(n).fill(1e9); rec.Hb[q]=hb; } } if(o.g>0.05){ O[q]=o.open?1:0; if(o.f<rec.vmin) rec.vmin=o.f; rec.nvoid++; } else { O[q]=0; } } },t1)) { rec.msGrid+=performance.now()-T; return false; }
       rec.msGrid+=performance.now()-T; rec.ph='grad'; rec.pr=0; break; }
     case 'grad':{
       const T=performance.now(), gF=rec.gF, gC=rec.gC, gH=rec.gH;
@@ -726,7 +731,8 @@ function cv10Step(rec,t1){
       const base=rec.vmin-1, td=rec.tdata;
       if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ const q=j*nx+i, o=q*4, v=C[q]-F[q]>0.05; let r=0,g=0;
           if(v){ r=(F[q]-base)/0.25; g=(Math.min(C[q],Hh[q]+1)-base)/0.25; if(r>255||g>255) rec.texOver++; r=Math.min(255,Math.max(0,Math.round(r))); g=Math.min(255,Math.max(0,Math.round(g))); }
-          const d=D[q]; td[o]=r; td[o+1]=g; td[o+2]=Math.round(255*_cv10Smooth(2,16,d)); td[o+3]=M[q]?255:Math.round(127*Math.exp(-d/5)); } },t1)) { rec.msMesh+=performance.now()-T; return false; }
+          const d=D[q]; td[o]=r; td[o+1]=g; td[o+2]=Math.round(255*_cv10Smooth(2,16,d)); td[o+3]=M[q]?255:Math.round(127*Math.exp(-d/5));
+          if(!M[q]&&v&&rec.Hb){ const hb=rec.Hb[q]; if(hb<Hh[q]-0.05&&hb>F[q]-0.3&&hb<C[q]+0.3) td[o+3]=192+Math.round(62*Math.exp(-d/5)); } }  },t1)) { rec.msMesh+=performance.now()-T; return false; }
       rec.msMesh+=performance.now()-T; rec.ph='fin'; break; }
     case 'fin':{
       const T=performance.now();
@@ -741,7 +747,7 @@ function cv10Step(rec,t1){
       const mesh=new THREE.Mesh(geo,CV10.mat?CV10.mat(c.kind):cv10SeatMat(c.kind));
       mesh.matrixAutoUpdate=false; mesh.castShadow=false; mesh.receiveShadow=true; mesh.userData.lightRole='recv'; mesh.userData.cave=c;
       scene.add(mesh); rec.mesh=mesh; rec.verts=nv; rec.tris=rec.ni/3;
-      rec.tri=rec.wall=rec.vp=rec.vnrm=rec.idx=rec.rm=rec.ord=rec.pos=rec.nor=rec.aDeep=rec.aSky=rec.aFl=rec.tdata=null;
+      rec.tri=rec.wall=rec.vp=rec.vnrm=rec.idx=rec.rm=rec.ord=rec.pos=rec.nor=rec.aDeep=rec.aSky=rec.aFl=rec.tdata=rec.Hb=null;
       try{ LIGHT.dirtyAt(c.x,c.z,60); }catch(e){}
       rec.state='done'; rec.ph='done'; rec.onb=true;
       for(const f of CV10.onBuild){ try{ f(rec); }catch(e){ showErr('굴 onBuild',e); } }
@@ -814,7 +820,7 @@ function cv10Force(c){
 function cv10Views(c){
   const rec=CV10.built.get(c), m=c.mouths[0], out=[], yawOf=(dx,dz)=>Math.atan2(-dx,-dz);
   const ex=m.x+Math.cos(m.yaw)*10, ez=m.z+Math.sin(m.yaw)*10;
-  out.push({name:'입구 밖',x:ex,y:heightAt(ex,ez)+1.6,z:ez,yaw:yawOf(m.x-ex,m.z-ez),pitch:-0.05});
+  out.push({name:'입구 밖',x:ex,y:cv10Sfc(ex,ez)+1.6,z:ez,yaw:yawOf(m.x-ex,m.z-ez),pitch:-0.05});
   const g0=c.segs.find(g=>!g.pid&&!g.out)||c.segs[0], dx0=g0.bx-g0.ax, dz0=g0.bz-g0.az, l0=Math.hypot(dx0,dz0)||1;
   const ix=g0.ax+dx0/l0*2, iz=g0.az+dz0/l0*2, f0=cv10Field(c,ix,iz);
   out.push({name:'입구 안',x:ix,y:(f0.g>0?f0.f:g0.ay)+1.6,z:iz,yaw:yawOf(dx0,dz0),pitch:-0.03});
