@@ -373,7 +373,7 @@ function underBuild(){
   const dirtM=new THREE.MeshLambertMaterial({vertexColors:true}); gndDetailPatch(dirtM,6,1.6);
   for(const p of UNDER.pits){
     if((P.tv|0)<10) p.ys=heightAt(p.x,p.z);                                  // 판 10 은 underSites 가 굴 바닥으로 정했다(cv10Field.f)
-    const gH=(x,z)=>(P.tv|0)>=10?p.ys:gH(x,z);                          // 테 · 돌 높이 — 판 10 구멍은 굴 바닥에 있다
+    const gH=(x,z)=>(P.tv|0)>=10?p.ys:heightAt(x,z);                          // 테 · 돌 높이 — 판 10 구멍은 굴 바닥에 있다
     const kk=KL[(p.cave&&p.cave.kind)||'karst']||KL.karst, R0=1.55, D=Math.max(6,p.ys-p.yc+0.5);
     const hm=new THREE.ShaderMaterial({
       uniforms:{uC:{value:new THREE.Vector3(p.x,p.ys+0.03,p.z)}, uR:{value:R0}, uD:{value:D}, uLay:{value:kk[0]}, uTint:{value:new THREE.Vector3(...kk[1])},
