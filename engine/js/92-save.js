@@ -113,7 +113,7 @@ function snapshot(){
     ),
     sea:[...SEA.taken].filter(e=>gameHours-e[1]<SEA_REGROW).map(e=>[e[0],+e[1].toFixed(2)]),   // 주운 조개·굴·성게 자리
     cam:+CAMC.bat.toFixed(1), camh:+CAMC.health.toFixed(4), camli:CAMC.li?1:0,                       // 캠코더 배터리
-    flora:[...FLORA.taken].filter(e=>gameHours-e[1]<72).map(e=>[e[0],+e[1].toFixed(2)]),        // 딴 덩굴·대나무·열매·버섯 자리
+    flora:[...FLORA.taken].filter(e=>gameHours-e[1]<(e[0].startsWith('CV')?1e4:72)).map(e=>[e[0],+e[1].toFixed(2)]),        // 딴 덩굴·대나무·열매·버섯 자리 · 굴 장식('CV' — 31-cave10deco.js)은 석회 조각처럼 안 나는 것이 있어 72 시간 뒤에도 남긴다
     giants:giantSave(),
     temples:[...TEMPLE.taken],
     plat:{spot:[...PLAT.spot], seen:[...PLAT.seen]},   // 망대에서 알아낸 보급 상자 · 오른 망대(14-plateau.js)                     // 연 신전 상자 · 깬 항아리(97-temples.js)                             // 벤 노거수 — 'gx,gz' → 남은 통나무(0 이면 쓰러진 그루)

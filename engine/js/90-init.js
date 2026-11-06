@@ -286,6 +286,13 @@ function precompPlan(){
     /* 땅속 광석의 재질(녹아들기를 끈 것 — 30-props.js buildRockBatch · 지형 판 11) */
     if(typeof PLAT!=='undefined'&&PLAT.on) for(const R of RESOURCES){ if(CAVE_ORE.indexOf(R.k)<0) continue; const k2=R.k+'|ug'; if(!ROCK_MAT[k2]){ const m=rockMat(R.k,R.c); m.userData.melt=0; m.userData.meltAttr=false; ROCK_MAT[k2]=m; }
       const m=ROCK_MAT[k2]; envPatch(m); lit.set(m.id+'|false|false|0',{m,inst:false,ic:false,g:P.gr}); } }
+  /* 판 10 굴 장식 재질(31-cave10deco.js CVD.mats) — 굴은 가까이 가야 지어져 처음 다가갈 때 짜이며 멈칫했다(review C). 장식 메시와 같은 꼴(정점 빛깔 3칸)로 */
+  if(typeof cv10On==='function'&&cv10On()&&typeof cvdInit==='function'){ cvdInit(); const M=CVD.mats;
+    if(!P.gr){ P.gr=new THREE.BufferGeometry(); const z9=new Float32Array(9);
+      P.gr.setAttribute('position',new THREE.Float32BufferAttribute(z9,3)); P.gr.setAttribute('normal',new THREE.Float32BufferAttribute(z9.slice(),3)); P.gr.setAttribute('aMelt',new THREE.Float32BufferAttribute(new Float32Array(3),1)); }
+    for(const m of [M.rock,M.sheet]) lit.set(m.id+'|false|false|3',{m,inst:false,ic:false,g:P.gc});
+    lit.set(M.water.id+'|false|false|0',{m:M.water,inst:false,ic:false,g:P.gr});
+    for(const m of [M.shr,M.gold]) unl.set(m.id+'|false|false|3',{m,inst:false,ic:false,g:P.gc}); }
   if(typeof dewInit==='function'&&!DEWD.mesh&&scene) dewInit();
   /* 아직 장면에 없을 수 있는 것 — 모든 불이 나눠 쓰는 불꽃 재질(fireMats)과 총구 불. 첫 불·첫 발에 짜이던 것이다 */
   if(!P.g0) P.g0=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));

@@ -551,16 +551,15 @@ let CAVES=[];
 const CAVE_ORE=['iron','copper','tin','zinc','galena','coal'];
 const CAVE_GRID=new Map(), CAVE_G=48, caveKey=(gx,gz)=>(gx+2048)*4096+(gz+2048);
 /* 그 자리가 굴(방 반지름 + pad) 안인가 — 그 방을 돌려준다. 덤불·나무·노거수가 굴 속에 서지 않게 하는 데, 화면의 바이옴 이름에 쓴다 */
-function caveAt(x,z,pad){
+function caveAt(x,z,pad,noAp){                                         // noAp — 입구 앞 접근로(판 10 cv10Zones 의 ap)는 굴로 안 친다(불 가림 · 소출 · 음악)
   if(!CAVES.length) return null; pad=pad||0;
   const gx=Math.floor(x/CAVE_G), gz=Math.floor(z/CAVE_G);
   for(let az=-1;az<=1;az++) for(let ax=-1;ax<=1;ax++){ const a=CAVE_GRID.get(caveKey(gx+ax,gz+az)); if(!a) continue;
-    for(const r of a){ const dx=x-r.x, dz=z-r.z, q=r.R+pad; if(dx*dx+dz*dz<q*q) return r; } }
+    for(const r of a){ if(noAp&&r.ap) continue; const dx=x-r.x, dz=z-r.z, q=r.R+pad; if(dx*dx+dz*dz<q*q) return r; } }
   return null;
 }
 function caveSites(seed){
   CAVES=[]; CAVE_GRID.clear(); if((P.tv|0)<2) return;
-  if((P.tv|0)>=11) return;                                                // 지형 판 11 — 땅 위의 굴은 없다(사용자 요청 2026-11-06 · 광석은 땅속 세계와 닿기 어려운 데로 — 14-plateau.js plAfterUnder)
   if((P.tv|0)>=10) return caveSites10(seed);                            // 지형 판 10 — 비탈 속으로 파고드는 굴(31-cave10.js) · 판 9 까지는 아래 길 그대로
   const rnd=mulberry32((seed^0xca7e5)>>>0), WS=CELL/GCELL, want=Math.round(9*WS*WS/4+6);
   let hi=0; for(let i=0;i<F.elev.length;i++) if(F.elev[i]>hi) hi=F.elev[i];
@@ -629,7 +628,7 @@ function caveSites10(seed){
     if(near.length&&!evict) return false;
     if(near.some(c=>CAVES.filter(q=>q.kind===c.kind).length-near.filter(q=>q.kind===c.kind).length<1)) return false;   // 내쫓은 뒤 그 종류가 0 이 되면 안 된다
     const yaw=Math.atan2(-(F.elev[i+N]-F.elev[i-N]),-(F.elev[i+1]-F.elev[i-1]));
-    const c={x,z,y:heightAt(x,z),yaw,seed:(rnd()*1e9)|0,tv:10};
+    const c={x,z,y:cv10Sfc(x,z),yaw,seed:(rnd()*1e9)|0,tv:10};
     if(!cv10Layout(c)) return false;
     for(const q of near) CAVES.splice(CAVES.indexOf(q),1);
     CAVES.push(c); return true; };

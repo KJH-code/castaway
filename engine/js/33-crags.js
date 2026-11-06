@@ -250,9 +250,31 @@ function cragSites(seed){
   PROPS=PROPS.filter(p=>p.cave||!occ[IDX(clamp(Math.round(p.x/CELL+N/2),0,N-1),clamp(Math.round(p.z/CELL+N/2),0,N-1))]);
   if((P.tv|0)>=5&&typeof coastFeatures==='function') coastFeatures(seed);   // 바닷가 지형 — 시스택 · 해식 아치 · 주상절리(34-coast.js · 지형 판 5)
   if((P.tv|0)>=7&&typeof fallsCrags==='function') fallsCrags(seed);         // 저수지 폭포의 바위벽(36-falls.js · 지형 판 7)
+  if((P.tv|0)>=10) cragCaveClear();                                         // 지형 판 10 — 굴 입구 · 접근로 · 빛구멍을 덮는 덩이를 걷는다(난수를 다 뽑은 뒤 · 아래)
   { const C=CRAG.cols, G=CRAG.cg;                                                          // 원을 16 m 칸에 걸어 둔다(cragNear)
     for(let i=0;i<C.length;i+=3){ const r=C[i+2], x0=Math.floor((C[i]-r)/16), x1=Math.floor((C[i]+r)/16), z0=Math.floor((C[i+1]-r)/16), z1=Math.floor((C[i+1]+r)/16);
       for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const k=(gx+2048)*4096+(gz+2048); let a=G.get(k); if(!a) G.set(k,a=[]); a.push(i); } } }
+}
+/* 지형 판 10 굴의 겉이 뚫리는 데(cv10Zones — 입구 마당 · 빛구멍 · 처마 · 입구 앞 접근로)에 걸친 바위 덩이 · 몸 막기 원을 걷는다.
+   벼랑 벽(cragGrowWall — 사용자 Meshy 벼랑 모형은 수십 m)은 자리 점만 굴을 비켜 보고 등고선을 따라 길게 자라서, 입구를 덮고 그 위가 바닥이 되어
+   들머리에 선 사람이 벼랑 꼭대기로 올라섰다(cragFloor 가 쌓인 덩이를 타고 오른다 · 2026-11-05 굴 걷기 검수). 난수를 안 쓰고 걷기만 한다 */
+function cragCaveClear(){
+  if(!CAVES.length||!CAVE_GRID.size) return;
+  const T=CRAG.T, kill=new Set(), F_=CRAG.F;
+  for(const zs of CAVE_GRID.values()) for(const zc of zs){ if(!zc.cave||zc.cave.tv!==10) continue;
+    /* 그 원 둘레 칸을 걸어 두고(cragSpan 은 사람 둘레만 건다) 원 가운데 · 반지름 0.6 의 네 점 · 0.95 의 여덟 점에서 수직선을 쏜다 */
+    const tx0=Math.floor((zc.x-zc.R-160)/T), tx1=Math.floor((zc.x+zc.R+160)/T), tz0=Math.floor((zc.z-zc.R-160)/T), tz1=Math.floor((zc.z+zc.R+160)/T);
+    for(let a=tz0;a<=tz1;a++) for(let b=tx0;b<=tx1;b++){ const t=CRAG.tiles.get((b+512)*1024+(a+512)); if(t&&!t.ixd) cragIndex(t); }
+    const pts=[[0,0]]; for(let k=0;k<4;k++) pts.push([Math.cos(k*1.5708)*0.6,Math.sin(k*1.5708)*0.6]); for(let k=0;k<8;k++) pts.push([Math.cos(k*0.7854+0.39)*0.95,Math.sin(k*0.7854+0.39)*0.95]);
+    for(const q of pts){ const x=zc.x+q[0]*zc.R, z=zc.z+q[1]*zc.R, g=heightAt(x,z), n=cragSpan(x,z);
+      for(let i=0;i<n;i++){ const sp=_cgS[i]; if(sp.t>g+0.8&&sp.b<g+zc.cave.mouths[0].h+2) kill.add(sp.r); } } }   // 땅 위로 솟아 입구 높이 안을 막는 덩이
+  if(kill.size){ const byT=new Map(); for(const r of kill){ let a=byT.get(r.t); if(!a) byT.set(r.t,a=new Set()); a.add(r.o); }
+    for(const [t,os] of byT){ const B=t.b, K=[]; for(let o=0;o<B.length;o+=F_){ if(os.has(o)) continue; for(let j=0;j<F_;j++) K.push(B[o+j]); } B.length=0; for(const v of K) B.push(v); } }
+  CRAG.ix.clear(); for(const t of CRAG.tiles.values()) t.ixd=false;               // 색인은 다시 걸게(지운 덩이의 옛 자리 · o 가 밀렸다)
+  CRAG.cleared=kill.size;
+  const C=CRAG.cols, K=[];                                                         // 몸 막기 · 나무 비킴 원도 굴 자리 것은 걷는다
+  for(let i=0;i<C.length;i+=3) if(!caveAt(C[i],C[i+1],C[i+2])) K.push(C[i],C[i+1],C[i+2]);
+  C.length=0; for(const v of K) C.push(v);
 }
 /* 그 자리가 큰 바위의 발치(원 + pad) 안인가 — 나무·덤불·노거수가 바위 속에 서지 않게(95-flora.js · 95-giants.js) */
 function cragNear(x,z,pad){
@@ -280,7 +302,7 @@ function cragIndex(t){
   for(let o=0;o<B.length;o+=F_){
     _crE.set(B[o+6],B[o+7],B[o+8]); _crQ.setFromEuler(_crE); _crM.makeRotationFromQuaternion(_crQ); const e=_crM.elements;
     const rx=B[o+3], ry=B[o+4], rz=B[o+5], br=Math.max(rx,ry,rz)*1.75;
-    const r={x:B[o],y:B[o+1],z:B[o+2],rx,ry,rz,br2:br*br,sh:S[B[o+9]][B[o+10]][1],
+    const r={x:B[o],y:B[o+1],z:B[o+2],rx,ry,rz,br2:br*br,sh:S[B[o+9]][B[o+10]][1],t,o,
              m:[e[0],e[1],e[2],e[4],e[5],e[6],e[8],e[9],e[10]]};                  // 돌림 행렬의 세 열
     const x0=Math.floor((r.x-br)/BK), x1=Math.floor((r.x+br)/BK), z0=Math.floor((r.z-br)/BK), z1=Math.floor((r.z+br)/BK);
     for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const k=(gx+4096)*8192+(gz+4096); let a=IX.get(k); if(!a) IX.set(k,a=[]); a.push(r); }
@@ -316,7 +338,7 @@ function cragSpan(x,z){
         hn=Math.abs(wyn)/l; }
     }
     if(hi>-1e8&&hi-lo<0.05) lo=Math.min(lo,r.y-r.ry);   // 한 면만 맞았다 — 밑면이 열린 꼴(Meshy 모형 · 줄이며 생긴 틈). 예전엔 구간이 없다고 쳐 사람이 바위를 뚫고 지나갔다(2026-11-05 사용자 지적)
-    if(hi>lo){ const s=_cgS[n]||(_cgS[n]={b:0,t:0,sl:0,u:false}); s.b=lo; s.t=hi; s.sl=Math.sqrt(Math.max(0,1-hn*hn))/Math.max(hn,0.02); s.u=false; n++; }
+    if(hi>lo){ const s=_cgS[n]||(_cgS[n]={b:0,t:0,sl:0,u:false,r:null}); s.b=lo; s.t=hi; s.sl=Math.sqrt(Math.max(0,1-hn*hn))/Math.max(hn,0.02); s.u=false; s.r=r; n++; }
   }
   return n;
 }
@@ -340,6 +362,13 @@ function cragMesh(t,lod){
   for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue; const sh=S[lv][B[o+10]][fine]; nv+=sh.pos.length/3; ni+=sh.idx.length; }
   const pos=new Float32Array(nv*3), nor=new Float32Array(nv*3), col=new Float32Array(nv*3), mel=new Float32Array(nv), ofs=new Float32Array(nv), idx=new Uint32Array(ni);
   let v=0, q=0;
+  /* **덩이끼리 겹친 속은 버린다**(2026-11-06 사용자 '바위 속이 복잡하게 겹쳐 보인다 — 다 빚은 뒤 안쪽을 걸러라') — 세모의 가운데가 이웃 덩이의 속(그 덩이 좌표로 타원체 0.88 안)이면
+     그 세모를 안 그린다. 밖에서 보이는 겉은 그대로다(겉 세모의 가운데는 이웃 속에 안 든다) */
+  const BL=[]; for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue; _crE.set(B[o+6],B[o+7],B[o+8]); _crQ.setFromEuler(_crE); _crM.makeRotationFromQuaternion(_crQ);
+    BL.push({o,x:B[o],y:B[o+1],z:B[o+2],rx:B[o+3],ry:B[o+4],rz:B[o+5],R:Math.max(B[o+3],B[o+4],B[o+5]),e:_crM.elements.slice()}); }
+  const insideOther=(o,x,y,z)=>{ for(const b of BL){ if(b.o===o) continue; const dx=x-b.x, dy=y-b.y, dz=z-b.z; if(dx*dx+dy*dy+dz*dz>b.R*b.R) continue; const e=b.e;
+      const lx=(e[0]*dx+e[1]*dy+e[2]*dz)/b.rx, ly=(e[4]*dx+e[5]*dy+e[6]*dz)/b.ry, lz=(e[8]*dx+e[9]*dy+e[10]*dz)/b.rz; if(lx*lx+ly*ly+lz*lz<0.88*0.88) return true; }
+    return false; };
   for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue;
     const sh=S[lv][B[o+10]][fine], sp=sh.pos, sn=sh.nor, si=sh.idx, n=sp.length/3;
     _crE.set(B[o+6],B[o+7],B[o+8]); _crQ.setFromEuler(_crE); _crM.makeRotationFromQuaternion(_crQ); const e=_crM.elements;
@@ -351,12 +380,14 @@ function cragMesh(t,lod){
       const nx=sn[a]/rx, ny=sn[a+1]/ry, nz=sn[a+2]/rz; let wx=e[0]*nx+e[4]*ny+e[8]*nz, wy=e[1]*nx+e[5]*ny+e[9]*nz, wz=e[2]*nx+e[6]*ny+e[10]*nz; const l=Math.hypot(wx,wy,wz)||1;
       nor[c]=wx/l; nor[c+1]=wy/l; nor[c+2]=wz/l;
       const mt=(0.95+0.10*(((i*2654435761)>>>0)&255)/255)*(sh.cav?sh.cav[i]:1); col[c]=cr*mt; col[c+1]=cg*mt; col[c+2]=cb*mt; mel[v+i]=ml; ofs[v+i]=of; }
-    for(let i=0;i<si.length;i++) idx[q+i]=v+si[i];
-    v+=n; q+=si.length; }
+    for(let i=0;i<si.length;i+=3){ const a=(v+si[i])*3, b2=(v+si[i+1])*3, c2=(v+si[i+2])*3;
+      if(BL.length>1&&insideOther(o,(pos[a]+pos[b2]+pos[c2])/3,(pos[a+1]+pos[b2+1]+pos[c2+1])/3,(pos[a+2]+pos[b2+2]+pos[c2+2])/3)) continue;
+      idx[q++]=v+si[i]; idx[q++]=v+si[i+1]; idx[q++]=v+si[i+2]; }
+    v+=n; }
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
   g.setAttribute('color',new THREE.BufferAttribute(col,3)); g.setAttribute('aMelt',new THREE.BufferAttribute(mel,1)); g.setAttribute('aOfs',new THREE.BufferAttribute(ofs,1));
-  g.setIndex(new THREE.BufferAttribute(idx,1)); g.computeBoundingSphere();
+  g.setIndex(new THREE.BufferAttribute(idx.subarray(0,q),1)); g.computeBoundingSphere();
   const m=new THREE.Mesh(g,lod?cragMat():cragMatFar()); m.matrixAutoUpdate=false; m.updateMatrix(); m.visible=false; scene.add(m);
   return m;
 }

@@ -482,8 +482,31 @@ function plReachBuild(){
 }
 function plReachAt(x,z){ const R=PLAT.reach; if(!R) return 0; const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2); return (gx<0||gz<0||gx>=N||gz>=N)?0:R[gz*N+gx]; }
 /* ── 땅속 세계를 정한 뒤(90-init.js — underSites 다음 · 다지류 둥지 mobsSites 앞) ── */
+/* 굴 입구(함몰 입구 · 바닷가 굴)의 굴길 앞쪽 · 모래턱을 막는 벼랑 큰 바위 덩이를 걷는다(2026-11-06 사용자 '굴 입구에 바위가 떠 있다 · 들어가면 막혀 못 나온다') —
+   33-crags.js cragCaveClear(판 10 굴 것)와 같은 길을 굴길 처음 세 토막에 쓴다(그 함수는 안 건드린다) */
+function plCragClear(){
+  if(typeof CRAG==='undefined'||!CRAG.tiles||!CRAG.tiles.size||!UNDER.dol.length) return;
+  const T=CRAG.T, F_=CRAG.F, kill=new Set(), pts=[];
+  for(const d of UNDER.dol){ for(const sg of d.segs.slice(0,3)){ for(let s=0;s<=sg.L;s+=2.5){ const t=s/sg.L, cx=sg.x0+(sg.x1-sg.x0)*t, cz=sg.z0+(sg.z1-sg.z0)*t, f=sg.f0+(sg.f1-sg.f0)*t, vx=-(sg.z1-sg.z0)/sg.L, vz=(sg.x1-sg.x0)/sg.L;
+        for(const o of [-1.4,-0.7,0,0.7,1.4]) pts.push([cx+vx*o*sg.w,cz+vz*o*sg.w,f,sg.h]); } }
+    if(d.sea) for(let k=0;k<12;k++){ const a=k/12*6.283; pts.push([d.mx-d.ux*6+Math.cos(a)*12,d.mz-d.uz*6+Math.sin(a)*12,0.3,6]); } }
+  for(const [x,z] of pts){ const tx=Math.floor(x/T), tz=Math.floor(z/T);
+    for(let a=tz-1;a<=tz+1;a++) for(let b=tx-1;b<=tx+1;b++){ const t=CRAG.tiles.get((b+512)*1024+(a+512)); if(t&&!t.ixd) cragIndex(t); } }
+  for(const [x,z,f,h] of pts){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const sp=_cgS[i]; if(sp.t>f+0.3&&sp.b<f+h+2) kill.add(sp.r); } }
+  if(kill.size){ const byT=new Map(); for(const r of kill){ let a=byT.get(r.t); if(!a) byT.set(r.t,a=new Set()); a.add(r.o); }
+    for(const [t,os] of byT){ const B=t.b, K=[]; for(let o=0;o<B.length;o+=F_){ if(os.has(o)) continue; for(let j=0;j<F_;j++) K.push(B[o+j]); } B.length=0; for(const v of K) B.push(v); }
+    CRAG.ix.clear(); for(const t of CRAG.tiles.values()) t.ixd=false; }
+  /* 몸 막기 원도 굴길 자리 것은 걷는다 */
+  const C=CRAG.cols, K=[]; for(let i=0;i<C.length;i+=3){ const x=C[i], z=C[i+1]; if(pts.some(q=>(q[0]-x)*(q[0]-x)+(q[1]-z)*(q[1]-z)<(C[i+2]+2)*(C[i+2]+2))) continue; K.push(C[i],C[i+1],C[i+2]); }
+  C.length=0; for(const v of K) C.push(v);
+  { const G=CRAG.cg; G.clear();                                                    // 16 m 칸 색인은 원의 차례 번호를 담는다 — 다시 건다(33-crags.js cragSites 와 같은 식)
+    for(let i=0;i<C.length;i+=3){ const r=C[i+2], x0=Math.floor((C[i]-r)/16), x1=Math.floor((C[i]+r)/16), z0=Math.floor((C[i+1]-r)/16), z1=Math.floor((C[i+1]+r)/16);
+      for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const k=(gx+2048)*4096+(gz+2048); let a=G.get(k); if(!a) G.set(k,a=[]); a.push(i); } } }
+  PLAT.cragKill=kill.size;
+}
 function plAfterUnder(seed){
   if(!PLAT.on) return;
+  plCragClear();
   /* 벼랑 면에 붙은 잔돌 · 풀 · 덤불(2026-11-06 사용자 사진 — 벼랑에 돌덩이가 떠 있다)과 큰 지형 모형 속에 묻힌 나무(바위섬 꼭대기의 전나무가 모형 속에 섰다)를 걷는다 */
   { const W=new Set(['oak','fir']); let cut=0;
     PROPS=PROPS.filter(p=>{ if(p.cave||p.ug) return true; const i=plGi(p.x,p.z);
@@ -494,7 +517,8 @@ function plAfterUnder(seed){
     PLAT.cut=cut; }
   plReachBuild();
   plOres(mulberry32((seed^0x9a7ea3)>>>0));
-  plDens(mulberry32((seed^0x9a7ea4)>>>0));
+  /* 다지류 둥지는 판 10 굴(31-cave10.js — 판 11 도 같이 쓴다)이 맡는다 · plDens 는 굴이 하나도 없을 때만 */
+  if(!CAVES.length) plDens(mulberry32((seed^0x9a7ea4)>>>0));
 }
 /* 광석은 굴 속으로(사용자 요청 2026-11-06 '땅 위 광석은 줄이고 광석이 잔뜩 든 굴') —
    입구(함몰 입구 · 바닷가 굴)에서 굴길로 닿는 방 가운데 ① 입구 방은 스물넷 ② 다섯 걸음 안의 방 셋에 둘은 여덟~열다섯을 광맥 두셋에 모아 놓는다

@@ -1751,7 +1751,9 @@ function envPatch(m){
       // 구름 시험장엔 땅이 없다(TERR_U·TLIT 없음) — 빈 값으로 세운다(예전엔 여기서 시험장이 통째로 멈췄다)
       uTLe:typeof TERR_U!=='undefined'?TERR_U.uTL:_noTL(), uTLg:typeof TLIT!=='undefined'?TLIT.G:{value:new THREE.Vector2(1,1)},
       uDew:typeof TERR_U!=='undefined'?TERR_U.uDew:{value:0}});
-    if(CV){ sh.uniforms.uCvN=TERR_U.uCvN; sh.uniforms.uCvA=TERR_U.uCvA; sh.uniforms.uCvB=TERR_U.uCvB; }
+    const CM=CV&&/\bvCv10Sky\b/.test(sh.fragmentShader);   // D 의 바위 껍데기 재질(정점 값 vCv10Sky, vCv10Deep) - 굴 속 몫을 그림이 아니라 정점 값으로
+    if(CV){ sh.uniforms.uCvN=TERR_U.uCvN; sh.uniforms.uCvA=TERR_U.uCvA; sh.uniforms.uCvB=TERR_U.uCvB;
+      if(TERR_U.uCv10T){ sh.uniforms.uCv10T=TERR_U.uCv10T; sh.uniforms.uCv10R=TERR_U.uCv10R; sh.uniforms.uCv10B=TERR_U.uCv10B; sh.uniforms.uCv10G=TERR_U.uCv10G; } }
     if(melt&&typeof TERR_U!=='undefined'){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBio2:TERR_U.uBio2, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
       for(const k in MU) if(MU[k]&&!sh.uniforms[k]) sh.uniforms[k]=MU[k]; }
     const has=n=>new RegExp('uniform[^;]*\\b'+n+'\\b').test(sh.vertexShader+sh.fragmentShader);   // 제 셰이더가 이미 선언했으면 다시 안 한다
@@ -1792,13 +1794,17 @@ float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.
       ${leaf?'vDewW=wpos.xyz;':''}
       vec4 mvPosition=viewMatrix*wpos;
       gl_Position=projectionMatrix*mvPosition;`);
-    if(lam) sh.fragmentShader=(CV?CAVE_GLSL+'varying float vCsY;\nvarying vec3 vCsN;\n':'')+`uniform sampler2D csFine;
+    if(CM) sh.fragmentShader=sh.fragmentShader.replace(/\bvarying\s+float\s+vCv10(?:Sky|Deep)\b[^;]*;/g,'').replace(/\buniform\s+vec4\s+uCv10Glow\s*;/g,'');   // D 의 껍데기 재질이 조각 셰이더에 선언했으면 걷는다 - CAVE_GLSL 이 앞에서 선언한다
+    /* 땅 셰이더는 같은 텍스처(TERR_U.uTL)를 uTL 로 이미 받는다 — uTLe 를 따로 두면 조각 샘플러가 하나 더 들어 품질 '높음' + 손전등에서 17 개(흔한 GPU 한도 16 · review C) → 한 이름으로 */
+    const tlAlias=lam&&/uniform\s+sampler2D\s+uTL\s*;/.test(sh.fragmentShader);
+    if(tlAlias) sh.fragmentShader=sh.fragmentShader.replace(/uniform\s+sampler2D\s+uTL\s*;/,'');
+    if(lam) sh.fragmentShader=(CV?(CM?'#define CV10_MESH\n':'')+CAVE_GLSL+'varying float vCsY;\nvarying vec3 vCsN;\n':'')+`uniform sampler2D csFine;
 uniform sampler2D csCoarse;
 uniform vec2 csC;
 uniform float csS;
 uniform float csOn;
 varying vec2 vCsXZ;
-uniform sampler2D uTLe;
+${tlAlias?'uniform sampler2D uTL;\n#define uTLe uTL':'uniform sampler2D uTLe;'}
 uniform vec2 uTLg;
 vec4 tlE(){ return texture2D(uTLe,(vCsXZ/uTLg.y+uTLg.x*0.5+0.5)/uTLg.x); }
 float cloudSh(){
@@ -1807,10 +1813,10 @@ float cloudSh(){
   float t=(texture2D(csFine,uv).r+texture2D(csCoarse,uv).r)*${CS_TAU.toFixed(1)};
   return mix(1.0,exp(-t),csOn*e.x*e.y)*tlE().r;                 // × 산 그림자(41-terrain-light.js)
 }
-`+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh()'+(CV?' * ( 1.0 - 0.9 * cvK )':'')+';')
+`+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh()'+(CV?' * ( 1.0 - 0.9 * cvK ) * ( 1.0 - cvK10 )':'')+';')
       /* 간접광(하늘빛)에 하늘 트임을 곱한다 — 골짜기·벼랑 밑은 하늘이 좁다. 벽에서 되비치는 몫 0.45 는 남긴다 */
       .replace('reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb );','reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb ) * ( 0.45 + 0.55 * tlE().g )'
-        +(CV?' * ( 1.0 - 0.80 * cvK );\n\treflectedLight.indirectDiffuse += cvL * BRDF_Diffuse_Lambert( diffuseColor.rgb );':';'))
+        +(CV?' * ( 1.0 - 0.80 * cvK ) * ( 1.0 - 0.97 * cvK10 );\n\treflectedLight.indirectDiffuse += ( cvL + cvC10 * cvG10 * 0.35 ) * BRDF_Diffuse_Lambert( diffuseColor.rgb );':';'))
       /* 굴 속 몫은 main 첫머리에서 한 번 센다(땅 셰이더의 바닥 빛깔 · 아래 녹아들기가 cvF 를 읽는다) */
       .replace('void main() {',CV?'void main() {\n\tcvEval(vec3(vCsXZ.x,vCsY,vCsXZ.y),normalize(vCsN+vec3(0.0,1e-5,0.0))*(gl_FrontFacing?1.0:-1.0));':'void main() {');
     /* 잎에 비쳐 드는 빛 — 잎은 얇아 볕의 일부가 뒤로 샌다. 보이는 면이 해를 등졌으면 반대쪽 면이 받은 볕의 0.4 를 더한다

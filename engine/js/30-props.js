@@ -1071,7 +1071,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
       }
       /* 가까이 — 얕은 잔 깨짐면 여섯(제 난수 · 큰 꼴은 그대로) */
       if(hi&&r0>=0.4){ const r2=mulberry32(hh^0x77a1); for(let c=0;c<6;c++){ let ax=r2()*2-1, ay=r2()*2-1, az=r2()*2-1; const L=Math.sqrt(ax*ax+ay*ay+az*az)||1;
-        cut.push([ax/L,ay/L,az/L, 0.90+r2()*0.08]); } }
+        cut.push([ax/L,ay/L,az/L, 0.955+r2()*0.035]); } }   // 아주 얕게 — 다가갈 때 꼴이 확 바뀌지 않게(2026-11-06 사용자 '다가가면 너무 갑자기 바뀐다')
       for(let u=0;u<UNIQ;u++){
         const d=uniqDir[u];
         let f=0;
@@ -1081,7 +1081,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
         /* 잔 울퉁불퉁 — 겹친 값잡음으로 겉을 거칠게(사용자 요청: 바위가 너무 매끈하다). 화강암 11% · 나머지 5% · 자갈·부싯돌 3% */
         const RG=H.rough!==undefined?H.rough:(R.k==='pebble'||R.k==='flint'?0.03:0.05);
         r*=1+RG*SHP.rough(d[0],d[1],d[2],hh,1.9,4)+RG*1.1*(SHP.jag(d[0],d[1],d[2],hh^0x3c,2.6,3)-0.25);   // + 날카로운 능선(들쭉날쭉한 모서리)
-        if(hi&&r0>=0.4) r*=1+RG*0.8*(SHP.jag(d[0],d[1],d[2],hh^0x9e,6.5,3)-0.3)+RG*0.5*SHP.rough(d[0],d[1],d[2],hh^0x51,9.0,2);   // 가까이 — 잔 모서리 · 잔 결
+        if(hi&&r0>=0.4) r*=1+RG*0.30*(SHP.jag(d[0],d[1],d[2],hh^0x9e,6.5,3)-0.3)+RG*0.20*SHP.rough(d[0],d[1],d[2],hh^0x51,9.0,2);   // 가까이 — 잔 모서리 · 잔 결(작게 — 꼴은 그대로)
         if(H.jit) r*=1+(rnd()*2-1)*H.jit;           // 꼭짓점마다 들쭉날쭉 — 낮은 다각형 바위의 모난 결
         let ow=-1;
         // ③ 정벽 쪼개짐 — 정육면체 쪽으로 당긴다
@@ -2229,3 +2229,12 @@ function rockTop(x,z){
   return best;
 }
 function rockSolid(x,z,y){ const t=rockTop(x,z); return t>-1e8&&y<t-0.05&&y>RKF.bot; }
+/* 그 자리 땅이 바위에 덮였나 — 큰 지형 모형(드러난 칸 가림막 · 모형 윗면이 땅보다 높은 데) · 큰 바위 · 광석. 식생 · 사바나 풀이 바위 속에 돋지 않게
+   (2026-11-06 사용자 '바위 · 큰 돌 모형 속에 것들이 생긴다'). full 이면 모형 윗면까지 잰다(무겁다 — 식생 한 그루씩만) */
+function inRockAt(x,z,full){
+  const g=heightAt(x,z);
+  if(GEO_LF.mask&&GEO_LF.mask.length===N*N){ const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2); if(gx>=0&&gz>=0&&gx<N&&gz<N&&GEO_LF.mask[gz*N+gx]) return true; }
+  if(rockTop(x,z)>g+0.15) return true;
+  if(full&&GEO_LF.list.length&&geoFloor(x,z)>g+0.4) return true;
+  return false;
+}

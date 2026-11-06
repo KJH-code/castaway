@@ -104,6 +104,7 @@ addEventListener('keydown',e=>{
   if(kbHit(e,'build')){                         // 짓기 모드
     if(BUILD.on){ exitBuild(); toast('짓기 끝'); }
     else if(PL.under) toast('땅속에서는 지을 수 없다');
+    else if(PL.cvUnder) toast('굴 속에서는 지을 수 없다');                  // 지형 판 10 굴 속(80-player.js cavePlace)
     else enterBuild(null);
   }
   if(kbHit(e,'reload')){                       // 재장전

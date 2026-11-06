@@ -328,6 +328,9 @@ function geoMat(){
   m.onBeforeCompile=(sh,r)=>{ prev(sh,r); sh.uniforms.uSnow=TERR_U.uSnow;
     sh.vertexShader=sh.vertexShader.replace('vRW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvRN=normal;\nvRV=(modelViewMatrix*vec4(transformed,1.0)).xyz;',
       '#ifdef USE_INSTANCING\nvRW=(modelMatrix*instanceMatrix*vec4(transformed,1.0)).xyz;\nvRN=mat3(instanceMatrix)*normal;\nvRV=(modelViewMatrix*instanceMatrix*vec4(transformed,1.0)).xyz;\n#else\nvRW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvRN=normal;\nvRV=(modelViewMatrix*vec4(transformed,1.0)).xyz;\n#endif');
+    if(typeof CV10_COMMON_GLSL!=='undefined'){                    // 지형 판 10 굴 — 굴 자리 그림의 구멍(입구 마당 · 빛구멍)을 모형도 비운다(31-cave10.js cv10Sfc — 굴이 모형 윗면을 땅으로 삼는다)
+      for(const k of ['uCv10T','uCv10R','uCv10B','uCv10G']) sh.uniforms[k]=TERR_U[k];
+      sh.fragmentShader=CV10_COMMON_GLSL+sh.fragmentShader.replace(/void main\s*\(\)\s*\{/,'void main() {\n\tif(cv10HoleM(vRW.xz)) discard;'); }
     sh.fragmentShader='uniform float uSnow;\n'+sh.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
       ${TERR_U.uRk?'':'/*'}{ // 큰 결 — 바위 사진을 큰 배율(11 m)로 세 방향에서 한 번 더(넓은 풍화 얼룩 · 반복이 덜 보인다)
         vec3 gn0=normalize(vRN), tw0=pow(abs(gn0),vec3(4.0)); tw0/=tw0.x+tw0.y+tw0.z+1e-4;
@@ -394,7 +397,9 @@ function geoDetailBuild(){
       const sl=Math.min(1.6,Math.hypot(nx,nz)/Math.max(1e-6,ny));                              // 그 면의 비탈
       const q=rnd(), ki=q<0.45?0:q<0.70?1:q<0.90?2:3; if(!GEO_MESH_DATA[GEO_DT.kinds[ki]]) continue;
       const Sp=sp*(0.35+0.5*rnd()), w=GEO_MESH_DATA[GEO_DT.kinds[ki]].w, rr=Math.max(w[0],w[2])*Sp*0.5;
-      X.push(px); Y.push(py-rr*sl-Sp*(0.30+0.25*rnd())); Z.push(pz); SS.push(Sp); YW.push(rnd()*6.283); KI.push(ki); } });
+      const yo=Sp*(0.30+0.25*rnd()), yw=rnd()*6.283;                                       // 난수 차례는 예전과 같다(아래에서 안 놓아도 뽑는다)
+      if(typeof cv10DetailBlocked==='function'&&cv10DetailBlocked(px,pz,rr)) continue;           // 판 10 굴 둘레는 비킨다(31-cave10.js — 굴 천장으로 박히거나 입구를 덮었다)
+      X.push(px); Y.push(py-rr*sl-yo); Z.push(pz); SS.push(Sp); YW.push(yw); KI.push(ki); } });
   const n=GEO_DT.n=X.length; GEO_DT.x=Float32Array.from(X); GEO_DT.y=Float32Array.from(Y); GEO_DT.z=Float32Array.from(Z); GEO_DT.s=Float32Array.from(SS);
   GEO_DT.yaw=Float32Array.from(YW); GEO_DT.k=Uint8Array.from(KI); GEO_DT.cy=GEO_DT.yaw.map(Math.cos); GEO_DT.sy=GEO_DT.yaw.map(Math.sin);
   GEO_DT.hw=new Float32Array(n); for(let i=0;i<n;i++){ const w=GEO_MESH_DATA[GEO_DT.kinds[GEO_DT.k[i]]].w; GEO_DT.hw[i]=Math.max(w[0],w[2])*GEO_DT.s[i]*0.75; }

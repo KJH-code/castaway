@@ -556,16 +556,20 @@ void patchCalc(vec3 pos){
   if(uSm>0.5) patchNor=normalize(mix(normalize(vec3(-sm.y,uGrid.y,-sm.z)),patchNor,ed));          // 매끈한 면의 법선 — 가장자리에서 본 땅의 정점 법선으로
 }
 `;
-/* 땅 화소 버리기 — ① 덧판 원(본 땅은 원 안 · 덧판은 원 밖) ② 큰 지형 모형의 안쪽(37-geo-meshes.js 가림막 uGeoM — 모형이 땅을 덮는다 · 2026-11-05) */
-/* ③ 함몰 입구의 굴길(96-underworld.js underDolines — 처음 두 토막) — 굴 천장 밑의 땅 화소를 버려 비탈에 굴 입구가 열린다(높이 vy 를 아는 땅 셰이더만) */
-const TERR_HOLE=(sh,v,patch,vy)=>sh.replace(/void main\s*\(\)\s*\{/,'uniform vec2 uPC; uniform float uPR; uniform sampler2D uGeoM; uniform vec3 uGeoMG;'+(vy?' uniform vec4 uUdA[20]; uniform vec4 uUdB[20]; uniform int uUdN;':'')+'\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;\n\tif(uGeoMG.z>0.5&&texture2D(uGeoM,('+v+'/uGeoMG.y+uGeoMG.x*0.5+0.5)/uGeoMG.x).r>0.5) discard;'
+/* 땅 화소 버리기 — ① 덧판 원(본 땅은 원 안 · 덧판은 원 밖) ② 큰 지형 모형의 안쪽(37-geo-meshes.js 가림막 uGeoM — 모형이 땅을 덮는다 · 2026-11-05)
+   ③ 판 10 굴의 땅 뚫기 자리(32-caves.js cv10Hole — 굴 자리 그림 A>=0.75). 굴이 없으면 켜짐 0 이라 건너뛴다
+   ④ 함몰 입구 · 바닷가 굴의 굴길(96-underworld.js — 처음 두 토막) — 굴 천장 밑의 땅 화소를 버려 비탈에 굴 입구가 열린다(높이 vy 를 아는 땅 셰이더만) */
+const TERR_HOLE=(sh,v,patch,vy)=>sh.replace(/void main\s*\(\)\s*\{/,()=>{
+  const C10=typeof CV10_COMMON_GLSL!=='undefined';
+  return (C10?CV10_COMMON_GLSL:'')+'uniform vec2 uPC; uniform float uPR; uniform sampler2D uGeoM; uniform vec3 uGeoMG;'+(vy?' uniform vec4 uUdA[20]; uniform vec4 uUdB[20]; uniform int uUdN;':'')+'\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;\n\tif(uGeoMG.z>0.5&&texture2D(uGeoM,('+v+'/uGeoMG.y+uGeoMG.x*0.5+0.5)/uGeoMG.x).r>0.5) discard;'+(C10?'\n\tif(cv10Hole('+v+')) discard;':'')
   +(vy?'\n\tfor(int k=0;k<20;k++){ if(k>=uUdN) break; vec4 A=uUdA[k], Bq=uUdB[k]; vec2 ab=A.zw-A.xy; float t0=dot('+v+'-A.xy,ab)/max(dot(ab,ab),1e-4); if(Bq.z<0.0&&t0<0.0) continue; float t=clamp(t0,0.0,1.0), w=abs(Bq.z); float d=length(A.xy+ab*t-'+v+');'
-    +' if(d<w){ float u=d/w, f=mix(Bq.x,Bq.y,t), c=f+Bq.w*0.45+Bq.w*0.55*sqrt(max(0.0,1.0-u*u)); if('+vy+'<c+0.4&&'+vy+'>f-2.0) discard; } }':''));
+    +' if(d<w){ float u=d/w, f=mix(Bq.x,Bq.y,t), c=f+Bq.w*0.45+Bq.w*0.55*sqrt(max(0.0,1.0-u*u)); if('+vy+'<c+0.4&&'+vy+'>f-2.0) discard; } }':''); });
 /* 그림자에 찍히는 땅 — 본 땅은 원 안을 버리고, 덧판은 제 정점 식으로 서서 원 밖을 버린다 */
 function terrDepthMat(dist,patch){
   const m=dist?new THREE.MeshDistanceMaterial():new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
   m.onBeforeCompile=sh=>{
     sh.uniforms.uPC=TERR_U.uPC; sh.uniforms.uPR=TERR_U.uPR; sh.uniforms.uGeoM=TERR_U.uGeoM; sh.uniforms.uGeoMG=TERR_U.uGeoMG;
+    if(TERR_U.uCv10T){ sh.uniforms.uCv10T=TERR_U.uCv10T; sh.uniforms.uCv10R=TERR_U.uCv10R; sh.uniforms.uCv10B=TERR_U.uCv10B; }
     if(patch){ sh.uniforms.uElev=WATER_U.uElev; sh.uniforms.uGrid=WATER_U.uGrid; sh.uniforms.uTL=TERR_U.uTL; sh.uniforms.uRel=TERR_U.uRel; sh.uniforms.uTri=TERR_U.uTri;
       sh.uniforms.uPL=TERR_U.uPL; sh.uniforms.uSm=TERR_U.uSm;
       sh.vertexShader='varying vec2 vHXZ;\n'+TPATCH_GLSL().replace('uniform vec2 uPC; uniform float uPR;','uniform vec2 uPC; uniform float uPR;')

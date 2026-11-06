@@ -616,6 +616,7 @@ function floraNearRiver(ci){
 }
 /* 그 자리에 큰 나무·바위·설비·벽(충돌 원)이 있나 */
 function floraHit(wx,wz,pad){
+  if(inRockAt(wx,wz,true)) return true;   // 큰 지형 모형 · 큰 바위 · 광석 속(30-props.js — 2026-11-06 사용자)
   if(caveAt(wx,wz,pad+2.5)||cragNear(wx,wz,pad)||templeNear(wx,wz,pad)) return true;   // 굴 속·굴 벽 · 벼랑의 큰 바위 속에는 안 선다(10-worldgen.js · 33-crags.js)
   /* **바위 속에 풀이 돋지 않게**(사용자 지적: 바위 안에 풀이 난다) — 벼랑 바위는 원(cols)이 그려진 꼴보다 작아 덩이 가장자리에 풀이 돋았다.
      둘레 8 m 안에 바위가 있으면 그 자리 수직선이 바위를 지나는지(그려진 꼴 그대로 — cragSpan) 본다. 벼랑 밑 큰 돌(RUBBLE.cols)도 */
@@ -959,7 +960,7 @@ function floraFindLook(){
   const fx=-Math.sin(PL.yaw)*cp, fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*cp, hx=-Math.sin(PL.yaw), hz=-Math.cos(PL.yaw);
   let bd=1e9;
   {
-  for(const list of (hand?[FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,SAV.picks,WILD.picks,UNDER.picks,TEMPLE.picks,mobs?MON.picks:[]]:[mobs?MON.picks.filter(p=>!p.live):[],shroomHand?FLORA.near.picks:[],shroomHand?UNDER.picks:[]])) for(const p of list){
+  for(const list of (hand?[FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,SAV.picks,WILD.picks,UNDER.picks,TEMPLE.picks,CV10.picks,mobs?MON.picks:[]]:[mobs?MON.picks.filter(p=>!p.live):[],shroomHand?FLORA.near.picks:[],shroomHand?UNDER.picks:[]])) for(const p of list){
     if(!hand&&(list===FLORA.near.picks||list===UNDER.picks)&&!(FLORA_PICK[p.kind]&&FLORA_PICK[p.kind].shroom)) continue;   // 연장을 들었으면 버섯만
     const dx=p.x-ex, dz=p.z-ez;
     if(p.tree){
