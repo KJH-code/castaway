@@ -22,7 +22,7 @@
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `sheep/rig.py`(Meshy 양 FBX 에 뼈 21 을 심어 GLB 로 — numpy 만 씀 · 쓰는 법은 파일 머리말) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md` · 시험장에 줄여 넣기 `python3 tools/azure/arena-data.py`) |
+| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `sheep/rig.py`(Meshy 양 FBX 에 뼈 21 을 심어 GLB 로 — numpy 만 씀 · 쓰는 법은 파일 머리말) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `items-md-window.js`(**자원과 아이템 문서 `docs/ITEMS.md` 를 표에서 다시 쓴다** — `desktop/node_modules/.bin/electron tools/items-md-window.js` · 손으로 고치지 않는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md` · 시험장에 줄여 넣기 `python3 tools/azure/arena-data.py`) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
@@ -82,6 +82,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `00-core.js` | 오류 띠 · 시드 난수·잡음 · 격자 크기 · 지형 필드 `F` · 바이옴 표 · `RESOURCES` · 섬 인자 `P` |
 | `10-worldgen.js` | 섬 만들기(융기 → 침식 → 하천 → 경사 → 기후 → 바이옴 → 자원 배치 `placeResources` · 동굴 자리 `caveSites`) · 해저 `shapeSeabed` · `heightAt` 등 조회 |
 | `12-native.js` · `data-native-wasm.js` | C 로 짠 침식·빛 토막(WebAssembly · 원본 `engine/native/*.c` — JS 판과 비트까지 같아야 한다) |
+| `14-plateau.js` | **지형 판 11 — 층층 대지 섬**(새 섬): 섬을 가로지르는 산맥 등뼈 · 산에 밑동을 둔 층층 대지(대지마다 바이옴 · `PLAT.id`) · 가운데 호수 대지와 호수 · 대지에서 대지로 떨어지는 강(`PLAT.drops`) · 너덜 비탈길 · 바닷가 벼랑 · `classifyPlateau` · 닿기 어려운 정도 `PLAT.reach` · 광석을 굴로(`plOres` · `p.ug`) · 보급 상자 · 망대 — `docs/notes/terrain.md` '지형 판 11' |
 | `20-terrain.js` | 가지·잎 인스턴스 · 압축 `instCompact` · 나무껍질 · 땅 셰이더 · 암석 재질 `rockMat` · 지형 `buildChunks`/`updateTerrainLOD` · 바다·하천 물 `waterMat` |
 | `22-ground-textures.js` | 땅 사진 배열 텍스처 · 사진 결 땅 셰이더 · 둔덕 재질 `moundMat` |
 | `24-shapes.js` | 식물·바다 생물이 같이 쓰는 모양 도구(`SHP`) |
@@ -301,9 +302,11 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   ⑩ **면의 차례는 바깥에서 보아 반시계**(뒷면 거르기 — 안을 보는 면은 밖에서 안 그려진다): 신전 돌덩이(97-temples.js — 덩이 가운데→면 가운데 쪽과 법선이 어긋나면 뒤집는다 · 윗면이 밑면 빛깔로 칠해지던 것도) ·
   주상절리 기둥 옆면 · 깎은 모(34-coast.js — `tri` 가 법선에 맞춰 차례를 고친다). 예전엔 벽 · 기둥이 비쳐 보이고 윗면 테두리가 빠졌다(사용자 지적 2026-11-04).
   ⑨ 보급선은 매끈한 땅 섬에서 배 네모 다섯 점이 1.1 m 위인 해변에만(`placePod`). **`smOn()`** — 지역 이름 `P` 가 섬 인자를 가리는 함수 안에서 쓴다(95-flora.js 의 줍기 표 `P`).
+- **지형 판 11 — 층층 대지 섬**(새 섬 · `14-plateau.js` · 2026-11-06): 침식을 안 돌린다(대지 벼랑이 무너진다) · 땅 위 굴이 없다(caveSites 는 판 11 이면 그냥 돌아간다) · 광석은 땅속 굴 방에(`p.ug` — 굴 바닥 높이를 buildProps 가 덮어쓰지 않게 · 칸은 `propUG`) ·
+  `>=10` 으로 판 10(비탈 굴)을 가리는 데는 판 11 도 걸린다 — 판 10 만이면 `===10`. 새 지형 코드를 판 11 에 더할 때는 `PLAT.on` 으로 가른다(옛 섬의 난수 차례를 안 건드리게).
 - **지형 판(`P.tv`)** — 2 는 침식 뒤에 피오르·골짜기·단구·절벽·산릉·탁상지를 새기고(`terrainFeatures`) 동굴(`caveSites` · 32-caves.js)과
   암벽(33-crags.js)을 둔다. **판이 없는 옛 저장은 1 로 읽혀 예전 섬이 한 비트도 안 달라진다**(배율 2·판 1 의 표고·소품이 main 과 같음을
-  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` 가 주는 값도 올린다(지금 9 — 9 는 굴의 꼴(32-caves.js · 10-worldgen.js — 비탈 아래쪽 벽 바위를 처마 밑까지 · 고드름 꼴 종유석·석순 · 굴 광석 자리 `caveOreSpot`/`caveOreRelax` · 바위 속 빛나는 점·버섯 버리기 · 강이 지나는 굴 자리 버리기) · 8 은 옛 신전 둘(97-temples.js) · 대숲 바이옴(`B.BAMBOO` 13 — 활엽수림의 낮은 데 · 큰 얼룩) · 들판의 바위 솎기(`thinOpenRocks`) · 판판한 현무암 섬 · 4 는 바다 골짜기 `seaTrenches` · 5 는 바이옴 비탈 · 바닷가 · 지열 · 폭포 · 6 은 광석을 굴 속에만(`oreToCaves` — 늪철광만 늪에) · 바깥 광석과 낮은 땅 화강암 일부를 그 자리의 현무암 · 석회암(`karst`) · 사암으로(`surfaceRocks`) · 산허리가 방으로 솟는 굴 자리 버리기(`caveSites` 의 `bulge`) · 7 은 저수지 폭포(36-falls.js) · 땅속 세계(96-underworld.js)).
+  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` 가 주는 값도 올린다(지금 11 — 11 은 층층 대지 섬(14-plateau.js) · 9 는 굴의 꼴(32-caves.js · 10-worldgen.js — 비탈 아래쪽 벽 바위를 처마 밑까지 · 고드름 꼴 종유석·석순 · 굴 광석 자리 `caveOreSpot`/`caveOreRelax` · 바위 속 빛나는 점·버섯 버리기 · 강이 지나는 굴 자리 버리기) · 8 은 옛 신전 둘(97-temples.js) · 대숲 바이옴(`B.BAMBOO` 13 — 활엽수림의 낮은 데 · 큰 얼룩) · 들판의 바위 솎기(`thinOpenRocks`) · 판판한 현무암 섬 · 4 는 바다 골짜기 `seaTrenches` · 5 는 바이옴 비탈 · 바닷가 · 지열 · 폭포 · 6 은 광석을 굴 속에만(`oreToCaves` — 늪철광만 늪에) · 바깥 광석과 낮은 땅 화강암 일부를 그 자리의 현무암 · 석회암(`karst`) · 사암으로(`surfaceRocks`) · 산허리가 방으로 솟는 굴 자리 버리기(`caveSites` 의 `bulge`) · 7 은 저수지 폭포(36-falls.js) · 땅속 세계(96-underworld.js)).
   새 지형 코드는 제 난수(`mulberry32(seed^상수)`)만 쓴다 — `placeResources` 의 난수 차례를 건드리지 않는다.
 - **`updateHUD`(82-hud.js) 안에서 일찍 `return` 하지 말 것** — 조준 표시 갈래에서 돌아가면 그 아래(가방 맞춤 · 도구 표시 · **제작 진행 막대**)가
   통째로 안 돈다. 숫돌을 보는 동안 막대가 멈춰 '안 만들어진다'는 베타 신고가 이것이었다. 갈래는 else-if 로 잇는다.
@@ -370,6 +373,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 잔 기복(`RELIEF`) 식을 바꾸면 `reliefT`(CPU) · `TPATCH_GLSL`(덧판 정점) · `gndTerrainFrag` 의 법선 셋을 같이. 땅을 새로 그리는 재질은 덧판 원 안 화소를 버리는 것도 같이(`terrDepthMat` · terrain).
 - 땅의 빛 — 램버트 조각 셰이더의 `SUN` · `IND` 두 줄이 바뀌면 조용히 옛 방식으로 돌아간다(`PIX` 거짓 · terrain). 둔덕 재질(`moundMat`)의 갈고리는 땅에선 다 0 이다.
 - 큰 바위 꼴(`cragShape`)이나 덩이의 돌림·늘림을 바꾸면 메시(`cragMesh`)와 충돌(`cragIndex`·`cragSpan`)이 같은 값을 쓰는지 볼 것 · 비탈에 놓는 것은 묻거나 눕힌다(`groundSlope` · terrain).
+- 바위 · 광석은 이제 몸이 지난다(30-props.js `rockTop`/`rockSolid` — floorAt · solidAt · wallAhead · underWalk) — 바위 꼴(HABIT · ROCK_R)을 크게 바꾸면 `rockDims` 의 어림(가로 0.9 · 세로 × 납작함)도 볼 것 · 바위 칸을 새로 만들면 `rockGridBuild`.
 - 새 광물은 `PROP_FOOT` 에도 한 줄(겹침 정리 `resolveOverlaps` — 시드 난수를 다 뽑은 뒤 난수 없이 고친다) · 상륙 자리는 시드로 정한다(`LANDING` — `Math.random` 금지 · terrain).
 - 광원은 `LIGHT.addPoint`/`addSpot`(켜고 끄는 불은 `addFire`)으로 — `decay` 2 · 세기 1.8배. 광원 수(보이는 것 · 그림자)가 바뀌면 모든 재질을 다시 짠다 → 끌 때는 `visible` 대신 세기 0(light).
 - 큰 지형 모형 위에 무엇을 놓으면 `geoGround(x,z,heightAt)`(땅은 모형 밑에 묻혀 있고 드러난 칸은 그리지도 않는다 — 땅 화소를 버리는 셰이더는 `TERR_HOLE` 을 거칠 것) · 모형 자료는 `node tools/geo-mesh.mjs`(QEM — 구멍 0 을 찍는다) · 인스턴스 메시는 비면 `visible=false`(0 개여도 그리기 호출이 든다 · perf) · 가까이 가야 생기는 재질은 `precompPlan` 에(바위 칸 `ROCK_KINDS` 처럼 — 처음 다가갈 때 0.2~0.4 초 멈춘다 · perf).

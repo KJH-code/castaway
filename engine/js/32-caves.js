@@ -103,7 +103,7 @@ function buildCaves(){
   const mat=cragMat(), TV9=(P.tv|0)>=9;                // 화강암 재질 + 덩이마다 다른 빛깔(33-crags.js) · TV9: 지형 판 9 의 굴 꼴(벽 높이 · 종유석 · 묻힌 빛 버리기)
   const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), S=new THREE.Vector3(), nm=new THREE.Matrix3(), v=new THREE.Vector3();
   const adiff=(a,b)=>{ let d=(a-b)%6.2832; if(d>3.1416) d-=6.2832; if(d<-3.1416) d+=6.2832; return Math.abs(d); };
-  for(const c of CAVES){
+  for(const c of CAVES){ if(c.ghost) continue;   // 지형 판 11 — 다지류 둥지 자리(14-plateau.js plDens)는 그리지 않는다
     if(c.tv===10){ c.off=cv10Zones(c).some(q=>inLanding(q.x,q.z,q.R+2))?1:0; continue; }   // 지형 판 10 굴은 31-cave10.js 의 자료 — 메시는 따로 짓는다 · 착륙 자리에 걸린 굴은 끈다(판 9 처럼 섬을 다 지은 뒤 — 자리를 정할 땐 LANDING 이 아직 없다)
     if(c.rooms.some(r=>inLanding(r.x,r.z,r.R+8))){ c.off=1; continue; }
     const rnd=mulberry32(c.seed>>>0), P=[], Nn=[], I=[], ML=[], CL=[], TB=0.74+0.34*rnd(), T0=CRAG_TINT[(rnd()*CRAG_TINT.length)|0];

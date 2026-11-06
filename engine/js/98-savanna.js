@@ -89,7 +89,7 @@ function updateSavanna(dt){
   if(!SAV.job){
     const mv=SAV.last?Math.hypot(SAV.last.x-cx,SAV.last.z-cz):1e9; if(mv<4&&!SAV.dirty) return;
     SAV.last={x:cx,z:cz}; SAV.dirty=false; SAV.job=savJob(cx,cz);
-    if(mv>60){ let r; while(!(r=SAV.job.next()).done); savCommit(r.value); return; }          // 처음 · 순간이동은 한 번에
+    if(mv>1e8){ let r; while(!(r=SAV.job.next()).done); savCommit(r.value); return; }          // 처음만 한 번에 — 빨리 날거나 순간이동할 때 통째로 지으며 수십 ms 씩 멎었다(2026-11-06 사용자 '돌아다니면 버벅인다') · 그 뒤로는 늘 나눠서
   }
   const t0=performance.now(); let r;
   while(!(r=SAV.job.next()).done) if(performance.now()-t0>3) return;

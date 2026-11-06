@@ -326,6 +326,7 @@ const TEMPLE_LOOT={
   surn:[[['ingot_tin',4],['mercury',2]],[['ingot_copper',5],['ingot_zinc',3]],[['ring_platinum',1],['glass',4]],[['ingot_lead',4],['salt',4]],[['spodumene',4],['graphite',2]]]
 };
 function templeLoot(p){
+  if(p.kind==='cache') return plCacheLoot(p);                              // 지형 판 11 — 닿기 어려운 데의 보급 상자(14-plateau.js)
   const sea=p.deep, out=[];
   if(p.kind==='tchest') for(const [id,n] of TEMPLE_LOOT[sea?'schest':'lchest']) out.push([id,n]);
   else{ const L=TEMPLE_LOOT[sea?'surn':'lurn'], i=(hashStr(p.key+'|'+P.seed)>>>0)%L.length; for(const e of L[i]) out.push(e); }
@@ -370,7 +371,8 @@ function yieldK(x,z,y){
   if(g>0) k+=clamp((g/HI-0.45)/0.45,0,1)*0.8+clamp((sm.slope-0.6)/0.8,0,1)*0.4;
   else k+=clamp((-g-6)/30,0,1)*0.9;                                        // 깊은 물 밑
   if(typeof mobLairBonus==='function') k+=mobLairBonus(x,z);               // 다지류가 사는 우거진 숲(97-mobs.js)
-  return Math.min(2.5,k);
+  if(PLAT.on&&PLAT.reach&&(y===undefined||y>=g-3)) k+=0.9*Math.max(0,plReachAt(x,z)-0.25)/0.75;   // 지형 판 11 — 닿기 어려운 데일수록(14-plateau.js plReachBuild)
+  return Math.min(PLAT.on?3:2.5,k);
 }
 /* 몫에 곱한다 — 소수부는 그 확률로 하나 더 */
 const yieldMul=(n,k)=>{ const v=n*k, w=Math.floor(v); return w+(Math.random()<v-w?1:0); };

@@ -61,6 +61,7 @@ const ITEMS={
   banana:     {n:'바나나',     kg:0.15, c:0xe0c040, use:'그냥 먹는다(허기 11)', food:11, water:2},
   mushroom:   {n:'버섯',       kg:0.05, c:0xa87850, use:'날로 먹으면 탈이 난다 — 굽거나 국에 넣는다',
                food:5, raw:true},
+  glow_mushroom:{n:'빛버섯',   kg:0.04, c:0x58ffd0, use:'땅속 굴에서 푸르게 빛나는 버섯 — 날로 먹어도 탈이 없고 기력이 돋는다(기력 25 · 허기 5)', food:5, heal:{stam:25}},
   mushroom_cooked:{n:'구운 버섯', kg:0.04, c:0x8a5a34, use:'향이 좋다(허기 12)', food:12},
   /* 베리는 그냥 따 먹는다 — 한 알에 허기 4 · 목마름 3(즙이 많다). 굽지 않아도 탈이 없다 */
   berry:      {n:'베리',       kg:0.03, c:0x8e3350, use:'따서 바로 먹는다 · 즙 · 염료',

@@ -558,8 +558,8 @@ void patchCalc(vec3 pos){
 `;
 /* 땅 화소 버리기 — ① 덧판 원(본 땅은 원 안 · 덧판은 원 밖) ② 큰 지형 모형의 안쪽(37-geo-meshes.js 가림막 uGeoM — 모형이 땅을 덮는다 · 2026-11-05) */
 /* ③ 함몰 입구의 굴길(96-underworld.js underDolines — 처음 두 토막) — 굴 천장 밑의 땅 화소를 버려 비탈에 굴 입구가 열린다(높이 vy 를 아는 땅 셰이더만) */
-const TERR_HOLE=(sh,v,patch,vy)=>sh.replace(/void main\s*\(\)\s*\{/,'uniform vec2 uPC; uniform float uPR; uniform sampler2D uGeoM; uniform vec3 uGeoMG;'+(vy?' uniform vec4 uUdA[8]; uniform vec4 uUdB[8]; uniform int uUdN;':'')+'\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;\n\tif(uGeoMG.z>0.5&&texture2D(uGeoM,('+v+'/uGeoMG.y+uGeoMG.x*0.5+0.5)/uGeoMG.x).r>0.5) discard;'
-  +(vy?'\n\tfor(int k=0;k<8;k++){ if(k>=uUdN) break; vec4 A=uUdA[k], Bq=uUdB[k]; vec2 ab=A.zw-A.xy; float t0=dot('+v+'-A.xy,ab)/max(dot(ab,ab),1e-4); if(Bq.z<0.0&&t0<0.0) continue; float t=clamp(t0,0.0,1.0), w=abs(Bq.z); float d=length(A.xy+ab*t-'+v+');'
+const TERR_HOLE=(sh,v,patch,vy)=>sh.replace(/void main\s*\(\)\s*\{/,'uniform vec2 uPC; uniform float uPR; uniform sampler2D uGeoM; uniform vec3 uGeoMG;'+(vy?' uniform vec4 uUdA[20]; uniform vec4 uUdB[20]; uniform int uUdN;':'')+'\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;\n\tif(uGeoMG.z>0.5&&texture2D(uGeoM,('+v+'/uGeoMG.y+uGeoMG.x*0.5+0.5)/uGeoMG.x).r>0.5) discard;'
+  +(vy?'\n\tfor(int k=0;k<20;k++){ if(k>=uUdN) break; vec4 A=uUdA[k], Bq=uUdB[k]; vec2 ab=A.zw-A.xy; float t0=dot('+v+'-A.xy,ab)/max(dot(ab,ab),1e-4); if(Bq.z<0.0&&t0<0.0) continue; float t=clamp(t0,0.0,1.0), w=abs(Bq.z); float d=length(A.xy+ab*t-'+v+');'
     +' if(d<w){ float u=d/w, f=mix(Bq.x,Bq.y,t), c=f+Bq.w*0.45+Bq.w*0.55*sqrt(max(0.0,1.0-u*u)); if('+vy+'<c+0.4&&'+vy+'>f-2.0) discard; } }':''));
 /* 그림자에 찍히는 땅 — 본 땅은 원 안을 버리고, 덧판은 제 정점 식으로 서서 원 밖을 버린다 */
 function terrDepthMat(dist,patch){
@@ -815,7 +815,7 @@ vec2 th2(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.
 const GEOL_GLSL=`uniform sampler2D uGeo;
 vec4 geoW(vec2 xz){ return texture2D(uGeo,(xz/uCell+uBioN*0.5+0.5)/uBioN); }
 int geoPick(vec4 w,float u){ float c=w.r; if(u<c) return 0; c+=w.g; if(u<c) return 1; c+=w.b; if(u<c) return 2; return 3; }
-void geoLay(int t,out float la,out float lb){ if(t==0){ la=4.0; lb=2.0; } else if(t==1){ la=1.0; lb=1.0; } else if(t==2){ la=0.0; lb=5.0; } else { la=0.0; lb=2.0; } }
+void geoLay(int t,out float la,out float lb){ if(t==0){ la=4.0; lb=8.0; } else if(t==1){ la=1.0; lb=7.0; } else if(t==2){ la=6.0; lb=5.0; } else { la=6.0; lb=2.0; } }
 vec3 geoTint(vec4 w){ return w.r*vec3(0.56,0.56,0.58)+w.g*vec3(1.03,0.92,0.80)+w.b*vec3(1.16,1.14,1.09)+w.a*vec3(0.98,0.96,0.94); }
 float geoSat(vec4 w){ return w.r*0.10+w.g*0.30+w.b*0.05+w.a*0.12; }
 `;

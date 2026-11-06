@@ -5,6 +5,7 @@
      [CASTAWAY_UNCAP=1] desktop/node_modules/.bin/electron tools/bench-window.js [초=14] [너비=1440] [높이=900] ["시작 전에 돌릴 JS"]
 
    CASTAWAY_GAME=폴더 — 다른 자리에 떠 둔 판을 잰다(고치는 중인 작업 폴더 대신).
+   CASTAWAY_PRECOMP=1 — 시작 화면에서 셰이더 미리 짜기가 끝날 때까지 기다렸다가 상륙한다(안 기다리면 첫 몇 초에 짜이는 셰이더가 멈칫으로 잡힌다).
    저장·설정은 건드리지 않는다(임시 폴더를 제 userData 로 쓴다). 결과: BENCH {fps, low(1% low), max(ms), cpu, gpu, w, h, tri, calls, qual} */
 const { app, BrowserWindow } = require('electron');
 const path = require('path'), os = require('os');
@@ -23,7 +24,7 @@ const DUR = +process.argv[2] || 14, W = +process.argv[3] || 1440, H = +process.a
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: W, height: H, useContentSize: true, show: false, backgroundColor: '#03060a',
     title: 'CASTAWAY — benchmark', webPreferences: { backgroundThrottling: false } });
-  const fail = setTimeout(() => { console.log('BENCH {"error":"timeout"}'); app.exit(1); }, (DUR + 90) * 1000);
+  const fail = setTimeout(() => { console.log('BENCH {"error":"timeout"}'); app.exit(1); }, (DUR + (process.env.CASTAWAY_PRECOMP==='1'?220:90)) * 1000);
   win.showInactive();                                  // 보이되 글쇠·마우스는 뺏지 않는다(다른 일을 하는 중에 돌려도 되게)
   try {
     await win.loadFile(path.join(process.env.CASTAWAY_GAME || path.join(__dirname, '..'), 'island_world.html'));
@@ -31,6 +32,7 @@ app.whenReady().then(async () => {
       const W=ms=>new Promise(r=>setTimeout(r,ms)); let t=0;
       while((typeof busy==='undefined'||busy)&&t++<900) await W(100);
       try{ askClose(false); }catch(e){}
+      ${process.env.CASTAWAY_PRECOMP==='1'?`{ let pc=-1, st=0; for(let k=0;k<240;k++){ await W(250); const n=renderer.info.programs.length; if(n===pc&&!PRECOMP.jobs&&PRECOMP.t>0){ if(++st>=12) break; } else { st=0; pc=n; } } }`:''}   // CASTAWAY_PRECOMP=1 — 시작 화면에서 셰이더를 다 미리 짤 때까지 기다린다(사람이 시작 화면에 머문 것처럼)
       if(typeof titleLand==='function') titleLand(); else document.getElementById('bStart').click();   // 첫 화면의 '시작'은 이제 글을 먼저 읽힌다(91-title.js)
       await W(1500);
       try{ ${EXTRA} }catch(e){ return JSON.stringify({error:'extra: '+e.message}); }

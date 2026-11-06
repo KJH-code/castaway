@@ -5,6 +5,7 @@
 
 /* ---------------- 메인 루프 ---------------- */
 let last=performance.now(), mapT=0, lastDraw=0;
+let _cldF=0, _cldDt=0;
 function loop(){
   requestAnimationFrame(loop);
   const now=performance.now();
@@ -37,13 +38,15 @@ function loop(){
     const dh=dt*timeScale/60;                  // 실시간 1분 = 게임 1시간 (하루 24분)
     gameHours+=dh; hourOfDay=(hourOfDay+dh)%24;
     updateShip(dt);                            // 보급선이 내려놓고 떠난다
-    updateTorch(dt,dh); updateLamp(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh); updateStoreTags(); updateRubble(); updateFlora(); updateSavanna(dt); updateSea(dt); updateReef(dt); if(!SURF.hide) updateFoam(); updateWildlife(dt); updatePush(dt); updateCamcorder(dt);
+    updateTorch(dt,dh); updateLamp(dt,dh); updateFires(dt,dh); updateFurnaces(dt,dh); updateStoreTags(); updateRubble(); updateFlora(); updateSavanna(dt); updatePlateau(dt); updateSea(dt); updateReef(dt); if(!SURF.hide) updateFoam(); updateWildlife(dt); updatePush(dt); updateCamcorder(dt);
     updateWeapon(dt); updatePower(dt); updateDecay(dh); updateGeo(dt); if(!SURF.hide) updateFalls(dt);
     updateOcean(now*0.001);
     if(PO) tp=PERF.lap(4,tp);
     updateSky();
     if(PO) tp=PERF.lap(0,tp);
-    updateClouds(dt);
+    /* 구름은 한 프레임 걸러(초당 30번) — 몇 km 밖에서 초속 수십 m 로 흐르는 덩이라 30 Hz 로 옮겨도 안 보이고, 덩이 정렬 · 명암 대기열이
+       프레임당 3 ms 남짓 들었다(2026-11-06 FPS 60 — 사용자 요청). 건너뛴 시간은 다음 번에 같이 흘린다 */
+    _cldDt+=dt; if((_cldF=(_cldF+1)&1)===0||_cldDt>0.1){ updateClouds(_cldDt); _cldDt=0; }
     if(!SURF.hide) updateRain(dt);        // 땅속에선 비를 안 그린다(98-surface.js)
     if(PO) tp=PERF.lap(1,tp);
     LIGHT.update(dt);           // 해 그림자 상자를 사람에게 옮기고 불빛에 그림자를 나눈다

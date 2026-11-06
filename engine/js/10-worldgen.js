@@ -365,6 +365,7 @@ function hydrothermal(seed){
    7) 바이옴 분류
    ========================================================================== */
 function classify(){
+  if(PLAT.on){ classifyPlateau(); return; }                              // 지형 판 11 — 대지마다 바이옴(14-plateau.js)
   const h=F.elev, s=F.slope, m=F.moist, b=F.biome;
   let peak=0;
   for(let i=0;i<N*N;i++) if(h[i]>peak) peak=h[i];
@@ -559,6 +560,7 @@ function caveAt(x,z,pad){
 }
 function caveSites(seed){
   CAVES=[]; CAVE_GRID.clear(); if((P.tv|0)<2) return;
+  if((P.tv|0)>=11) return;                                                // 지형 판 11 — 땅 위의 굴은 없다(사용자 요청 2026-11-06 · 광석은 땅속 세계와 닿기 어려운 데로 — 14-plateau.js plAfterUnder)
   if((P.tv|0)>=10) return caveSites10(seed);                            // 지형 판 10 — 비탈 속으로 파고드는 굴(31-cave10.js) · 판 9 까지는 아래 길 그대로
   const rnd=mulberry32((seed^0xca7e5)>>>0), WS=CELL/GCELL, want=Math.round(9*WS*WS/4+6);
   let hi=0; for(let i=0;i<F.elev.length;i++) if(F.elev[i]>hi) hi=F.elev[i];
@@ -718,7 +720,7 @@ function surfaceRocks(){
   let hi=0; for(let i=0;i<F.elev.length;i++) if(F.elev[i]>hi) hi=F.elev[i];
   let gran=0; for(const p of PROPS) if(p.k==='granite') gran++;
   for(const p of PROPS){
-    if(p.cave||!(CAVE_ORE.indexOf(p.k)>=0||p.k==='granite')) continue;
+    if(p.cave||p.keep||!(CAVE_ORE.indexOf(p.k)>=0||p.k==='granite')) continue;
     if(p.k==='iron'&&bogAt(p.x,p.z)) continue;                       // 늪철광은 늪에 그대로
     const gx=Math.round(p.x/CELL+N/2), gz=Math.round(p.z/CELL+N/2); if(gx<0||gz<0||gx>=N||gz>=N) continue;
     const i=IDX(gx,gz), b=F.biome[i], h=F.elev[i];

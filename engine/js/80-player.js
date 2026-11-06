@@ -192,7 +192,7 @@ function walkable(x,z,fromH){
   if(Math.abs(x)>HALF-6||Math.abs(z)>HALF-6) return false;
   const rise=floorAt(x,z,fromH)-fromH;         // 토대·지붕 윗면도 바닥으로 친다
   const rock=CRAG.slope;                      // 그 자리가 큰 바위 위면 그 면의 비탈(33-crags.js — floorAt 이 남긴다)
-  if(rise>STEPUP) return false;               // 한 번에 오르기엔 너무 높은 턱
+  if(rise>STEPUP&&!(RKF.hit&&rise<=1.35)) return false;   // 한 번에 오르기엔 너무 높은 턱(바위 · 광석은 1.35 m 까지 넘어 오른다 — 30-props.js rockTop)
   /* 큰 바위의 벽 — 몸 반지름만큼 앞을 더 본다. 가운데만 보면 눈이 바위 면에 닿아 속이 들여다보였다(사용자 지적) */
   { const ddx=x-PL.pos.x, ddz=z-PL.pos.z, dl=Math.hypot(ddx,ddz);
     if(dl>1e-6&&dl<1.5){ const ax=x+ddx/dl*PRAD, az=z+ddz/dl*PRAD, g2=heightAt(ax,az);
@@ -298,6 +298,7 @@ function solidAt(x,z,y){
   const h0=heightAt(x,z);
   if(PL.under&&y<h0-3) return underSolid(x,z,y);                             // 땅속
   if(h0>y) return true;
+  if(rockSolid(x,z,y)) return true;                                              // 바위 · 광석(30-props.js)
   if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y&&s.t>y) return true; } }
   return coastSolid(x,z,y);
 }
@@ -330,6 +331,7 @@ function wallAhead(){
   for(let d=0.3;d<=1.6+1e-6;d+=0.1){ const x=p.x+fx*d, z=p.z+fz*d;
     if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const sp=_cgS[i]; if(sp.b<yc&&sp.t>yc) return d; } }
     if(coastSolid(x,z,yc)) return d;                                       // 주상절리 기둥 벽
+    if(rockSolid(x,z,yc)) return d;                                        // 큰 바위 · 광석(30-props.js)
     if(heightAt(x,z)>yc){ const g=groundSlope(x,z,0.8); return Math.hypot(g[0],g[1])>MAXSLOPE*0.87?d:0; }
   }
   return 0;                                                          // 벽까지의 거리(m) — 없으면 0
@@ -338,7 +340,7 @@ function wallTick(dt){
   const sp=!!keys.jump, tap=sp&&!WALL.sp; WALL.sp=sp;
   const p=PL.pos;
   if(!WALL.on){
-    if(tap&&!PL.swim&&!(invOpen||craftOpen)&&!BUILD.on&&!MOVE.t&&wallAhead()){
+    if(tap&&!(invOpen||craftOpen)&&!BUILD.on&&!MOVE.t&&wallAhead()){   // 헤엄치다가도 매달린다 — 바다에서 곧은 벼랑에 막혀 못 나왔다(2026-11-06 사용자)
       if(PL.stam<5){ toast('매달릴 기력이 없다'); return false; }
       WALL.on=true; WALL.dx=-Math.sin(PL.yaw); WALL.dz=-Math.cos(PL.yaw); PL.vel.set(0,0,0);
       _wO.x=p.x; _wO.y=p.y; _wO.z=p.z; if(wallBack(_wO,WALL.dx,WALL.dz)){ p.x=_wO.x; p.z=_wO.z; }
@@ -364,9 +366,14 @@ function wallTick(dt){
     if(PL.stam>=18){ const u=up>=0?(up||(side?0:1)):-1, l=Math.hypot(u,side)||1; WALL.lu=u/l; WALL.ls=side/l; WALL.lt=0.25; WALL.lc=0.8; PL.stam-=18; footstep(); }
     else if(!WALL._lw||performance.now()-WALL._lw>2000){ WALL._lw=performance.now(); toast('몸을 던질 기력이 없다'); } }
   let ny, nx, nz;
+  /* **손을 번갈아 끌어올린다**(사용자 요청 2026-11-06 '오를 때 덜컥거리는 움직임 · 내려가기는 오르기보다 빠르게') — 오르는 힘은 한 번 당길 때(0.55초)
+     앞쪽에 몰리고(sin² — 평균은 예전 빠르기 그대로) 당길 때마다 눈이 덜컥 들린다(WALL.jk → 아래 카메라). 내려가기는 2.1배 빠르고 고르게(발을 미끄러뜨리며) */
+  const mv=up||side; if(mv){ const cyc=up<0?0.42:0.55; WALL.ph=(WALL.ph||0)+dt/cyc; if(WALL.ph>=1){ WALL.ph-=1; if(up>=0) footstep(); } } else WALL.ph=0;
+  const pull=up<0?1:2.0*Math.pow(Math.sin(Math.PI*(WALL.ph||0)),2);
   if(WALL.lt>0){ WALL.lt-=dt; const v=1.4/0.25;
     ny=p.y+WALL.lu*v*dt; nx=p.x+(-fz)*WALL.ls*v*dt; nz=p.z+fx*WALL.ls*v*dt; }
-  else{ ny=p.y+up*spd*dt; nx=p.x+(-fz)*side*spd*0.8*dt; nz=p.z+fx*side*spd*0.8*dt; }
+  else{ ny=p.y+up*spd*(up<0?2.1:pull)*dt; nx=p.x+(-fz)*side*spd*0.8*(up<0?1:Math.max(0.35,pull))*dt; nz=p.z+fx*side*spd*0.8*(up<0?1:Math.max(0.35,pull))*dt; }
+  WALL.jk=mv&&up>=0&&!(WALL.lt>0)?Math.sin(Math.PI*2*(WALL.ph||0)):0;
   if((up>0||(WALL.lt>0&&WALL.lu>0))&&solidAt(nx,nz,ny+1.95)) ny=p.y;                                         // 머리 위가 막혔다(튀어나온 바위)
   /* 벼랑 위 — 손 높이에 벽이 없고 바로 앞의 바닥이 발보다 높지만 1.8 m 안이면 올라선다 */
   const dw=wallDist(nx,nz,ny,fx,fz,0.2,1.3);
@@ -387,8 +394,12 @@ function wallTick(dt){
   else{ nx=ox; ny=oy; nz=oz; }                                                       // 물러나도 안 되면 움직이지 않는다
   p.set(nx,ny,nz); PL.vel.set(0,0,0); PL.grounded=false; PL.swim=false; PL.crouch=false;
   PL.camY=p.y; PL.eye+=(EYE-PL.eye)*clamp(10*dt,0,1);
-  camera.position.set(p.x,p.y+PL.eye,p.z); camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
-  if((up||side)&&(PL._clT=(PL._clT||0)+dt)>0.55){ PL._clT=0; footstep(); }     // 손발 디디는 소리
+  /* 덜컥 — 당기는 앞쪽에 눈이 6 cm 들렸다 내려앉고 고개가 살짝 끄덕 · 손이 번갈아 가니 몸이 좌우로 조금 기운다 */
+  const jk=WALL.jk||0, roll=jk?0.022*Math.sin(Math.PI*((WALL.ph||0)+(WALL.hand?1:0))):0;
+  if(WALL.ph<0.05&&WALL._ph0>0.9) WALL.hand=!WALL.hand; WALL._ph0=WALL.ph||0;
+  camera.position.set(p.x,p.y+PL.eye+0.06*jk,p.z); camera.rotation.set(PL.pitch-0.018*jk,PL.yaw,roll,'YXZ');
+  if(up<0&&(PL._clT=(PL._clT||0)+dt)>0.42){ PL._clT=0; footstep(); }            // 내려갈 때 발 디디는 소리(오를 때는 당길 때마다 — 위)
+  else if(!up&&side&&(PL._clT=(PL._clT||0)+dt)>0.55){ PL._clT=0; footstep(); }
   return true;
 }
 const NO_KEYS={};
@@ -592,7 +603,7 @@ function updatePlayer(dt){
   const bob=(PL.grounded&&!PL.swim)?Math.sin(PL.bob*2)*Math.min(hs*0.013,0.055):0;
   PL.eye+=(((PL.crouch?EYE_C:EYE)+(PL.swim?-0.9:0))-PL.eye)*clamp(10*dt,0,1);
   // 작은 턱을 올라설 때 시점이 톡톡 튀지 않게 세로만 부드럽게 따라간다
-  if(PL.camY===undefined||!PL.grounded||Math.abs(p.y-PL.camY)>1.2) PL.camY=p.y;
+  if(PL.camY===undefined||!PL.grounded||Math.abs(p.y-PL.camY)>1.6) PL.camY=p.y;
   else PL.camY+=(p.y-PL.camY)*clamp(16*dt,0,1);
   camera.position.set(p.x,PL.camY+PL.eye+bob,p.z);
   camera.rotation.set(PL.pitch,PL.yaw,Math.sin(PL.bob)*hs*0.0016,'YXZ');

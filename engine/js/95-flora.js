@@ -54,7 +54,8 @@ const FLORA_PICK={
   /* 야자열매는 흔들어도 잘 안 떨어진다(사용자 지적: 야자열매가 너무 흔하다) — 네 번에 하나꼴(chance) · 떨어지면 하나 · 다시 달리기까지 이틀 반 */
   coconut :{item:'coconut', n:'야자열매',  verb:'흔들어 따기', regrow:60, cnt:[1,1], dur:2.2, stam:7, chance:0.25, miss:'흔들었지만 야자열매가 떨어지지 않았다'},
   banana  :{item:'banana',  n:'바나나',    verb:'따기',        regrow:48, cnt:[2,3], dur:1.1, stam:2.5},
-  mushroom:{item:'mushroom',n:'버섯',      verb:'따기',        regrow:36, cnt:[1,1], dur:0.5, stam:1, hide:1},
+  mushroom:{item:'mushroom',n:'버섯',      verb:'따기',        regrow:36, cnt:[1,2], dur:0.5, stam:1, hide:1, shroom:1},   // shroom — 곡괭이 · 도끼 · 칼을 든 채로도 캔다(사용자 요청 2026-11-06 '버섯을 캘 수 있게')
+  glowshroom:{item:'glow_mushroom',n:'빛버섯 무더기',verb:'캐기', regrow:48, cnt:[2,4], dur:0.8, stam:1.5, shroom:1},   // 땅속 굴의 빛나는 버섯(96-underworld.js)
   /* 덤불 — 잔가지를 꺾는다. 마른 잎·검불이 부싯깃이 되고, 열매가 달린 철이면 베리도 딸려 온다 */
   bushtwig:{item:'branch',  n:'덤불',      verb:'가지 꺾기',   regrow:20, cnt:[1,2], dur:1.2, stam:4, low:0.45, extra:[['tinder',0.25],['berry',0.3]]},
   drytwig :{item:'branch',  n:'마른 덤불', verb:'가지 꺾기',   regrow:24, cnt:[1,2], dur:1.0, stam:3.5, low:0.4, extra:[['tinder',0.6]]},
@@ -77,6 +78,7 @@ const FLORA_PICK={
   honey   :{item:'honey',   n:'벌집',      verb:'꿀 따기',     regrow:72, cnt:[1,1], dur:2.0, stam:4, take:'pot', sting:7},
   /* 옛 신전(97-temples.js) — 한 번만 연다(once · 저장 'temples') · 속은 templeLoot 가 정한다 */
   tchest  :{item:'ring_platinum', n:'옛 상자',  verb:'열기',      regrow:1e9, cnt:[0,0], dur:2.2, stam:2, once:1, loot:1},
+  cache   :{item:'can_food',      n:'보급 상자', verb:'열기',      regrow:1e9, cnt:[0,0], dur:2.0, stam:2, once:1, loot:1},   // 지형 판 11 — 닿기 어려운 데의 상자(14-plateau.js)
   turn    :{item:'ring_platinum', n:'옛 항아리', verb:'깨서 뒤지기', regrow:1e9, cnt:[0,0], dur:1.2, stam:2, once:1, loot:1},
   mobloot :{item:'chitin',        n:'사체',     verb:'뒤지기',     regrow:1e9, cnt:[0,0], dur:2.0, stam:3, mob:1}   // 쓰러뜨린 몬스터(97-mobs.js — 뒤지면 사라진다 · 무엇이 드는지는 MOB_LOOT)
 };
@@ -951,12 +953,14 @@ function floraFindLook(){
   if(uiOpen()||PL.dead) return;
   if(PL.swim){ templeLookSwim(); return; }                             // 물속에서는 해저 신전의 상자 · 항아리만(97-temples.js)
   const e0=equippedTool(), W0=e0&&ITEMS[e0.id].tool, sharpHand=!!(W0&&(W0.weapon&&!W0.gun||W0.axe));   // 칼·도끼를 든 채로도 노거수 껍질·송진은 벗긴다
-  const hand=floraHandOK(), mobs=typeof MON!=='undefined'&&MON.picks.length>0; if(!hand&&!sharpHand&&!mobs) return;   // 몬스터 사체는 무엇을 들었든 뒤진다(총만 빼고 — useHeld)
+  const hand=floraHandOK(), mobs=typeof MON!=='undefined'&&MON.picks.length>0, shroomHand=!hand&&!!(W0&&!W0.gun);   // 버섯은 무엇을 들었든(총만 빼고) 캔다
+  if(!hand&&!sharpHand&&!mobs&&!shroomHand) return;   // 몬스터 사체는 무엇을 들었든 뒤진다(총만 빼고 — useHeld)
   const ex=camera.position.x, ey=camera.position.y, ez=camera.position.z, cp=Math.cos(PL.pitch);
   const fx=-Math.sin(PL.yaw)*cp, fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*cp, hx=-Math.sin(PL.yaw), hz=-Math.cos(PL.yaw);
   let bd=1e9;
   {
-  for(const list of (hand?[FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,SAV.picks,WILD.picks,UNDER.picks,TEMPLE.picks,mobs?MON.picks:[]]:mobs?[MON.picks.filter(p=>!p.live)]:[])) for(const p of list){
+  for(const list of (hand?[FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,SAV.picks,WILD.picks,UNDER.picks,TEMPLE.picks,mobs?MON.picks:[]]:[mobs?MON.picks.filter(p=>!p.live):[],shroomHand?FLORA.near.picks:[],shroomHand?UNDER.picks:[]])) for(const p of list){
+    if(!hand&&(list===FLORA.near.picks||list===UNDER.picks)&&!(FLORA_PICK[p.kind]&&FLORA_PICK[p.kind].shroom)) continue;   // 연장을 들었으면 버섯만
     const dx=p.x-ex, dz=p.z-ez;
     if(p.tree){
       const d=Math.sqrt(dx*dx+dz*dz); if(d>p.r+1.7||d<1e-3) continue;
@@ -966,7 +970,7 @@ function floraFindLook(){
       const ay=p.ay!==undefined?p.ay:p.y+0.06, dy=ay-ey, d=Math.sqrt(dx*dx+dy*dy+dz*dz); if(d>2.6+(ay>p.y+0.1?p.r:0)||d<0.05) continue;   // 덤불은 몸 반지름만큼 더
       /* **포기 전체가 잡힌다**(2026-11-04 사용자 지적 — 고사리 · 꽃의 잡히는 데가 너무 작다): 밑동 점 하나(반지름 0.1 m) 대신 밑동에서 포기 키까지
          세운 기둥(반지름 = 포기 반지름 × 1.5 · 0.28 m 이상)을 조준선이 지나면 잡는다. 키는 포기 반지름의 2.4배(0.35~1.4 m) */
-      const H=clamp((p.r||0.12)*2.4,0.35,1.4), rr=Math.max(0.28,(p.r||0.12)*1.5);
+      const sh=FLORA_PICK[p.kind]&&FLORA_PICK[p.kind].shroom, H=clamp((p.r||0.12)*2.4,0.35,1.4), rr=Math.max(sh?0.45:0.28,(p.r||0.12)*1.5);   // 버섯은 넉넉히(0.45 m)
       let hit=-1;
       for(let k=0;k<4;k++){ const yy=dy+(p.ay!==undefined?0:H*k/3), t=dx*fx+yy*fy+dz*fz; if(t<0.1) continue;
         const qx=dx-fx*t, qy=yy-fy*t, qz=dz-fz*t; if(qx*qx+qy*qy+qz*qz<=rr*rr&&(hit<0||t<hit)) hit=t; }

@@ -254,6 +254,11 @@ function geoLandforms(seed){
   if(!P.sm||typeof GEO_MESH_DATA==='undefined'){ geoMaskTex(); return; }
   const rnd=mulberry32((seed^0x6e0f)>>>0);
   let hi=0; for(let i=0;i<N*N;i++) if(F.elev[i]>hi) hi=F.elev[i]; GEO_LF.hi0=hi;
+  if(PLAT.on){                                                     // 지형 판 11 — 산맥 마루의 봉우리 · 시스택만(협곡 · 물머리 호수는 없다 — 강은 가운데 호수에서 나온다 · 14-plateau.js)
+    GEO_LF.canyon=null; GEO_LF.lakes=[];
+    const top=plGeoRange(rnd); geoStacks(rnd);
+    if(top>0) TERR_U.uSnow.value=Math.max(220,top*0.62);
+    geoMaskTex(); computeSlope(); return; }
   geoCanyon(rnd);
   const top=geoRange(rnd);
   geoStacks(rnd);

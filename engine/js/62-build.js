@@ -134,11 +134,12 @@ function builtFloorAt(x,z){
 }
 /* 발밑 — 지금 서 있는 높이보다 위에 있는 지붕은 천장이지 바닥이 아니다 */
 function floorAt(x,z,fromY){
-  const h0=heightAt(x,z);
-  if(PL.under&&fromY!==undefined&&fromY<h0-3) return underFloorAt(x,z);
+  const h0=heightAt(x,z); RKF.hit=false;
+  if(PL.under&&fromY!==undefined&&fromY<h0-3){ const f=underFloorAt(x,z), rt=rockTop(x,z); if(rt>f&&rt-fromY<=1.35&&fromY>RKF.bot-0.6){ RKF.hit=true; CRAG.slope=0.02; return rt; } return f; }   // 땅속 — 굴 바닥 · 그 위 광석(30-props.js rockTop)
   if(!PL.under&&fromY!==undefined&&typeof underAditAt==='function'&&underAditAt(x,z,fromY)){ const f=underFloorAt(x,z); if(f<h0-0.05&&f<1e3) return f; }   // 함몰 입구 — 굴길 바닥 높이에 있고 땅이 그보다 높으면(입구 · 굴 속) 굴 바닥을 딛는다(96-underworld.js · 그 땅은 셰이더가 버린다)   // 땅속에 있고 땅 밑 3 m 아래 — 땅속의 바닥(96-underworld.js · 땅 위 벼랑 앞에서 땅속으로 빠지지 않게 사람이 땅속일 때만)
   let t=h0+giantRootAt(x,z);                    // 노거수의 뿌리는 땅이다(95-giants.js)
   t=cragFloor(x,z,fromY,t);                     // 벼랑의 큰 바위 — 낮으면 딛고 높으면 벽이다(33-crags.js)
+  { const rt=rockTop(x,z); if(rt>t&&(fromY===undefined||fromY>RKF.bot-0.6)){ t=rt; RKF.hit=true; CRAG.slope=0.02; } }   // 바위 · 광석 윗면(30-props.js — 넘어 오른다)
   { const gf=geoFloor(x,z); if(gf>t){ t=gf; CRAG.slope=GEO_LF.slope; } }   // 큰 지형 모형(산 · 협곡 벽 · 시스택)의 참 윗면 — 땅은 그 밑에 묻혀 있다(37-geo-meshes.js)
   t=coastFloor(x,z,fromY,t);                    // 주상절리 기둥 위(34-coast.js)
   const gx=Math.round(x/CELL_B), gz=Math.round(z/CELL_B);
