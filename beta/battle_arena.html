@@ -1421,7 +1421,14 @@ function wWander(){
    ⑩ 맞으면 움찔 · 죽을 때(부푸는 5초)는 울부짖으며 일어섰다가 옆으로 무너져 경련한다.
    ⑪ 이륙 — 땅에서 뜰 때 웅크렸다(0.55초) 뛰어올라 크고 빠르게 치며 오른다. 높이·웅크림은 AI 의 wClimb 가
       준다(W.lift · W.vy — 이 구역 밖이라 시험장마다 따로 들어 있다).
-   개체마다 쓰는 값은 W.an 에 둔다(battle 처럼 여럿이면 W 를 갈아 끼울 때 같이 바뀐다). */
+   개체마다 쓰는 값은 W.an 에 둔다(battle 처럼 여럿이면 W 를 갈아 끼울 때 같이 바뀐다).
+   ⑫ **고양이처럼**(2026-11-06 사용자 '너무 뻣뻣하다 — 공포 게임이니 고양이처럼 웅크렸다 튀어나가고 · 미친 개처럼 머리를 털고 · 몬스터 헌터를 본으로'):
+      · 쫓다가 26 m 안이면 몸을 낮춰 기어 온다(A.stk — 뒷다리를 접어 엉덩이를 땅에 붙이듯 · 머리를 낮게 앞으로 · 어깨가 번갈아 솟고 · 꼬리 끝이 탁탁 튄다)
+      · 이따금 미친 개처럼 머리를 거세게 턴다(0.5~0.8초 · 3~7초마다 · A.shk)
+      · 할퀴기 · 물기의 선딜 = 고양이의 덮치기: 웅크려 엉덩이를 흔들다(앞 55%) → **모든 움직임이 멎고**(숨 · 꼬리 · 날개까지 · 20%) → 뒷다리로 박차 튀어나간다
+      · 할퀴기는 몸을 비틀며 옆에서 옆으로 긁고 · 돌아오며 다른 앞발로 한 번 더 긁는다(보이기만 — 맞는 판정은 첫 발 그대로)
+      · 물면 개가 먹이를 털듯 머리를 흔든다 · 맞으면 등을 구부리고 날개를 펴 위협한다(하악)
+      · 날 때는 목과 꼬리를 길게 뻗는다(용이 나는 꼴) */
 const WALKSW=0.42, KNEESW=0.20, WINGSW=0.72;
 const WX_XF=0.3;                               // 상태 사이 섞는 시간(초)
 const _wxq=new THREE.Quaternion();
@@ -1506,6 +1513,18 @@ function wLook(A,dt,on,down){
   const k=1-Math.exp(-4*dt);
   A.ly+=(ty-A.ly)*k; A.lx+=(tx-A.lx)*k;
   for(let i=0;i<3;i++){ WR(CH_HEAD[i],_AXU,A.ly*0.33); WR(CH_HEAD[i],_AXS,A.lx*0.3); }
+}
+/* 고양이의 덮치기(⑫) — 선딜(0~hit)을 셋으로: 웅크려 엉덩이를 흔든다(0~55%) · 다 멎는다(55~75%) · 뒷다리로 박차 튀어나간다(75%~hit · 맞은 뒤 0.25초).
+   몸 높이(dy)와 다리 · 등의 굽힘을 여기서 준다 */
+function wPounce(A,tt,hit,dt){
+  const u=tt/Math.max(0.05,hit), gather=ease(clamp(u/0.55,0,1))*(1-clamp((u-0.75)/0.25,0,1)), still=u>0.55&&u<0.75;
+  const spr=clamp((u-0.75)/0.25,0,1)*(1-clamp((tt-hit)/0.25,0,1));
+  const wig=still||u>0.75?0:Math.sin(tt*15)*0.07*gather;                   // 엉덩이 흔들기
+  for(const ch of [CH_LEG_L,CH_LEG_R]){ WR(ch[0],_AXS,-0.6*gather+0.35*spr); WR(ch[1],_AXS,0.65*gather-0.3*spr); WR(ch[2],_AXS,-0.3*gather+0.2*spr); }   // 뒷다리를 감았다 박찬다
+  for(const ch of [CH_ARM_L,CH_ARM_R]){ WR(ch[1],_AXS,-0.35*gather); WR(ch[2],_AXS,0.4*gather); }
+  WR(CH_SPINE[0],_AXS,0.18*gather-0.22*spr); WR(CH_SPINE[3],_AXU,wig); WR(CH_SPINE[0],_AXF,wig*0.5);
+  if(!still) WR(CH_HEAD[0],_AXS,0.2*gather);
+  return {gather, still, spr, dy:-0.6*gather+0.25*spr};
 }
 function poseWyv_(dt){
   if(!bRig) return;
@@ -1608,6 +1627,9 @@ function poseWyv_(dt){
         WR(nm,_AXU,Math.sin(t*1.3-i*0.55)*(0.03+i*0.012)+A.turn*0.05);
         WR(nm,_AXS,(spot?-0.07:0.015)-0.03*amp*Math.sin(ph-0.9-i*0.35));
       });
+      /* 길게 뻗기(⑫) — 날 때는 목을 앞으로 길게 · 꼬리를 뒤로 곧게(용이 나는 꼴) · 노려볼 땐 덜 */
+      { const sf=(spot?0.45:1)*fr; WR(CH_HEAD[0],_AXS,0.18*sf); WR(CH_HEAD[1],_AXS,-0.06*sf); WR(CH_HEAD[2],_AXS,-0.10*sf);
+        CH_TAIL.forEach((nm,i)=>WR(nm,_AXS,-0.035*sf*(i<5?1:0.5))); WR(CH_SPINE[2],_AXS,-0.05*sf); }
       /* 머리 — 몸이 끄덕이는 만큼 거슬러 앞을 지키고, 노리는 것을 본다(날 때는 아래를 훑는다) */
       WR(CH_HEAD[0],_AXS,-0.05*amp*Math.cos(ph)+0.12*cl*fr-0.3*cd);
       if(W.state==='fly'){
@@ -1623,6 +1645,14 @@ function poseWyv_(dt){
   else{
     /* ── 땅 위 ── 날개는 반쯤 편 채 걸음에 맞춰 일렁인다 */
     const st=W.state;
+    /* 웅크림 · 머리 털기(⑫) — 쫓으며 26 m 안이면 낮게 기어 온다 */
+    { const T=curTgt(), gd=T?Math.hypot(T.x-W.pos.x,T.z-W.pos.z):99;
+      const want=(st==='chase'||st==='walk')&&T&&!T.idle?clamp((26-gd)/14,0,1):0;
+      A.stk=(A.stk||0)+(want-(A.stk||0))*k(2.2);
+      if(A.shT===undefined) A.shT=rnd(3,7);
+      A.shT-=dt; if(A.shT<=0&&(A.stk>0.25||st==='land')){ A.shk=rnd(0.5,0.8); A.shD=A.shk; A.shT=rnd(3,7); }
+      A.shk=Math.max(0,(A.shk||0)-dt); }
+    const stk=A.stk||0; A.still=false;
     W.walkPh+=dt*W.speed*1.9;
     const ph=W.walkPh, amt=clamp(W.speed/WP.walk,0,1.2);
     const br=Math.sin(t*1.25);                       // 숨
@@ -1675,27 +1705,49 @@ function poseWyv_(dt){
       look=false;
     }
     else if(st==='claw'){
-      /* 할퀴기 — 판정 자세(applyClawPose) 그대로, 진행만 당겼다 뻗었다 머물게 */
-      const sw=wSwing(W.t,WP.clawHit,WP.clawDur,0.35);
+      /* 할퀴기 — 판정 자세(applyClawPose) 그대로, 진행만 당겼다 뻗었다 머물게 · 몸은 고양이의 덮치기(⑫) */
+      const sw=wSwing(W.t,WP.clawHit,WP.clawDur,0.35), side=W.clawSide||1;
+      const P=wPounce(A,W.t,WP.clawHit,dt);
       applyClawPose(W.clawSide<0?CH_ARM_L:CH_ARM_R,(W.clawAng===undefined?0.3:W.clawAng),(W.clawTw||0),sw);
       const other=W.clawSide<0?CH_ARM_R:CH_ARM_L;
       WR(other[1],_AXS,-0.15*Math.max(0,sw));           // 다른 앞발로 버틴다
-      wUp=-0.18+0.2*Math.max(0,sw); wOpen=0.4*Math.max(0,sw);
-      CH_TAIL.forEach((nm,i)=>WR(nm,_AXU,-(W.clawSide||1)*0.06*sw*(i<5?1:0.5)));   // 꼬리로 균형
-      lookDown=1.0;
+      /* 몸을 비틀며 옆에서 옆으로 — 당길 땐 반대쪽으로 감았다가 휘두르는 쪽으로 돈다 */
+      const tw=side*(-0.28*Math.max(0,-sw)/0.35+0.42*Math.max(0,sw));
+      WR(CH_SPINE[0],_AXU,tw); WR(CH_SPINE[2],_AXU,tw*0.6); WR(CH_SPINE[0],_AXF,-tw*0.35);
+      /* 돌아오며 다른 앞발로 한 번 더 긁는다(보이기만) */
+      const u2=clamp((W.t-WP.clawHit-0.08)/Math.max(0.1,WP.clawDur-WP.clawHit-0.08),0,1), s2=Math.sin(Math.PI*u2);
+      WR(other[0],_AXU,side*0.55*s2); WR(other[1],_AXS,-0.55*s2); WR(other[2],_AXS,0.35*s2);
+      WR(CH_SPINE[0],_AXU,-side*0.35*s2);
+      wUp=-0.18+0.2*Math.max(0,sw)+0.15*P.gather; wOpen=0.4*Math.max(0,sw)+0.2*P.gather;
+      CH_TAIL.forEach((nm,i)=>WR(nm,_AXU,-side*0.08*sw*(i<5?1:0.5)+(P.still?0:Math.sin(t*9-i*0.8)*0.06*P.gather*(i>4?1:0))));   // 꼬리로 균형 · 엉덩이를 흔드는 동안 끝이 튄다
+      dyT=P.dy; lookDown=1.0; A.still=P.still;
     }
     else if(st==='bite'){
       /* 물기 — 목을 뒤로 당겼다가 내지른다 */
       const sw=wSwing(W.t,WP.biteHit,WP.biteDur,0.4);
+      const P=wPounce(A,W.t,WP.biteHit,dt);
       applyBitePose(W.biteAng===undefined?0.6:W.biteAng,sw);
       for(const ch of [CH_ARM_L,CH_ARM_R]) WR(ch[1],_AXS,-0.12*Math.max(0,sw));
+      /* 물고 나면 개가 먹이를 털듯 머리를 흔든다(⑫) */
+      const th=clamp((W.t-WP.biteHit)/Math.max(0.1,WP.biteDur-WP.biteHit),0,1), te=Math.sin(Math.PI*th);
+      WR(CH_HEAD[1],_AXU,Math.sin(t*34)*0.32*te); WR(CH_HEAD[2],_AXF,Math.sin(t*27)*0.22*te); WR(CH_SPINE[0],_AXU,Math.sin(t*17)*0.08*te);
+      dyT=P.dy; A.still=P.still;
       wUp=-0.18+0.15*Math.max(0,sw); wOpen=0.3*Math.max(0,sw);
       look=false;
     }
     else{
-      /* 걷기·서 있기 */
-      for(const [ch,off,front] of legs) stepLeg(ch,ph+off,front,amt);
-      dyT=0.05*amt*Math.cos(2*ph)-0.02*(1-amt)*br;
+      /* 걷기·서 있기 — 노릴 땐 고양이처럼 낮게 기어 온다(⑫ stk) */
+      for(const [ch,off,front] of legs) stepLeg(ch,ph+off,front,amt*(1-0.35*stk));
+      dyT=0.05*amt*Math.cos(2*ph)*(1-0.5*stk)-0.02*(1-amt)*br-0.55*stk;
+      if(stk>0.01){
+        /* 뒷다리를 깊이 접어 땅에 붙이고(엉덩이가 땅 가까이) · 앞다리는 굽혀 어깨를 낮춘다 · 걸을 땐 어깨가 번갈아 솟는다 */
+        for(const ch of [CH_LEG_L,CH_LEG_R]){ WR(ch[0],_AXS,-0.5*stk); WR(ch[1],_AXS,0.55*stk); WR(ch[2],_AXS,-0.25*stk); }
+        for(const ch of [CH_ARM_L,CH_ARM_R]){ WR(ch[1],_AXS,-0.4*stk); WR(ch[2],_AXS,0.45*stk); }
+        WR(CH_SPINE[0],_AXS,0.12*stk); WR(CH_SPINE[2],_AXF,0.06*stk*amt*Math.sin(ph));
+        WR(CH_HEAD[0],_AXS,0.22*stk); WR(CH_HEAD[1],_AXS,-0.12*stk);   // 머리는 낮게 · 목을 앞으로 뻗어 노린다
+        CH_TAIL.forEach((nm,i)=>{ WR(nm,_AXS,(i<4?0.04:-0.02)*stk); if(i>4) WR(nm,_AXU,Math.sin(t*(7+i))*0.12*stk*(0.6+0.4*Math.sin(t*0.9))); });   // 꼬리 끝이 탁탁 튄다
+        wUp-=0.05*stk; wOpen+=0.2*stk;                 // 날개를 어깨에 덮어 든다(위협)
+      }
       WR(CH_SPINE[0],_AXU,0.05*amt*Math.sin(ph));
       WR(CH_SPINE[0],_AXF,0.035*amt*Math.sin(ph+0.5)+0.02*(1-amt)*Math.sin(t*0.35));
       WR(CH_SPINE[3],_AXU,-0.04*amt*Math.sin(ph));
@@ -1705,7 +1757,7 @@ function poseWyv_(dt){
       wSw=0; wFl=0.04*br;
     }
     /* 날개 — 걸음·숨에 맞춰 늦게 일렁인다(땅 위에서도 다 접지 않는다 — 덩치를 그대로 보여 준다) */
-    const sway=Math.sin(ph*0.9+t*0.3)*0.12*Math.max(amt,0.25);
+    const sway=A.still?0:Math.sin(ph*0.9+t*0.3)*0.12*Math.max(amt,0.25);   // 덮치기 직전엔 날개도 멎는다(⑫)
     wWingPose(wUp+sway+wFl,wSw,wOpen,0,0,0);
     for(const [ch,sg] of [[CH_WING_L,-1],[CH_WING_R,1]]){
       WR(ch[2],_AXF,(-0.30+sway*0.7)*(1-wOpen)*sg);     // 손목을 더 접어 둔다(펴는 동안 풀린다)
@@ -1713,9 +1765,13 @@ function poseWyv_(dt){
     }
     if(look) wLook(A,dt,true,lookDown);
   }
+  /* 미친 개처럼 머리 털기(⑫ — 땅 위에서만) */
+  if(!flying&&!dead&&A.shk>0){ const e=Math.sin(Math.PI*(1-A.shk/(A.shD||1)));
+    WR(CH_HEAD[0],_AXU,Math.sin(t*61)*0.30*e); WR(CH_HEAD[1],_AXF,Math.sin(t*47)*0.28*e); WR(CH_HEAD[2],_AXU,Math.sin(t*73)*0.18*e); WR(CH_SPINE[0],_AXF,Math.sin(t*29)*0.06*e); }
   /* 반동 · 움찔 — 덧붙인다 */
   if(rec){ WR(CH_HEAD[0],_AXS,0.45*rec); WR(CH_HEAD[2],_AXS,-0.2*rec); WR(CH_SPINE[0],_AXS,-0.06*rec); }
-  if(fl){ WR(CH_SPINE[0],_AXS,-0.12*fl); WR(CH_HEAD[0],_AXS,-0.3*fl); WR(CH_HEAD[1],_AXU,0.2*fl); }
+  if(fl){ WR(CH_SPINE[0],_AXS,-0.12*fl); WR(CH_HEAD[0],_AXS,-0.3*fl); WR(CH_HEAD[1],_AXU,0.2*fl);
+    if(!flying&&!dead){ WR(CH_SPINE[2],_AXS,-0.18*fl); WR(CH_HEAD[1],_AXS,-0.25*fl); wWingPose(0.25*fl,-0.15*fl,0.6*fl,0,0,0); } }   // 하악 — 등을 구부리고 날개를 편다(⑫)
   /* 몸 높이 덧붙임 — 바로 따라가되 튀지 않게 */
   A.dy+=(dyT-A.dy)*k(14);
   bRig.position.y=gy+W.y+A.dy;
