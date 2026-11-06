@@ -632,7 +632,7 @@ function updateFB(dt){
     f.mesh.rotation.y+=f.spin*dt; f.mesh.rotation.x+=f.spin*0.6*dt;
     f.mesh.scale.setScalar(0.62+Math.sin(f.t*22)*0.05+Math.sin(f.t*37)*0.03);   // 일렁이게
     const hitPL=!PL.dead&&Math.hypot(p.x-PL.pos.x,p.y-(PL.pos.y+EYE*0.5),p.z-PL.pos.z)<WP.fbBlast;
-    if(hitPL||p.y<=heightAt(p.x,p.z)+0.2||solidAt(p.x,p.z,p.y)||f.t>3.0){
+    if(hitPL||p.y<=groundY(p.x,p.z,p.y)+0.2||solidAt(p.x,p.z,p.y)||f.t>3.0){
       blast(p.clone());
       if(hitPL) hurtPL(WP.fbDmg,'애쉬스케일의 화염구',true);
       scene.remove(f.mesh); FBS.splice(i,1);
@@ -827,7 +827,7 @@ function explodeWyv(){
 }
 /* 잔해 — 터진 자리에서 뒤진다(다른 몹 사체와 같은 줍기 · 90초 뒤 거둔다) */
 function wyvLoot(x,z){
-  const key='M'+(++MON.seq), y=heightAt(x,z);
+  const key='M'+(++MON.seq), y=groundY(x,z,W.pos.y);
   const pick={kind:'mobloot', x, y, z, ay:y+0.6, r:2.2, key, mob:'wyv',
     lootFn:()=>{ let s=''; for(const [id,n] of MOB_LOOT.wyv){ if(!ITEMS[id]) continue; let g=0; for(let k=0;k<n;k++) if(invAdd(id,1)) g++; if(g) s+=(s?' · ':'')+ITEMS[id].n+' +'+g; }
       const i=MON.picks.indexOf(pick); if(i>=0) MON.picks.splice(i,1); return s||'가방이 가득 찼다'; }};

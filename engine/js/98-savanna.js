@@ -72,7 +72,7 @@ function* savJob(cx,cz){
         if(rank*10>=want*d||cnt[l]>=SAV.cap[l]) continue;
         const x=gx*C+((h>>>10)&255)/256*C, z=gz*C+((h>>>18)&255)/256*C, key='S'+gx+','+gz+','+j;
         if(FLORA.taken.size&&FLORA.taken.has(key)&&floraWait({kind:'savgrass',key})>0) continue;
-        const y=heightAt(x,z); if(y<0.6) continue;
+        const y=heightAt(x,z); if(y<0.6||inRockAt(x,z,false)) continue;   // 바위 · 큰 지형 모형 속엔 안 돋는다
         const hs=1.30+0.6*((h>>>26)&63)/63, ws2=(1.0+0.6*((h>>>4)&63)/63)*(l===0?1:l===1?1.25:1.6);
         _svE.set(0,((h>>>7)&1023)/1023*6.283,0); _svQ.setFromEuler(_svE); _svV.set(x,y-0.05,z); _svS.set(ws2,hs,ws2);
         _svM.compose(_svV,_svQ,_svS); _svM.toArray(B[l],cnt[l]*16); cnt[l]++;
@@ -89,7 +89,7 @@ function updateSavanna(dt){
   if(!SAV.job){
     const mv=SAV.last?Math.hypot(SAV.last.x-cx,SAV.last.z-cz):1e9; if(mv<4&&!SAV.dirty) return;
     SAV.last={x:cx,z:cz}; SAV.dirty=false; SAV.job=savJob(cx,cz);
-    if(mv>60){ let r; while(!(r=SAV.job.next()).done); savCommit(r.value); return; }          // 처음 · 순간이동은 한 번에
+    if(mv>1e8){ let r; while(!(r=SAV.job.next()).done); savCommit(r.value); return; }          // 처음만 한 번에 — 빨리 날거나 순간이동할 때 통째로 지으며 수십 ms 씩 멎었다(2026-11-06 사용자 '돌아다니면 버벅인다') · 그 뒤로는 늘 나눠서
   }
   const t0=performance.now(); let r;
   while(!(r=SAV.job.next()).done) if(performance.now()-t0>3) return;

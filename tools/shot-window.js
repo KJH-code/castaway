@@ -8,7 +8,7 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path'), os = require('os'), fs = require('fs');
 app.setPath('userData', path.join(os.tmpdir(), 'castaway-shot'));
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('ignore-gpu-blocklist'); app.commandLine.appendSwitch('mute-audio');   // 시험 창은 소리를 안 낸다(사용자 요청 2026-11-06)
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 /* CASTAWAY_UNCAP=1 — 화면 주사율에 묶이지 않는다(준 JS 안에서 프레임을 세어 견줄 때) */
 if (process.env.CASTAWAY_UNCAP === '1') { app.commandLine.appendSwitch('disable-frame-rate-limit'); app.commandLine.appendSwitch('disable-gpu-vsync'); }

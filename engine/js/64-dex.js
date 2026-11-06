@@ -239,6 +239,9 @@ function obtainOf(id){
     if(D.item===id) out.push('따기 — '+D.n+' ('+D.verb+(D.need?' · 날붙이를 지녀야':'')+')');
     if(D.extra) for(const x of D.extra) if(x[0]===id) out.push('따기 — '+D.n+' ('+D.verb+' 때 '+Math.round(x[1]*100)+'% 로 딸려 나온다)'); }
   for(const k in SEA_PICK){ const D=SEA_PICK[k]; if(D.item===id) out.push('줍기 — 바닷가 '+D.n+' ('+D.verb+')'); }
+  /* 보급 상자(지형 판 11 — 14-plateau.js PL_LOOT) — 닿기 어려운 데일수록 좋은 꾸러미 */
+  if(typeof PL_LOOT!=='undefined'){ const tiers=[]; PL_LOOT.forEach((T,ti)=>{ if(T.some(B=>B.some(([q])=>q===id))) tiers.push(['보급 상자','튼튼한 보급 상자','귀한 보급 상자'][ti]); });
+    if(tiers.length) out.push('보급 상자 — '+tiers.join(' · ')+' (높은 대지 · 호수 섬 · 산 마루 · 땅속 깊은 방 — 망대에 오르면 지도에 적힌다)'); }
   if(id==='ring_platinum') out.push((P.tv|0)<8?'처음부터 지님 — 표류 전부터 끼고 있었다':'해저 신전 — 섬 밖 깊은 바다 밑, 제단의 상자에 바쳐져 있다');
   if(id==='can_food')    out.push('처음부터 지님 — 보급선이 두 캔 쥐여 주었다. 섬에서는 못 만든다');
   if(id==='bottle_water'||id==='bottle_empty')
@@ -566,7 +569,7 @@ const CONTROLS_GUIDE=[
     ['좌클릭 · {bUndo}','놓기 · 걷어내기'],
   ]],
   ['화면 · 저장',[
-    ['{map}','지도 펴기/접기 — 펴면 마우스가 풀린다 · 좌클릭 핀 꽂기(따라가기) · 핀 우클릭 뽑기 · 따라가는 핀은 나침반에'],
+    ['{map}','지도 펴기/접기 — 펴면 마우스가 풀린다 · 빈 곳 좌클릭 순간이동 · Shift+좌클릭 핀 꽂기(따라가기) · 핀 우클릭 뽑기 · 따라가는 핀은 나침반에'],
     ['{fly}','자유 카메라'],
     ['{dev}','개발자 모드 — 날아서 둘러보기({fwd} {left} {back} {right} · {jump} 위 · {crouch} 아래 · {run} 빠르게 · 휠 빠르기 · {devNext} {devPrev} 굴 둘러보기) · 다치지도 배고프지도 않는다'],
     ['{time}','시간 빠르게(1 → 20 → 60 → 300배)'],

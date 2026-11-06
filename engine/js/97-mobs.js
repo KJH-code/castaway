@@ -36,7 +36,33 @@ const _moV=new THREE.Vector3(), _moV2=new THREE.Vector3(), _moQ=new THREE.Quater
 const mobForestB=b=>b===B.BROADLEAF||b===B.CONIFER||b===B.BAMBOO;
 const mobLushB=b=>b===B.BROADLEAF||b===B.BAMBOO;
 function mobBiome(x,z){ const gx=clamp(Math.round(x/CELL+N/2),0,N-1), gz=clamp(Math.round(z/CELL+N/2),0,N-1); return F.biome[IDX(gx,gz)]; }
-function crwGround(x,z){ return Math.max(heightAt(x,z),-0.6); }
+/* 다지류 마디의 땅 높이 — 지형 판 10 굴 빈 데면 굴 바닥(80-player.js caveHere · y 를 안 주고 열을 본다). 땅 위와 굴 바닥은 덮개(≥1.2 m)만큼 다르니
+   **앞 마디의 높이에 더 가까운 쪽**을 고른다(머리는 지난 틱 높이 m.cvY — 마디 사이 1 m 의 높이 차는 덮개보다 훨씬 작다). 그래서 머리는 밖에 있고
+   꼬리가 굴 속인 몸도 마디마다 맞게 앉는다. 판 9 까지는 굴 격자가 없어(CV10.built 가 빔) 예전 식 그대로 */
+const CRWG={ref:null,first:0,n:0};
+function crwGround(x,z){
+  const g=Math.max(heightAt(x,z),-0.6); let r=g;
+  if(CV10.built.size){ const q=caveHere(x,z); if(q){ const ref=CRWG.ref===null?g:CRWG.ref; if(Math.abs(q.f-ref)<Math.abs(g-ref)) r=q.f; } }
+  if(CRWG.n++===0) CRWG.first=r;
+  CRWG.ref=r; return r;
+}
+/* 판 10 굴 둥지 — 가운데에서 16 방위로 빈 데(g≥1.2 · u≤0.8)가 이어지는 거리의 가장 짧은 것(똬리가 벽에 안 들게 한다) */
+function crwFree(c,x,z){
+  let m=30; for(let k=0;k<16;k++){ const a=k*0.3927; let d=0.4; for(;d<m;d+=0.4){ const o=cv10Field(c,x+Math.cos(a)*d,z+Math.sin(a)*d); if(!(o.g>=1.2&&o.u<=0.8)) break; } m=Math.min(m,d-0.4); }
+  return m;
+}
+/* 판 10 굴 길 — 가장 안쪽 방에서 주 입구 밖까지 굴길 가운데 선(마디 [x,z] 들 · 방 가운데 → … → 입구 밖). 깨어 나갈 때 · 돌아올 때(뒤집어서) · 똬리 꼬리가 따른다 */
+function crwLairPath(c){
+  const rec=typeof CV10!=='undefined'?CV10.built.get(c):null, cols=rec&&rec.cols&&rec.cols.length?rec.cols:null, nc=cols?cols.length:0;
+  if(c._lp&&c._lpN===nc) return c._lp;                                    // 굴을 짓고(장식 기둥이 생기면) 다시 센다
+  const rm=c.rooms[c.rooms.length-1], m=c.mouths[0], pts=[];
+  for(const g of c.segs.filter(g=>(g.pid|0)===0).sort((a,b)=>a.s0-b.s0)){ if(g.s0>rm.s+1e-6) break; pts.push([g.ax,g.az]); }
+  pts.reverse(); const dd=m.sky?m.r+6:10; pts.push([m.x+Math.cos(m.yaw)*dd,m.z+Math.sin(m.yaw)*dd]);
+  if(cols) for(const p of pts) for(const o of cols){ const dx=p[0]-o.x, dz=p[1]-o.z, d=Math.hypot(dx,dz), R=o.r+0.6;   // 굴길 가운데 선의 마디가 기둥(장식 석순 · 기둥 · 큰 돌) 안이면 둘레 밖으로(review B)
+    if(d<R){ if(d>1e-4){ p[0]=o.x+dx/d*R; p[1]=o.z+dz/d*R; } else p[0]=o.x+R; } }
+  c._lpN=nc; return c._lp=pts;
+}
+const _crwP={x:0,y:0,z:0};
 
 /* ── 둥지(섬을 지을 때 — 자원을 놓은 뒤 · 굴을 짓기 전) ──────────────────────── */
 function mobsSites(seed){
@@ -52,7 +78,7 @@ function mobsSites(seed){
   for(const e of cand){ if(MON.lairs.length>=8) break;
     if(MON.lairs.some(l=>Math.hypot(l.x-e.c.x,l.z-e.c.z)<700)) continue;
     const r=e.c.rooms[e.c.rooms.length-1];                                   // 가장 안쪽 방에서 잔다
-    e.c.dark=1; MON.lairs.push({cave:e.c, x:r.x, z:r.z, y:r.y, R:r.R, fx:e.fx, fz:e.fz, id:MON.lairs.length, cr:null}); }
+    e.c.dark=1; MON.lairs.push({cave:e.c, x:r.x, z:r.z, y:e.c.tv===10?cv10Field(e.c,r.x,r.z).f:r.y, R:r.R, fx:e.fx, fz:e.fz, id:MON.lairs.length, cr:null}); }
 }
 /* 둥지 둘레의 우거진 숲 — 더 나온다(97-temples.js yieldK 가 더한다) */
 function mobLairBonus(x,z){
@@ -152,7 +178,8 @@ function mobKill(m){
   mobVoice(({crawl:'screech',garg:'shriek',bear:'roar',sheep:'baa'})[m.kind]||'wail',m.pos.x,m.pos.y+1,m.pos.z,1.6);
   toast(({crawl:'다지류를',garg:'가고일을',mim:'스킨워커를',bear:'아르크토스를',sheep:'양을'})[m.kind]+' 쓰러뜨렸다 — 사체를 뒤지면 무엇인가 나온다');
   const p=m.kind==='crawl'?m.cr.head:m.pos, key='M'+(++MON.seq);
-  const pick={kind:'mobloot', x:p.x, y:heightAt(p.x,p.z), z:p.z, ay:heightAt(p.x,p.z)+0.6, r:1.4, key, mob:m.kind,
+  const gyL=groundY(p.x,p.z,p.y+0.3);                                          // 굴 속(판 10)이면 굴 바닥
+  const pick={kind:'mobloot', x:p.x, y:gyL, z:p.z, ay:gyL+0.6, r:1.4, key, mob:m.kind,
     lootFn:()=>{ let msg=''; for(const [id,n] of MOB_LOOT[m.kind]){ if(!ITEMS[id]) continue; let g=0; for(let k=0;k<n;k++) if(invAdd(id,1)) g++; if(g) msg+=(msg?' · ':'')+ITEMS[id].n+' +'+g; }
       const i=MON.picks.indexOf(pick); if(i>=0) MON.picks.splice(i,1); return msg||'가방이 가득 찼다'; }};
   MON.picks.push(pick); m.pick=pick;
@@ -437,7 +464,9 @@ function crawlCoil(m){                                                       // 
   const cr=m.cr, l=m.lair, T=cr.TRAIL; T.length=0;
   const rooms=l.cave&&l.cave.rooms&&l.cave.rooms.length?l.cave.rooms:null, rm=rooms?rooms[rooms.length-1]:null;
   const op=rm&&rm.open&&rm.open.length?rm.open[0]:Math.random()*6.283, prev=rooms&&rooms.length>1?rooms[rooms.length-2]:null;
-  const ST=CRW.STEP, need=cr.restLen+3, Bk=1.6/6.2832, Rm=Math.max(1.4,l.R-2.2), s=Math.random()<0.5?1:-1;
+  const T10=!!(l.cave&&l.cave.tv===10&&rm);                                  // 지형 판 10 — 방 모양은 둥글지 않다: 가운데에서 벽까지 가장 짧은 거리 안에 감고, 꼬리는 굴길 가운데 선을 따라 입구로
+  const ST=CRW.STEP, need=cr.restLen+3, Bk=1.6/6.2832, Rm=T10?Math.max(1.0,Math.min(l.R-2.2,crwFree(l.cave,l.x,l.z)-0.8)):Math.max(1.4,l.R-2.2), s=Math.random()<0.5?1:-1;
+  m.path=null; m.pathIn=false; let PTH=null, pi=0; if(T10){ PTH=crwLairPath(l.cave).filter(q=>Math.hypot(q[0]-l.x,q[1]-l.z)>Rm+0.8); m.cvY=cv10Field(l.cave,l.x,l.z).f; }
   let len=0, px=0, pz=0;
   const add=(x,z)=>{ if(T.length) len+=Math.hypot(x-px,z-pz); px=x; pz=z; T.push([x,z]); };
   const th0=op-(Rm-0.8)/Bk+(Math.random()-0.5)*0.3;
@@ -446,7 +475,8 @@ function crawlCoil(m){                                                       // 
   const rc=prev?Math.max(1.4,prev.R-2.4):0;
   while(len<need){
     let want=op;                                                               // 터진 데로 곧게
-    if(len-l0>Math.max(0,l.R+0.6-Rm)){                                         // 둥지 방을 벗어난 뒤
+    if(PTH){ while(pi<PTH.length&&Math.hypot(PTH[pi][0]-px,PTH[pi][1]-pz)<ST*1.2) pi++; want=pi<PTH.length?Math.atan2(PTH[pi][1]-pz,PTH[pi][0]-px):hd; }   // 판 10 — 굴길 가운데 선
+    else if(len-l0>Math.max(0,l.R+0.6-Rm)){                                         // 둥지 방을 벗어난 뒤
       if(prev){ const dx=px-prev.x, dz=pz-prev.z, d=Math.hypot(dx,dz);   // 앞 방 둘레를 돈다(밖이면 안으로 · 안이면 밖으로 바로잡으며)
         want=Math.atan2(dz,dx)+s*(Math.PI/2+clamp((d-rc)*0.8,-0.8,Math.PI/2)); }
       else want=op+s*0.5*Math.sin((len-l0)/6); }                              // 입구 밖 — 굽이친다
@@ -459,6 +489,7 @@ function crawlCoil(m){                                                       // 
 function crawlAttach(m,l,night,e){
   const hp=e&&e.hp>0?e.hp:m.hpMax;                                           // 지난번에 거둘 때 남은 체력으로
   m.lair=l; l.cr=m; m.entry=e||null; m.cr.mesh.position.y=0; m.active=true; m.alive=true; m.hp=hp; m.cr.alive=true; m.cr.hp=hp; m.alerted=false; m.deadT=0; m.frz=0; m.kv.set(0,0,0);
+  m.path=null; m.retPath=false; m.cvY=null;
   if(night){ const w=crawlWaypoint(m); placeCrawler(m.cr,w.x,w.z,Math.random()*6.283); m.mode='roam'; }
   else{ crawlCoil(m); m.mode='sleep'; }
   m.cr.mesh.visible=true; mobRegister(m,true);
@@ -485,7 +516,9 @@ function crawlTick(m,dt){
   const dP=Math.hypot(PL.pos.x-cr.head.x,PL.pos.z-cr.head.z);
   let tg=null, dashE=CRWP.dashEvery;
   if(m.mode==='sleep'){
-    if(night||m.alerted){ m.mode=m.alerted?'hunt':'roam'; m.wp=crawlWaypoint(m); mobVoice('screech',cr.head.x,cr.head.y+1,cr.head.z,1.3); }
+    if(night||m.alerted){ m.mode=m.alerted?'hunt':'roam'; m.wp=crawlWaypoint(m);
+      if(m.lair.cave&&m.lair.cave.tv===10){ m.path=crwLairPath(m.lair.cave).map(q=>q.slice()); m.pathIn=false; }   // 판 10 — 굴길 가운데 선을 따라 입구로(그 뒤는 지금 길)
+      mobVoice('screech',cr.head.x,cr.head.y+1,cr.head.z,1.3); }
   }else if(m.mode==='roam'){
     if(!night&&!m.alerted) m.mode='return';
     else{ if(!m.wp||Math.hypot(m.wp.x-cr.head.x,m.wp.z-cr.head.z)<14||(m.wpT-=dt)<0){ m.wp=crawlWaypoint(m); m.wpT=25; } tg=m.wp;
@@ -500,7 +533,15 @@ function crawlTick(m,dt){
     if(dP<25&&!PL.dead) m.mode='hunt';
   }
   if(m.frz>0){ m.frz=Math.max(0,m.frz-dt); cr.frz=Math.max(cr.frz,m.frz); }
-  stepCrawler(cr,dt,tg,{spd:CRWP.spd, turn:CRWP.turn, stride:CRWP.stride*crwK(), dashEvery:dashE, dashLen:CRWP.dashLen, lim:HALF-40, hold:m.mode==='sleep'});
+  let turn=CRWP.turn;
+  if(m.mode==='return'){ if(!m.retPath){ m.retPath=true; if(m.lair.cave&&m.lair.cave.tv===10) { m.path=crwLairPath(m.lair.cave).map(q=>q.slice()).reverse(); m.pathIn=true; } } }   // 판 10 — 돌아올 때도 입구로 들어가 굴길을 따라
+  else{ m.retPath=false; if(m.pathIn){ m.pathIn=false; m.path=null; } }     // 돌아오는 길은 돌아오는 동안만
+  if(m.path&&m.mode!=='sleep'){                                               // 굴길을 따르는 동안은 길 마디가 표적(굴 벽을 가로지르지 않게 — 선회를 키우고 돌진은 안 한다)
+    while(m.path.length&&Math.hypot(m.path[0][0]-cr.head.x,m.path[0][1]-cr.head.z)<2.5) m.path.shift();
+    if(m.path.length){ _crwP.x=m.path[0][0]; _crwP.z=m.path[0][1]; _crwP.y=cr.head.y; tg=_crwP; dashE=1e9; turn=CRWP.turn*3; } else m.path=null; }
+  CRWG.ref=m.cvY==null?null:m.cvY; CRWG.n=0;
+  stepCrawler(cr,dt,tg,{spd:CRWP.spd, turn, stride:CRWP.stride*crwK(), dashEvery:dashE, dashLen:CRWP.dashLen, lim:HALF-40, hold:m.mode==='sleep'});
+  if(CRWG.n) m.cvY=CRWG.first;
   /* 소리 — 다리 딸깍임(움직이는 동안) · 가끔 쇳소리 */
   if(cr.speed>0.5&&(m.clickT-=dt)<0){ m.clickT=0.18+Math.random()*0.25; if(dP<70) mobVoice('click',cr.head.x,cr.head.y,cr.head.z,cr.state==='dash'?1.5:0.8); }
   if(m.mode!=='sleep'&&(m.voiceT-=dt)<0){ m.voiceT=6+Math.random()*10; if(dP<110) mobVoice('screech',cr.head.x,cr.head.y+1,cr.head.z,0.9); }

@@ -28,6 +28,8 @@ const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
 /* 참나무·전나무 칸 — 칸 가장자리가 COPY_DIST(125 m) 안이면 그루마다 거리로 단계를 고르고(아래 'TL'),
    그 밖 VIEW_DIST(450 m) 까지는 **수관 그림 판때기** 하나로(나무당 4면), 그 밖은 안 그린다. */
 const ROCK_TILE=64, ROCK_DIST=200, ROCK_SMALL=70, ROCK_KEEP=90, ROCK_TILES=[], ROCK_MAT={};
+let ROCK_NEAR=42;                            // 이 안의 바위 칸은 고운 꼴로(buildRockBatch hi)
+let propUG=null;                          // 땅속 광석 칸 메시의 묶음(propGroup 과 따로 — 땅속에선 propGroup 을 가린다)
 let ROCK_KINDS=null;                      // 바위 종류(ROCK_R — buildProps 안의 표) — 셰이더 미리 짜기가 바위 재질을 미리 만든다(90-init.js precompPlan)
 /* **자동 품질**(`QUAL`) — 프레임이 떨어지면 '어디까지 자세히 그리나' 를 스스로 당긴다(마인크래프트의 그리는 거리처럼).
    `QUAL.k`(0.45~1)가 나무의 제 가지·복제 단계 거리 · 풀과 소품이 보이는 거리 · 덤불·작은 나무를 까는 반경에 곱해진다.
@@ -39,8 +41,10 @@ function qualTick(dtMs,dt){
   Q.ema+=(Math.min(dtMs,100)-Q.ema)*0.05;
   /* **50 FPS 를 지킨다**(사용자 요청) — 프레임 시간의 느린 평균이 19.5 ms(51 FPS)를 넘는 채로 1.5초가 가면 한 단계 내린다.
      올리는 것은 15.2 ms 밑으로 8초(60 Hz 화면에서 꽉 찬 60 FPS 는 16.7 ms 라 저절로는 안 오른다 — 넉넉할 때만 오른다) */
-  if(Q.ema>19.5&&Q.k>Q.lo){ Q.t+=dt; if(Q.t>1.5){ Q.t=0; Q.k=Math.max(Q.lo,+(Q.k-0.1).toFixed(2)); qualApply(); } }
-  else if(Q.ema<15.2&&Q.k<1){ Q.t-=dt; if(Q.t<-8){ Q.t=0; Q.k=Math.min(1,+(Q.k+0.05).toFixed(2)); qualApply(); } }
+  /* 2026-11-06 — **60 FPS 를 지킨다**(사용자 요청 '60 FPS 까지') — 느린 평균이 17.4 ms(57 FPS)를 넘는 채로 1.5초면 한 단계 내리고 ·
+     13.6 ms 밑으로 8초면 올린다(60 Hz 화면에선 꽉 찬 60 FPS 가 16.7 ms 라 저절로는 안 오른다 — 남을 때만) */
+  if(Q.ema>17.4&&Q.k>Q.lo){ Q.t+=dt; if(Q.t>1.5){ Q.t=0; Q.k=Math.max(Q.lo,+(Q.k-0.1).toFixed(2)); qualApply(); } }
+  else if(Q.ema<13.6&&Q.k<1){ Q.t-=dt; if(Q.t<-8){ Q.t=0; Q.k=Math.min(1,+(Q.k+0.05).toFixed(2)); qualApply(); } }
   else Q.t*=0.9;
 }
 function qualApply(){ _tvForce=true; if(typeof FLORA!=='undefined'){ FLORA.far.cx=1e9; FLORA.near.cx=1e9; } }
@@ -297,14 +301,17 @@ function updateTileVis(){                // 예산(rockBudget · _treeBudget · 
     T.last.length=0; for(let i=0;i<nIn;i++) T.last.push(act[i]); }
   const SHR=(LIGHT.QUAL[LIGHT.q].R||40)+8;          // 해 그림자 상자 반경 + 8 m — 그 밖 칸은 그림자를 안 드리운다(castNear)
   let rockBudget=3;                                  // 노는 중에는 한 프레임에 바위 칸 셋까지만 빚는다
+  let hiBudget=(Math.hypot(PL.vel.x,PL.vel.z)<12&&!(typeof flyMode!=='undefined'&&flyMode))?1:0;   // 가까운 고운 꼴 다시 빚기는 한 프레임에 하나 · 빨리 움직이는 동안은 미룬다(버벅임 — 2026-11-06)
   for(const RG of act) for(const t of RG.rock){
     const g=tileGap(t,px,pz), want=g<=t.d;
     if(want&&!t.m){
       if(TVB()||rockBudget>0){ rockBudget--; t.m=t.build(); }
       else _tvForce=true;                              // 다음 프레임에 이어서
     }else if(t.m&&g>t.d+ROCK_KEEP){                    // 멀어졌다 — 버린다(다시 가까워지면 같은 모양으로 빚는다)
-      propGroup.remove(t.m); t.m.geometry.dispose(); t.m=null;
+      t.grp.remove(t.m); t.m.geometry.dispose(); t.m=null;
       for(const p of t.ps){ p._batch=null; p._k=1; }
+    }else if(t.m&&t.big&&(g<=ROCK_NEAR)!==t.hi&&(g<=ROCK_NEAR||g>ROCK_NEAR+30)&&(TVB()||hiBudget>0)){   // 가까워졌다 · 멀어졌다 — 고운 꼴로 · 보통 꼴로 다시 빚는다
+      hiBudget--; const vis=t.m.visible; t.grp.remove(t.m); t.m.geometry.dispose(); t.m=t.build(g<=ROCK_NEAR); t.m.visible=vis; LIGHT.dirtyAt(t.cx,t.cz,t.r);
     }
     if(t.m&&(setVis(t.m,want&&!tileOcc(t,8))|castNear(t.m,g<=SHR))) LIGHT.dirtyAt(t.cx,t.cz,t.r);   // 산 너머의 바위 칸은 거른다
   }
@@ -375,32 +382,32 @@ function castNear(m,near){ if(!m||m._cast0===undefined) return false; const v=ne
    sh  껍질 단계(1 = 80면 · 2 = 180면 · 3 = 320면)   jit 꼭짓점마다 반지름을 흔드는 폭(안 쓴다) */
 const HABIT={
   // 화강암 — 둥글게 닳은 큰 덩어리. 크게 쪼개진 면이 두어 장, 넓적하게 앉는다
-  granite :{amp:0.17,bump:2.6,nb:4,cuts:3,deep:0.84,cube:0.00,smooth:0.94,flat:0.76,st:0.34,sh:4,rough:0.11},   // 잔 울퉁불퉁이 보이게 4단계(500면)
+  granite :{amp:0.12,bump:2.6,nb:4,cuts:6,deep:0.86,cube:0.00,smooth:0.82,flat:0.76,st:0.34,sh:4,rough:0.13},   // 잔 울퉁불퉁이 보이게 4단계(500면)
   // 부싯돌 — 조개 껍질처럼 움푹한 날카로운 조각. 면이 적고 깊게 깎인다
-  flint   :{amp:0.14,bump:3.0,nb:3,cuts:5,deep:0.60,cube:0.00,smooth:0.90,flat:0.80,st:0.40,sh:1},
+  flint   :{amp:0.14,bump:3.0,nb:3,cuts:6,deep:0.60,cube:0.00,smooth:0.86,flat:0.80,st:0.40,sh:1},
   // 자갈 — 물에 닳은 조약돌. 거의 안 깨진다
   pebble  :{amp:0.20,bump:3.2,nb:3,cuts:1,deep:0.92,cube:0.00,smooth:1.00,flat:0.70,st:0.34,sh:1},
   // 방연석 — 정육면체로 쪼개진다. 계단처럼 어긋난 면
-  galena  :{amp:0.08,bump:2.4,nb:2,cuts:4,deep:0.82,cube:0.82,smooth:0.80,flat:0.94,st:0.22,sh:2},
+  galena  :{amp:0.06,bump:2.4,nb:2,cuts:6,deep:0.82,cube:0.82,smooth:0.78,flat:0.94,st:0.22,sh:2,rough:0.07},
   // 황 — 포도송이처럼 둥근 혹이 엉긴 껍질. 잔혹이 많고 안 잘린다
   sulfur  :{amp:0.34,bump:9.0,nb:6,cuts:0,deep:1.00,cube:0.00,smooth:1.00,flat:0.72,st:0.28,sh:3},
   // 진사 — 바위에 얇게 앉은 딱지. 납작하게 눌리고 가장자리가 깨져 있다
-  cinnabar:{amp:0.18,bump:4.0,nb:3,cuts:3,deep:0.78,cube:0.00,smooth:0.92,flat:0.50,st:0.34,sh:2},
+  cinnabar:{amp:0.14,bump:4.0,nb:3,cuts:5,deep:0.78,cube:0.00,smooth:0.86,flat:0.50,st:0.34,sh:2,rough:0.08},
   // 석탄 — 결을 따라 판으로 깨진다. 넓은 면 여럿에 살짝 납작
-  coal    :{amp:0.10,bump:3.0,nb:3,cuts:5,deep:0.76,cube:0.25,smooth:0.90,flat:0.70,st:0.32,sh:2},
+  coal    :{amp:0.07,bump:3.0,nb:3,cuts:7,deep:0.76,cube:0.25,smooth:0.84,flat:0.70,st:0.32,sh:2,rough:0.08},
   // 자철석 · 공작석 · 주석석 · 섬아연석 — 모암에 박힌 광맥 덩이.
   // 둥근 바탕에 깨진 면이 몇 장 섞인다
-  iron    :{amp:0.16,bump:3.2,nb:3,cuts:3,deep:0.84,cube:0.00,smooth:0.92,flat:0.82,st:0.34,sh:2},
-  copper  :{amp:0.18,bump:3.6,nb:3,cuts:2,deep:0.86,cube:0.00,smooth:0.94,flat:0.80,st:0.36,sh:2},
-  tin     :{amp:0.15,bump:3.0,nb:3,cuts:4,deep:0.82,cube:0.00,smooth:0.92,flat:0.84,st:0.34,sh:2},
-  zinc    :{amp:0.14,bump:3.0,nb:3,cuts:4,deep:0.80,cube:0.20,smooth:0.92,flat:0.82,st:0.32,sh:2},
+  iron    :{amp:0.10,bump:3.2,nb:3,cuts:6,deep:0.84,cube:0.00,smooth:0.84,flat:0.82,st:0.34,sh:3,rough:0.09},
+  copper  :{amp:0.11,bump:3.6,nb:3,cuts:5,deep:0.86,cube:0.00,smooth:0.86,flat:0.80,st:0.36,sh:3,rough:0.09},
+  tin     :{amp:0.10,bump:3.0,nb:3,cuts:6,deep:0.82,cube:0.00,smooth:0.84,flat:0.84,st:0.34,sh:3,rough:0.08},
+  zinc    :{amp:0.09,bump:3.0,nb:3,cuts:6,deep:0.80,cube:0.20,smooth:0.84,flat:0.82,st:0.32,sh:3,rough:0.08},
   /* 지형 판 6 의 바위(10-worldgen.js surfaceRocks)
      현무암 — 용암이 식으며 오그라들어 기둥 결로 갈라진다. 모난 면이 많고 위가 평평하다
      석회암 — 빗물에 녹아 둥글게 닳고 잔 구멍이 숭숭하다
      사암   — 모래가 켜로 굳었다. 납작한 판이 포개진 꼴 */
-  basalt  :{amp:0.07,bump:2.4,nb:2,cuts:6,deep:0.80,cube:0.35,smooth:0.86,flat:0.92,st:0.24,sh:3},
-  karst   :{amp:0.20,bump:4.2,nb:5,cuts:2,deep:0.86,cube:0.00,smooth:0.96,flat:0.72,st:0.36,sh:3,rough:0.12},
-  sandstone:{amp:0.10,bump:2.2,nb:3,cuts:3,deep:0.80,cube:0.15,smooth:0.90,flat:0.55,st:0.40,sh:3}
+  basalt  :{amp:0.05,bump:2.4,nb:2,cuts:8,deep:0.80,cube:0.35,smooth:0.80,flat:0.92,st:0.24,sh:3,rough:0.07},
+  karst   :{amp:0.14,bump:4.2,nb:5,cuts:4,deep:0.86,cube:0.00,smooth:0.88,flat:0.72,st:0.36,sh:3,rough:0.15},
+  sandstone:{amp:0.07,bump:2.2,nb:3,cuts:6,deep:0.80,cube:0.15,smooth:0.84,flat:0.55,st:0.40,sh:3,rough:0.09}
 };
 const HABIT0={amp:0.24,bump:5.0,nb:3,cuts:0,deep:1,cube:0,smooth:0.90,flat:1,st:0.36};
 
@@ -594,6 +601,8 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
     (propGroup._all||propGroup.children).forEach(m=>{ m.geometry.dispose(); m.material.dispose(); });
   }
   propGroup=new THREE.Group(); propGroup.matrixAutoUpdate=false; scene.add(propGroup);
+  if(propUG){ scene.remove(propUG); propUG.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
+  propUG=new THREE.Group(); propUG.matrixAutoUpdate=false; scene.add(propUG);   // 땅속 광석의 칸(지형 판 11 — 14-plateau.js)
   /* 자식(칸 메시)이 수만 개다(6배 섬에서 7만) — Three 는 프레임마다 그 전부의 updateMatrixWorld 를 부른다. 굳힌 잎은 할 일이
      없는데도 **7만 개를 한 번씩 건드리는 것만으로 5~7 ms** 다(물체마다 메모리를 새로 읽는다). 그래서 전부를 훑지 않는다:
        · 새로 붙은 것(`_fresh`)은 다음 프레임에 한 번 센다. 굳힌 잎(자식이 없고 제 행렬을 스스로 안 고치는 것)이면 그것으로 끝이다.
@@ -1013,12 +1022,14 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
      둔다 — 자갈만 3,000개라 곱게 쪼개면 정점만 늘고 보이는 건 그대로다. */
   /* 20면체 세분 단계 n 은 면 20·(n+1)² — 1단계 80 · 2단계 180 · 3단계 320.
      큰 암석 3단계(320면) · 자갈·부싯돌 2단계(180면) — 예전(180·80)의 약 2배 */
-  const SHELLS={1:makeShell(1), 2:makeShell(2), 3:makeShell(3), 4:makeShell(4)};
+  const SHELLS={1:makeShell(1), 2:makeShell(2), 3:makeShell(3), 4:makeShell(4), 5:makeShell(5)};
   const shellFor=k=>SHELLS[(HABIT[k]&&HABIT[k].sh)||3];
 
-  function buildRockBatch(list,R){
+  /* hi — 사람이 가까이 있는 칸(ROCK_NEAR 안)은 한 단계 고운 껍질에 잔 깨짐면 · 잔 울퉁불퉁을 더 얹어 다시 빚는다(사용자 요청 2026-11-06
+     '바위가 너무 둥글다 — 다가가면 더 거칠고 바위답게'). 큰 꼴(혹 · 깨진 면)은 같은 난수라 그대로다 — 가까이 와도 바위가 바뀌지 않고 결만 는다 */
+  function buildRockBatch(list,R,hi){
     const r0=ROCK_R[R.k], H=HABIT[R.k]||HABIT0, amp=H.amp;
-    const SH=shellFor(R.k), SHELL_V=SH.V, UNIQ=SH.U,
+    const SH=hi&&r0>=0.4?SHELLS[Math.min(5,((HABIT[R.k]&&HABIT[R.k].sh)||3)+1)]:shellFor(R.k), SHELL_V=SH.V, UNIQ=SH.U,
           uniqDir=SH.uniqDir, vertU=SH.vertU, spx=SH.px;
     const total=list.length*SHELL_V;
     const pos=new Float32Array(total*3), nor=new Float32Array(total*3), mel=new Float32Array(total);   // mel — 땅에 녹아드는 높이(바위마다 제 크기만큼)
@@ -1058,6 +1069,9 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
         const L=Math.sqrt(ax*ax+ay*ay+az*az)||1;
         cut.push([ax/L,ay/L,az/L, H.deep*(0.86+rnd()*0.34)]);
       }
+      /* 가까이 — 얕은 잔 깨짐면 여섯(제 난수 · 큰 꼴은 그대로) */
+      if(hi&&r0>=0.4){ const r2=mulberry32(hh^0x77a1); for(let c=0;c<6;c++){ let ax=r2()*2-1, ay=r2()*2-1, az=r2()*2-1; const L=Math.sqrt(ax*ax+ay*ay+az*az)||1;
+        cut.push([ax/L,ay/L,az/L, 0.955+r2()*0.035]); } }   // 아주 얕게 — 다가갈 때 꼴이 확 바뀌지 않게(2026-11-06 사용자 '다가가면 너무 갑자기 바뀐다')
       for(let u=0;u<UNIQ;u++){
         const d=uniqDir[u];
         let f=0;
@@ -1067,6 +1081,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
         /* 잔 울퉁불퉁 — 겹친 값잡음으로 겉을 거칠게(사용자 요청: 바위가 너무 매끈하다). 화강암 11% · 나머지 5% · 자갈·부싯돌 3% */
         const RG=H.rough!==undefined?H.rough:(R.k==='pebble'||R.k==='flint'?0.03:0.05);
         r*=1+RG*SHP.rough(d[0],d[1],d[2],hh,1.9,4)+RG*1.1*(SHP.jag(d[0],d[1],d[2],hh^0x3c,2.6,3)-0.25);   // + 날카로운 능선(들쭉날쭉한 모서리)
+        if(hi&&r0>=0.4) r*=1+RG*0.30*(SHP.jag(d[0],d[1],d[2],hh^0x9e,6.5,3)-0.3)+RG*0.20*SHP.rough(d[0],d[1],d[2],hh^0x51,9.0,2);   // 가까이 — 잔 모서리 · 잔 결(작게 — 꼴은 그대로)
         if(H.jit) r*=1+(rnd()*2-1)*H.jit;           // 꼭짓점마다 들쭉날쭉 — 낮은 다각형 바위의 모난 결
         let ow=-1;
         // ③ 정벽 쪼개짐 — 정육면체 쪽으로 당긴다
@@ -1100,7 +1115,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
       let off;
       if(R.k==='flint') off=0.15*p.s; else if(R.k==='pebble') off=0.11*p.s; else if(R.k==='sulfur') off=0.02*p.s; else if(ORE_LODGE[R.k]) off=0.20*p.s; else off=0.5*p.s;   // 유황은 더 깊이(사용자 요청 — 겉만 드러난 딱지)   // 광석은 땅에 박혀 있다(사용자 요청)
       /* 비탈에서는 더 묻는다 — 곧추 얹으면 아래쪽 밑면이 허공에 뜬다(사용자 지적). 반지름 × 기울기의 0.6, 반지름의 0.45 까지 */
-      { const gs=groundSlope(p.x,p.z,Math.max(0.4,r0*p.s*0.7)); off-=Math.min(0.45*r0*p.s,r0*p.s*Math.hypot(gs[0],gs[1])*0.6); }
+      if(p.ug) off=0.22*p.s; else { const gs=groundSlope(p.x,p.z,Math.max(0.4,r0*p.s*0.7)); off-=Math.min(0.45*r0*p.s,r0*p.s*Math.hypot(gs[0],gs[1])*0.6); }   // 땅속 — 굴 바닥에 앉는다(땅 위 비탈은 상관없다)
       const oy=p.y+off, S0=p.s;
       p._vs=o/3; p._vn=SHELL_V; p._cy=oy; p._k=1;
       mel.fill(R.k==='sulfur'?clamp(0.95*S0*r0,0.15,1.3):ORE_LODGE[R.k]?clamp(0.62*S0*r0,0.12,1.1):clamp(0.34*S0*r0,0.05,0.8),o/3,o/3+SHELL_V);   // 유황은 땅 빛깔이 더 높이(넓게 녹아든다)   // 광석은 땅 빛깔이 더 높이 올라온다
@@ -1174,6 +1189,8 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
     g.setAttribute('aMelt',new THREE.BufferAttribute(mel,1));
     g.computeBoundingSphere();
     if(!ROCK_MAT[R.k]) ROCK_MAT[R.k]=rockMat(R.k,R.c);   // 칸마다 나눠도 재질은 종류당 하나
+    /* 땅속 광석은 '땅에 녹아들기'를 끈 재질로 — 녹는 높이를 땅 위 표고로 재서 땅속 것은 온통 흙빛으로 덮였다(96-underworld.js underMat 과 같은 까닭) */
+    if(list.length&&list[0].ug){ const k2=R.k+'|ug'; if(!ROCK_MAT[k2]){ const m=rockMat(R.k,R.c); m.userData.melt=0; m.userData.meltAttr=false; ROCK_MAT[k2]=m; } return new THREE.Mesh(g,ROCK_MAT[k2]); }
     return new THREE.Mesh(g,ROCK_MAT[R.k]);
   }
 
@@ -1232,7 +1249,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
     // 1차: 채집 횟수·통나무 수·베리를 먼저 정한다 (가지 총량을 알아야 하므로)
     let _bn=0;
     for(const p of list){ if(!(++_bn&1023)) await breathe();
-      p.y=p.top!==undefined?p.top:geoGround(p.x,p.z,heightAt(p.x,p.z));   // 바위섬 꼭대기의 전나무는 제 높이(34-coast.js coastIsle) · 큰 지형 모형 위면 그 윗면(땅은 모형 밑에 묻혀 있다)
+      if(!p.ug) p.y=p.top!==undefined?p.top:geoGround(p.x,p.z,heightAt(p.x,p.z));   // 땅속 광석(p.ug)은 굴 바닥 높이 그대로(14-plateau.js plOres)   // 바위섬 꼭대기의 전나무는 제 높이(34-coast.js coastIsle) · 큰 지형 모형 위면 그 윗면(땅은 모형 밑에 묻혀 있다)
       if(HARVEST[R.k]||MINE[R.k]){
         const hh=hashStr(R.k+'|'+Math.round(p.x)+'|'+Math.round(p.z));
         p.vanish=!!(HARVEST[R.k]&&HARVEST[R.k].vanish);
@@ -1485,8 +1502,8 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
          정점 구간(_vs)은 칸 묶음 안에서 센다 — 캐기가 제 묶음만 고친다. */
       const bins=new Map();
       for(const p of list){
-        const gx=Math.floor(p.x/ROCK_TILE), gz=Math.floor(p.z/ROCK_TILE), key=gx+','+gz;
-        let b=bins.get(key); if(!b){ b={gx,gz,ps:[]}; bins.set(key,b); } b.ps.push(p);
+        const gx=Math.floor(p.x/ROCK_TILE), gz=Math.floor(p.z/ROCK_TILE), key=gx+','+gz+(p.ug?'u':'');   // 땅속 광석은 따로 담는다(땅속에선 땅 위 소품을 가린다 — 98-surface.js)
+        let b=bins.get(key); if(!b){ b={gx,gz,ps:[],ug:!!p.ug}; bins.set(key,b); } b.ps.push(p);
       }
       /* **바위 칸은 가까워질 때 빚는다**(마인크래프트의 청크처럼 — 나무 칸의 가지·잎과 같은 방식). 예전엔 섬의 바위·자갈을
          전부 섬을 만들 때 빚어 들고 있었다(자갈 3,000개만 정점 72만). 섬을 2~3배로 키우면 그것이 4~9배가 된다.
@@ -1494,13 +1511,14 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
          캐서 오므라든 것·주워 간 것은 다시 빚을 때 `shrinkFoliage` 가 그 모습으로 되돌린다 */
       for(const b of bins.values()){
         const tile={m:null, ps:b.ps, cx:(b.gx+0.5)*ROCK_TILE, cz:(b.gz+0.5)*ROCK_TILE, r:ROCK_TILE*0.71+4,
-                    d:ROCK_R[R.k]<0.3?ROCK_SMALL:ROCK_DIST};
+                    d:ROCK_R[R.k]<0.3?ROCK_SMALL:ROCK_DIST, ug:b.ug, grp:b.ug?propUG:propGroup, big:ROCK_R[R.k]>=0.4, hi:false};
         b.ps.forEach(p=>{ p._batch=null; p._fm=null; p._k=1; });
-        tile.build=()=>{
-          const batch=buildRockBatch(b.ps,R);
+        tile.build=hi=>{
+          for(const p of b.ps) p._k=1;
+          const batch=buildRockBatch(b.ps,R,hi); tile.hi=!!hi;
           batch.frustumCulled=true;          // 경계구로 화면 밖 칸도 거른다(캐면 안쪽으로만 오므라든다)
           batch.visible=false; batch.matrixAutoUpdate=false; batch.updateMatrix();
-          propGroup.add(batch);
+          tile.grp.add(batch);
           for(const p of b.ps){ p._batch=batch; shrinkFoliage(p); }
           return batch;
         };
@@ -2178,4 +2196,45 @@ function shipGone(){
   const li=SHIP.light; if(li){ li.intensity=0; scene.attach(li); SHIP.parked=li; }
   LIGHT.dirtyAt(shipMesh.position.x,shipMesh.position.z,14);
   scene.remove(shipMesh); shipMesh=null; SHIP.st='away';
+}
+
+/* ── 바위 · 광석 위를 딛는다(사용자 요청 2026-11-06 '광석을 타 넘을 수 있게') ─────────────────────────────
+   큰 바위(반지름 0.5 m 넘는 것 — 화강암 · 현무암 · 석회암 · 사암 · 광석)는 이제 몸이 지난다: 윗면은 바닥(62-build.js floorAt) ·
+   몸통은 벽(80-player.js solidAt — 벼랑처럼 Space 로 매달려 오른다). 1.35 m 밑이면 그냥 넘어 올라선다(walkable).
+   꼴은 타원체로 어림한다 — 가로 반지름 = ROCK_R × 크기 × 0.9 · 세로 = 그 × 납작함 · 가운데 = 빚은 높이(p._cy · 아직 안 빚었으면 같은 식).
+   캐서 줄어든 것(p._k)은 그만큼 작다 */
+const RKF={g:new Map(), C:8, hit:false, n:0};
+const rkKey=(gx,gz)=>(gx+4096)*8192+(gz+4096);
+function rockGridBuild(){
+  RKF.g.clear(); RKF.n=0; if(!ROCK_KINDS) return;
+  for(const p of PROPS){ const r=ROCK_KINDS[p.k]; if(!r||r<0.5) continue; const R=r*p.s;
+    for(let gz=Math.floor((p.z-R)/RKF.C);gz<=Math.floor((p.z+R)/RKF.C);gz++) for(let gx=Math.floor((p.x-R)/RKF.C);gx<=Math.floor((p.x+R)/RKF.C);gx++){
+      const k=rkKey(gx,gz); let a=RKF.g.get(k); if(!a) RKF.g.set(k,a=[]); a.push(p); }
+    RKF.n++; }
+}
+function rockDims(p){
+  const r0=ROCK_KINDS[p.k], H=HABIT[p.k]||HABIT0, k=p._k||1;
+  if(p._cy===undefined&&p.ug) p._cy=p.y+0.22*p.s;
+  if(p._cy===undefined){ let off=ORE_LODGE[p.k]?0.20*p.s:0.5*p.s; const gs=groundSlope(p.x,p.z,Math.max(0.4,r0*p.s*0.7)); off-=Math.min(0.45*r0*p.s,r0*p.s*Math.hypot(gs[0],gs[1])*0.6); p._cy=p.y+off; }
+  _rkD[0]=r0*p.s*0.9*k; _rkD[1]=r0*p.s*(H.flat||1)*0.9*k; _rkD[2]=p._cy; return _rkD;
+}
+const _rkD=[0,0,0];
+/* (x,z) 의 바위 윗면(없으면 −1e9) · 밑면은 RKF.bot */
+function rockTop(x,z){
+  if(!RKF.n) return -1e9; const a=RKF.g.get(rkKey(Math.floor(x/RKF.C),Math.floor(z/RKF.C))); if(!a) return -1e9;
+  let best=-1e9;
+  for(const p of a){ if(p.vanish||(p.oreMax&&p.ore<=0&&p._k<0.5)) continue;
+    const D=rockDims(p), dx=x-p.x, dz=z-p.z, d2=dx*dx+dz*dz, rh=D[0]; if(d2>=rh*rh) continue;
+    const q=Math.sqrt(1-d2/(rh*rh)), t=D[2]+D[1]*q; if(t>best){ best=t; RKF.bot=D[2]-D[1]*q; } }
+  return best;
+}
+function rockSolid(x,z,y){ const t=rockTop(x,z); return t>-1e8&&y<t-0.05&&y>RKF.bot; }
+/* 그 자리 땅이 바위에 덮였나 — 큰 지형 모형(드러난 칸 가림막 · 모형 윗면이 땅보다 높은 데) · 큰 바위 · 광석. 식생 · 사바나 풀이 바위 속에 돋지 않게
+   (2026-11-06 사용자 '바위 · 큰 돌 모형 속에 것들이 생긴다'). full 이면 모형 윗면까지 잰다(무겁다 — 식생 한 그루씩만) */
+function inRockAt(x,z,full){
+  const g=heightAt(x,z);
+  if(GEO_LF.mask&&GEO_LF.mask.length===N*N){ const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2); if(gx>=0&&gz>=0&&gx<N&&gz<N&&GEO_LF.mask[gz*N+gx]) return true; }
+  if(rockTop(x,z)>g+0.15) return true;
+  if(full&&GEO_LF.list.length&&geoFloor(x,z)>g+0.4) return true;
+  return false;
 }

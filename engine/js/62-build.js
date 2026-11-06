@@ -134,11 +134,15 @@ function builtFloorAt(x,z){
 }
 /* 발밑 — 지금 서 있는 높이보다 위에 있는 지붕은 천장이지 바닥이 아니다 */
 function floorAt(x,z,fromY){
-  const h0=heightAt(x,z);
-  if(PL.under&&fromY!==undefined&&fromY<h0-3) return underFloorAt(x,z);
-  if(!PL.under&&fromY!==undefined&&typeof underAditAt==='function'&&underAditAt(x,z,fromY)){ const f=underFloorAt(x,z); if(f<h0-0.05&&f<1e3) return f; }   // 함몰 입구 — 굴길 바닥 높이에 있고 땅이 그보다 높으면(입구 · 굴 속) 굴 바닥을 딛는다(96-underworld.js · 그 땅은 셰이더가 버린다)   // 땅속에 있고 땅 밑 3 m 아래 — 땅속의 바닥(96-underworld.js · 땅 위 벼랑 앞에서 땅속으로 빠지지 않게 사람이 땅속일 때만)
+  const h0=heightAt(x,z); RKF.hit=false;
+  if(fromY!==undefined&&fromY<h0-3&&(PL.under||(!PL.cave&&typeof UNDER!=='undefined'&&UNDER.ok&&underQ(x,z).g>0.2))){ /* 땅속 표시가 한 프레임 늦어도 땅속 바닥으로(예전엔 땅 겉 · 모형 윗면으로 튀어 천장을 뚫고 올라섰다) */ const f=underFloorAt(x,z), rt=rockTop(x,z); if(rt>f&&rt-fromY<=1.35&&fromY>RKF.bot-0.6){ RKF.hit=true; CRAG.slope=0.02; return rt; } return f; }   // 땅속 — 굴 바닥 · 그 위 광석(30-props.js rockTop)
+  if(fromY!==undefined&&CV10.built.size){ const q=caveHere(x,z,fromY); if(q) return q.f; }   // 지형 판 10 굴 빈 데 — 굴 바닥(지은 바닥 · 큰 바위 윗면은 굴 속에 없다 · 80-player.js)
+  if(typeof UNDER!=='undefined') UNDER.adHit=false;
+  /* 굴길 바닥은 땅속 판정과 상관없이 — 입구 언저리에서 '땅속' 인 채로 바깥 쪽 걸음은 땅 높이(벼랑)를 받아 막혔다(2026-11-06 '들어가면 못 나온다') */
+  if(fromY!==undefined&&typeof underAditAt==='function'&&underAditAt(x,z,fromY)){ const f=underFloorAt(x,z); if(f<1e3&&(f<h0-0.05||UNDER.dol.some(d=>d.sea&&Math.hypot(d.mx-x,d.mz-z)<12))){ UNDER.adHit=true; return f; } }   // 함몰 입구 — 굴길 바닥 높이에 있고 땅이 그보다 높으면(입구 · 굴 속) 굴 바닥을 딛는다(96-underworld.js · 그 땅은 셰이더가 버린다)
   let t=h0+giantRootAt(x,z);                    // 노거수의 뿌리는 땅이다(95-giants.js)
   t=cragFloor(x,z,fromY,t);                     // 벼랑의 큰 바위 — 낮으면 딛고 높으면 벽이다(33-crags.js)
+  { const rt=rockTop(x,z); if(rt>t&&(fromY===undefined||fromY>RKF.bot-0.6)){ t=rt; RKF.hit=true; CRAG.slope=0.02; } }   // 바위 · 광석 윗면(30-props.js — 넘어 오른다)
   { const gf=geoFloor(x,z); if(gf>t){ t=gf; CRAG.slope=GEO_LF.slope; } }   // 큰 지형 모형(산 · 협곡 벽 · 시스택)의 참 윗면 — 땅은 그 밑에 묻혀 있다(37-geo-meshes.js)
   t=coastFloor(x,z,fromY,t);                    // 주상절리 기둥 위(34-coast.js)
   const gx=Math.round(x/CELL_B), gz=Math.round(z/CELL_B);
@@ -721,6 +725,7 @@ const canBuild=(k,tier)=>buildCost(k,tier).every(r=>countMat(r)>=r.n);
 
 /* ---- 짓기 모드 ---- */
 function enterBuild(kind,tier){
+  if(PL.cvUnder){ toast('굴 속에서는 지을 수 없다'); return; }              // 지형 판 10 굴 속(80-player.js cavePlace)
   BUILD.on=true;
   if(kind) BUILD.kind=kind;
   if(tier!==undefined) BUILD.tier=tier;

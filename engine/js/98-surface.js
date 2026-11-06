@@ -11,6 +11,25 @@
 const SURF={hide:false, when:[], list:[], t:0, vis:[], n:0};
 SURF.when.push(()=>typeof UNDER!=='undefined'&&UNDER.ok&&PL.under&&UNDER.u>=0.999&&!UNDER.rope&&!flyMode&&!PL.dead);   // 땅속 세계에 완전히 들어가 있다(flyMode — 개발자 날기는 카메라가 땅 위일 수 있다)
 
+/* 지형 판 10 굴 깊은 데(deep≥0.999 — 입구에서 16 m 넘게)이고 열린 데가 눈에 안 보인다. 열린 데(rec.O)는 가까운 것부터 64 점 —
+   눈에서 0.5 m 걸음으로 그 점까지 쏜 2.5 차원 선이 중간에 빈 데(F<y<C)를 벗어나면 가려진 것. 열 프레임마다 한 번 세고 그 사이는 앞 값 */
+const SURF_CV={n:0,hid:false};
+SURF.when.push(()=>{
+  const q=PL.caveQ; if(!q||q.deep<0.999||PL.dead){ SURF_CV.hid=false; SURF_CV.n=0; return false; }
+  if(SURF_CV.n++%10) return SURF_CV.hid;
+  const rec=CV10.built.get(PL.cave); if(!rec||!rec.ready||!rec.O){ return SURF_CV.hid=false; }
+  const eye=camera.position, ex=eye.x, ey=eye.y, ez=eye.z, O=rec.O, nx=rec.nx, S=rec.S, pts=[];
+  for(let k=0,n=O.length;k<n;k++) if(O[k]){ const x=rec.x0+(k%nx)*S, z=rec.z0+((k/nx)|0)*S; pts.push([(x-ex)*(x-ex)+(z-ez)*(z-ez),x,z,k]); }
+  pts.sort((a,b)=>a[0]-b[0]);
+  let seen=false;
+  for(let i=0;i<pts.length&&i<64&&!seen;i++){ const x1=pts[i][1], z1=pts[i][2], k=pts[i][3], y1=rec.F[k]+0.5, L=Math.hypot(x1-ex,z1-ez), m=Math.max(1,Math.ceil(L/0.5));
+    let ok=true;
+    for(let j=1;j<m;j++){ const t=j/m, x=ex+(x1-ex)*t, z=ez+(z1-ez)*t, y=ey+(y1-ey)*t, s=cv10Samp(rec,x,z);
+      if(s.n<0.5||!(s.f<y&&y<s.c)){ ok=false; break; } }
+    if(ok) seen=true; }
+  return SURF_CV.hid=!seen;
+});
+
 /* 뿌리 객체에서 scene 에 바로 붙은 Object3D 를 찾는다 — 모듈마다 메시를 담는 자리가 달라 얕게 훑는다. 수만 개짜리 표는 건너뛴다 */
 const SURF_SKIP=new Set(['picks','cols','taken','grid','list','boxes','cg','ix','look','drift','schools','flocks','perched','nests','hives','fallen','pools','geysers','P','tl','kn','pend','ref','sites','U']);
 function surfWalk(o,out,seen,d){

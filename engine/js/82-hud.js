@@ -28,7 +28,7 @@ function cacheMap(){
   MAPPINS.length=0; pinAct=-1; pinVer++;   // 핀은 그 섬 것 — 불러오기는 섬을 만든 **뒤에** 핀을 다시 꽂는다(92-save.js)
 }
 /* ── 지도 핀 ─────────────────────────────────────────────────────────────
-   M 으로 지도를 크게 펴면 마우스가 풀린다(uiOpen — 걷기는 된다). 빈 곳 좌클릭 = 핀 꽂기(그 핀을 따라간다) ·
+   M 으로 지도를 크게 펴면 마우스가 풀린다(uiOpen — 걷기는 된다). 빈 곳 좌클릭 = 순간이동 · Shift+좌클릭 = 핀 꽂기(그 핀을 따라간다) ·
    핀 좌클릭 = 그 핀을 따라가기 · 핀 우클릭 = 뽑기 · M/Esc = 접기.
    따라가는 핀은 나침반 띠에 방향 + 거리로 뜨고(시야 밖이면 띠 끝에 화살), 나머지 핀도 띠에 작은 표로 뜬다.
    자리는 세계 좌표(m)로 적고 저장에 들어간다(92-save.js pins) */
@@ -67,9 +67,10 @@ function pinAt(cx,cz,k){
       toast('핀을 뽑았다');
     }else if(e.button===0){
       if(hit>=0){ pinAct=pinAct===hit?-1:hit; toast(pinAct<0?'핀 따라가기를 멈췄다':'이 핀을 따라간다 — 나침반을 보라'); }
-      else if(DEV.on&&!e.shiftKey){                  // 개발자 모드 — 빈 곳 좌클릭은 그 자리로 순간이동(Shift+좌클릭은 핀 · 사용자 요청 2026-11-04)
-        const x=clamp((cx-N/2)*CELL,-HALF+5,HALF-5), z=clamp((cz-N/2)*CELL,-HALF+5,HALF-5), g=Math.max(heightAt(x,z),0);
-        const up=Math.max(0.4,PL.pos.y-Math.max(heightAt(PL.pos.x,PL.pos.z),0));     // 땅에서 뜬 높이는 그대로(날고 있었으면 그 높이로)
+      else if(!e.shiftKey){                          // 빈 곳 좌클릭은 그 자리로 순간이동(Shift+좌클릭은 핀 · 사용자 요청 2026-11-04 개발자 모드 · 2026-11-06 누구나)
+        const x=clamp((cx-N/2)*CELL,-HALF+5,HALF-5), z=clamp((cz-N/2)*CELL,-HALF+5,HALF-5), g0=Math.max(heightAt(x,z),0), g=Math.max(g0,typeof geoGround==='function'?geoGround(x,z,g0):g0);
+        const up=DEV.on&&flyMode?Math.max(0.4,PL.pos.y-Math.max(heightAt(PL.pos.x,PL.pos.z),0)):0.3;     // 날고 있었으면 그 높이로 · 아니면 땅 위에 선다
+        if(typeof UNDER!=='undefined'){ PL.under=false; UNDER.u=0; } if(typeof WALL!=='undefined') WALL.on=false;
         PL.pos.set(x,g+up,z); PL.vel.set(0,0,0); PL.camY=undefined;
         toast('순간이동 — '+Math.round(x)+', '+Math.round(z)+' · 땅 '+Math.round(g)+' m');
       }
@@ -132,6 +133,7 @@ function drawMap(){
   if(PL.under&&typeof underMapImg==='function'){ ctx.fillStyle='rgba(0,0,0,0.72)'; ctx.fillRect(0,0,N,N); ctx.drawImage(underMapImg(),0,0); }   // 땅속 — 땅 위 지도를 어둡게 덮고 굴 방·굴길·수직굴을 그린다(96-underworld.js)
   /* 핀 — 화면에서 머리가 큰 지도 9 px · 작은 지도 4.5 px 쯤 되게(캔버스 768 을 172~688 px 로 줄여 보인다) */
   const ps=(mapOpen?9:4.5)*N/mapPx();
+  if(typeof plMapDraw==='function') plMapDraw(ctx,ps);   // 망대에서 알아낸 보급 상자(14-plateau.js)
   if(pinAct>=0&&MAPPINS[pinAct]){                     // 따라가는 핀까지 점선
     const p=MAPPINS[pinAct];
     ctx.save(); ctx.setLineDash([ps*0.9,ps*0.7]); ctx.lineWidth=ps*0.28; ctx.strokeStyle='rgba(240,255,248,.75)';
@@ -149,7 +151,7 @@ function drawMap(){
   if(mapOpen){
     const h=document.getElementById('mHelp');
     hudT(h,pinHov?(pinHov.pin>=0?'핀 '+MAPPINS[pinHov.pin].n+' · '+pinDist(MAPPINS[pinHov.pin])+' · 좌클릭 따라가기 · 우클릭 뽑기'
-                                 :'여기까지 '+pinDist(pinHov)+' · 좌클릭 핀 꽂기')
+                                 :'여기까지 '+pinDist(pinHov)+' · 좌클릭 순간이동 · Shift+좌클릭 핀')
                   :'핀 '+MAPPINS.length+'/'+PIN_MAX+' · 커서를 올리면 거리');
   }
   /* 플레이어 — 보는 쪽을 **뾰족한 끝**으로 가리키는 화살 삼각형.
@@ -399,6 +401,7 @@ function gatherBar(lb,lf,p){
   hudS(lb,'display',on?'block':'none');
   if(on) hudS(lf,'width',Math.min(100,GATHER.t/GATHER.dur*100).toFixed(1)+'%');
 }
+let _hudCv=null;                         // 바이옴 이름 — 굴 입구 앞 접근로(ap)는 '동굴'이 아니다(31-cave10.js cv10Zones)
 function updateHUD(dt){
   fpsT+=dt; fpsN++;
   if(fpsT>0.5){ fps=Math.round(fpsN/fpsT); fpsT=0; fpsN=0; }
@@ -407,7 +410,7 @@ function updateHUD(dt){
   hudT(document.getElementById('iTime'),String(H).padStart(2,'0')+':'+String(M).padStart(2,'0'));
   hudT(document.getElementById('iPos'),Math.round(PL.pos.x)+', '+Math.round(PL.pos.z));
   hudT(document.getElementById('iAlt'),(PL.swim?'수중 ':'')+Math.round(PL.pos.y)+' m');
-  hudT(document.getElementById('iBio'),PL.under?'땅속':caveAt(PL.pos.x,PL.pos.z,-0.5)?'동굴':BIOME_INFO[s.biome].n);
+  hudT(document.getElementById('iBio'),PL.under?'땅속':PL.cave?'동굴 · '+(CV10.NAME[PL.cave.kind]||PL.cave.kind):(_hudCv=caveAt(PL.pos.x,PL.pos.z,-0.5))&&!_hudCv.ap?'동굴':BIOME_INFO[s.biome].n);   // 판 10 굴 빈 데면 종류까지
   hudT(document.getElementById('iFps'),fps);
   const hpF=document.getElementById('hpF'), hpT=document.getElementById('hpT');
   if(hpF){

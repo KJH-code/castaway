@@ -282,7 +282,17 @@ function precompPlan(){
   if(typeof ROCK_MAT!=='undefined'&&ROCK_KINDS){
     if(!P.gr){ P.gr=new THREE.BufferGeometry(); const z9=new Float32Array(9);
       P.gr.setAttribute('position',new THREE.Float32BufferAttribute(z9,3)); P.gr.setAttribute('normal',new THREE.Float32BufferAttribute(z9.slice(),3)); P.gr.setAttribute('aMelt',new THREE.Float32BufferAttribute(new Float32Array(3),1)); }
-    for(const R of RESOURCES){ if(!ROCK_KINDS[R.k]) continue; if(!ROCK_MAT[R.k]) ROCK_MAT[R.k]=rockMat(R.k,R.c); const m=ROCK_MAT[R.k]; envPatch(m); lit.set(m.id+'|false|false|0',{m,inst:false,ic:false,g:P.gr}); } }
+    for(const R of RESOURCES){ if(!ROCK_KINDS[R.k]) continue; if(!ROCK_MAT[R.k]) ROCK_MAT[R.k]=rockMat(R.k,R.c); const m=ROCK_MAT[R.k]; envPatch(m); lit.set(m.id+'|false|false|0',{m,inst:false,ic:false,g:P.gr}); }
+    /* 땅속 광석의 재질(녹아들기를 끈 것 — 30-props.js buildRockBatch · 지형 판 11) */
+    if(typeof PLAT!=='undefined'&&PLAT.on) for(const R of RESOURCES){ if(CAVE_ORE.indexOf(R.k)<0) continue; const k2=R.k+'|ug'; if(!ROCK_MAT[k2]){ const m=rockMat(R.k,R.c); m.userData.melt=0; m.userData.meltAttr=false; ROCK_MAT[k2]=m; }
+      const m=ROCK_MAT[k2]; envPatch(m); lit.set(m.id+'|false|false|0',{m,inst:false,ic:false,g:P.gr}); } }
+  /* 판 10 굴 장식 재질(31-cave10deco.js CVD.mats) — 굴은 가까이 가야 지어져 처음 다가갈 때 짜이며 멈칫했다(review C). 장식 메시와 같은 꼴(정점 빛깔 3칸)로 */
+  if(typeof cv10On==='function'&&cv10On()&&typeof cvdInit==='function'){ cvdInit(); const M=CVD.mats;
+    if(!P.gr){ P.gr=new THREE.BufferGeometry(); const z9=new Float32Array(9);
+      P.gr.setAttribute('position',new THREE.Float32BufferAttribute(z9,3)); P.gr.setAttribute('normal',new THREE.Float32BufferAttribute(z9.slice(),3)); P.gr.setAttribute('aMelt',new THREE.Float32BufferAttribute(new Float32Array(3),1)); }
+    for(const m of [M.rock,M.sheet]) lit.set(m.id+'|false|false|3',{m,inst:false,ic:false,g:P.gc});
+    lit.set(M.water.id+'|false|false|0',{m:M.water,inst:false,ic:false,g:P.gr});
+    for(const m of [M.shr,M.gold]) unl.set(m.id+'|false|false|3',{m,inst:false,ic:false,g:P.gc}); }
   if(typeof dewInit==='function'&&!DEWD.mesh&&scene) dewInit();
   /* 아직 장면에 없을 수 있는 것 — 모든 불이 나눠 쓰는 불꽃 재질(fireMats)과 총구 불. 첫 불·첫 발에 짜이던 것이다 */
   if(!P.g0) P.g0=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));
@@ -378,14 +388,16 @@ async function generateWorld(){
   const seed=hashStr(P.seed), t0=performance.now();
   setWorldScale(1);                     // 섬은 늘 칸 2.5 m 로 만든다 — 다 만든 뒤 worldRescale 이 배율(P.ws)만큼 키운다
 
-  await phase('지각 융기',6);       genBase(seed);
-  await phase('안식각 정리',18);    thermal(22,1.15*(CELL/4),0.5);
-  await phase('하천 침식',34);      hydraulic(seed,Math.round(38000*P.ero*(16/(CELL*CELL))));
-  await phase('사면 안정화',48);    thermal(8,1.45*(CELL/4),0.45);
-                                    smoothTerrain(3,0.6);   // 표면 잡티 제거
-                                    if((P.tv|0)>=2) terrainFeatures(seed); else LANDFORMS=[];   // 피오르·골짜기·절벽·단구·산릉(지형 판 2 — 10-worldgen.js)
+  /* 지형 판 11 — 층층 대지 섬(14-plateau.js): 침식 없이 대지 · 산 · 호수 · 강을 곧장 짓는다(침식은 대지의 벼랑을 너덜 비탈로 무너뜨린다) */
+  const TV11=(P.tv|0)>=11; PLAT.on=false;
+  await phase('지각 융기',6);       if(TV11) genPlateau(seed); else genBase(seed);
+  await phase('안식각 정리',18);    if(!TV11) thermal(22,1.15*(CELL/4),0.5);
+  await phase('하천 침식',34);      if(!TV11) hydraulic(seed,Math.round(38000*P.ero*(16/(CELL*CELL))));
+  await phase('사면 안정화',48);    if(!TV11){ thermal(8,1.45*(CELL/4),0.45);
+                                    smoothTerrain(3,0.6); }  // 표면 잡티 제거
+                                    if((P.tv|0)>=2&&!TV11) terrainFeatures(seed); else LANDFORMS=[];   // 피오르·골짜기·절벽·단구·산릉(지형 판 2 — 10-worldgen.js)
                                     computeSlope();
-  await phase('수계 추출',58);      hydrology(); computeSlope(); computeTWI();
+  await phase('수계 추출',58);      if(!TV11) hydrology(); computeSlope(); computeTWI();
                                     distanceField(F.dWater,i=>F.elev[i]<=0);
                                     distanceField(F.dRiver,i=>F.river[i]===1||F.elev[i]<=0);
   await phase('기후 계산',68);      climate(seed);
@@ -405,6 +417,7 @@ async function generateWorld(){
                                     await breathe(); reliefMask();           // 잔 기복의 가림막(지형 판 3) — 이 뒤로 heightAt 이 둔덕·골을 안다
                                     await breathe(); await placeResources(seed);
                                     await breathe(); underSites(seed);       // 땅속 세계 — 굴 방 · 굴길 · 수직굴 자리(96-underworld.js · 지형 판 7)
+                                    await breathe(); plAfterUnder(seed); plCachePlan(seed);   // 지형 판 11 — 닿기 어려운 정도 · 광석을 굴로 · 다지류 둥지 · 보급 상자 · 망대(14-plateau.js)
                                     await breathe(); shapeSeabed(seed);      // 바다 바닥의 기복 — 뭍·자원을 다 정한 **뒤에**(같은 시드의 섬은 그대로다)
                                     templeSeaSite(seed);                     // 해구 가장자리의 해저 신전(97-temples.js · 지형 판 8)
                                     mobsSites(seed);                         // 다지류의 둥지 — 우거진 숲 곁의 굴(97-mobs.js · 지형 판 8 · 그 굴은 불빛이 없다)
@@ -478,4 +491,4 @@ async function generateWorld(){
   }
   busy=false;                           // 실패해도 잠기지 않게 반드시 해제
 }
-async function placeProps_(seed){ placePod(seed); await breathe(); await buildProps(); await breathe(); buildCrags(); geoBuild(); templeBuild(); await breathe(); buildCaves(); await breathe(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다
+async function placeProps_(seed){ placePod(seed); await breathe(); await buildProps(); rockGridBuild(); await breathe(); buildCrags(); geoBuild(); templeBuild(); plCacheBuild(); await breathe(); buildCaves(); await breathe(); makeShip(); buildClouds(seed); }   // 착륙 자리를 먼저 정해 거기 자원을 뺀 뒤 짓는다

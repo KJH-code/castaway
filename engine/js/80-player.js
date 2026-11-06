@@ -118,7 +118,7 @@ const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, JUMP=7.6, JUMP_STAM=9
       STEPUP=0.55;                                      // 이 높이 이하 턱은 그냥 올라선다
 const PL={pos:new THREE.Vector3(),vel:new THREE.Vector3(),yaw:0,pitch:0,
   grounded:false,crouch:false,run:false,swim:false,wade:0,
-  hp:100,stam:100,oxy:100,food:100,water:100,ill:0,bob:0,dist:0,eye:EYE,lungeCd:0,under:false};   // under — 땅속에 있나(96-underworld.js 가 프레임마다 정한다)
+  hp:100,stam:100,oxy:100,food:100,water:100,ill:0,bob:0,dist:0,eye:EYE,lungeCd:0,under:false,cave:null,caveQ:null,cvUnder:false};   // under — 땅속에 있나(96-underworld.js 가 프레임마다 정한다)
 const keys={};
 /* 뚫고 내려가기 — 이 시간 동안에는 DROP.y 아래의 지은 바닥만 밟는다.
    Ctrl+Space 로 지붕을 뚫고 내려올 때 쓴다. */
@@ -182,6 +182,67 @@ function slopeAt(wx,wz){
   const gx=clamp(Math.round(wx/CELL+N/2),0,N-1), gz=clamp(Math.round(wz/CELL+N/2),0,N-1);
   return F.slope[IDX(gx,gz)];
 }
+/* ── 지형 판 10 굴 속 걷기 (docs/notes/caves.md '구현 메모(B)') ────────────────────────────────────────────────
+   굴 격자(31-cave10.js)의 빈 데 점들로 쌍선형을 낸 `cv10Samp` 의 무게 합 n 이 0.5 이상일 때만 '빈 데'로 본다(cv10Q 는 벽 속 0.4 m · 입구 위 허공까지
+   받아 넉넉하다 — 걷기 · 벽 · 눈에는 이쪽). 돌려주는 것은 **공유 객체**(다음 부름이 덮어쓴다) — 값을 오래 쥘 거면 베낄 것.
+   판 9 까지는 CV10.built 가 비어 늘 null — 아래 길은 한 줄도 안 탄다 */
+const CVQ={c:null,rec:null,f:0,ce:0,open:false,deep:0,d:0,eyeN:0.75};       // eyeN — 눈의 아홉 점은 n≥0.75 여야 빈 데로 본다(0.5 면 그려진 껍데기가 눈 0.08 m 앞까지 와서 속이 들여다보였다 — 잰 값은 caves.md)
+function caveHere(x,z,y,nMin){
+  if(!CV10.built.size) return null;
+  for(const [c,r] of CV10.built){
+    const g=r.ready?r:r.q0; if(!g||c.off) continue; const b=c.box; if(x<b.x0||x>b.x1||z<b.z0||z>b.z1) continue;
+    const S=g.S; if(x>=g.x0+(g.nx-1)*S||z>=g.z0+(g.nz-1)*S) continue;
+    const s=cv10Samp(g,x,z); if(s.n<(nMin||0.5)) continue;
+    if(y!==undefined&&(y<s.f-0.6||y>s.c+0.3)) continue;                 // y 를 안 주면 열만 본다(다지류 몸 마디 — 97-mobs.js crwGround)
+    const q=CVQ; q.c=c; q.rec=r; q.f=s.f; q.ce=s.c; q.open=s.open; q.d=s.d; q.deep=_cv10Smooth(2,16,s.d); return q;
+  }
+  return null;
+}
+/* 굴 속 놀이가 쓰는 땅 높이 — 판 10 굴 빈 데(넉넉한 cv10Q)면 굴 바닥, 아니면 heightAt. y 를 안 주면 늘 heightAt.
+   굴 속에서 땅 높이를 쓰는 새 놀이(떨어진 것 · 던진 것 · 전리품 · 불덩이…)는 heightAt 대신 이걸 부를 것 */
+function groundY(x,z,y){
+  if(y!==undefined&&CV10.built.size){ const q=cv10Q(x,z,y); if(q) return q.f; }
+  return heightAt(x,z);
+}
+/* 기둥(rec.cols — {x,z,r,y0,y1})이 몸(발 y ~ 발+1.75)을 막나 — 이미 안에 있으면 더 파고들 때만 */
+function caveColHit(cols,x,z,y,rad){
+  for(let i=0;i<cols.length;i++){ const o=cols[i]; if(y+1.75<o.y0||y>o.y1) continue;
+    const d1=Math.hypot(x-o.x,z-o.z), R=o.r+rad; if(d1<R&&d1<Math.hypot(PL.pos.x-o.x,PL.pos.z-o.z)) return true; }
+  return false;
+}
+/* 기둥 — 걸음은 거절하지 않고 원 밖(r+몸 반지름)으로 밀어내며 접선 쪽으로 미끄러진다(정면으로 걸어도 돌아서 지난다). 원 안에 머무는 걸음은 없다 */
+function caveColPush(p){
+  const q=caveHere(p.x,p.z,p.y); if(!q) return; const cols=q.rec.cols; if(!cols.length) return;
+  for(let it=0;it<2;it++) for(let i=0;i<cols.length;i++){ const o=cols[i]; if(p.y+1.75<o.y0||p.y>o.y1) continue;
+    let dx=p.x-o.x, dz=p.z-o.z, d=Math.hypot(dx,dz); const R=o.r+PRAD; if(d>=R) continue;
+    if(d<1e-4){ dx=-Math.sin(PL.yaw); dz=-Math.cos(PL.yaw); d=1; }              // 한복판이면 보는 쪽 반대로
+    const nx=dx/d, nz=dz/d, pen=R-d, sg=(Math.sin(PL.yaw)*nz-Math.cos(PL.yaw)*nx)>=0?1:-1;      // 가는 쪽(보는 쪽) 접선 방향 — 속도가 0 이어도 한쪽으로 정해진다
+    const tx=p.x+nx*pen-nz*sg*pen*1.2, tz=p.z+nz*pen+nx*sg*pen*1.2;
+    if(caveHere(tx,tz,p.y)){ p.x=tx; p.z=tz; } else if(caveHere(p.x+nx*pen,p.z+nz*pen,p.y)){ p.x+=nx*pen; p.z+=nz*pen; }   // 빈 데 밖(바위 속)으로는 안 민다 — 밀린 자리의 바닥이 지표라 22 m 위로 튀었다(기본 섬 석회암)
+    PL.vel.x*=0.7; PL.vel.z*=0.7; }
+}
+/* 굴 속 걷기 — true/false 면 그 답, undefined 면 땅 규칙으로 */
+function caveWalk(x,z,fromH){
+  const q=caveHere(x,z,fromH);                              // floorAt 과 같은 창(발 높이) — 걷기 · 바닥이 어긋나면 걸음은 굴 안인데 바닥은 지표를 줬다
+  if(q){ const qf=q.f, qce=q.ce, qd=q.d;                   // 가려는 자리가 빈 데 — 값을 베껴 둔다: caveHere 는 공유 객체(CVQ)라 아래 floorGrad · 0.6 m 앞 질의가 덮어써서 오르막 한도가 늘 통과했다(review B)
+    const lip=PL.caveQ&&PL.caveQ.d<4&&qd<4;               // 입구 4 m 안 — 문턱의 가파른 오르막(걷는 격자가 못 받는다)은 0.8 m 까지
+    if(qf-fromH>(lip?0.8:STEPUP)) return false;           // 한 번에 오르기엔 높은 턱(내리막은 통과)
+    if(qce-qf<(PL.crouch?1.15:1.95)){                    // 머리 위가 낮다 — 서서는 눈(1.66)+머리 0.25 가 들어야 하고, 숙이면(눈 0.98) 1.15 m 면 지난다
+      if(!PL.crouch&&qce-qf>=1.15&&(!PL._lowT||performance.now()-PL._lowT>3000)){ PL._lowT=performance.now(); toast('천장이 낮다 — 숙여서(Ctrl) 지나간다'); }
+      return false; }
+    if(qf-fromH>0.02&&!lip){ const g=floorGrad(x,z,fromH);                  // 오르막은 땅과 같은 한도(49°) — 한 걸음 턱(0.55 m)만 보면 벽도 걸음마다 오른다
+      if(Math.hypot(g[0],g[1])>MAXSLOPE){                              // 다만 턱(STEPUP 안)은 오른다: 0.6 m 앞이 그 높이에서 이어지면(판판한 윗면) 벽이 아니라 턱
+        const dx=x-PL.pos.x, dz=z-PL.pos.z, dl=Math.hypot(dx,dz)||1, hx=caveHere(x+dx/dl*0.6,z+dz/dl*0.6,qf+0.3);
+        if(!(hx&&Math.abs(hx.f-qf)<0.25)) return false; } }
+    return true;
+  }
+  if(PL.cave){ const sf=cv10BoxSfc(x,z); if(fromH>=sf-STEPUP) return undefined;
+    /* 입구 4 m 안(D<4)에서 나가는 걸음은 0.8 m 턱까지 — 굴 바닥은 문턱 0.5 m 사이에 땅으로 솟는데 걷는 격자(0.5 m · 빈 데 점만)는 그 오르막을 못 받는다(바위그늘 들머리 0.58 m) */
+    if(fromH>=sf-0.8&&PL.caveQ&&PL.caveQ.d<4){ const dx=x-PL.pos.x, dz=z-PL.pos.z, L=Math.hypot(dx,dz)||1, e=0.25;   // 가는 쪽의 오르막만 본다(들머리 둔덕은 밖으로 내려간다)
+      const up=((cv10BoxSfc(x+e,z)-cv10BoxSfc(x-e,z))*dx+(cv10BoxSfc(x,z+e)-cv10BoxSfc(x,z-e))*dz)/(2*e*L); if(up<=MAXSLOPE) return true; }
+    return false; }   // 굴에서 벽 쪽 — 열린 데로 나가는 길(땅이 한 걸음 턱 안)만 땅 규칙으로(턱 · 비탈은 그 규칙이 본다 — 0.35 였을 때 바위그늘 들머리의 0.43 m 턱에 갇혔다)
+  return undefined;
+}
 /* fromH 는 반드시 '지금 발이 딛고 선 높이'여야 한다.
    예전에는 z 축만 지형 높이(heightAt)를 넘겨서, 토대·지붕·경사면 위에서는
    턱 높이를 땅바닥부터 재고 있었다. 경사 지붕 초입에서 0.55 m 를 넘는 순간
@@ -189,15 +250,17 @@ function slopeAt(wx,wz){
    공중에 뜬 동안에는 발 높이(p.y)를 기준으로 봐서, 뛰어서 턱을 넘을 수 있다. */
 function walkable(x,z,fromH){
   if(PL.under&&fromH<heightAt(x,z)-3) return underWalk(x,z,fromH);           // 땅속 — 머리 닿는 데 · 턱 · 비탈(96-underworld.js)
+  if(CV10.built.size){ const r=caveWalk(x,z,fromH); if(r!==undefined) return r; }   // 지형 판 10 굴 속
   if(Math.abs(x)>HALF-6||Math.abs(z)>HALF-6) return false;
   const rise=floorAt(x,z,fromH)-fromH;         // 토대·지붕 윗면도 바닥으로 친다
   const rock=CRAG.slope;                      // 그 자리가 큰 바위 위면 그 면의 비탈(33-crags.js — floorAt 이 남긴다)
-  if(rise>STEPUP) return false;               // 한 번에 오르기엔 너무 높은 턱
+  if(rise>STEPUP&&!(RKF.hit&&rise<=1.35)) return false;   // 한 번에 오르기엔 너무 높은 턱(바위 · 광석은 1.35 m 까지 넘어 오른다 — 30-props.js rockTop)
   /* 큰 바위의 벽 — 몸 반지름만큼 앞을 더 본다. 가운데만 보면 눈이 바위 면에 닿아 속이 들여다보였다(사용자 지적) */
   { const ddx=x-PL.pos.x, ddz=z-PL.pos.z, dl=Math.hypot(ddx,ddz);
     if(dl>1e-6&&dl<1.5){ const ax=x+ddx/dl*PRAD, az=z+ddz/dl*PRAD, g2=heightAt(ax,az);
       if(cragFloor(ax,az,fromH,g2)-fromH>STEPUP&&CRAG.slope>0) return false; } }   // (땅이 높은 것은 여기서 안 막는다 — 바위일 때만)
   if(rise<=0.02) return true;                 // 평지·내리막은 항상 통과
+  if(typeof UNDER!=='undefined'&&UNDER.adHit) return true;   // 굴길 바닥(함몰 입구 · 바닷가 굴) — 그 위 땅의 비탈은 상관없다(바닷가 굴 입구 앞 벼랑에 막혔다)
   /* 땅의 비탈은 **그 자리에서** 잰다(±2.5 m — 잔 기복은 뭉개진다). 예전엔 가장 가까운 격자 칸의 값(`slopeAt`)을 봤는데, 칸이 15 m 인
      섬에서는 벼랑 발치의 완만한 칸에 '속한' 벽 아랫도리(반 칸 — 10 m 높이까지)를 그냥 걸어 올랐다(사용자 지적: 벽 오르기) */
   if(rock>0) return rock<=MAXSLOPE;            // 바위 위에서는 바위 면의 비탈
@@ -261,7 +324,10 @@ function devFly(dt){
   p.x=clamp(p.x+PL.vel.x*dt,-HALF+6,HALF-6); p.z=clamp(p.z+PL.vel.z*dt,-HALF+6,HALF-6);
   p.y=Math.min(3000,p.y+PL.vel.y*dt);
   const gy=heightAt(p.x,p.z);
-  if(p.y<gy+0.3){ p.y=gy+0.3; if(PL.vel.y<0) PL.vel.y=0; }                // 땅 밑으로는 안 들어간다
+  /* 굴 · 땅속에서는 그 바닥이 밑이다 — 땅 겉으로 밀어 올려 굴 속에서 개발자 모드를 켜면 굴 밖(땅 위)으로 튀어나갔다(2026-11-06 사용자 '굴에서 개발자 모드가 안 켜진다') */
+  const cvF=PL.cave&&PL.caveQ?PL.caveQ.f:(PL.under||(UNDER.ad.length&&underAditAt(p.x,p.z,p.y)))&&UNDER.ok?underQ(p.x,p.z).f:null;
+  if(cvF!==null&&p.y<gy-1){ if(p.y<cvF+0.3){ p.y=cvF+0.3; if(PL.vel.y<0) PL.vel.y=0; } }
+  else if(p.y<gy+0.3){ p.y=gy+0.3; if(PL.vel.y<0) PL.vel.y=0; }                // 땅 밑으로는 안 들어간다
   PL.eye=EYE; PL.camY=p.y;
   camera.position.set(p.x,p.y+EYE,p.z);
   camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
@@ -279,7 +345,12 @@ function eyeHit(x,y,z){
   if(PL.under&&y<heightAt(x,z)-2.5) return underEyeHit(x,y,z);               // 땅속 — 바닥과 천장 사이인가(96-underworld.js)
   for(const o of _eyeO){
     const sx=x+o[0], sz=z+o[1];
-    if(heightAt(sx,sz)>y-0.15) return true;
+    if(CV10.built.size){ const q=caveHere(sx,sz,y,CVQ.eyeN);                          // 지형 판 10 굴 빈 데 — 바닥 · 천장 · 기둥에 닿나(빈 데가 아닌 점은 아래 땅 규칙 — 바위 속이면 땅이 눈보다 높다)
+      if(q){ if(y<=q.f+0.15||y>=q.ce-0.15) return true; const cols=q.rec.cols;
+        for(let i=0;i<cols.length;i++){ const w=cols[i]; if(y>=w.y0-EYE_V&&y<=w.y1+EYE_V&&Math.hypot(sx-w.x,sz-w.z)<w.r) return true; }
+        continue; } }
+    if(UNDER.ad.length&&underAditAt(sx,sz,y-EYE)){ const q=underQ(sx,sz); if(y>q.f+0.15&&y<q.c-0.15) continue; }   // 함몰 입구 · 바닷가 굴의 굴길 — 그 위 땅(벼랑)은 셰이더가 뚫었다(2026-11-06 사용자 '굴 입구에서 막힌다')
+    if((CV10.built.size?cv10BoxSfc(sx,sz):heightAt(sx,sz))>y-0.15) return true;   // 굴 상자 안은 굴이 딛는 겉(큰 지형 모형 윗면 — 31-cave10.js)
     if(CRAG.n){ const n=cragSpan(sx,sz); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y+EYE_V&&s.t>y-EYE_V) return true; } }
     if(coastSolid(sx,sz,y-EYE_V,y+EYE_V)) return true;                     // 주상절리 기둥
     if(CAVE_SOL.size&&(caveSolid(sx,y,sz)||caveSolid(sx,y-EYE_V,sz)||caveSolid(sx,y+EYE_V,sz))) return true;   // 굴 바위(벽 · 처마 · 지붕 — 32-caves.js)
@@ -297,7 +368,9 @@ function floorGrad(x,z,y){
 function solidAt(x,z,y){
   const h0=heightAt(x,z);
   if(PL.under&&y<h0-3) return underSolid(x,z,y);                             // 땅속
-  if(h0>y) return true;
+  if(CV10.built.size){ const q=caveHere(x,z,y); if(q&&y>q.f&&y<q.ce) return false; }   // 지형 판 10 굴 빈 데
+  if((CV10.built.size?cv10BoxSfc(x,z):h0)>y) return true;
+  if(rockSolid(x,z,y)) return true;                                              // 바위 · 광석(30-props.js)
   if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const s=_cgS[i]; if(s.b<y&&s.t>y) return true; } }
   return coastSolid(x,z,y);
 }
@@ -330,6 +403,7 @@ function wallAhead(){
   for(let d=0.3;d<=1.6+1e-6;d+=0.1){ const x=p.x+fx*d, z=p.z+fz*d;
     if(CRAG.n){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const sp=_cgS[i]; if(sp.b<yc&&sp.t>yc) return d; } }
     if(coastSolid(x,z,yc)) return d;                                       // 주상절리 기둥 벽
+    if(rockSolid(x,z,yc)) return d;                                        // 큰 바위 · 광석(30-props.js)
     if(heightAt(x,z)>yc){ const g=groundSlope(x,z,0.8); return Math.hypot(g[0],g[1])>MAXSLOPE*0.87?d:0; }
   }
   return 0;                                                          // 벽까지의 거리(m) — 없으면 0
@@ -338,7 +412,7 @@ function wallTick(dt){
   const sp=!!keys.jump, tap=sp&&!WALL.sp; WALL.sp=sp;
   const p=PL.pos;
   if(!WALL.on){
-    if(tap&&!PL.swim&&!(invOpen||craftOpen)&&!BUILD.on&&!MOVE.t&&wallAhead()){
+    if(tap&&!(invOpen||craftOpen)&&!BUILD.on&&!MOVE.t&&wallAhead()){   // 헤엄치다가도 매달린다 — 바다에서 곧은 벼랑에 막혀 못 나왔다(2026-11-06 사용자)
       if(PL.stam<5){ toast('매달릴 기력이 없다'); return false; }
       WALL.on=true; WALL.dx=-Math.sin(PL.yaw); WALL.dz=-Math.cos(PL.yaw); PL.vel.set(0,0,0);
       _wO.x=p.x; _wO.y=p.y; _wO.z=p.z; if(wallBack(_wO,WALL.dx,WALL.dz)){ p.x=_wO.x; p.z=_wO.z; }
@@ -364,9 +438,14 @@ function wallTick(dt){
     if(PL.stam>=18){ const u=up>=0?(up||(side?0:1)):-1, l=Math.hypot(u,side)||1; WALL.lu=u/l; WALL.ls=side/l; WALL.lt=0.25; WALL.lc=0.8; PL.stam-=18; footstep(); }
     else if(!WALL._lw||performance.now()-WALL._lw>2000){ WALL._lw=performance.now(); toast('몸을 던질 기력이 없다'); } }
   let ny, nx, nz;
+  /* **손을 번갈아 끌어올린다**(사용자 요청 2026-11-06 '오를 때 덜컥거리는 움직임 · 내려가기는 오르기보다 빠르게') — 오르는 힘은 한 번 당길 때(0.55초)
+     앞쪽에 몰리고(sin² — 평균은 예전 빠르기 그대로) 당길 때마다 눈이 덜컥 들린다(WALL.jk → 아래 카메라). 내려가기는 2.1배 빠르고 고르게(발을 미끄러뜨리며) */
+  const mv=up||side; if(mv){ const cyc=up<0?0.42:0.55; WALL.ph=(WALL.ph||0)+dt/cyc; if(WALL.ph>=1){ WALL.ph-=1; if(up>=0) footstep(); } } else WALL.ph=0;
+  const pull=up<0?1:2.0*Math.pow(Math.sin(Math.PI*(WALL.ph||0)),2);
   if(WALL.lt>0){ WALL.lt-=dt; const v=1.4/0.25;
     ny=p.y+WALL.lu*v*dt; nx=p.x+(-fz)*WALL.ls*v*dt; nz=p.z+fx*WALL.ls*v*dt; }
-  else{ ny=p.y+up*spd*dt; nx=p.x+(-fz)*side*spd*0.8*dt; nz=p.z+fx*side*spd*0.8*dt; }
+  else{ ny=p.y+up*spd*(up<0?2.1:pull)*dt; nx=p.x+(-fz)*side*spd*0.8*(up<0?1:Math.max(0.35,pull))*dt; nz=p.z+fx*side*spd*0.8*(up<0?1:Math.max(0.35,pull))*dt; }
+  WALL.jk=mv&&up>=0&&!(WALL.lt>0)?Math.sin(Math.PI*2*(WALL.ph||0)):0;
   if((up>0||(WALL.lt>0&&WALL.lu>0))&&solidAt(nx,nz,ny+1.95)) ny=p.y;                                         // 머리 위가 막혔다(튀어나온 바위)
   /* 벼랑 위 — 손 높이에 벽이 없고 바로 앞의 바닥이 발보다 높지만 1.8 m 안이면 올라선다 */
   const dw=wallDist(nx,nz,ny,fx,fz,0.2,1.3);
@@ -387,19 +466,31 @@ function wallTick(dt){
   else{ nx=ox; ny=oy; nz=oz; }                                                       // 물러나도 안 되면 움직이지 않는다
   p.set(nx,ny,nz); PL.vel.set(0,0,0); PL.grounded=false; PL.swim=false; PL.crouch=false;
   PL.camY=p.y; PL.eye+=(EYE-PL.eye)*clamp(10*dt,0,1);
-  camera.position.set(p.x,p.y+PL.eye,p.z); camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
-  if((up||side)&&(PL._clT=(PL._clT||0)+dt)>0.55){ PL._clT=0; footstep(); }     // 손발 디디는 소리
+  /* 덜컥 — 당기는 앞쪽에 눈이 6 cm 들렸다 내려앉고 고개가 살짝 끄덕 · 손이 번갈아 가니 몸이 좌우로 조금 기운다 */
+  const jk=WALL.jk||0, roll=jk?0.022*Math.sin(Math.PI*((WALL.ph||0)+(WALL.hand?1:0))):0;
+  if(WALL.ph<0.05&&WALL._ph0>0.9) WALL.hand=!WALL.hand; WALL._ph0=WALL.ph||0;
+  camera.position.set(p.x,p.y+PL.eye+0.06*jk,p.z); camera.rotation.set(PL.pitch-0.018*jk,PL.yaw,roll,'YXZ');
+  if(up<0&&(PL._clT=(PL._clT||0)+dt)>0.42){ PL._clT=0; footstep(); }            // 내려갈 때 발 디디는 소리(오를 때는 당길 때마다 — 위)
+  else if(!up&&side&&(PL._clT=(PL._clT||0)+dt)>0.55){ PL._clT=0; footstep(); }
   return true;
 }
-const NO_KEYS={};
+const NO_KEYS={}, _cvP={f:0,ce:0,open:false,deep:0,d:0};
+/* 사람이 판 10 굴 빈 데에 있나 — PL.cave(그 굴 · 없으면 null) · PL.caveQ(바닥 f · 천장 ce · 열린 데 open · 어둠 deep · 입구 거리 d) ·
+   PL.cvUnder(그리고 발이 땅 밑 1 m 아래 — 땅 위 나무 · 바위 · 보급선 · 겉의 물이 닿지 않는 깊이) */
+function cavePlace(){
+  const p=PL.pos, q=caveHere(p.x,p.z,p.y+0.3);
+  if(q){ PL.cave=q.c; PL.caveQ=_cvP; _cvP.f=q.f; _cvP.ce=q.ce; _cvP.open=q.open; _cvP.deep=q.deep; _cvP.d=q.d; PL.cvUnder=cv10Sfc(p.x,p.z)-1>p.y; }
+  else{ PL.cave=null; PL.caveQ=null; PL.cvUnder=false; }
+}
 function updatePlayer(dt){
   /* 누르는 순간(톡)은 맨 앞에서 센다 — 밧줄 · 나무 · 벼랑이 그 프레임을 가져가 아래로 안 내려와도 '누른 채'는 이어지게.
      안 그러면 벼랑 위로 올라서거나 나무에서 내려선 뒤 누르고 있던 Space · Q 로 곧바로 다시 뛰거나 돌진했다 */
   const jumpTap=!!keys.jump&&!PL._sp0, dashTap=!!keys.dash&&!PL._dq0; PL._sp0=!!keys.jump; PL._dq0=!!keys.dash;
   if(PL.dead) return;                              // 쓰러져 있는 동안에는 아무것도 안 한다
+  cavePlace();                                     // 지형 판 10 굴 속인가(PL.cave · PL.caveQ · PL.cvUnder) — 움직이기 전에
   if(DEV.on){ devKeep(); devFly(dt); return; }                // 개발자 모드 — 날기(위)
   if(underRopeTick(dt)) return;                    // 수직굴 밧줄을 타는 중(96-underworld.js)
-  if(UNDER.ok) PL.under=underIn(PL.pos.x,PL.pos.z,PL.pos.y)&&underQ(PL.pos.x,PL.pos.z).g>0.2;   // 땅속인가 — 몸을 움직이기 전에(불러온 저장 · 순간 이동이 땅 위로 튀지 않게)
+  if(UNDER.ok) PL.under=!PL.cave&&underIn(PL.pos.x,PL.pos.z,PL.pos.y)&&underQ(PL.pos.x,PL.pos.z).g>0.2;   // 땅속인가 — 몸을 움직이기 전에(불러온 저장 · 순간 이동이 땅 위로 튀지 않게)
   if(climbTick(dt)) return;                        // 나무를 오르는 중 — 몸은 줄기에 붙어 있다(97-wildlife.js)
   if(wallTick(dt)) return;                         // 벼랑에 매달려 있다(위) — Space 를 누르고 있어야 한다
   if(BOAT.on){ boatTick(dt); return; }             // 배를 탔다(96-sea.js)
@@ -412,12 +503,16 @@ function updatePlayer(dt){
   const fwd=(K.fwd?1:0)-(K.back?1:0);
   const str=(K.right?1:0)-(K.left?1:0);
   PL.crouch=!!K.crouch&&!PL.swim;
+  if(PL.caveQ&&!PL.swim){                                              // 머리 위가 낮은 굴 속(판 10)에서는 저절로 숙는다 — 낮은 데를 벗어날 때까지 · 가는 쪽 0.5 m 앞이 낮아도(숙여서 지날 수 있으면)
+    if(PL.caveQ.ce-PL.caveQ.f<2.0) PL.crouch=true;                         // (걷기가 서서 지나는 문턱 1.95 보다 조금 넉넉히 — 문턱에서 서고 숙기를 되풀이하지 않게)
+    else if(fwd||str){ const sy=Math.sin(PL.yaw), cy=Math.cos(PL.yaw), ax=-sy*fwd+cy*str, az=-cy*fwd-sy*str, al=Math.hypot(ax,az)||1;
+      for(let k=1;k<=2&&!PL.crouch;k++){ const q=caveHere(PL.pos.x+ax/al*0.25*k,PL.pos.z+az/al*0.25*k,PL.pos.y+0.3); if(q&&q.ce-q.f<2.0) PL.crouch=true; } } }
   PL.run=!!K.run && !PL.crouch && PL.stam>1 && fwd>0 && PL.food>0 && PL.water>0;
 
   const gy=floorAt(p.x,p.z,p.y);
   // 바다는 해수면 0, 하천은 하도별 수면 표고를 쓴다
   /* 물의 영역은 **그려진 수면**이 정한다(riverSurfAt — 20-terrain.js). 하천 판이 그 자리 땅 위에 있을 때만 민물이다 */
-  const WA=PL.under?underWater(p.x,p.z,gy):waterAt(p.x,p.z,gy), inRiver=WA.river;   // 땅속은 못만 물이다(위의 하천·바다를 안 본다)
+  const WA=PL.under?underWater(p.x,p.z,gy):PL.cvUnder?{wl:-1e9,river:false}:waterAt(p.x,p.z,gy), inRiver=WA.river;   // 땅속은 못만 물이다(위의 하천·바다를 안 본다) · 굴 속(판 10)도 겉의 물을 안 본다
   const wl=WA.wl;
   const depth=Math.max(0,wl-gy);          // 수심
   const sub=Math.max(0,wl-p.y);           // 플레이어 발이 잠긴 깊이
@@ -518,7 +613,8 @@ function updatePlayer(dt){
   const fh=PL.grounded?gy:Math.max(gy,p.y);
   if(walkable(p.x+mx,p.z,fh)) p.x+=mx; else PL.vel.x*=0.4;
   if(walkable(p.x,p.z+mz,fh)) p.z+=mz; else PL.vel.z*=0.4;
-  if(!PL.under){                               // 땅속에서는 땅 위의 것(바위·나무·보급선)에 안 걸린다
+  if(PL.cave) caveColPush(p);                                      // 굴 기둥(rec.cols)에서 밀려나 미끄러진다
+  if(!PL.under&&!PL.cvUnder&&!(heightAt(p.x,p.z)>p.y+2.2)){   // 땅속 · 굴 속(판 10) · 머리 위가 땅인 굴 어귀에서는 땅 위의 것(바위·나무·보급선)에 안 걸린다(2026-11-06 '땅 위 몸 막기가 땅속에도')
   resolveProps(p,PRAD);
   rubbleCollide(p,PRAD);                       // 벼랑 밑 큰 돌(무릎 넘는 것 — 30-props.js)
   floraCollide(p,PRAD);                        // 어린 나무·자작·야자의 줄기(95-flora.js)
@@ -526,11 +622,19 @@ function updatePlayer(dt){
   const y0=p.y;
   p.y+=PL.vel.y*dt;
   if(PL.under){ const c=underQ(p.x,p.z).c; if(p.y+PL.eye+0.25>c){ p.y=Math.max(y0,c-PL.eye-0.25); PL.vel.y=Math.min(0,PL.vel.y); } }   // 머리가 천장에 닿는다
+  else if(PL.cave){ const q=caveHere(p.x,p.z,p.y+0.3);    // 지형 판 10 굴 속 — 머리가 천장에 닿는다
+    if(q&&p.y+PL.eye+0.25>q.ce){ p.y=Math.max(y0,q.ce-PL.eye-0.25); PL.vel.y=Math.min(0,PL.vel.y); }
+    if(!PL.cvUnder) shipCollide(p,PRAD,PL.eye+0.15,y0,PL.vel); }
   else shipCollide(p,PRAD,PL.eye+0.15,y0,PL.vel);   // 보급선 몸에 막힌다 · 머리가 밑면에 닿는다(30-props.js)
 
   if(DROP.t>0){ DROP.t-=dt; }
-  let ng=Math.max(floorAt(p.x,p.z,p.y),shipFloor(p.x,p.z,p.y),rubbleFloor(p.x,p.z,p.y));   // 지은 바닥 · 보급선 날개·몸 위 · 낮은 큰 돌 위에 선다
+  let ng=PL.cvUnder?floorAt(p.x,p.z,p.y):Math.max(floorAt(p.x,p.z,p.y),shipFloor(p.x,p.z,p.y),rubbleFloor(p.x,p.z,p.y));   // 지은 바닥 · 보급선 날개·몸 위 · 낮은 큰 돌 위에 선다
   if(DROP.t>0) ng=Math.min(ng, floorAt(p.x,p.z,DROP.y-1.0));   // 뚫고 내려가는 중
+  if(PL.cave&&PL.caveQ&&PL.caveQ.d<4&&DROP.t<=0){                    // 입구 4 m 안 빈 데 가장자리 — 걷는 격자(빈 데 칸만 섞음)는 문턱에서 그려진 바닥보다 0.15 m 낮다 → 해석 바닥과의 가운데로(메시와 거의 같다 · review B)
+    const rc=CV10.built.get(PL.cave); if(rc&&rc.ready){ const sm=cv10Samp(rc,p.x,p.z); if(sm.n>=0.5&&sm.n<0.999){ const gf=sm.f, fo=cv10Field(PL.cave,p.x,p.z);
+      if(fo.g>0.05&&fo.f>gf){ const mid=Math.min(gf+0.25,(gf+fo.f)/2); if(mid>ng&&ng>=gf-0.01) ng=mid; } } } }
+  if((PL.cvUnder||PL.cave)&&ng-oy>(PL.caveQ&&PL.caveQ.d<4?0.85:STEPUP+0.05)){   // 굴 안에서 한 걸음에 바닥이 턱보다 높이 오른다 = 지표로 튀는 것 — 앞 자리로(입구 4 m 안은 문턱 0.8 m 까지 · caveWalk)
+    p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; const q0=cv10Q(ox,oz,oy+0.3); ng=q0?q0.f:floorAt(ox,oz,oy+0.3); }
   if(p.y<=ng){
     if(PL.vel.y<-13 && !PL.swim && depth<0.5){
       PL.stam=clamp(PL.stam-Math.abs(PL.vel.y+13)*4,0,100);
@@ -543,12 +647,18 @@ function updatePlayer(dt){
      옆걸음을 되돌린다 · 오르던 중이면 높이도. 이미 걸린 채면(바위가 새로 생겼다 등) 걸리지 않는 쪽으로 조금씩 밀어낸다 */
   { const e=PL.eye;
     if(eyeHit(p.x,p.y+e,p.z)){
-      if(!eyeHit(ox,p.y+e,oz)){ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; }
+      if(!eyeHit(ox,p.y+e,oz)){
+        if(PL.cave&&!eyeHit(p.x,p.y+e,oz)){ p.z=oz; PL.vel.z=0; }              // 굴 속 — 한쪽 축만 눈이 걸리면 다른 축으로 벽을 따라 미끄러진다(대각선으로 벽에 부딪혀 서 버리지 않게)
+        else if(PL.cave&&!eyeHit(ox,p.y+e,p.z)){ p.x=ox; PL.vel.x=0; }
+        else{ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; } }
       else if(p.y>oy&&!eyeHit(ox,oy+e,oz)){ p.set(ox,oy,oz); PL.vel.set(0,Math.min(0,PL.vel.y),0); }
       else{ let ok=false;                                        // 0.25 m 씩 1.5 m 까지 둘레를 찾아 눈도 몸도 바위 밖인 자리로
         for(let rr=0.25;rr<=1.5&&!ok;rr+=0.25) for(let k=0;k<8&&!ok;k++){ const a=k/8*6.2832, tx=p.x+Math.cos(a)*rr, tz=p.z+Math.sin(a)*rr;
           if(!eyeHit(tx,p.y+e,tz)&&!solidAt(tx,tz,p.y+0.3)){ p.x=tx; p.z=tz; ok=true; } } }
     } }
+  if(PL.cave){                                                         // 굴 속 — 눈 되돌림 뒤에 기둥 겹침과 바닥 아래를 한 번 더 바로잡는다(밀어내기 · 바닥 붙이기는 max)
+    caveColPush(p);
+    if(PL.grounded){ const f2=floorAt(p.x,p.z,p.y+0.3); if(p.y<f2&&f2-p.y<0.3) p.y=f2; } }
 
   /* 배고픔 — 가만히 있어도 줄고, 움직이고 일할수록 빨리 준다.
      굶으면 기력 한도가 내려가고, 바닥나면 달리지 못하고 기력이 도로 빠진다. */
@@ -590,9 +700,9 @@ function updatePlayer(dt){
     if(PL.dist>(PL.run?2.0:2.6)){ PL.dist=0; footstep(); }
   }
   const bob=(PL.grounded&&!PL.swim)?Math.sin(PL.bob*2)*Math.min(hs*0.013,0.055):0;
-  PL.eye+=(((PL.crouch?EYE_C:EYE)+(PL.swim?-0.9:0))-PL.eye)*clamp(10*dt,0,1);
+  PL.eye+=(((PL.crouch?(PL.caveQ?0.88:EYE_C):EYE)+(PL.swim?-0.9:0))-PL.eye)*clamp(10*dt,0,1);
   // 작은 턱을 올라설 때 시점이 톡톡 튀지 않게 세로만 부드럽게 따라간다
-  if(PL.camY===undefined||!PL.grounded||Math.abs(p.y-PL.camY)>1.2) PL.camY=p.y;
+  if(PL.camY===undefined||!PL.grounded||Math.abs(p.y-PL.camY)>1.6) PL.camY=p.y;
   else PL.camY+=(p.y-PL.camY)*clamp(16*dt,0,1);
   camera.position.set(p.x,PL.camY+PL.eye+bob,p.z);
   camera.rotation.set(PL.pitch,PL.yaw,Math.sin(PL.bob)*hs*0.0016,'YXZ');
@@ -600,7 +710,7 @@ function updatePlayer(dt){
   // 수중이면 안개를 진하게 — 물 밖과 확실히 구분되게
   /* **화면이 물속으로 바뀌는 것은 눈이 수면 밑으로 내려갔을 때만**(사용자 요청: 물의 깊이로 정한다) — 눈(카메라)의 높이를
      그 자리의 수면과 견준다. 바다는 지금 그 자리의 물결 높이까지 본다. 눈높이보다 얕은 물(서서 0.3 m · 앉아도 눈 밑)에선 안 바뀐다 */
-  if(!PL.under) eyeWater(camera.position.y, inRiver?wl:(gy<0.3?seaSurfAt(p.x,p.z):-1e9), gy, inRiver);   // 땅속은 바다·하천 밑이 아니다
+  if(!PL.under&&!PL.cvUnder) eyeWater(camera.position.y, inRiver?wl:(gy<0.3?seaSurfAt(p.x,p.z):-1e9), gy, inRiver);   // 땅속은 바다·하천 밑이 아니다
 }
 function eyeWater(head,surf,gy,inRiver){
   if(head<surf-0.04&&surf-gy>0.35){
@@ -811,7 +921,7 @@ STEP[B.MEADOW]=[110,1200,1.1,0.8];   STEP[B.SCRUB] =[110,1400,1.2,0.85];
 STEP[B.BROADLEAF]=[105,1000,0.9,0.9];STEP[B.BAMBOO]=[105,1000,0.9,0.9];STEP[B.CONIFER]=[100,900,0.9,0.9];
 function footstep(){
   if(!A.ctx) return;
-  const c=STEP[PL.under?B.ROCK:sampleAt(PL.pos.x,PL.pos.z).biome]||[110,1200,1.1,0.85];
+  const c=STEP[(PL.under||PL.cvUnder)?B.ROCK:sampleAt(PL.pos.x,PL.pos.z).biome]||[110,1200,1.1,0.85];
   const t=T0(), p=rr(0.88,1.14), wet=PL.wade>0.3?1.5:1;
   ring(c[0]*p,0.075,0.045*c[3]*wet,t,'sine',0.6);          // 발이 닿는 저역 충격
   nz(t,0.10,0.045*c[3]*wet,'bandpass',c[1]*p,c[2]);        // 지면 재질

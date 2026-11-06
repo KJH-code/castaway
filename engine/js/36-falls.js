@@ -27,6 +27,7 @@ function fallsClear(){ for(const m of FALLS.meshes){ scene.remove(m); if(m.geome
 /* 섬 배율을 키운 뒤 — 하천 칸의 수면 차로 폭포 자리를 찾는다 */
 function fallsSites(){
   fallsClear(); if((P.tv|0)<5) return;
+  if(PLAT.on){ plFalls(); return; }                                    // 지형 판 11 — 대지 가장자리의 폭포(14-plateau.js)
   if((P.tv|0)>=7){ fallsCarve(); return; }
   const W=F.wlev, R=F.river, dn=[-1,1,-N,N,-N-1,-N+1,N-1,N+1], cand=[];
   for(let z=2;z<N-2;z++) for(let x=2;x<N-2;x++){ const i=IDX(x,z); if(!R[i]) continue;
@@ -93,7 +94,7 @@ function fallsCarve(){
    반지름만큼 뒤로 물려 박는다. 밑은 소 바닥 밑, 위는 둑 높이까지. 벼랑 바위와 같은 칸 · 같은 재질 · 같은 몸 막힘 */
 function fallsCrags(seed){
   const rnd=mulberry32((seed^0xfa11c)>>>0);
-  for(const f of FALLS.list){ if(!f.res) continue; CRAG.n++;
+  for(const f of FALLS.list){ if(!f.res||f.pl) continue; CRAG.n++;
     const tx=-f.uz, tz=f.ux, rr=Math.max(2.4,Math.min(3.6,f.drop/7)), tone=0.80+0.2*rnd();
     /* 켜 진 판돌 — 넓적한 덩이를 벽돌처럼 엇갈려 쌓는다(줄마다 반 칸 비낀다). 앞면은 aF(땅이 낮은 끝)에 곧게 —
        그 뒤는 비탈(aF~aH)이라 앞 덩이 뒤로 땅이 그 높이보다 낮으면 한 겹 더 채운다(aH 까지 · 다섯 겹까지).
@@ -114,7 +115,7 @@ function fallsCrags(seed){
     for(const s of [-1,1]) for(let k=0;k<3;k++){ const b=s*(f.w*0.6+k*rr*1.4), r=rr*(0.7+0.3*rnd()), a=f.aH+r*0.5;
       coastBlob(rnd,f.px+f.ux*a+tx*b,f.y0+0.2,f.pz+f.uz*a+tz*b,r*1.2,r*0.45,r,1,tone); }
   }
-  const R=FALLS.list.filter(f=>f.res).map(f=>({f,x:f.px+f.ux*f.aF,z:f.pz+f.uz*f.aF,r:f.Wc+3+(f.aH-f.aF)}));
+  const R=FALLS.list.filter(f=>f.res&&!f.pl).map(f=>({f,x:f.px+f.ux*f.aF,z:f.pz+f.uz*f.aF,r:f.Wc+3+(f.aH-f.aF)}));
   if(R.length) PROPS=PROPS.filter(p=>{ if(p.cave) return true;                 // 소품 수십만 — 상자로 먼저 거른다
     for(const q of R){ const dx=p.x-q.x, dz=p.z-q.z; if(dx>q.r||dx<-q.r||dz>q.r||dz<-q.r) continue;
       if(dx*dx+dz*dz<q.r*q.r&&Math.hypot(p.x-q.f.rx,p.z-q.f.rz)>q.f.rR) return false; }
@@ -214,6 +215,7 @@ function fallsBuild(){
   const mat=fallsMat(), veil=fallsMat(true), foam=fallsPoolMat();   // 물살 · 물보라 장막 · 소의 거품(셰이더)
   FALLS.veil=veil;
   for(const f of FALLS.list){
+    if(f.pl){ fallsBuildPl(f,mat,foam); continue; }
     if(f.res){ fallsBuildRes(f,mat,foam); continue; }
     /* 물살 판 — 윗 칸 뒤 반 칸에서 아랫 칸 앞 반 칸까지, 하천 바닥(+0.2 m)을 따라 14 마디 */
     /* 물살 — 마루를 넘으며 앞으로 내뻗었다가(처음 빠르기 √(2g·0.3)) 떨어지며 아래로 휜다(포물선) · 하천 바닥(+0.25 m) 밑으론 안 간다 */
@@ -252,6 +254,19 @@ function fallsBuildRes(f,mat,foam){
   const lx=fx-f.ux*3.0, lz=fz-f.uz*3.0;
   const pool=new THREE.Mesh(new THREE.CircleGeometry(f.w*1.6,32).rotateX(-Math.PI/2),foam); pool.position.set(lx,f.py+0.06,lz); pool.renderOrder=4; scene.add(pool); FALLS.meshes.push(pool);
   f.lx=lx; f.lz=lz;
+}
+/* 대지 폭포의 물(지형 판 11 — 14-plateau.js plFalls) — 강이 벼랑 끝(입술)을 넘으며 앞으로 내뻗었다가 포물선으로 떨어진다.
+   빠르기는 물줄기가 벼랑 면에 안 닿을 만큼(밑에서 벼랑 발치보다 앞) · 위 다섯 줄은 입술 뒤 강물에서 이어진다 */
+function fallsBuildPl(f,mat,foam){
+  const tx=-f.uz, tz=f.ux, lx=f.px+f.ux*f.aH, lz=f.pz+f.uz*f.aH, H=Math.max(2,f.y0-f.py), g=9.8, T=Math.sqrt(2*H/g);
+  const v0=Math.max(2.5,(f.aH-f.aF)/T*1.15), rows=[];
+  for(let k=0;k<=4;k++){ const a=6-6*k/4; rows.push([lx+f.ux*a,f.y0+0.12,lz+f.uz*a,1]); }
+  for(let k=1;k<=18;k++){ const t=T*k/18, s=v0*t; rows.push([lx-f.ux*s,f.y0+0.1-0.5*g*t*t,lz-f.uz*s,1+0.4*k/18]); }
+  fallsSheet(rows,f.w,-f.ux,-f.uz,tx,tz,mat,0.08,0);
+  fallsSheet(rows.slice(10),f.w*1.3,-f.ux,-f.uz,tx,tz,FALLS.veil||mat,0.14,0.45);
+  const dl=f.aH-v0*T, cx=f.px+f.ux*dl, cz=f.pz+f.uz*dl;
+  const pool=new THREE.Mesh(new THREE.CircleGeometry(f.w*1.6,32).rotateX(-Math.PI/2),foam); pool.position.set(cx,f.py+0.06,cz); pool.renderOrder=4; scene.add(pool); FALLS.meshes.push(pool);
+  f.lx=cx; f.lz=cz;
 }
 const _flsM=new THREE.Matrix4(), _flsQ=new THREE.Quaternion(), _flsE=new THREE.Euler(), _flsV=new THREE.Vector3(), _flsS=new THREE.Vector3(1,1,1);
 function updateFalls(dt){
