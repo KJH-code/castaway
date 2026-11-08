@@ -124,6 +124,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `97-mob-rigs.js` · `data-mob-*.js` | 몬스터의 몸(시험장에서 옮김 — 아르크토스 · 다지류 · 가고일 공용 구역) |
 | `97-mobs.js` | 몬스터 `MON` · 둥지 · 그날 명단 · AI · 맞는 공 `mobProxy` · 사체 |
 | `97-sheep.js` | 양 |
+| `97-animals.js` · `data-animal-textures.js` | 들짐승 — 소(사용자 사진 무늬 · 황소 · 칡소 · 얼룩소) · 토끼 · 꿩(조각을 묶은 몸 · 사람 둘레에 무리로 세우고 거둔다 · `MON.ani`) — `docs/notes/mobs.md` |
 | `97-wyvern.js` | 애쉬스케일(`wyvMake`) |
 | `98-dew.js` · `98-bag.js` | 이슬 · 가방 화면 |
 | `98-music.js` | 지형마다 한 곡(열두 곡 — 화성 진행 · 리듬 꼴만 정하고 즉석에서 짓는다) · 악기 표본 빚기(피아노 배음 · 줄 · 실로폰 · 북) · 관악기 합성 · 날씨(맑음 · 비) · 음악 듣기(설정 창 `pJuke`) — `docs/notes/gameplay.md` |
