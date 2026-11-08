@@ -10,7 +10,7 @@ const path = require('path'), os = require('os'), fs = require('fs');
 app.setPath('userData', path.join(os.tmpdir(), 'castaway-itemsmd'));
 app.commandLine.appendSwitch('ignore-gpu-blocklist'); app.commandLine.appendSwitch('mute-audio');   // 시험 창은 소리를 안 낸다(사용자 요청 2026-11-06)
 const ROOT = path.join(__dirname, '..');
-app.whenReady().then(async () => {
+app.whenReady().then(async () => { if (app.dock) app.dock.hide();
   const win = new BrowserWindow({ width: 900, height: 600, show: false, webPreferences: { backgroundThrottling: false } });
   const fail = setTimeout(() => { console.log('items-md: timeout'); app.exit(1); }, 600000);
   try {

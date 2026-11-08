@@ -191,17 +191,27 @@ function genPlateau(seed){
     for(let gz=Math.floor((Lp.z-ext)/CELL+N/2);gz<=Math.ceil((Lp.z+ext)/CELL+N/2);gz++) for(let gx=Math.floor((Lp.x-ext)/CELL+N/2);gx<=Math.ceil((Lp.x+ext)/CELL+N/2);gx++){
       if(gx<1||gz<1||gx>N-2||gz>N-2) continue; const i=gz*N+gx, x=plGx(i), z=plGz(i), dx=x-Lp.x, dz=z-Lp.z, r=Math.hypot(dx,dz), rl=RLa(Math.atan2(dz,dx));
       if(r<rl){ const q=r/rl, fl=PL_LAKE-(2.5+10.5*(1-q*q)); E[i]=Math.min(E[i],fl); }
-      else if(r<rl+16){ const v=PL_LAKE-0.3+(r-rl)*0.18; if(E[i]>v) E[i]=v; } } }
+      else if(r<rl+16+40){ const v=PL_LAKE-0.3+Math.min(r-rl,16)*0.18+Math.max(0,r-rl-16)*0.9; if(E[i]>v) E[i]=v; } } }   // 16 m 뒤로는 가파른 비탈(0.9)로 — 예전엔 거기서 곧은 벽이 서서 칸 모양 톱니가 졌다(2026-11-08 사용자 사진 · 호수 물가)
   /* 호수 가운데 작은 섬(헤엄쳐 가야 한다) */
   { const a=rnd()*6.283, d=RL*(0.18+rnd()*0.25), ix=Lp.x+Math.cos(a)*d, iz=Lp.z+Math.sin(a)*d, ri=10+rnd()*6;
-    for(let gz=Math.floor((iz-ri*1.6)/CELL+N/2);gz<=Math.ceil((iz+ri*1.6)/CELL+N/2);gz++) for(let gx=Math.floor((ix-ri*1.6)/CELL+N/2);gx<=Math.ceil((ix+ri*1.6)/CELL+N/2);gx++){
-      const i=gz*N+gx, r=Math.hypot(plGx(i)-ix,plGz(i)-iz)/ri; if(r>=1.6) continue;
-      const v=r<1?PL_LAKE+0.6+2.6*(1-r*r):PL_LAKE-4*(r-1)/0.6; if(v>E[i]) E[i]=v; }
+    /* 물가는 완만하게(1~2.4 ri 에 걸쳐 5 m) — 예전엔 0.6 ri 에 4 m 를 떨어져 물속 비탈이 칸 모양 톱니로 비쳤다(2026-11-08 사용자 사진 '호수 섬과 물이 만나는 데가 들쭉날쭉') */
+    for(let gz=Math.floor((iz-ri*2.4)/CELL+N/2);gz<=Math.ceil((iz+ri*2.4)/CELL+N/2);gz++) for(let gx=Math.floor((ix-ri*2.4)/CELL+N/2);gx<=Math.ceil((ix+ri*2.4)/CELL+N/2);gx++){
+      const i=gz*N+gx, r=Math.hypot(plGx(i)-ix,plGz(i)-iz)/ri; if(r>=2.4) continue;
+      const v=r<1?PL_LAKE+0.6+2.6*(1-r*r):PL_LAKE+0.6-7.0*smoothstep(1,1.7,r); if(v>E[i]) E[i]=v; }   // 물가는 무르게 넘고(물금 둘레) 물 밑은 곧 깊어진다(얕은 띠가 넓으면 칸 모양이 비쳤다)
     PLAT.islet={x:ix,z:iz,r:ri}; }
   /* 물 — 호수 가운데에서 수면보다 낮은 칸을 이어 채운다(벼랑 밖의 낮은 대지까지 물이 번지지 않게) */
   { const q=[plGi(Lp.x,Lp.z)], seen=new Uint8Array(N*N), Rm=RL*1.4+18; seen[q[0]]=1;
-    while(q.length){ const i=q.pop(); if(E[i]>=PL_LAKE-0.02) continue; R[i]=1; Wl[i]=PL_LAKE;
+    const LM=PLAT.lakeM=new Uint8Array(N*N);                                     // 호수 칸 — 물 판이 수면을 판판하게 그린다(20-terrain.js buildWater)
+    while(q.length){ const i=q.pop(); if(E[i]>=PL_LAKE-0.02) continue; R[i]=1; Wl[i]=PL_LAKE; LM[i]=1;
       for(const o of [-1,1,-N,N]){ const k=i+o; if(k<0||k>=N*N||seen[k]) continue; seen[k]=1; if(Math.hypot(plGx(k)-Lp.x,plGz(k)-Lp.z)<Rm) q.push(k); } } }
+  /* 호수 둘레의 벼랑을 무르게(2026-11-08 사용자 사진 — 호수 물가가 칸 모양 톱니) — 격자(2.5 m)에서 몇 m 씩 뚝 떨어지는 벼랑이 비스듬히 지나면 칸마다 계단이 섰다.
+     호수 칸이 아닌 데서 이웃과 2.5 m 넘게 다른 칸만 3×3 평균으로 두 번 · 물보다 높던 칸은 물 위에 남긴다(새 웅덩이가 안 생기게) */
+  { const LM=PLAT.lakeM, ext=RL*1.6+24, x0=Math.max(1,Math.floor((Lp.x-ext)/CELL+N/2)), x1=Math.min(N-2,Math.ceil((Lp.x+ext)/CELL+N/2)), z0=Math.max(1,Math.floor((Lp.z-ext)/CELL+N/2)), z1=Math.min(N-2,Math.ceil((Lp.z+ext)/CELL+N/2));
+    for(let pass=0;pass<2;pass++){ const T=new Map();
+      for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const i=gz*N+gx; if(LM[i]||Math.hypot(plGx(i)-Lp.x,plGz(i)-Lp.z)>ext) continue;
+        let mx=0, sm=0; for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const v=E[i+dz*N+dx]; sm+=v; mx=Math.max(mx,Math.abs(v-E[i])); }
+        if(mx>2.5){ let v=sm/9; if(E[i]>=PL_LAKE) v=Math.max(v,PL_LAKE+0.05); T.set(i,v); } }
+      for(const [i,v] of T) E[i]=v; } }
   PLAT.list=shelves; PLAT.crown=shelves.length-1;
   /* 뭍 안의 바닷물 웅덩이를 메운다(2026-11-06 사용자 사진 — 모래벌 한가운데 파도 거품이 둘린 바닷물 못): 바다(가장자리에서 이어진 0 m 밑)에 닿지 않는
      0 m 밑 칸은 0.4~0.9 m 로 올린다(낮은 들의 얕은 움푹이 해수면 밑으로 내려가 있었다) */
@@ -511,6 +521,8 @@ function plAfterUnder(seed){
   { const W=new Set(['oak','fir']); let cut=0;
     PROPS=PROPS.filter(p=>{ if(p.cave||p.ug) return true; const i=plGi(p.x,p.z);
       if(F.slope[i]>1.25&&!(ROCKY_BIG[p.k])){ cut++; return false; }
+      if(F.river[i]&&F.wlev[i]>heightAt(p.x,p.z)+0.8){ cut++; return false; }
+      if(underHoleAt(p.x,p.z,heightAt(p.x,p.z),1.0)){ cut++; return false; }   // 굴 입구 구멍 위(땅이 뚫려 떠 보였다 — 2026-11-08 사용자 사진)   // 물속 깊이 선 갈대 · 부싯돌(2026-11-08 사용자 사진 — 호수 바닥 50 m 밑에 갈대가 섰다)
       if(p.top!==undefined){ cut++; return false; }   // 바위섬 꼭대기의 전나무(34-coast.js) — 시스택 모형 속에 묻히거나 바다 위에 떠 보였다(2026-11-06 사용자 '바위 속의 나무 · 떠 있는 것')
       if(W.has(p.k)&&GEO_LF.mask&&GEO_LF.mask[i]&&geoFloor(p.x,p.z)>heightAt(p.x,p.z)+3){ cut++; return false; }
       return true; });
@@ -543,15 +555,15 @@ function plOres(rnd){
   for(const c of rooms){
     /* 광맥 — 방마다 두셋(물 · 석주가 없는 바닥) */
     const veins=[]; for(let t=0;t<30&&veins.length<2+(c.cap>12?1:0);t++){ const a=rnd()*6.283, d=c.R*Math.sqrt(rnd())*0.7, x=c.x+Math.cos(a)*d, z=c.z+Math.sin(a)*d, g=underQ(x,z,true);
-      if(g.g<4||g.w>-1e8) continue; veins.push([x,z]); }
+      if(g.g<4||g.w>-1e8||underWallAt(x,z,2)) continue; veins.push([x,z]); }
     if(!veins.length) continue;
     const put=[];
     for(let n=0;n<c.cap;n++){ const k=kinds[(n+ri)%kinds.length]; let p=Q[k].pop(); if(!p){ for(const k2 of kinds){ if(Q[k2].length){ p=Q[k2].pop(); break; } } } if(!p) break;
       const v=veins[n%veins.length], fp=(PROP_FOOT[p.k]||1)*Math.min(p.s,1.05);
       let bx=v[0], bz=v[1], best=-1e9;
-      for(let t=0;t<16;t++){ const a=rnd()*6.283, r=1.2+rnd()*4.5, x=v[0]+Math.cos(a)*r, z=v[1]+Math.sin(a)*r, g=underQ(x,z,true); if(g.g<3||g.w>-1e8||g.c-g.f<3.2) continue;
+      for(let t=0;t<16;t++){ const a=rnd()*6.283, r=1.2+rnd()*4.5, x=v[0]+Math.cos(a)*r, z=v[1]+Math.sin(a)*r, g=underQ(x,z,true); if(g.g<3||g.w>-1e8||g.c-g.f<3.2||underWallAt(x,z,fp)) continue;
         let m=1e9; for(const o of put){ const d=Math.hypot(o[0]-x,o[1]-z)-(fp+o[2])*0.8; if(d<m) m=d; } if(m>best){ best=m; bx=x; bz=z; } if(m>=0) break; }
-      const g=underQ(bx,bz,true); if(g.g<3) continue;
+      const g=underQ(bx,bz,true); if(g.g<3||underWallAt(bx,bz,fp*0.8)) continue;
       p.x=bx; p.z=bz; p.y=g.f; p.s=Math.min(p.s,1.05); p.cave=1; p.ug=1; p._cy=undefined; put.push([bx,bz,fp]); placed++; }
     ri++; }
   PLAT.oreUG=placed;

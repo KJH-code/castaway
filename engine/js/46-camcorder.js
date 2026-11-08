@@ -303,7 +303,9 @@ function camcBegin(){
   if(!show) return false;
   if(!CAMC.mat) camcInit();
   const cw=renderer.domElement.width, ch=renderer.domElement.height;
-  const h=Math.min(CAMC.lines,ch), w=Math.max(64,Math.min(1600,Math.round(h*cw/ch)));
+  /* 자동 품질이 0.7 밑이면 그림판을 줄인다(0.5~0.7 → 85% · 그 밑 70%) — 숲에선 화소 몫도 프레임에 든다(2026-11-08 FPS) */
+  const qs=typeof QUAL==='undefined'||QUAL.k>=0.7?1:QUAL.k>=0.5?0.85:0.7;
+  const h=Math.round(Math.min(CAMC.lines,ch)*qs), w=Math.max(64,Math.min(1600,Math.round(h*cw/ch)));
   if(!CAMC.rt||CAMC.rt.width!==w||CAMC.rt.height!==h){
     if(CAMC.rt) CAMC.rt.dispose();
     /* 반정밀 실수 그림판 — 볕이 1 을 넘어도 안 잘린다(캠코더 셰이더가 어깨로 눕힌다). 실수 그림판에 못 그리는 장치는 예전 8비트 */

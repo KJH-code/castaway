@@ -1265,6 +1265,16 @@ function eachNearProp(x,z,fn){
 }
 // 시선 앞 2.8 m 안의 채집 가능한 대상을 고른다
 const isNode=k=>!!(HARVEST[k]||MINE[k]||CHOP[k]);
+/* 눈에서 그 물건까지 가는 길이 바위 · 땅 · 굴 벽에 막혔나 — 선을 따라 세 점(⅓ · ⅔ · 닿기 15 cm 앞)을 본다.
+   땅속은 굴 방의 벽(underSolid) · 판 10 굴은 바닥 · 천장(caveHere) · 그 밖은 딛는 겉(굴 상자 안은 cv10BoxSfc) 15 cm 밑이면 막혔다 */
+function sightBlocked(ex,ey,ez,vx,vy,vz,t){
+  const L=Math.sqrt(vx*vx+vy*vy+vz*vz)||1;
+  for(const k of [0.34,0.67,1]){ const d=k<1?t*k:Math.max(0.05,t-0.15), x=ex+vx/L*d, y=ey+vy/L*d, z=ez+vz/L*d, h0=heightAt(x,z);
+    if(PL.under&&y<h0-2.5){ if(underSolid(x,z,y)) return true; continue; }
+    if(CV10.built.size){ const q=caveHere(x,z,y); if(q){ if(y<q.f-0.15||y>q.ce+0.15) return true; continue; } if(cv10BoxSfc(x,z)>y+0.15) return true; continue; }
+    if(h0>y+0.15) return true; }
+  return false;
+}
 function findHarvestTarget(){
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
   /* 손에 든 도구로 할 수 있는 것이 1.2 m 앞선다 — 도끼를 들고 줄기를 보는데 발밑 풀이 더 가까우면 풀을 골라서
@@ -1301,6 +1311,7 @@ function findHarvestTarget(){
       t=ray(p.x,cy,p.z,r,rv);
     }
     if(t<0||t>2.8) return;
+    if(sightBlocked(ex,ey,ez,vx,vy,vz,t)) return;                                   // 벽 · 천장 · 땅 너머(2026-11-08 사용자 사진 — 굴 벽 속 광석이 캐졌다)
     const sc=t-(fit(p)?1.2:0);
     if(sc<bs){ bs=sc; best=p; }
   });

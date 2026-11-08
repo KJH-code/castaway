@@ -660,6 +660,7 @@ function floraLayer(L,which){
       if(floraVal(wx,wz,26,41)>0.50&&u<FLORA_MANGROVE[1]) pick=FLORA_MANGROVE;
     }else{
       if(el<0.4||F.river[ci]||F.slope[ci]>(smOn()?(far?0.45:0.6):0.75)) continue;   // 매끈한 땅 — 벼랑엔 나무 · 덤불이 안 선다
+      if(UNDER.dol.length&&underHoleAt(wx,wz,heightAt(wx,wz),0.8)) continue;             // 굴 입구 구멍 위(96-underworld.js)
       let cm=floraCommAt(wx,wz,bi); if(!cm) continue;
       if(cm.low&&el>cm.low) cm=FLORA_COMM[bi][1];     // 맹그로브는 바닷가 낮은 늪에만 — 산 위 이탄지는 고사리 늪
       if(tr>=((far?cm.dense:cm.nearDense)||1)) break;   // 이 군락은 칸마다 이만큼만 굴린다
@@ -753,6 +754,7 @@ function* floraPlantAllG(){
       if(floraVal(wx,wz,26,41)>0.50&&u<FLORA_MANGROVE[1]) pick=FLORA_MANGROVE;
     }else{
       if(el<0.4||F.river[ci]||F.slope[ci]>(smOn()?0.45:0.75)) continue;   // 매끈한 땅 — 벼랑 · 가파른 비탈엔 나무가 안 선다(2026-11-04 사용자 지적)
+      if(UNDER.dol.length&&underHoleAt(wx,wz,heightAt(wx,wz),0.8)) continue;             // 굴 입구 구멍 위(96-underworld.js)
       let cm=floraCommAt(wx,wz,bi); if(!cm) continue;
       if(cm.low&&el>cm.low) cm=FLORA_COMM[bi][1];     // 맹그로브는 바닷가 낮은 늪에만 — 산 위 이탄지는 고사리 늪
       if(tr>=(cm.dense||1)) break;

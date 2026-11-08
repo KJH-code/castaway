@@ -22,8 +22,28 @@ function geoMeshGeo(name,lod,flat){
   for(let i=0;i<D.nv;i++){ for(let a=0;a<3;a++) P[i*3+a]=D.mn[a]+q[i*3+a]/65535*(D.mx[a]-D.mn[a]);
     const k2=1-0.62*Math.pow(cav[i]/255,1.6); C[i*3]=C[i*3+1]=C[i*3+2]=k2; }          // 갈라진 틈은 짙다(정점 빛깔 — 덩이 빛깔은 재질이 곱한다)
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(P,3)); g.setAttribute('color',new THREE.BufferAttribute(C,3));
+  geoOrient(idx,P,D.nv);
   g.setIndex(new THREE.BufferAttribute(idx,1)); g.computeVertexNormals(); g.computeBoundingSphere();
   return GEO_LF.geo[k]=g;
+}
+/* **세모의 차례를 고른다**(2026-11-08 사용자 사진 — 바위 · 산에 검은 세모 구멍): 모형을 줄이며(QEM) 몇십 개의 세모가 뒤집혀(이웃과 같은 쪽으로 모서리를 돈다)
+   양면 재질에서 뒷면 빛(어둠)으로 칠해졌다. 두 세모가 나눠 쓰는 모서리를 따라 차례를 퍼뜨려(이웃은 그 모서리를 반대로 돈다) 맞추고, 덩이마다 부피가 음수면 통째로 뒤집는다.
+   셋 넘게 나눠 쓰는 모서리(접힌 날개)로는 안 퍼뜨린다 */
+function geoOrient(I,P,nv){
+  const nt=I.length/3, E=new Map(), key=(a,b)=>a<b?a*nv+b:b*nv+a;
+  for(let t=0;t<nt;t++) for(let e=0;e<3;e++){ const a=I[t*3+e], b=I[t*3+(e+1)%3], k=key(a,b), l=E.get(k); if(l) l.push(t); else E.set(k,[t]); }
+  const seen=new Uint8Array(nt), flip=t=>{ const x=I[t*3+1]; I[t*3+1]=I[t*3+2]; I[t*3+2]=x; };
+  const dirOf=(t,a,b)=>{ for(let e=0;e<3;e++){ if(I[t*3+e]===a&&I[t*3+(e+1)%3]===b) return 1; if(I[t*3+e]===b&&I[t*3+(e+1)%3]===a) return -1; } return 0; };
+  let fixed=0;
+  for(let s=0;s<nt;s++){ if(seen[s]) continue; const comp=[s], q=[s]; seen[s]=1;
+    while(q.length){ const t=q.pop();
+      for(let e=0;e<3;e++){ const a=I[t*3+e], b=I[t*3+(e+1)%3], l=E.get(key(a,b)); if(!l||l.length!==2) continue; const u=l[0]===t?l[1]:l[0]; if(seen[u]) continue;
+        if(dirOf(u,a,b)===1){ flip(u); fixed++; } seen[u]=1; comp.push(u); q.push(u); } }
+    /* 덩이의 부피(원점에 대한 사면체 부피의 합) — 음수면 안쪽을 보고 있다 */
+    let vol=0; for(const t of comp){ const A=I[t*3]*3, B=I[t*3+1]*3, C=I[t*3+2]*3;
+      vol+=P[A]*(P[B+1]*P[C+2]-P[B+2]*P[C+1])-P[A+1]*(P[B]*P[C+2]-P[B+2]*P[C])+P[A+2]*(P[B]*P[C+1]-P[B+1]*P[C]); }
+    if(vol<0) for(const t of comp) flip(t); }
+  return fixed;
 }
 /* 모형 윗면의 높이 지도 — 격자 점마다 **그 점을 위에서 덮는 가장 높은 세모의 참 높이**(무게중심 좌표로)를 적는다(2026-11-05).
    예전엔 세모가 걸친 칸마다 그 세모의 가장 높은 꼭짓점을 적어(128² · 두 번 흐림) 땅이 모형보다 몇 m 씩 낮거나 높았고, 그래서 땅을 모형 밑으로
@@ -322,7 +342,7 @@ function geolAt(x,z){ const px=GEO_LF.geol; if(!px) return 3; const gx=Math.min(
 function geoMat(){
   if(GEO_LF.mat) return GEO_LF.mat;
   const m=rockMat('granite',0x8a857c); m.vertexColors=true; m.userData.rkU.uRkGeo.value=1;   // 그 자리 지질도대로
-  m.side=THREE.DoubleSide;   // 줄인 모형의 틈 · 밑면 없는 데로 속이 들여다보이지 않게(뒷면도 바위로 그린다)
+  m.side=THREE.FrontSide;   // 앞면만 — 줄인 모형의 '뒤집혀 접힌 세모' 뒷면이 검은 세모로 보였다(2026-11-08 사용자 사진 · 33-crags.js cragMat). 모형은 틈이 없고 차례를 고른다(geoOrient)
   m.shadowSide=THREE.BackSide;   // 그림자 지도엔 뒷면만(QEM 으로 줄인 모형은 닫혀 있다 — 2026-11-05) · 넓은 평면이 해를 비스듬히 받으면 앞면이 제 그림자를 받아 줄무늬(shadow acne)가 섰다
   const prev=m.onBeforeCompile;
   m.onBeforeCompile=(sh,r)=>{ prev(sh,r); sh.uniforms.uSnow=TERR_U.uSnow;
@@ -446,7 +466,9 @@ function updateGeoMeshes(dt){
   if(!GEO_LF.meshes.length||(_geoT-=dt)>0) return; _geoT=1;
   const cx=camera.position.x, cz=camera.position.z;
   for(const m of GEO_LF.meshes){ const L=m.userData.geo, r=L.S*0.9, d=Math.hypot(L.x-cx,L.z-cz)-r;
-    const want=d<Math.max(220,L.S*1.1)&&GEO_MESH_DATA[L.name].ultra?'ultra':d<Math.max(350,L.S*4)?'near':'far';   // 산 곁(봉우리 높이의 1.1 배 안)은 가장 고운 꼴(봉우리 9만 · 큰 벼랑 5만 세모)
+    /* 2026-11-08 FPS(사용자 요청 — 가장 높은 산에서 렉): 예전엔 봉우리 크기의 1.1 배 안이 9만 세모 · 4 배 안이 1.6만이라 산마루에선 둘레 산 수십 채가 다 고운 꼴이었다
+       (각진 꼴이라 정점이 세모의 세 배 — 산을 감추면 30 → 53 FPS). 이제 0.45 배 · 2.2 배 · 자동 품질(QUAL.k)이 더 당긴다 */
+    const K=Math.max(0.5,QUAL.k), want=d<Math.max(50,L.S*0.12)*K&&GEO_MESH_DATA[L.name].ultra?'ultra':d<Math.max(300,L.S*2.0)*K?'near':'far';   // 9만 세모는 올라서 있거나 바로 곁의 산 하나뿐
     if(m.userData.lod!==want){ m.userData.lod=want; m.geometry=geoMeshGeo(L.name,want,true); } }
   geoDetailUpdate();
 }

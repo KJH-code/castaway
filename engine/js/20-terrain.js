@@ -561,9 +561,9 @@ void patchCalc(vec3 pos){
    ④ 함몰 입구 · 바닷가 굴의 굴길(96-underworld.js — 처음 두 토막) — 굴 천장 밑의 땅 화소를 버려 비탈에 굴 입구가 열린다(높이 vy 를 아는 땅 셰이더만) */
 const TERR_HOLE=(sh,v,patch,vy)=>sh.replace(/void main\s*\(\)\s*\{/,()=>{
   const C10=typeof CV10_COMMON_GLSL!=='undefined';
-  return (C10?CV10_COMMON_GLSL:'')+'uniform vec2 uPC; uniform float uPR; uniform sampler2D uGeoM; uniform vec3 uGeoMG;'+(vy?' uniform vec4 uUdA[20]; uniform vec4 uUdB[20]; uniform int uUdN;':'')+'\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;\n\tif(uGeoMG.z>0.5&&texture2D(uGeoM,('+v+'/uGeoMG.y+uGeoMG.x*0.5+0.5)/uGeoMG.x).r>0.5) discard;'+(C10?'\n\tif(cv10Hole('+v+')) discard;':'')
-  +(vy?'\n\tfor(int k=0;k<20;k++){ if(k>=uUdN) break; vec4 A=uUdA[k], Bq=uUdB[k]; vec2 ab=A.zw-A.xy; float t0=dot('+v+'-A.xy,ab)/max(dot(ab,ab),1e-4); if(Bq.z<0.0&&t0<0.0) continue; float t=clamp(t0,0.0,1.0), w=abs(Bq.z); float d=length(A.xy+ab*t-'+v+');'
-    +' if(d<w){ float u=d/w, f=mix(Bq.x,Bq.y,t), c=f+Bq.w*0.45+Bq.w*0.55*sqrt(max(0.0,1.0-u*u)); if('+vy+'<c+0.4&&'+vy+'>f-2.0) discard; } }':''); });
+  return (C10?CV10_COMMON_GLSL:'')+'uniform vec2 uPC; uniform float uPR; uniform sampler2D uGeoM; uniform vec3 uGeoMG;'+(vy?' uniform vec4 uUdA[20]; uniform vec4 uUdB[20]; uniform vec4 uUdC[20]; uniform int uUdN;':'')+'\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;\n\tif(uGeoMG.z>0.5&&texture2D(uGeoM,('+v+'/uGeoMG.y+uGeoMG.x*0.5+0.5)/uGeoMG.x).r>0.5) discard;'+(C10?'\n\tif(cv10Hole('+v+')) discard;':'')
+  +(vy?'\n\tfor(int k=0;k<20;k++){ if(k>=uUdN) break; vec4 A=uUdA[k], Bq=uUdB[k], Cq=uUdC[k]; vec2 ab=A.zw-A.xy; float t0=dot('+v+'-A.xy,ab)/max(dot(ab,ab),1e-4); if(Bq.z<0.0&&t0<0.0) continue; float t=clamp(t0,0.0,1.0), w=abs(Bq.z)*(1.0+0.18*sin(t*Cq.x/9.0+Cq.y)); float d=length(A.xy+ab*t-'+v+');'
+    +' if(d<w){ float u=d/w, f=mix(Bq.x,Bq.y,t), c=f+Bq.w*0.45+Bq.w*0.55*sqrt(max(0.0,1.0-u*u)), fl=f+(1.0-pow(max(0.0,1.0-pow(u,8.0)),0.25))*Bq.w*0.45; if('+vy+'<c+0.4&&'+vy+'>fl-0.3) discard; } }':''); });   // 바닥은 굴길처럼 가장자리에서 솟는다(underQ) — 예전엔 가운데 바닥 −2 m 까지 뚫어 옆에 틈이 나 섬 속이 보였다(2026-11-08)
 /* 그림자에 찍히는 땅 — 본 땅은 원 안을 버리고, 덧판은 제 정점 식으로 서서 원 밖을 버린다 */
 function terrDepthMat(dist,patch){
   const m=dist?new THREE.MeshDistanceMaterial():new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
@@ -1290,7 +1290,7 @@ const WATER_U={uTime:{value:0}, uSunDir:{value:new THREE.Vector3(0,1,0)},
   uSunCol:{value:new THREE.Color(1,1,1)}, uAmb:{value:new THREE.Color(0.3,0.35,0.4)},
   uSkyZ:{value:new THREE.Color(0.3,0.5,0.9)}, uSkyH:{value:new THREE.Color(0.7,0.8,0.9)},
   uElev:{value:null}, uGrid:{value:new THREE.Vector2(768,2.5)}, uBedB:{value:null},
-  uFP:{value:new THREE.Vector3()}, uFR:{value:0}};   // 사면체 거품이 서는 자리(사람 둘레 uFR m) — 96-foam.js 가 채운다. 0 이면 칠한 거품만
+  uFP:{value:new THREE.Vector3()}, uFR:{value:0}, uLakeY:{value:-1e4}};   // uLakeY — 층층 대지 섬의 호수 수면(그 높이의 물은 호수 빛깔 · buildWater)   // 사면체 거품이 서는 자리(사람 둘레 uFR m) — 96-foam.js 가 채운다. 0 이면 칠한 거품만
 function waterMat(river){
   /* 램버트로 세우는 까닭은 오직 그림자다 — 조명은 아래에서 손수 센다. 램버트여야 그림자 지도
      유니폼이 붙고 `envPatch` 가 구름 그림자(`cloudSh`)를 얹는다. 예전엔 MeshBasic 이라 물에
@@ -1329,6 +1329,7 @@ function waterMat(river){
       vVD=vec3(dot(viewMatrix[0].xyz,mvp),dot(viewMatrix[1].xyz,mvp),dot(viewMatrix[2].xyz,mvp));`);
     sh.fragmentShader=`uniform float uWT;
 uniform float uRiver;
+uniform float uLakeY;
 varying float vEdge;
 uniform vec3 uSunDir;
 uniform vec3 uSunCol;
@@ -1381,6 +1382,7 @@ float plumeAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
          두 판이 만나는 데서 값이 같고, 바다 쪽으로 띠를 따라 옅어진다. 띠 가장자리는 느리게 흐르는 잡음으로 흔든다 */
       float fr=smoothstep(0.2,1.7,vWW.y);
       float rv=uRiver>0.5?fr:0.0;
+      rv*=mix(0.35,1.0,smoothstep(0.4,1.2,abs(vWW.y-uLakeY)));   // 호수(판 11) — 깊은 강물 빛(검은 올리브)이 아니라 푸른 호수 빛 · 잔물결은 조금 더(2026-11-08)
       float sed=plumeAt(vWW.xz)*(uRiver>0.5?1.0-fr:1.0);
       if(sed>0.0) sed*=clamp(0.55+0.9*texture2D(uNz,vWW.xz/(uGrid.y*9.0)+vec2(uWT*0.0012,uWT*0.0007)).r,0.0,1.0);
       float ampK=mix(1.0,0.25,rv);
@@ -1670,10 +1672,15 @@ function buildWater(){
        ② 그 '내린 몫'을 물길을 따라 위로 퍼뜨린다 — 어귀에서 해수면에 닿고 위로 갈수록 서서히 제 수위로 돌아간다
        ③ 그래도 뭍에선 바닥보다 6 cm 는 높게(여울이 마르지 않게). 해수면까지 내려간 칸은 바다다 — 판을 안 깐다.
      섬의 생김새(F.wlev · 자원 배치)는 건드리지 않는다 — 그리는 판과 그 판을 읽는 놀이 쪽(riverSurfAt)만 바뀐다 */
+  /* **층층 대지 섬(판 11)은 바다에 닿는 강어귀에서만 내린다**(2026-11-08 사용자 사진 — 호수 바닥에서 올려다보면 수면이 구멍 났고 · 물목 둘레에 짙은 물 판이
+     비스듬히 떴고 · 강이 뚝 끊겼다). 폭포 마루의 둑은 아래 대지(수십 m 밑)라 그 '내릴 몫'이 물길을 거슬러 호수까지 번져, 수면이 바닥 6 cm 위로 꺼지고
+     칸마다 3 m 넘게 기울어 판이 빠졌다. 폭포 마루는 물살 판(36-falls.js)이 덮는다 · 호수 칸은 늘 호수 수면 그대로 */
+  const plW=typeof PLAT!=='undefined'&&PLAT.on, lakeM=plW?PLAT.lakeM:null, lakeL=plW?PL_LAKE*CELL/GCELL:0;
+  WATER_U.uLakeY.value=plW?lakeL:-1e4;
   const RL=new Float32Array(N*N), DD=new Float32Array(N*N), rcells=[];
   for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=IDX(x,z); if(!F.river[i]) continue;
     let bank=1e9;                                      // 가장 낮은 둑 — 둑이 바다면 해수면(0)으로 친다
-    for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const j=i+dz*N+dx; if(F.river[j]) continue; const b=Math.max(F.elev[j],0); if(b<bank) bank=b; }
+    for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const j=i+dz*N+dx; if(F.river[j]) continue; if(plW&&F.elev[j]>0.3) continue; const b=Math.max(F.elev[j],0); if(b<bank) bank=b; }
     DD[i]=Math.max(0,F.wlev[i]-(bank-0.03)); rcells.push(i); }   // DD — 지을 때의 수위에서 얼마나 내려야 하나
   /* 내린 몫을 물길을 따라 퍼뜨린다 — 한 칸 갈 때마다 10 cm 씩 덜 내린다(어귀의 1 m 내림이 50 m 쯤에 걸쳐 풀린다).
      수위 자체가 아니라 '내린 몫'을 퍼뜨리므로 산골짜기의 가파른 물길은 제 깊이를 그대로 지킨다 */
@@ -1682,8 +1689,10 @@ function buildWater(){
       for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const j=i+dz*N+dx; if(j!==i&&F.river[j]&&DD[j]>hi) hi=DD[j]; }
       if(hi-0.10>DD[i]+1e-4){ DD[i]=hi-0.10; ch++; } }
     if(!ch) break; }
+  if(lakeM) for(const i of rcells) if(lakeM[i]) DD[i]=0;
   for(const i of rcells){
     RL[i]=F.wlev[i]-DD[i];
+    if(lakeM&&lakeM[i]){ RL[i]=lakeL; continue; }
     if(F.elev[i]>0.25) RL[i]=Math.max(RL[i],Math.min(F.wlev[i],F.elev[i]+0.06));   // 뭍의 물길은 바닥이 드러나지 않게
   }
   const wet=j=>F.river[j]&&RL[j]>0.02;                 // 해수면 아래로 내려간 물길 칸은 바다가 덮는다
@@ -1732,7 +1741,9 @@ function buildWater(){
     { const i=IDX(x,z); WSURF.q[i]=1; WSURF.h[i]=a; WSURF.h[i+N]=b; WSURF.h[i+1]=c; WSURF.h[i+N+1]=d; }
     tris.push(X,a,Z, X,b,Z+S, X+S,c,Z,
               X+S,c,Z, X,b,Z+S, X+S,d,Z+S);
-    const ea=inner(x,z), eb=inner(x,z+1), ec=inner(x+1,z), ed=inner(x+1,z+1);
+    let ea=inner(x,z), eb=inner(x,z+1), ec=inner(x+1,z), ed=inner(x+1,z+1);
+    /* 판 11 — 땅 밑에 묻힌 격자점은 녹이지 않는다: 물가는 판과 땅이 만나는 금이 된다(녹이면 칸 모양대로 톱니가 섰다 — 2026-11-08 사용자 사진 · 호수 물가) */
+    if(plW){ const bur=(e,xx,zz,v)=>(v<=F.elev[IDX(xx,zz)]+0.02?Math.max(e,0.5):e); ea=bur(ea,x,z,a); eb=bur(eb,x,z+1,b); ec=bur(ec,x+1,z,c); ed=bur(ed,x+1,z+1,d); }
     edg.push(ea,eb,ec, ec,eb,ed);
     { const i=IDX(x,z); WSURF.e[i]=ea; WSURF.e[i+N]=eb; WSURF.e[i+1]=ec; WSURF.e[i+N+1]=ed; }
   }
