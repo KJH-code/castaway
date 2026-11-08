@@ -246,13 +246,10 @@ function fallsBuildRes(f,mat,foam){
   const pool=new THREE.Mesh(new THREE.CircleGeometry(f.w*1.6,32).rotateX(-Math.PI/2),foam); pool.position.set(lx,f.py+0.06,lz); pool.renderOrder=4; scene.add(pool); FALLS.meshes.push(pool);
   f.lx=lx; f.lz=lz;
 }
-/* 대지 폭포의 물(지형 판 11 — 14-plateau.js plFalls) — 강이 벼랑 끝(입술)을 넘으며 앞으로 내뻗었다가 포물선으로 떨어진다.
-   빠르기는 물줄기가 벼랑 면에 안 닿을 만큼(밑에서 벼랑 발치보다 앞) · 위 다섯 줄은 입술 뒤 강물에서 이어진다 */
-function fallsBuildPl(f,mat,foam){
-  /* **물길을 따라 흘려 본다**(2026-11-08 사용자 사진 — 폭포가 허공에 떠 있다): 예전엔 입술에서 벼랑 발치까지를 한 번의 포물선으로 내뻗게 빠르기를 잡아,
-     비탈이 완만한 데(입술과 발치가 수십 m 떨어진 데)에선 물줄기가 비탈 위 허공으로 길게 날아갔다. 이제 입술에서 초속 3 m 로 내보내 0.5 m 마다
-     떨어뜨리되 땅(+0.3 m) 밑으로는 안 들어간다 — 가파르면 곧게 떨어지고 · 완만하면 비탈을 타고 흐르고 · 다시 턱을 만나면 또 떨어진다 */
-  const tx=-f.uz, tz=f.ux, lx=f.px+f.ux*f.aH, lz=f.pz+f.uz*f.aH, g=9.8, vh=3.0, path=[];
+/* 대지 폭포의 물길 — 입술에서 초속 3 m 로 내보내 0.5 m 마다 떨어뜨리되 땅(+0.3 m) 밑으로는 안 들어간다(아래 fallsBuildPl).
+   벼랑 바위 걷기(14-plateau.js plFallsClear)도 같은 길을 쓴다 — 식을 바꾸면 둘이 같이 바뀐다 */
+function fallsPlPath(f){
+  const lx=f.px+f.ux*f.aH, lz=f.pz+f.uz*f.aH, g=9.8, vh=3.0, path=[];
   let s=0, y=f.y0+0.1, vy=0, gPrev=heightAt(lx,lz);
   path.push([lx,y,lz]);
   for(let st=0;st<1200;st++){ const ds=0.5, dt=ds/vh; s+=ds; const x=lx-f.ux*s, z=lz-f.uz*s, gr=heightAt(x,z)+0.3;
@@ -260,6 +257,15 @@ function fallsBuildPl(f,mat,foam){
     if(y<gr){ vy=Math.min(0,(gr-gPrev)/dt); y=gr; }                      // 땅에 닿았다 — 비탈을 따라 흐른다
     gPrev=gr; path.push([x,y,z]);
     if(y<=f.py+0.15||s>f.aH+60) break; }
+  return path;
+}
+/* 대지 폭포의 물(지형 판 11 — 14-plateau.js plFalls) — 강이 벼랑 끝(입술)을 넘으며 앞으로 내뻗었다가 포물선으로 떨어진다.
+   빠르기는 물줄기가 벼랑 면에 안 닿을 만큼(밑에서 벼랑 발치보다 앞) · 위 다섯 줄은 입술 뒤 강물에서 이어진다 */
+function fallsBuildPl(f,mat,foam){
+  /* **물길을 따라 흘려 본다**(2026-11-08 사용자 사진 — 폭포가 허공에 떠 있다): 예전엔 입술에서 벼랑 발치까지를 한 번의 포물선으로 내뻗게 빠르기를 잡아,
+     비탈이 완만한 데(입술과 발치가 수십 m 떨어진 데)에선 물줄기가 비탈 위 허공으로 길게 날아갔다. 이제 입술에서 초속 3 m 로 내보내 0.5 m 마다
+     떨어뜨리되 땅(+0.3 m) 밑으로는 안 들어간다 — 가파르면 곧게 떨어지고 · 완만하면 비탈을 타고 흐르고 · 다시 턱을 만나면 또 떨어진다 */
+  const tx=-f.uz, tz=f.ux, lx=f.px+f.ux*f.aH, lz=f.pz+f.uz*f.aH, path=fallsPlPath(f);
   /* 줄 — 길이를 따라 고르게 스물넷(위 다섯은 입술 뒤 강물에서 이어진다) */
   const rows=[]; for(let k=0;k<=4;k++){ const a=6-6*k/4; rows.push([lx+f.ux*a,f.y0+0.12,lz+f.uz*a,1]); }
   const cum=[0]; for(let i=1;i<path.length;i++) cum.push(cum[i-1]+Math.hypot(path[i][0]-path[i-1][0],path[i][1]-path[i-1][1],path[i][2]-path[i-1][2]));

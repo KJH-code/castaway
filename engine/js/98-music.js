@@ -117,7 +117,41 @@ function muKS(f0,dur,t60,pos,soft){
   let prev=0;
   for(let i=0;i<n;i++){ let y=i<L?ex[i]:0; const r=i-P; if(r>=0){ const i0=r|0, fr=r-i0, yd=d[i0]*(1-fr)+d[i0+1]*fr; y+=damp*0.5*(yd+prev); prev=yd; } d[i]=y; }
   return d; }
-function muGet(key,mk){ let b=MUS.cache.get(key); if(!b){ b=mk(); MUS.cache.set(key,b); } return b; }
+/* **표본은 일꾼(Web Worker)이 빚는다**(2026-11-09 FPS — 사용자 '렉'): 피아노 한 음이 배음 18 × 줄 셋 × 3초라 한 번에 20~40 ms 씩 놀이 스레드를 멈췄다
+   (숲에서 6초 동안 22 ms 넘은 프레임 108 가운데 84 가 표본 빚기였다 — tools/biome-bench.js). 빚는 함수들을 글로 옮겨 일꾼에 싣고(아래 muWorker),
+   없는 표본은 일꾼에 맡기고 이번엔 null(그 음은 안 친다 — muPlay) · 다 빚으면 소리판(AudioBuffer)으로 담는다. 일꾼이 안 뜨면 예전처럼 바로 빚는다 */
+MUS.wk=null; MUS.pend=new Set();
+function muGet(key,mk){
+  let b=MUS.cache.get(key); if(b) return b;
+  const w=muWorker();
+  if(w){ if(!MUS.pend.has(key)){ MUS.pend.add(key); w.postMessage({key,rate:A.ctx?A.ctx.sampleRate:44100}); } return null; }
+  b=mk(); MUS.cache.set(key,b); return b; }
+function muWorker(){
+  if(MUS.wk!==null) return MUS.wk;
+  try{
+    const src=['"use strict";','const MU_SR='+MU_SR+';','const mtof='+mtof+';','const muR='+muR+';',
+      muBQ,muNorm,muFade,muKS,muPianoBuf,muBassBuf,muGtrBuf,muGtrLBuf,muFretBuf,muXyloBuf,muDrumBuf].map(String).join('\n')+`
+const A={ctx:{sampleRate:44100}};
+function muGet(k,mk){ return mk(); }
+function muBuf(d,sr){ return {d,sr}; }
+function muMake(k){
+  if(k.startsWith('gl')) return muGtrLBuf(+k.slice(2));
+  if(k[0]==='g') return muGtrBuf(+k.slice(1));
+  if(k[0]==='p'){ const a=k.slice(1).split('_'); return muPianoBuf(+a[0],+a[1]); }
+  if(k[0]==='b') return muBassBuf(parseInt(k.slice(1),10),k.endsWith('d'));
+  if(k[0]==='f') return muFretBuf(+k.slice(1));
+  if(k[0]==='x') return muXyloBuf(+k.slice(1));
+  if(k[0]==='d') return muDrumBuf(k.slice(1));
+  return null; }
+onmessage=e=>{ const key=e.data.key; A.ctx.sampleRate=e.data.rate; let r=null; try{ r=muMake(key); }catch(err){}
+  if(r) postMessage({key,d:r.d,sr:r.sr},[r.d.buffer]); else postMessage({key,d:null}); };`;
+    const w=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+    w.onmessage=e=>{ const {key,d,sr}=e.data; MUS.pend.delete(key); if(d&&A.ctx) MUS.cache.set(key,muBuf(d,sr)); };
+    w.onerror=()=>{ MUS.wk=false; MUS.pend.clear(); };   // 일꾼이 죽으면 예전처럼 놀이 스레드에서 빚는다
+    MUS.wk=w;
+  }catch(e){ MUS.wk=false; }
+  return MUS.wk;
+}
 /* 피아노 — 줄 둘 · 배음 18 · 비조화 B · 두 겹 사그라듦 · 망치 자리 · 망치 소리 */
 function muPianoBuf(m,vb){ return muGet('p'+m+'_'+vb,()=>{
   const sr=MU_SR, f0=mtof(m), dur=m<48?3.4:m<62?2.9:m<76?2.3:1.7, n=Math.floor(sr*dur), d=new Float32Array(n);
@@ -244,6 +278,7 @@ function musInit(){
 }
 /* ── 치기 ── */
 function muPlay(buf,t,gain,dest,o){
+  if(!buf) return;                                                     // 표본을 아직 일꾼이 빚는 중 — 이번 음은 건너뛴다(muGet)
   o=o||{}; const C=A.ctx; if(!(t>=C.currentTime)) t=C.currentTime;   // 앞당겨 치는 꾸밈음(글리산도)이 지난 시각으로 가지 않게
   const s=C.createBufferSource(); s.buffer=buf; const g=C.createGain(); g.gain.value=0;
   if(o.rate) s.playbackRate.setValueAtTime(o.rate,t);
@@ -658,7 +693,7 @@ setInterval(()=>{
   MUS.gain.gain.setTargetAtTime(MUS.lvl,now,0.05);
   muLoud(now);
   /* 새 곡은 표본을 다 빚은 뒤에(늦어도 10초) */
-  if(want!==MUS.cur&&MUS.lvl<0.01&&(!want||MUS.warmQ.length<=(MUS.warmX||0)||now>MUS.warmT)){ MUS.cur=want; if(want){ MUS.st={bl:36}; MUS.nextBar=now+0.15; MUS.bar=0; MUS.curWx=MUS.wx; muApply(MU_SONGS[want],now); } }
+  if(want!==MUS.cur&&MUS.lvl<0.01&&(!want||MUS.warmQ.length+MUS.pend.size<=(MUS.warmX||0)||now>MUS.warmT)){ MUS.cur=want; if(want){ MUS.st={bl:36}; MUS.nextBar=now+0.15; MUS.bar=0; MUS.curWx=MUS.wx; muApply(MU_SONGS[want],now); } }
   if(MUS.cur&&MUS.wx!==MUS.curWx){ MUS.curWx=MUS.wx; muApply(MU_SONGS[MUS.cur],now); }
   if(MUS.cur&&MUS.lvl>0.002){ const S=MU_SONGS[MUS.cur];
     if(MUS.nextBar<now) MUS.nextBar=now+0.05;

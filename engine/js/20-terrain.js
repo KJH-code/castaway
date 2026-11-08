@@ -1254,7 +1254,9 @@ let _tlX=NaN, _tlY=NaN, _tlZ=NaN, _tlK=NaN;     // 지난번 카메라 자리·�
 function updateTerrainLOD(){
   updateTerrainPatch();
   if(!TERR_IDX||!chunks.length) return;
-  const K=renderer.domElement.height/(2*Math.tan(camera.fov*Math.PI/360)), cp=camera.position;
+  /* 화면 높이는 **그리는 그림판**의 높이로(2026-11-09 FPS) — 캠코더가 켜져 있으면 장면은 480 줄(자동 품질이 낮으면 336 줄)로 그려지는데
+     창 높이(838)로 1 화소 오차를 재 땅이 2~2.5 배 촘촘했다(본 땅 60만 세모 — 그림자에도 같은 수) */
+  const K=renderH()/(2*Math.tan(camera.fov*Math.PI/360)), cp=camera.position;
   if(cp.x===_tlX&&cp.y===_tlY&&cp.z===_tlZ&&K===_tlK) return;
   _tlX=cp.x; _tlY=cp.y; _tlZ=cp.z; _tlK=K;
   TERR_STAT.fill(0);
@@ -1729,6 +1731,16 @@ function buildWater(){
      무릎 깊이에서도 헤엄·물속 화면이 걸렸다. 판을 짓는 김에 격자점의 수위(h) · 가장자리 몫(e) · 판이 깔린 칸(q)을 적어 두고,
      `riverSurfAt` 이 그 삼각형을 그대로 풀어 **눈에 보이는 수면**을 돌려준다 */
   WSURF.h=new Float32Array(N*N); WSURF.e=new Float32Array(N*N); WSURF.q=new Uint8Array(N*N);
+  /* **폭포 자리의 칸**(판 11 — 2026-11-09 사용자 '폭포 강 버그가 그대로다'): 턱 문턱을 섬 배율만큼(12.75 m) 올리자 여울은 이어졌지만,
+     폭포 입술~소 사이에서 3~12 m 떨어지는 칸이 다시 비스듬한 물 판으로 깔려 벼랑 앞 허공에 짙은 물 판이 섰다(예전 '검은 세모').
+     그 칸은 물살 판(36-falls.js fallsBuildPl)이 덮으므로 폭포 둘레만 예전 문턱(3 m)으로 — 입술에서 소까지의 띠(물살 폭 + 칸 하나) */
+  const fallC=new Uint8Array(N*N);
+  if(plW&&typeof FALLS!=='undefined') for(const f of FALLS.list){ if(!f.pl) continue;
+    const ax=f.x0, az=f.z0, bx=f.x1, bz=f.z1, ab=Math.hypot(bx-ax,bz-az)||1, R=f.w*0.6+CELL*1.2;
+    const gx0=Math.max(0,Math.floor((Math.min(ax,bx)-R)/CELL+N/2)), gx1=Math.min(N-1,Math.ceil((Math.max(ax,bx)+R)/CELL+N/2));
+    const gz0=Math.max(0,Math.floor((Math.min(az,bz)-R)/CELL+N/2)), gz1=Math.min(N-1,Math.ceil((Math.max(az,bz)+R)/CELL+N/2));
+    for(let gz=gz0;gz<=gz1;gz++) for(let gx=gx0;gx<=gx1;gx++){ const px=(gx+0.5-N/2)*CELL, pz=(gz+0.5-N/2)*CELL;
+      const t=clamp(((px-ax)*(bx-ax)+(pz-az)*(bz-az))/(ab*ab),0,1), d=Math.hypot(px-ax-(bx-ax)*t,pz-az-(bz-az)*t); if(d<R) fallC[IDX(gx,gz)]=1; } }
   for(let z=0;z<N-1;z++) for(let x=0;x<N-1;x++){
     if(!nearRiver(x,z)) continue;
     const a=vw2(x,z), b=vw2(x,z+1), c=vw2(x+1,z), d=vw2(x+1,z+1);
@@ -1736,7 +1748,7 @@ function buildWater(){
     /* **턱을 건너는 칸은 안 깐다**(사용자 지적: 폭포 둘레에 검은 세모가 허공에 떠 있다) — 저수지와 소처럼 수위가 크게 다른 물길이
        맞닿으면 격자점 평균이 둘 사이를 비스듬한 판으로 이어, 벼랑 앞 허공에 깊은 물(짙은 빛 · 알파 1)이 섰다. 한 칸에서 3 m 넘게
        떨어지는 것은 폭포다 — 물살 판(36-falls.js)이 덮는다 */
-    if(Math.max(a,b,c,d)-Math.min(a,b,c,d)>(plW?3.0*CELL/GCELL:3.0)) continue;   // 판 11 — 칸이 섬 배율만큼 커서(4.25 배면 10.6 m) 가파른 여울도 3 m 넘게 떨어져 판이 빠지고 계단처럼 끊겼다(2026-11-08 사용자 '폭포가 부서진다')
+    if(Math.max(a,b,c,d)-Math.min(a,b,c,d)>(plW&&!fallC[IDX(x,z)]?3.0*CELL/GCELL:3.0)) continue;   // 판 11 — 칸이 섬 배율만큼 커서(4.25 배면 10.6 m) 가파른 여울도 3 m 넘게 떨어져 판이 빠지고 계단처럼 끊겼다(2026-11-08 사용자 '폭포가 부서진다')
     const X=(x-N/2)*CELL, Z=(z-N/2)*CELL, S=CELL;
     { const i=IDX(x,z); WSURF.q[i]=1; WSURF.h[i]=a; WSURF.h[i+N]=b; WSURF.h[i+1]=c; WSURF.h[i+N+1]=d; }
     tris.push(X,a,Z, X,b,Z+S, X+S,c,Z,

@@ -25,7 +25,7 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: W, height: H, useContentSize: true, show: false, backgroundColor: '#03060a',
     title: 'CASTAWAY — benchmark', webPreferences: { backgroundThrottling: false } });
   const fail = setTimeout(() => { console.log('BENCH {"error":"timeout"}'); app.exit(1); }, (DUR + (process.env.CASTAWAY_PRECOMP==='1'?220:90)) * 1000);
-  win.showInactive();                                  // 보이되 글쇠·마우스는 뺏지 않는다(다른 일을 하는 중에 돌려도 되게)
+  if (app.dock) app.dock.hide(); win.setOpacity(0); win.setIgnoreMouseEvents(true); win.showInactive();   // 보이지 않게 · 포커스를 안 뺏게(사용자 요청 2026-11-08 — 시험 창이 크롬을 가렸다)
   try {
     await win.loadFile(path.join(process.env.CASTAWAY_GAME || path.join(__dirname, '..'), 'island_world.html'));
     const out = await win.webContents.executeJavaScript(`(async()=>{

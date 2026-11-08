@@ -127,6 +127,7 @@ function initThree(){
   detectGpu();
   renderer.shadowMap.enabled=true;
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  shadowSeenLayer();                    // 화면 밖 칸도 그림자는 드리운다(층 — 30-props.js setSeen)
   scene=new THREE.Scene();
   scene.matrixAutoUpdate=false;        // 장면 자체는 안 움직인다(정적 물체 행렬 고정 — freezeStatics)
   scene.background=null;          // 하늘은 skyScene 이 먼저 칠한다(renderFrame)
@@ -389,6 +390,9 @@ function precompTick(now){
   if(P.jobs){ const t0=performance.now(); precompStep(8); const d=performance.now()-t0; if(d>30) P.cool=performance.now()+d*1.2; return; }   // 쉬는 몫 — 예전 세 배는 시작 화면에서 다 짜는 데 1분 반이 걸려 그 사이에 상륙하면 남은 것을 놀이 중에 짰다
   if(now-P.t<4000) return;              // 장면이 바뀌었나 보는 것도 장면을 두 번 훑는다 — 4초마다(예전 1.5초)
   P.t=now; precompPlan();
+  /* 하늘 장면(달 · 해 둘레 빛 · 구름)도 — 미리 짜기는 땅 장면만 보아서, 달이 처음 뜨거나 해 둘레 빛이 처음 그려지는 순간 놀이 중에 짜며 멈칫했다
+     (2026-11-09 — tools/biome-bench.js 의 셰이더 짜기 기록). 하늘 셰이더는 광원 수와 상관없어 한 번 짜 두면 된다(이미 짠 것은 바로 넘어간다) */
+  try{ renderer.compile(skyScene,skyCam); }catch(e){}
 }
 async function generateWorld(){
   if(busy) return; busy=true;

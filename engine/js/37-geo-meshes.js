@@ -435,15 +435,18 @@ function geoDetailBuild(){
 const _dtM=new THREE.Matrix4(), _dtQ=new THREE.Quaternion(), _dtV=new THREE.Vector3(), _dtS=new THREE.Vector3(), _dtY=new THREE.Vector3(0,1,0);
 function geoDetailUpdate(){
   if(!GEO_DT.n||!GEO_DT.meshes.length) return;
-  const cx=camera.position.x, cz=camera.position.z, C=GEO_DT.C, R=220, gx=Math.floor(cx/C), gz=Math.floor(cz/C), rc=Math.ceil(R/C);
-  const key=gx*65536+gz; if(GEO_DT.last&&GEO_DT.last.key===key&&Math.hypot(GEO_DT.last.x-cx,GEO_DT.last.z-cz)<12) return;
-  GEO_DT.last={key,x:cx,z:cz};
+  /* 자동 품질이 반경을 당긴다(2026-11-09 FPS — 산꼭대기에서 이 조각만 116만 세모 · 절반은 그림자에도 · 품질이 바닥이어도 220 m 그대로였다):
+     220 m · 고운 꼴 90 m 를 QUAL.k 배(110 m · 45 m 밑으로는 안 당긴다) */
+  const QK=Math.max(0.5,QUAL.k), R=220*QK, RN=90*QK;
+  const cx=camera.position.x, cz=camera.position.z, C=GEO_DT.C, gx=Math.floor(cx/C), gz=Math.floor(cz/C), rc=Math.ceil(R/C);
+  const key=gx*65536+gz; if(GEO_DT.last&&GEO_DT.last.key===key&&GEO_DT.last.q===QK&&Math.hypot(GEO_DT.last.x-cx,GEO_DT.last.z-cz)<12) return;
+  GEO_DT.last={key,x:cx,z:cz,q:QK};
   const cand=[];
   for(let dz=-rc;dz<=rc;dz++) for(let dx=-rc;dx<=rc;dx++){ const a=GEO_DT.grid.get((gx+dx)*65536+gz+dz); if(!a) continue;
     for(const i of a){ const d=Math.hypot(GEO_DT.x[i]-cx,GEO_DT.z[i]-cz)-GEO_DT.hw[i]; if(d<R) cand.push(d,i); } }
   const ord=[]; for(let j=0;j<cand.length;j+=2) ord.push(j); ord.sort((a,b)=>cand[a]-cand[b]);
   const fill={}; for(const im of GEO_DT.meshes){ im.count=0; fill[im.userData.dt.ki+im.userData.dt.lod]=im; }
-  for(const j of ord){ const i=cand[j+1], lod=cand[j]<90?'far':'tiny', im=fill[GEO_DT.k[i]+lod]; if(!im||im.count>=GEO_DT.cap[lod]) continue;
+  for(const j of ord){ const i=cand[j+1], lod=cand[j]<RN?'far':'tiny', im=fill[GEO_DT.k[i]+lod]; if(!im||im.count>=GEO_DT.cap[lod]) continue;
     _dtV.set(GEO_DT.x[i],GEO_DT.y[i],GEO_DT.z[i]); _dtQ.setFromAxisAngle(_dtY,GEO_DT.yaw[i]); _dtS.setScalar(GEO_DT.s[i]);
     _dtM.compose(_dtV,_dtQ,_dtS); im.setMatrixAt(im.count++,_dtM); }
   for(const im of GEO_DT.meshes){ im.visible=im.count>0; if(im.count) instUp(im); }      // 빈 것은 숨긴다(인스턴스 0 개여도 그리기 · 그림자 호출과 값 넘기기는 든다) · 쓰는 앞부분만 올린다
