@@ -22,7 +22,7 @@
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `sheep/rig.py`(Meshy 양 FBX 에 뼈 21 을 심어 GLB 로 — numpy 만 씀 · 쓰는 법은 파일 머리말) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `items-md-window.js`(**자원과 아이템 문서 `docs/ITEMS.md` 를 표에서 다시 쓴다** — `desktop/node_modules/.bin/electron tools/items-md-window.js` · 손으로 고치지 않는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md` · 시험장에 줄여 넣기 `python3 tools/azure/arena-data.py`) |
+| `tools/` | 검사·묶기 도구(`animals/`(짐승 STL → 뼈 · 털빛 · 몸짓 표 — `docs/notes/mobs.md` '들짐승') · `check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `sheep/rig.py`(Meshy 양 FBX 에 뼈 21 을 심어 GLB 로 — numpy 만 씀 · 쓰는 법은 파일 머리말) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `items-md-window.js`(**자원과 아이템 문서 `docs/ITEMS.md` 를 표에서 다시 쓴다** — `desktop/node_modules/.bin/electron tools/items-md-window.js` · 손으로 고치지 않는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md` · 시험장에 줄여 넣기 `python3 tools/azure/arena-data.py`) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
@@ -72,7 +72,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 로컬 서버로 볼 때는 `python3 tools/serve.py`(캐시를 끈다). 문법만 볼 때는 `node --check engine/js/파일.js`.
 **나뉘기 전 한 파일 판은 커밋 `8ec7546` 까지다.**
 
-`data-ground-textures.js`(1.2 MB · 땅 사진 여덟 장)·`data-rock-textures.js`(1.8 MB · 바위 사진 여섯 장 + 법선 지도 — `rockPhotoInit` 이 `uRk`·`uRkN` 으로 올리고 `rockMat`·`rockDetailPatch`·땅 셰이더의 벼랑 면이 읽는다)·`data-sentinel-mesh.js`(1.3 MB · 투구 모형)·`data-cave-textures.js`(1.3 MB · 동굴 사진 여섯 + 법선 — ambientCG CC0)는 base64 한 줄이다 — **읽지 말 것.**
+`data-ground-textures.js`(1.2 MB · 땅 사진 여덟 장)·`data-rock-textures.js`(1.8 MB · 바위 사진 여섯 장 + 법선 지도 — `rockPhotoInit` 이 `uRk`·`uRkN` 으로 올리고 `rockMat`·`rockDetailPatch`·땅 셰이더의 벼랑 면이 읽는다)·`data-sentinel-mesh.js`(1.3 MB · 투구 모형)는 base64 한 줄이다 — **읽지 말 것.**
 나머지도 큰 파일(`45-sky.js` 2,342줄 · `30-props.js` 1,618줄)은 통째로 읽지 말고 아래 지도에서 줄을 집어 `sed -n '시작,끝p'` 로 뜰 것.
 
 ### 파일 지도 — `engine/js/`(한 줄씩 · 함수 줄 번호와 자세한 것은 `docs/notes/files.md` · `CODEMAP.md`)
@@ -124,7 +124,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `97-mob-rigs.js` · `data-mob-*.js` | 몬스터의 몸(시험장에서 옮김 — 아르크토스 · 다지류 · 가고일 공용 구역) |
 | `97-mobs.js` | 몬스터 `MON` · 둥지 · 그날 명단 · AI · 맞는 공 `mobProxy` · 사체 |
 | `97-sheep.js` | 양 |
-| `97-animals.js` · `data-animal-textures.js` | 들짐승 — 소(사용자 사진 무늬 · 황소 · 칡소 · 얼룩소) · 토끼 · 꿩(조각을 묶은 몸 · 사람 둘레에 무리로 세우고 거둔다 · `MON.ani`) — `docs/notes/mobs.md` |
+| `97-animals.js` · `data-animal-meshes.js` · `data-animal-coats.js` · `data-animal-clips.js` | 들짐승 — 소 · 사슴 · 멧돼지 · 들양 · 토끼 · 꿩 · 개구리 · 도마뱀 · 상어(사용자 STL 에 뼈 · 종 61 의 털빛 · 미리 짠 몸짓 표를 흔든다 · 먹을 뭍짐승은 다 합쳐 7 · `MON.ani`) — 만드는 도구 `tools/animals/` · `docs/notes/mobs.md` · 자료 셋은 base64/표 — 읽지 말 것 |
 | `97-wyvern.js` | 애쉬스케일(`wyvMake`) |
 | `98-dew.js` · `98-bag.js` | 이슬 · 가방 화면 |
 | `98-music.js` | 지형마다 한 곡(열두 곡 — 화성 진행 · 리듬 꼴만 정하고 즉석에서 짓는다) · 악기 표본 빚기(피아노 배음 · 줄 · 실로폰 · 북) · 관악기 합성 · 날씨(맑음 · 비) · 음악 듣기(설정 창 `pJuke`) — `docs/notes/gameplay.md` |
@@ -403,6 +403,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 음악(98-music.js) — 새 곡은 `MU_SONGS` 한 줄 + `MU_ORDER` · 지역은 `musicRegion` · 처음 치기 전에 표본을 미리 빚는다(`muWarm` — 새 악기 표본을 만들면 거기에도) · 시험으로 오프라인 그리기를 할 때는 `MUS.off=true`(일정이 그 소리판을 건드린다 · gameplay).
 - 새 키는 `KB_ACTS` 에 한 줄 · `kbHit`/`keys.행동` 으로 읽는다(`e.code==='KeyX'` 금지) · **한 글쇠는 한 행동만**(사용자 요청 — 범위가 달라도 같은 기본 키 금지 · `kbSet`/`kbLoad` 가 겹친 칸을 비운다) · 조작을 바꾸면 `CONTROLS_GUIDE` ↔ `KB_OV` · 일시정지 글쇠 줄은 `<div><span>글쇠</span><em>설명</em></div>` 꼴(gameplay).
 - 새 제작법은 `tier` 가 `TIER_ORDER` 에 있어야 나무에 선다 · 손에 든 것의 `ITEMS[id].tool` 은 없을 수 있다(`(…tool||{})` · gameplay).
+- 들짐승 — 뼈 이름은 몸 꼴(quad · frog · lizard · bird · fish)마다 같다: rig.py 의 SPEC ↔ clips.mjs 의 표 ↔ 97-animals.js(`ANI_LEGI` · 흔들기 표) · 섬을 다 지은 뒤 만드는 재질은 `envPatch` 를 직접(mobs).
 - 배 모양을 바꾸면 `shipBoxes` 치수도 · 불티 크기는 세계 길이로 · 폭발 불빛은 `BLAST_LIGHT` 하나를 계속 쓴다 · 화면 효과는 캠코더 셰이더 안에서(창 전체 `filter:drop-shadow` 금지 · gameplay).
 - 셰이더 글 — 음수를 그대로 끼우지 말 것(`y-${-0.02}` → 괄호로) · GLSL 예약어 `patch` 를 변수로 쓰지 말 것 · 템플릿 글(백틱) 셰이더의 주석에 백틱 금지.
 - 몹을 본편에 들일 때 — 몸은 `scene` 에 숨겨 두고 돌려 쓴다 · `lightRole:'recv'` · 전역 이름 겹침은 '확인하는 법' 의 이어 붙이기 검사로 · 움직이면 `LIGHT.dirtyAt` · `q.slerpQuaternions(q0,q,w)` 에 자기를 넣지 말 것(r128 · mobs).

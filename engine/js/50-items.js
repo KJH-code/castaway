@@ -100,22 +100,22 @@ const ITEMS={
   fish_cooked:{n:'구운 물고기', kg:0.8, c:0xa8886a, use:'불에 익힌 물고기',
                food:24},
   // 그물 — 물에 들어가 던진다. 거미줄 쪽이 질기고 가볍고 많이 건진다
-  net_cord:   {n:'노끈 그물',   kg:2.6, c:0x9a8a5e, durMax:40,
+  net_cord:   {n:'노끈 그물',   kg:2.6, c:0x9a8a5e, durMax:12,
                use:'물에 들어가 던져 물고기를 건진다',
-               tool:{net:1, catch:[1,2], stam:12}},
-  net_silk:   {n:'거미줄 그물', kg:1.3, c:0xc9c2d4, durMax:90,
+               tool:{net:1, catch:[0,2], stam:12}},
+  net_silk:   {n:'거미줄 그물', kg:1.3, c:0xc9c2d4, durMax:25,
                use:'거미 실로 뜬 그물 — 가볍고 질기고 많이 걸린다',
-               tool:{net:2, catch:[2,4], stam:9}},
+               tool:{net:2, catch:[1,3], stam:9}},
   /* 낚싯대(사용자 요청) — 물에 찌를 던지고 기다리면 물고기 그림자가 다가와 입질한다. 찌가 잠기는 순간 당긴다(좌클릭).
      그물은 잔고기(50 cm 밑)만 건지고, 큰 물고기는 낚싯대로만 잡힌다 — 나무 낚싯대는 대구·장어까지(등급 2), 쇠 바늘이라야 참치·황새치(등급 3) */
   /* 통나무배(사용자 요청) — 들고 물을 보고 좌클릭하면 띄운다. E 로 타고 내린다 · W·S 노 젓기 · A·D 방향(96-sea.js BOAT) */
   canoe:      {n:'통나무배',   kg:16, c:0x7a5a3a, durMax:400,
                use:'물가에서 물을 보고 좌클릭 — 띄운다. 배를 보고 E 로 타고 내린다 · W·S 노 젓기 · A·D 방향 · 배 위에서도 낚시를 한다',
                tool:{boat:1}},
-  rod_wood:   {n:'낚싯대',     kg:0.7, c:0x8a6a44, durMax:60,
+  rod_wood:   {n:'낚싯대',     kg:0.7, c:0x8a6a44, durMax:150,
                use:'물에 찌를 던지고(좌클릭) 기다렸다가 찌가 잠기면 당긴다 — 큰 물고기는 낚싯대로만 잡힌다(나무 바늘은 대구·장어까지)',
                tool:{rod:2, stam:4}},
-  rod_steel:  {n:'쇠바늘 낚싯대', kg:0.9, c:0x6a6f76, durMax:140,
+  rod_steel:  {n:'쇠바늘 낚싯대', kg:0.9, c:0x6a6f76, durMax:350,
                use:'쇠 바늘과 질긴 줄 — 참치·황새치도 끌어올린다',
                tool:{rod:3, stam:4}},
   // 벌레잡이 — 잠자리채로 떠서 유리병에 담는다(97-wildlife.js bugNetSwing). 병에 든 벌레는 그물 미끼가 된다(castNet)

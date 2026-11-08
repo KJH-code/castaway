@@ -610,7 +610,7 @@ function castNet(w,T){
   if(!(PL.depth>0.6)){ toast('무릎 위까지 잠기는 물에 들어가야 한다'); return; }
   if(PL.stam<T.stam){ toast('기력이 없다'); return; }
   PL.stam=clamp(PL.stam-T.stam,0,100);
-  NET.cd=3.5;
+  NET.cd=6;                                           // 그물은 쉬엄쉬엄(사용자 요청 2026-11-08 — 낚싯대가 쓸모 있게)
   ATK.cd=1.2; ATK.swing=0.45; ATK.swingMax=0.45;
   sfx('bind');
   // 같은 자리에서 자꾸 던지면 덜 걸린다

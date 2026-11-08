@@ -116,9 +116,13 @@ CLAUDE.md 에는 새로 생긴 '깨뜨리면 안 되는 것' · '같이 고칠 �
   머리→꼬리 캡슐이다(이번 자세 그대로 · 공용 구역 `bearHitCaps`) |
 | `presets/models/azure_apocalypse.glb` | **애저 아포칼립스**(새 몹 · 11.3 MB · 사용자 요청 '받침 없애고 · 참고 그림처럼 돌 갑옷 + 푸른 에너지로 칠하고 · 삼각형 20만 · 리깅, 떠서 움직이니 다리 뼈는 없이' · 공격은 에너지 빔과 팔 휘두르기 예정). 원본은 같은 폴더의 `Meshy_AI_Azure_Apocalypse_…_fbx.zip`(사용자 업로드 · FBX 140만 세모 · 뼈 없음 · 받침 붙음 — **FBX 는 Y 위라 적혀 있지만 실제는 Z 위**). `tools/azure/run.sh` 가 같은 GLB 를 다시 만든다. 세모 197,205 · 정점 153,441 · 뼈 23(`root` · `pelvis` · `spine` · `chest` · `neck` · `head` · `halo` · 팔 넷 `armR1/R2/L1/L2` → `fore*` → `hand*` → `claw*` — 팔은 몸 오른쪽(−x) 위·아래 · 왼쪽(+x) 위·아래 · 쉼 자세 회전 0) · **+z 를 본다** · 키 2.98 m · 원점은 몸 가운데 발밑. 바탕 + 발광 그림(갈고리 끝 · 몸의 결이 빛난다) · **머리 위 고리는 새로 빚었다**(사용자 참고 그림 — 검은 돌 비늘 조각 17개가 고리로 이어지고 밑·틈에서 푸른빛이 새며 군데군데 끊기고 부스러기가 뜬다 · `tools/azure/halo_new.py` · 원본의 매끈한 원환은 뺐다) — 게임에선 `MeshLambertMaterial({map, emissiveMap, emissive:흰색, skinning:true})`. 사슬은 몸통만 따르고, 따로 움직일 덩이(팔 넷 · 허리 아래 · 머리 · 고리)를 잇던 세모 1,465 장은 뺐다. **시험장 `beta/azure_arena.html` 이 쓴다**(`tools/azure/arena-data.py` 가 줄여 내장 — 본편엔 아직 없다 · r128 GLTFLoader 는 레포에 없다) |
 
-## 들짐승 시험장(`beta/wildlife_arena.html` · 2026-11-08 사용자 요청)
-- **본편 파일을 그대로 읽는다** — `engine/js/97-animals.js`(소 · 토끼 · 꿩) · `97-sheep.js`(양) · `data-animal-textures.js` · `data-mob-sheep.js` · `97-mob-rigs.js`(GLB 읽기). 복사본이 없어 본편을 고치면 여기도 그대로다.
-  본편 전역(장면 · `heightAt` · `mobBiome` · `mobProxy` · `mobRegister` · `mobDamage` · `mobKill` · `mobBlob` · `mobVoice`(매애 · 날갯짓) · `PL` · `MON` · `ITEMS` …)은 첫 `<script>` 의 받침이 흉내 낸다 — 본편에서 새 전역을 부르게 되면 받침에도 더할 것.
-- 땅: 반지름 170 m 울타리 · 완만한 언덕 · 가운데 풀밭 · 북쪽 숲(넓은잎 · 바늘잎) · 남동 덤불. 저절로 세우기는 끄고(`aniSpawner` · `sheepSpawner`) 단추로만 — 보는 쪽 25~40 m 앞에 무리를 세우고, 모자라면 본편 짓는 함수로 더 빚는다.
-- 단추: 소 무리 · 토끼 · 꿩 · 양 무리 · 모두 놀래기 · 모두 거두기 · 느리게 ×0.25 · 밤(`mobNight`) · 상태 글(종류 · 상태 · 체력) · 소리. 조작: 클릭 → 시점 · WASD · Shift 달리기(뛰어가면 놀란다) · 좌클릭 찌르기 30 · 우클릭 쏘기 100.
-- 구동 검사 목록(`tools/pages.mjs`)에 있다 — ready `MON.ani.length > 0 && MON.sheep.length > 0`. 파일로 열 때 상대 경로(`../engine/`)를 읽으니 data: 주소(앱의 브라우저 판)로는 안 뜬다.
+## 들짐승 시험장(`beta/wildlife_arena.html` · 2026-11-08 사용자 요청 · 같은 날 메시 짐승에 맞춰 고침)
+- **본편 파일을 그대로 읽는다** — `engine/js/97-animals.js` · `data-animal-meshes.js` · `data-animal-coats.js` · `data-animal-clips.js` · `97-sheep.js`(털 양) · `data-mob-sheep.js` · `97-mob-rigs.js`(GLB 읽기). 복사본이 없어 본편을 고치면 여기도 바뀐다.
+  본편 전역(장면 · `heightAt` · `mobBiome` · `mobProxy` · `mobRegister` · `mobDamage` · `mobKill` · `mobBlob` · `mobVoice` · `hurtPL` · `PL` · `MON` · `ITEMS` …)은 첫 `<script>` 의 받침이 흉내 낸다.
+- 땅(반지름 200 m) — 바이옴을 고루: 가운데 풀밭 · 북쪽 넓은잎숲(서) / 바늘잎숲(동) · 남동 덤불 · 북동 바위 언덕(바위 · 애추) · 서쪽 대숲 · 남서 늪 → 모래 해변 · 사구 → 호수(깊이 −15 m — 얕은 물 · 깊은 물 · 상어).
+- 단추: 종류마다 세우기(그 종류의 아무 종 — 사는 바이옴에) · 종 · 품종 고르기(갈래 수 표시) · **모든 종 줄 세우기**(종마다 한 마리씩 제 바이옴에) ·
+  **몸짓**(가장 가까운 짐승에게 표 하나 — 걸음 표면 4초 동안 그 빠르기로 앞으로) · 모두 놀래기 · 모두 거두기 · 느리게 · 밤 · 상태 글(종 이름 · 상태/하는 짓 · 체력) · 소리.
+- 사람: 호수에 들어가면 헤엄(`PL.swim` — 상어가 다가와 문다 · 체력이 깎인다 · 0 이면 다시 채운다). 좌클릭 찌르기(30) · 우클릭 쏘기(100) — 뼈로 움직인 꼴은 광선이 못 맞혀 맞는 공(대역)으로 잰다.
+- 앱의 브라우저 판에서 볼 때 — `preview_start castaway`(5173 · 본 체크아웃)를 띄우고 작업 트리면 `http://localhost:5173/.claude/worktrees/<이름>/beta/wildlife_arena.html`.
+  창이 뒤에 있으면 화면 주기가 멈춰 사진이 한 박자 늦다 — 손으로 `renderer.render` 한 뒤 찍을 것.
+- 구동 검사 목록(`tools/pages.mjs`)에 있다 — ready `MON.ani.length > 0 && MON.sheep.length > 0`.

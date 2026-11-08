@@ -189,7 +189,7 @@ function mobKill(m){
   const p=m.kind==='crawl'?m.cr.head:m.pos, key='M'+(++MON.seq);
   const gyL=groundY(p.x,p.z,p.y+0.3);                                          // 굴 속(판 10)이면 굴 바닥
   const pick={kind:'mobloot', x:p.x, y:gyL, z:p.z, ay:gyL+0.6, r:1.4, key, mob:m.kind,
-    lootFn:()=>{ let msg=''; for(const [id,n] of MOB_LOOT[m.kind]){ if(!ITEMS[id]) continue; let g=0; for(let k=0;k<n;k++) if(invAdd(id,1)) g++; if(g) msg+=(msg?' · ':'')+ITEMS[id].n+' +'+g; }
+    lootFn:()=>{ let msg=''; for(const [id,n] of (m.loot||MOB_LOOT[m.kind])){ if(!ITEMS[id]) continue; let g=0; for(let k=0;k<n;k++) if(invAdd(id,1)) g++; if(g) msg+=(msg?' · ':'')+ITEMS[id].n+' +'+g; }
       const i=MON.picks.indexOf(pick); if(i>=0) MON.picks.splice(i,1); return msg||'가방이 가득 찼다'; }};
   MON.picks.push(pick); m.pick=pick;
 }
