@@ -204,12 +204,6 @@ function groundY(x,z,y){
   if(y!==undefined&&CV10.built.size){ const q=cv10Q(x,z,y); if(q) return q.f; }
   return heightAt(x,z);
 }
-/* 기둥(rec.cols — {x,z,r,y0,y1})이 몸(발 y ~ 발+1.75)을 막나 — 이미 안에 있으면 더 파고들 때만 */
-function caveColHit(cols,x,z,y,rad){
-  for(let i=0;i<cols.length;i++){ const o=cols[i]; if(y+1.75<o.y0||y>o.y1) continue;
-    const d1=Math.hypot(x-o.x,z-o.z), R=o.r+rad; if(d1<R&&d1<Math.hypot(PL.pos.x-o.x,PL.pos.z-o.z)) return true; }
-  return false;
-}
 /* 기둥 — 걸음은 거절하지 않고 원 밖(r+몸 반지름)으로 밀어내며 접선 쪽으로 미끄러진다(정면으로 걸어도 돌아서 지난다). 원 안에 머무는 걸음은 없다 */
 function caveColPush(p){
   const q=caveHere(p.x,p.z,p.y); if(!q) return; const cols=q.rec.cols; if(!cols.length) return;

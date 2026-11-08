@@ -21,7 +21,6 @@ const PLAT={on:false, sp:[], spLen:0, lake:null, crown:-1, list:[], id:null, ram
   reach:null, caches:[], looks:[], dens:[], meshes:[], spot:new Set(), seen:new Set(), ws:1, lookT:0};
 const PL_TIER=[0,7,16,27,39], PL_LAKE=52;
 const ROCKY_BIG={granite:1,basalt:1,karst:1,sandstone:1};   // 벼랑에 남겨도 되는 큰 바위(그 밖의 잔것은 가파른 데서 걷는다)
-const plOn=()=>(P.tv|0)>=11;
 /* 바이옴마다 습도(대지 윗면 — 식생 · 자원 · 사바나 풀이 읽는다) */
 const PL_MOIST=(()=>{ const m=new Float32Array(16).fill(0.45); m[B.SCRUB]=0.14; m[B.MEADOW]=0.42; m[B.BROADLEAF]=0.66; m[B.BAMBOO]=0.72;
   m[B.CONIFER]=0.60; m[B.MARSH]=0.90; m[B.SCREE]=0.30; m[B.ROCK]=0.25; return m; })();

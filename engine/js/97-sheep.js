@@ -18,7 +18,7 @@
    · 소리 — 매애(`mobVoice('baa')` — 톱니파 + 떨림 + 모음 꼴 둘).
    ========================================================================== */
 MON.sheep = [];
-const SHEEP_MAX = 10, SHEEP_HP = 60, SHEEP_SHEAR_H = 48;
+const SHEEP_MAX = 5, SHEEP_HP = 60, SHEEP_SHEAR_H = 48;
 let SHEEP_GEO = null, SHEEP_TEX = null, SHEEP_SKIN = null, SHEEP_T = 0, SHEEP_SEQ = 0, SHEEP_HERD = 0;
 
 /* 아이템 · 굽기 · 만들기 */
@@ -96,12 +96,12 @@ function sheepSpawner() {
   }
   if (PL.under || PL.swim) return;
   const live = MON.sheep.filter(s => s.active).length;
-  if (live > SHEEP_MAX - 3 || Math.random() > 0.3) return;
+  if (live > SHEEP_MAX - 3 || Math.random() > 0.2) return;   // 너무 많지 않게(사용자 요청 2026-11-08 — 들짐승과 함께)
   const fx = -Math.sin(PL.yaw), fz = -Math.cos(PL.yaw);
   for (let t = 0; t < 16; t++) {
     const a = Math.random() * 6.283, r = 70 + Math.random() * 80, x = px + Math.cos(a) * r, z = pz + Math.sin(a) * r;
     if (Math.cos(a) * fx + Math.sin(a) * fz > 0.45 || !sheepLand(x, z)) continue;
-    const herd = {id:++SHEEP_HERD, x, z}, n = Math.min(SHEEP_MAX - live, 3 + ((Math.random() * 3) | 0));
+    const herd = {id:++SHEEP_HERD, x, z}, n = Math.min(SHEEP_MAX - live, 2 + ((Math.random() * 3) | 0));
     for (let k = 0; k < n; k++) { const s = MON.sheep.find(q => !q.active); if (!s) break;
       const sx = x + (Math.random() - 0.5) * 9, sz = z + (Math.random() - 0.5) * 9; if (!sheepLand(sx, sz)) continue;
       sheepSpawn(s, sx, sz, herd); }

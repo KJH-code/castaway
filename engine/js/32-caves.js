@@ -136,7 +136,6 @@ void cvEval(vec3 p,vec3 n){
    ② 눈(80-player.js eyeHit)은 바위마다 적어 둔 **방향별 반지름 표**(덩이를 빚은 공의 위도·경도 칸 그대로)로 속인지 본다 —
    벽 · 처마 · 지붕 · 문틀 바위 모두. 표는 8 m 칸에 담는다 */
 const CAVE_SOL=new Map(), CSG=8, csKey=(gx,gz)=>(gx+4096)*8192+(gz+4096);
-const _csV=new THREE.Vector3();
 function caveSolid(x,y,z){
   const a=CAVE_SOL.get(csKey(Math.floor(x/CSG),Math.floor(z/CSG))); if(!a) return false;
   for(const s of a){

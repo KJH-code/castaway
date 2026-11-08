@@ -47,7 +47,6 @@ function seaVal(x,z,cell,salt){
   const top=a+(b-a)*sx, bot=c+(d-c)*sx;
   return top+(bot-top)*sz;
 }
-const reefAt=(x,z)=>seaVal(x,z,34,11)*0.65+seaVal(x,z,13,12)*0.35;
 /* 그 자리가 바다인가 — 수심(m)을 돌려준다. 뭍·하천이면 0 */
 function seaDepthAt(x,z){
   const ix=clamp(Math.round(x/CELL+N/2),1,N-2), iz=clamp(Math.round(z/CELL+N/2),1,N-2), ci=IDX(ix,iz);

@@ -788,7 +788,6 @@ function* floraPlantAllG(){
   } }
   for(const t of U.tl) t.cy=heightAt(t.cx,t.cz)+8;
 }
-function floraPlantAll(){ for(const _ of floraPlantAllG()); }
 /* 줄인 복제 — 기준 벌의 부품(SHP.merge 가 적어 둔 구간)에서 잎 판(정점 12 이하 · 그림 칸 잎~덩굴)은 몫 f 만 남겨 1/√f 배로 키우고,
    줄기·가지는 가장 큰 것의 절반 넘는 것은 다 두고 나머지는 큰 차례로 f 몫만 둔다(참나무 `bakeTreeGeo` 가 긴 가지만 남기는 것과 같다) */
 function floraLodGeo(g,f){
