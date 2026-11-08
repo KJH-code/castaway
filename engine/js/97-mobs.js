@@ -175,8 +175,9 @@ const MOB_LOOT={crawl:[['chitin',8],['spider_silk',2]], garg:[['chitin',6]], mim
 function mobKill(m){
   m.alive=false; m.hp=0; m.deadT=0; mobRegister(m,false);
   if(m.entry) m.entry.dead=true;                                             // 그날 명단에서 빠진다
-  mobVoice(({crawl:'screech',garg:'shriek',bear:'roar',sheep:'baa'})[m.kind]||'wail',m.pos.x,m.pos.y+1,m.pos.z,1.6);
-  toast(({crawl:'다지류를',garg:'가고일을',mim:'스킨워커를',bear:'아르크토스를',sheep:'양을'})[m.kind]+' 쓰러뜨렸다 — 사체를 뒤지면 무엇인가 나온다');
+  if(typeof ANI_DEF!=='undefined'&&ANI_DEF[m.kind]) aniVoice(ANI_DEF[m.kind].voice,m.pos,1.3);   // 들짐승(97-animals.js)
+  else mobVoice(({crawl:'screech',garg:'shriek',bear:'roar',sheep:'baa'})[m.kind]||'wail',m.pos.x,m.pos.y+1,m.pos.z,1.6);
+  toast((({crawl:'다지류를',garg:'가고일을',mim:'스킨워커를',bear:'아르크토스를',sheep:'양을'})[m.kind]||(typeof ANI_DEF!=='undefined'&&ANI_DEF[m.kind]&&ANI_DEF[m.kind].name)||'짐승을')+' 쓰러뜨렸다 — 사체를 뒤지면 무엇인가 나온다');
   const p=m.kind==='crawl'?m.cr.head:m.pos, key='M'+(++MON.seq);
   const gyL=groundY(p.x,p.z,p.y+0.3);                                          // 굴 속(판 10)이면 굴 바닥
   const pick={kind:'mobloot', x:p.x, y:gyL, z:p.z, ay:gyL+0.6, r:1.4, key, mob:m.kind,
@@ -198,7 +199,8 @@ function mobsBuild(){
   if(typeof wyvReset==='function') wyvReset();
   MON.picks.length=0;
   MON.roster.day=-1; MON.roster.list=[];
-  if(typeof sheepBuild==='function') sheepBuild();                          // 양 — 지형 판과 상관없이(97-sheep.js)
+  if(typeof sheepBuild==='function') sheepBuild();
+  if(typeof animalsBuild==='function') animalsBuild();                      // 들짐승 — 소 · 토끼 · 꿩(97-animals.js)                          // 양 — 지형 판과 상관없이(97-sheep.js)
   if((P.tv|0)<8) return;
   for(const l of MON.lairs){ l.cr=null; l.skip=typeof LANDING!=='undefined'&&Math.hypot(l.x-LANDING.x,l.z-LANDING.z)<450; }   // 상륙 자리 곁 굴은 비운다
   if(MON.built) return;
@@ -360,6 +362,7 @@ function mimPose(m,dt){
 function updateMobs(dt){
   MON.frame=(MON.frame|0)+1;
   mobCamera(dt);
+  if(typeof animalsUpdate==='function') animalsUpdate(dt);                  // 들짐승(97-animals.js)
   if(typeof sheepUpdate==='function') sheepUpdate(dt);                      // 양(97-sheep.js) — 몬스터 수 · 지형 판과 상관없이
   if(!MON.built||(P.tv|0)<8) return;
   const k=MON.k;
