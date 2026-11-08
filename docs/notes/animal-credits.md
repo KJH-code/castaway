@@ -43,7 +43,6 @@ share alike – If you remix, transform, or build upon the material, you must di
 | hare/lepus_arcticus/01.jpg | Lepus arcticus | (c) Barry Stewart, some rights reserved (CC BY) | CC BY | https://www.inaturalist.org/observations/385801991 |
 | hare/lepus_arcticus/02.jpg | Lepus arcticus | (c) Drew Avery, some rights reserved (CC BY) | CC BY | https://www.inaturalist.org/observations/3179 |
 | deer/cervus_elaphus/03.jpg | Cervus elaphus | (c) Diego González Dopico, some rights reserved (CC BY) | CC BY | https://www.inaturalist.org/observations/254402724 |
-| deer/dama_dama/02.jpg | Dama dama | (c) Whitney Mattila, some rights reserved (CC BY) | CC BY | https://www.inaturalist.org/observations/36763800 |
 | deer/cervus_nippon/02.jpg | Cervus nippon | (c) Nathan Ruser, some rights reserved (CC BY) | CC BY | https://www.inaturalist.org/observations/191928028 |
 | deer/capreolus_capreolus/01.jpg | Capreolus capreolus | (c) Настя Бухвалова, some rights reserved (CC BY) | CC BY | https://www.inaturalist.org/observations/242105358 |
 | deer/hydropotes_inermis/01.jpg | Hydropotes inermis | (c) William Stephens, some rights reserved (CC BY) | CC BY | https://www.inaturalist.org/observations/100807215 |

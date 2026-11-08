@@ -29,9 +29,13 @@
   <div class="row"><button id="bParade">모든 종 줄 세우기</button></div>
   <div class="row"><label>몸짓(가장 가까운 짐승)</label><select id="selClip"></select><button id="bClip">하기</button></div>
   <div class="row"><button id="bScare">모두 놀래기</button><button id="bClear">모두 거두기</button></div>
+  <div class="row"><button id="bCalm" class="on">놀라지 않게</button><button id="bObs">관찰 모드(O)</button></div>
+  <div class="row"><button id="bBones">뼈 보기</button><button id="bHit">맞는 공 보기</button><button id="bKill">가까운 짐승 쓰러뜨리기</button></div>
   <div class="row"><button id="bSlow">느리게 ×0.25</button><button id="bNight">밤</button><button id="bLab" class="on">상태 글</button><button id="bSnd">소리</button></div>
   <div id="st"></div>
-  <div id="help">화면 클릭 → 시점 · WASD 걷기 · Shift 달리기(뛰어가면 놀란다) · 좌클릭 찌르기(30) · 우클릭 쏘기(100) · Esc 풀기 · 남서쪽 호수에 들어가면 헤엄(상어가 다가온다)</div>
+  <div id="help">화면 클릭 → 시점 · WASD 걷기 · Shift 달리기(뛰어가면 놀란다) · 좌클릭 찌르기(30) · 우클릭 쏘기(100) · Esc 풀기 · 남서쪽 호수에 들어가면 헤엄(상어가 다가온다)<br>
+  <b>관찰 모드(O)</b> — 땅 · 물을 지나 자유롭게 난다: WASD(보는 쪽으로) · Space 위 · C 아래 · Shift 빠르게 · 짐승이 사람을 모른 척 · 물리지 않는다<br>
+  <b>놀라지 않게</b> — 짐승이 다가가도 안 놀란다(끄면 본편처럼 달아난다) · '앞에 세우기'는 보는 쪽 바로 앞에 옆모습으로 세운다(사는 바이옴과 상관없이 — 상어만 앞의 깊은 물에)</div>
 </div>
 <script src="../engine/three.min.js"></script>
 <script>
@@ -136,20 +140,23 @@ aniSpawner=()=>{}; sheepSpawner=()=>{};                    // 저절로 세우�
 let SLOW=false, LAB=true;
 const KIND_KO={cow:'소',deer:'사슴',boar:'멧돼지',wsheep:'들양',hare:'토끼',pheasant:'꿩',frog:'개구리',lizard:'도마뱀',shark:'상어',sheep:'양(털)'};
 const spName=a=>a.kind==='sheep'?'양':(ANIMAL_COATS[ANI_DEF[a.kind].coat].sp[a.sid]||{n:a.kind}).n+(a.key==='stag'?'(수)':a.key==='doe'?'(암)':'');
-/* 종이 사는 바이옴 안의 자리 — 보는 쪽 가까이부터 찾는다(없으면 시험장 어디든) */
-function placeFor(kind,sid,near){
-  const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw), cx=PL.pos.x+fx*(near||25), cz=PL.pos.z+fz*(near||25);
-  for(let r=0;r<ARENA_R*2;r+=6) for(let k=0;k<10;k++){ const a=Math.random()*6.283, x=cx+Math.cos(a)*r, z=cz+Math.sin(a)*r; if(Math.hypot(x,z)>ARENA_R-12) continue;
-    if(kind==='sheep'?mobBiome(x,z)===B.MEADOW:aniLand(kind,x,z,sid)) return {x,z}; }
-  return null;
+/* 보는 쪽 바로 앞 — 몸 크기만큼 떨어져(소 7 m · 토끼 2.5 m · 개구리 1.3 m) · 옆모습. 상어는 앞쪽으로 깊은 물(3.5 m 넘는 데)을 찾는다 */
+function frontSpot(kind,sid){
+  const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw), D=ANI_DEF[kind];
+  const len=kind==='sheep'?1.4:ANIMAL_MESH[D.mesh[D.mesh.length-1]].size[2]*((ANIMAL_COATS[D.coat].sp[sid]||{s:1}).s);
+  const d0=clamp(len*2.2+1.2,1.3,16);
+  if(D&&D.sea){ for(let d=d0;d<160;d+=2){ const x=PL.pos.x+fx*d, z=PL.pos.z+fz*d; if(heightAt(x,z)<-3.5) return {x,z}; } return null; }
+  return {x:PL.pos.x+fx*d0, z:PL.pos.z+fz*d0};
 }
 function spawnKind(kind,sid,quiet){
-  if(kind==='sheep'){ const free=MON.sheep.filter(s=>!s.active), p=placeFor('sheep'); if(!p||!free.length){ toast('양은 다섯 마리까지'); return; } const herd={id:Math.random(),x:p.x,z:p.z};
-    for(const s of free.slice(0,3)) sheepSpawn(s,p.x+(Math.random()-0.5)*6,p.z+(Math.random()-0.5)*6,herd); return; }
+  if(kind==='sheep'){ const s=MON.sheep.find(s=>!s.active), p=frontSpot('sheep'); if(!s){ toast('양은 다섯 마리까지 — 모두 거두기'); return; }
+    sheepSpawn(s,p.x,p.z,{id:Math.random(),x:p.x,z:p.z}); s.yaw=PL.yaw+Math.PI/2; s.rig.rotation.set(0,s.yaw,0); return; }
   const D=ANI_DEF[kind], T=ANIMAL_COATS[D.coat].sp, L=Object.keys(T).filter(s=>s!=='piglet'); sid=sid||L[(Math.random()*L.length)|0];
-  const p=placeFor(kind,sid==='piglet'?undefined:sid,D.sea?15:25); if(!p){ if(!quiet) toast(T[sid].n+' — 사는 바이옴이 시험장에 없다('+T[sid].bio.join(' ')+')'); return null; }
-  const free=MON.ani.filter(a=>a.kind===kind&&!a.active); if(!free.length){ const id=MON.ani.length, key=D.mesh[MON.ani.filter(a=>a.kind===kind).length%D.mesh.length]; MON.ani.push(aniWrap(kind,id,aniRig(key))); }
-  const got=aniGroup(kind,sid,p.x,p.z,1); if(!got.length&&!quiet) toast('세울 자리를 못 찾았다'); return got;
+  const p=frontSpot(kind,sid); if(!p){ if(!quiet) toast(T[sid].n+' — 앞쪽에 깊은 물이 없다(남서쪽 호수를 보고 누를 것)'); return null; }
+  const key=kind!=='deer'?D.mesh[0]:(sid==='hydropotes'||sid==='piglet'||Math.random()<0.5?'doe':'stag');
+  let a=MON.ani.find(b=>b.kind===kind&&!b.active&&b.key===key); if(!a){ a=aniWrap(kind,MON.ani.length,aniRig(key)); MON.ani.push(a); }
+  aniSpawn(a,p.x,p.z,{id:++ANI_HERD,x:p.x,z:p.z},sid); a.yaw=PL.yaw+Math.PI/2; a.rig.rotation.set(0,a.yaw,0);
+  if(!quiet) toast(spName(a)+' — 앞 '+Math.hypot(p.x-PL.pos.x,p.z-PL.pos.z).toFixed(1)+' m'); return [a];
 }
 const kinds=document.getElementById('kinds');
 for(const k of [...ANI_KINDS,'sheep']){ const b=document.createElement('button'); b.textContent=KIND_KO[k]; b.onclick=()=>spawnKind(k); kinds.appendChild(b); }
@@ -173,6 +180,20 @@ document.getElementById('bClip').onclick=()=>{ const a=nearest(); if(!a) return;
   a.state='idle'; a.t=0; a.dur=C.l?8:C.d+0.5; a.speed=0;
   if(['walk','trot','gallop','rotary','charge','stot','hop','run','cruise','burst','swim'].includes(c)){ a.act=null; a.frz=0; a.demo={c,t:4}; } else if(C.l) aniAct(a,c); else aniOnce(a,c);
   toast(spName(a)+' — '+c); };
+let CALM=true, OBS=false, BONES=false, HITS=false; PL.calm=true;
+const tog=(id,f)=>{ const b=document.getElementById(id); b.onclick=()=>{ const v=f(); b.classList.toggle('on',v); }; return b; };
+tog('bCalm',()=>{ CALM=!CALM; PL.calm=CALM||OBS; return CALM; });
+const bObs=tog('bObs',()=>{ OBS=!OBS; PL.calm=CALM||OBS; if(OBS){ PL.pos.y+=1.65; PL.swim=false; } else PL.pos.y=Math.max(heightAt(PL.pos.x,PL.pos.z),-1.4); toast(OBS?'관찰 모드 — 땅 · 물을 지나 난다 · Space 위 · C 아래':'걷기'); return OBS; });
+addEventListener('keydown',e=>{ if(e.code==='KeyO'&&!e.repeat) bObs.onclick(); });
+tog('bBones',()=>(BONES=!BONES)); tog('bHit',()=>(HITS=!HITS));
+document.getElementById('bKill').onclick=()=>{ const a=nearest(); if(a){ mobDamage(a,1e6); } else toast('가까운 짐승이 없다'); };
+const _hsG=new THREE.SphereGeometry(1,12,8), _hsM=new THREE.MeshBasicMaterial({color:0xff4060,wireframe:true,depthTest:false,transparent:true,opacity:0.6});
+/* 뼈 · 맞는 공 그림 — 서 있는 짐승마다 */
+function devDraw(){
+  for(const a of MON.ani){ const on=a.active&&a.rig.visible;
+    if(BONES&&on){ if(!a._sk){ a._sk=new THREE.SkeletonHelper(a.rig); a._sk.material.depthTest=false; a._sk.material.transparent=true; a._sk.renderOrder=9; scene.add(a._sk); } a._sk.visible=true; } else if(a._sk) a._sk.visible=false;
+    if(HITS&&on&&a.alive){ if(!a._hs){ a._hs=new THREE.Mesh(_hsG,_hsM); a._hs.renderOrder=9; scene.add(a._hs); } const pr=a.prox[0]; a._hs.visible=true; a._hs.position.set(pr.x,pr.y+1,pr.z); a._hs.scale.setScalar(pr.r); } else if(a._hs) a._hs.visible=false; }
+}
 document.getElementById('bScare').onclick=()=>{ const f={x:PL.pos.x,z:PL.pos.z}; for(const a of MON.ani) if(a.active&&a.alive) aniPanic(a,f); for(const s of MON.sheep) if(s.active&&s.alive) sheepPanic(s.herd,f); };
 document.getElementById('bClear').onclick=()=>{ for(const a of MON.ani) aniOff(a); for(const s of MON.sheep) sheepOff(s); };
 document.getElementById('bSlow').onclick=e=>{ SLOW=!SLOW; e.target.classList.toggle('on',SLOW); };
@@ -185,7 +206,8 @@ document.getElementById('bSnd').onclick=e=>{ if(!A.ctx){ A.ctx=new (window.Audio
   e.target.classList.toggle('on',A.ctx.state!=='running'?false:true); };
 /* 사람 — 걷기 · 달리기 · 헤엄 · 시점(포인터 잠금) */
 const keys={};
-addEventListener('keydown',e=>{ keys[e.code]=true; }); addEventListener('keyup',e=>{ keys[e.code]=false; });
+addEventListener('keydown',e=>{ keys[e.code]=true; if(e.code==='Space') e.preventDefault(); });   // Space — 관찰 모드에서 위로(눌린 단추가 다시 눌리지 않게)
+document.querySelectorAll('#ui button').forEach(b=>b.addEventListener('click',()=>b.blur())); addEventListener('keyup',e=>{ keys[e.code]=false; });
 cv.addEventListener('click',()=>{ if(document.pointerLockElement!==cv) cv.requestPointerLock(); });
 addEventListener('mousemove',e=>{ if(document.pointerLockElement!==cv) return; PL.yaw-=e.movementX*0.0024; PL.pitch=clamp(PL.pitch-e.movementY*0.0024,-1.4,1.4); });
 cv.addEventListener('contextmenu',e=>e.preventDefault());
@@ -207,13 +229,22 @@ function loop(){
   const now=performance.now(), rdt=Math.min(0.05,(now-last)/1000); last=now; fpsA+=((1/Math.max(rdt,1e-3))-fpsA)*0.05;
   const dt=rdt*(SLOW?0.25:1);
   /* 걷기 · 헤엄(물에 들어가면 머리만 내놓고) */
-  const gh=heightAt(PL.pos.x,PL.pos.z); PL.swim=gh<-1.2;
+  const gh=heightAt(PL.pos.x,PL.pos.z); PL.swim=!OBS&&gh<-1.2;
   const run=keys.ShiftLeft||keys.ShiftRight, sp=PL.swim?(run?2.6:1.6):run?7.5:3.2, fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
   let mx=0, mz=0; if(keys.KeyW){ mx+=fx; mz+=fz; } if(keys.KeyS){ mx-=fx; mz-=fz; } if(keys.KeyA){ mx+=fz; mz-=fx; } if(keys.KeyD){ mx-=fz; mz+=fx; }
   const ml=Math.hypot(mx,mz); if(ml>0){ mx=mx/ml*sp; mz=mz/ml*sp; }
-  PL.vel.set(mx,0,mz); const nx=PL.pos.x+mx*dt, nz=PL.pos.z+mz*dt; if(Math.hypot(nx,nz)<ARENA_R-5){ PL.pos.x=nx; PL.pos.z=nz; }
-  PL.pos.y=PL.swim?-1.4:Math.max(gh,-1.4);
-  camera.position.set(PL.pos.x,PL.pos.y+1.65,PL.pos.z); camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
+  if(OBS){                                                          // 관찰 — 보는 쪽으로 난다(땅 · 물 · 울타리를 지난다)
+    const v=(run?42:12)*rdt, cp=Math.cos(PL.pitch), dx=-Math.sin(PL.yaw)*cp, dy=Math.sin(PL.pitch), dz=-Math.cos(PL.yaw)*cp, sx=Math.cos(PL.yaw), sz=-Math.sin(PL.yaw);
+    let ax=0, ay=0, az=0; if(keys.KeyW){ ax+=dx; ay+=dy; az+=dz; } if(keys.KeyS){ ax-=dx; ay-=dy; az-=dz; } if(keys.KeyD){ ax+=sx; az+=sz; } if(keys.KeyA){ ax-=sx; az-=sz; }
+    if(keys.Space) ay+=1; if(keys.KeyC||keys.ControlLeft) ay-=1;
+    const al=Math.hypot(ax,ay,az)||1; if(al>0.01&&(ax||ay||az)){ PL.pos.x+=ax/al*v; PL.pos.y+=ay/al*v; PL.pos.z+=az/al*v; }
+    PL.vel.set(0,0,0); camera.position.copy(PL.pos);
+  } else {
+    PL.vel.set(mx,0,mz); const nx=PL.pos.x+mx*dt, nz=PL.pos.z+mz*dt; if(Math.hypot(nx,nz)<ARENA_R-5){ PL.pos.x=nx; PL.pos.z=nz; }
+    PL.pos.y=PL.swim?-1.4:Math.max(gh,-1.4);
+    camera.position.set(PL.pos.x,PL.pos.y+1.65,PL.pos.z);
+  }
+  camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
   MON.frame++; gameHours+=dt/60;
   /* 몸짓 시험 — 걸음 표를 고르면 그 빠르기로 앞으로 4초 */
   for(const a of MON.ani) if(a.demo&&a.active&&a.alive){ const D=ANI_DEF[a.kind], v={walk:D.v.walk,trot:D.v.trot,hop:1.0,cruise:D.v.walk,swim:0.5}[a.demo.c]||D.v.run;
@@ -221,7 +252,7 @@ function loop(){
     if(a.demo.c==='stot') a.stot=0.5; if(a.demo.c==='charge') a.charge=true;
     a.demoV=v;                                                       // 이 짐승의 걸음 빠르기만(97-animals.js 'walk' 가 읽는다 · 걸음 표는 빠르기로 골라진다)
     if(a.demo.t<=0){ a.demo=null; a.demoV=0; a.charge=false; a.state='idle'; } }
-  animalsUpdate(dt); sheepUpdate(dt);
+  animalsUpdate(dt); sheepUpdate(dt); devDraw();
   renderer.render(scene,camera);
   /* 상태 글 */
   const act=[...MON.ani,...MON.sheep].filter(a=>a.active);
@@ -231,11 +262,12 @@ function loop(){
     L.innerHTML=h; }
   const cnt=k=>act.filter(a=>a.kind===k&&a.alive).length;
   document.getElementById('st').textContent=[...ANI_KINDS,'sheep'].map(k=>KIND_KO[k]+' '+cnt(k)).join(' · ')+'\n'
-    +'FPS '+Math.round(fpsA)+(SLOW?' · 느리게':'')+(NIGHT?' · 밤':'')+'\n사람 '+PL.pos.x.toFixed(0)+', '+PL.pos.z.toFixed(0)+' · '+(['심해','연안','해변','사구','늪','풀밭','넓은잎숲','바늘잎숲','덤불','바위','애추','강','분기공','대숲'][mobBiome(PL.pos.x,PL.pos.z)])+(PL.swim?' · 헤엄':run?' · 달림':'')+' · 체력 '+Math.round(PL.hp);
+    +'FPS '+Math.round(fpsA)+(SLOW?' · 느리게':'')+(NIGHT?' · 밤':'')+'\n사람 '+PL.pos.x.toFixed(0)+', '+PL.pos.z.toFixed(0)+' · '+(['심해','연안','해변','사구','늪','풀밭','넓은잎숲','바늘잎숲','덤불','바위','애추','강','분기공','대숲'][mobBiome(PL.pos.x,PL.pos.z)])+(OBS?' · 관찰':PL.swim?' · 헤엄':run?' · 달림':'')+(PL.calm?' · 안 놀람':'')+' · 체력 '+Math.round(PL.hp);
 }
 loop();
 /* 처음엔 몇 무리 */
-(function first(){ if(!MON.ani.length){ setTimeout(first,200); return; } PL.yaw=0; spawnKind('cow','holstein',true); spawnKind('cow','hereford',true); PL.yaw=0.9; spawnKind('hare','europaeus',true);
-  PL.yaw=-0.9; spawnKind('pheasant','colchicus_m',true); spawnKind('deer','dama',true); PL.yaw=2.6; spawnKind('sheep'); spawnKind('boar','scrofa',true); PL.yaw=0; })();
+(function first(){ if(!MON.ani.length){ setTimeout(first,200); return; }      // 보는 쪽으로 부채꼴
+  const L=[['cow','holstein',-0.55],['deer','dama',-0.25],['pheasant','colchicus_m',-0.05],['hare','europaeus',0.12],['boar','scrofa',0.32],['cow','hereford',0.6],['sheep',null,0.9]];
+  for(const [k,sid,y] of L){ PL.yaw=y; spawnKind(k,sid,true); } PL.yaw=0; })();
 </script>
 </body></html>
