@@ -172,7 +172,7 @@ const phase=(t,p)=>new Promise(r=>{
   requestAnimationFrame(()=>setTimeout(go,0));
   setTimeout(go,150);
 });
-let busy=false;
+let busy=false, WORLD_N=0;          // WORLD_N — 지은 섬 수(처음 불러오기가 섬을 짓기 전에 틀어졌는지 보려고 · 92-save.js bootWorld)
 /* **숨 돌리기** — 섬을 짓는 긴 일 사이사이에 부른다. 앞서 숨을 돌린 뒤 `BREATHE_MS` 넘게 일했으면 한 프레임 쉬어 여는 화면(올라가는 글 ·
    치지직)이 그려지게 한다(사용자 지적 — 로딩 중에 조작 설명과 화면 효과가 멈춰 보였다: 배율 6 섬 27초 동안 화면이 11번 그려졌고 한 번은 11.6초 멎었다).
    쉬는 동안 놀이 루프는 busy 라 아무것도 안 한다. 난수를 안 뽑으므로 같은 시드는 같은 섬이다.
@@ -360,6 +360,24 @@ function precompStep(budget){
    **소프트웨어 렌더(GPU_SOFT)에선 안 한다** — 스위프트셰이더는 셰이더 하나에 수 초(파이프라인을 CPU 코드로 짠다)라
    127개를 짜는 동안 시작 화면 뒤에서 6분을 붙잡았다(헤드리스 시험이 다 느려진다). 시험에서 켜려면 `PRECOMP.force=true` */
 const PRECOMP_MAX=400;          // 셰이더가 이만큼 쌓이면 더 미리 짜지 않는다 — 불을 켠 채 자주 멈추면 조합이 늘어난다
+/* **바위 재질은 섬을 지을 때 짠다**(2026-11-08 사용자 '빨리 다니면 렉') — 바위 칸은 가까이 가야 생겨, 상륙 자리에 없던 바위 갈래(rock-u1 · u2 · u3 · u7 …)가
+   날아가는 동안 처음 보일 때마다 셰이더를 짜며 한 번에 150~200 ms 씩 멈췄다(시작 화면에서 미리 짜기 — precompTick — 는 상륙을 빨리 누르면 못 돌았다).
+   지금 광원 그대로 바위 재질마다 보이지 않는 대역 하나를 장면에 걸어 renderer.compile 로 짠다(이미 짠 재질은 건너뛴다) */
+function precompRocks(){
+  if(GPU_SOFT&&!PRECOMP.force) return 0;
+  if(typeof ROCK_MAT==='undefined'||!ROCK_KINDS) return 0;
+  const P=PRECOMP, n0=renderer.info.programs.length, z9=()=>new Float32Array(9);
+  if(!P.gr){ P.gr=new THREE.BufferGeometry(); P.gr.setAttribute('position',new THREE.Float32BufferAttribute(z9(),3)); P.gr.setAttribute('normal',new THREE.Float32BufferAttribute(z9(),3)); P.gr.setAttribute('aMelt',new THREE.Float32BufferAttribute(new Float32Array(3),1)); }
+  if(!P.gc){ P.gc=new THREE.BufferGeometry(); P.gc.setAttribute('position',new THREE.Float32BufferAttribute(z9(),3)); P.gc.setAttribute('normal',new THREE.Float32BufferAttribute(z9(),3));
+    P.gc.setAttribute('color',new THREE.Float32BufferAttribute(z9(),3)); P.gc.setAttribute('aMelt',new THREE.Float32BufferAttribute(new Float32Array(3),1)); }
+  const G=new THREE.Group(); G.visible=false;
+  const add=(m,g)=>{ envPatch(m); const o=new THREE.Mesh(g,m); o.frustumCulled=false; G.add(o); };
+  for(const R of RESOURCES){ if(!ROCK_KINDS[R.k]) continue; if(!ROCK_MAT[R.k]) ROCK_MAT[R.k]=rockMat(R.k,R.c); add(ROCK_MAT[R.k],P.gr);
+    if(typeof PLAT!=='undefined'&&PLAT.on&&CAVE_ORE.indexOf(R.k)>=0){ const k2=R.k+'|ug'; if(!ROCK_MAT[k2]){ const m=rockMat(R.k,R.c); m.userData.melt=0; m.userData.meltAttr=false; ROCK_MAT[k2]=m; } add(ROCK_MAT[k2],P.gr); } }
+  if(typeof cragMat==='function') for(const m of [cragMat(),cragMatFar()]) add(m,P.gc);
+  scene.add(G); try{ renderer.compile(scene,camera); }catch(e){ console.warn('[바위 셰이더]',e); } scene.remove(G);
+  return renderer.info.programs.length-n0;
+}
 function precompTick(now){
   const P=PRECOMP;
   if(GPU_SOFT&&!P.force) return;
@@ -474,6 +492,7 @@ async function generateWorld(){
                                     if(typeof CTREE!=='undefined') ctreeHide(true);
                                     if(typeof GATHER!=='undefined'){ GATHER.p=null; GATHER.t=0; GATHER.on=false; }
                                     CREATURES.length=0; ATK.cd=0; ATK.swing=0; if(typeof boatsClear==='function') boatsClear();
+                                    await phase('셰이더 준비',99); PRECOMP.rocks=precompRocks();   // 바위 재질(위 precompRocks — 날아가다 처음 보는 바위에서 멈추지 않게)
                                     mobsBuild();                                                  // 몬스터 — 몸을 한 번 빚고(섬이 바뀌면 거두기만) · 세우는 것은 updateMobs(97-mobs.js)
 
   document.getElementById('iSeed').textContent=P.seed;
@@ -483,7 +502,8 @@ async function generateWorld(){
   document.getElementById('bStart').style.display='';
   document.getElementById('bStart').textContent='착륙';
   if(typeof titleAfterGen==='function') titleAfterGen();     // 처음이면 간판과 '시작' · 다시 만든 섬이면 곧장 '착륙' 단추(91-title.js)
-  offerLoadOnStart();                  // 저장된 것이 있으면 상륙 전에 한 번 물어본다
+  WORLD_N++;
+  offerLoadOnStart();                  // (처음엔 bootWorld 가 섬을 짓기 전에 물었다 — askedOnce 라 여기선 안 묻는다)
   }catch(e){
     showErr('생성',e);
     ovLoad.textContent='생성 실패 — 위 오류를 확인하세요';

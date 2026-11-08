@@ -241,6 +241,33 @@ const wlerp=(a,b,t)=>a+(b-a)*t;
 const wease=t=>t*t*(3-2*t);
 const wIn=t=>t*t*t;
 const WPOSE={rx:0,ry:0,rz:0,px:0,py:0,pz:0};
+/* **도끼 자국**(사용자 요청 2026-11-08 '나무에 패인 자국') — 도끼가 줄기에 닿을 때마다 사람 쪽 줄기 겉, 가슴 높이에 V 자로 팬 흰 속살 자국을 남긴다.
+   한 그루에 다섯까지(같은 자리를 치면 깊어진다) · 자국은 모두 72 개까지 · 그루가 넘어가거나 80 m 넘게 멀어지면 지운다 */
+const DENT={im:null, list:[], max:72};
+function chopDent(p){
+  if(!p||p.felled||!scene) return;
+  if(!DENT.im){
+    const a=new THREE.BoxGeometry(0.2,0.012,0.09), b=a.clone(); a.rotateX(0.55); a.translate(0,0.035,0); b.rotateX(-0.55); b.translate(0,-0.035,0);
+    const g=new THREE.BufferGeometry(), A=a.toNonIndexed(), Bg=b.toNonIndexed();
+    g.setAttribute('position',new THREE.Float32BufferAttribute([...A.attributes.position.array,...Bg.attributes.position.array],3));
+    g.setAttribute('normal',new THREE.Float32BufferAttribute([...A.attributes.normal.array,...Bg.attributes.normal.array],3));
+    DENT.im=new THREE.InstancedMesh(g,new THREE.MeshLambertMaterial({color:0xdcc196}),DENT.max); DENT.im.count=0; DENT.im.frustumCulled=false; DENT.im.userData.lightRole='recv'; scene.add(DENT.im); }
+  const r=(p.k==='oak'?0.46:0.40)*p.s, dx=PL.pos.x-p.x, dz=PL.pos.z-p.z, L=Math.hypot(dx,dz)||1, ux=dx/L, uz=dz/L;
+  const y=clamp(PL.pos.y+EYE-0.55,p.y+0.4,p.y+(p.k==='oak'?2.2:3.0)*p.s);
+  let d=DENT.list.find(q=>q.p===p&&Math.hypot(q.ux-ux,q.uz-uz)<0.35&&Math.abs(q.y-y)<0.3);
+  if(d){ d.k=Math.min(1.8,d.k+0.18); }
+  else{ if(DENT.list.filter(q=>q.p===p).length>=5) return; d={p,ux,uz,y,k:1,j:(Math.random()-0.5)*0.25}; DENT.list.push(d); if(DENT.list.length>DENT.max) DENT.list.shift(); }
+  dentFill();
+}
+const _dtM2=new THREE.Matrix4(), _dtQ2=new THREE.Quaternion(), _dtE2=new THREE.Euler(), _dtV2=new THREE.Vector3(), _dtS2=new THREE.Vector3();
+function dentFill(){
+  const im=DENT.im; if(!im) return;
+  DENT.list=DENT.list.filter(d=>!d.p.felled&&Math.hypot(d.p.x-PL.pos.x,d.p.z-PL.pos.z)<80);
+  let n=0; for(const d of DENT.list){ const r=(d.p.k==='oak'?0.46:0.40)*d.p.s;
+    _dtV2.set(d.p.x+d.ux*r*0.93,d.y,d.p.z+d.uz*r*0.93); _dtE2.set(0,Math.atan2(d.ux,d.uz),d.j); _dtQ2.setFromEuler(_dtE2); _dtS2.set(d.k,d.k,d.k);
+    _dtM2.compose(_dtV2,_dtQ2,_dtS2); im.setMatrixAt(n++,_dtM2); }
+  im.count=n; im.instanceMatrix.needsUpdate=true; im.visible=n>0;
+}
 function swingPose(style,p,v){
   const o=WPOSE;
   o.rx=WRX; o.ry=0; o.rz=WRZ; o.px=0; o.py=0; o.pz=0;
@@ -267,6 +294,10 @@ const WKEY={
   smash:[
     [WK0,[0.32, 1.55, 0.00, 0.15, 0.02, 0.18, 0.08,0],[0.52,-0.85, 0.00,-0.05, 0.00,-0.16,-0.24,1],[0.62,-0.62, 0.00,-0.03, 0.00,-0.12,-0.20,0],WK1],   // 머리 위로 들었다 곧게 내리침 · 맞고 튕김
     [WK0,[0.30, 1.35, 0.00,-0.75, 0.16, 0.18, 0.06,0],[0.52,-0.80, 0.00, 0.55,-0.16,-0.16,-0.22,1],[0.62,-0.60, 0.00, 0.45,-0.14,-0.13,-0.18,0],WK1]],  // 오른 어깨 위에서 왼 아래로 비스듬히 내리찍음
+  /* 도끼로 나무 베기 — 옆으로만 친다(사용자 요청 2026-11-08 '도끼는 좌우로만 · 가끔 번갈아'): 오른쪽 뒤로 젖혔다 줄기 높이에서 왼쪽으로 가로 침 · 가끔 되받아 왼쪽에서 오른쪽으로 */
+  chop:[
+    [WK0,[0.30,-0.18, 0.10,-1.35, 0.22, 0.00, 0.06,0],[0.50,-0.20, 0.10, 0.95,-0.12,-0.02,-0.22,1],[0.62,-0.20, 0.10, 1.05,-0.14,-0.02,-0.20,0],WK1],
+    [WK0,[0.30,-0.18,-0.10, 1.25,-0.18, 0.00, 0.06,0],[0.50,-0.20,-0.10,-1.00, 0.14,-0.02,-0.22,1],[0.62,-0.20,-0.10,-1.10, 0.16,-0.02,-0.20,0],WK1]],
   thrust:[
     [WK0,[0.28, 0.12, 0.00, 0.00, 0.04, 0.02, 0.16,0],[0.44,-0.10, 0.00, 0.00,-0.10, 0.00,-0.62,1],[0.58,-0.08, 0.00, 0.00,-0.10, 0.00,-0.56,0],[1,0,0,0,0,0,0,0]],   // 당겼다 곧게 찌름
     [WK0,[0.26,-0.30, 0.25, 0.50, 0.08,-0.10, 0.14,0],[0.44, 0.22,-0.15,-0.30,-0.12, 0.10,-0.60,1],[0.58, 0.20,-0.12,-0.26,-0.12, 0.09,-0.54,0],[1,0,0,0,0,0,0,0]]]  // 낮게 당겨 비틀며 올려 찌름
@@ -776,11 +807,13 @@ function updateWeapon(dt){
   else if(ATK.swing>0) ATK.swing=Math.max(0,ATK.swing-dt);
   let style=W.swing;
   const drilling=!!W.drill&&HARV.active;
+  const tree=HARV.active&&HARV.near&&(HARV.near.k==='oak'||HARV.near.k==='fir');
   if(!W.weapon){                                // 도끼·곡괭이는 캐는 동안 내리친다 — 드릴은 아래에서 따로
-    style='smash';
-    if(HARV.active&&(W.axe||W.pick)&&!W.drill){ HOLD_T+=dt; p=(HOLD_T*1.3)%1; } else { HOLD_T=0; p=0; }
+    style=W.axe&&tree?'chop':'smash';          // 도끼로 나무는 옆으로 친다
+    if(HARV.active&&(W.axe||W.pick)&&!W.drill){ const p0=(HOLD_T*1.3)%1; HOLD_T+=dt; p=(HOLD_T*1.3)%1; if(style==='chop'&&p0<0.5&&p>=0.5) chopDent(HARV.near); } else { HOLD_T=0; p=0; }
   }
-  const vv=W.weapon?(ATK.v|0):(Math.floor(HOLD_T*1.3)&1);               // 이어 치기의 결 · 캐는 도구는 번갈아 곧게 · 비스듬히
+  const cyc=Math.floor(HOLD_T*1.3);
+  const vv=W.weapon?(ATK.v|0):style==='chop'?((((cyc+1)*2654435761)>>>0)%4===0?1:0):(cyc&1);   // 이어 치기의 결 · 도끼질은 넷에 하나꼴로 되받아 치기 · 곡괭이는 번갈아 곧게 · 비스듬히
   const H=WEAPON_HOME, o=swingPose(style,p,vv);
   { if(HA.id!==w.id){ HA.id=w.id; HA.eq=1; }                                          // 바꿔 듦 — 아래에서 올라온다
     HA.eq=Math.max(0,HA.eq-dt/0.32); const ke=HA.eq*HA.eq;

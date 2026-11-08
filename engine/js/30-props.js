@@ -1591,7 +1591,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
    · 줍거나 캐는 것이 아니다(그건 자갈 'pebble'·화강암이 한다). 그림자는 받기만 한다.
    · **무릎을 넘는 큰 돌은 단단하다**(사용자 지적: 돌을 뚫고 지나간다 · 25 m 안 · `RUBBLE.cols`) — 턱(0.55 m)보다 높으면 몸이 막히고
      낮으면 그 위에 올라선다(`rubbleCollide` · `rubbleFloor` — 80-player.js 가 부른다). 주울 만한 작은 돌은 그대로 밟고 지나간다. */
-const RUBBLE={mesh:null, cap:2200, cx:1e9, cz:1e9, R:40, cell:1.3, seed:0, picks:[], cols:[]};
+const RUBBLE={mesh:null, cap:2200, cx:1e9, cz:1e9, R:40, cell:1.3, seed:0, picks:[], cols:[], cache:new Map(), ckey:''};
 function rubbleInit(){
   /* 물에 닳은 둥근 돌 — 예전엔 각진 20면체(면 20장)라 가까이서 사면체 조각처럼 보였다. 혹 진 공(면 64장)에 법선을 이어
      빛이 둥글게 넘어간다 */
@@ -1642,6 +1642,7 @@ function updateRubble(force){
   const px=PL.pos.x, pz=PL.pos.z;
   if(!force && Math.hypot(px-U.cx,pz-U.cz)<7) return;
   U.cx=px; U.cz=pz;
+  { const k=P.seed+'|'+P.ws+'|'+P.tv+'|'+(typeof WORLD_N!=='undefined'?WORLD_N:0); if(k!==U.ckey){ U.ckey=k; U.cache.clear(); } }   // 새 섬이면 자리 기억을 비운다
   const C=U.cell, R=U.R, im=U.mesh;
   const x0=Math.floor((px-R)/C), x1=Math.floor((px+R)/C), z0=Math.floor((pz-R)/C), z1=Math.floor((pz+R)/C);
   let n=0; U.picks.length=0; U.cols.length=0;
@@ -1672,12 +1673,18 @@ function updateRubble(force){
     /* 주먹~수박만 한 돌은 주울 수 있다(95-flora.js 의 `floraPick` — 얻는 것은 돌멩이). 주운 자리는 사흘 뒤 다시 찬다 */
     const pk=salt||r<0.34, key='S'+gx+','+gz;
     if(pk){ const tk=FLORA.taken.get(key); if(tk!==undefined){ if(gameHours-tk<72) continue; FLORA.taken.delete(key); } }
-    r*=clamp((R-d)/8,0.2,1);                            // 가장자리에서 갑자기 생기지 않게 작게 시작
-    const g0=heightAt(wx,wz), gy=geoGround(wx,wz,g0), onGeo=gy>g0+0.01;                 // 큰 지형 모형 위면 그 윗면 · 그 면의 비탈
-    if(UNDER.dol.length&&underHoleAt(wx,wz,gy,r+0.4)) continue;                         // 굴 입구 구멍 위엔 안 놓는다(96-underworld.js)
-    if(boulderAt(wx,wz,r+0.3)) continue;                                                  // 큰 바위 속 · 곁(위 boulderAt — 2026-11-08 사용자)
-    const gs0=onGeo?null:groundSlope(wx,wz,Math.max(0.25,r)), sl0=onGeo?GEO_LF.slope:Math.hypot(gs0[0],gs0[1]);
-    if(sl0>1.25) continue;                              // 52° 넘는 벽에는 돌이 얹혀 있을 수 없다(벽에 붙어 떠 보였다)
+    const rU=r; r*=clamp((R-d)/8,0.2,1);                // 가장자리에서 갑자기 생기지 않게 작게 시작
+    /* 자리마다 한 번만 잰다(땅 · 큰 지형 모형 · 굴 입구 구멍 · 큰 바위 · 비탈 — 30-props.js boulderAt) — 예전엔 7 m 옮길 때마다 3,800 칸을 다 다시 재
+       한 번에 17~21 ms 씩 튀었다(2026-11-08 사용자 '빨리 다니면 렉'). 섬이 바뀌면 비운다 */
+    const ck=(gx+40000)*80000+(gz+40000); let E=U.cache.get(ck);
+    if(E===undefined){
+      const g0=heightAt(wx,wz), gyC=geoGround(wx,wz,g0), onGeo=gyC>g0+0.01; E=null;   // 큰 지형 모형 위면 그 윗면 · 그 면의 비탈
+      if(!(UNDER.dol.length&&underHoleAt(wx,wz,gyC,rU+0.4))&&!boulderAt(wx,wz,rU+0.3)){   // 굴 입구 구멍 위 · 큰 바위 속 · 곁엔 안 놓는다
+        const gs0=onGeo?null:groundSlope(wx,wz,Math.max(0.25,rU)), slC=onGeo?GEO_LF.slope:Math.hypot(gs0[0],gs0[1]);
+        if(slC<=1.25) E={gy:gyC,sl0:slC}; }                // 52° 넘는 벽에는 돌이 얹혀 있을 수 없다(벽에 붙어 떠 보였다)
+      if(U.cache.size>150000) U.cache.clear(); U.cache.set(ck,E); }
+    if(E===null) continue;
+    const gy=E.gy, sl0=E.sl0;
     const sy=salt?(P.sm?0.07:0.26):0.5+0.35*((h2>>>9)&15)/15;
     if(salt&&P.sm) r*=1.8;                               // 염전의 더께는 넓고 얇은 판(손바닥 두께)
     _rbE.set(salt&&P.sm?0:((h2>>>13)&63)/63*0.7-0.35,((h2>>>19)&255)/255*6.283,salt&&P.sm?0:((h2>>>27)&31)/31*0.7-0.35);
@@ -2247,6 +2254,16 @@ function boulderAt(x,z,pad){
   if(typeof CRAG!=='undefined'&&CRAG.n&&cragNear(x,z,pad+8)){
     if(cragNear(x,z,pad)) return true;
     for(const [ox,oz] of [[0,0],[pad,0],[-pad,0],[0,pad],[0,-pad]]){ const n=cragSpan(x+ox,z+oz); for(let i=0;i<n;i++) if(_cgS[i].t>g+0.1&&_cgS[i].b<g+1.8) return true; if(!pad) break; } }
+  return false;
+}
+/* **나무가 벼랑 · 큰 바위에 파고들지 않게**(2026-11-08 사용자 '나무가 벼랑 · 바위와 겹친다') — 밑동 둘레 r m 여덟 점의 땅(큰 지형 모형 윗면 포함)이
+   밑동보다 dh 넘게 높으면(벼랑이 솟는다) · 벼랑 덩이가 r 안이면 true. 이웃 칸이 다 판판하면(비탈 0.3 밑) 재지 않는다(섬 전체에 나무를 심을 때 빨리) */
+function treeCliff(x,z,g,r,dh){
+  const gx=clamp(Math.round(x/CELL+N/2),1,N-2), gz=clamp(Math.round(z/CELL+N/2),1,N-2); let sl=0;
+  for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++) sl=Math.max(sl,F.slope[(gz+dz)*N+gx+dx]);
+  if(typeof CRAG!=='undefined'&&CRAG.n&&cragNear(x,z,r*0.8)) return true;
+  if(sl<0.3&&!(GEO_LF.mask&&GEO_LF.mask.length===N*N&&GEO_LF.mask[gz*N+gx])) return false;
+  for(let k=0;k<8;k++){ const a=k*0.7854, sx=x+Math.cos(a)*r, sz=z+Math.sin(a)*r, h=heightAt(sx,sz); if(Math.max(h,geoGround(sx,sz,h))>g+dh) return true; }
   return false;
 }
 function inRockAt(x,z,full){

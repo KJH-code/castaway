@@ -415,6 +415,22 @@ function offerLoadOnStart(){
       slotLabel(best.s)+' · 아니오를 고르면 새로 시작합니다 · 나중에 F9 으로 불러올 수 있습니다',
       ()=>{ if(!isAutoSlot(best.s)){ curSlot=best.s; SET.slot=curSlot; saveSettings(); drawSlots(); } loadSlot(best.s); });
 }
+/* **섬을 짓기 전에 묻는다**(사용자 요청 2026-11-08 — 기본 섬을 다 지은 뒤에 물어, 불러오면 섬을 또 지었다). 예 → 그 저장의 섬만 짓는다 · 아니오 → 새 섬.
+   시험 주소(?seed · ?tv · ?ws)는 묻지 않는다(시험 도구가 그 섬을 바로 잰다) · 불러오기가 섬을 짓기 전에 틀어지면 새 섬을 짓는다 */
+function bootWorld(){
+  askedOnce=true;
+  let q=null; try{ q=new URLSearchParams(location.search); }catch(e){}
+  if(q&&(q.has('seed')||q.has('tv')||q.has('ws'))){ generateWorld(); return; }
+  let best=null;
+  for(const s of SLOTS){ const m=slotMeta(s); if(m&&(!best||m.ms>best.m.ms)) best={s,m}; }
+  if(!best){ generateWorld(); return; }
+  const ov=document.getElementById('ovLoad'); if(ov) ov.textContent='저장된 섬이 있다';
+  ask('이전에 저장된 데이터를 불러오겠습니까?',
+      slotLabel(best.s)+' · 아니오를 고르면 새 섬을 짓습니다 · 나중에 F9 으로 불러올 수 있습니다',
+      ()=>{ if(!isAutoSlot(best.s)){ curSlot=best.s; SET.slot=curSlot; saveSettings(); drawSlots(); }
+            loadSlot(best.s).then(()=>{ if(!WORLD_N) generateWorld(); }); },
+      ()=>{ generateWorld(); });
+}
 /* 새 섬은 지금 섬을 버린다 — 상륙했으면 한 번 묻고 자동 저장에 남긴 뒤 만든다(예전엔 R 한 번에 그냥 사라졌다) */
 function newIsland(go,cancel){
   if(busy||askOpen){ if(cancel) cancel(); return; }

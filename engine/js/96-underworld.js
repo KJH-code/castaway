@@ -343,14 +343,14 @@ function underWater(x,z,gy){ const q=underQ(x,z); return (q.w>gy+0.02)?{wl:q.w,r
 /* ── 그리기 — 사람 둘레 190 m 를 48 m 칸으로(2 m 격자 · 바닥과 천장) ─────────────── */
 function underMat(){
   if(UNDER.mat) return UNDER.mat;
-  const m=rockMat('underrock',0x77726a); m.vertexColors=true;
+  const m=rockMat('underrock',0x77726a); m.vertexColors=true; m.side=THREE.DoubleSide;   // 양면 — 입구 밖에서 들여다보면 굴 벽 뒷면이 비어 섬 속이 보였다(2026-11-08 사용자)
   m.userData.melt=0; m.userData.meltAttr=false;          // '땅에 녹아들기'(45-sky.js envPatch)는 땅 위 표고를 잰다 — 땅속에서는 온통 묻힌 것으로 쳐서 바닥을 흙빛으로 칠하고 천장의 법선을 위로 눕혔다
   return UNDER.mat=m;
 }
 function underRockIM(){
   if(UNDER.rkm) return UNDER.rkm;
   const base=geoMat(), m=base.clone(); m.onBeforeCompile=base.onBeforeCompile; m.customProgramCacheKey=base.customProgramCacheKey; if(base.userData.rkU) m.userData=Object.assign({},base.userData);
-  m.color.setRGB(0.40,0.39,0.37); m.shadowSide=THREE.BackSide;                 // 젖은 돌 — 짙게(물이 스민 석회암 · 화강암)
+  m.color.setRGB(0.40,0.39,0.37); m.shadowSide=THREE.BackSide; m.side=THREE.DoubleSide;   // 땅속 바위는 양면(큰 지형 모형 재질은 앞면만이 됐다 — 37-geo-meshes.js)                 // 젖은 돌 — 짙게(물이 스민 석회암 · 화강암)
   return UNDER.rkm=m;
 }
 function underTileDrop(t){ for(const m of [t.fl,t.ce,t.wa]) if(m){ UNDER.grp&&UNDER.grp.remove(m); m.geometry.dispose(); } }

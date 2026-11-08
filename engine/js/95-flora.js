@@ -739,7 +739,7 @@ const _ffPM=new THREE.Matrix4(), _ffFr=new THREE.Frustum(), _ffSp=new THREE.Sphe
 /* 생성기 꼴 — 칸 줄마다 한 번 멈춘다(yield). 놀이 중엔 floraPlantAll 이 끝까지 돌리고, 섬을 지을 때는 floraFarBuildA 가 숨을 돌려 가며 돌린다 */
 function* floraPlantAllG(){
   const U=FLORA, L=U.far, C=L.cell, n=Math.floor(HALF/C)-1;
-  U.P=[]; U.tl=[]; U.kn={};
+  U.P=[]; U.tl=[]; U.kn={}; U.tg=null; U.vis=[];
   const tiles=new Map();
   for(let gz=-n;gz<n;gz++){ yield; for(let gx=-n;gx<n;gx++){ let lx=1e9, lz=1e9;
    for(let tr=0;tr<2;tr++){                           // 칸 하나에 많아야 둘(군락의 dense 가 정한다 — 빽빽한 숲)
@@ -770,6 +770,7 @@ function* floraPlantAllG(){
     const kind=pick[0], K=FLORA_KIND[kind], pad=(K.r||0)+0.5;
     if(floraHit(wx,wz,pad)||inLanding(wx,wz,pad)) continue;
     const gy=heightAt(wx,wz); if(floorAt(wx,wz)>gy+0.05) continue;
+    if(treeCliff(wx,wz,gy,1.5+1.6*pick[3],2.2)) continue;                              // 벼랑 · 큰 바위 곁엔 안 선다(우듬지가 벼랑에 파고들었다 · 30-props.js)
     const h2=floraHash(gx,gz,salt+1), v=(h2&1023)/1023, sc=pick[2]+(pick[3]-pick[2])*v, tl=0.05, yaw=((h2>>>15)&1023)/1023*6.283;
     const sy=sc*(0.9+0.2*((h>>>28)&15)/15);
     _flE.set(((h2>>>10)&31)/31*tl-tl/2,yaw,((h2>>>25)&31)/31*tl-tl/2); _flQ.setFromEuler(_flE);
@@ -881,7 +882,7 @@ function floraFarDrop(){
     for(const L of f.lods) for(const im of L){ if(!im) continue; scene.remove(im); if(im.geometry.userData.lod) im.geometry.dispose(); im.dispose(); }
     if(f.pm){ scene.remove(f.pm); f.pm.geometry.dispose(); f.pm.material.dispose(); f.pm.dispose(); }
     if(f.pic) f.pic.rt.dispose(); }
-  U.fm=null; U.P=null; U.tl=null;
+  U.fm=null; U.P=null; U.tl=null; U.tg=null; U.vis=[];
 }
 function floraFar(force){
   const U=FLORA, L=U.far;
@@ -890,19 +891,26 @@ function floraFar(force){
   if(L.cx===1e9) force=true;
   camera.updateMatrixWorld(); _ffPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _ffFr.setFromProjectionMatrix(_ffPM);
   occTick();
-  let sig=0;
-  for(const t of U.tl){
+  /* 칸 찾기는 사람 둘레만(2026-11-08 FPS — 섬 전체 1.6만 칸을 프레임마다 훑었다): 64 m 칸 격자(`U.tg`)에서 VIEW_DIST 안만 보고, 지난번에 보이던 칸(`U.vis`)은 먼저 끈다 */
+  if(!U.tg){ U.tg=new Map(); for(const t of U.tl){ const k=(Math.floor(t.cx/FL_TILE)+1024)*2048+(Math.floor(t.cz/FL_TILE)+1024); let a=U.tg.get(k); if(!a) U.tg.set(k,a=[]); a.push(t); } U.vis=[]; }
+  for(const t of U.vis) t.v=false;
+  let sig=0; const vis=[], gx0=Math.floor(px/FL_TILE), gz0=Math.floor(pz/FL_TILE), rc=Math.ceil(VIEW_DIST/FL_TILE)+1;
+  for(let gz=gz0-rc;gz<=gz0+rc;gz++) for(let gx=gx0-rc;gx<=gx0+rc;gx++){ const a=U.tg.get((gx+1024)*2048+(gz+1024)); if(!a) continue;
+   for(const t of a){
     const d=Math.hypot(t.cx-px,t.cz-pz)-t.r;
     let v=d<=VIEW_DIST;
     if(v&&d>CULL_NEAR){ _ffSp.center.set(t.cx,t.cy,t.cz); _ffSp.radius=t.r+30; v=_ffFr.intersectsSphere(_ffSp)&&!tileOcc(t,26); }   // 산 너머는 거른다(30-props.js)
-    t.v=v; if(v) sig=(sig*31+t.i+1)|0;
-  }
+    t.v=v; if(v){ sig=(sig*31+t.i+1)|0; vis.push(t); }
+   } }
+  U.vis=vis;
   if(!force&&!mv&&sig===U.sig) return;
-  U.sig=sig;
+  /* 곧게 움직이기만 할 때(보이는 칸이 그대로)는 다시 담기를 초당 9 번으로 — 빨리 날면 프레임마다 4~5 ms 씩 다시 담았다. 몸을 돌려 칸이 바뀌면 곧바로 */
+  const nowF=performance.now(); if(!force&&mv&&sig===U.sig&&nowF-(U.lastB||0)<110) return;
+  U.lastB=nowF; U.sig=sig;
   /* 사람이 움직였으면 — 60 m 안 그루의 막힘(그 뒤 지은 바닥·설비)·몸 원·딸 것을 다시 센다 */
   if(force||mv){
     L.cx=px; L.cz=pz; L.cols.length=0; L.picks.length=0;
-    for(const t of U.tl){ if(Math.hypot(t.cx-px,t.cz-pz)-t.r>FL_NEAR) continue;
+    for(const t of U.vis){ if(Math.hypot(t.cx-px,t.cz-pz)-t.r>FL_NEAR) continue;
       for(const p of t.ps){ const dx=p.x-px, dz=p.z-pz; if(dx*dx+dz*dz>FL_NEAR*FL_NEAR) continue;
         const K=FLORA_KIND[p.k], pad=(K.r||0)+0.5;
         p.blk=floraHit(p.x,p.z,pad)||floorAt(p.x,p.z)>p.y+0.05;
@@ -916,7 +924,7 @@ function floraFar(force){
   for(const k of L.kinds){ for(const im of U.m[k]) im.count=0; const f=U.fm[k]; if(f){ for(const Lv of f.lods) for(const im of Lv) if(im) im.count=0; if(f.pm) f.pm.count=0; } }
   const put=(im,p)=>{ const i=im.count++; im.instanceMatrix.array.set(p.m,i*16); const c=im.instanceColor.array; c[i*3]=p.c[0]; c[i*3+1]=p.c[1]; c[i*3+2]=p.c[2]; };
   let csig=0; const QK=QUAL.k;
-  for(const t of U.tl){ if(!t.v) continue;
+  for(const t of U.vis){ if(!t.v) continue;
     for(const p of t.ps){ if(p.blk) continue;
       const dx=p.x-px, dz=p.z-pz, d=Math.sqrt(dx*dx+dz*dz); if(d>VIEW_DIST) continue;
       const f=U.fm[p.k];

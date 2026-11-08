@@ -316,7 +316,11 @@ const LIGHT={
       if(Math.abs(d)>q*0.6) this._sec=Math.round(a/q);
       const fx=Math.sin(this._sec*q), fz=Math.cos(this._sec*q);
       // 가운데는 SUN_STEP 격자에 — 격자 간격을 텍셀의 정수배로 잡아야 다시 그릴 때 그림자가 들끓지 않는다
-      const tex=(Q.R*2)/Q.size, G=Math.max(1,Math.round(SUN_STEP/tex))*tex;
+      /* 빨리 움직이면 상자를 듬성듬성 옮긴다(2026-11-08 사용자 '빨리 다니면 렉') — 4 m 마다 옮기면 초속 25 m 에 초당 여섯 번 해 그림자 지도를(숲 200만 세모) 다시 그렸다.
+         초속 8 m 넘으면 반지름의 18% 마다(보통 17 m) · 앞쪽으로 0.45 R 비켜 두니 덮는 데는 그대로다. 걸을 때는 예전 그대로 */
+      { const dd=Math.hypot(PL.pos.x-(this._spx||PL.pos.x),PL.pos.z-(this._spz||PL.pos.z)); this._spx=PL.pos.x; this._spz=PL.pos.z;
+        this._spd=(this._spd||0)+((dd/Math.max(dt||0.016,0.004))-(this._spd||0))*0.1; }
+      const tex=(Q.R*2)/Q.size, G=Math.max(1,Math.round((this._spd>8?Math.max(SUN_STEP,Q.R*0.18):SUN_STEP)/tex))*tex;
       const cx=Math.round((PL.pos.x+fx*Q.R*0.45)/G)*G, cz=Math.round((PL.pos.z+fz*Q.R*0.45)/G)*G;
       /* 광원 방향은 updateSky 가 정한 해 위치를 그대로 쓴다(정규화). 그런데 아래에서 이 함수가 sun.position 을
          상자 쪽으로 옮겨 놓으므로, updateSky 없이 다시 불리면(멈춤 · 시험) 옮겨 둔 자리를 방향으로 읽어 매번

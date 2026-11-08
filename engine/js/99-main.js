@@ -100,5 +100,5 @@ function loop(){
 
 initThree();
 applySettings();
-generateWorld();
+bootWorld();                            // 저장이 있으면 섬을 짓기 전에 묻는다(92-save.js)
 loop();

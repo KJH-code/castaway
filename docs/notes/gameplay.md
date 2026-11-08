@@ -295,3 +295,5 @@ CLAUDE.md 에는 새로 생긴 '깨뜨리면 안 되는 것' · '같이 고칠 �
 - **보급 상자 · 망대**(14-plateau.js — 지형 판 11): 상자는 `FLORA_PICK.cache`(once · loot → 97-temples.js templeLoot 가 plCacheLoot 로) · 지도는 plMapDraw(82-hud.js — 알아낸 상자 금빛 마름모 · 땅속 보랏빛 · 연 것 잿빛 · 망대 흰 점).
 - **자원과 아이템 문서** `docs/ITEMS.md` — 손으로 고치지 않는다: `desktop/node_modules/.bin/electron tools/items-md-window.js` 가 표(RESOURCES · ITEMS · RECIPES · FLORA_PICK · SEA_PICK · PL_LOOT)에서 다시 쓴다.
   아이템 · 제작법 · 따는 것을 더했으면 다시 돌릴 것.
+- **2026-11-08** — 도끼로 나무를 벨 때는 옆으로만 친다(`WKEY.chop` — 오른쪽에서 왼쪽 · 넷에 하나꼴 되받아 치기) · 칠 때마다 줄기에 V 자로 팬 흰 속살 자국(`DENT` · `chopDent` — 한 그루 다섯 · 같은 자리는 깊어진다 · 넘어가면 지운다).
+  저장이 있으면 **섬을 짓기 전에** 불러올지 묻는다(`bootWorld` — 예전엔 기본 섬을 다 지은 뒤 물어 불러오면 또 지었다 · 시험 주소 ?seed · ?tv · ?ws 는 안 묻는다).
