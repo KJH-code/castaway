@@ -404,6 +404,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 새 키는 `KB_ACTS` 에 한 줄 · `kbHit`/`keys.행동` 으로 읽는다(`e.code==='KeyX'` 금지) · **한 글쇠는 한 행동만**(사용자 요청 — 범위가 달라도 같은 기본 키 금지 · `kbSet`/`kbLoad` 가 겹친 칸을 비운다) · 조작을 바꾸면 `CONTROLS_GUIDE` ↔ `KB_OV` · 일시정지 글쇠 줄은 `<div><span>글쇠</span><em>설명</em></div>` 꼴(gameplay).
 - 새 제작법은 `tier` 가 `TIER_ORDER` 에 있어야 나무에 선다 · 손에 든 것의 `ITEMS[id].tool` 은 없을 수 있다(`(…tool||{})` · gameplay).
 - 들짐승 — 뼈 이름은 몸 꼴(quad · frog · lizard · bird · fish)마다 같다: rig.py 의 SPEC ↔ clips.mjs 의 표 ↔ 97-animals.js(`ANI_LEGI` · 흔들기 표) · 섬을 다 지은 뒤 만드는 재질은 `envPatch` 를 직접(mobs).
+- 들짐승 몸의 기울기 · 높이는 `aniTilt` 가 땅 네 점으로 정한다(`a.gp` · `a.gr`) — aniDraw 에서 `R.rotation.x/z` 를 덮어쓰지 말고 더할 것 · 새 몸 꼴(납작한 것)은 `flat` 갈래 · 사체를 새로 굴리면 띄우는 높이(`lift`)도(mobs).
 - 배 모양을 바꾸면 `shipBoxes` 치수도 · 불티 크기는 세계 길이로 · 폭발 불빛은 `BLAST_LIGHT` 하나를 계속 쓴다 · 화면 효과는 캠코더 셰이더 안에서(창 전체 `filter:drop-shadow` 금지 · gameplay).
 - 셰이더 글 — 음수를 그대로 끼우지 말 것(`y-${-0.02}` → 괄호로) · GLSL 예약어 `patch` 를 변수로 쓰지 말 것 · 템플릿 글(백틱) 셰이더의 주석에 백틱 금지.
 - 몹을 본편에 들일 때 — 몸은 `scene` 에 숨겨 두고 돌려 쓴다 · `lightRole:'recv'` · 전역 이름 겹침은 '확인하는 법' 의 이어 붙이기 검사로 · 움직이면 `LIGHT.dirtyAt` · `q.slerpQuaternions(q0,q,w)` 에 자기를 넣지 말 것(r128 · mobs).
