@@ -375,6 +375,8 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 땅의 빛 — 램버트 조각 셰이더의 `SUN` · `IND` 두 줄이 바뀌면 조용히 옛 방식으로 돌아간다(`PIX` 거짓 · terrain). 둔덕 재질(`moundMat`)의 갈고리는 땅에선 다 0 이다.
 - 큰 바위 꼴(`cragShape`)이나 덩이의 돌림·늘림을 바꾸면 메시(`cragMesh`)와 충돌(`cragIndex`·`cragSpan`)이 같은 값을 쓰는지 볼 것 · 비탈에 놓는 것은 묻거나 눕힌다(`groundSlope` · terrain).
 - 땅속 입구 굴길(함몰 입구 · 바닷가 굴)은 floorAt · eyeHit · walkable(UNDER.adHit) · 땅 셰이더 구멍(TERR_HOLE uUdA/B · 스물까지) · 덩이 걷기(plCragClear)가 같이 읽는다 — 굴길 꼴을 바꾸면 넷을 같이 · 판 11 땅속 바닥 깊이는 1.8 m 에서 멈춘다(underQ gF · 바닷가 굴 끝 방은 room.fy) · 시험 창(Electron)은 소리를 끄고(mute-audio) 보이지 않게.
+- 굴 입구 구멍 — 땅 셰이더(TERR_HOLE · `uUdA/B/C`)와 JS 거울 `underHoleAt`(96-underworld.js)은 같은 식(너비 굽이 · 솟는 바닥)이다 — 굴길 꼴(underQ 의 `o.ad`)을 바꾸면 셋을 같이. 땅속 방 벽 바위는 `c.walls`(underSites)가 정하고 `underWallAt` 이 몸이다 — 꾸밈을 새로 놓으면 그 속을 피할 것.
+- 큰 지형 모형 · 벼랑 덩이 재질은 **앞면만**(줄인 모형의 접힌 세모가 양면이면 검게 보였다) — 새 모형을 들이면 `geoOrient` 를 거치고 열린 모서리 0 인지 볼 것. 바위 둘레에 무엇을 세우면 `boulderAt`(30-props.js)으로 피할 것.
 - 바위 · 광석은 이제 몸이 지난다(30-props.js `rockTop`/`rockSolid` — floorAt · solidAt · wallAhead · underWalk) — 바위 꼴(HABIT · ROCK_R)을 크게 바꾸면 `rockDims` 의 어림(가로 0.9 · 세로 × 납작함)도 볼 것 · 바위 칸을 새로 만들면 `rockGridBuild`.
 - 새 광물은 `PROP_FOOT` 에도 한 줄(겹침 정리 `resolveOverlaps` — 시드 난수를 다 뽑은 뒤 난수 없이 고친다) · 상륙 자리는 시드로 정한다(`LANDING` — `Math.random` 금지 · terrain).
 - 광원은 `LIGHT.addPoint`/`addSpot`(켜고 끄는 불은 `addFire`)으로 — `decay` 2 · 세기 1.8배. 광원 수(보이는 것 · 그림자)가 바뀌면 모든 재질을 다시 짠다 → 끌 때는 `visible` 대신 세기 0(light).

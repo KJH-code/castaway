@@ -13,9 +13,9 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 if (process.env.CASTAWAY_NOINLINE === '1') app.commandLine.appendSwitch('js-flags', '--no-turbo-inlining');   // 끼워 넣기를 꺼 함수마다 제 시간을 본다(조금 느려진다)
 if (process.env.CASTAWAY_UNCAP === '1') { app.commandLine.appendSwitch('disable-frame-rate-limit'); app.commandLine.appendSwitch('disable-gpu-vsync'); }
 const DUR = +process.argv[2] || 12, EXTRA = process.argv[3] || '', W = +process.argv[4] || 1440, H = +process.argv[5] || 838;
-app.whenReady().then(async () => {
+app.whenReady().then(async () => { if (app.dock) app.dock.hide();
   const win = new BrowserWindow({ width: W, height: H, useContentSize: true, show: false, backgroundColor: '#03060a', webPreferences: { backgroundThrottling: false } });
-  win.showInactive();
+  win.setOpacity(0); win.setIgnoreMouseEvents(true); win.showInactive();   // 보이지 않게 · 포커스를 안 뺏게(사용자 요청 2026-11-06 — 시험 창으로 화면이 넘어가지 않게)
   const fail = setTimeout(() => { console.log('PROF {"error":"timeout"}'); app.exit(1); }, (DUR + 120) * 1000);
   try {
     await win.loadFile(path.join(process.env.CASTAWAY_GAME || path.join(__dirname, '..'), 'island_world.html'), { search: process.env.CASTAWAY_QUERY || '' });

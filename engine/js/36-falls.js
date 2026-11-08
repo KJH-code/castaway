@@ -258,13 +258,26 @@ function fallsBuildRes(f,mat,foam){
 /* 대지 폭포의 물(지형 판 11 — 14-plateau.js plFalls) — 강이 벼랑 끝(입술)을 넘으며 앞으로 내뻗었다가 포물선으로 떨어진다.
    빠르기는 물줄기가 벼랑 면에 안 닿을 만큼(밑에서 벼랑 발치보다 앞) · 위 다섯 줄은 입술 뒤 강물에서 이어진다 */
 function fallsBuildPl(f,mat,foam){
-  const tx=-f.uz, tz=f.ux, lx=f.px+f.ux*f.aH, lz=f.pz+f.uz*f.aH, H=Math.max(2,f.y0-f.py), g=9.8, T=Math.sqrt(2*H/g);
-  const v0=Math.max(2.5,(f.aH-f.aF)/T*1.15), rows=[];
-  for(let k=0;k<=4;k++){ const a=6-6*k/4; rows.push([lx+f.ux*a,f.y0+0.12,lz+f.uz*a,1]); }
-  for(let k=1;k<=18;k++){ const t=T*k/18, s=v0*t; rows.push([lx-f.ux*s,f.y0+0.1-0.5*g*t*t,lz-f.uz*s,1+0.4*k/18]); }
+  /* **물길을 따라 흘려 본다**(2026-11-08 사용자 사진 — 폭포가 허공에 떠 있다): 예전엔 입술에서 벼랑 발치까지를 한 번의 포물선으로 내뻗게 빠르기를 잡아,
+     비탈이 완만한 데(입술과 발치가 수십 m 떨어진 데)에선 물줄기가 비탈 위 허공으로 길게 날아갔다. 이제 입술에서 초속 3 m 로 내보내 0.5 m 마다
+     떨어뜨리되 땅(+0.3 m) 밑으로는 안 들어간다 — 가파르면 곧게 떨어지고 · 완만하면 비탈을 타고 흐르고 · 다시 턱을 만나면 또 떨어진다 */
+  const tx=-f.uz, tz=f.ux, lx=f.px+f.ux*f.aH, lz=f.pz+f.uz*f.aH, g=9.8, vh=3.0, path=[];
+  let s=0, y=f.y0+0.1, vy=0, gPrev=heightAt(lx,lz);
+  path.push([lx,y,lz]);
+  for(let st=0;st<1200;st++){ const ds=0.5, dt=ds/vh; s+=ds; const x=lx-f.ux*s, z=lz-f.uz*s, gr=heightAt(x,z)+0.3;
+    vy-=g*dt; y+=vy*dt;
+    if(y<gr){ vy=Math.min(0,(gr-gPrev)/dt); y=gr; }                      // 땅에 닿았다 — 비탈을 따라 흐른다
+    gPrev=gr; path.push([x,y,z]);
+    if(y<=f.py+0.15||s>f.aH+60) break; }
+  /* 줄 — 길이를 따라 고르게 스물넷(위 다섯은 입술 뒤 강물에서 이어진다) */
+  const rows=[]; for(let k=0;k<=4;k++){ const a=6-6*k/4; rows.push([lx+f.ux*a,f.y0+0.12,lz+f.uz*a,1]); }
+  const cum=[0]; for(let i=1;i<path.length;i++) cum.push(cum[i-1]+Math.hypot(path[i][0]-path[i-1][0],path[i][1]-path[i-1][1],path[i][2]-path[i-1][2]));
+  const Lt=cum[cum.length-1]||1, NR=Math.max(8,Math.min(28,Math.ceil(Lt/3)));
+  for(let k=1,i=0;k<=NR;k++){ const want=Lt*k/NR; while(i<cum.length-2&&cum[i+1]<want) i++; const u=clamp((want-cum[i])/((cum[i+1]-cum[i])||1),0,1), A=path[i], B=path[Math.min(i+1,path.length-1)];
+    rows.push([A[0]+(B[0]-A[0])*u,Math.max(f.py+0.05,A[1]+(B[1]-A[1])*u),A[2]+(B[2]-A[2])*u,1+0.4*k/NR]); }
   fallsSheet(rows,f.w,-f.ux,-f.uz,tx,tz,mat,0.08,0);
-  fallsSheet(rows.slice(10),f.w*1.3,-f.ux,-f.uz,tx,tz,FALLS.veil||mat,0.14,0.45);
-  const dl=f.aH-v0*T, cx=f.px+f.ux*dl, cz=f.pz+f.uz*dl;
+  fallsSheet(rows.slice(5+Math.floor(NR*0.55)),f.w*1.3,-f.ux,-f.uz,tx,tz,FALLS.veil||mat,0.14,0.45);
+  const E=path[path.length-1], cx=E[0], cz=E[2];
   const pool=new THREE.Mesh(new THREE.CircleGeometry(f.w*1.6,32).rotateX(-Math.PI/2),foam); pool.position.set(cx,f.py+0.06,cz); pool.renderOrder=4; scene.add(pool); FALLS.meshes.push(pool);
   f.lx=cx; f.lz=cz;
 }
@@ -278,7 +291,7 @@ function updateFalls(dt){
   let n=0; const M=FALLS.fish.m;
   for(const s of FALLS.fish.list){ const f=s.f; if(near.indexOf(f)<0) continue;
     let x,y,z,yaw,pitch=0;
-    if(s.jump>=0&&f.res){ s.jump+=dt/1.1; const t=Math.min(1,s.jump), sx=f.px+Math.cos(s.a)*s.r, sz=f.pz+Math.sin(s.a)*s.r, ex=f.lx, ez=f.lz;   // 높은 폭포는 못 오른다 — 물살로 뛰었다 도로 떨어진다
+    if(s.jump>=0&&(f.res||f.pl)){ s.jump+=dt/1.1; const t=Math.min(1,s.jump), sx=(f.pl?f.lx:f.px)+Math.cos(s.a)*s.r, sz=(f.pl?f.lz:f.pz)+Math.sin(s.a)*s.r, ex=f.lx, ez=f.lz;   // 높은 폭포는 못 오른다 — 물살로 뛰었다 도로 떨어진다
       x=sx+(ex-sx)*t; z=sz+(ez-sz)*t; y=f.py+Math.sin(Math.PI*t)*2.6;
       yaw=Math.atan2(-(ex-sx),-(ez-sz))-Math.PI/2; pitch=Math.cos(Math.PI*t)*1.1;
       if(s.jump>=1){ s.jump=-1; } }
@@ -286,14 +299,14 @@ function updateFalls(dt){
       x=sx+(ex-sx)*t; z=sz+(ez-sz)*t; y=f.py+(f.y0-f.py)*t+Math.sin(Math.PI*t)*(1.5+f.drop*0.25);
       yaw=Math.atan2(-(ex-sx),-(ez-sz))-Math.PI/2; pitch=Math.cos(Math.PI*t)*0.9;
       if(s.jump>=1){ s.jump=-1; s.a=Math.random()*6.283; } }
-    else{ s.a+=s.sp*dt/s.r; x=f.px+Math.cos(s.a)*s.r; z=f.pz+Math.sin(s.a)*s.r; y=f.py-0.35+Math.sin(FALLS.t*2+s.a)*0.05;
+    else{ s.a+=s.sp*dt/s.r; const ox=f.pl?f.lx:f.px, oz=f.pl?f.lz:f.pz; x=ox+Math.cos(s.a)*s.r; z=oz+Math.sin(s.a)*s.r; y=f.py-0.35+Math.sin(FALLS.t*2+s.a)*0.05;
       yaw=-s.a-Math.PI; if(Math.random()<dt*0.04) s.jump=0; }
     _flsE.set(0,yaw,pitch,'YXZ'); _flsQ.setFromEuler(_flsE); _flsV.set(x,y,z); _flsM.compose(_flsV,_flsQ,_flsS); M.setMatrixAt(n++,_flsM); }
   M.count=n; M.instanceMatrix.needsUpdate=true;
   /* 물보라 — 소 위로 피어오른다 */
   { const S=FALLS.mist, a=S.p.geometry.attributes.position.array;
     for(let i=0;i<S.n;i++){ S.life[i]-=dt;
-      if(S.life[i]<=0){ const f=near[i%near.length], cx=f.res?f.lx:f.px, cz=f.res?f.lz:f.pz; a[i*3]=cx+(Math.random()-0.5)*f.w*1.2; a[i*3+1]=f.py+0.2; a[i*3+2]=cz+(Math.random()-0.5)*f.w*1.2;
+      if(S.life[i]<=0){ const f=near[i%near.length], cx=(f.res||f.pl)?f.lx:f.px, cz=(f.res||f.pl)?f.lz:f.pz; a[i*3]=cx+(Math.random()-0.5)*f.w*1.2; a[i*3+1]=f.py+0.2; a[i*3+2]=cz+(Math.random()-0.5)*f.w*1.2;
         S.v[i*3]=(Math.random()-0.5)*1.8; S.v[i*3+1]=0.9+Math.random()*1.8; S.v[i*3+2]=(Math.random()-0.5)*1.8; S.life[i]=1.6+Math.random()*2.4; continue; }
       a[i*3]+=S.v[i*3]*dt; a[i*3+1]+=S.v[i*3+1]*dt; a[i*3+2]+=S.v[i*3+2]*dt; }
     S.p.geometry.attributes.position.needsUpdate=true; }

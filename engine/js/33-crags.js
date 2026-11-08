@@ -29,13 +29,15 @@ function cragMat(){
   if(CRAG.mat) return CRAG.mat;
   const m=rockMat('granite',0x7a7872); m.vertexColors=true; m.userData.rkU.uRkGeo.value=1;   // 그 자리 지질도대로 사진 · 빛깔(37-geo-meshes.js geolBuild)
   m.defines=Object.assign({},m.defines,{RK_OFS:1});   // 덩이마다 무늬를 비킨다(20-terrain.js rockMat)
-  m.side=THREE.DoubleSide;   // Meshy 꼴을 줄이며 생긴 틈 · 열린 밑면으로 속(하늘)이 보였다(2026-11-05 사용자 지적: 바위에 구멍)
+  /* 앞면만(2026-11-08 사용자 사진 — 바위에 검은 세모): 양면이면 모형을 줄이며 생긴 '뒤집혀 접힌 세모'(위를 보는 겉에서 아래를 보는 세모)의 뒷면이 어둡게 칠해져
+     구멍처럼 보였다. 모형은 이제 틈이 없고(열린 모서리 0) 차례도 고른다(geoOrient) — 예전 양면은 2026-11-05 의 틈 · 열린 밑면 때문이었다 */
+  m.side=THREE.FrontSide;
   if(m.userData.rkU) m.userData.rkU.uRkCrack.value=0.14;   // 금은 드물고 옅게(그물처럼 친 금이 지그재그로 보였다 — 사용자 지적 2026-11-04)
   return CRAG.mat=m;
 }
 function cragMatFar(){
   if(CRAG.matFar) return CRAG.matFar;
-  const m=new THREE.MeshLambertMaterial({color:0x6f6d66,vertexColors:true}); m.userData.melt=0.5; m.userData.meltAttr=true; m.side=THREE.DoubleSide;
+  const m=new THREE.MeshLambertMaterial({color:0x6f6d66,vertexColors:true}); m.userData.melt=0.5; m.userData.meltAttr=true; m.side=THREE.FrontSide;   // 앞면만(위 cragMat 과 같은 까닭)
   /* 먼 바위(140 m 밖)도 **바위 사진**을 입는다(사용자 요청) — 가까운 재질(rockMat)과 같은 잡음으로 같은 장을 고르되, 섞지 않고 많이 섞인 쪽
      한 장만 세 방향으로 읽는다(법선 지도 · 이끼 · 금은 없다 — 멀어서 안 보인다). 메시는 세계 좌표로 합쳐져 있어 정점의 자리·법선이 곧 세계 값이다 */
   if(TERR_U.uRk){
@@ -254,6 +256,11 @@ function cragSites(seed){
   { const C=CRAG.cols, G=CRAG.cg;                                                          // 원을 16 m 칸에 걸어 둔다(cragNear)
     for(let i=0;i<C.length;i+=3){ const r=C[i+2], x0=Math.floor((C[i]-r)/16), x1=Math.floor((C[i]+r)/16), z0=Math.floor((C[i+1]-r)/16), z1=Math.floor((C[i+1]+r)/16);
       for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const k=(gx+2048)*4096+(gz+2048); let a=G.get(k); if(!a) G.set(k,a=[]); a.push(i); } } }
+  /* **덩이 속 · 곁의 소품을 걷는다**(2026-11-08 사용자 '바위 곁과 속의 것을 다 치워라') — 예전엔 무리의 첫 칸(occ)만 비워, 둘레로 자란 덩이 속에 나무 · 풀 · 돌이
+     박혀 있었다. 나무는 1.5 m · 그 밖은 0.6 m 곁까지. 난수를 다 뽑은 뒤라 섬의 차례는 그대로다 · 저장은 자리로 찾는다(92-save.js findSavedProp) */
+  if((P.tv|0)>=11&&CRAG.n){ const T={oak:1.5,fir:1.5}; const n0=PROPS.length;
+    PROPS=PROPS.filter(p=>p.cave||p.ug||!cragNear(p.x,p.z,(T[p.k]||0.6)+1.0));   // 원(cols)은 그려진 꼴보다 작다 — 1 m 더(꼴 그대로 재는 cragSpan 은 사람 둘레 칸만 안다)
+    CRAG.cut=n0-PROPS.length; }
 }
 /* 지형 판 10 굴의 겉이 뚫리는 데(cv10Zones — 입구 마당 · 빛구멍 · 처마 · 입구 앞 접근로)에 걸친 바위 덩이 · 몸 막기 원을 걷는다.
    벼랑 벽(cragGrowWall — 사용자 Meshy 벼랑 모형은 수십 m)은 자리 점만 굴을 비켜 보고 등고선을 따라 길게 자라서, 입구를 덮고 그 위가 바닥이 되어
@@ -364,10 +371,15 @@ function cragMesh(t,lod){
   let v=0, q=0;
   /* **덩이끼리 겹친 속은 버린다**(2026-11-06 사용자 '바위 속이 복잡하게 겹쳐 보인다 — 다 빚은 뒤 안쪽을 걸러라') — 세모의 가운데가 이웃 덩이의 속(그 덩이 좌표로 타원체 0.88 안)이면
      그 세모를 안 그린다. 밖에서 보이는 겉은 그대로다(겉 세모의 가운데는 이웃 속에 안 든다) */
+  /* 이웃의 '속' 은 그 꼴의 가장 안쪽 겉(rmin — 깎인 면이 가장 깊이 들어온 데)보다 안이다(2026-11-08 사용자 사진 — 바위에 구멍이 뚫려 속이 보였다):
+     예전엔 타원체 0.88 로 쳤는데, 깎아 낸 꼴은 겉이 그보다 안쪽인 데가 많아 밖에서 보이는 세모까지 버렸다. 세 꼭짓점이 다 그 안이어야 버린다 */
+  const rminOf=sh=>{ if(sh.rmin===undefined){ let m=1e9; const P=sh.pos; for(let i=0;i<P.length;i+=3){ const r=Math.hypot(P[i],P[i+1],P[i+2]); if(r<m) m=r; } sh.rmin=Math.min(1,m); } return sh.rmin; };
   const BL=[]; for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue; _crE.set(B[o+6],B[o+7],B[o+8]); _crQ.setFromEuler(_crE); _crM.makeRotationFromQuaternion(_crQ);
-    BL.push({o,x:B[o],y:B[o+1],z:B[o+2],rx:B[o+3],ry:B[o+4],rz:B[o+5],R:Math.max(B[o+3],B[o+4],B[o+5]),e:_crM.elements.slice()}); }
-  const insideOther=(o,x,y,z)=>{ for(const b of BL){ if(b.o===o) continue; const dx=x-b.x, dy=y-b.y, dz=z-b.z; if(dx*dx+dy*dy+dz*dz>b.R*b.R) continue; const e=b.e;
-      const lx=(e[0]*dx+e[1]*dy+e[2]*dz)/b.rx, ly=(e[4]*dx+e[5]*dy+e[6]*dz)/b.ry, lz=(e[8]*dx+e[9]*dy+e[10]*dz)/b.rz; if(lx*lx+ly*ly+lz*lz<0.88*0.88) return true; }
+    const k=rminOf(S[lv][B[o+10]][fine])*0.96;
+    BL.push({o,x:B[o],y:B[o+1],z:B[o+2],rx:B[o+3],ry:B[o+4],rz:B[o+5],R:Math.max(B[o+3],B[o+4],B[o+5]),k2:k*k,e:_crM.elements.slice()}); }
+  const inB=(b,x,y,z)=>{ const dx=x-b.x, dy=y-b.y, dz=z-b.z; if(dx*dx+dy*dy+dz*dz>b.R*b.R) return false; const e=b.e;
+      const lx=(e[0]*dx+e[1]*dy+e[2]*dz)/b.rx, ly=(e[4]*dx+e[5]*dy+e[6]*dz)/b.ry, lz=(e[8]*dx+e[9]*dy+e[10]*dz)/b.rz; return lx*lx+ly*ly+lz*lz<b.k2; };
+  const insideOther=(o,a,b2,c2)=>{ for(const b of BL){ if(b.o===o) continue; if(inB(b,pos[a],pos[a+1],pos[a+2])&&inB(b,pos[b2],pos[b2+1],pos[b2+2])&&inB(b,pos[c2],pos[c2+1],pos[c2+2])) return true; }
     return false; };
   for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue;
     const sh=S[lv][B[o+10]][fine], sp=sh.pos, sn=sh.nor, si=sh.idx, n=sp.length/3;
@@ -381,7 +393,7 @@ function cragMesh(t,lod){
       nor[c]=wx/l; nor[c+1]=wy/l; nor[c+2]=wz/l;
       const mt=(0.95+0.10*(((i*2654435761)>>>0)&255)/255)*(sh.cav?sh.cav[i]:1); col[c]=cr*mt; col[c+1]=cg*mt; col[c+2]=cb*mt; mel[v+i]=ml; ofs[v+i]=of; }
     for(let i=0;i<si.length;i+=3){ const a=(v+si[i])*3, b2=(v+si[i+1])*3, c2=(v+si[i+2])*3;
-      if(BL.length>1&&insideOther(o,(pos[a]+pos[b2]+pos[c2])/3,(pos[a+1]+pos[b2+1]+pos[c2+1])/3,(pos[a+2]+pos[b2+2]+pos[c2+2])/3)) continue;
+      if(BL.length>1&&insideOther(o,a,b2,c2)) continue;
       idx[q++]=v+si[i]; idx[q++]=v+si[i+1]; idx[q++]=v+si[i+2]; }
     v+=n; }
   const g=new THREE.BufferGeometry();

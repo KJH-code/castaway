@@ -34,7 +34,7 @@ let ROCK_KINDS=null;                      // 바위 종류(ROCK_R — buildProps
 /* **자동 품질**(`QUAL`) — 프레임이 떨어지면 '어디까지 자세히 그리나' 를 스스로 당긴다(마인크래프트의 그리는 거리처럼).
    `QUAL.k`(0.45~1)가 나무의 제 가지·복제 단계 거리 · 풀과 소품이 보이는 거리 · 덤불·작은 나무를 까는 반경에 곱해진다.
    문턱은 아래 `qualTick` — 50 FPS 를 지키는 쪽으로 잡았다. 설정의 '자동 품질' 로 끈다(끄면 늘 1) */
-const QUAL={k:1, on:true, ema:16, t:0, lo:0.4};
+const QUAL={k:1, on:true, ema:16, t:0, lo:0.3};   // 바닥 0.3(2026-11-08 — 0.4 에서도 숲 · 산마루가 20~30 FPS 였다) · 0.7 밑부터는 캠코더 그림판 해상도도 낮춘다(46-camcorder.js camcBegin)
 function qualTick(dtMs,dt){
   const Q=QUAL;
   if(!Q.on){ if(Q.k!==1){ Q.k=1; qualApply(); } return; }
@@ -1670,6 +1670,8 @@ function updateRubble(force){
     if(pk){ const tk=FLORA.taken.get(key); if(tk!==undefined){ if(gameHours-tk<72) continue; FLORA.taken.delete(key); } }
     r*=clamp((R-d)/8,0.2,1);                            // 가장자리에서 갑자기 생기지 않게 작게 시작
     const g0=heightAt(wx,wz), gy=geoGround(wx,wz,g0), onGeo=gy>g0+0.01;                 // 큰 지형 모형 위면 그 윗면 · 그 면의 비탈
+    if(UNDER.dol.length&&underHoleAt(wx,wz,gy,r+0.4)) continue;                         // 굴 입구 구멍 위엔 안 놓는다(96-underworld.js)
+    if(boulderAt(wx,wz,r+0.3)) continue;                                                  // 큰 바위 속 · 곁(위 boulderAt — 2026-11-08 사용자)
     const gs0=onGeo?null:groundSlope(wx,wz,Math.max(0.25,r)), sl0=onGeo?GEO_LF.slope:Math.hypot(gs0[0],gs0[1]);
     if(sl0>1.25) continue;                              // 52° 넘는 벽에는 돌이 얹혀 있을 수 없다(벽에 붙어 떠 보였다)
     const sy=salt?(P.sm?0.07:0.26):0.5+0.35*((h2>>>9)&15)/15;
@@ -2231,6 +2233,18 @@ function rockTop(x,z){
 function rockSolid(x,z,y){ const t=rockTop(x,z); return t>-1e8&&y<t-0.05&&y>RKF.bot; }
 /* 그 자리 땅이 바위에 덮였나 — 큰 지형 모형(드러난 칸 가림막 · 모형 윗면이 땅보다 높은 데) · 큰 바위 · 광석. 식생 · 사바나 풀이 바위 속에 돋지 않게
    (2026-11-06 사용자 '바위 · 큰 돌 모형 속에 것들이 생긴다'). full 이면 모형 윗면까지 잰다(무겁다 — 식생 한 그루씩만) */
+/* **큰 바위 속이거나 그 곁(pad m)인가**(2026-11-08 사용자 '바위 곁과 속의 것을 다 치워라') — 벼랑 덩이(33-crags.js — 원 cols 와 그려진 꼴 cragSpan 을
+   그 자리와 둘레 네 점에서) · 바위 · 광석(rockTop) · 큰 지형 모형(inRockAt). 풀 · 덤불 · 잔돌 · 소품 · 사바나 풀을 그 둘레에 안 세운다 */
+function boulderAt(x,z,pad){
+  pad=pad||0;
+  if(inRockAt(x,z,true)) return true;
+  const g=heightAt(x,z);
+  if(pad>0&&RKF.g.size){ for(const [ox,oz] of [[pad,0],[-pad,0],[0,pad],[0,-pad]]) if(rockTop(x+ox,z+oz)>g+0.15) return true; }
+  if(typeof CRAG!=='undefined'&&CRAG.n&&cragNear(x,z,pad+8)){
+    if(cragNear(x,z,pad)) return true;
+    for(const [ox,oz] of [[0,0],[pad,0],[-pad,0],[0,pad],[0,-pad]]){ const n=cragSpan(x+ox,z+oz); for(let i=0;i<n;i++) if(_cgS[i].t>g+0.1&&_cgS[i].b<g+1.8) return true; if(!pad) break; } }
+  return false;
+}
 function inRockAt(x,z,full){
   const g=heightAt(x,z);
   if(GEO_LF.mask&&GEO_LF.mask.length===N*N){ const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2); if(gx>=0&&gz>=0&&gx<N&&gz<N&&GEO_LF.mask[gz*N+gx]) return true; }

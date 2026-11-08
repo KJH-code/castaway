@@ -72,7 +72,7 @@ function* savJob(cx,cz){
         if(rank*10>=want*d||cnt[l]>=SAV.cap[l]) continue;
         const x=gx*C+((h>>>10)&255)/256*C, z=gz*C+((h>>>18)&255)/256*C, key='S'+gx+','+gz+','+j;
         if(FLORA.taken.size&&FLORA.taken.has(key)&&floraWait({kind:'savgrass',key})>0) continue;
-        const y=heightAt(x,z); if(y<0.6||inRockAt(x,z,false)) continue;   // 바위 · 큰 지형 모형 속엔 안 돋는다
+        const y=heightAt(x,z); if(y<0.6||boulderAt(x,z,0.5)) continue;   // 바위 · 벼랑 덩이 · 큰 지형 모형 속과 곁엔 안 돋는다(30-props.js boulderAt)
         const hs=1.30+0.6*((h>>>26)&63)/63, ws2=(1.0+0.6*((h>>>4)&63)/63)*(l===0?1:l===1?1.25:1.6);
         _svE.set(0,((h>>>7)&1023)/1023*6.283,0); _svQ.setFromEuler(_svE); _svV.set(x,y-0.05,z); _svS.set(ws2,hs,ws2);
         _svM.compose(_svV,_svQ,_svS); _svM.toArray(B[l],cnt[l]*16); cnt[l]++;

@@ -1627,6 +1627,10 @@ function initTorchFx(){
 function updateTorch(dt,dh){
   const e=equippedTool();
   const on=litTorch();
+  /* **물에 잠기면 꺼진다**(2026-11-08 사용자 사진 — 물속 35 m 에서 횃불이 타고 있었다) — 손에 든 불(횃불 · 기름 등잔)이 수면 밑으로 들어가면 끈다.
+     전등(전기)은 그대로 · 땅속 굴은 바다 · 하천 밑이 아니다 */
+  if(on&&!PL.under&&!PL.cvUnder){ const cx=camera.position.x, cz=camera.position.z, rs=riverSurfAt(cx,cz), wl=rs!==null?rs:(heightAt(cx,cz)<0.3?seaSurfAt(cx,cz):-1e9);
+    if(camera.position.y-0.3<wl){ on.lit=false; invDirty=true; sfx('swish'); toast(ITEMS[on.id].n+' — 물에 잠겨 꺼졌다'); return updateTorch(dt,dh); } }
   if(on){
     on.fuel-=dh;
     if(on.fuel<=0){
