@@ -33,7 +33,7 @@
    노거수(뿌리가 땅이 되는 큰 나무)는 95-giants.js 가 '노거수 숲' 군락에 세운다.
    ========================================================================== */
 const FLORA={seed:0, m:null, mat:null, depth:null, tex:null, patch:84, taken:new Map(), look:null, ref:{}, pend:[], pendN:0,
-  far :{cx:1e9,cz:1e9,R:110,cell:6,  step:12,fade:14,salt:3,own:35,cols:[],picks:[],n:{},kinds:['jungle','mangrove','bamboo','palm','birch','pine','sapling','banana','treefern','acacia']},
+  far :{cx:1e9,cz:1e9,R:95,cell:6,  step:12,fade:14,salt:3,own:35,cols:[],picks:[],n:{},kinds:['jungle','mangrove','bamboo','palm','birch','pine','sapling','banana','treefern','acacia']},
   near:{cx:1e9,cz:1e9,R:46, cell:2.4,step:6, fade:7, salt:1,own:12,cols:[],picks:[],n:{},kinds:['fern','bush','flower','dry','shroom']}};
 /* 그림 묶음의 칸 */
 const FC={BARK:0,RING:1,LEAF:2,BIG:3,FERN:4,PALM:5,BAMBOO:6,NEEDLE:7,FLOWER:8,TWIG:9,MANG:10,VINE:11,BIRCH:12,PLAIN:13,STEM:14,CAP:15};
@@ -731,7 +731,7 @@ function updateFlora(force){
    ④ 다시 채우는 때 — 사람이 2 m 움직였거나 보이는 칸이 바뀌었을 때만. 종류마다 메시가 단계별로 하나라 그리기 호출은
       종류 × (가까운 벌 몇 + 복제 셋 + 그림 하나)다. 행렬은 배열에 바로 쓰고 그림자 지도는 드리우는 것(55 m 안)이 바뀔 때만 다시 그린다.
    몸이 막히는 원(`cols`)·딸 것(`picks`)은 60 m 안의 그루만, 사람이 움직일 때 다시 센다(그때 그 둘레의 지은 바닥·설비도 다시 본다). */
-const FL_TILE=64, FL_LOD=[[60,0.65],[95,0.3]], FL_PIC=160, FL_STEP=2, FL_NEAR=60, FL_FULL=50;
+const FL_TILE=64, FL_LOD=[[46,0.65],[75,0.3]], FL_PIC=130, FL_STEP=2, FL_NEAR=60, FL_FULL=36;   // 2026-11-08 FPS — 단계 거리를 0.75 배쯤(60/95/160/50 → 46/75/130/36)
 /* 사용자 지적 — 25 m 에서 '기준 그루' 의 복제로 갈아 끼워 모양이 바뀌는 게 너무 잘 보였다. 이제 ① 먼 단계도 **그루마다 제 벌**을 줄인 것이라
    줄기·큰 가지 구조가 그대로이고(잎 판·잔가지만 솎는다) ② 제 생김새 그대로는 50 m(`FL_FULL`)까지 · 50~60 m 잎 65% · 60~95 m 30% · 95~160 m 12%.
    그림 판때기(160 m 밖)만 기준 그루 하나다 */   // 잰 값: 이 겹이 한 프레임의 4 ms 였다 — 단계를 당기고(55→40 · 90→75 · 200→160) 잎을 더 솎는다

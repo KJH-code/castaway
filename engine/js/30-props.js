@@ -10,7 +10,7 @@
    칸 반지름(대각선 절반 + 나무 가지가 칸 밖으로 나가는 여유 12 m)을 빼고 잰다. */
 /* 땅 안개가 물리값(가시거리 수십 km)이 되어 150 m 에서 나무가 사라지는 경계가 드러났다 —
    임포스터(나무당 판 4장)를 450 m 까지 그린다 */
-const VIEW_DIST=450, NEAR_DIST=55, TILE=64, COPY_DIST=125;   // 칸 가장자리가 125 m 안인 칸은 그루마다 입체(아래 'TL') — 그 밖은 그림 판때기. 연무가 차이를 가린다
+const VIEW_DIST=450, NEAR_DIST=55, TILE=64, COPY_DIST=95;   // 2026-11-08 FPS — 125 → 95(숲에서 QUAL 1 이 30 FPS · 0.6 이 41 이라 바탕을 0.75 배로 당겼다)   // 칸 가장자리가 125 m 안인 칸은 그루마다 입체(아래 'TL') — 그 밖은 그림 판때기. 연무가 차이를 가린다
 const TREE_TILES=[];
 const WIND_ON=false;
 /* 풀·갈대·자갈처럼 작은 것은 멀면 안 보인다 — 섬 전체를 한 인스턴스 메시로 들고 있으면 발밑 풀
@@ -23,7 +23,7 @@ const PROP_TILE=64, PROP_TILES=[];
 const TRUNK_DIST=COPY_DIST+12;
 /* 점토 노출지·모래 언덕(지름 3 m 남짓 · 땅에 반쯤 묻힌 원반)도 칸에 담는다 — 예전엔 섬 전체(모래 561 · 점토 316)를 한 메시로
    거리·시야와 상관없이 늘 그려서 본 패스·그림자 패스에 프레임마다 40만 삼각형이 들었다. 300 m 밖은 몇 화소다 */
-const PROP_DIST={grass:200, reed:110, pebble:90, flint:110, oak:TRUNK_DIST, fir:TRUNK_DIST, clay:300, sand:300};
+const PROP_DIST={grass:150, reed:85, pebble:70, flint:85, oak:TRUNK_DIST, fir:TRUNK_DIST, clay:300, sand:300};   // 풀 200 → 150 · 갈대 · 부싯돌 110 → 85 · 자갈 90 → 70(2026-11-08 FPS)
 const tileKey=(x,z)=>Math.floor(x/TILE)+'|'+Math.floor(z/TILE);
 /* 참나무·전나무 칸 — 칸 가장자리가 COPY_DIST(125 m) 안이면 그루마다 거리로 단계를 고르고(아래 'TL'),
    그 밖 VIEW_DIST(450 m) 까지는 **수관 그림 판때기** 하나로(나무당 4면), 그 밖은 안 그린다. */
@@ -34,16 +34,19 @@ let ROCK_KINDS=null;                      // 바위 종류(ROCK_R — buildProps
 /* **자동 품질**(`QUAL`) — 프레임이 떨어지면 '어디까지 자세히 그리나' 를 스스로 당긴다(마인크래프트의 그리는 거리처럼).
    `QUAL.k`(0.45~1)가 나무의 제 가지·복제 단계 거리 · 풀과 소품이 보이는 거리 · 덤불·작은 나무를 까는 반경에 곱해진다.
    문턱은 아래 `qualTick` — 50 FPS 를 지키는 쪽으로 잡았다. 설정의 '자동 품질' 로 끈다(끄면 늘 1) */
-const QUAL={k:1, on:true, ema:16, t:0, lo:0.3};   // 바닥 0.3(2026-11-08 — 0.4 에서도 숲 · 산마루가 20~30 FPS 였다) · 0.7 밑부터는 캠코더 그림판 해상도도 낮춘다(46-camcorder.js camcBegin)
+const QUAL={k:1, on:true, ema:16, t:0, lo:0.25};   // 바닥 0.3(2026-11-08 — 0.4 에서도 숲 · 산마루가 20~30 FPS 였다) · 0.7 밑부터는 캠코더 그림판 해상도도 낮춘다(46-camcorder.js camcBegin)
 function qualTick(dtMs,dt){
   const Q=QUAL;
   if(!Q.on){ if(Q.k!==1){ Q.k=1; qualApply(); } return; }
-  Q.ema+=(Math.min(dtMs,100)-Q.ema)*0.05;
+  Q.ema+=(Math.min(dtMs,100)-Q.ema)*0.08;
   /* **50 FPS 를 지킨다**(사용자 요청) — 프레임 시간의 느린 평균이 19.5 ms(51 FPS)를 넘는 채로 1.5초가 가면 한 단계 내린다.
      올리는 것은 15.2 ms 밑으로 8초(60 Hz 화면에서 꽉 찬 60 FPS 는 16.7 ms 라 저절로는 안 오른다 — 넉넉할 때만 오른다) */
   /* 2026-11-06 — **60 FPS 를 지킨다**(사용자 요청 '60 FPS 까지') — 느린 평균이 17.4 ms(57 FPS)를 넘는 채로 1.5초면 한 단계 내리고 ·
      13.6 ms 밑으로 8초면 올린다(60 Hz 화면에선 꽉 찬 60 FPS 가 16.7 ms 라 저절로는 안 오른다 — 남을 때만) */
-  if(Q.ema>17.4&&Q.k>Q.lo){ Q.t+=dt; if(Q.t>1.5){ Q.t=0; Q.k=Math.max(Q.lo,+(Q.k-0.1).toFixed(2)); qualApply(); } }
+  /* 2026-11-08 — 많이 모자라면 빨리 내린다(사용자 '숲에서 아직 23 FPS'): 느린 평균이 28 ms(36 FPS) 넘으면 0.6 초마다 0.15 · 22 ms 넘으면 0.9 초마다 0.1 ·
+     그 밖(17.4~22)은 예전처럼 1.5 초마다 0.1. 예전엔 1 에서 바닥까지 10 초 넘게 걸려 상륙한 뒤 한참 20 FPS 대였다 */
+  if(Q.ema>17.4&&Q.k>Q.lo){ Q.t+=dt; const far=Q.ema>28, mid=Q.ema>22, need=far?0.6:mid?0.9:1.5;
+    if(Q.t>need){ Q.t=0; Q.k=Math.max(Q.lo,+(Q.k-(far?0.15:0.1)).toFixed(2)); qualApply(); } }
   else if(Q.ema<13.6&&Q.k<1){ Q.t-=dt; if(Q.t<-8){ Q.t=0; Q.k=Math.min(1,+(Q.k+0.05).toFixed(2)); qualApply(); } }
   else Q.t*=0.9;
 }
@@ -122,7 +125,8 @@ function dropTreeTile(t){
       제 가지 단계는 원본(`tile.build`)에서 그루 몫을 그대로 베끼고, 솎은 단계는 그루마다 따로 지어 둔 자료(`p._thin` · `tlThin`)에서.
    ③ 원본은 45 m 안 그루가 있는 칸만 짓고(한 프레임에 한 칸) 125 m 넘게 멀어지면 비운다. 솎은 자료는 그림이 되기 40 m 앞부터
       프레임마다 3 ms 씩 그루마다 짓는다(섬을 지을 때는 한꺼번에). 원본·솎은 자료가 아직 없으면 한 단계 굵은 것(또는 그림)으로 선다. */
-const TL={hi:18, full:45, thin:[58,75,95], hyst:2, step:0.7, px:1e9, pz:1e9, qk:-1, noShort:false,
+const TL={hi:14, full:34, thin:[46,60,78], hyst:2,   // 2026-11-08 FPS — 18/45/[58,75,95] 의 0.75~0.8 배
+  step:0.7, px:1e9, pz:1e9, qk:-1, noShort:false,
   F:{oak:{L:[0.65,0.35,0.18,0.07], F:[0.65,0.35,0.18,0.08], cap:9},
      fir:{L:[0.65,0.35,0.18,0.07], F:[0.75,0.5,0.32,0.18], cap:1.45}},
   der:3, pack:3, stat:{derive:0, pack:0, packMs:0}};
