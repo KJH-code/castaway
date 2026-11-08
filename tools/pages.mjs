@@ -18,6 +18,7 @@ export const PAGES = [
   {f: 'beta/build_sandbox.html', ready: 'busy === false',                      ms: 300000},
   {f: 'beta/cloud_arena.html',   ready: 'CLOUDS.length > 0 && !!skyDome',      ms: 120000},
   {f: 'beta/bear_arena.html',    ready: '!!bMesh',                             ms: 180000},
+  {f: 'beta/wildlife_arena.html',ready: 'MON.ani.length > 0 && MON.sheep.length > 0', ms: 120000},
   {f: 'beta/gargoyle_arena.html',ready: '!!gMesh',                             ms: 240000},
   {f: 'beta/mixed_arena.html',   ready: '!!bMesh && GS.every(g => g.mesh)',    ms: 300000},
   {f: 'beta/mimic_arena.html',   ready: '!!bMesh',                             ms: 420000},
