@@ -58,7 +58,7 @@ python -m http.server 5173
 | `CODEMAP.md` | 나뉜 본편의 파일별 설명(영어) · 고칠 때 지킬 것 |
 | `tools/build_single.py` · `tools/serve.py` | 한 파일로 묶기 · 캐시 끈 로컬 서버 |
 | `engine/three.min.js` | Three.js r128(npm three@0.128.0 의 build) — **cdnjs 대신 이걸 쓴다** · 한 줄 고친 데가 있다(아래 '규칙') |
-| `beta/*_arena.html` | **시험장** — 가고일 · 애쉬스케일(wyvern) · 농성(siege) · 편싸움(battle) · 밤(night) · 밤 애저(azure_night) · 구름(cloud) · 다지류(crawler) · 애저(azure) · 곰(bear · mixed) · 셋(trio) · 스킨워커(mimic) — 무엇이 어떻게 도는지는 `docs/notes/arenas.md` |
+| `beta/*_arena.html` | **시험장** — 가고일 · 애쉬스케일(wyvern) · 농성(siege) · 편싸움(battle) · 밤(night) · 밤 애저(azure_night) · 구름(cloud) · 다지류(crawler) · 애저(azure) · 곰(bear · mixed) · 셋(trio) · 스킨워커(mimic) · 들짐승(wildlife — 본편 97-animals.js · 97-sheep.js 를 그대로 읽는다) — 무엇이 어떻게 도는지는 `docs/notes/arenas.md` |
 | `docs/CASTAWAY_개발요약.md` | **설계 문서. 작업 전에 먼저 읽을 것** |
 | `docs/CASTAWAY_전사_*.md` | 개발 대화 원문(아래 '읽지 말 것') |
 | `docs/notes/*.md` | **계통별 노트** — 무엇을 왜 그렇게 짰나 · 잰 값 · 같이 고칠 짝(아래 '계통별 노트') |

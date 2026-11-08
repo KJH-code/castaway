@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>CASTAWAY — 들짐승 시험장</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- 들짐승 시험장(사용자 요청 2026-11-08 '들짐승 시험장을 만들어라').
+     **본편 파일을 그대로 읽는다** — engine/js/97-animals.js(소 · 토끼 · 꿩) · 97-sheep.js(양) · 그 자료. 그래서 본편을 고치면 여기도 그대로 바뀐다(복사본이 없다).
+     본편이 쓰는 전역(장면 · 땅 높이 · 맞는 공 · 사람 PL …)은 아래 '받침'이 흉내 낸다. 무엇이 어떻게 도는지는 docs/notes/arenas.md -->
+<style>
+  html,body{margin:0;height:100%;background:#9fc3df;overflow:hidden;font:13px/1.45 system-ui,-apple-system,'Apple SD Gothic Neo',sans-serif;color:#eef}
+  #cv{display:block;width:100%;height:100%}
+  #ui{position:fixed;left:12px;top:12px;width:250px;background:rgba(12,20,28,.78);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px 12px}
+  #ui h1{font-size:14px;margin:0 0 6px}
+  #ui .row{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+  #ui button{flex:1 1 auto;background:#24394b;color:#eef;border:1px solid #3d5a70;border-radius:6px;padding:5px 7px;font:inherit;cursor:pointer}
+  #ui button:hover{background:#2f4b62} #ui button.on{background:#4f7a3a;border-color:#7fae5f}
+  #st{white-space:pre;font:12px ui-monospace,Menlo,monospace;color:#cfe;margin-top:6px}
+  #help{color:#9ab;font-size:12px;margin-top:6px}
+  #cross{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:3px;background:#fff;opacity:.8;pointer-events:none}
+  .lab{position:fixed;transform:translate(-50%,-100%);font:11px ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.45);padding:1px 4px;border-radius:3px;pointer-events:none;white-space:nowrap}
+  #toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:rgba(0,0,0,.6);padding:6px 12px;border-radius:6px;opacity:0;transition:opacity .3s;pointer-events:none}
+</style></head><body>
+<canvas id="cv"></canvas><div id="cross"></div><div id="toast"></div><div id="labs"></div>
+<div id="ui">
+  <h1>들짐승 시험장</h1>
+  <div class="row"><button data-sp="cow">소 무리</button><button data-sp="hare">토끼</button><button data-sp="pheasant">꿩</button><button data-sp="sheep">양 무리</button></div>
+  <div class="row"><button id="bScare">모두 놀래기</button><button id="bClear">모두 거두기</button></div>
+  <div class="row"><button id="bSlow">느리게 ×0.25</button><button id="bNight">밤</button><button id="bLab" class="on">상태 글</button><button id="bSnd">소리</button></div>
+  <div id="st"></div>
+  <div id="help">화면 클릭 → 시점 · WASD 걷기 · Shift 달리기(뛰어가면 놀란다) · 좌클릭 찌르기(30) · 우클릭 쏘기(100) · Esc 풀기</div>
+</div>
+<script src="../engine/three.min.js"></script>
+<script>
+"use strict";
+/* ── 받침 — 본편 전역을 흉내 낸다(97-animals.js · 97-sheep.js 가 부르는 것만) ───────────────────────── */
+let scene=null, camera=null, renderer=null, gameHours=12, NIGHT=false;
+const MON={ani:[], sheep:[], picks:[], frame:0, shake:0, seq:0};
+const ITEMS={}, FIRING={}, MOB_LOOT={}, RECIPES=[], MOB_R={}, CREATURES=[];
+const B={DEEP:0,SHELF:1,BEACH:2,DUNE:3,MARSH:4,MEADOW:5,BROADLEAF:6,CONIFER:7,SCRUB:8,ROCK:9,SCREE:10,RIVER:11,FUMAROLE:12,BAMBOO:13};
+const PL={pos:new THREE.Vector3(0,0,30), vel:new THREE.Vector3(), yaw:0, pitch:0, under:false, swim:false, cave:false, dead:false};
+const A={ctx:null, master:null, noise:null};
+const ARENA_R=170;
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+/* 땅 — 완만한 언덕(높이 2~8 m) · 가운데 풀밭 · 북쪽은 숲(넓은잎 · 바늘잎) · 남동쪽 덤불 */
+function heightAt(x,z){ return 4+1.8*Math.sin(x*0.021)*Math.cos(z*0.017)+0.9*Math.sin(x*0.053+1.3)*Math.sin(z*0.047+0.4)+0.25*Math.sin(x*0.17)*Math.cos(z*0.15); }
+function mobBiome(x,z){ return z<-70?(x<0?B.BROADLEAF:B.CONIFER):(x>60&&z>40?B.SCRUB:B.MEADOW); }
+function mobGround(x,z){ return heightAt(x,z); }
+function solidAt(x,z,y){ return Math.hypot(x,z)>ARENA_R-4; }          // 울타리
+function mobNight(){ return NIGHT; }
+function invAdd(){ return true; }
+function toast(t){ const e=document.getElementById('toast'); e.textContent=t; e.style.opacity=1; clearTimeout(toast.h); toast.h=setTimeout(()=>e.style.opacity=0,1800); }
+function mobBlob(r){
+  if(!MON.blob){ const c=document.createElement('canvas'); c.width=c.height=64; const g=c.getContext('2d'), gr=g.createRadialGradient(32,32,2,32,32,31);
+    gr.addColorStop(0,'rgba(0,0,0,0.5)'); gr.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=gr; g.fillRect(0,0,64,64);
+    MON.blob={geo:new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2), mat:new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthWrite:false})}; }
+  const m=new THREE.Mesh(MON.blob.geo,MON.blob.mat); m.scale.set(r*2,1,r*2); m.renderOrder=3; m.visible=false; scene.add(m); return m;
+}
+function mobProxy(m,pos,r){
+  const o={r,_m:m};
+  Object.defineProperty(o,'x',{get:()=>pos().x}); Object.defineProperty(o,'z',{get:()=>pos().z}); Object.defineProperty(o,'y',{get:()=>pos().y-1.0});
+  Object.defineProperty(o,'hp',{get:()=>m.alive?m.hp:0, set:v=>{ if(m.alive) mobDamage(m,m.hp-v); }});
+  return o;
+}
+function mobRegister(m,on){ for(const p of m.prox){ const i=CREATURES.indexOf(p); if(on&&i<0) CREATURES.push(p); else if(!on&&i>=0) CREATURES.splice(i,1); } }
+function mobDamage(m,d){ if(!m.alive||!(d>0)) return; m.hp-=d; m.alerted=true; m.hitT=0.4; if(m.hp<=0) mobKill(m); }
+function mobKill(m){
+  m.alive=false; m.hp=0; m.deadT=0; mobRegister(m,false);
+  if(typeof ANI_DEF!=='undefined'&&ANI_DEF[m.kind]){ aniVoice(ANI_DEF[m.kind].voice,m.pos,1.3); toast(ANI_DEF[m.kind].name+' 쓰러뜨렸다'); }
+  else { mobVoice('baa',m.pos.x,m.pos.y+1,m.pos.z,1.4); toast('양을 쓰러뜨렸다'); }
+}
+/* 양 소리(매애) · 날갯짓 — 본편 mobVoice 의 둘만 */
+function mobVoice(kind,x,y,z,vol){
+  if(!A.ctx) return; const d=Math.hypot(x-PL.pos.x,z-PL.pos.z); if(d>150) return;
+  const ctx=A.ctx, t=ctx.currentTime, g=ctx.createGain(); g.gain.value=(vol||1)*0.5/Math.pow(1+d/14,1.4); g.connect(A.master);
+  if(kind==='baa'){ const f0=280+Math.random()*90, o=ctx.createOscillator(); o.type='sawtooth'; o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f0*0.82,t+0.75);
+    const f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=800; f.Q.value=4; const e=ctx.createGain(); e.gain.setValueAtTime(0.0001,t); e.gain.exponentialRampToValueAtTime(0.5,t+0.05); e.gain.exponentialRampToValueAtTime(0.0001,t+0.8);
+    o.connect(f); f.connect(e); e.connect(g); o.start(t); o.stop(t+0.85); }
+  else if(kind==='flap'&&A.noise){ for(let i=0;i<3;i++){ const s=ctx.createBufferSource(); s.buffer=A.noise; const f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=160; f.Q.value=0.6; const e=ctx.createGain();
+    e.gain.setValueAtTime(0.0001,t+i*0.55); e.gain.exponentialRampToValueAtTime(0.7,t+i*0.55+0.01); e.gain.exponentialRampToValueAtTime(0.0001,t+i*0.55+0.22); s.connect(f); f.connect(e); e.connect(g); s.start(t+i*0.55); s.stop(t+i*0.55+0.25); } }
+}
+</script>
+<script src="../engine/js/97-mob-rigs.js"></script>
+<script src="../engine/js/data-mob-sheep.js"></script>
+<script src="../engine/js/97-sheep.js"></script>
+<script src="../engine/js/data-animal-textures.js"></script>
+<script src="../engine/js/97-animals.js"></script>
+<script>
+"use strict";
+/* ── 시험장 ──────────────────────────────────────────────────────────────── */
+const cv=document.getElementById('cv');
+renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true}); renderer.setPixelRatio(Math.min(2,devicePixelRatio));
+scene=new THREE.Scene(); scene.background=new THREE.Color(0x9fc3df); scene.fog=new THREE.Fog(0x9fc3df,60,320);
+camera=new THREE.PerspectiveCamera(70,1,0.1,800);
+const hemi=new THREE.HemisphereLight(0xcfe6ff,0x4a5a30,0.85), sun=new THREE.DirectionalLight(0xfff1d8,1.0); sun.position.set(80,120,40); scene.add(hemi,sun,sun.target);
+/* 땅 · 울타리 · 나무 */
+{ const g=new THREE.PlaneGeometry(ARENA_R*2.4,ARENA_R*2.4,160,160).rotateX(-Math.PI/2), p=g.attributes.position, C=[];
+  for(let i=0;i<p.count;i++){ const x=p.getX(i), z=p.getZ(i); p.setY(i,heightAt(x,z)); const b=mobBiome(x,z), n=0.5+0.5*Math.sin(x*0.3)*Math.cos(z*0.27);
+    const c=b===B.MEADOW?[0.24+0.04*n,0.36+0.04*n,0.15]:b===B.SCRUB?[0.40,0.37,0.21]:[0.16,0.25+0.03*n,0.12]; C.push(...c); }
+  g.setAttribute('color',new THREE.Float32BufferAttribute(C,3)); g.computeVertexNormals();
+  scene.add(new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true})));
+  const fence=new THREE.Mesh(new THREE.TorusGeometry(ARENA_R-3,0.25,6,128).rotateX(Math.PI/2),new THREE.MeshLambertMaterial({color:0x6a4a2a})); fence.position.y=heightAt(0,0)+1; scene.add(fence);
+  const rnd=mulberry32(7), trunk=new THREE.MeshLambertMaterial({color:0x5a4030}), leaf=new THREE.MeshLambertMaterial({color:0x2f5a2a}), tg=new THREE.CylinderGeometry(0.25,0.35,4,6), cg=new THREE.ConeGeometry(2.2,6,7);
+  for(let k=0;k<70;k++){ const a=rnd()*6.283, r=40+rnd()*(ARENA_R-50), x=Math.cos(a)*r, z=Math.sin(a)*r; if(mobBiome(x,z)===B.MEADOW&&rnd()<0.75) continue;
+    const t=new THREE.Mesh(tg,trunk); t.position.set(x,heightAt(x,z)+2,z); const c=new THREE.Mesh(cg,leaf); c.position.set(x,heightAt(x,z)+6.5,z); scene.add(t,c); } }
+/* 짓기 — 본편과 같은 길(소 사진 무늬는 그림을 읽은 뒤에 선다) */
+animalsBuild(); sheepBuild();
+aniSpawner=()=>{}; sheepSpawner=()=>{};                    // 저절로 세우지 않는다 — 단추로만
+let SLOW=false, LAB=true;
+function freeOf(kind){ return kind==='sheep'?MON.sheep.filter(s=>!s.active):MON.ani.filter(a=>a.kind===kind&&!a.active); }
+/* 보는 쪽 25~40 m 앞에 세운다 — 모자라면 본편 짓는 함수로 더 빚는다 */
+function spawn(kind){
+  const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw), d=25+Math.random()*15, cx=PL.pos.x+fx*d, cz=PL.pos.z+fz*d;
+  const n=kind==='cow'?3:kind==='sheep'?4:kind==='pheasant'?2:1;
+  let free=freeOf(kind);
+  if(kind!=='sheep'&&free.length<n&&MON.ani.length) for(let k=free.length;k<n;k++){ const id=1000+MON.ani.length;
+    MON.ani.push(aniWrap(kind,id,kind==='cow'?aniMakeCow(id,['yellow','brown','spotted'][id%3]):kind==='hare'?aniMakeHare(id):aniMakePheasant(id))); }
+  free=freeOf(kind); const herd={id:Math.random(),x:cx,z:cz};
+  for(let k=0;k<Math.min(n,free.length);k++){ const x=cx+(Math.random()-0.5)*8, z=cz+(Math.random()-0.5)*8;
+    if(kind==='sheep') sheepSpawn(free[k],x,z,herd); else aniSpawn(free[k],x,z,herd); }
+  if(!free.length) toast(kind==='sheep'?'양은 열 마리까지':'아직 짓는 중');
+}
+document.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>spawn(b.dataset.sp));
+document.getElementById('bScare').onclick=()=>{ const f={x:PL.pos.x,z:PL.pos.z}; for(const a of MON.ani) if(a.active&&a.alive) aniPanic(a,f); for(const s of MON.sheep) if(s.active&&s.alive) sheepPanic(s.herd,f); };
+document.getElementById('bClear').onclick=()=>{ for(const a of MON.ani) aniOff(a); for(const s of MON.sheep) sheepOff(s); };
+document.getElementById('bSlow').onclick=e=>{ SLOW=!SLOW; e.target.classList.toggle('on',SLOW); };
+document.getElementById('bLab').onclick=e=>{ LAB=!LAB; e.target.classList.toggle('on',LAB); if(!LAB) document.getElementById('labs').innerHTML=''; };
+document.getElementById('bNight').onclick=e=>{ NIGHT=!NIGHT; e.target.classList.toggle('on',NIGHT);
+  const c=NIGHT?0x1a2232:0x9fc3df; scene.background.set(c); scene.fog.color.set(c); hemi.intensity=NIGHT?0.25:0.85; sun.intensity=NIGHT?0.15:1.0; gameHours=NIGHT?0:12; };
+document.getElementById('bSnd').onclick=e=>{ if(!A.ctx){ A.ctx=new (window.AudioContext||window.webkitAudioContext)(); A.master=A.ctx.createGain(); A.master.gain.value=0.8; A.master.connect(A.ctx.destination);
+  const n=A.ctx.sampleRate*1.5, b=A.ctx.createBuffer(1,n,A.ctx.sampleRate), d=b.getChannelData(0); for(let i=0;i<n;i++) d[i]=Math.random()*2-1; A.noise=b; }
+  else if(A.ctx.state==='running') A.ctx.suspend(); else A.ctx.resume();
+  e.target.classList.toggle('on',A.ctx.state!=='running'?false:true); };
+/* 사람 — 걷기 · 달리기 · 시점(포인터 잠금) */
+const keys={};
+addEventListener('keydown',e=>{ keys[e.code]=true; }); addEventListener('keyup',e=>{ keys[e.code]=false; });
+cv.addEventListener('click',()=>{ if(document.pointerLockElement!==cv) cv.requestPointerLock(); });
+addEventListener('mousemove',e=>{ if(document.pointerLockElement!==cv) return; PL.yaw-=e.movementX*0.0024; PL.pitch=clamp(PL.pitch-e.movementY*0.0024,-1.4,1.4); });
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+const _rc=new THREE.Raycaster();
+cv.addEventListener('mousedown',e=>{ if(document.pointerLockElement!==cv) return;
+  _rc.setFromCamera({x:0,y:0},camera); _rc.far=e.button===2?160:4;
+  const rigs=[...MON.ani,...MON.sheep].filter(a=>a.active&&a.alive), hit=_rc.intersectObjects(rigs.map(a=>a.rig),true)[0];
+  if(!hit){ toast(e.button===2?'빗나갔다':'닿지 않는다'); return; }
+  let o=hit.object; const a=rigs.find(r=>{ let p=o; while(p){ if(p===r.rig) return true; p=p.parent; } return false; });
+  if(a){ mobDamage(a,e.button===2?100:30); toast((a.kind==='sheep'?'양':ANI_DEF[a.kind].name.slice(0,-1))+' — 남은 체력 '+Math.max(0,Math.round(a.hp))); } });
+function resize(){ renderer.setSize(innerWidth,innerHeight,false); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize',resize); resize();
+const _lv=new THREE.Vector3(); let last=performance.now(), fpsA=60;
+function loop(){
+  requestAnimationFrame(loop);
+  const now=performance.now(), rdt=Math.min(0.05,(now-last)/1000); last=now; fpsA+=((1/Math.max(rdt,1e-3))-fpsA)*0.05;
+  const dt=rdt*(SLOW?0.25:1);
+  /* 걷기 */
+  const run=keys.ShiftLeft||keys.ShiftRight, sp=run?7.5:3.2, fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
+  let mx=0, mz=0; if(keys.KeyW){ mx+=fx; mz+=fz; } if(keys.KeyS){ mx-=fx; mz-=fz; } if(keys.KeyA){ mx+=fz; mz-=fx; } if(keys.KeyD){ mx-=fz; mz+=fx; }
+  const ml=Math.hypot(mx,mz); if(ml>0){ mx=mx/ml*sp; mz=mz/ml*sp; }
+  PL.vel.set(mx,0,mz); const nx=PL.pos.x+mx*dt, nz=PL.pos.z+mz*dt; if(Math.hypot(nx,nz)<ARENA_R-5){ PL.pos.x=nx; PL.pos.z=nz; }
+  PL.pos.y=heightAt(PL.pos.x,PL.pos.z);
+  camera.position.set(PL.pos.x,PL.pos.y+1.65,PL.pos.z); camera.rotation.set(PL.pitch,PL.yaw,0,'YXZ');
+  MON.frame++; gameHours+=dt/60;
+  animalsUpdate(dt); sheepUpdate(dt);
+  renderer.render(scene,camera);
+  /* 상태 글 */
+  const act=[...MON.ani,...MON.sheep].filter(a=>a.active);
+  if(LAB){ const L=document.getElementById('labs'); let h='';
+    for(const a of act){ _lv.set(a.pos.x,a.pos.y+(a.kind==='cow'?2.1:a.kind==='sheep'?1.4:0.7)+(a.air||0),a.pos.z); const d=_lv.distanceTo(camera.position); if(d>70) continue; _lv.project(camera); if(_lv.z>1) continue;
+      h+='<div class="lab" style="left:'+((_lv.x*0.5+0.5)*innerWidth)+'px;top:'+((-_lv.y*0.5+0.5)*innerHeight)+'px">'+(a.kind==='sheep'?'양':a.kind)+' · '+(a.alive?a.state:'죽음')+' · '+Math.max(0,Math.round(a.hp))+'</div>'; }
+    L.innerHTML=h; }
+  const cnt=k=>act.filter(a=>a.kind===k&&a.alive).length;
+  document.getElementById('st').textContent='소 '+cnt('cow')+' · 토끼 '+cnt('hare')+' · 꿩 '+cnt('pheasant')+' · 양 '+cnt('sheep')+'\n'
+    +'FPS '+Math.round(fpsA)+(SLOW?' · 느리게':'')+(NIGHT?' · 밤':'')+'\n사람 '+PL.pos.x.toFixed(0)+', '+PL.pos.z.toFixed(0)+(run?' · 달림':'');
+}
+loop();
+/* 처음엔 한 무리씩 */
+(function first(){ if(!MON.ani.length){ setTimeout(first,200); return; } PL.yaw=0; spawn('cow'); PL.yaw=0.9; spawn('hare'); PL.yaw=-0.9; spawn('pheasant'); PL.yaw=2.6; spawn('sheep'); PL.yaw=0; })();
+</script>
+</body></html>
