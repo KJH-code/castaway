@@ -146,7 +146,7 @@ function placeFor(kind,sid,near){
 function spawnKind(kind,sid,quiet){
   if(kind==='sheep'){ const free=MON.sheep.filter(s=>!s.active), p=placeFor('sheep'); if(!p||!free.length){ toast('양은 다섯 마리까지'); return; } const herd={id:Math.random(),x:p.x,z:p.z};
     for(const s of free.slice(0,3)) sheepSpawn(s,p.x+(Math.random()-0.5)*6,p.z+(Math.random()-0.5)*6,herd); return; }
-  const D=ANI_DEF[kind], T=ANIMAL_COATS[D.coat].sp; sid=sid||Object.keys(T).filter(s=>s!=='piglet')[(Math.random()*(Object.keys(T).length-1))|0];
+  const D=ANI_DEF[kind], T=ANIMAL_COATS[D.coat].sp, L=Object.keys(T).filter(s=>s!=='piglet'); sid=sid||L[(Math.random()*L.length)|0];
   const p=placeFor(kind,sid==='piglet'?undefined:sid,D.sea?15:25); if(!p){ if(!quiet) toast(T[sid].n+' — 사는 바이옴이 시험장에 없다('+T[sid].bio.join(' ')+')'); return null; }
   const free=MON.ani.filter(a=>a.kind===kind&&!a.active); if(!free.length){ const id=MON.ani.length, key=D.mesh[MON.ani.filter(a=>a.kind===kind).length%D.mesh.length]; MON.ani.push(aniWrap(kind,id,aniRig(key))); }
   const got=aniGroup(kind,sid,p.x,p.z,1); if(!got.length&&!quiet) toast('세울 자리를 못 찾았다'); return got;
@@ -219,9 +219,9 @@ function loop(){
   for(const a of MON.ani) if(a.demo&&a.active&&a.alive){ const D=ANI_DEF[a.kind], v={walk:D.v.walk,trot:D.v.trot,hop:1.0,cruise:D.v.walk,swim:0.5}[a.demo.c]||D.v.run;
     a.demo.t-=dt; a.state='walk'; a.t=0; a.dur=9; a.target.set(a.pos.x+Math.sin(a.yaw)*8,0,a.pos.z+Math.cos(a.yaw)*8);
     if(a.demo.c==='stot') a.stot=0.5; if(a.demo.c==='charge') a.charge=true;
-    if(a.demo.t<=0){ a.demo=null; a.charge=false; a.state='idle'; } else { D.v._w=D.v.walk; D.v.walk=v; } }
+    a.demoV=v;                                                       // 이 짐승의 걸음 빠르기만(97-animals.js 'walk' 가 읽는다 · 걸음 표는 빠르기로 골라진다)
+    if(a.demo.t<=0){ a.demo=null; a.demoV=0; a.charge=false; a.state='idle'; } }
   animalsUpdate(dt); sheepUpdate(dt);
-  for(const k of ANI_KINDS){ const V=ANI_DEF[k].v; if(V._w!==undefined){ V.walk=V._w; delete V._w; } }
   renderer.render(scene,camera);
   /* 상태 글 */
   const act=[...MON.ani,...MON.sheep].filter(a=>a.active);

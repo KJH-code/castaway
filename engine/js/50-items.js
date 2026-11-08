@@ -1090,7 +1090,7 @@ function eatSlot(sl){
   const i=INV.slots.indexOf(sl);
   if(i>=0) invRemove(i,1);
   if(T.empty && !invAdd(T.empty,1)) toast('빈 '+ITEMS[T.empty].n+'을 들 자리가 없어 버렸다');
-  if(T.poison){ PL.ill=Math.max(PL.ill,90); hurtPL(T.poison,T.n+'의 독'); toast(T.n+' — 독이 온몸에 퍼진다! 반드시 구워 먹어야 한다'); }
+  if(T.poison){ PL.ill=Math.max(PL.ill,90); hurtPL(T.poison,T.n+'의 독'); toast(T.n+' — 독이 온몸에 퍼진다! '+(T.poisonMsg||'반드시 구워 먹어야 한다')); }
   else if(T.spoiled){ PL.ill=Math.max(PL.ill,120); hurtPL(5,'상한 음식'); toast('상한 것을 먹었다 — 크게 탈이 났다'); }
   else if(T.raw&&T.fishy){ PL.ill=Math.max(PL.ill,75); toast(T.n+' — 날로 먹었다. 먹을 수는 있지만 탈이 났다(눈앞이 보랏빛으로 출렁인다) — 구워 먹을 것'); }
   else if(T.raw){ PL.ill=Math.max(PL.ill,45); toast(T.n+' — 날로 먹어 속이 뒤집힌다'); }

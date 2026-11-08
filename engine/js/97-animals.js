@@ -50,7 +50,7 @@ Object.assign(ITEMS, {
   meat_venison: {n:'사슴고기',   kg:1.2, c:0x8a3a34, use:'날고기 — 구워 먹어야 탈이 없다', food:7, raw:true, tags:['meat']},
   meat_pork:    {n:'멧돼지고기', kg:1.3, c:0xb05a50, use:'날고기 — 구워 먹어야 탈이 없다', food:8, raw:true, tags:['meat']},
   meat_frog:    {n:'개구리 뒷다리', kg:0.08, c:0xd8b8a0, use:'날고기 — 작지만 구우면 먹을 만하다', food:2, raw:true, tags:['meat']},
-  meat_frog_toxic: {n:'독개구리', kg:0.03, c:0xe8c020, use:'살갗에 독이 있다 — 먹으면 안 된다', food:1, raw:true, poison:35},
+  meat_frog_toxic: {n:'독개구리', kg:0.03, c:0xe8c020, use:'살갗에 독이 있다 — 먹으면 안 된다', food:1, raw:true, poison:35, poisonMsg:'살갗의 독은 구워도 안 빠진다 — 먹지 말 것'},
   meat_lizard:  {n:'도마뱀 고기', kg:0.2, c:0xc8a090, use:'날고기 — 구워 먹어야 탈이 없다', food:3, raw:true, tags:['meat']},
   meat_shark:   {n:'상어 고기',  kg:2.0, c:0xd8c8c0, use:'날고기 — 구워 먹어야 탈이 없다', food:8, raw:true, tags:['meat']}
 });
@@ -277,7 +277,7 @@ function aniAdd(a, clip, t, w) {
   }
 }
 /* 하는 짓(풀 뜯기 · 쳐다보기 · 눕기 …) — 하나만 · 0.4초에 걸쳐 바뀐다 · 한 번짜리(l 0)는 끝나면 null */
-function aniAct(a, name) { if (a.act && a.act.name === name) return; a.actPrev = a.act; if (a.actPrev) a.actPrev.fade = 1; a.act = name ? {name, t:0, w:0} : null; }
+function aniAct(a, name) { if ((a.act ? a.act.name : null) === (name || null)) return; a.actPrev = a.act; if (a.actPrev) a.actPrev.fade = 1; a.act = name ? {name, t:0, w:0} : null; }
 function aniOnce(a, name) { a.once = {name, t:0}; }
 function aniPose(a, dt) {
   const R = a.rig, K = a.kind, D = ANI_DEF[K], CL = ANIMAL_CLIPS[D.rig], s = a.scale;
@@ -332,7 +332,7 @@ function aniWrap(kind, id, body) {
   const D = ANI_DEF[kind], r = mulberry32(0xa11 + id * 7919);
   const a = Object.assign(body, {kind, id, pos:new THREE.Vector3(), yaw:0, pitch:0, hp:D.hp, hp0:D.hp, hpMax:D.hp, alive:false, active:false, alerted:false, frz:0,
     state:'idle', t:0, dur:3, target:new THREE.Vector3(), speed:0, ph:r(), phPrev:0, amp:1, ampT:1, herd:null, flee:null, lookY:0, hitT:0, deadT:0,
-    voiceT:4 + r() * 12, prox:[], pick:null, fly:null, zz:0, air:0, scale:1, sid:'', vi:0, loot:null, act:null, actPrev:null, once:null, tm:r() * 100,
+    voiceT:4 + r() * 12, skipDt:0, lastRt:[0, 0], prox:[], pick:null, fly:null, zz:0, air:0, scale:1, sid:'', vi:0, loot:null, act:null, actPrev:null, once:null, tm:r() * 100,
     acc:new Float32Array(body.bones.length * 3), root:[0, 0], earFlick:0, earSide:false, charge:false, chargeN:0, stot:0, hop:null, swimT:0, biteT:0, cool:0,
     pk:{amp:0.88 + r() * 0.24, ampL:0.9 + r() * 0.2, tempo:0.92 + r() * 0.16, leg:[0, 1, 2, 3].map(() => (r() - 0.5) * 0.06),
         nz:null}});
@@ -386,7 +386,7 @@ function aniSpawner() {
     const list = D.sea ? Object.keys(ANIMAL_COATS.shark.sp).filter(s => ANIMAL_COATS.shark.sp[s].bio.includes(ANI_BNAME[mobBiome(x, z)])) : aniSpeciesAt(kind, mobBiome(x, z));
     if (!list.length) continue;
     const sid = list[(Math.random() * list.length) | 0];
-    aniGroup(kind, sid, x, z, Math.min(D.max - live, room, D.herd[0] + ((Math.random() * (D.herd[1] - D.herd[0] + 1)) | 0)), room);
+    aniGroup(kind, sid, x, z, Math.min(D.max - live, room, D.herd[0] + ((Math.random() * (D.herd[1] - D.herd[0] + 1)) | 0)), Math.min(room, D.max - live));
     return;
   }
 }
@@ -397,7 +397,7 @@ function aniGroup(kind, sid, x, z, n, room) {
   const free = MON.ani.filter(a => a.kind === kind && !a.active);
   const want = [];
   for (let k = 0; k < n; k++) want.push(sid);
-  if (kind === 'boar' && sid === 'scrofa') for (let k = 0; k < 2 && want.length < (room || 99); k++) want.push('piglet');   // 새끼도 먹을 짐승 수에 든다
+  if (kind === 'boar' && sid === 'scrofa') for (let k = 0; k < 2 && want.length < (room || 99); k++) want.push('piglet');   // 새끼도 먹을 짐승 수 · 종류의 max 에 든다(room 이 둘 다 본다)
   for (const s of want) {
     let pool = free.filter(a => !out.includes(a));
     if (kind === 'deer') { const doeOnly = s === 'hydropotes' || Math.random() < 0.55; const p2 = pool.filter(a => a.key === (doeOnly ? 'doe' : 'stag')); if (p2.length) pool = p2; }
@@ -421,7 +421,7 @@ function aniSpawn(a, x, z, herd, sid, vi) {
   a.hpMax = Math.round(D.hp * (D.small ? 1 : Math.max(0.35, a.scale)) * (a.kind === 'shark' ? a.scale : 1));
   a.prox[0].r = D.r * Math.max(0.6, a.scale);
   a.active = a.alive = true; a.hp = a.hp0 = a.hpMax; a.herd = herd; a.alerted = false; a.frz = 0; a.deadT = 0; a.hitT = 0; a.flee = null; a.fly = null; a.air = 0;
-  a.charge = false; a.chargeN = 0; a.stot = 0; a.hop = null; a.swimT = 0; a.act = null; a.actPrev = null; a.once = null; a.speed = 0; a.cool = 0;
+  a.charge = false; a.chargeN = 0; a.stot = 0; a.demoV = 0; a.skipDt = 0; a.hop = null; a.swimT = 0; a.act = null; a.actPrev = null; a.once = null; a.speed = 0; a.cool = 0;
   a.pos.set(x, D.sea ? clamp(-1.5 - Math.random() * 3, heightAt(x, z) + 1.2, -0.8) : heightAt(x, z), z); a.yaw = Math.random() * 6.283; a.pitch = 0;
   a.state = 'idle'; a.t = 0; a.dur = 2 + Math.random() * 6;
   a.rig.visible = true; a.rig.rotation.set(0, a.yaw, 0);
@@ -438,7 +438,7 @@ function animalsUpdate(dt) {
 const _aAng = a => { while (a > Math.PI) a -= 6.2832; while (a < -Math.PI) a += 6.2832; return a; };
 function aniPanic(a, from) {
   const K = a.kind, D = ANI_DEF[K];
-  if (K === 'shark') { a.state = 'hunt'; a.t = 0; return; }
+  if (K === 'shark') { if (a.hp >= a.hpMax * 0.4) { a.state = 'hunt'; a.t = 0; } return; }
   if (K === 'boar' && a.sid !== 'piglet' && a.hp > a.hpMax * 0.35 && (a.hp < a.hpMax || Math.random() < 0.35)) { a.state = 'charge'; a.charge = true; a.t = 0; a.dur = 5; aniVoice('grunt', a.pos, 1.4); return; }
   if (D.herd[1] > 1 && K !== 'pheasant') { for (const b of MON.ani) if (b.active && b.alive && b.kind === K && b.herd === a.herd && b !== a && b.state !== 'charge') aniFlee(b, from); }
   if (K === 'pheasant') { aniFlush(a, from); return; }
@@ -499,7 +499,7 @@ function aniTick(a, dt) {
     }
   } else if (a.state === 'walk') {
     if (K === 'frog') { const tx = a.target.x - a.pos.x, tz = a.target.z - a.pos.z, L = Math.hypot(tx, tz) || 1; if (!a.hop) aniFrogHop(a, tx / L, tz / L, 0.7); if (L < 0.2 || a.t > a.dur) { a.state = 'idle'; a.t = 0; a.dur = 4 + Math.random() * 10; } }
-    else { spd = V.walk * vs; if (Math.hypot(a.target.x - a.pos.x, a.target.z - a.pos.z) < 0.35 * Math.max(0.3, s) || a.t > a.dur) { a.state = 'idle'; a.t = 0; a.dur = (night ? 9 : 3) + Math.random() * 8; } }
+    else { spd = (a.demoV || V.walk) * vs; if (Math.hypot(a.target.x - a.pos.x, a.target.z - a.pos.z) < 0.35 * Math.max(0.3, s) || a.t > a.dur) { a.state = 'idle'; a.t = 0; a.dur = (night ? 9 : 3) + Math.random() * 8; } }
   } else {                                                                   // idle · alert — 무엇을 할지(풀 뜯기 · 눕기 · 털기 · 울기 …)
     a.state = dist < D.alert * (K === 'deer' && a.scale < 0.7 ? 0.8 : 1) && !PL.dead ? 'alert' : 'idle';
     if (a.state === 'alert') { face = Math.atan2(dx, dz) + (K === 'hare' ? Math.PI * 0.5 : 0);
@@ -519,7 +519,10 @@ function aniTick(a, dt) {
     const tx = a.target.x - a.pos.x, tz = a.target.z - a.pos.z, L = Math.hypot(tx, tz) || 1;
     a.yaw += _aAng(Math.atan2(tx, tz) - a.yaw) * clamp((spd > 3 ? 6 : 2.8) * dt, 0, 1);
     const st = Math.min(spd * dt, L), nx = a.pos.x + Math.sin(a.yaw) * st, nz = a.pos.z + Math.cos(a.yaw) * st, nh = heightAt(nx, nz);
-    if (nh > 0.3 && Math.abs(nh - a.pos.y) < st * 1.8 + 0.05 && !solidAt(nx, nz, nh + 0.5 * Math.max(0.3, s)) && !(typeof boulderAt === 'function' && boulderAt(nx, nz, 0.2))) { a.pos.x = nx; a.pos.z = nz; }
+    /* 오를 수 있나 — 앞쪽 일정한 거리의 기울기로 잰다(프레임마다 간 거리로 나누면 프레임률에 따라 판정이 바뀐다) · 딛는 높이는 mobGround(큰 지형 모형 위도) */
+    const ah = 0.6 * Math.max(0.5, s), ax = a.pos.x + Math.sin(a.yaw) * ah, az = a.pos.z + Math.cos(a.yaw) * ah, len = D.r * 1.8 * Math.max(0.3, s);
+    const slope = Math.abs(mobGround(ax, az, a.yaw, len) - a.pos.y) / ah, maxS = K === 'cow' ? 0.9 : K === 'lizard' ? 3 : K === 'wsheep' && a.sid === 'mouflon' ? 2.2 : 1.4;
+    if (nh > 0.3 && slope < maxS && !solidAt(nx, nz, nh + 0.5 * Math.max(0.3, s)) && !(typeof boulderAt === 'function' && boulderAt(nx, nz, 0.2))) { a.pos.x = nx; a.pos.z = nz; }
     else if (a.state === 'flee' || a.state === 'charge') { a.flee = {x:a.pos.x - Math.sin(a.yaw + 1.3) * 5, z:a.pos.z - Math.cos(a.yaw + 1.3) * 5}; if (a.state === 'charge') { a.state = 'flee'; a.t = 0; a.dur = 1.5; a.charge = false; } }
     else { a.state = 'idle'; a.t = 0; a.dur = 2; }
   } else if (face !== null) a.yaw += _aAng(face - a.yaw) * clamp(1.8 * dt, 0, 1);
@@ -563,13 +566,16 @@ function aniShark(a, dt, dx, dz, dist) {
   const D = ANI_DEF.shark, s = a.scale, plY = PL.pos.y;
   a.t += dt; let spd = D.v.walk * Math.sqrt(s), ty = a.pos.y;
   const swimming = PL.swim && !PL.dead;
-  if (a.state === 'hunt' || (swimming && dist < D.alert)) {
+  const strong = a.hp >= a.hpMax * 0.4;                                   // 다치면 깊은 데로 물러나 다시 안 쫓는다
+  if (!strong && a.state !== 'retreat') { a.state = 'retreat'; a.t = 0; const L = dist || 1;
+    a.target.set(a.pos.x - dx / L * 60, clamp(-4 - Math.random() * 4, heightAt(a.pos.x, a.pos.z) + 1.5, -1), a.pos.z - dz / L * 60); }
+  if (a.state === 'retreat') { spd = D.v.run * 0.7 * Math.sqrt(s); ty = a.target.y || a.pos.y; if (a.t > 15) { a.state = 'wander'; a.t = 99; } }
+  else if (strong && (a.state === 'hunt' || (swimming && dist < D.alert))) {
     if (a.state !== 'hunt') { a.state = 'hunt'; a.t = 0; }
     a.target.set(PL.pos.x, 0, PL.pos.z); ty = plY - 0.6; spd = (dist < 12 ? D.v.run : D.v.walk * 2) * Math.sqrt(s);
     if (dist < 1.4 + s * 0.6 && Math.abs(plY - a.pos.y) < 2 && a.biteT <= 0 && swimming) {
       aniOnce(a, 'bite'); a.biteT = 2.6; if (typeof hurtPL === 'function') hurtPL(D.mean * Math.sqrt(s), '상어'); a.state = 'circle'; a.t = 0; }
     if (!swimming && a.t > 6) { a.state = 'idle'; a.t = 0; }
-    if (a.hp < a.hpMax * 0.4) { a.state = 'idle'; a.t = 0; a.target.set(a.pos.x - dx * 3, 0, a.pos.z - dz * 3); }
   } else if (a.state === 'circle') {                                         // 문 뒤 — 크게 돌아 다시
     const an = Math.atan2(a.pos.x - PL.pos.x, a.pos.z - PL.pos.z) + 0.9; a.target.set(PL.pos.x + Math.sin(an) * 9, 0, PL.pos.z + Math.cos(an) * 9); spd = D.v.walk * 2 * Math.sqrt(s);
     if (a.t > 3.5) { a.state = swimming ? 'hunt' : 'idle'; a.t = 0; }
@@ -603,8 +609,11 @@ function aniDraw(a, dt, dead) {
     if (a.deadT < 1.2) { a.speed = 0; aniPose(a, dt); }
     return;
   }
-  if (d > 70 && (MON.frame + a.id) % 2) return;                              // 멀면 몸짓은 두 프레임에 한 번
-  const rt = aniPose(a, dt), H = ANIMAL_MESH[a.key].size[1] * s;
+  /* 멀면 몸짓은 두 프레임에 한 번 — 건너뛴 프레임은 지난 몸 높이 · 기울기를 그대로 쓰고(안 쓰면 누운 소가 0.8 m 씩 오르내렸다) 그 시간은 다음 몸짓에 더한다 */
+  let rt;
+  if (d > 70 && (MON.frame + a.id) % 2) { a.skipDt += dt; rt = a.lastRt; }
+  else { rt = aniPose(a, dt + a.skipDt); a.skipDt = 0; a.lastRt[0] = rt[0]; a.lastRt[1] = rt[1]; }
+  const H = ANIMAL_MESH[a.key].size[1] * s;
   R.position.y += rt[1] * H; R.rotation.x += rt[0];
   /* 몸 기울기의 받침점 — 토끼 · 개구리는 뒷발(앉은 꼴에서 일어서고 뛴다) · 나머지는 몸 가운데 */
   const pz = (ANI_PIV[K] || 0) * ANIMAL_MESH[a.key].size[2] * s;
@@ -616,6 +625,7 @@ function aniDraw(a, dt, dead) {
 
 /* ── 소리 — 음매 · 찍찍 · 꿩꿩 · 사슴 짖음 · 꿀꿀 · 개굴 · 쉭(톱니파 · 잡음 · 거르개 — 97-mobs.js mobVoice 와 같은 소리판 · 거리로 줄인다) ─── */
 function aniVoice(kind, p, vol) {
+  if (!kind) return;                                                        // 상어는 소리가 없다(쓰러질 때 빈 소리판을 남겼다)
   if (kind === 'baa') { if (typeof mobVoice === 'function') mobVoice('baa', p.x, p.y + 0.8, p.z, vol); return; }
   if (typeof A === 'undefined' || !A.ctx || !A.master) return;
   const dx = p.x - PL.pos.x, dz = p.z - PL.pos.z, d = Math.hypot(dx, dz); if (d > 150) return;

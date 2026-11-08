@@ -188,7 +188,7 @@ function mobKill(m){
   toast((({crawl:'다지류를',garg:'가고일을',mim:'스킨워커를',bear:'아르크토스를',sheep:'양을'})[m.kind]||(typeof ANI_DEF!=='undefined'&&ANI_DEF[m.kind]&&ANI_DEF[m.kind].name)||'짐승을')+' 쓰러뜨렸다 — 사체를 뒤지면 무엇인가 나온다');
   const p=m.kind==='crawl'?m.cr.head:m.pos, key='M'+(++MON.seq);
   const gyL=groundY(p.x,p.z,p.y+0.3);                                          // 굴 속(판 10)이면 굴 바닥
-  const pick={kind:'mobloot', x:p.x, y:gyL, z:p.z, ay:gyL+0.6, r:1.4, key, mob:m.kind,
+  const pick={kind:'mobloot', x:p.x, y:gyL, z:p.z, ay:gyL+0.6, r:1.4, key, mob:m.kind, loot:m.loot||null,
     lootFn:()=>{ let msg=''; for(const [id,n] of (m.loot||MOB_LOOT[m.kind])){ if(!ITEMS[id]) continue; let g=0; for(let k=0;k<n;k++) if(invAdd(id,1)) g++; if(g) msg+=(msg?' · ':'')+ITEMS[id].n+' +'+g; }
       const i=MON.picks.indexOf(pick); if(i>=0) MON.picks.splice(i,1); return msg||'가방이 가득 찼다'; }};
   MON.picks.push(pick); m.pick=pick;
