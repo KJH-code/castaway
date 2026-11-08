@@ -121,15 +121,6 @@ function fallsCrags(seed){
       if(dx*dx+dz*dz<q.r*q.r&&Math.hypot(p.x-q.f.rx,p.z-q.f.rz)>q.f.rR) return false; }
     return true; });   // 벽 자리의 나무·바위는 치운다
 }
-/* 소의 거품 — 가운데가 짙고 가장자리로 스러지는 잡음 무늬(예전 흰 원판은 판때기처럼 튀었다 — 사용자 지적) */
-let _fFoamTex=null;
-function fallsFoamTex(){
-  if(_fFoamTex) return _fFoamTex;
-  const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d'), rn=mulberry32(77);
-  for(let k=0;k<420;k++){ const a=rn()*6.283, d=Math.pow(rn(),0.7)*58, x=64+Math.cos(a)*d, y=64+Math.sin(a)*d, r=2+rn()*7*(1-d/70);
-    const gr=g.createRadialGradient(x,y,0,x,y,r); gr.addColorStop(0,'rgba(255,255,255,'+(0.55*(1-d/64))+')'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(x-r,y-r,r*2,r*2); }
-  return _fFoamTex=new THREE.CanvasTexture(c);
-}
 /* 떨어지는 물(사용자 지적: 폭포가 골함석처럼 희고 판판하다). 실제 폭포의 물살은
      · 마루에서는 **유리처럼 맑은 물 판**이다 — 짙은 청록에 하늘이 비치고, 바닥이 비친다
      · 떨어지며 빨라져(v = √(2gh)) 공기가 섞이고 **하얗게 부서진다** — 아래로 갈수록 흰 거품 뭉치(덩이 · 가닥)가 많아진다

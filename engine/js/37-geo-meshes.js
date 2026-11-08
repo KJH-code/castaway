@@ -335,9 +335,6 @@ function geolBuild(){
   if(TERR_U.uGeo.value&&TERR_U.uGeo.value.image&&TERR_U.uGeo.value.image.width>1) TERR_U.uGeo.value.dispose();
   TERR_U.uGeo.value=tex; GEO_LF.geol=px;
 }
-/* 그 자리 바위 갈래(0 현무암 · 1 사암 · 2 석회암 · 3 화강암) — 가장 큰 몫 */
-function geolAt(x,z){ const px=GEO_LF.geol; if(!px) return 3; const gx=Math.min(N-1,Math.max(0,Math.round(x/CELL+N/2))), gz=Math.min(N-1,Math.max(0,Math.round(z/CELL+N/2))), o=(gz*N+gx)*4;
-  let k=0; for(let c=1;c<4;c++) if(px[o+c]>px[o+k]) k=c; return k; }
 /* 그리기 — 모형마다 메시 하나(가까이/멀리 두 단계 · 화면 밖은 three 가 거른다) */
 function geoMat(){
   if(GEO_LF.mat) return GEO_LF.mat;
