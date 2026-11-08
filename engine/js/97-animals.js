@@ -471,7 +471,7 @@ function aniTick(a, dt) {
   /* 사람이 다가오면 — 종류마다 놀라는 거리(scare: 걸어올 때 · 뛰어올 때) */
   if (a.state !== 'flee' && a.state !== 'fly' && a.state !== 'charge' && !PL.dead) {
     const [s0, s1] = D.scare, scare = dist < s0 * (K === 'hare' || K === 'deer' ? 1 : 1) && (K === 'cow' || K === 'wsheep' ? plSpd > 1.5 : true) || dist < s1 && plSpd > 4.5;
-    if (scare) aniPanic(a, {x:PL.pos.x, z:PL.pos.z});
+    if (scare && !PL.calm) aniPanic(a, {x:PL.pos.x, z:PL.pos.z});   // PL.calm — 시험장의 '놀라지 않게' · 관찰 모드(본편엔 없다)
   }
   a.t += dt; let spd = 0, face = null; const h = a.herd, V = D.v, vs = Math.sqrt(D.small ? Math.pow(s, 0.6) : s);
   if (a.frz > 0) { a.frz = Math.max(0, a.frz - dt); a.state = 'idle'; }
@@ -501,7 +501,7 @@ function aniTick(a, dt) {
     if (K === 'frog') { const tx = a.target.x - a.pos.x, tz = a.target.z - a.pos.z, L = Math.hypot(tx, tz) || 1; if (!a.hop) aniFrogHop(a, tx / L, tz / L, 0.7); if (L < 0.2 || a.t > a.dur) { a.state = 'idle'; a.t = 0; a.dur = 4 + Math.random() * 10; } }
     else { spd = (a.demoV || V.walk) * vs; if (Math.hypot(a.target.x - a.pos.x, a.target.z - a.pos.z) < 0.35 * Math.max(0.3, s) || a.t > a.dur) { a.state = 'idle'; a.t = 0; a.dur = (night ? 9 : 3) + Math.random() * 8; } }
   } else {                                                                   // idle · alert — 무엇을 할지(풀 뜯기 · 눕기 · 털기 · 울기 …)
-    a.state = dist < D.alert * (K === 'deer' && a.scale < 0.7 ? 0.8 : 1) && !PL.dead ? 'alert' : 'idle';
+    a.state = dist < D.alert * (K === 'deer' && a.scale < 0.7 ? 0.8 : 1) && !PL.dead && !PL.calm ? 'alert' : 'idle';
     if (a.state === 'alert') { face = Math.atan2(dx, dz) + (K === 'hare' ? Math.PI * 0.5 : 0);
       aniAct(a, K === 'hare' ? (dist < D.scare[1] * 1.3 ? 'freeze' : 'upright') : K === 'pheasant' || K === 'frog' ? 'idle' : K === 'lizard' ? 'idle' : 'alert'); }
     else if (!a.act || a.t > a.dur) aniIdle(a, night);
@@ -565,7 +565,7 @@ function aniHopStep(a, dt) {
 function aniShark(a, dt, dx, dz, dist) {
   const D = ANI_DEF.shark, s = a.scale, plY = PL.pos.y;
   a.t += dt; let spd = D.v.walk * Math.sqrt(s), ty = a.pos.y;
-  const swimming = PL.swim && !PL.dead;
+  const swimming = PL.swim && !PL.dead && !PL.calm;
   const strong = a.hp >= a.hpMax * 0.4;                                   // 다치면 깊은 데로 물러나 다시 안 쫓는다
   if (!strong && a.state !== 'retreat') { a.state = 'retreat'; a.t = 0; const L = dist || 1;
     a.target.set(a.pos.x - dx / L * 60, clamp(-4 - Math.random() * 4, heightAt(a.pos.x, a.pos.z) + 1.5, -1), a.pos.z - dz / L * 60); }

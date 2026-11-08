@@ -86,7 +86,7 @@ SPECIES = {
   'elaphus':     ['붉은사슴', 1.0, 'CONIFER BROADLEAF', 'rump',      dict(b='8a5a36', a='d8c098', d='6a4228', f='7a5030', l='5a3a24', x='c8b08a'),
                   [(None, None, None), ('cervus_elaphus/03', (0.3, 0.6, 0.6, 0.9), None)]],
   'dama':        ['다마사슴', 0.8, 'BROADLEAF', 'spots',            dict(b='b07a45', a='f0e8d8', d='8a5a30', f='a87040', l='b07a45', x='d8c8a8'),
-                  [(None, None, None), ('dama_dama/02', (0.05, 0.45, 0.3, 0.6), None)]],
+                  [(None, None, None)]],
   'nippon':      ['꽃사슴', 0.75, 'BAMBOO BROADLEAF', 'spots',      dict(b='9a5a30', a='ece2d0', d='6a3e22', f='8a5430', l='7a4a2a', x='d0bc98'),
                   [(None, None, None), ('cervus_nippon/02', (0.2, 0.3, 0.6, 0.7), None)]],
   'capreolus':   ['노루', 0.6, 'MEADOW BROADLEAF', 'rump',          dict(b='a0603a', a='ece4d4', d='804a2c', f='6a4630', l='90583a', x='c8b08a'),
