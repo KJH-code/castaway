@@ -1485,7 +1485,7 @@ function updateHarvest(dt){
         invRemove(INV.slots.indexOf(e), 1); EQUIP=null;
       }
     }
-    if(field==='logs' && t.logs<=0){ t.felled=true; t.br=0; if(typeof wildTreeFelled==='function') wildTreeFelled(t); }   // 다 베면 그루터기만 · 벌집이 달렸으면 떨어진다(97-wildlife.js)
+    if(field==='logs' && t.logs<=0){ t.felled=true; t.br=0; if(typeof wildTreeFelled==='function') wildTreeFelled(t); if(typeof dentFill==='function') dentFill(); }   // 넘어간 그루의 도끼 자국은 지운다(74-icons-guns.js)   // 다 베면 그루터기만 · 벌집이 달렸으면 떨어진다(97-wildlife.js)
   }
   if(field==='br' && t.br<=0 && H.regrow!==undefined){ t.cut=gameHours; REGROW.push(t); }
   if(t.giant) giantChopped(t);                       // 노거수 — 남은 통나무를 적고, 다 베면 쓰러뜨린다(95-giants.js)

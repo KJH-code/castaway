@@ -374,7 +374,9 @@ function cragMesh(t,lod){
   /* 이웃의 '속' 은 그 꼴의 가장 안쪽 겉(rmin — 깎인 면이 가장 깊이 들어온 데)보다 안이다(2026-11-08 사용자 사진 — 바위에 구멍이 뚫려 속이 보였다):
      예전엔 타원체 0.88 로 쳤는데, 깎아 낸 꼴은 겉이 그보다 안쪽인 데가 많아 밖에서 보이는 세모까지 버렸다. 세 꼭짓점이 다 그 안이어야 버린다 */
   const rminOf=sh=>{ if(sh.rmin===undefined){ let m=1e9; const P=sh.pos; for(let i=0;i<P.length;i+=3){ const r=Math.hypot(P[i],P[i+1],P[i+2]); if(r<m) m=r; } sh.rmin=Math.min(1,m); } return sh.rmin; };
-  const BL=[]; for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue; _crE.set(B[o+6],B[o+7],B[o+8]); _crQ.setFromEuler(_crE); _crM.makeRotationFromQuaternion(_crQ);
+  /* 이웃으로 치는 것은 별꼴(가운데에서 보면 겉이 한 겹)인 생성 덩이(꼴 0~11)뿐 — 사용자 Meshy 꼴(12~)은 오목해 rmin 안이라도 빈 데가 있어,
+     그 속으로 친 세모를 버리면 바위에 구멍이 뚫려 밑에서 들여다보였다(2026-11-08 사용자 사진) */
+  const BL=[]; for(let o=0;o<B.length;o+=F_){ const lv=B[o+9]; if(!lod&&lv>1) continue; if(B[o+10]>=12) continue; _crE.set(B[o+6],B[o+7],B[o+8]); _crQ.setFromEuler(_crE); _crM.makeRotationFromQuaternion(_crQ);
     const k=rminOf(S[lv][B[o+10]][fine])*0.96;
     BL.push({o,x:B[o],y:B[o+1],z:B[o+2],rx:B[o+3],ry:B[o+4],rz:B[o+5],R:Math.max(B[o+3],B[o+4],B[o+5]),k2:k*k,e:_crM.elements.slice()}); }
   const inB=(b,x,y,z)=>{ const dx=x-b.x, dy=y-b.y, dz=z-b.z; if(dx*dx+dy*dy+dz*dz>b.R*b.R) return false; const e=b.e;

@@ -386,6 +386,8 @@ function geoBuild(){
     const m=new THREE.Mesh(geoMeshGeo(L.name,'far',true),mat);
     m.position.set(L.x,L.y,L.z); m.rotation.y=L.yaw; m.scale.set(L.S,L.S,L.S); m.userData.geo=L; m.userData.lightRole='full';
     m.updateMatrix(); m.matrixAutoUpdate=false; scene.add(m); GEO_LF.meshes.push(m); }
+  /* 가까운 단계(각진 near · ultra)도 지금 지어 둔다 — 처음 다가갈 때 지으면 한 번에 29 ms 씩 멈췄다(2026-11-08 사용자 '빨리 다니면 렉') */
+  for(const nm of new Set(GEO_LF.list.map(L=>L.name))){ geoMeshGeo(nm,'near',true); if(GEO_MESH_DATA[nm].ultra) geoMeshGeo(nm,'ultra',true); }
   geoDetailBuild();
 }
 /* ── 가까이 가면 거칠게 — 프랙탈처럼(2026-11-05 사용자 요청 '산 가까이 가면 원래 준 산 · 바위 · 절벽 메쉬를 써서 더 거친 산') ──

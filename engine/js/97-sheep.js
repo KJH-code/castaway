@@ -156,14 +156,14 @@ function sheepTick(s, dt) {
   if (spd > 0) {
     const tx = s.target.x - s.pos.x, tz = s.target.z - s.pos.z, L = Math.hypot(tx, tz) || 1;
     const want = Math.atan2(tx, tz); s.yaw += _shAng(want - s.yaw) * clamp((spd > 2 ? 6 : 2.5) * dt, 0, 1);
-    const st = Math.min(spd * dt, L), nx = s.pos.x + Math.sin(s.yaw) * st, nz = s.pos.z + Math.cos(s.yaw) * st, nh = heightAt(nx, nz);
+    const st = Math.min(spd * (1 + 0.3 * Math.cos(2 * s.ph + 0.5)) * dt, L), nx = s.pos.x + Math.sin(s.yaw) * st, nz = s.pos.z + Math.cos(s.yaw) * st, nh = heightAt(nx, nz);
     if (nh > 0.4 && Math.abs(nh - s.pos.y) < st * 1.6 + 0.05 && !solidAt(nx, nz, nh + 0.6)) { s.pos.x = nx; s.pos.z = nz; }
     else if (s.state === 'flee') { s.flee = {x:s.pos.x - Math.sin(s.yaw + 1.2) * 5, z:s.pos.z - Math.cos(s.yaw + 1.2) * 5}; }   // 막혔다 — 옆으로 꺾어 달아난다
     else { s.state = 'graze'; s.t = 0; s.dur = 3; }
     s.ph += st / (spd > 2 ? 1.6 : 0.85) * 6.2832;
   } else if (face !== null) s.yaw += _shAng(face - s.yaw) * clamp(1.6 * dt, 0, 1);
   s.speed += (spd - s.speed) * clamp(dt * 6, 0, 1);
-  s.pos.y = heightAt(s.pos.x, s.pos.z);
+  s.pos.y = mobGround(s.pos.x, s.pos.z, s.yaw, 0.5);
   if ((s.voiceT -= dt) < 0) { s.voiceT = 8 + Math.random() * 18; if (dist < 70) mobVoice('baa', s.pos.x, s.pos.y + 0.8, s.pos.z, 0.7 + Math.random() * 0.3); }
   /* 털 깎기 줍기 — 깎은 지 이틀이 지나면 다시 */
   const sh = s.shear; sh.x = s.pos.x; sh.z = s.pos.z; sh.y = s.pos.y; sh.ay = s.pos.y + 0.55;

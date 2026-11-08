@@ -297,14 +297,14 @@ function aniTick(a, dt) {
   if (spd > 0) {
     const tx = a.target.x - a.pos.x, tz = a.target.z - a.pos.z, L = Math.hypot(tx, tz) || 1;
     a.yaw += _aAng(Math.atan2(tx, tz) - a.yaw) * clamp((spd > 3 ? 7 : 2.8) * dt, 0, 1);
-    const st = Math.min(spd * dt, L), nx = a.pos.x + Math.sin(a.yaw) * st, nz = a.pos.z + Math.cos(a.yaw) * st, nh = heightAt(nx, nz);
+    const st = Math.min(spd * (K === 'hare' ? 1 : 1 + 0.3 * Math.cos(2 * a.ph + 0.5)) * dt, L), nx = a.pos.x + Math.sin(a.yaw) * st, nz = a.pos.z + Math.cos(a.yaw) * st, nh = heightAt(nx, nz);
     if (nh > 0.4 && Math.abs(nh - a.pos.y) < st * 1.8 + 0.05 && !solidAt(nx, nz, nh + 0.5) && !(typeof boulderAt === 'function' && boulderAt(nx, nz, 0.2))) { a.pos.x = nx; a.pos.z = nz; }
     else if (a.state === 'flee') { a.flee = {x:a.pos.x - Math.sin(a.yaw + 1.3) * 5, z:a.pos.z - Math.cos(a.yaw + 1.3) * 5}; }
     else { a.state = 'idle'; a.t = 0; a.dur = 2; }
     a.ph += st / (K === 'cow' ? (spd > 3 ? 2.2 : 1.1) : K === 'hare' ? (spd > 3 ? 1.6 : 0.5) : 0.28) * 6.2832;
   } else if (face !== null) a.yaw += _aAng(face - a.yaw) * clamp(1.8 * dt, 0, 1);
   a.speed += (spd - a.speed) * clamp(dt * 6, 0, 1);
-  if (a.state !== 'fly') a.pos.y = heightAt(a.pos.x, a.pos.z);
+  if (a.state !== 'fly') a.pos.y = mobGround(a.pos.x, a.pos.z, a.yaw, a.kind === 'cow' ? 0.9 : 0.15);
   if ((a.voiceT -= dt) < 0) { a.voiceT = (K === 'cow' ? 10 : 14) + Math.random() * 20; if (dist < 70 && K !== 'hare') aniVoice(ANI_DEF[K].voice, a.pos, 0.6 + Math.random() * 0.3); }
   aniPose(a, dt);
   a.blob.visible = a.rig.visible; a.blob.position.set(a.pos.x, a.pos.y + 0.04, a.pos.z); const bs = 1 / (1 + a.air * 0.4); a.blob.scale.set(bs * (K === 'cow' ? 1.8 : 0.5), 1, bs * (K === 'cow' ? 1.8 : 0.5));

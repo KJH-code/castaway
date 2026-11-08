@@ -1736,7 +1736,7 @@ function buildWater(){
     /* **턱을 건너는 칸은 안 깐다**(사용자 지적: 폭포 둘레에 검은 세모가 허공에 떠 있다) — 저수지와 소처럼 수위가 크게 다른 물길이
        맞닿으면 격자점 평균이 둘 사이를 비스듬한 판으로 이어, 벼랑 앞 허공에 깊은 물(짙은 빛 · 알파 1)이 섰다. 한 칸에서 3 m 넘게
        떨어지는 것은 폭포다 — 물살 판(36-falls.js)이 덮는다 */
-    if(Math.max(a,b,c,d)-Math.min(a,b,c,d)>3.0) continue;
+    if(Math.max(a,b,c,d)-Math.min(a,b,c,d)>(plW?3.0*CELL/GCELL:3.0)) continue;   // 판 11 — 칸이 섬 배율만큼 커서(4.25 배면 10.6 m) 가파른 여울도 3 m 넘게 떨어져 판이 빠지고 계단처럼 끊겼다(2026-11-08 사용자 '폭포가 부서진다')
     const X=(x-N/2)*CELL, Z=(z-N/2)*CELL, S=CELL;
     { const i=IDX(x,z); WSURF.q[i]=1; WSURF.h[i]=a; WSURF.h[i+N]=b; WSURF.h[i+1]=c; WSURF.h[i+N+1]=d; }
     tris.push(X,a,Z, X,b,Z+S, X+S,c,Z,

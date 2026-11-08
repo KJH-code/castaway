@@ -40,8 +40,16 @@ function mobBiome(x,z){ const gx=clamp(Math.round(x/CELL+N/2),0,N-1), gz=clamp(M
    **앞 마디의 높이에 더 가까운 쪽**을 고른다(머리는 지난 틱 높이 m.cvY — 마디 사이 1 m 의 높이 차는 덮개보다 훨씬 작다). 그래서 머리는 밖에 있고
    꼬리가 굴 속인 몸도 마디마다 맞게 앉는다. 판 9 까지는 굴 격자가 없어(CV10.built 가 빔) 예전 식 그대로 */
 const CRWG={ref:null,first:0,n:0};
+/* **몬스터가 딛는 높이**(2026-11-08 사용자 '몬스터가 섬 메시에 파고든다') — 큰 지형 모형 윗면까지 · 몸통 앞뒤 · 옆 발자리 가운데 가장 높은 것.
+   가운데 한 점만 재면 볼록한 둔덕 · 비탈 · 산 모형 위에서 몸이 땅에 묻혔다. len 은 몸 길이의 반(m) */
+function mobGround(x,z,yaw,len){
+  const g=(a,b)=>{ const h=heightAt(a,b); return Math.max(geoGround(a,b,h),-0.6); };
+  let y=g(x,z); if(!len) return y;
+  const fx=Math.sin(yaw||0)*len, fz=Math.cos(yaw||0)*len, sx=fz*0.45, sz=-fx*0.45;
+  return Math.max(y,(g(x+fx,z+fz)+g(x-fx,z-fz))*0.5,(g(x+sx,z+sz)+g(x-sx,z-sz))*0.5);
+}
 function crwGround(x,z){
-  const g=Math.max(heightAt(x,z),-0.6); let r=g;
+  const g=Math.max(geoGround(x,z,heightAt(x,z)),-0.6); let r=g;
   if(CV10.built.size){ const q=caveHere(x,z); if(q){ const ref=CRWG.ref===null?g:CRWG.ref; if(Math.abs(q.f-ref)<Math.abs(g-ref)) r=q.f; } }
   if(CRWG.n++===0) CRWG.first=r;
   CRWG.ref=r; return r;
@@ -592,7 +600,7 @@ function gargTick(g,dt){
     else if(g.state==='prep'||g.state==='stun'){ let d=Math.atan2(dx,dz)-g.yaw; while(d>Math.PI)d-=6.283; while(d<-Math.PI)d+=6.283; g.yaw+=d*clamp((g.state==='prep'?7:1.5)*dt,0,1); }
     g.speed=spd;
     /* 저공비행 — 땅에서 일정 높이 · 위아래로 살짝(개체마다 위상만 다르게) */
-    g.pos.y=Math.max(heightAt(g.pos.x,g.pos.z),-0.3)+GP2.hover+(g.state==='stun'?0:Math.sin(performance.now()*0.004+g.home.x)*0.05);
+    g.pos.y=Math.max(mobGround(g.pos.x,g.pos.z,g.yaw,0.6),-0.3)+GP2.hover+(g.state==='stun'?0:Math.sin(performance.now()*0.004+g.home.x)*0.05);
   }
   if((g.voiceT-=dt)<0){ g.voiceT=5+Math.random()*9; if(dist<90) mobVoice('shriek',g.pos.x,g.pos.y+1,g.pos.z,0.7); }
   const gy2=Math.max(heightAt(g.pos.x,g.pos.z),-0.3);
@@ -679,8 +687,9 @@ function bearTick(b,dt){
       if(u>=1){ bearSet(b,'stun'); b.frz+=BEAR_P.stun; }
     }else if(b.state==='stun'){ b.speed=0; bearSet(b,dist<BEAR_P.see?'chase':'wander'); }
     /* 움직임 — 깊은 물 · 바위에 막힌다(배회는 새 목표) */
-    if(b.speed>0){ const nx=b.pos.x+b.dir.x*b.speed*dt, nz=b.pos.z+b.dir.z*b.speed*dt, hN=heightAt(nx,nz);
-      if((hN>-0.4||hN>gy)&&!solidAt(nx,nz,hN+1.4)){ b.pos.x=nx; b.pos.z=nz; b.walkPh+=dt*b.speed*1.5; }
+    if(b.speed>0){ const gm=b.state==='attack'?1:1+0.32*Math.cos(2*b.walkPh+0.6);   // 걸음마다 출렁이는 빠르기(디딜 때 늦고 찰 때 빠르다 — 2026-11-08 사용자 '미끄러지듯')
+      const nx=b.pos.x+b.dir.x*b.speed*gm*dt, nz=b.pos.z+b.dir.z*b.speed*gm*dt, hN=heightAt(nx,nz);
+      if((hN>-0.4||hN>gy)&&!solidAt(nx,nz,hN+1.4)){ b.pos.x=nx; b.pos.z=nz; b.walkPh+=dt*b.speed*gm*1.5; }
       else if(b.state==='wander'){ bearWander(b); b.t=0; } }
     /* 사람을 뚫고 들어가지 않는다 — 앞으로 던진 몸을 몸통 반지름에서 멈춘다 */
     { const sx=b.pos.x-PL.pos.x, sz=b.pos.z-PL.pos.z, sd=Math.hypot(sx,sz);
@@ -690,7 +699,7 @@ function bearTick(b,dt){
       let d=want-b.yaw; while(d>Math.PI) d-=6.283; while(d<-Math.PI) d+=6.283;
       if(b.state==='attack'){ const lim=BEAR_P.turn*dt; b.yaw+=clamp(d,-lim,lim); } else b.yaw+=d*clamp(7*dt,0,1); }
   }
-  b.pos.y=heightAt(b.pos.x,b.pos.z);
+  b.pos.y=mobGround(b.pos.x,b.pos.z,b.yaw,1.3);
   if(b.state==='wander'&&(b.voiceT-=dt)<0){ b.voiceT=9+Math.random()*12; if(dist<80) mobVoice('roar',b.pos.x,b.pos.y+2,b.pos.z,0.5); }
   _moV.set(PL.pos.x,PL.pos.y+EYE*0.8,PL.pos.z);
   bearDraw(b,dt,_moV,b.pos.y);
@@ -820,7 +829,7 @@ function mimSpiderTick(sp,dt){
     else if(sp.cd<=0&&!PL.dead){ sp.cd=MIM_SPD.biteCd; hurtPL(MIM_SPD.bite,'새끼 거미',true); }
     sp.yaw=Math.atan2(dx,dz);
   }
-  sp.pos.y=heightAt(sp.pos.x,sp.pos.z);
+  sp.pos.y=mobGround(sp.pos.x,sp.pos.z,sp.yaw,0.3);
   sp.mesh.position.copy(sp.pos); sp.mesh.rotation.set(0,sp.yaw,0);
   sp.blob.visible=true; sp.blob.position.set(sp.pos.x,sp.pos.y+0.04,sp.pos.z);
 }
@@ -864,7 +873,7 @@ function mimTick(m,dt){
   let face=null, rate=2.4;
   if(m.state!=='wander'||mimSees(m)) face=Math.atan2(dx,dz); else if(spd>0){ face=Math.atan2(mx,mz); rate=1.6; }
   if(face!==null){ let d=face-m.yaw; while(d>Math.PI)d-=6.283; while(d<-Math.PI)d+=6.283; m.yaw+=d*clamp(rate*dt,0,1); }
-  m.pos.y=heightAt(m.pos.x,m.pos.z);
+  m.pos.y=mobGround(m.pos.x,m.pos.z,m.yaw,1.0);
   /* 두 손에 잡히면 삼켜진다 */
   if(mimHeld(m)>=2){ if(m.eatT<0){ m.eatT=MIM_P.eat; toast('두 손에 붙잡혔다 — 한 손이라도 부숴야 한다'); }
     m.eatT-=dt; if(m.eatT<=0&&!PL.dead){ hurtPL(99999,'스킨워커에게 삼켜졌다',false); m.eatT=-1; } }

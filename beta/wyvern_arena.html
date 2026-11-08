@@ -932,6 +932,8 @@ function wSwing(t,hit,dur,pre){
   return 1-ease(Math.min(1,(t-h2)/Math.max(0.05,dur-h2)));
 }
 const WR=(nm,ax,a)=>{ if(a) rotBone(bone(nm),ax,a); };
+/* 등뼈를 따라 나눠 젖힌다(2026-11-08 사용자 '일어설 때 허리와 등이 휘게 — 몸통이 통째로 들리지 않게') — 엉덩이 22% · 허리 30% · 등 28% · 가슴 20% */
+const WRS=(a)=>{ if(!a) return; WR(CH_SPINE[0],_AXS,a*0.22); WR(CH_SPINE[1],_AXS,a*0.30); WR(CH_SPINE[2],_AXS,a*0.28); WR(CH_SPINE[3],_AXS,a*0.20); };
 /* 날개 한 쌍 — up: 어깨에서 든 각(+ 위) · sweep: 앞(−)/뒤(+)로 젖힘 · open: 손목·손가락을 펴는 몫 */
 function wWingPose(up,sweep,open,flapA,ph,fold){
   for(const [ch,sg] of [[CH_WING_L,-1],[CH_WING_R,1]]){
@@ -1005,7 +1007,7 @@ function poseWyv_(dt){
     const rise=ease(clamp(u/0.18,0,1))*(1-ease(clamp((u-0.22)/0.2,0,1)));
     const fall=ease(clamp((u-0.22)/0.25,0,1));
     const sh=clamp((u-0.35)/0.65,0,1);
-    WR(CH_SPINE[0],_AXS,-0.5*rise+0.22*fall);
+    WRS(-0.62*rise); WR(CH_SPINE[0],_AXS,0.22*fall);
     WR(CH_SPINE[0],_AXF,0.5*fall+Math.sin(t*17)*0.03*sh);
     WR(CH_HEAD[0],_AXS,-0.55*rise+0.45*fall+Math.sin(t*9)*0.25*sh);
     WR(CH_HEAD[1],_AXU,Math.sin(t*7.3)*0.35*sh);
@@ -1051,7 +1053,7 @@ function poseWyv_(dt){
     if(W.state==='dive'){
       /* 내리꽂기 — 날개를 뒤로 접고 머리를 내린다 · 땅이 가까우면(5 m) 날개를 펴 버티고 다리를 내민다 */
       const f=clamp((5-W.y)/4.5,0,1);
-      WR(CH_SPINE[0],_AXS,1.15*(1-f)-0.38*f);
+      WR(CH_SPINE[0],_AXS,1.15*(1-f)); WRS(-0.45*f);   // 내려앉으며 버틸 때는 등이 휘어 젖힌다
       wWingPose(0.55*(1-f)+0.35*f,0.75*(1-f)-0.45*f,f,0.04+0.25*f,ph+t*12*(1-f),0);
       for(const ch of [CH_LEG_L,CH_LEG_R]){ WR(ch[0],_AXS,0.85*(1-f)-0.55*f); WR(ch[3],_AXS,0.7*(1-f)); }
       for(const ch of [CH_ARM_L,CH_ARM_R]){ WR(ch[1],_AXS,-0.6*f); WR(ch[2],_AXS,-0.7*(1-f)); }
@@ -1147,8 +1149,7 @@ function poseWyv_(dt){
       /* 숨 모으기 — 젖히고 목을 S 자로 당기며 날개를 들어 편다 · 끝에 떤다 */
       const u=clamp(W.t/WP.fbWind,0,1), e=ease(Math.min(1,u/0.8));
       const tr=clamp((u-0.75)/0.25,0,1)*Math.sin(t*38)*0.025;
-      WR(CH_SPINE[0],_AXS,-0.55*e+tr);
-      WR(CH_SPINE[2],_AXS,-0.12*e);
+      WRS(-0.78*e); WR(CH_SPINE[0],_AXS,tr);          // 허리 · 등이 휘며 젖힌다(엉덩이는 땅에 버틴다)
       WR(CH_HEAD[0],_AXS,-0.5*e); WR(CH_HEAD[1],_AXS,-0.12*e+tr); WR(CH_HEAD[2],_AXS,0.38*e);
       for(const ch of [CH_LEG_L,CH_LEG_R]) WR(ch[0],_AXS,-0.18*e);
       wUp=-0.18+0.6*e; wSw=-0.2*e; wOpen=e; wFl=0.05*e;

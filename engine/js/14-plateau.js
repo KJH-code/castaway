@@ -525,6 +525,7 @@ function plAfterUnder(seed){
       if(underHoleAt(p.x,p.z,heightAt(p.x,p.z),1.0)){ cut++; return false; }   // 굴 입구 구멍 위(땅이 뚫려 떠 보였다 — 2026-11-08 사용자 사진)   // 물속 깊이 선 갈대 · 부싯돌(2026-11-08 사용자 사진 — 호수 바닥 50 m 밑에 갈대가 섰다)
       if(p.top!==undefined){ cut++; return false; }   // 바위섬 꼭대기의 전나무(34-coast.js) — 시스택 모형 속에 묻히거나 바다 위에 떠 보였다(2026-11-06 사용자 '바위 속의 나무 · 떠 있는 것')
       if(W.has(p.k)&&GEO_LF.mask&&GEO_LF.mask[i]&&geoFloor(p.x,p.z)>heightAt(p.x,p.z)+3){ cut++; return false; }
+      if(W.has(p.k)&&treeCliff(p.x,p.z,heightAt(p.x,p.z),1.5+1.8*(p.s||1),2.2)){ cut++; return false; }   // 벼랑 곁 나무(우듬지가 벼랑 · 바위에 파고들었다 — 2026-11-08 사용자)
       return true; });
     PLAT.cut=cut; }
   plReachBuild();

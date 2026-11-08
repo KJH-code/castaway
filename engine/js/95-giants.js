@@ -99,7 +99,7 @@ function giantRootPt(g,r,t,out){
 /* 섬의 노거수를 전부 세운다 — 섬을 만들 때 한 번(generateWorld) */
 async function giantsBuild(){        // async — 칸 줄 · 그루 사이 숨을 돌린다(breathe — 90-init.js)
   for(const m of GIANT.meshes){ scene.remove(m); if(m.userData.own) m.geometry.dispose(); if(m.isInstancedMesh) m.dispose(); }   // 인스턴스 버퍼도 돌려준다
-  GIANT.meshes.length=0; GIANT.list.length=0; GIANT.grid.clear();
+  GIANT.meshes.length=0; GIANT.list.length=0; GIANT.grid.clear(); GIANT.lx=GIANT.lz=1e9;
   for(const f of GIANT.falls) giantFallEnd(f); GIANT.falls.length=0;
   GIANT.cut.clear();                                   // 새 섬 — 벤 것은 없다(불러오기는 섬을 다 지은 뒤 `giantRestore` 가 채운다)
   if(!FLORA.m) floraBuild();                          // 그림 묶음·재질을 같이 쓴다
@@ -190,6 +190,8 @@ const _gM=new THREE.Matrix4(), _gC=new THREE.Color(), _gPM=new THREE.Matrix4(), 
 function updateGiants(force){
   if(!GIANT.list.length||!GIANT.near) return;
   const px=PL.pos.x, pz=PL.pos.z; let ch=!!force;
+  if(!force&&Math.hypot(px-(GIANT.lx||1e9),pz-(GIANT.lz||1e9))<4&&QUAL.k===GIANT.lk) return;   // 4 m 안 옮겼으면 그대로(2026-11-08 FPS — 섬 전체 노거수를 프레임마다 훑어 4 ms)
+  GIANT.lx=px; GIANT.lz=pz; GIANT.lk=QUAL.k;
   for(const g of GIANT.list){
     const dx=g.x-px, dz=g.z-pz, d=Math.sqrt(dx*dx+dz*dz), on=d<(g.near?GIANT_FAR+GIANT_HYST:GIANT_FAR)*QUAL.k;
     if(on!==g.near){ g.near=on; ch=true; }
