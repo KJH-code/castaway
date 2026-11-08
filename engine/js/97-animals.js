@@ -590,9 +590,28 @@ function aniShark(a, dt, dx, dz, dist) {
   const st = spd * dt, nx = a.pos.x + Math.sin(a.yaw) * st, nz = a.pos.z + Math.cos(a.yaw) * st, gh = heightAt(nx, nz);
   if (gh < -1.8) { a.pos.x = nx; a.pos.z = nz; } else a.yaw += 1.2 * dt;
   ty = clamp(ty, heightAt(a.pos.x, a.pos.z) + 0.8 * s, -0.5);
-  const vy = clamp((ty - a.pos.y) * 0.8, -1.5, 1.5); a.pos.y += vy * dt; a.pitch += (-Math.atan2(vy, Math.max(0.5, spd)) - a.pitch) * clamp(dt * 3, 0, 1);
+  const vy = clamp((ty - a.pos.y) * 0.8, -1.5, 1.5); a.pos.y = Math.max(a.pos.y + vy * dt, heightAt(a.pos.x, a.pos.z) + 0.45 * s);   // 오르는 바닥에 늦게 따라가 몸이 묻히지 않게 a.pitch += (-Math.atan2(vy, Math.max(0.5, spd)) - a.pitch) * clamp(dt * 3, 0, 1);
   a.speed += (spd - a.speed) * clamp(dt * 3, 0, 1);
   aniDraw(a, dt, false); a.blob.visible = false;
+}
+/* 땅 기울기에 몸을 맞춘다 — 앞뒤 · 좌우 네 점의 땅 높이로 숙임(gp · + 는 코가 아래) · 기울임(gr · + 는 몸 오른쪽(+x)이 위)을 정하고,
+   네 가장자리가 땅에 안 묻히는 몸 높이를 돌려준다(예전엔 늘 수평이라 비탈에선 오르막 쪽 몸이 땅에 묻혔다 — 비탈 0.94 의 도마뱀은 몸 앞 절반이).
+   도마뱀 · 개구리는 배를 땅에 대고 다 따른다 · 네 발 짐승은 다리가 받아 덜 따른다(숙임 0.85 · 기울임 0.6 — 남는 높이는 몸을 띄워 메운다).
+   물에 뜬 것 · 나는 것 · 상어는 0 으로 돌아간다 · 땅 한 점은 mobGround(x,z)(큰 지형 모형 윗면 — 시험장은 제 땅) */
+function aniTilt(a, dt, dead, K, s) {
+  if (a.gp === undefined) { a.gp = 0; a.gr = 0; a.gk = 0; }
+  if (K === 'shark') return a.pos.y;
+  if (a.state === 'fly' || a.swimT > 0) { const k = clamp(dt * 6, 0, 1); a.gp -= a.gp * k; a.gr -= a.gr * k; return a.pos.y; }
+  const sz = ANIMAL_MESH[a.key].size, L = Math.max(0.05, sz[2] * s * 0.42), W = Math.max(0.04, sz[0] * s * 0.4);
+  const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw), x = a.pos.x, z = a.pos.z;   // 앞 = (sin yaw, cos yaw) · 몸 오른쪽(+x) = (cos yaw, −sin yaw)
+  const hF = mobGround(x + fx * L, z + fz * L), hB = mobGround(x - fx * L, z - fz * L);
+  const hX = mobGround(x + fz * W, z - fx * W), hN = mobGround(x - fz * W, z + fx * W);
+  const flat = K === 'lizard' || K === 'frog' || dead, kp = flat ? 1 : 0.85, kr = flat ? 1 : 0.6;
+  const tp = Math.atan2(hB - hF, 2 * L) * kp, tr = Math.atan2(hX - hN, 2 * W) * kr;
+  const k = a.gk ? clamp(dt * 8, 0, 1) : 1; a.gk = 1;                           // 처음엔 바로 · 그다음엔 부드럽게(한 걸음에 덜컥대지 않게)
+  a.gp += (tp - a.gp) * k; a.gr += (tr - a.gr) * k;
+  const sp = L * Math.sin(a.gp), sr = W * Math.sin(a.gr);
+  return Math.max(a.pos.y, hF + sp, hB - sp, hX - sr, hN + sr);
 }
 /* 그리기 — 거리로 꼴을 고르고(가까이 · 멀리 · 안 그림) 몸짓을 짠다 */
 function aniDraw(a, dt, dead) {
@@ -600,12 +619,16 @@ function aniDraw(a, dt, dead) {
   const far = (D.small ? 45 : 130) * Math.max(0.6, Math.sqrt(s)), nearD = (D.small ? 9 : 32) * Math.max(0.5, Math.sqrt(s));
   R.visible = d < far; if (!R.visible) return;
   a.near.visible = d < nearD; a.far.visible = !a.near.visible;
-  R.position.set(a.pos.x, a.pos.y + a.air, a.pos.z); R.rotation.set(K === 'shark' ? a.pitch : 0, a.yaw, 0, 'YXZ');
+  const yb = aniTilt(a, dt, dead, K, s);
+  R.position.set(a.pos.x, yb + a.air, a.pos.z); R.rotation.set(K === 'shark' ? a.pitch : a.gp, a.yaw, K === 'shark' ? 0 : a.gr, 'YXZ');
   if (dead && a.wings) a.wings[0].visible = a.wings[1].visible = false;
   if (dead) {                                                                // 옆으로 쓰러진다(상어는 배를 위로 · 가라앉는다) · 1분 뒤 땅으로
     const e = Math.min(1, a.deadT / 0.7), ee = e * e * (3 - 2 * e);
     if (K === 'shark') { R.rotation.z = Math.PI * ee; R.position.y = Math.max(heightAt(a.pos.x, a.pos.z) + 0.3 * s, a.pos.y - a.deadT * 0.4); }
-    else { R.rotation.z = (K === 'frog' ? Math.PI * 0.9 : 1.45) * ee; R.position.y = a.pos.y + (ANI_DEF[K].cy * 0.35 * s) * ee - Math.max(0, a.deadT - 60) * 0.03 * s; }
+    else {                                                                   // 개구리 · 도마뱀은 배를 위로(납작한 몸) · 나머지는 옆으로 — 비탈이면 내리막 쪽으로(오르막 쪽이면 다리가 하늘로 선다)
+      const fr = (K === 'frog' || K === 'lizard' ? Math.PI * 0.9 : a.gr > 0.05 ? -1.45 : 1.45) * ee, sz = ANIMAL_MESH[a.key].size;
+      const lift = (Math.abs(sz[0] * 0.5 * Math.sin(fr)) - Math.min(0, sz[1] * 0.9 * Math.cos(fr))) * s;   // 발이 밑인 몸 상자를 fr 만큼 굴렸을 때 가장 낮은 데를 땅 위로(예전 cy×0.35 는 배를 위로 한 개구리 · 도마뱀이 묻혔다)
+      R.rotation.z += fr; R.position.y = yb + lift - Math.max(0, a.deadT - 60) * 0.03 * s; }
     if (a.deadT < 1.2) { a.speed = 0; aniPose(a, dt); }
     return;
   }
@@ -618,7 +641,7 @@ function aniDraw(a, dt, dead) {
   /* 몸 기울기의 받침점 — 토끼 · 개구리는 뒷발(앉은 꼴에서 일어서고 뛴다) · 나머지는 몸 가운데 */
   const pz = (ANI_PIV[K] || 0) * ANIMAL_MESH[a.key].size[2] * s;
   if (pz && rt[0]) { const sp = Math.sin(rt[0]), dz = pz * (Math.cos(rt[0]) - 1); R.position.y += pz * sp; R.position.x -= Math.sin(a.yaw) * dz; R.position.z -= Math.cos(a.yaw) * dz; }
-  if (a.hitT > 0) R.rotation.z = Math.sin(performance.now() * 0.05) * 0.04 * a.hitT;
+  if (a.hitT > 0) R.rotation.z += Math.sin(performance.now() * 0.05) * 0.04 * a.hitT;
   if (a.wings) { const fly = a.state === 'fly'; a.wings[0].visible = a.wings[1].visible = fly;
     if (fly && a.wingA) { a.wings[0].rotation.z = a.wingA[0] - 1.1; a.wings[1].rotation.z = a.wingA[1] + 1.1; } }
 }
