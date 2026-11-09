@@ -299,6 +299,8 @@ function precompPlan(){
   if(!P.g0) P.g0=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));
   const FM=fireMats();
   for(const m of [...FM.flame,FM.glow,FM.smoke,FM.sparks]) fx.set(m.id+'|false|false|0',{m,inst:false,ic:false,g:P.g0});
+  /* 굴 · 땅속의 빛나는 점(32-caves.js caveGlowMat) — 땅속 꾸밈은 사람 둘레에서 늦게 깔려 처음 보는 순간 놀이 중에 짰다(침엽수림에서 66 ms · 2026-11-09) */
+  if(typeof caveGlowMat==='function'){ const m=caveGlowMat(); fx.set(m.id+'|false|false|0',{m,inst:false,ic:false,g:P.g0}); }
   if(!P.mf) P.mf=muzzleFlash(0.1).children[0].material;
   unl.set(P.mf.id+'|false|false|0',{m:P.mf,inst:false,ic:false,g:P.g0});
   /* 손전등 조합(③④)은 전등을 지녔을 때만 — 새 섬엔 없어서 시작 화면 일이 70개쯤 준다(지니게 된 뒤 멈추면 그때 짠다) */

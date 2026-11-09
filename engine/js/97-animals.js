@@ -209,6 +209,11 @@ function aniPix(pat, C, r, zn, yn, yr, xr, side, s, M) {
   }
   return c;
 }
+const ANI_JOBS = [];
+function aniJobs(ms) {
+  const t0 = performance.now();
+  while (ANI_JOBS.length && performance.now() - t0 < ms) { const J = ANI_JOBS[0]; for (let k = 0; k < 8 && J.y < ANI_TH; k++) J.row(J.y++); if (J.y >= ANI_TH) { J.done(); ANI_JOBS.shift(); } }
+}
 function aniPaint(key, coat, sid, vi) {
   const ck = key + '|' + sid + '|' + vi; if (ANI_MAT[ck]) return ANI_MAT[ck];
   const SP = ANIMAL_COATS[coat].sp[sid], V = SP.v[vi % SP.v.length], C = {};
@@ -218,20 +223,23 @@ function aniPaint(key, coat, sid, vi) {
   const zr0 = Lb.z0 / ANI_TW, M = {zr0, zNeck:0};
   // 꿩 목테 자리 — 목 자리의 가장 뒤쪽
   for (let x = 0; x < ANI_TW; x++) { let has = false; for (let y = 0; y < ANI_TH; y++) if (Lb.S[y * ANI_TW + x] === 3) { has = true; break; } if (has) { M.zNeck = x / ANI_TW; break; } }
-  for (let y = 0; y < ANI_TH; y++) for (let x = 0; x < ANI_TW; x++) {
-    const zn = (x + 0.5) / ANI_TW;
-    // 옆 그림(위 절반)
-    let r = Lb.S[y * ANI_TW + x], yn = 1 - (y + 0.5) / ANI_TH, yr = Lb.hi[x] >= 0 && Lb.lo[x] > Lb.hi[x] ? (Lb.lo[x] - y) / (Lb.lo[x] - Lb.hi[x]) : -1;
-    let c = aniPix(SP.pat, C, r || 1, zn, yn, yr, 0, true, s, M), k = (y * ANI_TW + x) * 4;
-    const j = 0.94 + aniNoise(x * 0.4, y * 0.4, s + 21) * 0.12;
-    px[k] = clamp(c[0] * j, 0, 1) * 255; px[k + 1] = clamp(c[1] * j, 0, 1) * 255; px[k + 2] = clamp(c[2] * j, 0, 1) * 255; px[k + 3] = 255;
-    // 위 그림(아래 절반)
-    r = Lb.T[y * ANI_TW + x]; const xn = 1 - (y + 0.5) / ANI_TH, xr = Math.abs(xn - 0.5) * 2;
-    c = aniPix(SP.pat, C, r || 1, zn, 1, 1, xr, false, s, M); k = ((y + ANI_TH) * ANI_TW + x) * 4;
-    px[k] = clamp(c[0] * j, 0, 1) * 255; px[k + 1] = clamp(c[1] * j, 0, 1) * 255; px[k + 2] = clamp(c[2] * j, 0, 1) * 255; px[k + 3] = 255;
-  }
-  g.putImageData(im, 0, 0);
+  /* **털빛은 여러 프레임에 나눠 칠한다**(2026-11-09 FPS — 처음 나오는 종 · 무늬마다 한 장에 8~23 ms 가 한 프레임에 들어 짐승이 설 때 멎었다 · tools/biome-bench.js).
+     재질은 곧바로 돌려주고(바탕 빛깔로 칠한 그림) 일감(`ANI_JOBS`)은 aniJobs 가 프레임마다 2 ms 씩 줄을 칠한다 — 다 칠하면 그림을 올린다 */
+  g.fillStyle = 'rgb(' + C.b.map(v => Math.round(v * 255)).join(',') + ')'; g.fillRect(0, 0, ANI_TW, ANI_TH * 2);
   const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 2;
+  const row = y => { for (let x = 0; x < ANI_TW; x++) {
+    const zn = (x + 0.5) / ANI_TW;
+      // 옆 그림(위 절반)
+      let r = Lb.S[y * ANI_TW + x], yn = 1 - (y + 0.5) / ANI_TH, yr = Lb.hi[x] >= 0 && Lb.lo[x] > Lb.hi[x] ? (Lb.lo[x] - y) / (Lb.lo[x] - Lb.hi[x]) : -1;
+      let c = aniPix(SP.pat, C, r || 1, zn, yn, yr, 0, true, s, M), k = (y * ANI_TW + x) * 4;
+      const j = 0.94 + aniNoise(x * 0.4, y * 0.4, s + 21) * 0.12;
+      px[k] = clamp(c[0] * j, 0, 1) * 255; px[k + 1] = clamp(c[1] * j, 0, 1) * 255; px[k + 2] = clamp(c[2] * j, 0, 1) * 255; px[k + 3] = 255;
+      // 위 그림(아래 절반)
+      r = Lb.T[y * ANI_TW + x]; const xn = 1 - (y + 0.5) / ANI_TH, xr = Math.abs(xn - 0.5) * 2;
+      c = aniPix(SP.pat, C, r || 1, zn, 1, 1, xr, false, s, M); k = ((y + ANI_TH) * ANI_TW + x) * 4;
+      px[k] = clamp(c[0] * j, 0, 1) * 255; px[k + 1] = clamp(c[1] * j, 0, 1) * 255; px[k + 2] = clamp(c[2] * j, 0, 1) * 255; px[k + 3] = 255;
+    } };
+  ANI_JOBS.push({row, y:0, done:() => { g.putImageData(im, 0, 0); tex.needsUpdate = true; }});
   if (!ANI_GRAIN[coat]) { const t = new THREE.TextureLoader().load(ANIMAL_COATS[coat].grain); t.wrapS = t.wrapT = THREE.RepeatWrapping; ANI_GRAIN[coat] = t; }
   const size = ANIMAL_MESH[key].size, tile = coat === 'shark' ? 0.35 : coat === 'frog' || coat === 'lizard' ? 0.03 : coat === 'pheasant' ? 0.1 : 0.18;
   const mat = new THREE.MeshLambertMaterial({map:tex, skinning:true});
@@ -326,6 +334,9 @@ function animalsBuild() {
     for (const k of ANI_KINDS) { const D = ANI_DEF[k];
       for (let i = 0; i < D.pool; i++) { const key = D.mesh.length > 1 ? (i < Math.ceil(D.pool * 0.6) ? D.mesh[0] : D.mesh[1]) : D.mesh[0];
         MON.ani.push(aniWrap(k, id++, aniRig(key))); } }
+    /* 털빛 셰이더를 미리 짜게(2026-11-09 — 첫 짐승이 설 때 놀이 중에 짜며 70 ms 멎었다): 첫 몸에 털빛 재질 하나를 입혀 둔다 — 미리 짜기(90-init.js precompPlan)가 숨은 몸까지 훑는다 */
+    { const a = MON.ani[0], D = a && ANI_DEF[a.kind], SP = D && ANIMAL_COATS[D.coat].sp, sid = SP && Object.keys(SP)[0];
+      if (sid) a.near.material = a.far.material = aniPaint(a.key, D.coat, sid, 0); }
   } catch (e) { console.error('[들짐승]', e); }
 }
 function aniWrap(kind, id, body) {
@@ -431,6 +442,7 @@ function aniSpawn(a, x, z, herd, sid, vi) {
 /* ── 돌보기(매 프레임 — 97-mobs.js updateMobs) ──────────────────────────────── */
 function animalsUpdate(dt) {
   if (!MON.ani.length) return;
+  aniJobs(2);                                                                // 털빛 칠하기(aniPaint) — 프레임마다 2 ms
   for (const k in ANI_COOL) if (ANI_COOL[k] > 0) ANI_COOL[k] -= dt;
   ANI_T -= dt; if (ANI_T <= 0) { ANI_T = 2.5; aniSpawner(); }
   for (const a of MON.ani) if (a.active) aniTick(a, dt);

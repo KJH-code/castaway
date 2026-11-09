@@ -45,7 +45,8 @@ function qualTick(dtMs,dt){
      13.6 ms 밑으로 8초면 올린다(60 Hz 화면에선 꽉 찬 60 FPS 가 16.7 ms 라 저절로는 안 오른다 — 남을 때만) */
   /* 2026-11-08 — 많이 모자라면 빨리 내린다(사용자 '숲에서 아직 23 FPS'): 느린 평균이 28 ms(36 FPS) 넘으면 0.6 초마다 0.15 · 22 ms 넘으면 0.9 초마다 0.1 ·
      그 밖(17.4~22)은 예전처럼 1.5 초마다 0.1. 예전엔 1 에서 바닥까지 10 초 넘게 걸려 상륙한 뒤 한참 20 FPS 대였다 */
-  if(Q.ema>17.4&&Q.k>Q.lo){ Q.t+=dt; const far=Q.ema>28, mid=Q.ema>22, need=far?0.6:mid?0.9:1.5;
+  /* 2026-11-09 — 17.4 → 17.05 ms(사용자 '어느 바이옴이든 60 고정'): 숲이 느린 평균 17.1 ms(58 FPS)로 머물러 품질을 안 내렸다 */
+  if(Q.ema>17.05&&Q.k>Q.lo){ Q.t+=dt; const far=Q.ema>28, mid=Q.ema>22, need=far?0.6:mid?0.9:1.5;
     if(Q.t>need){ Q.t=0; Q.k=Math.max(Q.lo,+(Q.k-(far?0.15:0.1)).toFixed(2)); qualApply(); } }
   else if(Q.ema<13.6&&Q.k<1){ Q.t-=dt; if(Q.t<-8){ Q.t=0; Q.k=Math.min(1,+(Q.k+0.05).toFixed(2)); qualApply(); } }
   else Q.t*=0.9;
