@@ -320,8 +320,8 @@ function updateTileVis(){                // 예산(rockBudget · _treeBudget · 
     if(t.m&&(setVis(t.m,want&&!tileOcc(t,8))|castNear(t.m,g<=SHR))) LIGHT.dirtyAt(t.cx,t.cz,t.r);   // 산 너머의 바위 칸은 거른다
   }
   const QK=QUAL.k;
-  for(const RG of act) for(const t of RG.prop){ const d=tileGap(t,px,pz), v=d<=t.d*QK&&tileSeen(t,d,6);
-    let f=false; for(const m of t.ms){ if(setVis(m,v)) f=true; if(castNear(m,d<=SHR)) f=true; }
+  for(const RG of act) for(const t of RG.prop){ const d=tileGap(t,px,pz), v=d<=t.d*QK, sn=v&&tileSeen(t,d,6);
+    let f=false; for(const m of t.ms){ if(setVis(m,v)) f=true; setSeen(m,sn); if(castNear(m,d<=SHR)) f=true; }
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r); }
   /* 참나무·전나무 — 그루마다 단계(위 'TL'). 사람이 0.7 m 넘게 움직였거나 품질이 바뀌면 단계를 다시 고르고,
      바뀐 칸만 다시 채운다(가까운 칸부터 · 노는 중엔 프레임마다 3 ms 남짓). 원본은 한 프레임에 한 칸, 솎은 자료는 3 ms 씩 짓는다 */
@@ -359,14 +359,26 @@ function updateTileVis(){                // 예산(rockBudget · _treeBudget · 
     TL.stat.packMs=performance.now()-t1; }
   /* 보이기 — 입체 칸은 묶음을, 그 밖(또는 솎은 자료가 아직 없는 칸)은 그림 판때기를 */
   for(const RG of act) for(const t of RG.tree){ const L=t.lod; if(!L) continue;
-    const show=L.want&&L.seen, sn=L.d<=SHR; let f=false;
-    for(const k in L.packs){ const m=L.packs[k]; if(setVis(m,show&&m.count>0)) f=true; if(castNear(m,sn)) f=true; }
-    if(t.bb){ if(setVis(t.bb,L.seen&&L.d<=VIEW_DIST&&!L.want)) f=true; if(castNear(t.bb,sn)) f=true; }
+    const sn=L.d<=SHR; let f=false;
+    for(const k in L.packs){ const m=L.packs[k]; if(setVis(m,L.want&&m.count>0)) f=true; setSeen(m,L.seen); if(castNear(m,sn)) f=true; }
+    if(t.bb){ if(setVis(t.bb,L.d<=VIEW_DIST&&!L.want)) f=true; setSeen(t.bb,L.seen); if(castNear(t.bb,sn)) f=true; }
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r);
   }
 }
 /* 보이기를 바꿨으면 참 — 바뀐 칸만 그림자 지도를 다시 그리게 알린다 */
 function setVis(m,v){ if(m.visible===v) return false; m.visible=v; return true; }
+/* **시야 거르기는 층(layer)으로**(2026-11-09 FPS — 사용자 '마우스를 빨리 움직여도 렉 없이'): 예전엔 화면 밖 칸을 visible 로 껐다 —
+   그러면 그림자 지도에서도 빠지므로 고개를 돌려 칸이 들고 날 때마다 그 둘레 해 그림자를 다시 그렸다(빨리 휘두르면 **매 프레임** —
+   숲에서 4초에 1,832번 · 해 그림자 155/155 프레임 · tools/biome-bench.js sweep~dirty). 이제 거리로 끄는 것만 visible 이고,
+   화면 밖은 층 0 을 빼고 `SEEN_LAYER` 에만 둔다. 본 장면은 층 0 만 그리고, 그림자 지도를 그릴 때만 카메라에 `SEEN_LAYER` 를 켠다
+   (r128 의 그림자 패스는 **본 카메라**의 층으로 거른다 — 아래 shadowSeenLayer) → 화면 밖 칸도 그림자는 그대로 드리워 지도를 다시 그릴 까닭이 없다 */
+const SEEN_LAYER=3;
+function setSeen(m,v){ const k=v?1:(1<<SEEN_LAYER); if(m.layers.mask!==k) m.layers.mask=k; }
+function shadowSeenLayer(){
+  const sm=renderer.shadowMap; if(sm._seenL) return; sm._seenL=true;
+  const r0=sm.render;
+  sm.render=function(L,sc,cam){ const k=cam.layers.mask; cam.layers.mask=k|(1<<SEEN_LAYER); try{ return r0.call(this,L,sc,cam); } finally{ cam.layers.mask=k; } };
+}
 /* **해 그림자 상자 밖의 칸은 그림자를 안 드리운다** — 칸 메시는 화면 거르기를 꺼 두어(frustumCulled false — 인스턴스가 칸 밖으로
    삐져나온다) 그림자 지도를 그릴 때도 보이는 칸 전부가 그려졌다. 상자는 사람 둘레 72~128 m(2026-10-20 넓힘 — 예전 36~64)인데, 125 m 밖 나무 복제·200 m 밖
    바위까지 그림자 지도에 그렸다(숲에서 그림자 한 번에 5 ms — FPS 측정). 칸 가장자리가 상자 반경 + 8 m 밖이면 드리우기를 끈다.
@@ -2173,7 +2185,9 @@ function updateShip(dt){
   if(!shipMesh) return;
   SHIP.t+=dt;
   // 움직이는 배 — 그림자를 매 프레임 다시. '기다림'(4 cm 출렁임)은 그림자에서 안 보이니 오를 때부터
-  if(SHIP.st!=='wait') LIGHT.dirtyAt(shipMesh.position.x,shipMesh.position.z,14);
+  /* 그림자는 초당 열 번만(2026-11-09 FPS) — 매 프레임 해 그림자 지도를 통째로(숲이면 200만 세모) 다시 그려 상륙 뒤 15초 동안 프레임이 떨어졌다.
+     떠나는 배가 50 m 넘게 오르면 그림자가 흐려 안 보이니 그만 */
+  if(SHIP.st!=='wait'&&(SHIP.sh=(SHIP.sh||0)+dt)>=0.1&&!(SHIP.st==='away'&&SHIP.t>3)){ SHIP.sh=0; LIGHT.dirtyAt(shipMesh.position.x,shipMesh.position.z,14); }
   if(SHIP.navs) SHIP.navs.forEach(n=>n.visible=((SHIP.t*1.2)%1)<0.25);   // 항법등 깜박임
   if(SHIP.st==='away'&&SHIP.dust) SHIP.dust.visible=false;
   if(SHIP.st==='wait'){

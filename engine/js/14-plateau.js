@@ -499,6 +499,24 @@ function plCragClear(){
   for(const d of UNDER.dol){ for(const sg of d.segs.slice(0,3)){ for(let s=0;s<=sg.L;s+=2.5){ const t=s/sg.L, cx=sg.x0+(sg.x1-sg.x0)*t, cz=sg.z0+(sg.z1-sg.z0)*t, f=sg.f0+(sg.f1-sg.f0)*t, vx=-(sg.z1-sg.z0)/sg.L, vz=(sg.x1-sg.x0)/sg.L;
         for(const o of [-1.4,-0.7,0,0.7,1.4]) pts.push([cx+vx*o*sg.w,cz+vz*o*sg.w,f,sg.h]); } }
     if(d.sea) for(let k=0;k<12;k++){ const a=k/12*6.283; pts.push([d.mx-d.ux*6+Math.cos(a)*12,d.mz-d.uz*6+Math.sin(a)*12,0.3,6]); } }
+  PLAT.cragKill=plCragKill(pts);
+}
+/* **폭포가 지나는 벼랑 바위를 걷는다**(2026-11-09 사용자 '폭포 강 버그가 그대로다'): 대지 폭포의 물살 판(36-falls.js fallsBuildPl)은 땅 높이를 따라 떨어지는데,
+   벼랑에 박힌 큰 바위 덩이(33-crags.js)는 땅 위로 솟아 있어 물살이 바위 속으로 묻혔다 — 잰 값(CASTAWAY 섬 폭포 9): 7 곳에서 물길 점의 30~90% 가 바위 속 ·
+   가장 깊이 25~38 m. 그래서 폭포는 안 보이고 밑의 소 거품만 보였다. 물길(fallsPlPath — 그리는 것과 같은 식)을 따라 물살 폭(아래로 1.4 배) + 2 m 의 띠에서
+   물살 높이를 가로지르는 덩이를 걷는다 — 벼랑 면에 물이 흘러내리는 골이 패인다 */
+function plFallsClear(){
+  if(typeof CRAG==='undefined'||!CRAG.tiles||!CRAG.tiles.size||typeof fallsPlPath!=='function') return;
+  const pts=[];
+  for(const f of FALLS.list){ if(!f.pl) continue;
+    const P=fallsPlPath(f), tx=-f.uz, tz=f.ux;
+    for(let i=0;i<P.length;i+=2){ const [x,z,y]=[P[i][0],P[i][2],P[i][1]], hw=f.w*(0.55+0.2*i/P.length)+2;
+      for(let o=-1;o<=1.001;o+=0.25) pts.push([x+tx*o*hw,z+tz*o*hw,y-0.5,2.5]); } }
+  if(pts.length) PLAT.fallKill=plCragKill(pts);
+}
+/* 점 [x, z, 바닥 f, 높이 h] 마다 그 높이 띠(f+0.3 ~ f+h+2)를 가로지르는 벼랑 바위 덩이와 몸 막기 원을 걷는다 — 굴길(plCragClear) · 폭포(plFallsClear)가 같이 쓴다 */
+function plCragKill(pts){
+  const T=CRAG.T, F_=CRAG.F, kill=new Set();
   for(const [x,z] of pts){ const tx=Math.floor(x/T), tz=Math.floor(z/T);
     for(let a=tz-1;a<=tz+1;a++) for(let b=tx-1;b<=tx+1;b++){ const t=CRAG.tiles.get((b+512)*1024+(a+512)); if(t&&!t.ixd) cragIndex(t); } }
   for(const [x,z,f,h] of pts){ const n=cragSpan(x,z); for(let i=0;i<n;i++){ const sp=_cgS[i]; if(sp.t>f+0.3&&sp.b<f+h+2) kill.add(sp.r); } }
@@ -511,11 +529,12 @@ function plCragClear(){
   { const G=CRAG.cg; G.clear();                                                    // 16 m 칸 색인은 원의 차례 번호를 담는다 — 다시 건다(33-crags.js cragSites 와 같은 식)
     for(let i=0;i<C.length;i+=3){ const r=C[i+2], x0=Math.floor((C[i]-r)/16), x1=Math.floor((C[i]+r)/16), z0=Math.floor((C[i+1]-r)/16), z1=Math.floor((C[i+1]+r)/16);
       for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const k=(gx+2048)*4096+(gz+2048); let a=G.get(k); if(!a) G.set(k,a=[]); a.push(i); } } }
-  PLAT.cragKill=kill.size;
+  return kill.size;
 }
 function plAfterUnder(seed){
   if(!PLAT.on) return;
   plCragClear();
+  plFallsClear();
   /* 벼랑 면에 붙은 잔돌 · 풀 · 덤불(2026-11-06 사용자 사진 — 벼랑에 돌덩이가 떠 있다)과 큰 지형 모형 속에 묻힌 나무(바위섬 꼭대기의 전나무가 모형 속에 섰다)를 걷는다 */
   { const W=new Set(['oak','fir']); let cut=0;
     PROPS=PROPS.filter(p=>{ if(p.cave||p.ug) return true; const i=plGi(p.x,p.z);

@@ -1409,7 +1409,7 @@ function rerollCloud(c,anywhere){
   }else if(c.form==='strand'){ c.w=w; c.h=h; shapeStrand(c);
   }else{
     const mp=c.mats[(rnd()*CLOUD_VARIANTS)|0].map;
-    c.m.material.map=mp; c.m.material.needsUpdate=true;
+    if(!c.m.material.map!==!mp) c.m.material.needsUpdate=true; c.m.material.map=mp;   // 그림만 바꿀 때는 다시 짤 까닭이 없다(그림이 있고 없음이 바뀔 때만)
     c.m.scale.set(w*(rnd()<0.5?-1:1),h,1);
   }
   c.y=lerpR(K.y); c.op=lerpR(K.op); c.v=K.v*(0.75+rnd()*0.5);
@@ -1820,16 +1820,20 @@ function updateCloudShadow(dt){
   const ang=(hourOfDay-6)/12*Math.PI;
   const sx=Math.cos(ang), sy=Math.sin(ang);
   CSH.on.value=clamp((sy-0.05)/0.15,0,1);
-  if((CSH.t+=dt)<0.4) return;
-  CSH.t=0;
-  const N=CSH.N, NC=CSH.NC, S=CSH.SIZE, tf=CSH.tf, tc=CSH.tc;
-  const ft=S/N, ct=S/NC;
-  const cx=Math.round(camera.position.x/ft)*ft, cz=Math.round(camera.position.z/ft)*ft;
-  CSH.ctr.value.set(cx,cz);
-  tf.fill(0); tc.fill(0);
-  if(CSH.on.value>0){
-    const L=Math.hypot(sx,sy,0.37), ux=sx/L, uy=Math.max(0.15,sy/L), uz=0.37/L;
-    const x0=cx-S/2, z0=cz-S/2;
+  /* **여러 프레임에 나눠 쌓는다**(2026-11-09 FPS — 사용자 '렉'): 0.4초마다 덩이 알갱이 전부를 한 프레임에 쌓아 11~22 ms 씩 튀었다(숲 · 산마루 —
+     tools/biome-bench.js). 이제 0.4초마다 일감(`CSH.job` — 그때의 판 가운데 · 해 방향)을 세우고, 프레임마다 1 ms 만큼 알갱이를 뒷판(tf2 · tc2)에 쌓다가
+     다 쌓으면 판과 가운데를 함께 바꾼다(구름은 초당 수십 m — 그사이 한 칸도 안 간다) */
+  CSH.t+=dt;
+  if(!CSH.job){ if(CSH.t<0.4) return; CSH.t=0;
+    const N=CSH.N, S=CSH.SIZE, ft=S/N;
+    if(!CSH.tf2){ CSH.tf2=new Float32Array(CSH.tf.length); CSH.tc2=new Float32Array(CSH.tc.length); }
+    CSH.tf2.fill(0); CSH.tc2.fill(0);
+    const L=Math.hypot(sx,sy,0.37);
+    CSH.job={ci:0, bi:0, cx:Math.round(camera.position.x/ft)*ft, cz:Math.round(camera.position.z/ft)*ft, ux:sx/L, uy:Math.max(0.15,sy/L), uz:0.37/L, on:CSH.on.value>0}; }
+  const J=CSH.job, N=CSH.N, NC=CSH.NC, S=CSH.SIZE, tf=CSH.tf2, tc=CSH.tc2;
+  const ft=S/N, ct=S/NC, cx=J.cx, cz=J.cz, ux=J.ux, uy=J.uy, uz=J.uz;
+  if(J.on){
+    const x0=cx-S/2, z0=cz-S/2, t0=performance.now();
     const splat=(buf,n,cell,px,pz,r,a)=>{
       const gx=(px-x0)/cell, gz=(pz-z0)/cell, gr=r/cell;
       const i0=Math.max(0,Math.floor(gx-gr)), i1=Math.min(n-1,Math.ceil(gx+gr));
@@ -1840,7 +1844,8 @@ function updateCloudShadow(dt){
         for(let i=i0;i<=i1;i++){ const dx=i+0.5-gx, q=1-(dx*dx+dz*dz)*ir2;
           if(q>0) buf[rowo+i]+=a*q*q; } }
     };
-    for(const c of CLOUDS){
+    for(;J.ci<CLOUDS.length;J.ci++,J.bi=0){
+      const c=CLOUDS[J.ci];
       if(!c.m.visible||c.form==='strand'||!c.nb) continue;
       const op=c.m.material.opacity; if(op<0.01) continue;
       const bs=c.m.geometry.boundingSphere, br=bs?bs.radius:c.w;
@@ -1850,8 +1855,9 @@ function updateCloudShadow(dt){
       if(Math.abs(px-cx)>S/2+br||Math.abs(pz-cz)>S/2+br) continue;
       const peak=c.form==='puff'||c.K.draw==='ripple'?0.42:0.34;
       const a=op*peak*1.6;
-      for(let i=0;i<c.nb;i++){
-        const r=c.rad[i]*0.42; if(!(r>0)) continue;
+      for(;J.bi<c.nb;J.bi++){
+        if((J.bi&15)===0&&performance.now()-t0>1.0) return;      // 이번 프레임 몫을 다 썼다 — 다음 프레임에 이 알갱이부터
+        const i=J.bi, r=c.rad[i]*0.42; if(!(r>0)) continue;
         const y=c.y+c.off[i*3+1];
         const bx=c.x+c.off[i*3]-y*ux/uy, bz=c.z+c.off[i*3+2]-y*uz/uy;
         // 적운 알갱이(반지름 수백 m)까지는 잔 판에 — 굵은 판에 쌓으면 그림자 가장자리가
@@ -1860,12 +1866,15 @@ function updateCloudShadow(dt){
       }
     }
   }
+  CSH.job=null;
+  CSH.ctr.value.set(cx,cz);
+  { const t=CSH.tf; CSH.tf=CSH.tf2; CSH.tf2=t; const u=CSH.tc; CSH.tc=CSH.tc2; CSH.tc2=u; }
   const put=(src,tex)=>{ const d=tex.image.data;
     for(let i=0;i<src.length;i++){ const v=Math.min(255,src[i]/CS_TAU*255)|0; d[i*4]=v; }
     tex.needsUpdate=true; };
-  put(tf,CSH.fine.value); put(tc,CSH.coarse.value);
+  put(CSH.tf,CSH.fine.value); put(CSH.tc,CSH.coarse.value);
   // 사람이 선 자리 — 해가 가려졌나
-  const tau=tf[(N>>1)*N+(N>>1)]+tc[(NC>>1)*NC+(NC>>1)];
+  const tau=CSH.tf[(N>>1)*N+(N>>1)]+CSH.tc[(NC>>1)*NC+(NC>>1)];
   CSH.sunVis=1-(1-Math.exp(-tau))*CSH.on.value;
 }
 /* 땅 쪽 재질 손질 — `LIGHT.refresh` 가 씬을 훑을 때 재질마다 한 번 붙인다.
@@ -1964,13 +1973,16 @@ float meltE(vec2 g){ vec4 t=texelFetch(uElev,ivec2(clamp(g,vec2(0.0),vec2(uGrid.
       vec4 mvPosition=viewMatrix*wpos;
       gl_Position=projectionMatrix*mvPosition;`);
     if(CM) sh.fragmentShader=sh.fragmentShader.replace(/\bvarying\s+float\s+vCv10(?:Sky|Deep)\b[^;]*;/g,'').replace(/\buniform\s+vec4\s+uCv10Glow\s*;/g,'');   // D 의 껍데기 재질이 조각 셰이더에 선언했으면 걷는다 - CAVE_GLSL 이 앞에서 선언한다
+    /* 땅 셰이더는 같은 텍스처(TERR_U.uTL)를 uTL 로 이미 받는다 — uTLe 를 따로 두면 조각 샘플러가 하나 더 들어 품질 '높음' + 손전등에서 17 개(흔한 GPU 한도 16 · review C) → 한 이름으로 */
+    const tlAlias=lam&&/uniform\s+sampler2D\s+uTL\s*;/.test(sh.fragmentShader);
+    if(tlAlias) sh.fragmentShader=sh.fragmentShader.replace(/uniform\s+sampler2D\s+uTL\s*;/,'');
     if(lam) sh.fragmentShader=(CV?(CM?'#define CV10_MESH\n':'')+CAVE_GLSL+'varying float vCsY;\nvarying vec3 vCsN;\n':'')+`uniform sampler2D csFine;
 uniform sampler2D csCoarse;
 uniform vec2 csC;
 uniform float csS;
 uniform float csOn;
 varying vec2 vCsXZ;
-uniform sampler2D uTLe;
+${tlAlias?'uniform sampler2D uTL;\n#define uTLe uTL':'uniform sampler2D uTLe;'}
 uniform vec2 uTLg;
 vec4 tlE(){ return texture2D(uTLe,(vCsXZ/uTLg.y+uTLg.x*0.5+0.5)/uTLg.x); }
 float cloudSh(){

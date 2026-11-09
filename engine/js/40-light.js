@@ -312,8 +312,12 @@ const LIGHT={
       // 시선 앞쪽을 더 덮는다 — 뒤통수의 그림자는 화면에 없다. 시선은 8방향으로 끊는다
       camera.getWorldDirection(this._f);
       const a=Math.atan2(this._f.x,this._f.z), q=Math.PI/4;
+      /* 고개를 빨리 돌리는 동안(초당 1.5 rad 넘게)은 상자를 안 옮긴다(2026-11-09 — 마우스를 휘두르면 0.1초마다 방향 칸이 바뀌어 해 그림자 지도를
+         통째로 다시 그렸다). 멈추면 0.25초 뒤 그쪽으로 옮긴다 */
+      { let w=a-(this._ap??a); w=Math.atan2(Math.sin(w),Math.cos(w)); this._ap=a; const r=Math.abs(w)/Math.max(dt||0.016,0.004);
+        this._aw=Math.max(r,(this._aw||0)*Math.exp(-(dt||0.016)/0.25)); }
       let d=a-this._sec*q; d=Math.atan2(Math.sin(d),Math.cos(d));
-      if(Math.abs(d)>q*0.6) this._sec=Math.round(a/q);
+      if(Math.abs(d)>q*0.6&&this._aw<1.5) this._sec=Math.round(a/q);
       const fx=Math.sin(this._sec*q), fz=Math.cos(this._sec*q);
       // 가운데는 SUN_STEP 격자에 — 격자 간격을 텍셀의 정수배로 잡아야 다시 그릴 때 그림자가 들끓지 않는다
       /* 빨리 움직이면 상자를 듬성듬성 옮긴다(2026-11-08 사용자 '빨리 다니면 렉') — 4 m 마다 옮기면 초속 25 m 에 초당 여섯 번 해 그림자 지도를(숲 200만 세모) 다시 그렸다.

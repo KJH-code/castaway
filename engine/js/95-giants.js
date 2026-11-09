@@ -98,7 +98,7 @@ function giantRootPt(g,r,t,out){
 }
 /* 섬의 노거수를 전부 세운다 — 섬을 만들 때 한 번(generateWorld) */
 async function giantsBuild(){        // async — 칸 줄 · 그루 사이 숨을 돌린다(breathe — 90-init.js)
-  for(const m of GIANT.meshes){ scene.remove(m); if(m.userData.own) m.geometry.dispose(); if(m.isInstancedMesh) m.dispose(); }   // 인스턴스 버퍼도 돌려준다
+  for(const m of GIANT.meshes){ scene.remove(m); if(m.userData.own) m.geometry.dispose(); if(m.isInstancedMesh) m.dispose(); if(m.userData.pic){ m.userData.pic.rt.dispose(); m.material.dispose(); } }   // 인스턴스 버퍼도 돌려준다 · 먼 그림
   GIANT.meshes.length=0; GIANT.list.length=0; GIANT.grid.clear(); GIANT.lx=GIANT.lz=1e9;
   for(const f of GIANT.falls) giantFallEnd(f); GIANT.falls.length=0;
   GIANT.cut.clear();                                   // 새 섬 — 벤 것은 없다(불러오기는 섬을 다 지은 뒤 `giantRestore` 가 채운다)
@@ -147,8 +147,8 @@ async function giantsBuild(){        // async — 칸 줄 · 그루 사이 숨�
   GIANT.ref=GIANT.geo.map((a,v)=>{ let best=0, bd=Infinity;
     for(const g of GIANT.list) if(g.v===v){ const d=(g.x-px)**2+(g.z-pz)**2; if(d<bd){ bd=d; best=g.w; } }
     return best; });
-  { const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), Sc=new THREE.Vector3();
-    for(const g of GIANT.list){ cnt[g.v][g.w]++; kcnt[g.v]++; g.near=false;
+  const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), V=new THREE.Vector3(), Sc=new THREE.Vector3();
+  { for(const g of GIANT.list){ cnt[g.v][g.w]++; kcnt[g.v]++; g.near=false;
       g.tint=0.88+0.2*((floraHash(g.gx,g.gz,94)&255)/255);          // 그루마다 살짝 다른 톤(인스턴스 색 칸이 꼭 있어야 한다)
       E.set(0,-g.yaw,0); Q.setFromEuler(E); V.set(g.x,g.y,g.z); Sc.set(g.s,g.s,g.s); M.compose(V,Q,Sc); g.mat=Float32Array.from(M.elements);
       const bs=(GIANT.geo[g.v][GIANT.ref[g.v]].boundingSphere||(GIANT.geo[g.v][GIANT.ref[g.v]].computeBoundingSphere(),GIANT.geo[g.v][GIANT.ref[g.v]].boundingSphere));
@@ -168,6 +168,16 @@ async function giantsBuild(){        // async — 칸 줄 · 그루 사이 숨�
      (`floraLodGeo` — 잎 판을 30% 만 남겨 키우고 잔가지를 솎는다 · 큰 줄기는 그대로). 연무 속이라 차이가 안 보인다 */
   GIANT.far=GIANT.geo.map((a,v)=>{ if(!kcnt[v]) return null;
     const base=a[GIANT.ref[v]], lod=floraLodGeo(base,0.3), im=mk(lod,kcnt[v],true); im.userData.own=lod!==base; return im; });
+  /* 아주 먼 쪽(`GIANT_PIC` 밖)은 **기준 그루를 찍은 그림 판때기**(십자 두 장 — 새 식물의 먼 그림과 같은 길 `floraBakePic`).
+     2026-11-09 FPS(사용자 요청 '어느 바이옴이든 60') — 시야 안의 먼 노거수 250그루 남짓을 줄인 복제(그루마다 세모 2천)로 그려
+     초원 · 산마루에서 노거수만 110만 세모 · GPU 11 ms 였다(한 프레임 24 ms 가운데 — tools/biome-bench.js CASTAWAY_AB) */
+  GIANT.pic=GIANT.geo.map((a,v)=>{ if(!kcnt[v]) return null;
+    const pic=floraBakePic(a[GIANT.ref[v]]); if(!pic) return null;
+    const im=new THREE.InstancedMesh(SHP.card(1,1),new THREE.MeshLambertMaterial({map:pic.tex,alphaTest:0.35,side:THREE.DoubleSide}),kcnt[v]);
+    im.count=0; im.visible=false; im.frustumCulled=false; im.userData.lightRole='recv'; im.userData.pic=pic; add(im,true);
+    for(const g of GIANT.list) if(g.v===v){ const c=pic.can; E.set(0,-g.yaw,0); Q.setFromEuler(E); V.set(g.x,g.y+c.y0*g.s,g.z); Sc.set(c.w*g.s,(c.y1-c.y0)*g.s,c.w*g.s);
+      M.compose(V,Q,Sc); g.pm=Float32Array.from(M.elements); }
+    return im; });
   /* 뿌리는 그루마다 보통 메시 하나 — r128 은 재질 하나에 셰이더가 하나라, 인스턴스 메시와 재질을 나눠 쓰면 그릴 때마다
      셰이더를 갈아 끼운다(인스턴스 색이 없는 메시가 섞이면 아예 죽는다). 그래서 뿌리는 제 재질을 쓴다 */
   const o={x:0,z:0,h:0,w:0};
@@ -185,14 +195,17 @@ async function giantsBuild(){        // async — 칸 줄 · 그루 사이 숨�
 }
 /* 200 m 안팎 가르기 — 매 프레임(updateFlora 가 부른다). 75그루 남짓의 거리만 재고, 안팎이 바뀐 그루가 있을 때만 인스턴스를 다시 채운다.
    경계에서 오락가락하지 않게 나갈 때는 10 m 더 멀어져야 한다 */
-const GIANT_FAR=95, GIANT_HYST=10;    // 제 생김새(그림자도 드리운다)는 95 m 안만 — 잰 값: 200 m 일 때 노거수만 한 프레임의 4 ms 였다. 그 밖은 줄인 복제
+const GIANT_FAR=95, GIANT_HYST=10, GIANT_PIC=280;   // 280 m(× 자동 품질 · 110 m 밑으로는 안 당긴다) 밖은 그림 판때기    // 제 생김새(그림자도 드리운다)는 95 m 안만 — 잰 값: 200 m 일 때 노거수만 한 프레임의 4 ms 였다. 그 밖은 줄인 복제
 const _gM=new THREE.Matrix4(), _gC=new THREE.Color(), _gPM=new THREE.Matrix4(), _gFr=new THREE.Frustum(), _gSp=new THREE.Sphere();
 function updateGiants(force){
   if(!GIANT.list.length||!GIANT.near) return;
   const px=PL.pos.x, pz=PL.pos.z; let ch=!!force;
-  if(!force&&Math.hypot(px-(GIANT.lx||1e9),pz-(GIANT.lz||1e9))<4&&QUAL.k===GIANT.lk) return;   // 4 m 안 옮겼으면 그대로(2026-11-08 FPS — 섬 전체 노거수를 프레임마다 훑어 4 ms)
-  GIANT.lx=px; GIANT.lz=pz; GIANT.lk=QUAL.k;
-  for(const g of GIANT.list){
+  /* 안팎 가르기는 4 m 옮겼을 때만(2026-11-08 FPS — 섬 전체 노거수를 프레임마다 훑어 4 ms). 예전엔 여기서 돌아가 버려 **고개만 돌리면**
+     먼 쪽의 시야 거르기도 안 돌아 뒤에 있던 노거수가 안 나타났다 — 이제 시야 거르기는 아래에서 눈이 돌았을 때마다 */
+  const moved=force||Math.hypot(px-(GIANT.lx||1e9),pz-(GIANT.lz||1e9))>=4||QUAL.k!==GIANT.lk;
+  if(moved){ GIANT.lx=px; GIANT.lz=pz; GIANT.lk=QUAL.k; const R=Math.max(110,GIANT_PIC*QUAL.k);
+    for(const g of GIANT.list){ const d=Math.hypot(g.x-px,g.z-pz), pf=d>(g.pf?R-GIANT_HYST:R); if(pf!==!!g.pf){ g.pf=pf; GIANT.farSig=null; } } }
+  if(moved) for(const g of GIANT.list){
     const dx=g.x-px, dz=g.z-pz, d=Math.sqrt(dx*dx+dz*dz), on=d<(g.near?GIANT_FAR+GIANT_HYST:GIANT_FAR)*QUAL.k;
     if(on!==g.near){ g.near=on; ch=true; }
   }
@@ -217,7 +230,10 @@ function updateGiants(force){
   }
   /* 먼 쪽 — 종류마다 메시 하나라 통째로는 화면 밖을 못 거른다(예전 칸 메시는 칸마다 걸렀다). 시야 안의 그루만 채운다.
      그림자를 안 드리우므로(recv) 행렬을 배열에 바로 쓴다 — setMatrixAt 갈고리를 타면 몸을 돌릴 때마다 그림자 지도를 다시 그린다 */
-  camera.updateMatrixWorld(); _gPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _gFr.setFromProjectionMatrix(_gPM);
+  camera.updateMatrixWorld();
+  { const e=camera.matrixWorld.elements, q=GIANT.cq||(GIANT.cq=new Float32Array(16));   // 눈이 그대로면(자리 · 방향) 시야 거르기도 그대로
+    let same=!ch&&!moved; for(let i=0;i<16;i++){ if(same&&Math.abs(e[i]-q[i])>0.004) same=false; q[i]=e[i]; } if(same) return; }
+  _gPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _gFr.setFromProjectionMatrix(_gPM);
   let sig=ch?-1:0, k=0;
   for(const g of GIANT.list){ if(g.near) continue; _gSp.center.set(g.fc[0],g.fc[1],g.fc[2]); _gSp.radius=g.fr;
     g.seen=_gFr.intersectsSphere(_gSp)&&!tileOcc(g._ot||(g._ot={cx:g.x,cz:g.z,r:14}),48);     // 산 너머의 노거수는 거른다(30-props.js)
@@ -225,11 +241,15 @@ function updateGiants(force){
   if(sig===GIANT.farSig) return;
   GIANT.farSig=sig;
   for(const im of GIANT.far) if(im) im.count=0;
+  if(GIANT.pic) for(const im of GIANT.pic) if(im) im.count=0;
   for(const g of GIANT.list){ if(g.near||!g.seen||g.felled) continue;
+    const pm=g.pf&&g.pm&&GIANT.pic&&GIANT.pic[g.v];
+    if(pm){ pm.instanceMatrix.array.set(g.pm,(pm.count++)*16); continue; }
     const im=GIANT.far[g.v], i=im.count++;
     im.instanceMatrix.array.set(g.mat,i*16);
     const c=im.instanceColor.array; c[i*3]=g.tint; c[i*3+1]=g.tint; c[i*3+2]=g.tint*0.96; }
-  for(const im of GIANT.far) if(im){ im.visible=im.count>0; im.instanceMatrix.needsUpdate=true; im.instanceColor.needsUpdate=true; }
+  for(const im of GIANT.far) if(im){ im.visible=im.count>0; instUp(im); }
+  if(GIANT.pic) for(const im of GIANT.pic) if(im){ im.visible=im.count>0; instUp(im); }
 }
 /* 그 자리의 뿌리 높이(땅 위로 얼마나 솟았나 · 뿌리가 없으면 0) — 설 자리(`floorAt`)가 부른다 */
 const _grP={x:0,z:0,h:0,w:0};

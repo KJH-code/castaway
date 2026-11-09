@@ -296,6 +296,12 @@ function camcInit(){
 function camcBody(on){ if(CAMC._body!==on){ CAMC._body=on; document.body.classList.toggle('camc',on); } }
 camcBody(CAMC.on&&CAMC.lines>0);
 /* 그리기 전에 — 캠코더가 켜져 있으면 그림판을 물리고 true 를 돌려준다(renderFrame 이 부른다) */
+/* 장면을 그리는 그림판의 높이(화소) — 캠코더가 켜져 있으면 그 그림판(camcBegin 과 같은 식), 아니면 창. 화면에서의 크기로 단계를 고르는 쪽이 쓴다(땅 LOD) */
+function renderH(){
+  const ch=renderer.domElement.height; if(!(CAMC.on&&CAMC.lines)) return ch;
+  const qs=typeof QUAL==='undefined'||QUAL.k>=0.7?1:QUAL.k>=0.5?0.85:0.7;
+  return Math.round(Math.min(CAMC.lines,ch)*qs);
+}
 function camcBegin(){
   const show=!!(CAMC.on&&CAMC.lines);
   if(show!==CAMC.cls||CAMC.noise!==CAMC.ncls){ CAMC.cls=show; CAMC.ncls=CAMC.noise;       // CCTV 글씨(game.css) — 시작 화면에서도
