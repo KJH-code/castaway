@@ -77,11 +77,11 @@ function camcInit(){
     depthTest:false, depthWrite:false, fog:false,
     uniforms:{tD:{value:null}, uRes:{value:new THREE.Vector2(640,480)}, uT:{value:0}, uBat:{value:1}, uUnder:{value:0},
               uLow:{value:0}, uMoon:{value:0}, uNight:{value:0}, uDay:{value:1}, uGrain:{value:1}, uHdr:{value:0}, uIll:{value:0},
-              uHurtN:{value:0}, uHit:{value:0}, tCrk:{value:CK.crk}, tBand:{value:CK.band}, tHole:{value:CK.hole}, uAsp:{value:16/9}, uWet:{value:0}, uDive:{value:0}},
+              uHurtN:{value:0}, uHit:{value:0}, tCrk:{value:CK.crk}, tBand:{value:CK.band}, tHole:{value:CK.hole}, uAsp:{value:16/9}, uWet:{value:0}, uDive:{value:0}, uDropLo:{value:0}},
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
     fragmentShader:`
       precision highp float;
-      uniform sampler2D tD, tCrk, tBand, tHole; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurtN,uHit,uAsp,uWet,uDive;
+      uniform sampler2D tD, tCrk, tBand, tHole; uniform vec2 uRes; uniform float uT,uBat,uUnder,uLow,uMoon,uNight,uDay,uGrain,uHdr,uIll,uHurtN,uHit,uAsp,uWet,uDive,uDropLo;
       varying vec2 vUv;
       float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
       float hq(vec2 p){ vec3 q=fract(vec3(p.xyx)*0.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }   // 정수 칸 해시(Hoskins) — h21 은 화면 화소 칸에서 세로 줄무늬가 졌다
@@ -144,6 +144,7 @@ function camcInit(){
              장의 기울기가 면의 기울기 — 가장자리일수록 크게 꺾고(볼록렌즈) · 안은 흐리게(wBl) · 해 쪽에 작은 반짝임. 테를 검게 긋지 않는다.
              칸 경계를 건너 이어지게 가까운 칸 넷(2×2)을 같이 센다 */
           for(int L=0;L<3;L++){
+            if(L==0&&uDropLo>0.5) continue;                                   // 자동 품질이 낮으면 가장 잔 방울 겹은 건너뛴다(화면 화소마다 고리 넷 — 비 올 때 가장 무거운 몫)
             float cs=L==0?0.030:L==1?0.058:0.115; vec2 g=q/cs, gi=floor(g-0.5);
             float fs=0.0; vec2 gs=vec2(0.0);
             for(int k=0;k<4;k++){ vec2 id=gi+vec2(float(k-(k/2)*2),float(k/2)), f=g-id-0.5;
@@ -336,7 +337,7 @@ function camcEnd(under){
     /* 비가 오면 렌즈가 젖는다(물속 · 땅속은 빼고) — 빗발만큼 방울이 맺힌 채 남는다 */
     const rainL=(typeof WEA!=='undefined'&&!under&&!(typeof PL!=='undefined'&&PL.under))?Math.min(0.85,(WEA.rain||0)*1.1):0;
     CAMC.rainL=(CAMC.rainL||0)+(rainL-(CAMC.rainL||0))*Math.min(1,dt*0.4);
-    U.uDive.value=CAMC.dive; U.uWet.value=Math.max(CAMC.wet,CAMC.rainL); }
+    U.uDive.value=CAMC.dive; U.uWet.value=Math.max(CAMC.wet,CAMC.rainL); U.uDropLo.value=typeof QUAL!=='undefined'&&QUAL.k<0.5?1:0; }
   U.uT.value=(performance.now()/1000)%1000; U.uBat.value=CAMC.bat/100; U.uUnder.value=CAMC.under;
   U.uIll.value+=((PL.ill>0?clamp(PL.ill/6,0,1):0)-U.uIll.value)*0.06;      // 탈 — 서서히 물들고 서서히 걷힌다
   U.uLow.value=G.low; U.uMoon.value=G.moon; U.uNight.value=G.night; U.uDay.value=clamp(1-G.night*1.2,0,1); U.uGrain.value=CAMC.noise;

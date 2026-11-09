@@ -84,8 +84,10 @@ function surfList(){
 function surfTick(dt){
   dt=dt||0;
   let h=false; for(const f of SURF.when) if(f()){ h=true; break; }
-  if(h&&!SURF.hide){ SURF.hide=true; SURF.list=surfList(); SURF.t=0; }
-  else if(h){ SURF.t+=dt; if(SURF.t>=1){ SURF.t=0; SURF.list=surfList(); } }
+  /* 목록은 장면의 자식이 바뀌었을 때만 다시 만든다(2026-11-09 FPS — 1초마다 4만 개를 훑어 땅속에서 1초에 한 번 50 ms 씩 멎었다 · tools/biome-bench.js under).
+     새 계통의 메시는 scene 에 바로 붙으므로 자식 수가 달라진다 — 그래도 놓친 것이 있을까 10초마다 한 번은 다시 */
+  if(h&&!SURF.hide){ SURF.hide=true; SURF.list=surfList(); SURF.t=0; SURF.nc=scene.children.length; }
+  else if(h){ SURF.t+=dt; if(SURF.nc!==scene.children.length||SURF.t>=10){ SURF.t=0; SURF.list=surfList(); SURF.nc=scene.children.length; } }
   else if(SURF.hide){
     SURF.hide=false; SURF.list=[]; SURF.t=0;
     if(typeof qualApply==='function') qualApply();       // 나무 칸 보이기(_tvForce)와 식생(FLORA.far/near.cx)을 곧바로 다시 센다
