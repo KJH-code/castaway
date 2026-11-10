@@ -236,22 +236,25 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 
 ### 분업 — 메인이 지휘하고 워커가 일한다(orchestrate)
 
-사용자 결정(2026-10-30) — 사용자가 올린 orchestrate 플러그인(지금 v2.2.0 · 2026-11-04)을 이 레포에 들였다: `.claude/skills/orchestrate/`(지휘 절차 · 지시서 양식) ·
-`.claude/skills/check/`(독립 검증 `/check test·review·debug`) · `.claude/skills/super/`(`/super` — 설계 후보 셋 · 다관점 리뷰 · 반박 검증 · 한도를 많이 쓴다 · 사용자가 부를 때만) ·
-`.claude/agents/`(역할마다 모델 · 노력이 파일에 고정된 `w-*` · `su-*` · `checker-test` · `checker` — **부를 때 `model` · `effort` 를 넘기지 않는다**: `.claude/settings.json` 의 훅 `.claude/hooks/enforce-tiers.js` 가 거절한다 · `model:"inherit"` 만 허용). **절차는 그 스킬을 따른다.** 이 레포에서 바꾼 셋:
+사용자 결정(2026-10-30 · 지금 플러그인 **v3.3.0** · 2026-11-10) — 사용자가 올린 orchestrate 플러그인을 플러그인이 아니라 `.claude/` 에 풀어 두었다(이름에 `orchestrate:` 가 안 붙는다):
+`.claude/skills/` — `mode`(새 작업마다 모드를 묻는 절차) · `lite`(절약) · `orchestrate`(기본) · `plus`(강화) · `super`(최대) · `fable`(극한 — Fable 5.2 · `ORCHESTRATE_FABLE=1` 일 때만) · `check`(독립 검증 `/check test·review·debug`) ·
+`.claude/agents/`(역할마다 모델 · 노력이 파일에 고정된 `w-*` · `su-*` · `checker-test`(haiku xhigh) · `checker`(opus xhigh) · `checker-lite`(sonnet medium) · `*-fable`) ·
+`.claude/scripts/budget.js`(요금제별 주간 한도 추정 — `node .claude/scripts/budget.js --plan pro --compare --units 3`) ·
+훅 둘(`.claude/settings.json`) — `enforce-tiers.js`(**에이전트를 부를 때 `model` · `effort` 를 넘기면 거절** · `model:"inherit"` 만 허용 · Fable 은 `ORCHESTRATE_FABLE=1` 없이 거절) ·
+`ask-mode.js`(사용자 메시지마다 '새 작업이면 먼저 모드를 물어라'를 넣는다 — 끄기 `ORCHESTRATE_ASK_MODE=0`). **절차는 그 스킬을 따른다.** 이 레포에서 바꾼 셋(모든 모드에 같다):
 - **병합은 메인(Opus)이 한다**(사용자 결정) — 위 '작업 흐름'대로 늘 main 에 합친다(checker test 통과 · review 에 '실패' 없음이면). review 에 실패·의심이 있으면 그대로 보고하고 답을 기다린다.
   워커 · checker 는 푸시 · PR · 병합을 안 한다(워커는 제 작업 트리에 커밋까지).
-- **구현 위임 · 인터뷰는 플러그인대로**(사용자 결정 — 예전 '구현은 맡기지 않는다 · Explore 만' 규칙을 바꿨다) — 작업이 독립적인 부분 둘 이상으로 나뉘거나 사용자가
-  '/orchestrate · 분업으로' 할 때: 인터뷰(CLAUDE.md · 노트에서 알 수 있는 건 안 묻는다) → 쪼개기 → 지시서 → 워커(구현은 `w-implement` sonnet · medium · 병렬이면 worktree) →
-  검수(`checker-test` haiku · high → 통과하면 `checker` review opus · high) → 보고. 한 번에 끝나는 수정 · 질문은 메인이 직접 한다. 판단(설계 결정 · 원인 모를 디버깅 · 결과 해석 ·
-  결정론 · 지형 판 · 정본/복사본)은 메인이 쥔다.
+- **모드는 사용자가 고른다**(v3.3.0) — 새 작업이면 시작 전에 `mode` 스킬대로 묻는다(모드 없음 / 절약 / 기본 / 더 높은 모드 → 강화 / 최대 / 극한). 진행 중인 작업의 후속 · 순수 질문 · `/check` 는 안 묻는다.
+  모드 없음이면 메인이 직접 한다. 판단(설계 결정 · 원인 모를 디버깅 · 결과 해석 · 결정론 · 지형 판 · 정본/복사본)은 어느 모드에서나 메인이 쥔다.
 - **비용(메인이 정함)** — `general-purpose` 를 띄우는 고정 비용 **5.8만 토큰**(2026-10-30 · haiku · 한 줄 답 · CLAUDE.md 43 KB — 265 KB 때 18.9~19.3만).
-  그래서 워커는 `w-*`, 검수는 `checker-test` · `checker`(도구를 줄인 이 레포 에이전트 · 각 파일 끝에 CASTAWAY 절)로 띄우고 general-purpose 는 그것이 안 잡힐 때만(그때만 `model` · `effort` 를 넘김 · 에이전트 파일을 막 만든 세션 —
-  그 세션에선 목록에 없다 · 두 에이전트의 고정 비용은 새 세션에서 잴 것). 워커 하나에 맡길 일이 작으면(파일 한두 개 · 몇십 줄) 나누지 않는다 — 고정 비용이 일보다 크다.
+  그래서 워커 · 검수는 이 레포 에이전트(일하는 것들은 각 파일 끝에 '이 레포(CASTAWAY)에서' 절)로 띄우고 general-purpose 는 그것이 안 잡힐 때만(그때만 `model` · `effort` 를 넘김 · 에이전트 파일을 막 만든 세션 — 그 세션에선 목록에 없다).
+  워커 하나에 맡길 일이 작으면(파일 한두 개 · 몇십 줄) 나누지 않는다 — 고정 비용이 일보다 크다. 검수 에이전트는 차례 한도(`maxTurns`)에 걸리면 보고 없이 멈춘다 — SendMessage 로 이어 '판정 표를 돌려줄 것'.
+- 요금제를 CLAUDE.md 에 `요금제: Pro`(또는 Max · Ultra) 한 줄로 적어 두면 모드 스킬이 매번 안 묻는다 — 아직 안 적었다(사용자가 정할 것).
 - 읽기만 하는 조사(웹 조사 · 큰 시험장 여럿 비교 · 개발 대화 원문에서 까닭 찾기 · 사진 여러 장 훑기)는 그대로 `Explore` + `model`(CLAUDE.md 를 안 읽는다) — 지시에
   목표 · 볼 경로 · 하지 말 것(`engine/js/data-*.js` · 전사 원문 · 10 MB 넘는 시험장은 통째로 말고 `grep … | cut -c1-200`) · 돌려줄 꼴과 길이를 넣는다.
 - 워커는 노트(`docs/notes/`)를 저절로 안 읽는다 — 지시서 '맥락'에 걸리는 규칙 · 같이 고칠 짝 · 노트 대목을 옮겨 적는다. 받은 결과 중 다음 결정에 쓰는 수치 · file:line 은
   메인이 한 번 확인한다. 답할 때 무엇을 어느 모델에 맡겼는지 한 줄로 밝힌다.
+- 플러그인을 새 판으로 바꿀 때: 새 파일로 갈고 위 셋 · 에이전트의 CASTAWAY 절 · 스킬 머리의 '이 레포에서' 줄 · `spec-template.md` 의 검사 · 커밋 칸을 다시 얹는다(옛 판과 `diff` 로 확인).
 
 ## 계통별 노트(`docs/notes/`)
 

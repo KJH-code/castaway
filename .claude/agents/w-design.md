@@ -1,9 +1,9 @@
 ---
 name: w-design
-description: orchestrate 설계 워커. 여러 안을 비교하고 하나를 추천한다. 코드는 쓰지 않는다. orchestrate 스킬이 지시서와 함께 부를 때만 쓴다.
+description: orchestrate 설계 워커. 여러 안을 비교하고 하나를 추천한다. 코드는 쓰지 않는다. orchestrate 플러그인의 모드 스킬(절약·기본·강화)이 지시서와 함께 부를 때만 쓴다.
 tools: Read, Grep, Glob, Bash
 model: opus
-effort: high
+effort: xhigh
 maxTurns: 40
 ---
 

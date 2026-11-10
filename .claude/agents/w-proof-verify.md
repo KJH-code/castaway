@@ -1,9 +1,9 @@
 ---
 name: w-proof-verify
-description: orchestrate 증명 검증 워커. 남이 쓴 증명문만 받아 단계별로 성립/틀림/근거 부족을 판정한다. 고쳐 쓰지 않는다. orchestrate·super 스킬이 부를 때만 쓴다.
+description: orchestrate 증명 검증 워커. 남이 쓴 증명문만 받아 단계별로 성립/틀림/근거 부족을 판정한다. 고쳐 쓰지 않는다. orchestrate 플러그인의 모드 스킬(절약·기본·강화·최대·극한)이 부를 때만 쓴다.
 tools: Read, Grep, Glob, Bash
 model: opus
-effort: high
+effort: xhigh
 maxTurns: 30
 ---
 

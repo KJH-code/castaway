@@ -1,6 +1,6 @@
 ---
 name: su-prover
-description: super 모드 전용 증명·유도 작성 에이전트. 정의와 가정을 밝히고 단계마다 근거를 단 증명이나 물리 유도를 쓴다. super 스킬의 증명 트랙에서만 쓴다.
+description: 강화·최대(plus·super) 모드 전용 증명·유도 작성 에이전트. 정의와 가정을 밝히고 단계마다 근거를 단 증명이나 물리 유도를 쓴다. plus 스킬이나 super 스킬의 증명 트랙에서만 쓴다.
 tools: Read, Grep, Glob, Bash
 model: opus
 effort: xhigh

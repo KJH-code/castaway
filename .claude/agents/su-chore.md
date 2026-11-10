@@ -1,9 +1,9 @@
 ---
 name: su-chore
-description: super 모드 전용 잡일 에이전트. 파일 정리, 포맷 변환, 이름 바꾸기 같은 기계적인 일만 한다. super 스킬의 워크플로에서만 쓴다.
+description: 최대·극한(super·fable) 모드 전용 잡일 에이전트. 파일 정리, 포맷 변환, 이름 바꾸기 같은 기계적인 일만 한다. super·fable 스킬의 워크플로에서만 쓴다.
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: haiku
-effort: low
+effort: medium
 maxTurns: 30
 ---
 
