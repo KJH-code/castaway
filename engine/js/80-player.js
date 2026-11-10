@@ -215,6 +215,16 @@ function caveColPush(p){
     if(caveHere(tx,tz,p.y)){ p.x=tx; p.z=tz; } else if(caveHere(p.x+nx*pen,p.z+nz*pen,p.y)){ p.x+=nx*pen; p.z+=nz*pen; }   // 빈 데 밖(바위 속)으로는 안 민다 — 밀린 자리의 바닥이 지표라 22 m 위로 튀었다(기본 섬 석회암)
     PL.vel.x*=0.7; PL.vel.z*=0.7; }
 }
+/* 입구 4 m 안 빈 데 가장자리 — 걷는 격자(빈 데 칸만 섞음)는 문턱에서 그려진 바닥보다 0.15 m 낮다 → 해석 바닥과의 가운데로(메시와 거의 같다 · review B).
+   발 붙이기 · 튀기 막기 · 눈 되돌림이 같이 쓴다(셋이 다르면 되돌린 걸음이 0.25 m 낮게 섰다 — review 다시) */
+function cvLipF(x,z,ng){
+  if(!(PL.cave&&PL.caveQ&&PL.caveQ.d<4&&DROP.t<=0)) return ng;
+  const rc=CV10.built.get(PL.cave); if(!rc||!rc.ready) return ng;
+  const sm=cv10Samp(rc,x,z); if(!(sm.n>=0.5&&sm.n<0.999)) return ng;
+  const gf=sm.f, fo=cv10Field(PL.cave,x,z);
+  if(fo.g>0.05&&fo.f>gf){ const mid=Math.min(gf+0.25,(gf+fo.f)/2); if(mid>ng&&ng>=gf-0.01) return mid; }
+  return ng;
+}
 /* 굴 속 걷기 — true/false 면 그 답, undefined 면 땅 규칙으로 */
 function caveWalk(x,z,fromH){
   const q=caveHere(x,z,fromH);                              // floorAt 과 같은 창(발 높이) — 걷기 · 바닥이 어긋나면 걸음은 굴 안인데 바닥은 지표를 줬다
@@ -624,11 +634,9 @@ function updatePlayer(dt){
   if(DROP.t>0){ DROP.t-=dt; }
   let ng=PL.cvUnder?floorAt(p.x,p.z,p.y):Math.max(floorAt(p.x,p.z,p.y),shipFloor(p.x,p.z,p.y),rubbleFloor(p.x,p.z,p.y));   // 지은 바닥 · 보급선 날개·몸 위 · 낮은 큰 돌 위에 선다
   if(DROP.t>0) ng=Math.min(ng, floorAt(p.x,p.z,DROP.y-1.0));   // 뚫고 내려가는 중
-  if(PL.cave&&PL.caveQ&&PL.caveQ.d<4&&DROP.t<=0){                    // 입구 4 m 안 빈 데 가장자리 — 걷는 격자(빈 데 칸만 섞음)는 문턱에서 그려진 바닥보다 0.15 m 낮다 → 해석 바닥과의 가운데로(메시와 거의 같다 · review B)
-    const rc=CV10.built.get(PL.cave); if(rc&&rc.ready){ const sm=cv10Samp(rc,p.x,p.z); if(sm.n>=0.5&&sm.n<0.999){ const gf=sm.f, fo=cv10Field(PL.cave,p.x,p.z);
-      if(fo.g>0.05&&fo.f>gf){ const mid=Math.min(gf+0.25,(gf+fo.f)/2); if(mid>ng&&ng>=gf-0.01) ng=mid; } } } }
+  ng=cvLipF(p.x,p.z,ng);
   if((PL.cvUnder||PL.cave)&&ng-oy>(PL.caveQ&&PL.caveQ.d<4?0.85:STEPUP+0.05)){   // 굴 안에서 한 걸음에 바닥이 턱보다 높이 오른다 = 지표로 튀는 것 — 앞 자리로(입구 4 m 안은 문턱 0.8 m 까지 · caveWalk)
-    p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; const q0=caveHere(ox,oz,oy+0.3)||cv10Q(ox,oz,oy+0.3); ng=q0?q0.f:floorAt(ox,oz,oy+0.3); }   // 걷기와 같은 좁은 질의 먼저 — 넉넉한 cv10Q 의 바닥은 입구 마당에서 0.56 m 높아 발이 떴다(review B 다시)
+    p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; const q0=caveHere(ox,oz,oy+0.3)||cv10Q(ox,oz,oy+0.3); ng=cvLipF(ox,oz,q0?q0.f:floorAt(ox,oz,oy+0.3)); }   // 걷기와 같은 좁은 질의 먼저 — 넉넉한 cv10Q 의 바닥은 입구 마당에서 0.56 m 높아 발이 떴다(review B 다시)
   if(p.y<=ng){
     if(PL.vel.y<-13 && !PL.swim && depth<0.5){
       PL.stam=clamp(PL.stam-Math.abs(PL.vel.y+13)*4,0,100);
@@ -645,11 +653,12 @@ function updatePlayer(dt){
         if(PL.cave&&!eyeHit(p.x,p.y+e,oz)){ p.z=oz; PL.vel.z=0; }              // 굴 속 — 한쪽 축만 눈이 걸리면 다른 축으로 벽을 따라 미끄러진다(대각선으로 벽에 부딪혀 서 버리지 않게)
         else if(PL.cave&&!eyeHit(ox,p.y+e,p.z)){ p.x=ox; PL.vel.x=0; }
         else{ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; }
-        if(PL.grounded&&p.y>oy){ const fr=floorAt(p.x,p.z,oy+0.3); p.y=Math.max(oy,Math.min(p.y,fr)); } }   // 오른 걸음을 되돌렸으면 높이도 — 안 그러면 굴 입구 4 m 안의 0.8 m 턱 허용과 겹쳐 눈이 걸리는 벽을 걸음마다 0.4 m 씩 기어올랐다(용암굴 채광창 2.8 m · review B 다시)
+        if(PL.grounded&&p.y>oy){ const fr=cvLipF(p.x,p.z,floorAt(p.x,p.z,oy+0.3)); p.y=PL.cave?Math.min(p.y,fr):Math.max(oy,Math.min(p.y,fr)); } }   // 굴 안은 그 자리 굴 바닥으로(옛 높이가 떠 있었으면 그대로 떴다) · 굴 밖은 옛 높이 밑으로 안 내린다(floorAt 은 보급선 · 큰 돌 바닥을 안 본다) · 오른 걸음을 되돌렸으면 높이도 — 안 그러면 굴 입구 4 m 안의 0.8 m 턱 허용과 겹쳐 눈이 걸리는 벽을 걸음마다 0.4 m 씩 기어올랐다(용암굴 채광창 2.8 m · review B 다시)
       else if(p.y>oy&&!eyeHit(ox,oy+e,oz)){ p.set(ox,oy,oz); PL.vel.set(0,Math.min(0,PL.vel.y),0); }
       else{ let ok=false;                                        // 0.25 m 씩 1.5 m 까지 둘레를 찾아 눈도 몸도 바위 밖인 자리로
         for(let rr=0.25;rr<=1.5&&!ok;rr+=0.25) for(let k=0;k<8&&!ok;k++){ const a=k/8*6.2832, tx=p.x+Math.cos(a)*rr, tz=p.z+Math.sin(a)*rr;
-          if(!eyeHit(tx,p.y+e,tz)&&!solidAt(tx,tz,p.y+0.3)){ p.x=tx; p.z=tz; ok=true; } } }
+          if(!eyeHit(tx,p.y+e,tz)&&!solidAt(tx,tz,p.y+0.3)){ p.x=tx; p.z=tz; ok=true; } }
+        if(ok&&PL.grounded&&p.y>floorAt(p.x,p.z,p.y+0.3)+0.05) PL.grounded=false; }   // 밀린 자리 바닥이 낮으면 그 프레임은 공중 — 딛고 선 채 떠 있지 않고 다음 프레임에 떨어진다(굴 입구 · review 다시)
     } }
   if(PL.cave){                                                         // 굴 속 — 눈 되돌림 뒤에 기둥 겹침과 바닥 아래를 한 번 더 바로잡는다(밀어내기 · 바닥 붙이기는 max)
     caveColPush(p);
