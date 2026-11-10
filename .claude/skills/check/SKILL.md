@@ -1,25 +1,27 @@
 ---
 name: check
-description: 사용자가 "/check test", "/check debug 증상", "/check review"라고 직접 부르거나, orchestrate 메인이 검수 단계에서 부를 때 발동한다. 깨끗한 맥락의 서브에이전트를 새로 띄워 목표·검증 기준과 git diff만 넘기고 독립적으로 테스트·디버그·리뷰하게 한다. 서브에이전트는 수정하지 않는다. 그 외에는 자동으로 발동하지 않는다.
+description: 사용자가 "/check test", "/check debug 증상", "/check review"라고 직접 부르거나, 이 플러그인의 모드 스킬(절약·기본·강화·최대)이 검수 단계에서 부를 때 발동한다. 깨끗한 맥락의 서브에이전트를 새로 띄워 목표·검증 기준과 git diff만 넘기고 독립적으로 테스트·디버그·리뷰하게 한다. 서브에이전트는 수정하지 않는다. 그 외에는 자동으로 발동하지 않는다.
 ---
 
 # check — 서브에이전트로 test / debug / review
 
-> 원본: orchestrate 플러그인(사용자가 올림) — v2.0.0(2026-10-30) → 11-02 판 → v2.2.0(2026-11-04 · test 는 `checker-test` · review · debug 는 `checker` · 모델 · 노력은 파일에 고정). 이 레포에서는 `.claude/agents/` 에 둔다. 병합 규칙은 orchestrate 스킬 머리의 '이 레포에서 바꾼 셋'.
+> 원본: orchestrate 플러그인(사용자가 올림) — v2.2.0(2026-11-04) → v3.3.0(2026-11-10 · 절약 모드는 가벼운 review `checker-lite`). 이 레포에서는 `.claude/agents/` 에 둔다. 병합 규칙은 orchestrate 스킬 머리의 '이 레포에서 바꾼 셋'.
 
 목적: 메인 대화가 믿는 걸 같이 믿지 않는 **독립 검증**. 그래서 대화 내용은 넘기지 않는다.
 
-**호출 경로는 둘뿐.** 사용자가 직접 부르거나, orchestrate 메인이 검수 단계(4단계)에서 부른다. 그 밖에 메인이 스스로 판단해서 부르지 않는다.
+**호출 경로는 둘뿐.** 사용자가 직접 부르거나, 모드 스킬(절약·기본·강화·최대)의 메인이 검수 단계에서 부른다. check는 모드 질문 대상이 아니다. 그 밖에 메인이 스스로 판단해서 부르지 않는다.
 
 ## 모드와 모델
 
 | 모드 | 하는 일 | 에이전트 | model | effort |
 |---|---|---|---|---|
-| test | 빌드·테스트·실행 결과만 확인 (기계적) | `checker-test` | haiku | high |
-| review | 검증 기준 판정 + 테스트가 못 잡는 버그·스펙 어긋남 (판단) | `checker` | opus | high |
-| debug | 증상 재현, 원인 후보, 수정 제안 | `checker` | opus | high |
+| test | 빌드·테스트·실행 결과만 확인 (기계적) | `checker-test` | haiku | xhigh |
+| review | 검증 기준 판정 + 테스트가 못 잡는 버그·스펙 어긋남 (판단) | `checker` | opus | xhigh |
+| debug | 증상 재현, 원인 후보, 수정 제안 | `checker` | opus | xhigh |
+| review (가벼움, 절약 모드 전용) | 완료 기준 판정 + 눈에 띄는 버그만. `/check`로는 부르지 않는다 | `checker-lite` | sonnet | medium |
 
 - 모델·노력은 에이전트 파일에 고정돼 있다. 호출할 때 `model`·`effort`를 넘기지 않는다 (넘기면 파일 설정을 덮어쓴다)
+- 왜 이 설정인지: Haiku xhigh는 Pro 주간 한도의 약 0.1%로 high보다 5점 높다. Opus는 high→xhigh에서 코드 이해 평가가 크게 오른다(FrontierCode 35.9→43.8%). review는 마지막 독립 검사라 꺾이는 점에 둔다. 자세한 근거는 README
 - orchestrate 검수는 **test → (통과하면) review** 순서로 두 번 띄운다. test 가 실패하면 review 는 띄우지 않는다 — 안 돌아가는 코드를 리뷰하는 건 낭비다
 
 ## 1. 시작 상태 기록
@@ -51,10 +53,11 @@ git diff HEAD > <scratchpad>/check.diff    # 커밋 안 된 변경. 비어 있�
 
 ## 3. 서브에이전트 띄우기
 
-- test 모드는 `checker-test`, review·debug 모드는 `checker` 에이전트를 쓴다 (이 레포 `.claude/agents/checker-test.md` · `checker.md` — 각 파일에 'CASTAWAY 에서' 절)
-- 로드되지 않았으면 general-purpose 에이전트를 쓰고, 그때만 `model`·`effort`를 위 표대로 넘긴다. 프롬프트 맨 앞에 해당 에이전트 파일(`.claude/agents/checker-test.md` 또는 `checker.md`) 본문의 규칙(수정 금지, 태그, 출력 형식)을 그대로 붙인다
-- opus 호출이 실패하면(요금제·한도) review·debug 는 같은 `checker`를 `model: "inherit"`로 다시 띄우고, 낮췄다고 보고에 적는다
-- general-purpose 의 고정 비용이 5.8만 토큰이라 에이전트가 안 잡힐 때만
+- test 모드는 `checker-test`, review·debug 모드는 `checker` 에이전트를 쓴다 (이 레포 `.claude/agents/checker-test.md` · `checker.md` — 각 파일에 '이 레포(CASTAWAY)에서' 절)
+- 매번 **새로** 띄운다. 이전 checker를 이어서 부르지 않는다. 독립성이 목적이다
+- 로드되지 않았으면 general-purpose 에이전트를 쓰고, 그때만 `model`·`effort`를 위 표대로 넘긴다. 프롬프트 맨 앞에 해당 에이전트 파일(`.claude/agents/checker-test.md` 또는 `.claude/agents/checker.md`) 본문의 규칙(수정 금지, 태그, 출력 형식)을 그대로 붙인다
+- 한도(5시간·주간) 때문에 실패하면 다른 모델로 바꿔 다시 띄우지 않는다. 모든 모델이 같은 한도를 쓴다. 멈추고 보고한다
+- 조직 정책 등으로 Opus 자체를 못 쓰면 review·debug 는 같은 `checker`를 `model: "inherit"`로 다시 띄우고, 낮췄다고 보고에 적는다
 - 모드를 프롬프트에 명시한다: `모드: test`, `모드: debug` 또는 `모드: review`
 
 ## 4. 끝난 뒤 확인
@@ -91,4 +94,4 @@ comm -13 <(tr '\0' '\n' < <scratchpad>/check-status-before.z | sort) \
 - 서브에이전트 결과를 그대로 보여준다 (메인이 다시 요약하거나 걸러내지 않는다)
 - 마지막에 묻는다: "고칠까? 고친다면 어느 항목부터?"
 - **자동 수정 금지.** 사용자가 답하기 전에는 아무것도 고치지 않는다
-- 예외 하나 (orchestrate 검수만): **test 모드 실패**는 명령 출력으로 확정된 객관적 실패라, 메인이 실패 표와 재현 명령을 원래 워커에게 넘겨 다시 시킬 수 있다 (최대 2번). 이때도 checker 와 메인은 직접 고치지 않는다. **review·debug 결과는 판단이라 항상 사용자에게 먼저 보고하고 묻는다**
+- 예외 하나 (orchestrate 검수만): **test 모드 `실패`**는 명령 출력으로 확정된 객관적 실패라, 메인이 실패 표와 재현 명령을 원래 워커에게 넘겨 다시 시킬 수 있다 (최대 2번). 이때도 checker 와 메인은 직접 고치지 않는다. **`환경 문제`는 이 예외에 들지 않는다** — 코드 실패가 아니라 워커가 고칠 수 없다. 메인이 명령을 고쳐 다시 test 하거나 사용자에게 묻는다. **review·debug 결과는 판단이라 항상 사용자에게 먼저 보고하고 묻는다**

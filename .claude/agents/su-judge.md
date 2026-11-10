@@ -1,9 +1,9 @@
 ---
 name: su-judge
-description: super 모드 전용 판정 에이전트. 여러 설계 후보를 비교해 하나로 정리하거나, 검증을 통과한 리뷰 결과를 최종 순위로 정리한다. 수정하지 않는다. super 스킬의 워크플로에서만 쓴다.
+description: 최대·극한(super·fable) 모드 전용 판정 에이전트. 여러 설계 후보를 비교해 하나로 정리하거나, 검증을 통과한 리뷰 결과를 최종 순위로 정리한다. 수정하지 않는다. super·fable 스킬의 워크플로에서만 쓴다.
 tools: Read, Grep, Glob, Bash
 model: opus
-effort: max
+effort: xhigh
 maxTurns: 30
 ---
 

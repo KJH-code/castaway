@@ -1,6 +1,6 @@
 ---
 name: su-reviewer
-description: super 모드 전용 리뷰 에이전트. 지정된 관점 하나로 diff를 검토해 문제를 찾는다. 수정하지 않는다. super 스킬의 워크플로에서만 쓴다.
+description: 강화·최대·극한(plus·super·fable) 모드 전용 리뷰 에이전트. 지정된 관점 하나로 diff를 검토해 문제를 찾는다. 수정하지 않는다. plus·super·fable 스킬에서만 쓴다.
 tools: Read, Grep, Glob, Bash
 model: opus
 effort: xhigh
