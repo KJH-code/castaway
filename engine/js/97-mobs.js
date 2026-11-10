@@ -77,7 +77,8 @@ function mobsSites(seed){
   MON.lairs.length=0;
   if((P.tv|0)<8||typeof CAVES==='undefined'||!CAVES.length) return;
   const cand=[];
-  for(const c of CAVES){ const r=c.rooms[0], gx=Math.round(r.x/CELL+N/2), gz=Math.round(r.z/CELL+N/2), R=Math.ceil(220/CELL);
+  for(const c of CAVES){ if(c.tv===10&&c.kind==='shelter'&&cv10V2()) continue;   // 바위그늘 — 몸 41 m 가 얕은 처마에 안 들어 꼬리 2/3 가 빈 데 밖에 나왔다(review B · 판 10 · 12)
+    const r=c.rooms[0], gx=Math.round(r.x/CELL+N/2), gz=Math.round(r.z/CELL+N/2), R=Math.ceil(220/CELL);
     let n=0, sx=0, sz=0;
     for(let dz=-R;dz<=R;dz+=2) for(let dx=-R;dx<=R;dx+=2){ const x=gx+dx, z=gz+dz; if(x<0||z<0||x>=N||z>=N) continue;
       if(mobLushB(F.biome[IDX(x,z)])){ n++; sx+=(x-N/2)*CELL; sz+=(z-N/2)*CELL; } }

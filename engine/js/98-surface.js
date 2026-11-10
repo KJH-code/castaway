@@ -22,7 +22,10 @@ SURF.when.push(()=>{
   for(let k=0,n=O.length;k<n;k++) if(O[k]){ const x=rec.x0+(k%nx)*S, z=rec.z0+((k/nx)|0)*S; pts.push([(x-ex)*(x-ex)+(z-ez)*(z-ez),x,z,k]); }
   pts.sort((a,b)=>a[0]-b[0]);
   let seen=false;
-  for(let i=0;i<pts.length&&i<64&&!seen;i++){ const x1=pts[i][1], z1=pts[i][2], k=pts[i][3], y1=rec.F[k]+0.5, L=Math.hypot(x1-ex,z1-ez), m=Math.max(1,Math.ceil(L/0.5));
+  for(let i=0;i<pts.length&&i<64&&!seen;i++){ const x1=pts[i][1], z1=pts[i][2], k=pts[i][3], L=Math.hypot(x1-ex,z1-ez), m=Math.max(1,Math.ceil(L/0.5));
+    /* 열린 칸의 바닥이 땅 겉에서 2 m 넘게 깊으면(빛구멍 · 수직굴 밑 — 바닥은 굴 바닥이다) 겉에 뚫린 구멍(Hh 바로 밑)이 보여야 땅 위가 보인다.
+       예전엔 늘 바닥(F+0.5)을 겨눠 바위틈 굴 깊은 방(입구 23 m)이 빛구멍 밑 바닥을 본다고 가리지 않았다(review B 다시) */
+    const y1=rec.Hh[k]-rec.F[k]>2?Math.min(rec.Hh[k]-0.1,rec.C[k]-0.05):rec.F[k]+0.5;
     let ok=true;
     for(let j=1;j<m;j++){ const t=j/m, x=ex+(x1-ex)*t, z=ez+(z1-ez)*t, y=ey+(y1-ey)*t, s=cv10Samp(rec,x,z);
       if(s.n<0.5||!(s.f<y&&y<s.c)){ ok=false; break; } }

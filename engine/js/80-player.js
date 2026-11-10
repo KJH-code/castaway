@@ -628,7 +628,7 @@ function updatePlayer(dt){
     const rc=CV10.built.get(PL.cave); if(rc&&rc.ready){ const sm=cv10Samp(rc,p.x,p.z); if(sm.n>=0.5&&sm.n<0.999){ const gf=sm.f, fo=cv10Field(PL.cave,p.x,p.z);
       if(fo.g>0.05&&fo.f>gf){ const mid=Math.min(gf+0.25,(gf+fo.f)/2); if(mid>ng&&ng>=gf-0.01) ng=mid; } } } }
   if((PL.cvUnder||PL.cave)&&ng-oy>(PL.caveQ&&PL.caveQ.d<4?0.85:STEPUP+0.05)){   // 굴 안에서 한 걸음에 바닥이 턱보다 높이 오른다 = 지표로 튀는 것 — 앞 자리로(입구 4 m 안은 문턱 0.8 m 까지 · caveWalk)
-    p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; const q0=cv10Q(ox,oz,oy+0.3); ng=q0?q0.f:floorAt(ox,oz,oy+0.3); }
+    p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; const q0=caveHere(ox,oz,oy+0.3)||cv10Q(ox,oz,oy+0.3); ng=q0?q0.f:floorAt(ox,oz,oy+0.3); }   // 걷기와 같은 좁은 질의 먼저 — 넉넉한 cv10Q 의 바닥은 입구 마당에서 0.56 m 높아 발이 떴다(review B 다시)
   if(p.y<=ng){
     if(PL.vel.y<-13 && !PL.swim && depth<0.5){
       PL.stam=clamp(PL.stam-Math.abs(PL.vel.y+13)*4,0,100);
@@ -644,7 +644,8 @@ function updatePlayer(dt){
       if(!eyeHit(ox,p.y+e,oz)){
         if(PL.cave&&!eyeHit(p.x,p.y+e,oz)){ p.z=oz; PL.vel.z=0; }              // 굴 속 — 한쪽 축만 눈이 걸리면 다른 축으로 벽을 따라 미끄러진다(대각선으로 벽에 부딪혀 서 버리지 않게)
         else if(PL.cave&&!eyeHit(ox,p.y+e,p.z)){ p.x=ox; PL.vel.x=0; }
-        else{ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; } }
+        else{ p.x=ox; p.z=oz; PL.vel.x=0; PL.vel.z=0; }
+        if(PL.grounded&&p.y>oy){ const fr=floorAt(p.x,p.z,oy+0.3); p.y=Math.max(oy,Math.min(p.y,fr)); } }   // 오른 걸음을 되돌렸으면 높이도 — 안 그러면 굴 입구 4 m 안의 0.8 m 턱 허용과 겹쳐 눈이 걸리는 벽을 걸음마다 0.4 m 씩 기어올랐다(용암굴 채광창 2.8 m · review B 다시)
       else if(p.y>oy&&!eyeHit(ox,oy+e,oz)){ p.set(ox,oy,oz); PL.vel.set(0,Math.min(0,PL.vel.y),0); }
       else{ let ok=false;                                        // 0.25 m 씩 1.5 m 까지 둘레를 찾아 눈도 몸도 바위 밖인 자리로
         for(let rr=0.25;rr<=1.5&&!ok;rr+=0.25) for(let k=0;k<8&&!ok;k++){ const a=k/8*6.2832, tx=p.x+Math.cos(a)*rr, tz=p.z+Math.sin(a)*rr;

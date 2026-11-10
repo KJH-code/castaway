@@ -345,7 +345,7 @@ function geoMat(){
   m.onBeforeCompile=(sh,r)=>{ prev(sh,r); sh.uniforms.uSnow=TERR_U.uSnow;
     sh.vertexShader=sh.vertexShader.replace('vRW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvRN=normal;\nvRV=(modelViewMatrix*vec4(transformed,1.0)).xyz;',
       '#ifdef USE_INSTANCING\nvRW=(modelMatrix*instanceMatrix*vec4(transformed,1.0)).xyz;\nvRN=mat3(instanceMatrix)*normal;\nvRV=(modelViewMatrix*instanceMatrix*vec4(transformed,1.0)).xyz;\n#else\nvRW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvRN=normal;\nvRV=(modelViewMatrix*vec4(transformed,1.0)).xyz;\n#endif');
-    if(typeof CV10_COMMON_GLSL!=='undefined'){                    // 지형 판 10 굴 — 굴 자리 그림의 구멍(입구 마당 · 빛구멍)을 모형도 비운다(31-cave10.js cv10Sfc — 굴이 모형 윗면을 땅으로 삼는다)
+    if(typeof CV10_COMMON_GLSL!=='undefined'&&cv10On()){          // 지형 판 10 굴(판 10 부터 — 판 9 까지는 안 넣는다 · 프로그램 열쇠 'cv' 로 가른다) — 굴 자리 그림의 구멍(입구 마당 · 빛구멍)을 모형도 비운다(31-cave10.js cv10Sfc — 굴이 모형 윗면을 땅으로 삼는다)
       for(const k of ['uCv10T','uCv10R','uCv10B','uCv10G']) sh.uniforms[k]=TERR_U[k];
       sh.fragmentShader=CV10_COMMON_GLSL+sh.fragmentShader.replace(/void main\s*\(\)\s*\{/,'void main() {\n\tif(cv10HoleM(vRW.xz)) discard;'); }
     sh.fragmentShader='uniform float uSnow;\n'+sh.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
@@ -370,8 +370,18 @@ function geoMat(){
         sk*=mix(0.30,1.0,smoothstep(0.995,0.86,vColor.r));                                 // 바람 받는 볼록한 등성이(정점 빛깔 1 — 오목함 0)는 바위가 드러나고 · 오목한 데에 쌓인다
         #endif
         diffuseColor.rgb=mix(diffuseColor.rgb,snowC,sk); }`); };
-  const k0=m.customProgramCacheKey; m.customProgramCacheKey=()=>(k0?k0():'')+'geo3';
+  const k0=m.customProgramCacheKey; m.customProgramCacheKey=()=>(k0?k0():'')+'geo3'+(cv10On()?'cv':'');
   return GEO_LF.mat=m;
+}
+/* 큰 모형의 해 그림자 깊이 재질 — 굴 자리 그림의 구멍(cv10HoleM — geoMat 과 같은 식)을 비운다. 판 10 부터 · 모형 메시가 같이 쓴다 */
+function geoDepthMat(){
+  if(GEO_LF.dmat) return GEO_LF.dmat;
+  const m=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
+  m.onBeforeCompile=sh=>{ for(const k of ['uCv10T','uCv10R','uCv10B','uCv10G']) sh.uniforms[k]=TERR_U[k];
+    sh.vertexShader='varying vec2 vCvW;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n{ vec4 cw=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\ncw=instanceMatrix*cw;\n#endif\nvCvW=(modelMatrix*cw).xz; }');
+    sh.fragmentShader='varying vec2 vCvW;\n'+CV10_COMMON_GLSL+sh.fragmentShader.replace(/void main\s*\(\)\s*\{/,'void main() {\n\tif(cv10HoleM(vCvW)) discard;'); };
+  m.customProgramCacheKey=()=>'geo-depth-cv';
+  return GEO_LF.dmat=m;
 }
 function geoBuild(){
   for(const m of GEO_LF.meshes){ scene.remove(m); } GEO_LF.meshes.length=0;
@@ -382,6 +392,7 @@ function geoBuild(){
     if(base.userData.rkU) mat.userData=Object.assign({},base.userData);
     const m=new THREE.Mesh(geoMeshGeo(L.name,'far',true),mat);
     m.position.set(L.x,L.y,L.z); m.rotation.y=L.yaw; m.scale.set(L.S,L.S,L.S); m.userData.geo=L; m.userData.lightRole='full';
+    if(cv10On()) m.customDepthMaterial=geoDepthMat();                // 판 10 굴 — 해 그림자에서도 입구 마당 · 빛구멍을 비운다(안 비우면 빛구멍으로 해가 안 든다)
     m.updateMatrix(); m.matrixAutoUpdate=false; scene.add(m); GEO_LF.meshes.push(m); }
   /* 가까운 단계(각진 near · ultra)도 지금 지어 둔다 — 처음 다가갈 때 지으면 한 번에 29 ms 씩 멈췄다(2026-11-08 사용자 '빨리 다니면 렉') */
   for(const nm of new Set(GEO_LF.list.map(L=>L.name))){ geoMeshGeo(nm,'near',true); if(GEO_MESH_DATA[nm].ultra) geoMeshGeo(nm,'ultra',true); }
