@@ -60,6 +60,8 @@ function cv10DetailBlocked(x,z,r){
 function cv10BoxSfc(x,z){ for(const c of CV10.built.keys()){ const b=c.box; if(x>=b.x0&&x<=b.x1&&z>=b.z0&&z<=b.z1&&!c.off) return cv10Sfc(x,z); } return heightAt(x,z); }
 /* 지금 섬이 판 10 인가 — 지역 이름 P 가 섬 인자를 가리는 함수(90-init.js precompPlan 의 P=PRECOMP) 안에서 쓴다(smOn 과 같은 까닭) */
 function cv10On(){ return (P.tv|0)>=10; }
+/* 판 10 굴 고침 묶음(2026-11-10 review B) — 판 10(시험 섬)과 12 부터. 판 11 섬은 옛 저장이 같은 섬을 열도록 예전 그대로 */
+function cv10V2(){ const t=P.tv|0; return t===10||t>=12; }
 function cv10Free(x,z,r,rv){
   const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2);
   if(gx<6||gz<6||gx>N-7||gz>N-7) return false;

@@ -21,8 +21,16 @@ SURF.when.push(()=>{
   const eye=camera.position, ex=eye.x, ey=eye.y, ez=eye.z, O=rec.O, nx=rec.nx, S=rec.S, pts=[];
   for(let k=0,n=O.length;k<n;k++) if(O[k]){ const x=rec.x0+(k%nx)*S, z=rec.z0+((k/nx)|0)*S; pts.push([(x-ex)*(x-ex)+(z-ez)*(z-ez),x,z,k]); }
   pts.sort((a,b)=>a[0]-b[0]);
-  let seen=false;
-  for(let i=0;i<pts.length&&i<64&&!seen;i++){ const x1=pts[i][1], z1=pts[i][2], k=pts[i][3], y1=rec.F[k]+0.5, L=Math.hypot(x1-ex,z1-ez), m=Math.max(1,Math.ceil(L/0.5));
+  const SK=PL.cave.mouths.filter(m=>m.sky);                                // 위가 트인 입구(빛구멍 · 수직굴 · 용암굴 채광창)
+  let seen=false, nS=0, nN=0;                                              // 빛구멍 칸 · 나머지 칸을 따로 센다(가까운 것부터 32 · 64) — 채광창 칸이 가까운 64 를 다 차지해 그 너머
+                                                                            // 비탈길 칸(실제로 보이는 바깥)을 못 봤다(용암굴 · review 다시)
+  for(let i=0;i<pts.length&&(nS<32||nN<64)&&!seen;i++){ const x1=pts[i][1], z1=pts[i][2], k=pts[i][3], L=Math.hypot(x1-ex,z1-ez), m=Math.max(1,Math.ceil(L/0.5));
+    /* 위가 트인 입구 둘레(반지름 + 1 m) 열린 칸이고 바닥이 땅 겉에서 2 m 넘게 깊으면(바닥은 굴 바닥이다) 겉에 뚫린 구멍(Hh 바로 밑)이 보여야 땅 위가 보인다.
+       예전엔 늘 바닥(F+0.5)을 겨눠 바위틈 굴 깊은 방(입구 23 m)이 빛구멍 밑 바닥을 본다고 가리지 않았다(review B 다시). 비탈에 파인 입구 마당은 바닥이 땅 겉보다
+       4~7 m 낮아도 그 바닥이 곧 바깥이라 바닥을 겨눈다(구멍을 겨누게 했더니 입구가 보이는 깊은 방에서 땅 위를 지웠다 — review 다시) */
+    const sk=SK.length&&rec.Hh[k]-rec.F[k]>2&&SK.some(m=>Math.hypot(x1-m.x,z1-m.z)<(m.r||0)+1.0);
+    if(sk){ if(nS>=32) continue; nS++; } else { if(nN>=64) continue; nN++; }
+    const y1=sk?Math.min(rec.Hh[k]-0.1,rec.C[k]-0.05):rec.F[k]+0.5;
     let ok=true;
     for(let j=1;j<m;j++){ const t=j/m, x=ex+(x1-ex)*t, z=ez+(z1-ez)*t, y=ey+(y1-ey)*t, s=cv10Samp(rec,x,z);
       if(s.n<0.5||!(s.f<y&&y<s.c)){ ok=false; break; } }
