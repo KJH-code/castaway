@@ -35,7 +35,7 @@ TERR_U.uCvA={value:Array.from({length:CAVE_K},()=>new THREE.Vector4())};   // �
 TERR_U.uCvB={value:Array.from({length:CAVE_K},()=>new THREE.Vector4())};   // 입구 방향 x · z · 입구가 났나 · 불빛 세기
 /* ── 판 10 굴의 그림 묶음(굴 둘을 한 장에, 샘플러 하나) ──────────────────────────────────────────
    지어 둔 굴(`CV10.built`) 가운데 카메라에 가장 가까운 둘의 '굴 자리 그림'(`rec.tex` — 31-cave10.js)을 1024×512 한 장의 왼쪽·오른쪽 칸에 옮겨 담는다.
-   R,G = 바닥·천장 높이((값·0.25)+base) · B = 깊이 · A = 255 땅 뚫기 자리(M) 아니면 sky×127. 칸이 512 보다 크면 정수 배로 솎는다(걸음도 그만큼).
+   R,G = 바닥·천장 높이((값·0.25)+base) · B = 깊이(빈 데 아닌 점은 R·B 가 겉 높이 16 비트 · G 0 — cv10Top) · A = 255 땅 뚫기 자리(M) 아니면 sky×127. 칸이 512 보다 크면 정수 배로 솎는다(걸음도 그만큼).
    땅 셰이더(`TERR_HOLE` — 20-terrain.js)가 A≥0.75 칸을 B-스플라인으로 섞은 테 안을 버리고(cv10Hole), `cvEval`(아래)이 빈 데의 높이 안이면 굴 속 어둠을 센다 */
 const CV10_GLOW={karst:[0.55,0.88,0.80,0.55], talus:[0.55,0.88,0.80,0.6], lava:[0.95,0.72,0.40,0.45], shelter:[0,0,0,0]};   // 굴 불빛 빛깔 rgb · 세기(D 도 읽는다)
 TERR_U.uCv10T={value:(()=>{ const t=new THREE.DataTexture(new Uint8Array(4),1,1,THREE.RGBAFormat,THREE.UnsignedByteType); t.needsUpdate=true; return t; })()};   // 굴이 없는 동안은 1×1 빈 점
@@ -100,11 +100,27 @@ bool cv10HoleM(vec2 xz){
 /* 큰 모형 재질(geoMat — 37-geo-meshes.js)의 구멍 — 위 cv10HoleM 에 높이 · 면 방향을 더한다. 구멍 안이라도 바깥 테(빈 데가 아닌 M 칸)에서는 위를 보는 면(윗면)만 버리고
    벼랑 면은 남긴다 · 빈 데 위에서는 바닥 −0.5 m 위의 것을 다 버린다. 예전엔 높이를 안 봐서 벼랑에 걸친 구멍이 벼랑 면을 통째로 뚫어 그 속(껍데기는 윗면 · 굴 벽뿐)으로 하늘이 비쳤다
    (용암 굴 R 20 m — 지평선 아래 2.9만 화소 · 2026-11-11). ny = 면 법선 y(정규화) */
+/* 빈 데 아닌 점의 겉 높이 Hh(31-cave10.js 'tex' — R·B 16 비트 · 4 mm) 쌍선형. 넷 가운데 빈 데이거나 값이 없는 점이 있으면 거짓 */
+bool cv10Top(vec2 xz,int i,out float h){
+  vec4 B=uCv10B[i], R=uCv10R[i]; h=0.0;
+  float nz=floor(R.w/1024.0), nx=R.w-nz*1024.0; vec2 c=(xz-R.xy)/R.z;
+  if(c.x<0.0||c.y<0.0||c.x>nx-1.0||c.y>nz-1.0) return false;
+  vec2 c0=floor(c), fr=c-c0;
+  for(int k=0;k<4;k++){
+    vec2 d=vec2(float(k-(k/2)*2),float(k/2));
+    vec4 t=texture2D(uCv10T,(min(c0+d,vec2(nx-1.0,nz-1.0))+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0));
+    float hc=floor(t.r*255.0+0.5)*256.0+floor(t.b*255.0+0.5);
+    if(t.g>t.r+0.002||hc<0.5||hc>65534.5) return false;
+    h+=(d.x>0.5?fr.x:1.0-fr.x)*(d.y>0.5?fr.y:1.0-fr.y)*(B.x+hc*0.004-64.0); }
+  return true;
+}
 bool cv10HoleMP(vec3 p,float ny){
-  vec4 s;
+  vec4 s; float h;
   for(int i=0;i<2;i++){ if(cv10Bs(p.xz,i,0.998)<0.5) continue;
-    if(ny>0.35) return true;
-    if(cv10Smp(p.xz,i,s)&&p.y>s.x-0.5) return true; }
+    if(cv10Smp(p.xz,i,s)){ if(ny>0.35||p.y>s.x-0.5) return true; continue; }
+    /* 빈 데 아닌 바깥 테 — 껍데기 윗면(Hh − 0.03)과 겹치는 윗면만 버린다. 모형 윗면은 cv10Sfc 의 표(4.7 m 칸 쌍선형)와 −3.5 ~ +0.1 m 어긋나(2026-11-11 잰 값)
+       다 버리면 그 틈으로 비스듬한 선이 모형 속(뒷면)을 지나 하늘이 비쳤다: Hh 보다 0.01 m 넘게 높은 모형은 남겨 테를 덮고 · 0.15 m 넘게 낮은 것은 남겨 옆에서 드는 선을 받는다(위에서는 껍데기 윗면이 가린다) */
+    if(ny>0.35){ if(!cv10Top(p.xz,i,h)) return true; float dh=p.y-h; if(dh>-0.15&&dh<0.01) return true; } }
   return false;
 }
 /* 땅 구멍 — M 과 묻힌 땅만 비우는 칸(A >= 0.75 · 192/255 = 0.753 · 나머지는 0.5 이하) */
@@ -340,7 +356,12 @@ function cv10Pick(skip){
     for(let y=0;y<512;y++) dst.fill(0,(y*1024+k*512)*4,(y*1024+k*512+512)*4);
     if(!r){ B.set(0,0.25,0,k); continue; }
     const img=r.tex.image, nx=img.width, nz=img.height, st=Math.max(1,Math.ceil(Math.max(nx,nz)/512)), ne=Math.ceil(nx/st), me=Math.ceil(nz/st), src=img.data, ti=r.texInfo, S=nx>1?ti.w/(nx-1):0.5;
-    for(let j=0;j<me;j++) for(let i=0;i<ne;i++){ const so=((j*st)*nx+i*st)*4, d=(j*1024+k*512+i)*4; dst[d]=src[so]; dst[d+1]=src[so+1]; dst[d+2]=src[so+2]; dst[d+3]=src[so+3]; }
+    /* 솎을 때(st>1) RGB 는 점 표본 · A 는 둘레 ±(st−1) 점의 최댓값 — 점 표본은 M 칸을 놓쳐 오목한 모서리에 틈이 났다. 원래 M 점마다 둘러싼 솎은 점 넷이 다 뚫을 칸이 된다
+       (껍데기 윗면도 그만큼 넓다 — 31-cave10.js cv10MK 의 st) */
+    for(let j=0;j<me;j++) for(let i=0;i<ne;i++){ const so=((j*st)*nx+i*st)*4, d=(j*1024+k*512+i)*4; dst[d]=src[so]; dst[d+1]=src[so+1]; dst[d+2]=src[so+2];
+      let a=src[so+3]; if(st>1){ const i0=Math.max(0,i*st-st+1), i1=Math.min(nx-1,i*st+st-1), j0=Math.max(0,j*st-st+1), j1=Math.min(nz-1,j*st+st-1);
+        for(let jj=j0;jj<=j1;jj++) for(let ii=i0;ii<=i1;ii++){ const v=src[(jj*nx+ii)*4+3]; if(v>a) a=v; } }
+      dst[d+3]=a; }
     R.set(ti.x0,ti.z0,S*st,ne+1024*me); B.set(ti.base,ti.step,1,k);
     const gl=CV10_GLOW[r.c.kind]||CV10_GLOW.shelter; G.set(gl[0],gl[1],gl[2],gl[3]);
   }

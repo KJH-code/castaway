@@ -548,7 +548,7 @@ function cv10Init(rec,S){
   const n=rec.nx*rec.nz; rec.F=new Float32Array(n); rec.C=new Float32Array(n); rec.Hh=new Float32Array(n);
   rec.gF=new Float32Array(n); rec.gC=new Float32Array(n); rec.gH=new Float32Array(n); rec.O=new Uint8Array(n); rec.M=new Uint8Array(n); rec.D=new Float64Array(n).fill(1e9);   // D 는 Float64 — 힙 키와 같은 정밀도여야 'dk>D[q]' 가 살아 있는 마디를 안 버린다
   rec.state='grid'; rec.ph='grid'; rec.pr=0; rec.ready=false; rec.vmin=1e9; rec.nvoid=0; rec.H=null; rec.Hb=null; rec.mdist=null; rec.unreach=0; rec.onb=false;
-  rec.vp=null; rec.vnrm=null; rec.vn=0; rec.idx=null; rec.ni=0; rec.vi=null; rec.cbase=null; rec.ck0=null; rec.cn=null; rec.tdata=null;
+  rec.vp=null; rec.vnrm=null; rec.vn=0; rec.idx=null; rec.ni=0; rec.vi=null; rec.cbase=null; rec.ck0=null; rec.cn=null; rec.tdata=null; rec.mkR=cv10MKr(rec);
 }
 function cv10Rec(c){
   let r=CV10.built.get(c); if(r) return r;
@@ -576,8 +576,13 @@ function cv10Pop(H){ const hk=H.k, hv=H.v, tv=hv[0], lk=hk.pop(), lv=hv.pop(), n
 const cv10Rho=(rec,q,y)=>{ const h=(rec.Hh[q]-y)*rec.gH[q], a=(rec.F[q]-y)*rec.gF[q], b=(y-rec.C[q])*rec.gC[q]; const v=a>b?a:b; return h<v?h:v; };
 /* M 을 한 칸 넓힌 것(둘레 여덟 점 가운데 M 이 있나) — 땅 겉 면(윗면)을 남기는 범위. 땅 구멍(32-caves.js cv10Hole — M 을 매끄럽게 섞은 테)은
    M 칸 경계를 오목한 모서리에서 0.23 칸까지 넘으므로 그 밖 한 칸까지 윗면이 있어야 하늘이 안 비친다(2026-11-11) */
-const cv10MK=(rec,q)=>{ const nx=rec.nx, i=q%nx, j=(q/nx)|0, M=rec.M;
-  for(let dj=-1;dj<=1;dj++){ const jj=j+dj; if(jj<0||jj>=rec.nz) continue; for(let di=-1;di<=1;di++){ const ii=i+di; if(ii<0||ii>=nx) continue; if(M[jj*nx+ii]) return true; } }
+/* 그림 묶음이 솎는 굴(점 512 넘음 · st>1 — 32-caves.js cv10Pick)은 A 를 ±(st−1) 점의 최댓값으로 담아 구멍이 (st−1)+0.73·st 칸까지 나간다 — 그만큼 넓힌다(st 2 → 3 칸 · 3 → 5 칸 — 합성 시험에서 2 칸은 오목한 모서리 표본 17 개가 덮이지 않았다) */
+const cv10MKr=rec=>{ const st=Math.max(1,Math.ceil(Math.max(rec.nx,rec.nz)/512)); return st===1?1:Math.ceil(1.73*st-1); };
+/* 큰 모형 밑 점(Hb 있음)은 CV10_MKG 칸까지 — 모형 윗면이 cv10Sfc 표보다 0.1~0.2 m 높은 데(바위틈)에서 입구로 드는 비스듬한 선이 모형과 껍데기 윗면 사이로 빠져
+   모형 속(뒷면)을 지나 하늘이 비쳤다(2026-11-11) — 껍데기 윗면을 넓혀 받는다(모형이 높으면 모형이 덮는다) */
+const CV10_MKG=3;
+const cv10MK=(rec,q,r)=>{ const nx=rec.nx, i=q%nx, j=(q/nx)|0, M=rec.M, R=Math.max(rec.mkR||1,r||0);
+  for(let dj=-R;dj<=R;dj++){ const jj=j+dj; if(jj<0||jj>=rec.nz) continue; for(let di=-R;di<=R;di++){ const ii=i+di; if(ii<0||ii>=nx) continue; if(M[jj*nx+ii]) return true; } }
   return false; };
 /* 칸 모서리 12 — 꼭짓점 비트: 1=+x · 2=+z · 4=+y */
 const _cv10Edges=[[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
@@ -626,13 +631,13 @@ function cv10Step(rec,t1){
           for(let dj=-1;dj<=1&&!m;dj++){ const jj=j+dj; if(jj<0||jj>=nz) continue; for(let di=-1;di<=1;di++){ const ii=i+di; if(ii<0||ii>=nx) continue; if(O[jj*nx+ii]){ m=1; break; } } }
           M[j*nx+i]=m; } },t1)) { rec.msGrid+=performance.now()-T; return false; }
       rec.msGrid+=performance.now()-T; rec.ph='near1'; rec.pr=0; rec.tmp=new Uint8Array(n); rec.near=new Uint8Array(n); break; }
-    case 'near1':{   /* 빈 데에서 가로로 두 칸 */
-      const T=performance.now();
-      if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ let m=0; for(let di=-2;di<=2;di++){ const ii=i+di; if(ii<0||ii>=nx) continue; const q=j*nx+ii; if(C[q]-F[q]>0.05){ m=1; break; } } rec.tmp[j*nx+i]=m; } },t1)) { rec.msGrid+=performance.now()-T; return false; }
+    case 'near1':{   /* 빈 데에서 가로로 두 칸(솎는 큰 굴은 cv10MK 가 넓은 만큼 더 — 1+mkR) */
+      const T=performance.now(), NR=1+Math.max(rec.mkR||1,rec.Hb?CV10_MKG:0);
+      if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ let m=0; for(let di=-NR;di<=NR;di++){ const ii=i+di; if(ii<0||ii>=nx) continue; const q=j*nx+ii; if(C[q]-F[q]>0.05){ m=1; break; } } rec.tmp[j*nx+i]=m; } },t1)) { rec.msGrid+=performance.now()-T; return false; }
       rec.msGrid+=performance.now()-T; rec.ph='near2'; rec.pr=0; rec.ymin=1e9; rec.ymax=-1e9; break; }
     case 'near2':{
-      const T=performance.now();
-      if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ let m=0; for(let dj=-2;dj<=2;dj++){ const jj=j+dj; if(jj<0||jj>=nz) continue; if(rec.tmp[jj*nx+i]){ m=1; break; } }
+      const T=performance.now(), NR=1+Math.max(rec.mkR||1,rec.Hb?CV10_MKG:0);
+      if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ let m=0; for(let dj=-NR;dj<=NR;dj++){ const jj=j+dj; if(jj<0||jj>=nz) continue; if(rec.tmp[jj*nx+i]){ m=1; break; } }
           const q=j*nx+i; rec.near[q]=m; if(m){ const lo=C[q]-F[q]>0.05?F[q]:Hh[q]; if(lo<rec.ymin) rec.ymin=lo; if(Hh[q]>rec.ymax) rec.ymax=Hh[q]; } } },t1)) { rec.msGrid+=performance.now()-T; return false; }
       rec.tmp=null; rec.ready=true; rec.q0=null; rec.msGrid+=performance.now()-T;
       if(!rec.nvoid){ rec.state='done'; rec.ph='done'; return true; }
@@ -678,7 +683,7 @@ function cv10Step(rec,t1){
         let allv=true,mx=0,mz=0;
         for(let a=0;a<4;a++){ const o=q4[a]*3, x=rec.vp[o], y=rec.vp[o+1], z=rec.vp[o+2]; mx+=x; mz+=z;
           if(cv10V(rec,x,y,z)<=0.3) allv=false; }
-        if(allv&&!cv10MK(rec,near(mx/4,mz/4))) return;   // M 을 한 칸 넓힌 데까지 남긴다(cv10MK — 매끄러운 구멍 테 밑)
+        if(allv){ const qc=near(mx/4,mz/4); if(!(rec.Hb&&rec.Hb[qc]<1e8?cv10MK(rec,qc,CV10_MKG):cv10MK(rec,qc))) return; }   // M 을 한 칸 넓힌 데까지 남긴다(cv10MK — 매끄러운 구멍 테 밑)
         if(rec.ni+6>rec.idx.length){ const ni=new Uint32Array(rec.idx.length*2); ni.set(rec.idx); rec.idx=ni; }
         const I=rec.idx; let p=rec.ni;
         if(rev){ I[p++]=q4[0]; I[p++]=q4[2]; I[p++]=q4[1]; I[p++]=q4[0]; I[p++]=q4[3]; I[p++]=q4[2]; }
@@ -761,6 +766,7 @@ function cv10Step(rec,t1){
       if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ const q=j*nx+i, o=q*4, v=C[q]-F[q]>0.05; let r=0,g=0;
           if(v){ r=(F[q]-base)/0.25; g=(Math.min(C[q],Hh[q]+1)-base)/0.25; if(r>255||g>255) rec.texOver++; r=Math.min(255,Math.max(0,Math.round(r))); g=Math.min(255,Math.max(0,Math.round(g))); }
           const d=D[q]; td[o]=r; td[o+1]=g; td[o+2]=Math.round(255*_cv10Smooth(2,16,d)); td[o+3]=M[q]?255:Math.round(127*Math.exp(-d/5));
+          if(!v){ const hc=Math.round((Hh[q]-base+64)/0.004), ok=hc>0&&hc<65535; td[o]=ok?hc>>8:0; td[o+1]=0; td[o+2]=ok?hc&255:0; }   // 빈 데 아닌 점 — 겉 높이 Hh 를 R·B 16 비트로(4 mm · G 0 이라 빈 데 시험 g>r 은 그대로 거짓 · 32-caves.js cv10Top)
           if(!M[q]&&rec.Hb){ const hb=rec.Hb[q]; if(hb<Hh[q]-0.3&&((v&&hb>F[q]-0.3&&hb<C[q]+0.3)||rec.mdist[q]<=16)) td[o+3]=192+Math.round(62*Math.exp(-Math.min(d,60)/5)); } }  },t1)) { rec.msMesh+=performance.now()-T; return false; }
       rec.msMesh+=performance.now()-T; rec.ph='fin'; break; }
     case 'fin':{
