@@ -648,7 +648,7 @@ function cv10Step(rec,t1){
       const T=performance.now(), ny=rec.ny, ymin=rec.ymin, nxc=nx-1;
       if(!cv10Rows(rec,nxc,i=>{ for(let j=0;j<nz-1;j++){ const q0=j*nx+i; let any=false, lo=1e9, hi=-1e9;
           for(let a=0;a<4;a++){ const q=q0+(a&1)+(a>>1)*nx; if(rec.near[q]) any=true; const v=C[q]-F[q]>0.05; const l=v?F[q]:Hh[q]; let h=v?Math.min(C[q],Hh[q]+1):Hh[q];
-            if(v&&h<Hh[q]&&cv10MK(rec,q)) h=Hh[q];   // 지붕 덮인 빈 데라도 땅 구멍 둘레면 지붕 윗면(겉)까지 — 예전엔 천장+1 칸까지만 세어 바위그늘 지붕 윗면이 없어 구멍으로 하늘이 비쳤다
+            if(v&&h<Hh[q]&&(rec.Hb&&rec.Hb[q]<1e8?cv10MK(rec,q,CV10_MKG):cv10MK(rec,q))) h=Hh[q];   // 지붕 덮인 빈 데라도 땅 구멍 둘레면 지붕 윗면(겉)까지 — 예전엔 천장+1 칸까지만 세어 바위그늘 지붕 윗면이 없어 구멍으로 하늘이 비쳤다
             if(l<lo) lo=l; if(h>hi) hi=h; }
           const ci=j*nxc+i; if(!any){ rec.cn[ci]=0; continue; }
           const k0=Math.max(0,Math.floor((lo-ymin)/S)-1), k1=Math.min(ny-2,Math.ceil((hi-ymin)/S)+1);
