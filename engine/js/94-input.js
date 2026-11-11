@@ -349,8 +349,8 @@ rng('pWs','ws','vWs',x=>(1.92*x).toFixed(1)+' km');
 try{ const w=parseFloat(new URLSearchParams(location.search).get('ws')), el=document.getElementById('pWs'); if(w>=1&&w<=6&&el){ el.value=w; el.dispatchEvent(new Event('input')); } }catch(e){}   // 섬 배율 — 새 섬부터(00-core.js)
 /* 주소에 ?seed=시드를 주면 첫 섬을 그 시드로 — 사용자가 본 섬을 그대로 다시 짓는다(검사 · 버그 재현) */
 try{ const v=new URLSearchParams(location.search).get('seed'); if(v){ P.seed=v; const el=document.getElementById('pSeed'); if(el) el.value=v; } }catch(e){}
-/* 주소에 ?tv=지형 판(1~12)을 주면 첫 섬의 P.tv 를 그 값으로 — 새 판(10: 굴 — 31-cave10.js)을 기본으로 올리기 전에 시험한다. 새 섬(R · 새로 시작)은 늘 기본 판 */
-try{ const v=parseInt(new URLSearchParams(location.search).get('tv'),10); if(v>=1&&v<=12) P.tv=v; }catch(e){}
+/* 주소에 ?tv=지형 판(1~13)을 주면 첫 섬의 P.tv 를 그 값으로 — 새 판(10: 굴 — 31-cave10.js)을 기본으로 올리기 전에 시험한다. 새 섬(R · 새로 시작)은 늘 기본 판 */
+try{ const v=parseInt(new URLSearchParams(location.search).get('tv'),10); if(v>=1&&v<=13) P.tv=v; }catch(e){}
 rng('pSize','size','vSize',x=>x.toFixed(2));
 rng('pRidge','ridge','vRidge',x=>x.toFixed(2));
 rng('pEro','ero','vEro',x=>x.toFixed(2));

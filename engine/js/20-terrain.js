@@ -428,8 +428,8 @@ function biomeColorAt(i,out){
   let v=1+(F.moist[i]-0.5)*0.12-clamp(F.slope[i],0,1)*0.14;
   /* 셀마다 어긋나던 ±2% 얼룩은 뺐다 — 2.5 m 칸이 그대로 바둑판으로 보였다. 잔 얼룩은 셰이더 잡음이 한다 */
   out.multiplyScalar(clamp(v,0.68,1.32));
-  // 물가 젖은 띠: 수면 위 1.2 m 까지는 어둡고 푸르게
-  if(e>0&&e<1.2){
+  // 물가 젖은 띠: 수면 위 1.2 m 까지는 어둡고 푸르게 — 물(바다 · 웅덩이)에서 SEA_REACH m 안만(뭍 속 낮은 들은 마른 땅이다 · 2026-11-11)
+  if(e>0&&e<1.2&&!(F.dWater[i]>SEA_REACH+CELL)){
     const w=1-e/1.2;
     out.lerp(TMP_WET.setHex(0x3a4a4a),w*0.55).multiplyScalar(1-w*0.18);
   }
@@ -817,7 +817,8 @@ vec2 th2(vec2 p){ return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.
    2 석회암 — 0 잿빛 벼랑 면 · 5 지의류 낀 바위 · 흰빛(반사율 0.3~0.4) · 빛깔은 거의 없다
    3 화강암 — 0 잿빛 벼랑 면 · 2 금 간 바위 · 옅은 잿빛에 아주 조금 분홍 */
 const GEOL_GLSL=`uniform sampler2D uGeo;
-vec4 geoW(vec2 xz){ return texture2D(uGeo,(xz/uCell+uBioN*0.5+0.5)/uBioN); }
+vec4 geoW(vec2 xz){ vec4 t=texture2D(uGeo,(xz/uCell+uBioN*0.5+0.5)/uBioN); return vec4(t.rgb,max(0.0,1.0-t.r-t.g-t.b)); }   // 화강암 몫(A)은 1 − 나머지 셋 — 텍스처의 A 칸은 바닷물이 닿는 데다(seaReach)
+float seaReach(vec2 xz){ return texture2D(uGeo,(xz/uCell+uBioN*0.5+0.5)/uBioN).a; }
 int geoPick(vec4 w,float u){ float c=w.r; if(u<c) return 0; c+=w.g; if(u<c) return 1; c+=w.b; if(u<c) return 2; return 3; }
 void geoLay(int t,out float la,out float lb){ if(t==0){ la=4.0; lb=8.0; } else if(t==1){ la=1.0; lb=7.0; } else if(t==2){ la=6.0; lb=5.0; } else { la=6.0; lb=2.0; } }
 vec3 geoTint(vec4 w){ return w.r*vec3(0.56,0.56,0.58)+w.g*vec3(1.03,0.92,0.80)+w.b*vec3(1.16,1.14,1.09)+w.a*vec3(0.98,0.96,0.94); }
@@ -1292,7 +1293,7 @@ const WATER_U={uTime:{value:0}, uSunDir:{value:new THREE.Vector3(0,1,0)},
   uSunCol:{value:new THREE.Color(1,1,1)}, uAmb:{value:new THREE.Color(0.3,0.35,0.4)},
   uSkyZ:{value:new THREE.Color(0.3,0.5,0.9)}, uSkyH:{value:new THREE.Color(0.7,0.8,0.9)},
   uElev:{value:null}, uGrid:{value:new THREE.Vector2(768,2.5)}, uBedB:{value:null},
-  uFP:{value:new THREE.Vector3()}, uFR:{value:0}, uLakeY:{value:-1e4}};   // uLakeY — 층층 대지 섬의 호수 수면(그 높이의 물은 호수 빛깔 · buildWater)   // 사면체 거품이 서는 자리(사람 둘레 uFR m) — 96-foam.js 가 채운다. 0 이면 칠한 거품만
+  uFoam:{value:null}, uLakeY:{value:-1e4}};   // uLakeY — 층층 대지 섬의 호수 수면(그 높이의 물은 호수 빛깔 · buildWater) · uFoam — 바다 거품의 결(96-foam.js foamTex)
 function waterMat(river){
   /* 램버트로 세우는 까닭은 오직 그림자다 — 조명은 아래에서 손수 센다. 램버트여야 그림자 지도
      유니폼이 붙고 `envPatch` 가 구름 그림자(`cloudSh`)를 얹는다. 예전엔 MeshBasic 이라 물에
@@ -1313,15 +1314,16 @@ function waterMat(river){
       if(i==4) return vec3(-1.10,5.3,0.028); if(i==5) return vec3(0.80,3.1,0.017);
       if(i==6) return vec3(2.30,1.7,0.009); return vec3(-2.60,0.9,0.005); }
     `;
-    sh.vertexShader='uniform float uWT;\nuniform float uRiver;\nvarying vec3 vWW;\nvarying vec3 vVD;\nvarying vec3 vWN;\nattribute float aEdge;\nvarying float vEdge;\n'+WAVES+
+    sh.vertexShader='uniform float uWT;\nuniform float uRiver;\nvarying vec3 vWW;\nvarying vec3 vVD;\nvarying vec3 vWN;\nattribute float aEdge;\nvarying float vEdge;\nvarying float vRise;\n'+WAVES+
       sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
       vec3 wp0=(modelMatrix*vec4(transformed,1.0)).xyz;
+      vRise=0.0;                                       // 수면이 오르는 빠르기(m/s) — 바다 거품이 물머리를 따라 오르내린다(96-foam.js)
       if(uRiver<0.5){
         /* 멀어질수록 파도를 눕힌다 — 판의 칸이 파장보다 굵어지는 거리(파장의 3~11배)에서. 굵은 칸으로 짧은 파도를 세우면
            수면이 제멋대로 꺾이고, 판이 사람을 따라 옮겨질 때마다 그 꺾임이 바뀌어 먼바다가 어른거린다 */
         float od=length(position.xz);
-        for(int i=0;i<3;i++){ vec3 w=wv(i); vec2 d=vec2(cos(w.x),sin(w.x)); float k=6.2832/w.y;
-          transformed.y+=w.z*(1.0-smoothstep(w.y*3.0,w.y*11.0,od))*sin(k*dot(d,wp0.xz)-sqrt(G*k)*uWT); }
+        for(int i=0;i<3;i++){ vec3 w=wv(i); vec2 d=vec2(cos(w.x),sin(w.x)); float k=6.2832/w.y, fa=w.z*(1.0-smoothstep(w.y*3.0,w.y*11.0,od)), ph=k*dot(d,wp0.xz)-sqrt(G*k)*uWT;
+          transformed.y+=fa*sin(ph); vRise-=fa*sqrt(G*k)*cos(ph); }
       }
       vWW=(modelMatrix*vec4(transformed,1.0)).xyz;
       vWN=normalize(mat3(modelMatrix)*normal);       // 수면의 기울기 — 바다는 곧게 위, 하천은 물길을 따라 눕는다
@@ -1343,8 +1345,8 @@ uniform float uSm; uniform float uTri; uniform vec2 uPC; uniform float uPR;
 uniform sampler2D uBedB;
 uniform sampler2D uNz;
 uniform vec2 uGrid;
-uniform vec3 uFP;
-uniform float uFR;
+uniform sampler2D uFoam;
+varying float vRise;
 varying vec3 vWW;
 varying vec3 vVD;
 varying vec3 vWN;
@@ -1463,7 +1465,11 @@ float plumeAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
          물가 알파 · 거품 · 헤엄 깊이는 진짜 깊이(d) 그대로다. 강 판은 제 깊이 */
       float dO=d;
       /* 얕은 데(진짜 깊이 4 m 안)는 진짜보다 얕게 세지 않는다 — 흐린 바닥엔 뭍 높이가 섞여 물가를 따라 깊이가 0 으로 나와 모래 빛 띠가 섰다 */
-      if(uRiver<0.5) dO=max(max(0.0,vWW.y-(texture2D(uBedB,(vWW.xz/uGrid.y+uGrid.x*0.5+0.5)/uGrid.x).r*64.0-60.0)),min(d,4.0));
+      vec2 ubB=(vWW.xz/uGrid.y+uGrid.x*0.5+0.5)/uGrid.x; vec4 bB=texture2D(uBedB,ubB);
+      /* 바닷물이 닿는 데(0~1 · seaReach — buildBedBlur 가 G 칸에 담는다): 바다 · 웅덩이와 거기서 파도 마루보다 낮은 땅을 따라 45 m 까지.
+         그 밖의 낮은 뭍(바닷물 판이 파도 마루에 덮던 뭍 속 들판)엔 바닷물 · 거품을 안 그린다(2026-11-11 사용자 '거품이 뭍으로 올라온다') */
+      float reach=uRiver<0.5?bB.g:1.0;
+      if(uRiver<0.5) dO=max(max(0.0,vWW.y-(bB.r*64.0-60.0)),min(d,4.0));
       vec3 aW=vec3(0.45,0.0565,0.0145), bW=0.0022*vec3(0.401,1.0,2.622);
       vec3 aX=vec3(0.001,0.004,0.02), bP=vec3(0.81,1.0,1.25)*0.05, bot=vec3(0.46,0.41,0.30);             // 맑은 연안 · 모래 바닥
       /* 유기물이 든 개울 — 깊은 소도 새까맣지는 않게. 강물 몫(rv)만큼 섞는다 — 강 판은 하구로 갈수록 바닷물에 이어진다
@@ -1518,33 +1524,72 @@ float plumeAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
         }
         col=cu;
       }
-      // 거품 — 물가 0.5 m 안, 밀려왔다 빠진다
-      /* 거품 — 예전엔 물가 0.5 m 띠가 통째로 밝아졌다 어두워졌다 했다(매끈한 흰 띠). 이제
-           ① 물가 가장자리에 레이스처럼 뚫린 거품 띠가 밀려왔다 빠지고(땅 셰이더의 젖은 띠와 같은 박자)
-           ② 그 바깥 1.8 m 까지 얕아질수록 촘촘해지는 **파도 줄**이 뭍 쪽으로 밀려온다
-           ③ 하천은 물길이 가파른 데(여울)에서 물살을 따라 흰 줄이 흘러내린다.
-         무늬는 잡음 텍스처 두 번으로 낸다 */
-      float surf=uRiver>0.5?0.5+0.5*sin(uWT*0.9+sin(vWW.x*0.07)*2.0+sin(vWW.z*0.05)*2.0):clamp(0.5+vWW.y/1.2,0.0,1.0);   // 바다는 진짜 수면 높이(밀려온 만큼 거품 띠가 넓다)
-      float lace=texture2D(uNz,vWW.xz/2.3+vec2(uWT*0.013,0.0)).r*0.6+texture2D(uNz,vWW.xz/0.83+vec2(0.0,uWT*0.021)).g*0.4;
-      float fringe=smoothstep(0.34+0.22*surf,0.02,d)*smoothstep(0.34,0.60,lace+0.22*surf);
-      float lines=smoothstep(0.62,0.96,sin(d*6.5+uWT*1.15+lace*3.0))*smoothstep(1.8,0.25,d)*smoothstep(0.38,0.66,lace);
-      float foam=max(fringe,lines*0.8);
+      /* 거품 — 하천은 예전 그대로(물가 띠 + 물길이 가파른 여울에서 물살을 따라 흘러내리는 흰 줄).
+         **바다는 수면에 그린 파도 거품**(2026-11-11 사용자 요청 — 사면체 거품 조각을 걷고 진짜 거품처럼 · 거품이 뭍에 올라오지 않게).
+         거품은 수면의 일부라 물이 있는 데에만 선다(물 판은 바닥이 수면보다 낮은 데만 보인다 · 뭍 속 낮은 들은 reach 가 끈다):
+           ① 물가 — 물머리에 붙은 흰 띠(수심 0.3~0.6 m 안). 물이 밀려올 때(vRise > 0) 두껍고 짙다가 빠질 때 성긴 레이스로 풀리며 바다 쪽으로 끌리는 줄이 된다.
+           ② 부서지는 물결 — 고요한 수심(−bed) 1.7 m 안에서 수심 0.55 m 마다 하나씩 뭍 쪽으로 밀려오는 흰 띠(6.3 초마다 — 큰 너울의 주기).
+              앞머리가 가장 짙고 지나간 자리로 갈수록 성겨진다 · 바닷가를 따라 부서지는 구간과 안 부서지는 구간이 갈린다(거품 텍스처 B 칸의 큰 얼룩).
+           ③ 지나간 자리의 성긴 레이스.
+           ④ 바다 벼랑 · 시스택 밑 — 깊은 물에 곧게 선 바위에 물결이 부딪혀 이는 흰 물.
+         모양은 거품 결 텍스처(uFoam — 96-foam.js: 거품 막의 그물 · 칸 · 덩이를 고르게 편 값)를 덮는 몫(cov)으로 문턱 지어 낸다 — 짙은 거품이
+         성겨질 때 큰 방울 속부터 비고 · 막의 그물이 남고 · 마디만 남다 사라진다(실제 거품이 꺼지는 차례). 결은 물머리와 같이 뭍 쪽으로 움직인다 */
+      float fa=0.0, fd=0.72;
       if(uRiver>0.5){
-        vec2 fd=normalize(Ng.xz+vec2(1e-4));                              // 물이 흘러내리는 쪽(수면 법선이 눕는 쪽)
+        float surf=0.5+0.5*sin(uWT*0.9+sin(vWW.x*0.07)*2.0+sin(vWW.z*0.05)*2.0);
+        float lace=texture2D(uNz,vWW.xz/2.3+vec2(uWT*0.013,0.0)).r*0.6+texture2D(uNz,vWW.xz/0.83+vec2(0.0,uWT*0.021)).g*0.4;
+        float fringe=smoothstep(0.34+0.22*surf,0.02,d)*smoothstep(0.34,0.60,lace+0.22*surf);
+        vec2 fdr=normalize(Ng.xz+vec2(1e-4));                             // 물이 흘러내리는 쪽(수면 법선이 눕는 쪽)
         float rapid=smoothstep(0.05,0.22,1.0-Ng.y);                       // 물길이 가파를수록
-        vec2 fu=vec2(dot(vWW.xz,fd)*0.30-uWT*0.55,dot(vWW.xz,vec2(-fd.y,fd.x))*1.5);
+        vec2 fu=vec2(dot(vWW.xz,fdr)*0.30-uWT*0.55,dot(vWW.xz,vec2(-fdr.y,fdr.x))*1.5);
         float streak=texture2D(uNz,fu).b*0.65+texture2D(uNz,fu*2.3+0.4).a*0.35;
-        foam=max(fringe*0.55,rapid*smoothstep(0.50,0.72,streak)*smoothstep(0.04,0.20,d));
+        fa=max(fringe*0.55,rapid*smoothstep(0.50,0.72,streak)*smoothstep(0.04,0.20,d))*0.8;
+      }else{
+        float Db=max(0.0,-bed);                                           // 고요한 물의 깊이(오르내리는 수면을 뺀 것)
+        if((Db<2.4||bB.r*64.0-60.0>-10.0||bB.b<0.25)&&reach>0.0){             // 얕은 물 · 뭍이나 시스택 곁(흐린 바닥이 얕다 · 기둥이 6 m 안)만 — 먼바다는 안 센다
+          vec2 tb=vec2(1.0/uGrid.x,0.0);
+          vec2 gB=vec2(texture2D(uBedB,ubB+tb.xy).r-texture2D(uBedB,ubB-tb.xy).r,texture2D(uBedB,ubB+tb.yx).r-texture2D(uBedB,ubB-tb.yx).r)*(32.0/uGrid.y);
+          float gl=length(gB); vec2 sh=gB/max(gl,1e-4), al=vec2(-sh.y,sh.x);   // 뭍 쪽(흐린 바닥이 오르는 쪽) · 바닷가를 따라
+          float rise=clamp(vRise*1.6,-1.0,1.0), up=max(rise,0.0), dn=max(-rise,0.0);
+          float cS=(1.0-smoothstep(0.0,0.30+0.30*up,d))*(0.50+0.42*up);                                 // ①
+          float bu=0.0, cB=0.0, cR=0.0;
+          if(Db<1.75){                                                                                    // ② · ③ — 부서지는 띠는 고요한 수심 1.7 m 안에만
+            float brk=texture2D(uFoam,vWW.xz/173.0+vec2(uWT*0.0021,uWT*0.0013)).b;
+            float jn=texture2D(uNz,vWW.xz/2.1+vec2(uWT*0.021,-uWT*0.013)).r;                            // 물머리가 곧은 금이 아니게 — 앞머리를 잘게 흔든다
+            bu=fract(Db/0.55+uWT*0.159+(brk-0.5)*0.6+(jn-0.5)*0.12);
+            float env=smoothstep(1.7,1.05,Db)*smoothstep(0.04,0.22,Db)*(0.30+0.70*smoothstep(0.30,0.70,brk));
+            cB=max(pow(1.0-bu,2.6),smoothstep(0.93,1.0,bu)*0.92)*env; cR=0.20*env*pow(1.0-bu,0.6); }  // 앞머리는 짧게 차오른다(곧은 금으로 잘리지 않게)
+          /* ④ 벼랑 밑 — 깊은 물에 곧게 선 바위(바다 벼랑 · 시스택)에 물결이 부딪혀 이는 흰 물(뭍 쪽 2.5 m · 6 m 안에 수면 위로 솟은 땅 · 기둥) · 물이 오를 때 짙다.
+             땅의 벽은 흐린 바닥이 가파른 데(gl > 0.12 — 완만한 모래 턱은 0.03~0.06)에서만 잰다 */
+          float cW=0.0, wW=smoothstep(1.4,2.6,Db);
+          if(wW>0.0&&(gl>0.12||bB.b<0.25)){ float e1=elevAt(vWW.xz+sh*2.5), e2=elevAt(vWW.xz+sh*6.0), rk=bB.b*25.5;   // 땅의 벽 · 물에 선 시스택 · 기둥(seaRockDist)
+            cW=max(max(smoothstep(vWW.y-0.6,vWW.y+0.6,e1)*0.75,smoothstep(vWW.y-0.6,vWW.y+0.6,e2)*0.32),smoothstep(4.0,0.6,rk)*0.62)*(0.45+0.55*up)*wW; }
+          float cov0=max(max(cS,cB),max(cR,cW));
+          if(cov0>0.015){                                                                                 // 덮을 것이 있을 때만 결을 읽는다(모래 턱의 대부분은 0)
+            /* 결이 물머리를 따라 움직인다 — 부서지는 띠 안에서는 띠와 같이(한 주기에 7 m), 물가에서는 물가와 같이(수면 높이 ÷ 비탈) */
+            float wB=smoothstep(0.15,0.45,Db), off=mix(mix(vWW.y*clamp(0.8/max(gl,0.03),3.0,22.0),bu*7.0,wB),vWW.y*3.0,wW);   // 벼랑 밑은 수면과 같이 오르내린다
+            vec2 fq=vWW.xz-sh*off;
+            /* 결 두 겹 — 9.5 m 와 3.1 m(서로 0.6 rad 돌려 되풀이 무늬가 겹쳐 보이지 않게) */
+            float f1=texture2D(uFoam,fq/9.5+vec2(0.011,0.007)*uWT).r, f2=texture2D(uFoam,mat2(0.825,-0.565,0.565,0.825)*fq/3.1-vec2(0.017,-0.011)*uWT).g;
+            /* 빠지는 물에 끌려 바다 쪽으로 길게 늘어선 줄 — 바닷가를 가로질러 늘인 결을 섞는다 */
+            float sk=dn*(1.0-wB)*0.85;
+            float f3=sk>0.0?texture2D(uFoam,vec2(dot(fq,al)/3.4,dot(fq,sh)/12.0+uWT*0.03)).r:0.5;
+            fd=mix(f1+(f2-0.5)*0.32,f3+(f2-0.5)*0.22,sk);
+            fd=fd*0.78+texture2D(uNz,fq/23.0+vec2(0.37,0.11)).r*0.22;                                   // 되풀이되지 않는 큰 결(잡음 텍스처를 다른 크기로) — 9.5 m 결이 바둑판으로 보이지 않게
+            float pat=texture2D(uFoam,vWW.xz/61.0-vec2(uWT*0.0017,uWT*0.0011)).b;                       // 거품이 많은 데 · 적은 데(수십 m 얼룩)
+            float cov=clamp(cov0*mix(0.60,1.30,pat),0.0,0.97), aa=0.09+clamp(foot*1.6,0.0,0.6);         // 가장자리는 조금 부드럽게(가까이서 결 한 칸이 화소 여럿이다) · 멀면 결이 뭉개진다 — 문턱을 넓혀 덮는 몫만 남긴다
+            fa=smoothstep(1.0-cov-aa,1.0-cov+aa,fd)*smoothstep(0.02,0.08,cov)*smoothstep(0.0,0.025,d)*reach*mix(1.0,0.45,under);
+            fa*=0.50+0.50*smoothstep(0.08,0.55,cov);                                                      // 성긴 레이스는 얇아 물이 비친다 · 짙은 거품은 하얗게 덮는다
+          }
+        }
       }
-      /* 사람 가까이의 바닷가는 거품을 **사면체 조각**(96-foam.js)이 맡는다 — 칠한 거품은 옅은 물자국만 남기고,
-         조각이 스러지는 거리(uFR−12 ~ uFR m)에서 도로 짙어진다. 멀리서는 칠한 거품뿐이다(조각은 거기까지 안 깐다) */
-      if(uRiver<0.5) foam*=mix(0.22,1.0,smoothstep(uFR-12.0,uFR,distance(vWW.xz,uFP.xz)));
-      col=mix(col,(uAmb+uSunCol*max(uSunDir.y,0.0)*shM)*0.9,foam*0.8);   // 거품은 흰 알베도 0.9
+      col=mix(col,(uAmb+(uSkyZ+uSkyH)*0.18*step(uRiver,0.5)+uSunCol*max(uSunDir.y,0.0)*shM)*(0.80+0.14*fd),fa);   // 거품은 흰 알베도 0.8~0.94(짙은 데가 밝다) · 바다 거품은 그늘에서도 하늘빛을 받는다(벼랑 그늘의 흰 물이 물빛과 같이 검었다)
       /* 물가 — 지형 텍스처(쌍선형)와 땅 메시(삼각형)의 높이가 몇 cm 어긋나 물가가 삼각형 톱니로 보였다.
          알파를 0.06 m 부터 올려 메시와 만나는 금을 투명한 데로 밀고, 잔물결 잡음으로 물가를 굽이치게 한다 */
       float wig=sin(vWW.x*0.9+sin(vWW.z*0.7)*1.6)*sin(vWW.z*1.1+sin(vWW.x*0.5)*1.3)
                +0.5*sin(vWW.x*2.7-vWW.z*2.1+uWT*0.6);
       diffuseColor.a=smoothstep(0.03,0.55,d+wig*0.06);   // 물가를 넓게 녹인다
+      if(uRiver<0.5){ diffuseColor.a=max(diffuseColor.a,fa*0.96)*mix(reach,1.0,under); if(diffuseColor.a<0.004) discard; }   // 얕은 물의 거품은 물이 비쳐도 희다 · 바닷물이 안 닿는 낮은 뭍엔 판을 안 그린다
       // 하천 판의 볼록한 모서리 — 판의 삼각형 끝이 땅 위에 세모로 드러나지 않게 녹인다(aEdge 0.25 → 0 · 0.5 이상 → 1)
       if(uRiver>0.5){
         diffuseColor.a*=mix(0.74,0.96,smoothstep(0.25,1.6,d));    // 얕은 개울은 바닥의 자갈·돌이 비친다(깊은 소는 거의 안 비친다)
@@ -1587,6 +1632,34 @@ const RIVER_PLUME={cells:0};
    8비트(0.25 m 눈금 · 직선 보간으로 읽는다). 섬을 지을 때 한 번 */
 const BED_BLUR=45;
 let bedBlurTex=null;
+/* **바닷물이 닿는 데**(칸마다 0/255 · 2026-11-11 사용자 '거품이 뭍으로 올라온다') — 바닷물 판은 섬 전체를 덮는 한 장이라, 파도 마루(+0.6 m)보다 낮은
+   뭍이면 바다에서 아무리 멀어도 마루마다 얇은 바닷물과 거품이 덮였다(CASTAWAY 6배 섬: 0~0.65 m 의 뭍 칸 1,395 · 그 가운데 물에서 45 m 넘게 먼 것 553).
+   표고 0 밑(바다 · 뭍 속 웅덩이)에서 0.75 m 밑의 땅을 따라 SEA_REACH m 까지 + 한 칸 넓힌다(직선 보간으로 읽어 가장자리는 반 칸에 걸쳐 녹는다).
+   물 셰이더(바닷물 판 알파 · 거품 — uBedB 의 G 칸)와 땅 셰이더(젖은 띠 · 물자국 — 지질도 uGeo 의 A 칸 · geolBuild)가 읽는다 */
+const SEA_REACH=45;
+function seaReachMask(){
+  const h=F.elev, n=N*N, D=new Float32Array(n).fill(1e9), q=new Int32Array(n), M=new Uint8Array(n); let qe=0;
+  for(let i=0;i<n;i++) if(h[i]<=0){ D[i]=0; q[qe++]=i; }
+  for(let qs=0;qs<qe;qs++){ const i=q[qs], x=i%N, dn=D[i]+CELL; if(dn>SEA_REACH) continue;
+    if(x>0&&D[i-1]>dn&&h[i-1]<0.75){ D[i-1]=dn; q[qe++]=i-1; }
+    if(x<N-1&&D[i+1]>dn&&h[i+1]<0.75){ D[i+1]=dn; q[qe++]=i+1; }
+    if(i>=N&&D[i-N]>dn&&h[i-N]<0.75){ D[i-N]=dn; q[qe++]=i-N; }
+    if(i<n-N&&D[i+N]>dn&&h[i+N]<0.75){ D[i+N]=dn; q[qe++]=i+N; } }
+  for(let z=0;z<N;z++) for(let x=0;x<N;x++){ const i=z*N+x; if(D[i]<1e9){ M[i]=255; continue; }
+    for(let dz=-1;dz<=1&&!M[i];dz++) for(let dx=-1;dx<=1;dx++){ const xx=x+dx, zz=z+dz; if(xx>=0&&zz>=0&&xx<N&&zz<N&&D[zz*N+xx]<1e9){ M[i]=255; break; } } }
+  return M;
+}
+/* 물에 선 바위(바닷가 시스택 · 주상절리 기둥 — COAST.cols 의 원)까지의 거리 — 칸 가운데에서 잰 m × 10(25.5 m 에서 자름 · uBedB 의 B 칸 · 직선 보간).
+   물 셰이더가 시스택 밑동에 부딪히는 흰 물을 칠한다(땅의 벽은 땅 높이로 따로 안다). 벼랑의 큰 바위 · 벼랑 모형(CRAG)은 넣지 않는다 —
+   몸 막기 원은 그려진 꼴 속에 들고, 둘러싼 상자는 모형(반쯤 묻힌 대지 모형은 210 m 남짓)보다 훨씬 넓어 먼바다에 곧은 거품 띠가 섰다 */
+function seaRockDist(){
+  const D=new Float32Array(N*N).fill(25.5), out=new Uint8Array(N*N), inv=1/CELL;
+  const put=(x,z,r)=>{ const R=r+26, x0=Math.max(0,Math.floor((x-R)*inv+N/2)), x1=Math.min(N-1,Math.ceil((x+R)*inv+N/2)), z0=Math.max(0,Math.floor((z-R)*inv+N/2)), z1=Math.min(N-1,Math.ceil((z+R)*inv+N/2));
+    for(let gz=z0;gz<=z1;gz++) for(let gx=x0;gx<=x1;gx++){ const d=Math.hypot((gx-N/2)*CELL-x,(gz-N/2)*CELL-z)-r, i=gz*N+gx; if(d<D[i]) D[i]=d<0?0:d; } };
+  if(typeof COAST!=='undefined') for(const c of COAST.cols) if(c.t===undefined||c.t>0.3) put(c.x,c.z,c.r);
+  for(let i=0;i<N*N;i++) out[i]=Math.round(D[i]*10);
+  return out;
+}
 function buildBedBlur(){
   const r=Math.max(1,Math.round(BED_BLUR/CELL)), a=new Float32Array(N*N), b=new Float32Array(N*N);
   for(let i=0;i<N*N;i++) a[i]=clamp(F.elev[i],-60,4);
@@ -1597,7 +1670,8 @@ function buildBedBlur(){
         const add=k+r+1, rem=k-r; if(add<N){ sum+=at(add); n++; } if(rem>=0){ sum-=at(rem); n--; } } } };
   for(let pass=0;pass<2;pass++){ box(a,b,true); box(b,a,false); }
   const px=new Uint8Array(N*N*4);
-  for(let i=0;i<N*N;i++){ px[i*4]=Math.round(clamp((a[i]+60)/64,0,1)*255); px[i*4+3]=255; }
+  const M=seaReachMask(), K=seaRockDist();                   // G 바닷물이 닿는 데(seaReachMask) · B 물에 선 시스택 · 기둥까지의 거리(seaRockDist)
+  for(let i=0;i<N*N;i++){ px[i*4]=Math.round(clamp((a[i]+60)/64,0,1)*255); px[i*4+1]=M[i]; px[i*4+2]=K[i]; px[i*4+3]=255; }
   if(bedBlurTex) bedBlurTex.dispose();
   bedBlurTex=new THREE.DataTexture(px,N,N,THREE.RGBAFormat,THREE.UnsignedByteType);
   bedBlurTex.magFilter=bedBlurTex.minFilter=THREE.LinearFilter; bedBlurTex.needsUpdate=true;
@@ -1663,6 +1737,7 @@ function buildWater(){
   }
   buildWaterElev();
   buildBedBlur();
+  if(!WATER_U.uFoam.value&&typeof foamTex==='function') WATER_U.uFoam.value=foamTex();   // 바다 거품의 결(96-foam.js) — 섬을 처음 지을 때 한 번(덮개 뒤에서)
   // 하천 수면 — 하도 셀 위에 얇은 판을 덮어 물길이 눈에 보이게 한다
   if(riverMesh){ scene.remove(riverMesh); riverMesh.geometry.dispose(); }
   // 정점 수위 = 그 격자점을 공유하는 하도 셀들의 평균.
