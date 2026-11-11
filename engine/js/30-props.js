@@ -362,7 +362,9 @@ function updateTileVis(){                // 예산(rockBudget · _treeBudget · 
   for(const RG of act) for(const t of RG.tree){ const L=t.lod; if(!L) continue;
     const sn=L.d<=SHR; let f=false;
     for(const k in L.packs){ const m=L.packs[k]; if(setVis(m,L.want&&m.count>0)) f=true; setSeen(m,L.seen); if(castNear(m,sn)) f=true; }
-    if(t.bb){ if(setVis(t.bb,L.d<=VIEW_DIST&&!L.want)) f=true; setSeen(t.bb,L.seen); if(castNear(t.bb,sn)) f=true; }
+    /* 그림 판때기는 입체 묶음이 다 차기까지(`L.pend`) 남긴다 — 예전엔 입체로 넘어가는 순간 판때기를 끄고 묶음은 다음 프레임들의 짬(TL.pack)에 채워
+       그 사이 칸이 통째로 비었다(사용자 사진 2026-11-11 '걸어가면 나무가 사라진다' — 25 m 앞 칸이 판때기도 입체도 없이 남았다) */
+    if(t.bb){ if(setVis(t.bb,L.d<=VIEW_DIST&&(!L.want||L.pend))) f=true; setSeen(t.bb,L.seen); if(castNear(t.bb,sn)) f=true; }
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r);
   }
 }
