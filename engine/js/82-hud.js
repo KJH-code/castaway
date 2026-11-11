@@ -543,6 +543,11 @@ function updateHUD(dt){
     hudS(look,'display','block');
     hudH(lt,'[좌클릭] '+D.n+' '+D.verb+'<em>'+(D.need&&!hasSharp()?'날붙이를 지녀야 뗀다':D.prick?'맨손이면 가시에 찔린다':D.sting?'촉수에 쏘인다':ITEMS[D.item].use)+'</em>');
     gatherBar(lb,lf,SEA.look);                     // 누르고 있는 동안 차는 막대(updateGather)
+  }else if(FLORA.look&&!harvestByUse()&&floraChop(FLORA.look)){   // 도끼로 숲의 나무 베기(95-flora.js FLORA_FELL)
+    const C=floraChop(FLORA.look);
+    hudS(look,'display','block');
+    hudH(lt,'[좌클릭] '+C.n+' 베기<em>'+ITEMS[C.item].n+' '+C.cnt[0]+(C.cnt[1]>C.cnt[0]?'~'+C.cnt[1]:'')+(C.extra?' · '+C.extra.map(x=>ITEMS[x[0]].n).join(' · '):'')+' — 누르고 있으면 쓰러진다</em>');
+    gatherBar(lb,lf,FLORA.look);
   }else if(FLORA.look&&!harvestByUse()){           // 나무·덤불·꽃·버섯·돌 — 세상에 선 것은 다 무엇인가를 준다(95-flora.js)
     const D=FLORA_PICK[FLORA.look.kind], left=floraWait(FLORA.look);
     hudS(look,'display','block');
