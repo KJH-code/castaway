@@ -136,7 +136,7 @@ CLAUDE.md 에는 새로 생긴 '깨뜨리면 안 되는 것' · '같이 고칠 �
 - **목록** — 지형 청크(`TERR_BLK[].m`) · `TPATCH.m` · 바다 · 하천 · `propGroup`(그룹 자체만 — 자식 visible 은 접근자) · 자갈 · 보급선 · 배 · 비 · 굴 바위 · 암벽 칸 · 거품 · 식생(`FLORA` 의 메시 전부) · 노거수 · 바닷가 · 지열 · 폭포 · 신전 · 바다 생물 · 산호 · 물고기 · 새·벌레·둥지 · 이슬.
   `surfWalk` 가 뿌리 객체를 얕게 훑어 `parent===scene` 인 Object3D 만 모은다(표 키 `picks`·`cols`·`taken`… 는 건너뜀). 빛을 품은 것은 `traverse` 로 걸러 뺀다(광원 수가 바뀌면 재질을 다시 짠다) — 지금 목록에 든 빛은 0.
   안 넣은 것 — 사람이 지은 구조물·설비(`scene` 에 바로 붙은 그룹 · 이 세션에서 보인 것은 시작 자리의 44 메시 그룹 하나) · 몹 · `UNDER.grp`/`pitGrp` · 카메라 · 해 표적.
-- **숨긴 동안 건너뛰는 갱신**(99-main.js) — `updateTileVis` · `updateTerrainLOD`(지시) · `updateFoam`(거품 점 · 유니폼뿐) · `updateCrags`(암벽 칸 짓기·버리기·보이기뿐) · `updateDew`(이슬 메시뿐) · `updateFalls`(연어·물보라 뿐) · `updateRain`(빗줄기 위치뿐).
+- **숨긴 동안 건너뛰는 갱신**(99-main.js) — `updateTileVis` · `updateTerrainLOD`(지시) · `updateCrags`(암벽 칸 짓기·버리기·보이기뿐) · `updateDew`(이슬 메시뿐) · `updateFalls`(연어·물보라 뿐) · `updateRain`(빗줄기 위치뿐).
   **안 건너뛴 것** — `updateFlora`(`floraFindLook` 이 `FLORA.look` 을 정하고 땅속 `UNDER.picks` 도 거기서 고른다) · `updateSea`(`farTick` 먼바다 · 낚시 · 물고기) · `updateReef`(해파리 `hurtPL`) · `updateWildlife`(`toast`·둥지 딸 것) · `updateGeo`(`hurtPL`·`toast`) · `updateRubble`(`FLORA.taken.delete` — 저장되는 값 · 딸 것) · `updateOcean`(유니폼 두 줄뿐이라 아낄 것이 없다).
 - **잰 값**(헤드리스 소프트웨어 렌더 · 6배 섬 · 방 `UNDER.ch[0]` 바닥 · 캠코더 끔 · 그림자 포함 `renderer.info.render` 를 한 프레임 `renderFrame` 로 센 평균):
 

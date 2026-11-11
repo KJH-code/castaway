@@ -65,7 +65,6 @@ function surfList(){
   if(typeof GEO_LF!=='undefined') T(GEO_LF.meshes);
   if(typeof GEO_DT!=='undefined') T(GEO_DT.meshes);
   if(typeof SAV!=='undefined') T(SAV.im);                // 사바나 풀밭(98-savanna.js)      // 산 겉의 바위 조각(37-geo-meshes.js)
-  if(typeof FOAM!=='undefined') T(FOAM);
   if(typeof FLORA!=='undefined') T(FLORA);
   if(typeof GIANT!=='undefined') T(GIANT);
   if(typeof COAST!=='undefined') T(COAST.meshes);

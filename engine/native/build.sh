@@ -1,5 +1,5 @@
 #!/bin/sh
-# engine/native/build.sh — compile the C kernels (erosion.c, shore.c, light.c) to WebAssembly and embed them for the game.
+# engine/native/build.sh — compile the C kernels (erosion.c, light.c) to WebAssembly and embed them for the game.
 #
 #   sh env/setup-zig.sh        # once: fetch the compiler into env/zig/
 #   sh engine/native/build.sh  # writes engine/js/data-native-wasm.js
@@ -8,6 +8,8 @@
 # plain script (engine/js/data-native-wasm.js) that island_world.html loads.
 # After building, open engine/native/verify.html through tools/serve.py and check that
 # every row says "same" — the C and JavaScript kernels must give identical islands.
+# (2026-11-11 shore.c — the shore search for the old mesh foam — was removed; the embedded wasm still carries
+#  its unused cw_shore/cw_river exports until the next rebuild.)
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 ZIG="$ROOT/env/zig/zig"
@@ -16,9 +18,8 @@ OUT="$ROOT/engine/native/erosion.wasm"
 "$ZIG" cc -target wasm32-freestanding -O2 -nostdlib -ffp-contract=off -fno-fast-math \
   -Wl,--no-entry -Wl,--strip-all \
   -Wl,--export=cw_elev -Wl,--export=cw_thermal -Wl,--export=cw_hydraulic -Wl,--export=cw_smooth \
-  -Wl,--export=cw_river -Wl,--export=cw_shore_out -Wl,--export=cw_shore \
   -Wl,--export=cw_tlit_open -Wl,--export=cw_tlit_out -Wl,--export=cw_under_base -Wl,--export=cw_under_m -Wl,--export=cw_under_b \
-  -o "$OUT" "$ROOT/engine/native/erosion.c" "$ROOT/engine/native/shore.c" "$ROOT/engine/native/light.c"
+  -o "$OUT" "$ROOT/engine/native/erosion.c" "$ROOT/engine/native/light.c"
 python3 - "$OUT" "$ROOT/engine/js/data-native-wasm.js" <<'PY'
 import base64, sys
 b = open(sys.argv[1], 'rb').read()
