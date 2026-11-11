@@ -679,7 +679,7 @@ function oreToCaves(rnd){
   }
 }
 /* ── 굴 광맥(지형 판 13 · 사용자 결정 2026-11-11 '동굴만의 이점 — 나중 문명(특히 무기)에 드는 광물 · 지금 희귀한 광물을 많이') ──────────
-   판 10 굴마다 그 굴에 이미 든 광석 수만큼(적어도 방마다 넷) **새 광석 소품을 PROPS 끝에 더한다** — 굴 안 광석이 두 배가 된다.
+   판 10 굴마다 그 굴에 이미 든 광석 수만큼(판 11 이상은 그 절반 — plOres 가 절반쯤을 땅속 방으로 옮기므로 · 적어도 방마다 넷) **새 광석 소품을 PROPS 끝에 더한다** — 굴 안 광석이 두 배가 된다.
    광종은 굴 종류마다 몰려 있다(CAVE_VEIN 무게): 석회암 굴 — 방연석(납 · 탄두) · 섬아연석(황동 탄피) · 자철석(강철) · 석탄 /
    용암굴 — 유황(화약) · 진사(뇌관 수은) · 자철석 / 바위틈 굴 — 석석 · 공작석 · 자철석 / 바위그늘 — 석탄 · 자철석.
    **깊은 방**(그 굴의 가장 안쪽 방 · 입구에서 길 거리 rm.s 64 m 넘는 방 — 24 m 로 두었더니 판 10 굴은 첫 방부터 24 m 를 넘어(?ws=2 · 방 50 중 거의 다)
@@ -697,7 +697,9 @@ function caveVeins(seed){
   const put=caveOrePut(rooms);
   for(const c of CAVES){ if(c.tv!==10||!c.rooms.length) continue;
     const W=CAVE_VEIN[c.kind]||CAVE_VEIN.talus; let tw=0; for(const w of W) tw+=w[1];
-    const n=Math.max(c.ore|0,4*c.rooms.length);
+    /* 판 11 이상(층층 대지 · PLAT.on)은 plOres 가 굴 광석의 절반쯤을 땅속 방으로 옮긴다 — 그 뒤 굴 안이 두 배가 되게 c.ore 의 절반만 더한다
+       (c.ore 만큼 더하면 ?ws=2 굴 안 247 → 726 · 2.94 배였다). 판 10 시험 섬(PLAT 꺼짐)은 c.ore 만큼 */
+    const half=typeof PLAT!=='undefined'&&PLAT.on, n=Math.max(half?Math.round((c.ore|0)/2):(c.ore|0),4*c.rooms.length);
     for(let k=0;k<n;k++){ const rm=c.rooms[k%c.rooms.length], deep=caveDeepRoom(c,rm);
       let u=rnd()*tw, kd=W[0][0]; for(const w of W){ u-=w[1]; if(u<0){ kd=w[0]; break; } }
       const s=(0.75+rnd()*0.2)*(deep?1.15:1), at=caveOreSpot(rm,(PROP_FOOT[kd]||1)*s,put.get(rm),rnd);
