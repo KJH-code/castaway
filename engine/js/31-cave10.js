@@ -574,6 +574,11 @@ function cv10Pop(H){ const hk=H.k, hv=H.v, tv=hv[0], lk=hk.pop(), lv=hv.pop(), n
 /* ρ — 기둥 q 의 높이 y 에서 */
 /* 밀도를 기울기 크기로 나눠 거리처럼 만든다(gF·gC·gH = 1/√(1+|∇|²) — 벽 가까이에서 F·C 가 기둥마다 크게 바뀌어도 0 지점이 고르다) */
 const cv10Rho=(rec,q,y)=>{ const h=(rec.Hh[q]-y)*rec.gH[q], a=(rec.F[q]-y)*rec.gF[q], b=(y-rec.C[q])*rec.gC[q]; const v=a>b?a:b; return h<v?h:v; };
+/* M 을 한 칸 넓힌 것(둘레 여덟 점 가운데 M 이 있나) — 땅 겉 면(윗면)을 남기는 범위. 땅 구멍(32-caves.js cv10Hole — M 을 매끄럽게 섞은 테)은
+   M 칸 경계를 오목한 모서리에서 0.23 칸까지 넘으므로 그 밖 한 칸까지 윗면이 있어야 하늘이 안 비친다(2026-11-11) */
+const cv10MK=(rec,q)=>{ const nx=rec.nx, i=q%nx, j=(q/nx)|0, M=rec.M;
+  for(let dj=-1;dj<=1;dj++){ const jj=j+dj; if(jj<0||jj>=rec.nz) continue; for(let di=-1;di<=1;di++){ const ii=i+di; if(ii<0||ii>=nx) continue; if(M[jj*nx+ii]) return true; } }
+  return false; };
 /* 칸 모서리 12 — 꼭짓점 비트: 1=+x · 2=+z · 4=+y */
 const _cv10Edges=[[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
 const _cv10Nb=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
@@ -637,7 +642,9 @@ function cv10Step(rec,t1){
     case 'crange':{
       const T=performance.now(), ny=rec.ny, ymin=rec.ymin, nxc=nx-1;
       if(!cv10Rows(rec,nxc,i=>{ for(let j=0;j<nz-1;j++){ const q0=j*nx+i; let any=false, lo=1e9, hi=-1e9;
-          for(let a=0;a<4;a++){ const q=q0+(a&1)+(a>>1)*nx; if(rec.near[q]) any=true; const v=C[q]-F[q]>0.05; const l=v?F[q]:Hh[q], h=v?Math.min(C[q],Hh[q]+1):Hh[q]; if(l<lo) lo=l; if(h>hi) hi=h; }
+          for(let a=0;a<4;a++){ const q=q0+(a&1)+(a>>1)*nx; if(rec.near[q]) any=true; const v=C[q]-F[q]>0.05; const l=v?F[q]:Hh[q]; let h=v?Math.min(C[q],Hh[q]+1):Hh[q];
+            if(v&&h<Hh[q]&&cv10MK(rec,q)) h=Hh[q];   // 지붕 덮인 빈 데라도 땅 구멍 둘레면 지붕 윗면(겉)까지 — 예전엔 천장+1 칸까지만 세어 바위그늘 지붕 윗면이 없어 구멍으로 하늘이 비쳤다
+            if(l<lo) lo=l; if(h>hi) hi=h; }
           const ci=j*nxc+i; if(!any){ rec.cn[ci]=0; continue; }
           const k0=Math.max(0,Math.floor((lo-ymin)/S)-1), k1=Math.min(ny-2,Math.ceil((hi-ymin)/S)+1);
           if(k1<k0){ rec.cn[ci]=0; continue; } rec.ck0[ci]=k0; rec.cn[ci]=k1-k0+1; rec.cbase[ci]=rec.slot; rec.slot+=k1-k0+1; } },t1)) { rec.msMesh+=performance.now()-T; return false; }
@@ -667,11 +674,11 @@ function cv10Step(rec,t1){
       const cv=(ci,cj,k)=>{ if(ci<0||cj<0||ci>=nxc||cj>=nzc) return -1; const c0=cj*nxc+ci, k0=rec.ck0[c0], cn=rec.cn[c0]; if(!cn||k<k0||k>=k0+cn) return -1; return rec.vi[rec.cbase[c0]+k-k0]; };
       const near=(x,z)=>Math.min(nz-1,Math.max(0,Math.round((z-rec.z0)/S)))*nx+Math.min(nx-1,Math.max(0,Math.round((x-rec.x0)/S)));
       const emit=(rev)=>{ if(q4[0]<0||q4[1]<0||q4[2]<0||q4[3]<0) return;
-        /* 땅 겉 버리기 — 네 꼭짓점이 다 v>0.3 이고 가운데가 M 밖 */
+        /* 땅 겉 버리기 — 네 꼭짓점이 다 v>0.3 이고 가운데가 M 을 한 칸 넓힌 것 밖 */
         let allv=true,mx=0,mz=0;
         for(let a=0;a<4;a++){ const o=q4[a]*3, x=rec.vp[o], y=rec.vp[o+1], z=rec.vp[o+2]; mx+=x; mz+=z;
           if(cv10V(rec,x,y,z)<=0.3) allv=false; }
-        if(allv&&!M[near(mx/4,mz/4)]) return;
+        if(allv&&!cv10MK(rec,near(mx/4,mz/4))) return;   // M 을 한 칸 넓힌 데까지 남긴다(cv10MK — 매끄러운 구멍 테 밑)
         if(rec.ni+6>rec.idx.length){ const ni=new Uint32Array(rec.idx.length*2); ni.set(rec.idx); rec.idx=ni; }
         const I=rec.idx; let p=rec.ni;
         if(rev){ I[p++]=q4[0]; I[p++]=q4[2]; I[p++]=q4[1]; I[p++]=q4[0]; I[p++]=q4[3]; I[p++]=q4[2]; }
