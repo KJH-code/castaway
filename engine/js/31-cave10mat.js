@@ -18,8 +18,8 @@
 const CMAT={ mats:{}, tex:null, nrm:null, left:-1, ready:false, wt:[], geo:null,
   torch:{value:new THREE.Vector4(0,0,0,0)}, tpos:{value:new THREE.Vector3()}, eye:{value:new THREE.Vector3()}, tcol:{value:new THREE.Vector3(1,0.56,0.25)},
   /* 종류마다: 사진 층 · 한 장의 크기(m) · 젖음(번들 세기 · 날카로움) · 이끼 몫 */
-  K:{ karst:{L:0,RS:1.7,wet:0.55,sh:36,moss:0.8,id:0}, lava:{L:1,RS:2.1,wet:0.16,sh:20,moss:1.15,id:1},
-      talus:{L:2,RS:1.3,wet:0.30,sh:24,moss:0.9,id:2}, shelter:{L:3,RS:2.4,wet:0.03,sh:12,moss:0.3,id:3} } };
+  K:{ karst:{L:0,RS:1.7,wet:1.00,sh:90,moss:0.8,id:0}, lava:{L:1,RS:2.1,wet:0.046,sh:20,moss:1.15,id:1},
+      talus:{L:2,RS:1.3,wet:0.45,sh:60,moss:0.9,id:2}, shelter:{L:3,RS:2.4,wet:0.009,sh:12,moss:0.3,id:3} } };
 
 /* 사진 올리기 — 다 풀리기 전에는 한 점짜리(중간 회색 · 곧게 선 법선) */
 function cmPhotos(){
@@ -203,7 +203,7 @@ const CM_BODY=`#include <color_fragment>
     }
     /* 이끼 — 하늘이 트인 입구 · 위를 보는 면 · 얼룩지게(안으로 들어가며 끊긴다) */
     float mw=CM_MOSS*smoothstep(0.08,0.55,sky)*(0.30+0.70*smoothstep(-0.2,0.7,n.y))*(1.0-0.75*flo)*smoothstep(0.45,0.66,big*0.7+mid*0.3+sky*0.15);   // 밟는 바닥엔 드물다
-    if(mw>0.01){ vec3 mz=texture(cmC,vec3(pd/1.1,4.0)).rgb; c=mix(c,vec3(0.24,0.33,0.12)*mz*2.0,clamp(mw,0.0,0.92)); wet=mix(wet,0.25,mw); }
+    if(mw>0.01){ vec3 mz=texture(cmC,vec3(pd/1.1,4.0)).rgb; c=mix(c,vec3(0.24,0.33,0.12)*mz*2.0,clamp(mw,0.0,0.92)); wet=mix(wet,0.07,mw); }
     /* 땅 높이 가까운 입구 가장자리 — 그 자리 바이옴 빛깔(흙 · 풀)로 */
     float gb=(1.0-smoothstep(0.05,0.7,abs(vCmG)+(mid-0.5)*0.4))*smoothstep(0.30,0.85,sky)*smoothstep(-0.4,0.2,n.y);
     c=mix(c,mix(vCmBio,vec3(0.30,0.25,0.19),0.35)*(0.75+0.5*cmLum(rk)),gb*0.85);
@@ -225,8 +225,8 @@ const CM_BODY=`#include <color_fragment>
     if(cmT.w>0.0&&wet>0.01){
       vec3 Hh=normalize(Lt+normalize(cmEye-p));
       float at=clamp(1.0-length(tv)/cmT.x,0.0,1.0); at*=at;
-      float sp=pow(max(dot(np,Hh),0.0),shn)*(0.2+1.6*max(fine-0.4,0.0));
-      totalEmissiveRadiance+=cmTC*(cmT.w*at*sp*wet*2.0*(1.0-0.8*sky));
+      float sp=pow(max(dot(np,Hh),0.0),shn)*(0.15+2.4*max(fine-0.45,0.0));
+      totalEmissiveRadiance+=mix(cmTC,vec3(1.0),0.55)*(cmT.w*at*sp*wet*7.0*(1.0-0.8*sky));   // 반짝임은 하얗게(물 막이 빛을 되비춘다)
     }
   }
 #endif`;
