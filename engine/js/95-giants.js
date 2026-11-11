@@ -232,7 +232,10 @@ function updateGiants(force){
      그림자를 안 드리우므로(recv) 행렬을 배열에 바로 쓴다 — setMatrixAt 갈고리를 타면 몸을 돌릴 때마다 그림자 지도를 다시 그린다 */
   camera.updateMatrixWorld();
   { const e=camera.matrixWorld.elements, q=GIANT.cq||(GIANT.cq=new Float32Array(16));   // 눈이 그대로면(자리 · 방향) 시야 거르기도 그대로
-    let same=!ch&&!moved; for(let i=0;i<16;i++){ if(same&&Math.abs(e[i]-q[i])>0.004) same=false; q[i]=e[i]; } if(same) return; }
+    /* 마지막으로 거른 눈과 견준다 — 예전엔 프레임마다 지금 눈을 적어 두어, 천천히 돌면(한 프레임 0.004 밑) 끝내 다시 거르지 않았다
+       (사용자 사진 2026-11-11 '나무가 사라진다' — 천천히 고개를 돌리면 먼 노거수가 안 나타났다) */
+    let same=!ch&&!moved; for(let i=0;i<16&&same;i++) if(Math.abs(e[i]-q[i])>0.004) same=false;
+    if(same) return; for(let i=0;i<16;i++) q[i]=e[i]; }
   _gPM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _gFr.setFromProjectionMatrix(_gPM);
   let sig=ch?-1:0, k=0;
   for(const g of GIANT.list){ if(g.near) continue; _gSp.center.set(g.fc[0],g.fc[1],g.fc[2]); _gSp.radius=g.fr;

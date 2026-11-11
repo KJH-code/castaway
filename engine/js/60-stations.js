@@ -107,7 +107,7 @@ const SMELT=[
    note:'철은 녹지 않는다. 노 바닥에 쇠똥과 뒤엉킨 해면철 덩이로 남는다.',
    in:[{id:'bog_iron',n:3},{id:'charcoal',n:5}],
    need:[{id:'blowpipe',n:1}]},
-  /* 자철석(지형 판 13 굴 광맥)은 쇠가 늪철광보다 훨씬 많이 들었다 — 둘에서 괴철 둘 */
+  /* 자철석(지형 판 14 굴 광맥)은 쇠가 늪철광보다 훨씬 많이 들었다 — 둘에서 괴철 둘 */
   {id:'smelt_magnetite', n:'자철석 제련', hours:1.4, out:{id:'bloom_iron',n:2},
    note:'굴 깊은 데서 캔 검은 자철석은 쇠가 많이 들었다. 늪철광보다 적게 넣고도 해면철 덩이가 둘 나온다.',
    in:[{id:'magnetite',n:2},{id:'charcoal',n:4}],

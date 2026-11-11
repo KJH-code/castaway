@@ -297,7 +297,7 @@ function geoLandforms(seed){
      흰빛~옅은 잿빛 · 빗물에 녹은 구멍과 골 → 사진 0(잿빛 벼랑 면)을 밝고 빛깔 없이 · 5(지의류)
    · 화강암 — 그 밖(높은 산 · 바위밭 · 높은 봉우리 모형). 옅은 잿빛에 조금 분홍 · 판처럼 벗겨지는 둥근 면 · 지의류 → 사진 0 · 2 · 5
    경계는 높이 등고선을 그대로 따르지 않게 600 m 잡음으로 흔들고(지층 경계는 땅을 비스듬히 지난다), 세 칸만큼 흐려 섞는다.
-   RGBA = 현무암 · 사암 · 석회암 · 화강암의 몫(합 255). 땅 셰이더의 벼랑 면 · 큰 바위(cragMat) · 큰 지형 모형(geoMat) · 넓은 땅의 바위가 읽는다(`uGeo`) */
+   RGB = 현무암 · 사암 · 석회암의 몫 · 화강암은 1 − 셋(셰이더 geoW 가 센다) · A = 바닷물이 닿는 데(2026-11-11 — 젖은 띠 · 물자국을 뭍 속에 안 그리게). 땅 셰이더의 벼랑 면 · 큰 바위(cragMat) · 큰 지형 모형(geoMat) · 넓은 땅의 바위가 읽는다(`uGeo`) */
 function geolBuild(){
   const n=N*N, e=F.elev; let hi=1; for(let i=0;i<n;i++) if(e[i]>hi) hi=e[i];
   const W=new Float32Array(n*4), rnd=mulberry32((hashStr(String(P.seed))^0x6e01)>>>0);
@@ -327,9 +327,10 @@ function geolBuild(){
     for(let z=0;z<N;z++) for(let x=0;x<N;x++){ const o=(z*N+x)*4; let a=0,b2=0,c=0,d=0,cnt=0;
       for(let k=-R;k<=R;k++){ const xx=pass?x:Math.min(N-1,Math.max(0,x+k)), zz=pass?Math.min(N-1,Math.max(0,z+k)):z, q=(zz*N+xx)*4; a+=src[q]; b2+=src[q+1]; c+=src[q+2]; d+=src[q+3]; cnt++; }
       dst[o]=a/cnt; dst[o+1]=b2/cnt; dst[o+2]=c/cnt; dst[o+3]=d/cnt; } }
-  const px=new Uint8Array(n*4);
+  const px=new Uint8Array(n*4), M=seaReachMask();
+  /* A 칸은 화강암 몫이 아니라 **바닷물이 닿는 데**(20-terrain.js seaReachMask — 땅 셰이더의 젖은 띠 · 물자국) — 화강암 몫은 셰이더가 1 − 나머지 셋으로 센다(geoW) */
   for(let i=0;i<n;i++){ const o=i*4, s=W[o]+W[o+1]+W[o+2]+W[o+3]||1; let acc=0;
-    for(let c=0;c<3;c++){ const v=Math.round(W[o+c]/s*255); px[o+c]=v; acc+=v; } px[o+3]=Math.max(0,255-acc); }
+    for(let c=0;c<3;c++){ const v=Math.round(W[o+c]/s*255); px[o+c]=v; acc+=v; } px[o+3]=M[i]; }
   const tex=new THREE.DataTexture(px,N,N,THREE.RGBAFormat,THREE.UnsignedByteType);
   tex.magFilter=tex.minFilter=THREE.LinearFilter; tex.generateMipmaps=false; tex.needsUpdate=true;
   if(TERR_U.uGeo.value&&TERR_U.uGeo.value.image&&TERR_U.uGeo.value.image.width>1) TERR_U.uGeo.value.dispose();

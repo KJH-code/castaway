@@ -32,7 +32,7 @@
       12 m(층의 `own`) 밖이면 종류마다 **사람에게서 가장 가까운 그루의 벌 하나**(`FLORA.ref`)로 찍는다.
    노거수(뿌리가 땅이 되는 큰 나무)는 95-giants.js 가 '노거수 숲' 군락에 세운다.
    ========================================================================== */
-const FLORA={seed:0, m:null, mat:null, depth:null, tex:null, patch:84, taken:new Map(), look:null, ref:{}, pend:[], pendN:0,
+const FLORA={seed:0, m:null, mat:null, depth:null, tex:null, patch:84, taken:new Map(), fell:new Set(), look:null, ref:{}, pend:[], pendN:0,
   far :{cx:1e9,cz:1e9,R:95,cell:6,  step:12,fade:14,salt:3,own:35,cols:[],picks:[],n:{},kinds:['jungle','mangrove','bamboo','palm','birch','pine','sapling','banana','treefern','acacia']},
   near:{cx:1e9,cz:1e9,R:46, cell:2.4,step:6, fade:7, salt:1,own:12,cols:[],picks:[],n:{},kinds:['fern','bush','flower','dry','shroom']}};
 /* 그림 묶음의 칸 */
@@ -82,6 +82,31 @@ const FLORA_PICK={
   turn    :{item:'ring_platinum', n:'옛 항아리', verb:'깨서 뒤지기', regrow:1e9, cnt:[0,0], dur:1.2, stam:2, once:1, loot:1},
   mobloot :{item:'chitin',        n:'사체',     verb:'뒤지기',     regrow:1e9, cnt:[0,0], dur:2.0, stam:3, mob:1}   // 쓰러뜨린 몬스터(97-mobs.js — 뒤지면 사라진다 · 무엇이 드는지는 MOB_LOOT)
 };
+/* **숲의 나무는 다 벤다**(사용자 요청 2026-11-11 '모든 나무를 벨 수 있게' — 예전엔 참나무 · 전나무 · 노거수만 베였고 이 열 가지는 껍질 · 열매만 줬다).
+   도끼를 들고 줄기를 보면 따기 대신 베기 — 막대 dur 초 ÷ 도끼 빠르기(CHOP 과 같은 셈) · 다 차면 그루가 쓰러져 사라지고(FLORA.fell) FELL_REGROW 게임 시간 뒤 다시 선다.
+   item 주 소출 · cnt 수 · extra 딸려 나오는 것 · tr 도끼 자국을 낼 줄기 반지름(크기 1 · 0 이면 자국 없음 — 대숲 · 맹그로브 뿌리 · 어린 나무) · 대나무는 통나무가 아니라 대나무 줄기, 바나나는 나무가 아니라 섬유 */
+const FELL_REGROW=96;
+const FLORA_FELL={
+  jungle  :{n:'밀림 나무', tr:0.4,   item:'log',    cnt:[2,3], dur:5.0, stam:10, extra:[['vine',0.5]]},
+  mangrove:{n:'맹그로브', tr:0,    item:'log',    cnt:[1,2], dur:4.2, stam:9,  extra:[['bark',0.5]]},
+  bamboo  :{n:'대나무', tr:0,      item:'bamboo', cnt:[3,5], dur:2.4, stam:6},
+  palm    :{n:'야자나무', tr:0.17,    item:'log',    cnt:[1,2], dur:4.0, stam:8,  extra:[['coconut',0.35]]},
+  birch   :{n:'자작나무', tr:0.13,    item:'log',    cnt:[1,2], dur:3.6, stam:7,  extra:[['bark',0.6]]},
+  pine    :{n:'소나무', tr:0.15,      item:'log',    cnt:[2,3], dur:4.2, stam:8.5,extra:[['resin',0.4]]},
+  sapling :{n:'어린 나무', tr:0,   item:'branch', cnt:[2,3], dur:1.6, stam:4,  extra:[['log',0.3]]},
+  banana  :{n:'바나나 나무', tr:0.15, item:'fiber',  cnt:[2,3], dur:1.8, stam:4,  extra:[['banana',0.5]]},
+  treefern:{n:'나무고사리', tr:0.13,  item:'log',    cnt:[1,1], dur:2.6, stam:6,  extra:[['fern',0.7]]},
+  acacia  :{n:'아카시아', tr:0.15,    item:'log',    cnt:[1,2], dur:4.4, stam:9,  extra:[['bark',0.5]]}
+};
+/* 도끼를 들고 이 그루를 보고 있으면 베기 표 · 아니면 null */
+function floraChop(p){
+  if(!p||!p.tree||!p.tk||!FLORA_FELL[p.tk]) return null;
+  const e=equippedTool(), W=e&&ITEMS[e.id].tool;
+  return W&&W.axe?FLORA_FELL[p.tk]:null;
+}
+/* 벤 그루 — 열쇠 'X'+그루 열쇠로 FLORA.taken 에 벤 때를 적고(저장이 들고 간다) 그리는 쪽은 FLORA.fell(Set)만 본다 */
+function floraFelled(key){ const t=FLORA.taken.get('X'+key); if(t===undefined) return false; if(gameHours-t<FELL_REGROW) return true; FLORA.taken.delete('X'+key); return false; }
+function floraFellSync(){ FLORA.fell.clear(); for(const k of FLORA.taken.keys()) if(k[0]==='X'&&floraFelled(k.slice(1))) FLORA.fell.add(k.slice(1)); FLORA.far.cx=1e9; }
 /* 바이옴마다의 군락 — w 얼룩이 그 군락이 될 몫 · far 나무 겹 · near 덤불 겹: [종류, 칸마다 설 확률, 크기 아래, 위]
    giant: 노거수가 서는 군락(1 활엽 · 2 침엽 — 95-giants.js) · low: 표고가 이보다 높으면 그 바이옴의 둘째 군락으로 바꾼다
    dense · nearDense: 칸 하나에 몇 번 굴리나(나무 겹 · 덤불 겹 — 없으면 1). **숲은 빽빽하다**(사용자 요청) — 밀림은 나무를 칸마다 두 번,
@@ -914,17 +939,18 @@ function floraFar(force){
         const K=FLORA_KIND[p.k], pad=(K.r||0)+0.5;
         p.blk=floraHit(p.x,p.z,pad)||floorAt(p.x,p.z)>p.y+0.05;
         if(p.blk) continue;
+        if(U.fell.size&&U.fell.has(p.key)){ if(floraFelled(p.key)) continue; U.fell.delete(p.key); }   // 벤 그루 — 다시 날 때까지 몸도 딸 것도 없다
         if(K.r) L.cols.push({x:p.x,z:p.z,r:p.r});
         if(K.pick){ const P=FLORA_PICK[K.pick];
           if(P.hide){ const tk=U.taken.get(p.key); if(tk!==undefined&&gameHours-tk<P.regrow) continue; }
-          L.picks.push({kind:K.pick,x:p.x,y:p.y,z:p.z,key:p.key,r:(K.r||0.12)*p.s,tree:!P.hide&&!P.low,ay:P.low?p.y+P.low*p.s:p.y+0.06}); }
+          L.picks.push({kind:K.pick,tk:p.k,x:p.x,y:p.y,z:p.z,key:p.key,r:(K.r||0.12)*p.s,s:p.s,tree:!P.hide&&!P.low,ay:P.low?p.y+P.low*p.s:p.y+0.06}); }
       } }
   }
   for(const k of L.kinds){ for(const im of U.m[k]) im.count=0; const f=U.fm[k]; if(f){ for(const Lv of f.lods) for(const im of Lv) if(im) im.count=0; if(f.pm) f.pm.count=0; } }
   const put=(im,p)=>{ const i=im.count++; im.instanceMatrix.array.set(p.m,i*16); const c=im.instanceColor.array; c[i*3]=p.c[0]; c[i*3+1]=p.c[1]; c[i*3+2]=p.c[2]; };
   let csig=0; const QK=QUAL.k;
   for(const t of U.vis){ if(!t.v) continue;
-    for(const p of t.ps){ if(p.blk) continue;
+    for(const p of t.ps){ if(p.blk||(U.fell.size&&U.fell.has(p.key))) continue;
       const dx=p.x-px, dz=p.z-pz, d=Math.sqrt(dx*dx+dz*dz); if(d>VIEW_DIST) continue;
       const f=U.fm[p.k];
       const full=d<=FL_FULL*Math.max(QK,0.75), fm=full&&U.m[p.k][p.v];
@@ -951,7 +977,7 @@ function floraCollide(p,radius){
 function floraReset(seed){
   FLORA.seed=seed|0; FLORA.far.cx=FLORA.far.cz=FLORA.near.cx=FLORA.near.cz=1e9;
   FLORA.far.cols.length=FLORA.near.cols.length=0; FLORA.far.picks.length=FLORA.near.picks.length=0;
-  FLORA.taken.clear(); FLORA.look=null; FLORA.ref={};   // 기준 벌은 섬마다 새로(가장 가까운 그루)
+  FLORA.taken.clear(); FLORA.fell.clear(); FLORA.look=null; FLORA.ref={};   // 기준 벌은 섬마다 새로(가장 가까운 그루)
   floraFarDrop();                                       // 섬 전체 나무 목록 · 줄인 복제 · 그림은 다음 updateFlora 가 새로 짓는다
 }
 
@@ -964,13 +990,15 @@ function floraFindLook(){
   if(PL.swim){ templeLookSwim(); return; }                             // 물속에서는 해저 신전의 상자 · 항아리만(97-temples.js)
   const e0=equippedTool(), W0=e0&&ITEMS[e0.id].tool, sharpHand=!!(W0&&(W0.weapon&&!W0.gun||W0.axe));   // 칼·도끼를 든 채로도 노거수 껍질·송진은 벗긴다
   const hand=floraHandOK(), mobs=typeof MON!=='undefined'&&MON.picks.length>0, shroomHand=!hand&&!!(W0&&!W0.gun);   // 버섯은 무엇을 들었든(총만 빼고) 캔다
+  const axeHand=!!(W0&&W0.axe);                                       // 도끼 — 숲의 나무 줄기를 본다(벤다 · FLORA_FELL)
   if(!hand&&!sharpHand&&!mobs&&!shroomHand) return;   // 몬스터 사체는 무엇을 들었든 뒤진다(총만 빼고 — useHeld)
   const ex=camera.position.x, ey=camera.position.y, ez=camera.position.z, cp=Math.cos(PL.pitch);
   const fx=-Math.sin(PL.yaw)*cp, fy=Math.sin(PL.pitch), fz=-Math.cos(PL.yaw)*cp, hx=-Math.sin(PL.yaw), hz=-Math.cos(PL.yaw);
   let bd=1e9;
   {
-  for(const list of (hand?[FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,SAV.picks,WILD.picks,UNDER.picks,TEMPLE.picks,CV10.picks,mobs?MON.picks:[]]:[mobs?MON.picks.filter(p=>!p.live):[],shroomHand?FLORA.near.picks:[],shroomHand?UNDER.picks:[]])) for(const p of list){
+  for(const list of (hand?[FLORA.far.picks,FLORA.near.picks,RUBBLE.picks,SAV.picks,WILD.picks,UNDER.picks,TEMPLE.picks,CV10.picks,mobs?MON.picks:[]]:[mobs?MON.picks.filter(p=>!p.live):[],shroomHand?FLORA.near.picks:[],shroomHand?UNDER.picks:[],axeHand?FLORA.far.picks:[]])) for(const p of list){
     if(!hand&&(list===FLORA.near.picks||list===UNDER.picks)&&!(FLORA_PICK[p.kind]&&FLORA_PICK[p.kind].shroom)) continue;   // 연장을 들었으면 버섯만
+    if(!hand&&list===FLORA.far.picks&&!(p.tree&&FLORA_FELL[p.tk])) continue;                                                 // 도끼를 들었으면 벨 줄기만
     const dx=p.x-ex, dz=p.z-ez;
     if(p.tree){
       const d=Math.sqrt(dx*dx+dz*dz); if(d>p.r+1.7||d<1e-3) continue;
@@ -1015,6 +1043,7 @@ function hasSharp(){
 }
 /* 못 따는 까닭(없으면 null) */
 function floraBlock(p){
+  if(floraChop(p)) return null;                                        // 베기 — 껍질 · 열매를 딴 지 얼마 안 됐어도 벤다
   const D=FLORA_PICK[p.kind], left=floraWait(p);
   if(left>0&&D.once) return D.n+' — 이미 비었다';
   if(left>0) return D.n+' — 아직 다시 나지 않았다(약 '+Math.ceil(left)+'시간 뒤)';
@@ -1069,13 +1098,28 @@ function updateGather(dt){
   else if(p) GATHER.p=p;
   GATHER.on=false;
   if(!p) return;
-  const sea=p===SEA.look, D=sea?SEA_PICK[p.kind]:FLORA_PICK[p.kind];
-  GATHER.dur=D.dur||1;
+  const sea=p===SEA.look, C=!sea&&floraChop(p), D=sea?SEA_PICK[p.kind]:C||FLORA_PICK[p.kind];
+  GATHER.dur=C?C.dur/(ITEMS[equippedTool().id].tool.speed||1):(D.dur||1); GATHER.chop=C?p:null;   // 베기는 도끼 빠르기로(CHOP 과 같은 셈)
   const go=useDown&&!BUILD.on&&!facing()&&!PL.dead&&PL.stam>=2&&!(sea?seaBlock(p):floraBlock(p));
-  if(!go){ GATHER.t=Math.max(0,GATHER.t-dt*2.5); return; }
+  if(!go){ if(useDown&&!PL.dead&&PL.stam<2&&!BUILD.on&&!facing()) tiredToast(); GATHER.t=Math.max(0,GATHER.t-dt*2.5); return; }   // 기력이 바닥이면 알린다(50-items.js)
   GATHER.on=true; GATHER.t+=dt;
   PL.stam=clamp(PL.stam-(D.stam||2)*dt,0,100);
   if(GATHER.t<GATHER.dur) return;
   GATHER.t=0; GATHER.p=null;
-  if(sea) seaTake(p); else floraTake(p);
+  if(sea) seaTake(p); else if(C) floraFell(p,C); else floraTake(p);
+}
+/* 다 베었다 — 소출을 넣고(못 들면 그대로 선다) 도끼가 닳고 그루가 쓰러져 사라진다 */
+function floraFell(p,C){
+  const n=C.cnt[0]+((Math.random()*(C.cnt[1]-C.cnt[0]+1))|0);
+  let got=0; for(let i=0;i<n;i++) if(invAdd(C.item,1)) got++;
+  if(!got){ toast('무거워서 더 못 든다'); return; }
+  let msg=C.n+'를 베었다 — '+ITEMS[C.item].n+' +'+got;
+  if(C.extra) for(const [id,pr] of C.extra) if(Math.random()<pr&&invAdd(id,1)) msg+=' · '+ITEMS[id].n+' +1';
+  const e=equippedTool(), W=e&&ITEMS[e.id].tool;
+  if(e&&e.dur!==undefined){ e.dur-=(W.wear||3); if(e.dur<=0){ msg+=' · '+ITEMS[e.id].n+' 파손'; invRemove(INV.slots.indexOf(e),1); EQUIP=null; } }
+  FLORA.taken.set('X'+p.key,gameHours); FLORA.fell.add(p.key); p.felled=true;
+  FLORA.far.cx=1e9; FLORA.look=null; GATHER.chop=null;
+  if(typeof dentFill==='function') dentFill();                         // 그 그루의 도끼 자국을 지운다(74-icons-guns.js)
+  if(typeof LIGHT!=='undefined') LIGHT.dirtyAt(p.x,p.z,8);
+  toast(msg); sfx('chop'); invDirty=true;
 }

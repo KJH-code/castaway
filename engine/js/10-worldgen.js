@@ -447,6 +447,101 @@ function coastRaise(){
     const k=b[i]; if(h[i]<2.0&&(k===B.MEADOW||k===B.SCRUB||k===B.BROADLEAF||k===B.CONIFER||k===B.BAMBOO)) b[i]=B.BEACH; }
   computeSlope();
 }
+/* ── 지형 판 13 — 바닷가는 모래 해변이거나 바다 벼랑이다(2026-11-11 사용자 요청: '물가가 갑자기 꺼진다 · 해변은 해변으로 ·
+   바닷가 벼랑은 확실한 벼랑으로') ─────────────────────────────────────────────────────────────────────
+   예전엔 낮은 뭍이 물가에서 곧장 수 m 깊이로 꺼지고(물 밑 — coastSea 가 맡는다), 언덕이 물가에서 반은 모래 · 반은 비탈로 끝났다.
+   물가의 뭍 칸마다 등 뒤(COAST_BACK 칸 안)의 가장 높은 땅을 재 바닷가를 따라 고르게 편 뒤 둘로 가른다:
+     · **벼랑**(등 뒤가 coastCliffH() m 넘게 높다) — 물가에서 두 칸까지를 등 뒤 높이(0.96배)로 돋운다. 벽 전체가 물가의 한 칸
+       (6배 섬 10.6 m — 캣멀-롬 면에서 75~80°)에 선다. 맨 앞 칸은 바위. 벼랑 밑 물은 coastSea 가 깊게 판다.
+     · **해변** — 물에서 COAST_BEACH m 안의 뭍을 해변 비탈(0.3 m + 거리/16) 밑으로 깎는다(그 너머 언덕과는 녹여 잇는다) · 2 m 밑의
+       풀밭 · 덤불 · 숲 · 바위는 모래. 물 밑은 coastSea 가 완만한 모래 턱으로.
+   하천 칸과 그 둑은 안 건드린다(하천 판의 수위가 둑에 맞춰져 있다). 섬 배율을 키운 뒤 · coastRaise 다음 · 자원을 놓기 전에 부른다.
+   난수를 안 쓴다 — placeResources 의 난수 차례는 그대로다(놓이는 자리는 땅이 달라진 만큼 달라진다 · 판 13 만) */
+const COAST_BEACH=36, COAST_BACK=2;
+const COAST13={shore:0, cliff:0, raised:0, lowered:0};
+function coastCliffH(){ return Math.max(6,2.2*(P.ws||1)); }        // 벼랑으로 칠 등 뒤 높이(m) — 6배 섬 9.4 m · 1배 섬 6 m
+/* 섬 테두리에서 표고 0 밑으로 이어진 칸(바다) — 뭍 속의 웅덩이는 빠진다 */
+function seaConnected(){
+  const h=F.elev, sea=new Uint8Array(N*N), q=new Int32Array(N*N); let qe=0;
+  for(let k=0;k<N;k++) for(const i of [k,(N-1)*N+k,k*N,k*N+N-1]) if(h[i]<=0&&!sea[i]){ sea[i]=1; q[qe++]=i; }
+  for(let qs=0;qs<qe;qs++){ const i=q[qs], x=i%N;
+    if(x>0&&!sea[i-1]&&h[i-1]<=0){ sea[i-1]=1; q[qe++]=i-1; }
+    if(x<N-1&&!sea[i+1]&&h[i+1]<=0){ sea[i+1]=1; q[qe++]=i+1; }
+    if(i>=N&&!sea[i-N]&&h[i-N]<=0){ sea[i-N]=1; q[qe++]=i-N; }
+    if(i<N*N-N&&!sea[i+N]&&h[i+N]<=0){ sea[i+N]=1; q[qe++]=i+N; } }
+  return sea;
+}
+/* 모따기 거리(8방 · 앞뒤 두 번 쓸기 — 유클리드 거리의 8% 안) — 씨앗 칸(isSrc)에서 지날 수 있는 칸(ok)만 따라 잰 거리(m)와 가장 가까운 씨앗(S) */
+function chamferDist(isSrc,ok){
+  const n=N*N, D=new Float32Array(n).fill(1e9), S=new Int32Array(n).fill(-1), a=CELL, d2=CELL*Math.SQRT2;
+  for(let i=0;i<n;i++) if(isSrc(i)){ D[i]=0; S[i]=i; }
+  const rx=(i,j,c)=>{ const v=D[j]+c; if(v<D[i]){ D[i]=v; S[i]=S[j]; } };
+  for(let it=0;it<2;it++){
+    for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=z*N+x; if(D[i]===0||!ok(i)) continue; rx(i,i-1,a); rx(i,i-N,a); rx(i,i-N-1,d2); rx(i,i-N+1,d2); }
+    for(let z=N-2;z>=1;z--) for(let x=N-2;x>=1;x--){ const i=z*N+x; if(D[i]===0||!ok(i)) continue; rx(i,i+1,a); rx(i,i+N,a); rx(i,i+N+1,d2); rx(i,i+N-1,d2); } }
+  return {D,S};
+}
+function coastShape(){
+  if((P.tv|0)<13) return;
+  const h=F.elev, b=F.biome, R=F.river, n=N*N, sea=seaConnected(), HC=coastCliffH(), K=COAST_BACK;
+  const nearR=i=>R[i]||R[i-1]||R[i+1]||R[i-N]||R[i+N];
+  /* ① 물가의 뭍 칸(바다에 닿는 칸) · 등 뒤 높이와 그 칸 */
+  const shore=new Uint8Array(n), back=new Float32Array(n), src=new Int32Array(n), list=[];
+  for(let z=K+2;z<N-K-2;z++) for(let x=K+2;x<N-K-2;x++){ const i=z*N+x;
+    if(h[i]<=0||nearR(i)||!(sea[i-1]||sea[i+1]||sea[i-N]||sea[i+N])) continue;
+    let m=h[i], mi=i; for(let dz=-K;dz<=K;dz++) for(let dx=-K;dx<=K;dx++){ const j=i+dz*N+dx; if(!R[j]&&h[j]>m){ m=h[j]; mi=j; } }
+    shore[i]=1; back[i]=m; src[i]=mi; list.push(i); }
+  /* ② 바닷가를 따라 고르게(물가 칸끼리 세 칸 안의 평균 · 두 번) — 한 칸씩 벼랑 · 해변이 번갈지 않게 */
+  let sm=back;
+  for(let pass=0;pass<2;pass++){ const o=new Float32Array(n);
+    for(const i of list){ let s=0, c=0; for(let dz=-3;dz<=3;dz++) for(let dx=-3;dx<=3;dx++){ const j=i+dz*N+dx; if(shore[j]){ s+=sm[j]; c++; } } o[i]=s/c; }
+    sm=o; }
+  const cliff=new Uint8Array(n); let nc=0;
+  for(const i of list) if(sm[i]>=HC){ cliff[i]=1; nc++; }
+  /* ③ 해변 — 가장 가까운 물가 칸이 해변인 뭍을 해변 비탈 밑으로(물가 칸 가운데는 물에서 반 칸) */
+  const SAND={}; for(const k of [B.MEADOW,B.SCRUB,B.BROADLEAF,B.CONIFER,B.BAMBOO,B.ROCK,B.SCREE]) SAND[k]=1;
+  const {D,S}=chamferDist(i=>shore[i]===1, i=>h[i]>0);
+  let lowered=0;
+  for(let i=0;i<n;i++){ const s=S[i]; if(s<0||cliff[s]||h[i]<=0||D[i]>=COAST_BEACH||nearR(i)) continue;
+    const d=D[i]+0.5*CELL, cap=0.3+d/16, w=1-smoothstep(COAST_BEACH*0.55,COAST_BEACH,D[i]);
+    if(h[i]>cap){ h[i]+=(cap-h[i])*w; lowered++; }
+    if(h[i]<2.0&&SAND[b[i]]) b[i]=B.BEACH; }
+  /* ④ 벼랑 — 물가에서 두 칸까지를 등 뒤 높이로(겹치면 높은 쪽) · 해변 물가 칸 · 하천 곁은 그대로. 돋운 칸은 등 뒤 칸의 바이옴, 맨 앞 칸은 바위 */
+  const lift=new Float32Array(n), from=new Int32Array(n).fill(-1);
+  for(const i of list){ if(!cliff[i]) continue; const T=Math.max(back[i],HC)*0.96;
+    for(let dz=-2;dz<=2;dz++) for(let dx=-2;dx<=2;dx++){ const j=i+dz*N+dx; if(h[j]<=0||nearR(j)||(shore[j]&&!cliff[j])) continue;
+      const t=T*(1-0.03*Math.max(Math.abs(dx),Math.abs(dz))); if(t>lift[j]){ lift[j]=t; from[j]=src[i]; } } }
+  let raised=0;
+  for(let i=0;i<n;i++) if(lift[i]>0&&lift[i]>h[i]){ h[i]=lift[i]; if(from[i]>=0&&b[from[i]]!==B.BEACH) b[i]=b[from[i]]; else if(b[i]===B.BEACH||b[i]===B.DUNE) b[i]=B.MEADOW; raised++; }
+  for(const i of list) if(cliff[i]) b[i]=B.ROCK;
+  COAST13.shore=list.length; COAST13.cliff=nc; COAST13.raised=raised; COAST13.lowered=lowered;
+  computeSlope();
+}
+/* 지형 판 13 — 물 밑 물가(shapeSeabed 끝에서). 모래 해변 앞은 **완만한 모래 턱**: 딘의 평형 단면 깊이 = A·x^(2/3)(A 0.12 — 고운 모래 ·
+   물가에서 30 m 1.2 m · 100 m 2.6 m · 256 m 4.8 m)이 턱 너비 L(150 + 25 × 배율 m — 6배 섬 256 m)까지 이어지다 마지막 70 m 에서 그 너머의
+   바다 밑(모래톱 · 등성이 · 암벽 · 골 · 갈라진 틈)에 녹아든다 — 예전엔 물가 두 칸 안에서 3 → 10 m 로 꺼졌다(암벽 턱이 수심 2~5 m 에 있었다).
+   턱보다 깊은 데만 돋운다(얕은 모래톱은 그대로). **바다 벼랑 밑은 곧장 깊다** — 벼랑 발치 깊이 배율 × 1.1~1.6 m(6배 섬 4.7~6.8 m) ·
+   바깥으로 1:5 · 30~70 m 에서 원래 바닥에 녹아든다. 벼랑이냐는 가장 가까운 뭍 칸이 coastCliffH 의 0.6 배보다 높으냐(coastShape 가 벼랑 칸을
+   그 높이로 돋워 두었다 · 바닷가 굴 앞 모래턱은 낮아 해변이다). 하천 칸은 안 건드린다(물길이 바다로 이어진다) */
+function coastSea(seed){
+  const h=F.elev, n=N*N, HC=coastCliffH(), WS=P.ws||1, L=150+25*WS, nz=makePerlin((seed^0x13c0a5)>>>0), R=F.river;
+  const {D,S}=chamferDist(i=>h[i]>0, i=>h[i]<=0);
+  for(let i=0;i<n;i++){ const e=h[i], s=S[i]; if(e>0||s<0||R[i]) continue;
+    const x=Math.max(0,D[i]-0.5*CELL);
+    if(h[s]>=HC*0.6){
+      if(x>=70) continue;
+      const gx=(i%N-N/2)*CELL, gz=((i/N|0)-N/2)*CELL, dc=WS*(1.1+0.5*(nz(gx/60,gz/60)*0.5+0.5)), z=-(dc+x*0.2);
+      if(z<e) h[i]=z+(e-z)*smoothstep(30,70,x);
+    }else{
+      if(x>=L) continue;
+      const z=-0.12*Math.pow(x,2/3)-0.15;
+      if(z>e) h[i]=z+(e-z)*smoothstep(L-70,L,x);
+    }
+  }
+  /* 바다 칸의 바이옴(연안 · 심해)은 바닥을 고치기 전에 정해졌다 — 돋운 모래 턱이 '심해' 로 남아 바닥이 검게 칠해졌다. 지금 깊이로 다시 가른다
+     (classify 와 같은 문턱 −12 m — 그때는 칸 2.5 m 의 높이였으니 배율을 곱한다) */
+  const b=F.biome; for(let i=0;i<n;i++) if(h[i]<=0&&(b[i]===B.DEEP||b[i]===B.SHELF)) b[i]=h[i]<-12*WS?B.DEEP:B.SHELF;
+}
 /* ============================================================================
    8) 자원 배치 — 지질 규칙
    ========================================================================== */
@@ -653,10 +748,10 @@ function caveSites10(seed){
     c.ore=n;
   }
   oreToCaves(rnd);
-  if((P.tv|0)>=13) caveVeins(seed);                       // 지형 판 13 — 굴 광맥(굴 종류마다 몰린 광종 · 깊은 방은 풍부한 광맥 · 자철석) · 제 난수
+  if((P.tv|0)>=14) caveVeins(seed);                       // 지형 판 14 — 굴 광맥(굴 종류마다 몰린 광종 · 깊은 방은 풍부한 광맥 · 자철석) · 제 난수
   caveOreRelax();
   cv10OreFix();
-  if((P.tv|0)>=13) caveVeinsDeep();
+  if((P.tv|0)>=14) caveVeinsDeep();
   CV10.ore=cv10OreCheck();                                // 놓은 직후 검사(굴 광석 수 · 어긋난 수 — 시험용)
   PROPS=PROPS.filter(p=>p.cave||!caveAt(p.x,p.z,4.4));   // 겉이 뚫리는 데 둘레의 나무·바위만 치운다(그 밖의 땅 위는 서도 된다)
   surfaceRocks();
@@ -678,7 +773,7 @@ function oreToCaves(rnd){
       p.y=heightAt(p.x,p.z); p.s=Math.min(p.s,0.95); p.cave=1; best.cave.ore=(best.cave.ore|0)+1; }
   }
 }
-/* ── 굴 광맥(지형 판 13 · 사용자 결정 2026-11-11 '동굴만의 이점 — 나중 문명(특히 무기)에 드는 광물 · 지금 희귀한 광물을 많이') ──────────
+/* ── 굴 광맥(지형 판 14 · 사용자 결정 2026-11-11 '동굴만의 이점 — 나중 문명(특히 무기)에 드는 광물 · 지금 희귀한 광물을 많이') ──────────
    판 10 굴마다 그 굴에 이미 든 광석 수만큼(판 11 이상은 그 절반 — plOres 가 절반쯤을 땅속 방으로 옮기므로 · 적어도 방마다 넷) **새 광석 소품을 PROPS 끝에 더한다** — 굴 안 광석이 두 배가 된다.
    광종은 굴 종류마다 몰려 있다(CAVE_VEIN 무게): 석회암 굴 — 방연석(납 · 탄두) · 섬아연석(황동 탄피) · 자철석(강철) · 석탄 /
    용암굴 — 유황(화약) · 진사(뇌관 수은) · 자철석 / 바위틈 굴 — 석석 · 공작석 · 자철석 / 바위그늘 — 석탄 · 자철석.
@@ -1052,10 +1147,13 @@ function clearLanding(L){
    ========================================================================== */
 function shapeSeabed(seed){
   const a=makePerlin(seed^0x51ed270b), b=makePerlin(seed^0x2f0b4a13), c=makePerlin(seed^0x7a3d91c5), h=F.elev;
+  /* 지형 판 13 — 해변 앞 모래 턱(coastSea) 안에서는 기복을 잦아들게 한다(턱 너비의 절반부터) — 물가 몇 m 앞에 등성이 · 암벽이 서지 않게 */
+  const v13=(P.tv|0)>=13, CS=v13?chamferDist(i=>h[i]>0,i=>h[i]<=0):null, HC6=coastCliffH()*0.6, SL=150+25*(P.ws||1);
   for(let z=0;z<N;z++) for(let x=0;x<N;x++){
     const i=IDX(x,z), e=h[i];
     if(e>-1.2) continue;
-    const k=clamp((-1.2-e)/3.0,0,1), wx=x*CELL, wz=z*CELL;
+    let k=clamp((-1.2-e)/3.0,0,1); const wx=x*CELL, wz=z*CELL;
+    if(v13){ const s=CS.S[i]; if(s>=0&&h[s]<HC6) k*=smoothstep(SL*0.5,SL,CS.D[i]); }
     let d=a(wx/90,wz/90)*1.6;                                   // ① 모래톱
     d+=Math.pow(1-Math.abs(b(wx/55,wz/55)),3)*4.6-1.0;          // ② 바위 등성이
     d-=Math.pow(1-Math.abs(c(wx/140,wz/140)),6)*5.5;            // ③ 골
@@ -1067,6 +1165,7 @@ function shapeSeabed(seed){
     h[i]=Math.min(e+d*k,-0.9);
   }
   if((P.tv|0)>=4) seaTrenches(seed);
+  if(v13) coastSea(seed);
 }
 /* ── 바다 밑의 갈라진 틈과 해구(지형 판 4 · 사용자 요청) ─────────────────────────────
    피오르·골짜기를 판 것과 같은 도장으로 **바다 밑을 판다** — 물 밑 칸만, 더 깊게만 고친다(뭍과 해안선은 그대로).

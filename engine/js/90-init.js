@@ -437,6 +437,7 @@ async function generateWorld(){
                                     document.getElementById('mSpan').textContent=Math.round(WORLD)+' m';
                                     await breathe(); if((P.tv|0)>=5) biomeSlopes();   // 바이옴마다 비탈을 다스린다(지형 판 5 · 10-worldgen.js)
                                     coastRaise();                            // 바닷가는 바다 쪽으로 기운다(매끈한 땅 P.sm · 10-worldgen.js)
+                                    coastShape();                            // 바닷가는 모래 해변이거나 바다 벼랑(지형 판 13 · 10-worldgen.js)
                                     await breathe(); fallsSites();           // 폭포 자리 — 하천 수면이 4 m 넘게 떨어지는 데(36-falls.js · 지형 판 5)
                                     await breathe(); templeLandSite(seed);   // 섬 한가운데의 옛 신전 — 터를 다진다(97-temples.js · 지형 판 8)
                                     await breathe(); geoLandforms(seed);    // 큰 지형 모형 — 산맥 · 협곡 · 시스택(매끈한 땅 P.sm · 37-geo-meshes.js)
@@ -459,7 +460,6 @@ async function generateWorld(){
                                     await breathe(); underBuild();                                // 수직굴의 구멍·밧줄·굴뚝 · 땅속 그리기 묶음(96-underworld.js)
                                     await floraFarBuildA(); await breathe(); updateFlora(true);                           // 군락의 나무·덤불을 사람 둘레에 깐다
                                     await breathe(); tlitBuild();                                 // 섬 크기의 빛 — 산 그림자·하늘 트임·숲 덮임(41-terrain-light.js)
-                                    await breathe(); foamReset();                                 // 물가의 사면체 거품 — 새 섬의 표고를 C 쪽에 비춘다(96-foam.js)
                                     await breathe(); wildReset();                                 // 새·둥지·벌집·벌레(97-wildlife.js)
                                     await breathe(); seaReset(seed);                              // 바다 — 주운 자리·물고기를 비우고 새 섬의 산호밭을 깐다
                                     await breathe(); LIGHT.refresh(); LIGHT.live=true;   // 다 지은 섬에 배역을 한 번에 · 이제부터 바뀌면 그림자를 다시

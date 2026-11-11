@@ -15,7 +15,7 @@ function tags(){
   for(const t of ROCK_TILES) for(const k in t) if(t[k]&&t[k].isObject3D) tag(t[k],'바위 칸');
   for(const m of CAVE_MESH) tag(m,'동굴'); for(const m of COAST.meshes) tag(m,'바닷가'); for(const m of FALLS.meshes) tag(m,'폭포');
   for(const m of GIANT.meshes) tag(m,'노거수'); tag(GIANT.near,'노거수'); tag(GIANT.far,'노거수');
-  tag(FOAM.mesh,'거품'); tag(FOAM.sheet,'거품'); tag(shipMesh,'보급선');
+  tag(shipMesh,'보급선');
   try{ for(const k in FLORA.m){ const v=FLORA.m[k]; (Array.isArray(v)?v:[v]).forEach(m=>tag(m,'군락 식생')); } }catch(e){}
   return L;
 }

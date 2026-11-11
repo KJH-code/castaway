@@ -252,18 +252,22 @@ function chopDent(p){
     g.setAttribute('position',new THREE.Float32BufferAttribute([...A.attributes.position.array,...Bg.attributes.position.array],3));
     g.setAttribute('normal',new THREE.Float32BufferAttribute([...A.attributes.normal.array,...Bg.attributes.normal.array],3));
     DENT.im=new THREE.InstancedMesh(g,new THREE.MeshLambertMaterial({color:0xdcc196}),DENT.max); DENT.im.count=0; DENT.im.frustumCulled=false; DENT.im.userData.lightRole='recv'; scene.add(DENT.im); }
-  const r=(p.k==='oak'?0.46:0.40)*p.s, dx=PL.pos.x-p.x, dz=PL.pos.z-p.z, L=Math.hypot(dx,dz)||1, ux=dx/L, uz=dz/L;
-  const y=clamp(PL.pos.y+EYE-0.55,p.y+0.4,p.y+(p.k==='oak'?2.2:3.0)*p.s);
-  let d=DENT.list.find(q=>q.p===p&&Math.hypot(q.ux-ux,q.uz-uz)<0.35&&Math.abs(q.y-y)<0.3);
+  const r=dentR(p); if(!(r>0)) return;
+  const dx=PL.pos.x-p.x, dz=PL.pos.z-p.z, L=Math.hypot(dx,dz)||1, ux=dx/L, uz=dz/L;
+  const y=clamp(PL.pos.y+EYE-0.55,p.y+0.4,p.y+(p.tk?1.6:p.k==='oak'?2.2:3.0)*p.s);
+  const same=q=>q.p===p||(p.tk&&q.p.key===p.key);                   // 숲의 나무는 딸 것 목록이 다시 지어지면 새 물체 — 열쇠로 같은 그루를 안다
+  let d=DENT.list.find(q=>same(q)&&Math.hypot(q.ux-ux,q.uz-uz)<0.35&&Math.abs(q.y-y)<0.3);
   if(d){ d.k=Math.min(1.8,d.k+0.18); }
-  else{ if(DENT.list.filter(q=>q.p===p).length>=5) return; d={p,ux,uz,y,k:1,j:(Math.random()-0.5)*0.25}; DENT.list.push(d); if(DENT.list.length>DENT.max) DENT.list.shift(); }
+  else{ if(DENT.list.filter(same).length>=5) return; d={p,ux,uz,y,k:1,j:(Math.random()-0.5)*0.25}; DENT.list.push(d); if(DENT.list.length>DENT.max) DENT.list.shift(); }
   dentFill();
 }
+/* 자국이 앉는 줄기 반지름 — 참나무 · 전나무 소품(p.k) · 숲의 나무(p.tk — 95-flora.js FLORA_FELL 의 tr) */
+const dentR=p=>p.tk?((FLORA_FELL[p.tk]||{}).tr||0)*(p.s||1):(p.k==='oak'?0.46:0.40)*p.s;
 const _dtM2=new THREE.Matrix4(), _dtQ2=new THREE.Quaternion(), _dtE2=new THREE.Euler(), _dtV2=new THREE.Vector3(), _dtS2=new THREE.Vector3();
 function dentFill(){
   const im=DENT.im; if(!im) return;
-  DENT.list=DENT.list.filter(d=>!d.p.felled&&Math.hypot(d.p.x-PL.pos.x,d.p.z-PL.pos.z)<80);
-  let n=0; for(const d of DENT.list){ const r=(d.p.k==='oak'?0.46:0.40)*d.p.s;
+  DENT.list=DENT.list.filter(d=>!d.p.felled&&!(d.p.tk&&FLORA.fell.has(d.p.key))&&Math.hypot(d.p.x-PL.pos.x,d.p.z-PL.pos.z)<80);
+  let n=0; for(const d of DENT.list){ const r=dentR(d.p);
     _dtV2.set(d.p.x+d.ux*r*0.93,d.y,d.p.z+d.uz*r*0.93); _dtE2.set(0,Math.atan2(d.ux,d.uz),d.j); _dtQ2.setFromEuler(_dtE2); _dtS2.set(d.k,d.k,d.k);
     _dtM2.compose(_dtV2,_dtQ2,_dtS2); im.setMatrixAt(n++,_dtM2); }
   im.count=n; im.instanceMatrix.needsUpdate=true; im.visible=n>0;
@@ -807,10 +811,12 @@ function updateWeapon(dt){
   else if(ATK.swing>0) ATK.swing=Math.max(0,ATK.swing-dt);
   let style=W.swing;
   const drilling=!!W.drill&&HARV.active;
-  const tree=HARV.active&&HARV.near&&(HARV.near.k==='oak'||HARV.near.k==='fir');
+  const fchop=typeof GATHER!=='undefined'&&GATHER.on&&GATHER.chop&&W.axe?GATHER.chop:null;   // 숲의 나무 베기(95-flora.js floraFell)
+  const tree=fchop||HARV.active&&HARV.near&&(HARV.near.k==='oak'||HARV.near.k==='fir');
+  const working=(HARV.active||fchop)&&(W.axe||W.pick)&&!W.drill;
   if(!W.weapon){                                // 도끼·곡괭이는 캐는 동안 내리친다 — 드릴은 아래에서 따로
     style=W.axe&&tree?'chop':'smash';          // 도끼로 나무는 옆으로 친다
-    if(HARV.active&&(W.axe||W.pick)&&!W.drill){ const p0=(HOLD_T*1.3)%1; HOLD_T+=dt; p=(HOLD_T*1.3)%1; if(style==='chop'&&p0<0.5&&p>=0.5) chopDent(HARV.near); } else { HOLD_T=0; p=0; }
+    if(working){ const p0=(HOLD_T*1.3)%1; HOLD_T+=dt; p=(HOLD_T*1.3)%1; if(style==='chop'&&p0<0.5&&p>=0.5){ chopDent(fchop||HARV.near); if(fchop) sfx('chop'); } } else { HOLD_T=0; p=0; }
   }
   const cyc=Math.floor(HOLD_T*1.3);
   const vv=W.weapon?(ATK.v|0):style==='chop'?((((cyc+1)*2654435761)>>>0)%4===0?1:0):(cyc&1);   // 이어 치기의 결 · 도끼질은 넷에 하나꼴로 되받아 치기 · 곡괭이는 번갈아 곧게 · 비스듬히
@@ -828,7 +834,7 @@ function updateWeapon(dt){
     if(plain&&useDown&&!HA.down&&!uiOpen()&&!BUILD.on) HA.poke=1; HA.down=useDown;
     HA.poke=Math.max(0,HA.poke-dt/0.34); const kp=Math.sin((1-HA.poke)*Math.PI)*(HA.poke>0?1:0);
     o.pz-=0.16*kp; o.py+=0.03*kp; o.rx-=0.30*kp;
-    if(typeof GATHER!=='undefined'&&GATHER.on){ const kg=0.5+0.5*Math.sin(t*7.5);        // 채집 — 손을 뻗어 집는다
+    if(typeof GATHER!=='undefined'&&GATHER.on&&!fchop){ const kg=0.5+0.5*Math.sin(t*7.5);        // 채집 — 손을 뻗어 집는다(나무를 베는 동안은 도끼질)
       o.py-=0.10+0.05*kg; o.pz-=0.10*kg; o.rx-=0.35+0.15*kg; o.px-=0.04; }
     if(W.light||rs0(weaponFx)){ o.rz+=Math.sin(t*2.3)*0.012; o.rx+=Math.sin(t*1.9+1.1)*0.010; } }   // 횃불 · 등잔 · 그물 — 들고 선 것이 살짝 흔들린다
   if(ATK.hitStop>0){ const t=performance.now()*0.001; o.px+=Math.sin(t*173)*0.006; o.py+=Math.sin(t*151)*0.006; }   // 박힌 날이 떤다
@@ -854,4 +860,23 @@ function updateWeapon(dt){
   }
   weaponFx.position.set(H.x+o.px, H.y+o.py, H.z+o.pz);
   weaponFx.rotation.set(o.rx,o.ry,o.rz);
+  bladeTurn(w,W,style,p,vv,working,dt);
+}
+/* **날이 치는 쪽을 본다**(사용자 요청 2026-11-11) — 도끼 · 곡괭이의 날은 자루의 국소 +x 쪽에 붙어 있다. 휘두르는 결마다 머리가 움직이는 쪽이 다른데
+   (rz 가 늘면 −x 로 · 줄면 +x 로 · rx 가 줄면 −z 로 — swingPose 의 축) 예전엔 날을 늘 +x 에 둬서 옆으로 베기(넷에 셋)는 등(뒷머리)으로 쳤고
+   내려치기는 날이 옆을 봤다. 자루를 축으로 머리를 돌려(안의 메시 rotation.y — +x 가 (cos β, 0, −sin β) 로) 그 결의 나아가는 쪽에 날을 둔다.
+   결마다 β — chop [앞으로 베기 π · 되받아 0] · slash [0 · 0 · 가로 쓸기 π] · smash [π/2 · π/2]. 준비 동작 동안 돌리고 따라가기 동안 되돌린다.
+   쉴 때 — 연장 도끼는 π(앞으로 베기 그대로 · 날이 안쪽) · 캐는 동안은 그 결의 첫 β(곡괭이는 π/2 로 계속 · 매 번 비틀지 않게) · 그 밖은 0 */
+const BLADE_B={chop:[Math.PI,0], slash:[0,0,Math.PI], smash:[Math.PI/2,Math.PI/2]};
+const BLADE={b:0, id:null};
+function bladeTurn(w,W,style,p,vv,working,dt){
+  const m=weaponFx&&weaponFx.children[0]; if(!m) return;
+  if(!(W.axe||W.pick||/axe/.test(w.id))||W.drill||weaponFx.userData.rest){ if(m.rotation.y!==0) m.rotation.y=0; return; }
+  const BL=BLADE_B[style], base=working&&BL?BL[0]:W.axe&&!W.weapon?Math.PI:0;
+  if(BLADE.id!==w.id){ BLADE.id=w.id; BLADE.b=base; }
+  let b=base;
+  if(BL&&p>0&&p<1){ const K=(WKEY[style]||WKEY.slash)[(vv|0)%(WKEY[style]||WKEY.slash).length], kb=BL[(vv|0)%BL.length], k1=K[1][0], k3=K[3][0];
+    b=p<k1?wlerp(BLADE.b,kb,wease(p/k1)):p>k3?wlerp(kb,base,wease((p-k3)/(1-k3))):kb; }
+  else{ b=BLADE.b+(base-BLADE.b)*Math.min(1,dt*14); BLADE.b=b; }
+  m.rotation.y=b;
 }

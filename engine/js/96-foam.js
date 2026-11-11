@@ -1,282 +1,68 @@
 /* 96-foam.js — CASTAWAY
-   물가의 거품 — 파도가 밀려와 부서지는 자리에 서는 **사면체 조각들**. 사람 둘레에만 깐다
+   바다 거품의 결 — 물 셰이더(20-terrain.js waterMat)가 수면에 거품을 그릴 때 읽는 텍스처 하나(`WATER_U.uFoam`).
    (island_world.html 이 이 차례로 읽는다 — 차례와 묶음은 CODEMAP.md 에 있다) */
 "use strict";
 
 /* ============================================================================
-   물가의 거품
+   바다 거품(2026-11-11 사용자 요청 — '거품이 뭍으로 올라온다 · 사면체 거품 메시를 없애고 진짜 거품처럼')
    ----------------------------------------------------------------------------
-   예전 거품은 땅과 물 셰이더가 칠하는 납작한 무늬뿐이었다(사용자 요청: 부서지는 파도의 거품을 사면체 메시로, 사람 가까이에만).
-   이제 물가를 따라 작은 흰 사면체들이 선다. 파도 한 번마다:
-     ① 물가 바깥의 얕은 물에서 부서지는 물결이 조각으로 일어 뭍 쪽으로 밀려오고
-     ② 물머리를 타고 구르며 올라오는 동안 튀어 오르고(가파른 물가일수록 높이)
-     ③ 물이 빠지면 젖은 모래에 남아 옆으로 흩어지며 작아진다(부서진다). 조각 하나하나도 맺혔다 꺼지기를 되풀이한다.
-   조각은 **진짜 수면**을 따른다 — 물 셰이더가 바닷물 판을 오르내리게 하는 긴 파도 셋(`wv(0~2)`)을 같은 식·같은 시계(`uShT`)로 풀어
-   물머리가 지금 어디까지 올라왔는지 센다. 물 셰이더의 파도 수를 바꾸면 여기 셰이더의 수도 같이 바꿀 것.
+   예전 거품은 물가를 따라 깐 메시 조각이었다(사람 둘레 44 m 의 물가를 8 m 마다 훑어 찾고(자바스크립트 · C 두 판) · 조각마다 둥근 방울 뭉치
+   + 그 밑의 레이스 판). 방울은 20면 · 8면체라 세모로 보였고, 조각은 땅 높이를 어림해 물머리 위아래로 움직여 모래 위로 올라갔다.
+   이제 거품은 **수면의 일부**다 — 물 셰이더가 물 판을 그리는 자리에서만 칠한다. 물 판은 바닥이 수면보다 낮은 데만 보이므로 거품이
+   뭍에 설 수 없다(뭍 속의 낮은 들은 seaReachMask 가 판째 끈다). 무엇을 어디에 그리나는 waterMat 의 '거품' 대목:
+     ① 물가 — 물머리에 붙은 흰 띠 · 물이 빠질 때 성긴 레이스와 바다 쪽으로 끌리는 줄
+     ② 부서지는 물결 — 수심 1.7 m 안에서 뭍 쪽으로 밀려오는 흰 띠(앞머리가 짙고 뒤로 성겨진다)
+     ③ 지나간 자리의 성긴 레이스
+   셋 다 '덮는 몫'(0~1)만 정하고, 모양은 이 텍스처를 그 몫으로 문턱 지어 낸다.
 
-   **무엇을 어느 말로 하나 — 빨라지는 것만**(사용자 요청). 잰 값은 `foamBench()` 가 낸다(아래 표는 Apple M1 · 2배 섬의 모래 해변):
-     · 조각의 움직임(자리 · 구르기 · 크기)은 **GLSL(정점 셰이더)** — 조각마다 '물가의 한 점 · 뭍 쪽 방향 · 비탈 · 씨앗' 만 적어 두면
-       GPU 가 시간으로 푼다. 자바스크립트로 프레임마다 행렬을 다시 짜 올리는 것(조각 수천 개 × 60번/초)이 통째로 없다 — CPU 0 ms.
-     · 물가 찾기(사람 둘레 55 m 의 격자를 훑어 물가의 점을 뽑는 일 — 8 m 걸을 때마다 한 번)는 **C(WebAssembly)** 와
-       **자바스크립트** 두 판을 다 짜서 견줬다. 빠른 쪽을 쓴다(`FOAM.useC`) — 결과는 README 가 아니라 `foamBench()` 로 다시 잴 것.
-     · 그 밖(조각에 씨앗 나눠 주기 · 버퍼에 담기)은 자바스크립트 — 한 번에 0.1 ms 안쪽이라 옮겨서 얻을 것이 없다.
+   **결 텍스처** — 256×256 · 이어 붙는다(되풀이 무늬). 실제 바다 거품은 방울 막이 셋씩 만나 굽은 다각형 칸을 이룬 그물이다(플라토 법칙):
+   큰 방울이 먼저 터져 칸 속이 비고, 막의 그물이 남고, 막이 만나는 마디가 가장 오래 남는다. 그래서 값을
+     굵은 · 가운데 · 잔 방울의 막(보로노이 F2 − F1 이 작은 데 — 두께가 잡음으로 들쭉날쭉) × 거품 덩이(큰 잡음) + 덩이 − 큰 칸의 속
+   으로 짓고 **순위로 고르게 편다**(값 v 위가 꼭 1 − v 만큼) — 셰이더는 '덮는 몫 c' 를 그대로 문턱 1 − c 로 쓴다:
+   c 가 크면(갓 부서진 거품) 거의 다 희고 큰 방울 자리만 뚫리며, 줄어들수록 그물 → 마디와 굵은 막 조각 → 사라짐 차례로 꺼진다.
+     R · G — 칸 크기가 다른 두 벌(칸 6 · 13 · 29 / 5 · 11 · 23 개/장) · B — 고르게 편 큰 얼룩(물결이 부서지는 구간 · 거품이 많고 적은 데)
+   잰 값(Apple M1): 짓는 데 0.2 초 남짓 — 불러올 때 한 번. 메시 · 그리기 호출 · 프레임마다의 CPU 일이 없다(예전: 조각 최대 3,600 + 판 3,600 ·
+   물가 찾기 8 m 마다)
    ========================================================================== */
-const FOAM={mesh:null, geo:null, cap:3600, K:6, KS:2, KB:1, R:44, step:0.75, level:0.03, cx:1e9, cz:1e9, n:0, anchors:0,
-            useC:true, synced:false, ST:9, out:new Float32Array(2048*9),
-            U:{uFT:{value:0}, uFP:WATER_U.uFP, uFR:WATER_U.uFR}};   // uFP·uFR 은 물 셰이더와 같이 쓴다 — 조각이 서는 데서는 칠한 거품이 옅어진다
-
-/* **입체 거품 뭉치**(사용자 요청 — 둥근 판 거품이 이상하다 · 더 입체로). 사면체 뭉치는 세모로 보여 걷어졌었다(#29) — 이제
-   **거품 방울**이 엉긴 뭉치다: 큰 방울 하나(20면) 둘레에 가운데 방울 셋(20면)이 반쯤 묻혀 붙고, 잔 방울 넷(8면)이 그 겉에 돋는다.
-   법선은 방울 가운데에서 바깥으로(둥글게 보인다). 짜임은 사면체 뭉치와 같다 — 방울마다 aSub(붙은 자리 · 박자) · aLv(대) */
-function foamBubbles(){
-  const P=[], Nn=[], S=[], L=[], rnd=mulberry32(0xb0b1);
-  const ball=(cx,cy,cz,r,detail,lv,ax,ay,az)=>{ const g=detail?new THREE.IcosahedronGeometry(r,0):new THREE.OctahedronGeometry(r,0), p=g.attributes.position, ph=rnd()*6.283;
-    for(let i=0;i<p.count;i++){ const x=p.getX(i), y=p.getY(i), z=p.getZ(i), l=Math.hypot(x,y,z)||1;
-      P.push(cx+x,cy+y*0.85,cz+z); Nn.push(x/l,y/l,z/l); S.push(ax,ay,az,ph); L.push(lv); }
-    g.dispose(); };
-  ball(0,0,0,0.20,1,0,0,0,0);                                            // 큰 방울
-  const mids=[];
-  for(let k=0;k<3;k++){ const a=k/3*6.283+rnd()*0.8, e=(rnd()-0.3)*0.9, r=0.10+rnd()*0.06, d=0.20+r*0.35;
-    const c=[Math.cos(a)*Math.cos(e)*d,Math.sin(e)*d*0.8,Math.sin(a)*Math.cos(e)*d]; mids.push([c,r]); ball(c[0],c[1],c[2],r,1,1,c[0],c[1],c[2]); }
-  for(let k=0;k<4;k++){ const [m,mr]=mids[k%3], a=rnd()*6.283, e=rnd()*1.2-0.2, r=0.035+rnd()*0.035, d=mr+r*0.4;
-    const c=[m[0]+Math.cos(a)*Math.cos(e)*d,m[1]+Math.sin(e)*d,m[2]+Math.sin(a)*Math.cos(e)*d]; ball(c[0],c[1],c[2],r,0,2,c[0],c[1],c[2]); }
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));
-  g.setAttribute('aSub',new THREE.Float32BufferAttribute(S,4)); g.setAttribute('aLv',new THREE.Float32BufferAttribute(L,1));
-  FOAM.tets=P.length/3/3;
-  return g;
-}
-/* 거품 판의 무늬 — 크고 작은 거품 고리가 엉긴 레이스(캔버스 · 바깥으로 갈수록 옅다) */
-/* 거품 레이스 그림 — **실제 바다 거품의 그물 무늬**(2026-11-04 사용자 지적: 거품이 동그라미라 이상하다 · 실제 거품을 보고 만들 것).
-   물가의 거품은 거품 방울 덩이가 터지며 남은 **얇은 막의 그물**이다 — 방울 벽이 셋씩 만나 굽은 다각형 칸을 이루고(플라토 법칙),
-   큰 방울이 먼저 터져 칸 속은 비고 벽만 흰 줄로 남는다. 그래서 동그라미가 아니라 보로노이 칸의 테두리(F2−F1 이 작은 데)로 긋는다:
-   굵은 칸(거품 덩이 사이 벽) + 잔 칸(그 안의 작은 방울) · 벽이 만나는 마디는 굵게 · 잡음이 높은 데는 아직 안 터진 하얀 덩이 ·
-   가장자리는 녹인다. 실시간 바다 거품을 보로노이/워리 무늬로 그리는 방식(Worley 1996 — 세포 무늬)을 따랐다 */
-function foamLaceTex(){
-  const W=256, c=document.createElement('canvas'); c.width=c.height=W; const g=c.getContext('2d'), rnd=mulberry32(0x1ace);
-  const img=g.createImageData(W,W), d=img.data;
-  const pts=(n)=>{ const P=new Float32Array(n*n*2); for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const k=(j*n+i)*2; P[k]=(i+0.1+0.8*rnd())/n; P[k+1]=(j+0.1+0.8*rnd())/n; } return P; };
-  const A=18, Bn=42, PA=pts(A), PB=pts(Bn);
-  const wor=(P,n,u,v)=>{ const ci=Math.floor(u*n), cj=Math.floor(v*n); let f1=9, f2=9;
-    for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ const ii=ci+di, jj=cj+dj; if(ii<0||jj<0||ii>=n||jj>=n) continue;
-      const k=(jj*n+ii)*2, dx=P[k]-u, dy=P[k+1]-v, dd=dx*dx+dy*dy; if(dd<f1){ f2=f1; f1=dd; } else if(dd<f2) f2=dd; }
-    return [Math.sqrt(f1)*n, Math.sqrt(f2)*n]; };
-  const vn=(x,y,s)=>{ const X=Math.floor(x*s), Y=Math.floor(y*s), fx=x*s-X, fy=y*s-Y, h=(a,b)=>{ let q=Math.imul(a,374761393)+Math.imul(b,668265263)+0x1ace|0; q=Math.imul(q^(q>>>13),1274126177); return ((q^(q>>>16))>>>0)/4294967296; };
+function foamTex(){
+  const W=256, n=W*W, rnd=mulberry32(0xf0a3);
+  const wrap=v=>v-Math.floor(v);
+  /* 방울 자리 — 격자 칸마다 0~3 개(칸 크기가 들쭉날쭉한 그물 · 고른 벌집이 아니게). 칸 k 마다 [개수, x0, y0, x1, y1, x2, y2] */
+  const pts=k=>{ const P=new Float32Array(k*k*7); for(let j=0;j<k;j++) for(let i=0;i<k;i++){ const o=(j*k+i)*7, r=rnd(), m=r<0.16?0:r<0.70?1:r<0.93?2:3;
+      P[o]=m; for(let q=0;q<m;q++){ P[o+1+q*2]=(i+0.04+0.92*rnd())/k; P[o+2+q*2]=(j+0.04+0.92*rnd())/k; } } return P; };
+  /* 이어 붙는 보로노이 — 가장 가까운 두 점까지의 거리(칸 크기 단위) · 빈 칸이 있어 두 칸 둘레까지 본다 */
+  const wor=(P,k,u,v,out)=>{ const ci=Math.floor(u*k), cj=Math.floor(v*k); let f1=9, f2=9;
+    for(let dj=-2;dj<=2;dj++){ let jj=cj+dj, oy=0; if(jj<0){ jj+=k; oy=-1; } else if(jj>=k){ jj-=k; oy=1; }
+      for(let di=-2;di<=2;di++){ let ii=ci+di, ox=0; if(ii<0){ ii+=k; ox=-1; } else if(ii>=k){ ii-=k; ox=1; }
+        const o=(jj*k+ii)*7, m=P[o];
+        for(let q=0;q<m;q++){ const dx=P[o+1+q*2]+ox-u, dy=P[o+2+q*2]+oy-v, dd=dx*dx+dy*dy; if(dd<f1){ f2=f1; f1=dd; } else if(dd<f2) f2=dd; } } }
+    out[0]=Math.sqrt(f1)*k; out[1]=Math.sqrt(f2)*k; };
+  /* 이어 붙는 값잡음(주기 p) */
+  const vn=(u,v,p,sd)=>{ const x=u*p, y=v*p, X=Math.floor(x), Y=Math.floor(y), fx=x-X, fy=y-Y;
+    const h=(a,b)=>{ a=((a%p)+p)%p; b=((b%p)+p)%p; let q=Math.imul(a,374761393)+Math.imul(b,668265263)+sd|0; q=Math.imul(q^(q>>>13),1274126177); return ((q^(q>>>16))>>>0)/4294967296; };
     const ux=fx*fx*(3-2*fx), uy=fy*fy*(3-2*fy); return (h(X,Y)*(1-ux)+h(X+1,Y)*ux)*(1-uy)+(h(X,Y+1)*(1-ux)+h(X+1,Y+1)*ux)*uy; };
+  const fbm=(u,v,sd)=>vn(u,v,4,sd)*0.5+vn(u,v,8,sd+7)*0.3+vn(u,v,16,sd+13)*0.2;
+  const big=(u,v,sd)=>vn(u,v,2,sd)*0.55+vn(u,v,4,sd+5)*0.30+vn(u,v,8,sd+9)*0.15;      // 거품 덩이(한 장에 둘 남짓)
   const ss=(a,b,x)=>{ const t=Math.min(1,Math.max(0,(x-a)/(b-a))); return t*t*(3-2*t); };
-  for(let y=0;y<W;y++) for(let x=0;x<W;x++){
-    const u=x/W, v=y/W, wu=u+(vn(u,v,6)-0.5)*0.035, wv=v+(vn(u+3.1,v,6)-0.5)*0.035;   // 벽이 곧지 않게 조금 비튼다
-    const [a1,a2]=wor(PA,A,wu,wv), [b1,b2]=wor(PB,Bn,wu,wv);
-    const nz=vn(u,v,5)*0.65+vn(u,v,13)*0.35;
-    const wA=0.05+0.10*nz, lineA=1-ss(0,wA,a2-a1), node=1-ss(0.10,0.30,a1<0.45?a2-a1+a1*0.3:9);
-    const lineB=(1-ss(0,0.09,b2-b1))*ss(0.25,0.55,nz);
-    const clump=ss(0.60,0.78,nz)*(0.55+0.45*ss(0.15,0.45,b1));                     // 아직 안 터진 하얀 덩이(잔 방울 사이만 조금 비친다)
-    const r=Math.hypot(u-0.5,v-0.5)/0.5, fade=1-ss(0.35,1.0,r);
-    const al=Math.min(1,Math.max(lineA*0.85+node*0.25,lineB*0.5,clump*0.8))*fade;
-    const o=(y*W+x)*4; d[o]=d[o+1]=d[o+2]=255; d[o+3]=Math.round(al*255); }
-  g.putImageData(img,0,0);
-  const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;
-}
-function foamInit(){
-  const base=foamBubbles(), g=new THREE.InstancedBufferGeometry();   // 거품 방울 뭉치
-  g.setAttribute('position',base.attributes.position); g.setAttribute('normal',base.attributes.normal); g.setAttribute('aSub',base.attributes.aSub); g.setAttribute('aLv',base.attributes.aLv);
-  /* 조각마다 — aA 물가의 점(x·z)과 뭍 쪽 방향(nx·nz) · aB 1/비탈 · 물가를 따라 비낀 거리 · 물머리보다 처지는 거리 · 크기
-                 aC 씨앗 · 버티는 몫(물이 빠질 때 얼마나 오래 남나) · 구르는 빠르기 · 튀는 높이 */
-  FOAM.aA=new THREE.InstancedBufferAttribute(new Float32Array(FOAM.cap*4),4);
-  FOAM.aB=new THREE.InstancedBufferAttribute(new Float32Array(FOAM.cap*4),4);
-  FOAM.aC=new THREE.InstancedBufferAttribute(new Float32Array(FOAM.cap*4),4);
-  /* aD — 물가의 생김새: 바다 쪽으로 바닥이 0.30 m 내려가는 거리 · 뭍 쪽으로 땅이 0.15 · 0.35 · 0.60 m 올라가는 거리(물가 찾기가 잰다).
-     비탈 하나로 곧게 어림하면 완만한 모래톱에서 물머리가 몇 m 씩 빗나갔다(위쪽 둔덕이 더 가파르다) */
-  FOAM.aD=new THREE.InstancedBufferAttribute(new Float32Array(FOAM.cap*4),4);
-  g.setAttribute('aA',FOAM.aA); g.setAttribute('aB',FOAM.aB); g.setAttribute('aC',FOAM.aC); g.setAttribute('aD',FOAM.aD);
-  g.instanceCount=0;
-  const mk=(m,sheet)=>{ m.onBeforeCompile=sh=>{
-    Object.assign(sh.uniforms,FOAM.U);
-    sh.vertexShader=(sheet?'#define FOAM_SHEET\n':'attribute vec4 aSub;\nattribute float aLv;\n')+'attribute vec4 aA;\nattribute vec4 aB;\nattribute vec4 aC;\nattribute vec4 aD;\nuniform float uFT;\nuniform vec3 uFP;\nuniform float uFR;\n'
-      +sh.vertexShader.replace('#include <begin_vertex>',`
-      /* **진짜 수면을 따른다** — 바닷물 판은 긴 파도 셋으로 오르내린다(20-terrain.js 물 셰이더의 wv(0~2)와 같은 수 · 같은 시계).
-         물가의 그 점에서 수면 높이(fsurf)와 오르내리는 빠르기(fdv)를 풀면, 물머리가 뭍으로 얼마나 올라왔나는 (수면 − 물가 높이) ÷ 비탈이다 */
-      float fsurf=0.0, fdv=0.0;
-      { float a0=0.10134*dot(vec2(0.9394,0.3429),aA.xy)-0.9971*uFT; fsurf+=0.30*sin(a0); fdv-=0.30*0.9971*cos(a0);
-        float a1=0.16982*dot(vec2(0.8525,-0.5227),aA.xy)-1.2907*uFT; fsurf+=0.20*sin(a1); fdv-=0.20*1.2907*cos(a1);
-        float a2=0.29920*dot(vec2(0.3624,0.9320),aA.xy)-1.7132*uFT; fsurf+=0.10*sin(a2); fdv-=0.10*1.7132*cos(a2); }
-      float frise=clamp(fdv*2.2,-1.0,1.0);                   // +1 밀려온다 · −1 빠진다
-      float fup=max(frise,0.0), fdn=max(-frise,0.0);
-      /* 물머리의 자리(물가의 점에서 뭍 쪽으로 몇 m)와 그 자리의 비탈 — 물가의 생김새(aD)를 따라 꺾은선으로 푼다 */
-      float fh=fsurf-0.03, fdF, fsl;
-      if(fh<=0.0){ fdF=-min(aD.x*min(-fh/0.30,2.2),24.0); fsl=0.30/max(aD.x,0.05); }
-      else if(fh<0.15){ fdF=aD.y*fh/0.15; fsl=0.15/max(aD.y,0.05); }
-      else if(fh<0.35){ fdF=mix(aD.y,aD.z,(fh-0.15)/0.20); fsl=0.20/max(aD.z-aD.y,0.05); }
-      else{ fdF=mix(aD.z,aD.w,min((fh-0.35)/0.25,1.3)); fsl=0.25/max(aD.w-aD.z,0.05); }
-      float fd, fy, fs, flat_=aB.y, fflat=1.0;
-      float fpop=fract(uFT*(0.35+0.5*aC.y)+aC.x*7.0);        // 조각 하나하나가 맺혔다 꺼지는 박자(거품이 터진다)
-      if(aB.z>=50.0){
-        /* 물가의 띠 — 물과 뭍이 만나는 금을 **늘** 덮는다(사용자 요청: 물과 땅의 경계가 거품으로 가려지게). 물머리에 붙어 같이
-           오르내리고, 납작하게 누워 조금씩 숨 쉬듯 커졌다 작아진다. 터지지 않는다 */
-        fd=fdF+(aB.z-100.0);
-        float fgy=fsurf+max(fd-fdF,0.0)*fsl;                 // 물머리보다 뭍 쪽이면 그만큼 땅이 높다
-        fy=fgy+aB.w*0.16;
-        fs=aB.w*(0.82+0.18*sin(uFT*(1.3+aC.y)+aC.x*40.0));
-        fflat=0.55;
-      }else if(aB.z>=0.0){
-        /* 물머리의 거품 — 밀려올 땐 물머리 바로 뒤를 타고 구르며 튀고, 빠질 땐 젖은 모래에 남아 옆으로 흩어지며 작아진다 */
-        fd=fdF-aB.z*frise;
-        float fgy=fsurf+max(fd-fdF,0.0)*fsl;                 // 그 자리의 땅 높이(물머리보다 뭍 쪽이면 그만큼 높다)
-        fy=fgy+aB.w*0.28+aC.w*fup*fup*(0.5+0.5*sin(uFT*5.0+aC.x*30.0));
-        fs=aB.w*(0.55+0.45*fup)*(1.0-0.5*fdn*aC.y)*pow(sin(3.14159*fpop),0.5);
-        flat_+=(aC.x-0.5)*1.4*fdn;
-      }else{
-        /* 부서지는 물결 — 물가 바깥(얕은 물)에서 뭍 쪽으로 밀려오며 커졌다가 물가에 닿아 스러진다 */
-        float fL=min(aD.x*1.6+1.0,8.0), fu=fract(uFT*0.10*(1.0+aC.y)+aC.x*3.0);
-        fd=fdF-fL*(1.0-fu)-0.2;
-        fy=fsurf+aB.w*0.30+0.10*sin(3.14159*fu);
-        fs=aB.w*pow(sin(3.14159*fu),0.7)*(0.55+0.45*fup);
-      }
-      fs*=1.0-smoothstep(uFR-12.0,uFR,distance(aA.xy,uFP.xz));                                       // 사람에게서 멀면 없다
-      vec3 fpos=vec3(aA.x+aA.z*fd-aA.w*flat_, fy, aA.y+aA.w*fd+aA.z*flat_);
-      /* 구르기 — 조각마다 다른 축으로 돈다(로드리게스 회전) */
-      vec3 fax=normalize(vec3(sin(aC.x*91.7),cos(aC.x*37.3),sin(aC.x*53.1)));
-      float fan=uFT*aC.z+aC.x*40.0, fc=cos(fan), fsn=sin(fan);
-      #ifdef FOAM_SHEET
-        /* 거품 판 — 조각 밑의 수면·젖은 모래에 누운 레이스. 조각보다 넓고 천천히 돈다 · 물에 반쯤 잠긴 높이 */
-        float fya=aC.x*40.0+uFT*0.15*(aC.x-0.5); vec2 fq=vec2(position.x*cos(fya)-position.z*sin(fya),position.x*sin(fya)+position.z*cos(fya))*fs*4.5;
-        vec3 transformed=vec3(fpos.x+fq.x, fy-aB.w*0.22+0.02, fpos.z+fq.y);
-      #else
-        /* 뭉치는 **한 덩어리**로 구른다(모서리로 이은 사슬이 안 끊어진다). 돋은 사면체(aLv 1·2)만 붙은 자리(aSub.xyz)를 축으로
-           숨 쉬듯 조금 커졌다 작아진다 — 대가 깊을수록 크게 */
-        vec3 fv=(aSub.xyz+(position-aSub.xyz)*(1.0+0.16*aLv*sin(uFT*2.3+aSub.w)))*fs;
-        vec3 frot=fv*fc+cross(fax,fv)*fsn+fax*dot(fax,fv)*(1.0-fc); frot.y*=fflat;
-        vec3 transformed=frot+fpos;
-      #endif`);
-  };
-  m.customProgramCacheKey=()=>sheet?'shorefoamsheet':'shorefoam'; return m; };
-  const m=mk(new THREE.MeshPhongMaterial({color:0xf3f7f5, emissive:0x2a2e30, specular:0x3a3a3a, shininess:30}),false);   // 둥근 방울 — 매끈한 명암 · 살짝 반짝인다
-  const mesh=new THREE.Mesh(g,m);
-  /* 거품 판 — 같은 조각 자료(aA~aD)를 나눠 쓰는 둘째 메시(판 하나 = 세모 둘) */
-  const pg=new THREE.InstancedBufferGeometry(), pl=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
-  pg.setAttribute('position',pl.attributes.position); pg.setAttribute('normal',pl.attributes.normal); pg.setAttribute('uv',pl.attributes.uv); pg.setIndex(pl.index);
-  pg.setAttribute('aA',FOAM.aA); pg.setAttribute('aB',FOAM.aB); pg.setAttribute('aC',FOAM.aC); pg.setAttribute('aD',FOAM.aD); pg.instanceCount=0;
-  const sm=mk(new THREE.MeshLambertMaterial({map:foamLaceTex(), transparent:true, depthWrite:false, opacity:0.9, emissive:0x161a1c}),true);
-  const sheet=new THREE.Mesh(pg,sm); sheet.frustumCulled=false; sheet.userData.lightRole='recv'; sheet.renderOrder=4;
-  sheet.matrixAutoUpdate=false; sheet.updateMatrix(); scene.add(sheet); FOAM.sheet=sheet; FOAM.pgeo=pg;
-  mesh.frustumCulled=false; mesh.userData.lightRole='recv';   // 자리는 셰이더가 정한다 — 경계구로 거를 수 없다 · 그림자는 받기만
-  mesh.matrixAutoUpdate=false; mesh.updateMatrix(); scene.add(mesh);   // 입체 거품 방울 뭉치(사용자 요청 — 판만으로는 둥근 무늬처럼 납작했다) + 그 밑의 레이스 판
-  FOAM.mesh=mesh; FOAM.geo=g;
-}
-
-/* (qx,qz)에서 (dx,dz) 쪽으로 걸어 땅이 level+rise 에 처음 닿는 거리 — rise>0 은 뭍으로 올라가며, <0 은 바다로 내려가며 */
-function foamReach(qx,qz,dx,dz,level,rise,maxD){
-  const st=0.5; let prev=heightAt(qx,qz)-level;
-  for(let t=st;t<=maxD;t+=st){ const cur=heightAt(qx+dx*t,qz+dz*t)-level;
-    if(rise>0?cur>=rise:cur<=rise){ let k=(rise-prev)/(cur-prev); if(!(k>=0)) k=0; else if(k>1) k=1; return t-st+st*k; }
-    prev=cur; }
-  /* maxD 안에 못 닿았다(아주 완만한 물가) — 거기까지의 비탈을 그대로 늘인다(3배까지) */
-  if(rise>0?prev>0.02:prev<-0.02) return Math.min(maxD*rise/prev,3*maxD);
-  return 3*maxD;
-}
-/* ── 물가 찾기 — 자바스크립트 판(C 판 `engine/native/shore.c` 와 같은 차례로 센다). 찾은 수를 돌려주고 out 에 5개씩 담는다 ── */
-function foamScanJS(px,pz,R,step,level,out,maxOut){
-  const h=F.elev, inv=1/CELL, e=0.6, half=N/2, cell=CELL;
-  const x0=Math.max(1,Math.floor((px-R)*inv+half)), x1=Math.min(N-3,Math.floor((px+R)*inv+half)+1),
-        z0=Math.max(1,Math.floor((pz-R)*inv+half)), z1=Math.min(N-3,Math.floor((pz+R)*inv+half)+1);
-  const M=Math.max(1,Math.ceil(cell/step-0.001)), riv=F.river;
-  let n=0, o=0;
-  for(let z=z0;z<=z1;z++) for(let x=x0;x<=x1;x++){
-    const i=z*N+x, a=h[i];
-    for(let dir=0;dir<2;dir++){
-      const j=dir?i+N:i+1, b=h[j];
-      if((a>level)===(b>level)) continue;
-      if(riv[i]|riv[j]) continue;
-      const t=(level-a)/(b-a), wx=((dir?x:x+t)-half)*cell, wz=((dir?z+t:z)-half)*cell;
-      const gx=(heightAt(wx+e,wz)-heightAt(wx-e,wz))/(2*e), gz=(heightAt(wx,wz+e)-heightAt(wx,wz-e))/(2*e);
-      const sl=Math.sqrt(gx*gx+gz*gz); if(sl<0.015) continue;
-      const nx=gx/sl, nz=gz/sl;
-      for(let m=0;m<M;m++){
-        const off=((m+0.5)/M-0.5)*cell; let qx=wx-nz*off, qz=wz+nx*off;
-        for(let it=0;it<2;it++){ let d=(level-heightAt(qx,qz))/sl; if(d>cell) d=cell; else if(d<-cell) d=-cell; qx+=nx*d; qz+=nz*d; }
-        const dx=qx-px, dz=qz-pz; if(dx*dx+dz*dz>R*R) continue;
-        const g2x=(heightAt(qx+e,qz)-heightAt(qx-e,qz))/(2*e), g2z=(heightAt(qx,qz+e)-heightAt(qx,qz-e))/(2*e);
-        const s2=Math.sqrt(g2x*g2x+g2z*g2z); if(s2<0.015) continue;
-        const ux=g2x/s2, uz=g2z/s2;
-        out[o]=qx; out[o+1]=qz; out[o+2]=ux; out[o+3]=uz; out[o+4]=Math.min(1/s2,14);
-        out[o+5]=foamReach(qx,qz,-ux,-uz,level,-0.30,10); out[o+6]=foamReach(qx,qz,ux,uz,level,0.15,14);
-        out[o+7]=Math.max(foamReach(qx,qz,ux,uz,level,0.35,14),out[o+6]+0.05); out[o+8]=Math.max(foamReach(qx,qz,ux,uz,level,0.60,14),out[o+7]+0.05);
-        o+=9;
-        if(++n>=maxOut) return n;
-      }
-    }
-  }
-  return n;
-}
-/* C 판을 쓰려면 표고와 하천 표를 C 쪽 메모리에 비춰 둬야 한다 — 섬마다 한 번(땅은 놀이 중에 안 바뀐다) */
-function foamSync(){
-  FOAM.synced=false;
-  if(!NATIVE.ok||!NATIVE.x.cw_shore||N>768) return;
-  if(P.sm) return;                                   // 매끈한 땅(P.sm)은 C 판의 땅 면과 다르다 — 자바스크립트 판(heightAt)으로 찾는다
-  const X=NATIVE.x;
-  new Float32Array(X.memory.buffer,X.cw_elev(),N*N).set(F.elev);
-  new Uint8Array(X.memory.buffer,X.cw_river(),N*N).set(F.river);
-  FOAM.synced=true;
-}
-function foamScanC(px,pz,R,step,level,out,maxOut){
-  const X=NATIVE.x, n=X.cw_shore(N,CELL,px,pz,R,step,level,maxOut);
-  out.set(new Float32Array(X.memory.buffer,X.cw_shore_out(),n*FOAM.ST));
-  return n;
-}
-/* 사람 둘레의 물가에 조각을 깐다 — 8 m 넘게 움직였을 때만 */
-function foamScatter(){
-  const U=FOAM, px=PL.pos.x, pz=PL.pos.z; U.cx=px; U.cz=pz;
-  const max=Math.floor(U.cap/U.K);
-  const n=(U.useC&&U.synced)?foamScanC(px,pz,U.R,U.step,U.level,U.out,max):foamScanJS(px,pz,U.R,U.step,U.level,U.out,max);
-  const A=U.aA.array, Bq=U.aB.array, C=U.aC.array, D=U.aD.array, o=U.out, ST=U.ST; let k=0;
-  for(let i=0;i<n;i++){
-    const x=o[i*ST], z=o[i*ST+1], nx=o[i*ST+2], nz=o[i*ST+3], is=o[i*ST+4], steep=clamp(1.6/is,0,1);
-    const d0=o[i*ST+5], d1=o[i*ST+6], d2=o[i*ST+7], d3=o[i*ST+8];
-    let h=(Math.imul(Math.round(x*4),374761393)+Math.imul(Math.round(z*4),668265263))|0;
-    for(let c=0;c<U.K;c++){
-      h=Math.imul(h^(h>>>13),1274126177); h=(h^(h>>>16))|0;
-      const r1=(h&1023)/1023, r2=((h>>>10)&1023)/1023, r3=((h>>>20)&1023)/1023;
-      const j=k*4;
-      A[j]=x; A[j+1]=z; A[j+2]=nx; A[j+3]=nz;
-      D[j]=d0; D[j+1]=d1; D[j+2]=d2; D[j+3]=d3;
-      /* 열여섯 가운데 — 여섯은 물머리의 거품 · 셋은 물가 바깥에서 부서지며 밀려오는 물결 · 일곱은 물가의 금을 늘 덮는 띠(조각 하나가 프랙탈 뭉치라 예전 스물둘보다 적게) */
-      const breaker=c>=U.KS&&c<U.KS+U.KB, rim=c>=U.KS+U.KB;
-      if(rim){
-        const q=(c-U.KS-U.KB+r1)/(U.K-U.KS-U.KB);          // 물가를 따라 고르게 벌려 놓는다(빈틈이 없게)
-        Bq[j]=is; Bq[j+1]=(q-0.5)*U.step*1.15; Bq[j+2]=100+(r2-0.42)*(0.5+0.05*is);   // 물머리 앞뒤 한 뼘 — 완만한 데는 조금 더 넓게
-        Bq[j+3]=0.20+0.17*r3;                                  // 뭉치가 커서(사슬 길이 ≈ 크기의 3배) 물가를 따라 서로 닿는다
-      }else{
-        Bq[j]=is; Bq[j+1]=(r1-0.5)*U.step*1.7; Bq[j+2]=breaker?-1:r2*r2*(0.4+0.12*is);   // 완만한 물가는 물머리 뒤로 길게 늘어선다
-        Bq[j+3]=(breaker?0.15:0.11)+0.26*r3*r3+0.10*steep;                     // 크기(m) — 잔 조각이 많고 굵은 것은 드물다 · 가파른 데는 굵다
-      }
-      C[j]=r1*0.61+r3*0.39; C[j+1]=0.35+0.65*r2; C[j+2]=(2.5+5*r3)*(r1<0.5?-1:1); C[j+3]=(0.10+0.35*r1)*(0.6+2.4*steep);   // 가파른 데는 높이 튄다
-      k++;
-    }
-  }
-  U.aA.needsUpdate=U.aB.needsUpdate=U.aC.needsUpdate=U.aD.needsUpdate=true;
-  U.geo.instanceCount=k; if(U.pgeo) U.pgeo.instanceCount=k; U.n=k; U.anchors=n;
-}
-function updateFoam(){
-  if(!scene) return;
-  if(!FOAM.mesh) foamInit();
-  const dx=PL.pos.x-FOAM.cx, dz=PL.pos.z-FOAM.cz;
-  if(dx*dx+dz*dz>64) foamScatter();
-  FOAM.U.uFT.value=TERR_U.uShT?TERR_U.uShT.value:0;           // 젖은 띠·칠한 거품과 같은 시계
-  FOAM.U.uFP.value.copy(PL.pos); FOAM.U.uFR.value=FOAM.R;
-  if(FOAM.sheet) FOAM.sheet.visible=FOAM.n>0;
-  if(FOAM.mesh) FOAM.mesh.visible=FOAM.n>0;
-}
-function foamReset(){ FOAM.cx=FOAM.cz=1e9; FOAM.n=0; if(FOAM.geo) FOAM.geo.instanceCount=0; if(FOAM.pgeo) FOAM.pgeo.instanceCount=0; foamSync(); }
-/* 물가 찾기를 두 말로 견준다 — 같은 자리에서 reps 번씩 돌려 한 번에 걸리는 시간(ms)과 찾은 수를 낸다 */
-function foamBench(reps){
-  reps=reps||300; const px=PL.pos.x, pz=PL.pos.z, U=FOAM, max=Math.floor(U.cap/U.K), a=new Float32Array(2048*9), b=new Float32Array(2048*9);
-  let nj=0, nc=0, t=performance.now();
-  for(let i=0;i<reps;i++) nj=foamScanJS(px,pz,U.R,U.step,U.level,a,max);
-  const js=(performance.now()-t)/reps;
-  if(!U.synced) return 'JS '+js.toFixed(3)+' ms('+nj+'점) · C 판 없음';
-  t=performance.now();
-  for(let i=0;i<reps;i++) nc=foamScanC(px,pz,U.R,U.step,U.level,b,max);
-  const c=(performance.now()-t)/reps;
-  let far=0; for(let i=0;i<Math.min(nj,nc)*9;i++) far=Math.max(far,Math.abs(a[i]-b[i]));
-  return 'JS '+js.toFixed(3)+' ms('+nj+'점) · C '+c.toFixed(3)+' ms('+nc+'점) · 가장 큰 차 '+far.toFixed(4)+' · 지금 쓰는 것 '+(U.useC?'C':'JS');
+  /* 값을 순위로 고르게 편다(0~1) */
+  const even=a=>{ const id=new Uint32Array(n); for(let i=0;i<n;i++) id[i]=i; id.sort((x,y)=>a[x]-a[y]); const o=new Float32Array(n); for(let r=0;r<n;r++) o[id[r]]=r/(n-1); return o; };
+  /* 한 벌 — 굵은 · 가운데 · 잔 방울의 막(세 크기) + 거품 덩이. 덩이 속은 막이 촘촘하고 희며, 덩이 밖은 성긴 그물만 · 큰 방울 속은 빈다 */
+  const WA=new Float32Array(2), WB=new Float32Array(2), WC=new Float32Array(2);
+  const layer=(kA,kB,kC,sd)=>{ const PA=pts(kA), PB=pts(kB), PC=pts(kC), a=new Float32Array(n);
+    for(let y=0;y<W;y++) for(let x=0;x<W;x++){ const u=x/W, v=y/W;
+      const wu=wrap(u+(fbm(u,v,sd+1)-0.5)*0.08), wv=wrap(v+(fbm(u,v,sd+2)-0.5)*0.08);   // 막이 곧지 않게 비튼다
+      wor(PA,kA,wu,wv,WA); wor(PB,kB,wu,wv,WB); wor(PC,kC,wu,wv,WC);
+      const a1=WA[0], a2=WA[1], b1=WB[0], b2=WB[1], c1=WC[0], c2=WC[1], nz=fbm(u,v,sd+3), cl=big(u,v,sd+4);
+      const gap=ss(0.22,0.50,fbm(u*1.0,v*1.0,sd+6));                                           // 막이 군데군데 끊긴다(다 이어진 그물이 아니게)
+      const wallA=(1-ss(0,0.10+0.20*nz,a2-a1))*(0.35+0.65*gap), wallB=1-ss(0,0.10+0.08*cl,b2-b1), wallC=1-ss(0,0.16,c2-c1), core=ss(0.10,0.55,a1);
+      a[y*W+x]=0.40*wallA*(0.55+0.45*cl)+0.26*wallB*(0.40+0.60*cl)+0.12*wallC*(0.5+0.5*cl)+0.30*Math.pow(cl,1.5)+0.16*nz-0.24*core*(1-cl); }   // 덩이(cl)는 장마다 되풀이되므로 조금만 — 큰 얼룩은 셰이더가 따로 얹는다
+    return even(a); };
+  const R=layer(6,13,29,11), G=layer(5,11,23,23), Bf=new Float32Array(n);
+  for(let y=0;y<W;y++) for(let x=0;x<W;x++) Bf[y*W+x]=fbm(x/W,y/W,41);
+  const Bv=even(Bf), px=new Uint8Array(n*4);
+  for(let i=0;i<n;i++){ px[i*4]=Math.round(R[i]*255); px[i*4+1]=Math.round(G[i]*255); px[i*4+2]=Math.round(Bv[i]*255); px[i*4+3]=255; }
+  const t=new THREE.DataTexture(px,W,W,THREE.RGBAFormat,THREE.UnsignedByteType);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.magFilter=THREE.LinearFilter; t.minFilter=THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps=true; t.anisotropy=4; t.needsUpdate=true;
+  return t;
 }

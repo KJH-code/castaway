@@ -1019,7 +1019,7 @@ const MINE={
   zinc:   {item:'sphalerite', label:'섬아연석 캐기', dur:5.5, stam:10, tier:2, uses:[2,3]},
   galena: {item:'galena', label:'방연석 캐기', dur:5.8, stam:11, tier:2, uses:[2,3]},
   cinnabar:{item:'cinnabar', label:'진사 긁기', dur:4.2, stam:9, tier:1, uses:[2,4]},
-  magnetite:{item:'magnetite', label:'자철석 캐기', dur:5.6, stam:11, tier:2, uses:[2,4]},   // 지형 판 13 굴 광맥(10-worldgen.js caveVeins)
+  magnetite:{item:'magnetite', label:'자철석 캐기', dur:5.6, stam:11, tier:2, uses:[2,4]},   // 지형 판 14 굴 광맥(10-worldgen.js caveVeins)
   // 화강암은 불에 달궈 균열이 생긴 뒤에야(tier 3 → 2) 떼어낼 수 있다
   granite:{item:'stone_block',label:'화강암 떼기', dur:6.0, stam:11, tier:3, uses:[3,6],
            fireset:0.35,   // 게임시간 21분 — 횃불이면 35분
@@ -1277,6 +1277,9 @@ function sightBlocked(ex,ey,ez,vx,vy,vz,t){
     if(h0>y+0.15) return true; }
   return false;
 }
+/* 기력이 다해 캐기 · 따기가 멈췄을 때 — 2.5초에 한 번만 알린다(누르고 있는 동안 프레임마다 뜨지 않게) */
+let _tiredT=0;
+function tiredToast(){ const t=performance.now(); if(t-_tiredT<2500) return; _tiredT=t; toast('기력이 다했다 — 숨을 고르면(기력 막대가 차면) 다시 할 수 있다'); }
 function findHarvestTarget(){
   const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw);
   /* 손에 든 도구로 할 수 있는 것이 1.2 m 앞선다 — 도끼를 들고 줄기를 보는데 발밑 풀이 더 가까우면 풀을 골라서
@@ -1437,6 +1440,7 @@ function updateHarvest(dt){
   HARV.wr=0;
   const want=useDown && harvestByUse() && !PL.swim;     // 캐기는 좌클릭(누르고 있는 동안)뿐 — E 는 안 쓴다
   if(!want || PL.stam<3){
+    if(want) tiredToast();                             // 기력이 바닥 — 예전엔 아무 말 없이 막대가 안 찼다(사용자 신고 '안 주워진다')
     HARV.t=Math.max(0,HARV.t-dt*2.5); HARV.active=false; return;
   }
   const H=HARV.mode.H, field=HARV.mode.field;

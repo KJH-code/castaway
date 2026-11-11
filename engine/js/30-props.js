@@ -362,7 +362,9 @@ function updateTileVis(){                // 예산(rockBudget · _treeBudget · 
   for(const RG of act) for(const t of RG.tree){ const L=t.lod; if(!L) continue;
     const sn=L.d<=SHR; let f=false;
     for(const k in L.packs){ const m=L.packs[k]; if(setVis(m,L.want&&m.count>0)) f=true; setSeen(m,L.seen); if(castNear(m,sn)) f=true; }
-    if(t.bb){ if(setVis(t.bb,L.d<=VIEW_DIST&&!L.want)) f=true; setSeen(t.bb,L.seen); if(castNear(t.bb,sn)) f=true; }
+    /* 그림 판때기는 입체 묶음이 다 차기까지(`L.pend`) 남긴다 — 예전엔 입체로 넘어가는 순간 판때기를 끄고 묶음은 다음 프레임들의 짬(TL.pack)에 채워
+       그 사이 칸이 통째로 비었다(사용자 사진 2026-11-11 '걸어가면 나무가 사라진다' — 25 m 앞 칸이 판때기도 입체도 없이 남았다) */
+    if(t.bb){ if(setVis(t.bb,L.d<=VIEW_DIST&&(!L.want||L.pend))) f=true; setSeen(t.bb,L.seen); if(castNear(t.bb,sn)) f=true; }
     if(f) LIGHT.dirtyAt(t.cx,t.cz,t.r);
   }
 }
@@ -418,7 +420,7 @@ const HABIT={
   copper  :{amp:0.11,bump:3.6,nb:3,cuts:5,deep:0.86,cube:0.00,smooth:0.86,flat:0.80,st:0.36,sh:3,rough:0.09},
   tin     :{amp:0.10,bump:3.0,nb:3,cuts:6,deep:0.82,cube:0.00,smooth:0.84,flat:0.84,st:0.34,sh:3,rough:0.08},
   zinc    :{amp:0.09,bump:3.0,nb:3,cuts:6,deep:0.80,cube:0.20,smooth:0.84,flat:0.82,st:0.32,sh:3,rough:0.08},
-  // 자철석(쇠 · 지형 판 13 굴 광맥) — 팔면체 결정이 엉긴 검은 쇳덩이. 깨진 면이 많고 조금 모났다
+  // 자철석(쇠 · 지형 판 14 굴 광맥) — 팔면체 결정이 엉긴 검은 쇳덩이. 깨진 면이 많고 조금 모났다
   magnetite:{amp:0.08,bump:3.0,nb:3,cuts:7,deep:0.80,cube:0.30,smooth:0.82,flat:0.86,st:0.30,sh:3,rough:0.08},
   /* 지형 판 6 의 바위(10-worldgen.js surfaceRocks)
      현무암 — 용암이 식으며 오그라들어 기둥 결로 갈라진다. 모난 면이 많고 위가 평평하다
@@ -1280,7 +1282,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
 
         if(MINE[R.k]){
           const O=MINE[R.k].uses;
-          p.oreMax=scaled(O[0]+(hh%(O[1]-O[0]+1)))*(p.rich?2:1); p.ore=p.oreMax;   // p.rich — 판 13 굴 깊은 방의 풍부한 광맥(10-worldgen.js caveVeins): 캐는 횟수 두 배
+          p.oreMax=scaled(O[0]+(hh%(O[1]-O[0]+1)))*(p.rich?2:1); p.ore=p.oreMax;   // p.rich — 판 14 굴 깊은 방의 풍부한 광맥(10-worldgen.js caveVeins): 캐는 횟수 두 배
         }
         const U=(HARVEST[R.k]||MINE[R.k]).uses;
         p.brMax=scaled(U[0]+(hh%(U[1]-U[0]+1)));
