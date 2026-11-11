@@ -294,6 +294,8 @@ function precompPlan(){
     for(const m of [M.rock,M.sheet]) lit.set(m.id+'|false|false|3',{m,inst:false,ic:false,g:P.gc});
     lit.set(M.water.id+'|false|false|0',{m:M.water,inst:false,ic:false,g:P.gr});
     for(const m of [M.shr,M.gold]) unl.set(m.id+'|false|false|3',{m,inst:false,ic:false,g:P.gc}); }
+  /* 판 10 굴 바위 껍데기 재질(31-cave10mat.js — 종류마다 하나) — 껍데기도 가까이 가야 지어진다. 껍데기와 같은 꼴(aDeep · aSky · aFl · aCs)로 */
+  if(typeof cv10On==='function'&&cv10On()&&typeof cmOK==='function'&&cmOK()) for(const k of ['karst','lava','talus','shelter']){ const m=cv10Mat(k); lit.set(m.id+'|false|false|0',{m,inst:false,ic:false,g:cmPrecompGeo()}); }
   if(typeof dewInit==='function'&&!DEWD.mesh&&scene) dewInit();
   /* 아직 장면에 없을 수 있는 것 — 모든 불이 나눠 쓰는 불꽃 재질(fireMats)과 총구 불. 첫 불·첫 발에 짜이던 것이다 */
   if(!P.g0) P.g0=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));

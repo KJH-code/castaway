@@ -72,7 +72,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 로컬 서버로 볼 때는 `python3 tools/serve.py`(캐시를 끈다). 문법만 볼 때는 `node --check engine/js/파일.js`.
 **나뉘기 전 한 파일 판은 커밋 `8ec7546` 까지다.**
 
-`data-ground-textures.js`(1.2 MB · 땅 사진 여덟 장)·`data-rock-textures.js`(1.8 MB · 바위 사진 여섯 장 + 법선 지도 — `rockPhotoInit` 이 `uRk`·`uRkN` 으로 올리고 `rockMat`·`rockDetailPatch`·땅 셰이더의 벼랑 면이 읽는다)·`data-sentinel-mesh.js`(1.3 MB · 투구 모형)는 base64 한 줄이다 — **읽지 말 것.**
+`data-ground-textures.js`(1.2 MB · 땅 사진 여덟 장)·`data-rock-textures.js`(1.8 MB · 바위 사진 여섯 장 + 법선 지도 — `rockPhotoInit` 이 `uRk`·`uRkN` 으로 올리고 `rockMat`·`rockDetailPatch`·땅 셰이더의 벼랑 면이 읽는다)·`data-cave-textures.js`(1.3 MB · 굴 사진 여섯 장 + 법선 지도 — `31-cave10mat.js` 의 `cmPhotos` 가 올린다)·`data-sentinel-mesh.js`(1.3 MB · 투구 모형)는 base64 한 줄이다 — **읽지 말 것.**
 나머지도 큰 파일(`45-sky.js` 2,342줄 · `30-props.js` 1,618줄)은 통째로 읽지 말고 아래 지도에서 줄을 집어 `sed -n '시작,끝p'` 로 뜰 것.
 
 ### 파일 지도 — `engine/js/`(한 줄씩 · 함수 줄 번호와 자세한 것은 `docs/notes/files.md` · `CODEMAP.md`)
@@ -89,6 +89,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `30-props.js` | 칸 보이기 `updateTileVis` · 참나무·전나무 단계 `TL` · 먼 나무 그림 · `buildProps`(`HABIT`) · 자갈 · 베리 · 보급선 · 충돌 `resolveProps` |
 | `31-cave10.js` | 동굴 지형 판 10 의 자료(`P.tv>=10` 일 때만) — 종류 `cv10Kind` · 자리 `cv10Layout` · 굴 부피 `cv10Field` · 겉 비울 원 `cv10Zones`(설계 `docs/notes/caves.md`) |
 | `31-cave10deco.js` | 동굴 판 10 의 안팎 장식 — 종유석 · 석순 · 기둥 · 휴석 웅덩이 · 고드름 · 돌 · 뿌리 · 고사리 · 이끼 · 빛나는 것 · 딸 것 `CV10.picks`(`cv10Deco` · 설계 `docs/notes/caves.md` 구현 메모(E)) |
+| `31-cave10mat.js` · `data-cave-textures.js` | 동굴 판 10 의 바위 껍데기 재질 — 굴 종류마다 사진 삼면 투영 + 무늬(유석 · 흐름 띠 · 석회 물결 · 사암 켜 · 물 얼룩) · 바닥 · 입구 이끼 · 횃불 쪽 젖은 번들(`cv10Mat` · `CV10.mat` 갈고리 · 설계 `docs/notes/caves.md` 구현 메모(D)) · 자료는 base64 — 읽지 말 것 |
 | `32-caves.js` | 동굴(바위 굴집) `buildCaves` · 굴 바위의 참 꼴 `caveSolid`/`caveIn` · 굴 속 빛·바닥 `CAVE_GLSL`(가까운 방 여섯 — envPatch · 땅 셰이더가 읽는다) · `updateCaves` |
 | `33-crags.js` | 암벽 — 큰 바위 무리 `cragSites` · `cragMesh` · `cragFloor` |
 | `34-coast.js` | 바닷가 — 시스택·해식 아치·주상절리(`coastFloor` · `coastSolid`) |
