@@ -348,7 +348,7 @@ function geoMat(){
       '#ifdef USE_INSTANCING\nvRW=(modelMatrix*instanceMatrix*vec4(transformed,1.0)).xyz;\nvRN=mat3(instanceMatrix)*normal;\nvRV=(modelViewMatrix*instanceMatrix*vec4(transformed,1.0)).xyz;\n#else\nvRW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvRN=normal;\nvRV=(modelViewMatrix*vec4(transformed,1.0)).xyz;\n#endif');
     if(typeof CV10_COMMON_GLSL!=='undefined'&&cv10On()){          // 지형 판 10 굴(판 10 부터 — 판 9 까지는 안 넣는다 · 프로그램 열쇠 'cv' 로 가른다) — 굴 자리 그림의 구멍(입구 마당 · 빛구멍)을 모형도 비운다(31-cave10.js cv10Sfc — 굴이 모형 윗면을 땅으로 삼는다)
       for(const k of ['uCv10T','uCv10R','uCv10B','uCv10G']) sh.uniforms[k]=TERR_U[k];
-      sh.fragmentShader=CV10_COMMON_GLSL+sh.fragmentShader.replace(/void main\s*\(\)\s*\{/,'void main() {\n\tif(cv10HoleM(vRW.xz)) discard;'); }
+      sh.fragmentShader=CV10_COMMON_GLSL+sh.fragmentShader.replace(/void main\s*\(\)\s*\{/,'void main() {\n\tif(cv10HoleMP(vRW,normalize(vRN).y)) discard;'); }   // 벼랑 면은 남긴다(32-caves.js cv10HoleMP)
     sh.fragmentShader='uniform float uSnow;\n'+sh.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
       ${TERR_U.uRk?'':'/*'}{ // 큰 결 — 바위 사진을 큰 배율(11 m)로 세 방향에서 한 번 더(넓은 풍화 얼룩 · 반복이 덜 보인다)
         vec3 gn0=normalize(vRN), tw0=pow(abs(gn0),vec3(4.0)); tw0/=tw0.x+tw0.y+tw0.z+1e-4;

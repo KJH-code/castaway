@@ -566,7 +566,7 @@ function plOres(rnd){
   PLAT.oreRooms=rooms.length;
   const kinds=CAVE_ORE.slice(), Q={}; for(const k of kinds) Q[k]=[];
   const hs=p=>(hashStr('ore|'+p.k+'|'+Math.round(p.x)+'|'+Math.round(p.z))>>>0)/4294967296;
-  for(const p of PROPS){ if(kinds.indexOf(p.k)<0||(p.k==='iron'&&bogAt(p.x,p.z))) continue;   // 판 10 굴에 놓인 광석(p.cave)도 든다 — 그 굴과 땅속 방이 반씩 나눠 갖는다(?ws=2 · 굴 247 · 땅속 232)
+  for(const p of PROPS){ if(p.vein||kinds.indexOf(p.k)<0||(p.k==='iron'&&bogAt(p.x,p.z))) continue;   // p.vein — 판 14 굴 광맥(10-worldgen.js caveVeins)은 제 굴에 그대로   // 판 10 굴에 놓인 광석(p.cave)도 든다 — 그 굴과 땅속 방이 반씩 나눠 갖는다(?ws=2 · 굴 247 · 땅속 232)
     const u=hs(p), r=plReachAt(p.x,p.z); if(u<0.05||(r>0.7&&u<0.15)){ p.keep=1; continue; }
     Q[p.k].push(p); }
   for(const k of kinds) Q[k].sort((a,b)=>hs(a)-hs(b));

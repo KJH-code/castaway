@@ -44,6 +44,9 @@ const GEO={
   cinnabar:{tier:'간이 곡괭이', where:'분기공 둘레에만 — 유황과 같은 자리',
            note:'열수가 식으며 앉은 붉은 딱지. 구우면 수은이 김으로 날아오른다. '
                 +'그 김은 마시면 안 된다. 뇌관의 뇌홍이 여기서 시작한다.'},
+  magnetite:{tier:'경도 2', where:'굴 속 광맥에만 — 석회암 굴 · 용암굴 · 바위틈 굴 · 바위그늘',
+           note:'쇠의 산화물이 팔면체 결정으로 엉긴 검은 광석. 자석에 붙는다. 늪철광보다 쇠가 훨씬 많이 들어 '
+                +'적게 넣고도 괴철이 더 나온다 — 강철로 가는 길이 여기서 짧아진다.'},
   basalt: {tier:'경도 2', where:'분기공 언저리 — 화산이 흘린 용암',
            note:'용암이 식으며 오그라들어 육각 기둥 결로 갈라진 검은 돌. 결을 따라 판돌로 떨어진다. '
                 +'열을 오래 품어 달궈 두면 고기·생선을 굽는 돌판이 된다.'},
@@ -56,7 +59,7 @@ const GEO={
 };
 /* 사전 광물 탭에 싣는 차례 — 캐는 단계가 얕은 것부터 */
 const MINERALS=['flint','pebble','clay','sand','sulfur','iron','tin','coal','copper',
-                'granite','basalt','karst','sandstone','zinc','galena','cinnabar'];
+                'granite','basalt','karst','sandstone','zinc','galena','cinnabar','magnetite'];
 
 /* 광물 삽화 — 게임 안 암석과 같은 배합표(`HABIT`)를 2차원으로 옮긴다.
    ① 혹으로 윤곽을 흔들고 ② 무작위 직선으로 잘라 내고(모난 면) ③ 정사각형 쪽으로
@@ -67,6 +70,7 @@ const ICONS={};
 /* 광택 — met: 금속처럼 번들거림 · 0 이면 무광. tex: 표면 무늬 종류 */
 const LUSTRE={
   galena  :{met:1.00,tex:'step'},   // 납빛 정벽 — 계단처럼 어긋난 면
+  magnetite:{met:0.75,tex:'grain'}, // 쇠빛 — 결정 알갱이
   iron    :{met:0.55,tex:'grain'},
   copper  :{met:0.30,tex:'vein'},   // 공작석 결 무늬
   tin     :{met:0.45,tex:'grain'},

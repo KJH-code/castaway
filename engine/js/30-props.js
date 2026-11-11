@@ -420,6 +420,8 @@ const HABIT={
   copper  :{amp:0.11,bump:3.6,nb:3,cuts:5,deep:0.86,cube:0.00,smooth:0.86,flat:0.80,st:0.36,sh:3,rough:0.09},
   tin     :{amp:0.10,bump:3.0,nb:3,cuts:6,deep:0.82,cube:0.00,smooth:0.84,flat:0.84,st:0.34,sh:3,rough:0.08},
   zinc    :{amp:0.09,bump:3.0,nb:3,cuts:6,deep:0.80,cube:0.20,smooth:0.84,flat:0.82,st:0.32,sh:3,rough:0.08},
+  // 자철석(쇠 · 지형 판 14 굴 광맥) — 팔면체 결정이 엉긴 검은 쇳덩이. 깨진 면이 많고 조금 모났다
+  magnetite:{amp:0.08,bump:3.0,nb:3,cuts:7,deep:0.80,cube:0.30,smooth:0.82,flat:0.86,st:0.30,sh:3,rough:0.08},
   /* 지형 판 6 의 바위(10-worldgen.js surfaceRocks)
      현무암 — 용암이 식으며 오그라들어 기둥 결로 갈라진다. 모난 면이 많고 위가 평평하다
      석회암 — 빗물에 녹아 둥글게 닳고 잔 구멍이 숭숭하다
@@ -512,7 +514,7 @@ function bakeTreeImpostor(list,kind){
    잔가지가 화소 하나보다 가늘다 — 몫을 절반쯤으로 줄여도 윤곽은 같다 */
 /* **광석은 땅에 박혀 있다**(사용자 요청) — 노두가 땅 위에 얹힌 돌처럼 보였다. 가운데를 반지름의 0.20 높이까지만 올리고(예전 0.5),
    밑동이 땅 빛깔로 녹아드는 띠를 두 배 가까이 높인다. 화강암 노두·자갈·부싯돌은 그대로 */
-const ORE_LODGE={iron:1,copper:1,tin:1,zinc:1,galena:1,coal:1,sulfur:1,cinnabar:1};
+const ORE_LODGE={iron:1,copper:1,tin:1,zinc:1,galena:1,coal:1,sulfur:1,cinnabar:1,magnetite:1};
 const FAR_REF={}, FULL_DIST=25;   // FAR_REF — 그림 판때기를 찍는 기준 나무 · FULL_DIST — 새 식물(95-flora.js) 머리말이 쓰는 이름
 /* ── 칸 메시의 경계구 ────────────────────────────────────────────────────
    r128 의 InstancedMesh 는 거르기(frustumCulled)를 끈 채 태어나고, 켜도 **밑 지오메트리 한 개**의 경계구로 잰다
@@ -985,6 +987,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
     zinc:   [new THREE.IcosahedronGeometry(0.85,0)],
     galena: [new THREE.BoxGeometry(0.95,0.85,0.95)],  // 방연석은 정육면체로 쪼개진다
     cinnabar:[new THREE.DodecahedronGeometry(0.75,0)],
+    magnetite:[new THREE.OctahedronGeometry(0.9,0)],   // 자철석은 팔면체 결정
     basalt: [new THREE.IcosahedronGeometry(1.4,0)],
     karst:  [new THREE.IcosahedronGeometry(1.5,0)],
     sandstone:[new THREE.IcosahedronGeometry(1.5,0)]
@@ -1015,7 +1018,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
      같은 돌이 두 번 나오지 않는다.
      인스턴싱 대신 종류별로 정점을 한 버퍼에 이어 붙여 드로우콜은 1개로 유지한다. */
   const ROCK_R={granite:1.8,copper:1.05,iron:0.95,coal:0.95,zinc:0.85,galena:0.85,
-               cinnabar:0.8,tin:0.8,basalt:1.4,karst:1.5,sandstone:1.5,
+               cinnabar:0.8,tin:0.8,basalt:1.4,karst:1.5,sandstone:1.5,magnetite:0.9,
                 sulfur:0.55,flint:0.18,pebble:0.13};
   ROCK_KINDS=ROCK_R;
   // 기준 껍질의 '중복 없는 꼭짓점' 목록을 한 번만 뽑아 둔다 (80면 → 꼭짓점 42개)
@@ -1279,7 +1282,7 @@ async function buildProps(){        // async — 큰 고리 사이사이 숨을 
 
         if(MINE[R.k]){
           const O=MINE[R.k].uses;
-          p.oreMax=scaled(O[0]+(hh%(O[1]-O[0]+1))); p.ore=p.oreMax;
+          p.oreMax=scaled(O[0]+(hh%(O[1]-O[0]+1)))*(p.rich?2:1); p.ore=p.oreMax;   // p.rich — 판 14 굴 깊은 방의 풍부한 광맥(10-worldgen.js caveVeins): 캐는 횟수 두 배
         }
         const U=(HARVEST[R.k]||MINE[R.k]).uses;
         p.brMax=scaled(U[0]+(hh%(U[1]-U[0]+1)));

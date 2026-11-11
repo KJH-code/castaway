@@ -9,7 +9,7 @@
 - Three.js r128을 레포 안의 `engine/three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 74개(코드 57 + 자료 17 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 284개(설비 공정 38 포함 — 2026-11-04 바닷물 긷기 · 소금 졸이기를 더함)
+- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 76개(코드 58 + 자료 18 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 284개(설비 공정 38 포함 — 2026-11-04 바닷물 긷기 · 소금 졸이기를 더함)
 - 라이선스 GPL-3.0
 
 ## 폴더
@@ -17,7 +17,7 @@
 | 폴더 | 무엇 |
 |---|---|
 | `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
-| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 57개 + 자료 17개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
+| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 58개 + 자료 18개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
 | `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) |
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
@@ -64,7 +64,7 @@ python -m http.server 5173
 | `docs/notes/*.md` | **계통별 노트** — 무엇을 왜 그렇게 짰나 · 잰 값 · 같이 고칠 짝(아래 '계통별 노트') |
 | `presets/models/*.glb` | 몹 모델 — `bear_high` · `stormscale_wyrm` 은 아직 아무도 안 읽는다 · `azure_apocalypse` 는 애저 시험장(`docs/notes/arenas.md`) |
 
-**본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 74개(코드 57 + 자료 17).
+**본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 76개(코드 58 + 자료 18).
 js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
 나누면서 고쳐 쓴 것이 없다). 번호가 곧 불러오는 차례다 — **불러오는 순간 바로 도는 코드는 위 파일 것만 쓸 수 있다**(함수 안에서
 부르는 것은 어느 파일 것이든 된다). 새 계통은 `99-main.js` 바로 위에 새 파일로 넣는 것이 쉽다. 파일별 설명(영어)은 `CODEMAP.md`.
@@ -72,7 +72,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 로컬 서버로 볼 때는 `python3 tools/serve.py`(캐시를 끈다). 문법만 볼 때는 `node --check engine/js/파일.js`.
 **나뉘기 전 한 파일 판은 커밋 `8ec7546` 까지다.**
 
-`data-ground-textures.js`(1.2 MB · 땅 사진 여덟 장)·`data-rock-textures.js`(1.8 MB · 바위 사진 여섯 장 + 법선 지도 — `rockPhotoInit` 이 `uRk`·`uRkN` 으로 올리고 `rockMat`·`rockDetailPatch`·땅 셰이더의 벼랑 면이 읽는다)·`data-sentinel-mesh.js`(1.3 MB · 투구 모형)는 base64 한 줄이다 — **읽지 말 것.**
+`data-ground-textures.js`(1.2 MB · 땅 사진 여덟 장)·`data-rock-textures.js`(1.8 MB · 바위 사진 여섯 장 + 법선 지도 — `rockPhotoInit` 이 `uRk`·`uRkN` 으로 올리고 `rockMat`·`rockDetailPatch`·땅 셰이더의 벼랑 면이 읽는다)·`data-cave-textures.js`(1.3 MB · 굴 사진 여섯 장 + 법선 지도 — `31-cave10mat.js` 의 `cmPhotos` 가 올린다)·`data-sentinel-mesh.js`(1.3 MB · 투구 모형)는 base64 한 줄이다 — **읽지 말 것.**
 나머지도 큰 파일(`45-sky.js` 2,342줄 · `30-props.js` 1,618줄)은 통째로 읽지 말고 아래 지도에서 줄을 집어 `sed -n '시작,끝p'` 로 뜰 것.
 
 ### 파일 지도 — `engine/js/`(한 줄씩 · 함수 줄 번호와 자세한 것은 `docs/notes/files.md` · `CODEMAP.md`)
@@ -89,6 +89,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `30-props.js` | 칸 보이기 `updateTileVis` · 참나무·전나무 단계 `TL` · 먼 나무 그림 · `buildProps`(`HABIT`) · 자갈 · 베리 · 보급선 · 충돌 `resolveProps` |
 | `31-cave10.js` | 동굴 지형 판 10 의 자료(`P.tv>=10` 일 때만) — 종류 `cv10Kind` · 자리 `cv10Layout` · 굴 부피 `cv10Field` · 겉 비울 원 `cv10Zones`(설계 `docs/notes/caves.md`) |
 | `31-cave10deco.js` | 동굴 판 10 의 안팎 장식 — 종유석 · 석순 · 기둥 · 휴석 웅덩이 · 고드름 · 돌 · 뿌리 · 고사리 · 이끼 · 빛나는 것 · 딸 것 `CV10.picks`(`cv10Deco` · 설계 `docs/notes/caves.md` 구현 메모(E)) |
+| `31-cave10mat.js` · `data-cave-textures.js` | 동굴 판 10 의 바위 껍데기 재질 — 굴 종류마다 사진 삼면 투영 + 무늬(유석 · 흐름 띠 · 석회 물결 · 사암 켜 · 물 얼룩) · 바닥 · 입구 이끼 · 횃불 쪽 젖은 번들(`cv10Mat` · `CV10.mat` 갈고리 · 설계 `docs/notes/caves.md` 구현 메모(D)) · 자료는 base64 — 읽지 말 것 |
 | `32-caves.js` | 동굴(바위 굴집) `buildCaves` · 굴 바위의 참 꼴 `caveSolid`/`caveIn` · 굴 속 빛·바닥 `CAVE_GLSL`(가까운 방 여섯 — envPatch · 땅 셰이더가 읽는다) · `updateCaves` |
 | `33-crags.js` | 암벽 — 큰 바위 무리 `cragSites` · `cragMesh` · `cragFloor` |
 | `34-coast.js` | 바닷가 — 시스택·해식 아치·주상절리(`coastFloor` · `coastSolid`) |
@@ -251,7 +252,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - **비용(메인이 정함)** — `general-purpose` 를 띄우는 고정 비용 **5.8만 토큰**(2026-10-30 · haiku · 한 줄 답 · CLAUDE.md 43 KB — 265 KB 때 18.9~19.3만).
   그래서 워커 · 검수는 이 레포 에이전트(일하는 것들은 각 파일 끝에 '이 레포(CASTAWAY)에서' 절)로 띄우고 general-purpose 는 그것이 안 잡힐 때만(그때만 `model` · `effort` 를 넘김 · 에이전트 파일을 막 만든 세션 — 그 세션에선 목록에 없다).
   워커 하나에 맡길 일이 작으면(파일 한두 개 · 몇십 줄) 나누지 않는다 — 고정 비용이 일보다 크다. 검수 에이전트는 차례 한도(`maxTurns`)에 걸리면 보고 없이 멈춘다 — SendMessage 로 이어 '판정 표를 돌려줄 것'.
-- 요금제를 CLAUDE.md 에 `요금제: Pro`(또는 Max · Ultra) 한 줄로 적어 두면 모드 스킬이 매번 안 묻는다 — 아직 안 적었다(사용자가 정할 것).
+- **요금제: Pro**(사용자 답 2026-11-11 — 모드 스킬 · `budget.js --plan pro` 가 이걸 쓴다).
 - 읽기만 하는 조사(웹 조사 · 큰 시험장 여럿 비교 · 개발 대화 원문에서 까닭 찾기 · 사진 여러 장 훑기)는 그대로 `Explore` + `model`(CLAUDE.md 를 안 읽는다) — 지시에
   목표 · 볼 경로 · 하지 말 것(`engine/js/data-*.js` · 전사 원문 · 10 MB 넘는 시험장은 통째로 말고 `grep … | cut -c1-200`) · 돌려줄 꼴과 길이를 넣는다.
 - 워커는 노트(`docs/notes/`)를 저절로 안 읽는다 — 지시서 '맥락'에 걸리는 규칙 · 같이 고칠 짝 · 노트 대목을 옮겨 적는다. 받은 결과 중 다음 결정에 쓰는 수치 · file:line 은
@@ -313,7 +314,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   `>=10` 으로 판 10(비탈 굴)을 가리는 데는 판 11 도 걸린다 — 판 10 만이면 `===10`. 새 지형 코드를 판 11 에 더할 때는 `PLAT.on` 으로 가른다(옛 섬의 난수 차례를 안 건드리게).
 - **지형 판(`P.tv`)** — 2 는 침식 뒤에 피오르·골짜기·단구·절벽·산릉·탁상지를 새기고(`terrainFeatures`) 동굴(`caveSites` · 32-caves.js)과
   암벽(33-crags.js)을 둔다. **판이 없는 옛 저장은 1 로 읽혀 예전 섬이 한 비트도 안 달라진다**(배율 2·판 1 의 표고·소품이 main 과 같음을
-  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` · 주소 `?tv=` 의 한도(94-input.js)가 주는 값도 올린다(지금 13 — 13 은 바닷가를 모래 해변 · 바다 벼랑 둘로(10-worldgen.js `coastShape` · `coastSea` — 해변 앞 완만한 모래 턱 · 벼랑은 물가 한 칸에 곧게 서고 밑은 곧장 깊다 · terrain) · 12 는 판 10 굴 고침(`cv10V2` — 바위그늘엔 둥지 없음 · 접근로는 착륙 판정에서 뺌 · 판 10 시험 섬도 같이 · caves) · 11 은 층층 대지 섬(14-plateau.js) · 9 는 굴의 꼴(32-caves.js · 10-worldgen.js — 비탈 아래쪽 벽 바위를 처마 밑까지 · 고드름 꼴 종유석·석순 · 굴 광석 자리 `caveOreSpot`/`caveOreRelax` · 바위 속 빛나는 점·버섯 버리기 · 강이 지나는 굴 자리 버리기) · 8 은 옛 신전 둘(97-temples.js) · 대숲 바이옴(`B.BAMBOO` 13 — 활엽수림의 낮은 데 · 큰 얼룩) · 들판의 바위 솎기(`thinOpenRocks`) · 판판한 현무암 섬 · 4 는 바다 골짜기 `seaTrenches` · 5 는 바이옴 비탈 · 바닷가 · 지열 · 폭포 · 6 은 광석을 굴 속에만(`oreToCaves` — 늪철광만 늪에) · 바깥 광석과 낮은 땅 화강암 일부를 그 자리의 현무암 · 석회암(`karst`) · 사암으로(`surfaceRocks`) · 산허리가 방으로 솟는 굴 자리 버리기(`caveSites` 의 `bulge`) · 7 은 저수지 폭포(36-falls.js) · 땅속 세계(96-underworld.js)).
+  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` · 주소 `?tv=` 의 한도(94-input.js)가 주는 값도 올린다(지금 14 — 14 는 굴 광맥(`caveVeins` — 판 10 굴 안 광석 두 배 · 굴 종류마다 몰린 광종 · 깊은 방은 풍부한 광맥 `p.rich` · 굴에만 나는 자철석 · `p.vein` 은 plOres 가 안 옮긴다 · caves) · 13 은 바닷가를 모래 해변 · 바다 벼랑 둘로(10-worldgen.js `coastShape` · `coastSea` — 해변 앞 완만한 모래 턱 · 벼랑은 물가 한 칸에 곧게 서고 밑은 곧장 깊다 · terrain) · 12 는 판 10 굴 고침(`cv10V2` — 바위그늘엔 둥지 없음 · 접근로는 착륙 판정에서 뺌 · 판 10 시험 섬도 같이 · caves) · 11 은 층층 대지 섬(14-plateau.js) · 9 는 굴의 꼴(32-caves.js · 10-worldgen.js — 비탈 아래쪽 벽 바위를 처마 밑까지 · 고드름 꼴 종유석·석순 · 굴 광석 자리 `caveOreSpot`/`caveOreRelax` · 바위 속 빛나는 점·버섯 버리기 · 강이 지나는 굴 자리 버리기) · 8 은 옛 신전 둘(97-temples.js) · 대숲 바이옴(`B.BAMBOO` 13 — 활엽수림의 낮은 데 · 큰 얼룩) · 들판의 바위 솎기(`thinOpenRocks`) · 판판한 현무암 섬 · 4 는 바다 골짜기 `seaTrenches` · 5 는 바이옴 비탈 · 바닷가 · 지열 · 폭포 · 6 은 광석을 굴 속에만(`oreToCaves` — 늪철광만 늪에) · 바깥 광석과 낮은 땅 화강암 일부를 그 자리의 현무암 · 석회암(`karst`) · 사암으로(`surfaceRocks`) · 산허리가 방으로 솟는 굴 자리 버리기(`caveSites` 의 `bulge`) · 7 은 저수지 폭포(36-falls.js) · 땅속 세계(96-underworld.js)).
   새 지형 코드는 제 난수(`mulberry32(seed^상수)`)만 쓴다 — `placeResources` 의 난수 차례를 건드리지 않는다.
 - **`updateHUD`(82-hud.js) 안에서 일찍 `return` 하지 말 것** — 조준 표시 갈래에서 돌아가면 그 아래(가방 맞춤 · 도구 표시 · **제작 진행 막대**)가
   통째로 안 돈다. 숫돌을 보는 동안 막대가 멈춰 '안 만들어진다'는 베타 신고가 이것이었다. 갈래는 else-if 로 잇는다.
@@ -363,7 +364,8 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   뽑으므로 중간에 끼우면 뒤의 자원이 전부 다른 자리에 서고 **같은 시드가 다른 섬을 연다.**
   방연석을 넣을 때 재 봤다 — 맨 끝에 붙이면 다른 자원의 개수·첫 참나무 자리가 그대로다.
   광물 하나는 여덟 곳을 건드린다: `RESOURCES` · 지질 규칙 `suit` · 보정 점수 · `ROCKY` ·
-  `GEOM` · `ROCK_R` · `SHADOW_R` · `MINE`.
+  `GEOM` · `ROCK_R` · `SHADOW_R` · `MINE`. (2026-11-11 자철석 때 본 지금 자리: `RESOURCES` · `ROCKY` · `PROP_FOOT` · 30-props.js `HABIT` · `ORE_LODGE` · `geoFor` · `ROCK_R` ·
+  `ITEMS` · `MINE` · 64-dex.js `GEO` · `MINERALS` · `LUSTRE` — `SHADOW_R` 는 이제 없다 · 흩뿌리지 않는 광물(d 0)은 `suit` · 보정 점수가 필요 없다 · **`CAVE_ORE` 에 넣지 말 것** — 판 11 이상의 `plOres` 가 그 목록 길이로 광종 차례를 돌린다)
 - **칸마다 상태가 다른 것은 `indiv(T)` 가 가른다** — `T.tool||T.sips||T.durMax`.
   내구(`durMax`)를 단 물건은 도구가 아니어도 따로 선다. 안 그러면 겹쳐 쌓이면서
   남은 양이 사라진다(축전지가 그랬다).

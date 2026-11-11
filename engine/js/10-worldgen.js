@@ -748,8 +748,10 @@ function caveSites10(seed){
     c.ore=n;
   }
   oreToCaves(rnd);
+  if((P.tv|0)>=14) caveVeins(seed);                       // 지형 판 14 — 굴 광맥(굴 종류마다 몰린 광종 · 깊은 방은 풍부한 광맥 · 자철석) · 제 난수
   caveOreRelax();
   cv10OreFix();
+  if((P.tv|0)>=14) caveVeinsDeep();
   CV10.ore=cv10OreCheck();                                // 놓은 직후 검사(굴 광석 수 · 어긋난 수 — 시험용)
   PROPS=PROPS.filter(p=>p.cave||!caveAt(p.x,p.z,4.4));   // 겉이 뚫리는 데 둘레의 나무·바위만 치운다(그 밖의 땅 위는 서도 된다)
   surfaceRocks();
@@ -770,6 +772,41 @@ function oreToCaves(rnd){
       else{ const a=rnd()*6.283, rr=0.8+rnd()*(best.R-2.4); p.x=best.x+Math.cos(a)*rr; p.z=best.z+Math.sin(a)*rr; }
       p.y=heightAt(p.x,p.z); p.s=Math.min(p.s,0.95); p.cave=1; best.cave.ore=(best.cave.ore|0)+1; }
   }
+}
+/* ── 굴 광맥(지형 판 14 · 사용자 결정 2026-11-11 '동굴만의 이점 — 나중 문명(특히 무기)에 드는 광물 · 지금 희귀한 광물을 많이') ──────────
+   판 10 굴마다 그 굴에 이미 든 광석 수만큼(판 11 이상은 그 절반 — plOres 가 절반쯤을 땅속 방으로 옮기므로 · 적어도 방마다 넷) **새 광석 소품을 PROPS 끝에 더한다** — 굴 안 광석이 두 배가 된다.
+   광종은 굴 종류마다 몰려 있다(CAVE_VEIN 무게): 석회암 굴 — 방연석(납 · 탄두) · 섬아연석(황동 탄피) · 자철석(강철) · 석탄 /
+   용암굴 — 유황(화약) · 진사(뇌관 수은) · 자철석 / 바위틈 굴 — 석석 · 공작석 · 자철석 / 바위그늘 — 석탄 · 자철석.
+   **깊은 방**(그 굴의 가장 안쪽 방 · 입구에서 길 거리 rm.s 64 m 넘는 방 — 24 m 로 두었더니 판 10 굴은 첫 방부터 24 m 를 넘어(?ws=2 · 방 50 중 거의 다)
+   새 광석의 84% 가 풍부했다)의 새 광석은 `p.rich` — 캐는 횟수 두 배(30-props.js) · 크기 1.15 배(p.s 에 곱해 메시 · 몸 rockDims · 겹침 떼기가 같은 값을 쓴다).
+   떼고 바닥에 맞춘 뒤(cv10OreFix) 가장 가까운 방이 깊은 방이 아니게 된 것은 풍부함을 거둔다(caveVeinsDeep — 크기를 되돌리니 줄기만 해 겹침이 안 생긴다). 표시 `p.vein` — 판 11 이상의 plOres(14-plateau.js)는 이것을 땅속 방으로 옮기지 않는다.
+   제 난수(mulberry32(seed^0x7e1a5))만 쓴다 — caveSites10 · placeResources 의 차례를 안 건드린다. 자리는 다른 굴 광석과 같은 길(caveOreSpot → caveOreRelax → cv10OreFix) */
+const CAVE_VEIN={karst:[['galena',3],['zinc',3],['magnetite',2],['coal',2]],
+                 lava:[['sulfur',4],['cinnabar',3],['magnetite',3]],
+                 talus:[['tin',4],['copper',4],['magnetite',2]],
+                 shelter:[['coal',5],['magnetite',5]]};
+function caveVeins(seed){
+  const rnd=mulberry32((seed^0x7e1a5)>>>0), rooms=[];
+  for(const c of CAVES) if(c.tv===10) for(const r of c.rooms) rooms.push(r);
+  if(!rooms.length) return;
+  const put=caveOrePut(rooms);
+  for(const c of CAVES){ if(c.tv!==10||!c.rooms.length) continue;
+    const W=CAVE_VEIN[c.kind]||CAVE_VEIN.talus; let tw=0; for(const w of W) tw+=w[1];
+    /* 판 11 이상(층층 대지 · PLAT.on)은 plOres 가 굴 광석의 절반쯤을 땅속 방으로 옮긴다 — 그 뒤 굴 안이 두 배가 되게 c.ore 의 절반만 더한다
+       (c.ore 만큼 더하면 ?ws=2 굴 안 247 → 726 · 2.94 배였다). 판 10 시험 섬(PLAT 꺼짐)은 c.ore 만큼 */
+    const half=typeof PLAT!=='undefined'&&PLAT.on, n=Math.max(half?Math.round((c.ore|0)/2):(c.ore|0),4*c.rooms.length);
+    for(let k=0;k<n;k++){ const rm=c.rooms[k%c.rooms.length], deep=caveDeepRoom(c,rm);
+      let u=rnd()*tw, kd=W[0][0]; for(const w of W){ u-=w[1]; if(u<0){ kd=w[0]; break; } }
+      const s=(0.75+rnd()*0.2)*(deep?1.15:1), at=caveOreSpot(rm,(PROP_FOOT[kd]||1)*s,put.get(rm),rnd);
+      const p={k:kd,x:at[0],z:at[1],y:heightAt(at[0],at[1]),s,r:rnd()*Math.PI*2,cave:1,vein:1}; if(deep) p.rich=1;
+      PROPS.push(p); }
+    c.ore=(c.ore|0)+n; c.vein=n; }
+}
+function caveDeepRoom(c,rm){ let inner=c.rooms[0]; for(const r of c.rooms) if((r.s||0)>(inner.s||0)) inner=r; return rm===inner||(rm.s||0)>64; }
+function caveVeinsDeep(){
+  const rooms=[]; for(const c of CAVES) if(c.tv===10) for(const r of c.rooms) rooms.push(r);
+  for(const p of PROPS){ if(!p.rich||p.ug) continue; let b=null,bd=1e18; for(const r of rooms){ const d=(r.x-p.x)*(r.x-p.x)+(r.z-p.z)*(r.z-p.z); if(d<bd){ bd=d; b=r; } }
+    if(b&&!caveDeepRoom(b.cave,b)){ p.rich=0; p.s/=1.15; } }
 }
 /* ── 굴 속 광석 자리(지형 판 9) ─────────────────────────────────────────────
    예전엔 방 가운데에서 R − 1.6 m 까지 뿌려 벽 바위 밑동(안쪽 면이 R − 1~2 m)에 묻히거나 반쯤 묻혔고(15 굴 · 광석 다섯이 묻히고
@@ -919,7 +956,7 @@ async function placeResources(seed){    // async — 긴 고리 사이 숨을 �
   const occ=new Uint8Array(N*N);          // 노드 과밀 방지 격자
   // 암석류는 크기 편차를 훨씬 크게 준다 — 자갈부터 큰 바위까지 섞여야 자연스럽다
   const ROCKY={granite:1,pebble:1,flint:1,copper:1,iron:1,coal:1,zinc:1,galena:1,
-               cinnabar:1,basalt:1,karst:1,sandstone:1};
+               cinnabar:1,basalt:1,karst:1,sandstone:1,magnetite:1};
   const push=(k,x,z)=>{
     const i=IDX(x,z);
     let sc=0.75+rnd()*0.6;                 // 공통 편차 0.75~1.35
@@ -1045,7 +1082,7 @@ async function placeResources(seed){    // async — 긴 고리 사이 숨을 �
    ========================================================================== */
 /* 바위는 다 빚은 뒤 울퉁불퉁한 겉이 `ROCK_R` 보다 최대 1.25배(방연석은 정육면체로 당겨 1.67배) 나간다 — 섬 하나에서 잰 몸 반지름의 최댓값 */
 const PROP_FOOT={granite:2.25,copper:1.31,iron:1.19,coal:1.19,zinc:1.06,galena:1.42,cinnabar:1.0,tin:1.0,sulfur:0.73,
-                 basalt:1.75,karst:1.9,sandstone:1.9,
+                 basalt:1.75,karst:1.9,sandstone:1.9,magnetite:1.13,
                  flint:0.18,pebble:0.13, oak:0.6,fir:0.5, clay:1.9,sand:2.0};
 const PROP_FLAT={clay:1,sand:1}, PROP_SOFT={grass:1,reed:1};
 let PROP_ORIG=[];

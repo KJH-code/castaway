@@ -35,8 +35,8 @@ TERR_U.uCvA={value:Array.from({length:CAVE_K},()=>new THREE.Vector4())};   // �
 TERR_U.uCvB={value:Array.from({length:CAVE_K},()=>new THREE.Vector4())};   // 입구 방향 x · z · 입구가 났나 · 불빛 세기
 /* ── 판 10 굴의 그림 묶음(굴 둘을 한 장에, 샘플러 하나) ──────────────────────────────────────────
    지어 둔 굴(`CV10.built`) 가운데 카메라에 가장 가까운 둘의 '굴 자리 그림'(`rec.tex` — 31-cave10.js)을 1024×512 한 장의 왼쪽·오른쪽 칸에 옮겨 담는다.
-   R,G = 바닥·천장 높이((값·0.25)+base) · B = 깊이 · A = 255 땅 뚫기 자리(M) 아니면 sky×127. 칸이 512 보다 크면 정수 배로 솎는다(걸음도 그만큼).
-   땅 셰이더(`TERR_HOLE` — 20-terrain.js)가 A≥0.9 를 버리고, `cvEval`(아래)이 빈 데의 높이 안이면 굴 속 어둠을 센다 */
+   R,G = 바닥·천장 높이((값·0.25)+base) · B = 깊이(빈 데 아닌 점은 R·B 가 겉 높이 16 비트 · G 0 — cv10Top) · A = 255 땅 뚫기 자리(M) 아니면 sky×127. 칸이 512 보다 크면 정수 배로 솎는다(걸음도 그만큼).
+   땅 셰이더(`TERR_HOLE` — 20-terrain.js)가 A≥0.75 칸을 B-스플라인으로 섞은 테 안을 버리고(cv10Hole), `cvEval`(아래)이 빈 데의 높이 안이면 굴 속 어둠을 센다 */
 const CV10_GLOW={karst:[0.55,0.88,0.80,0.55], talus:[0.55,0.88,0.80,0.6], lava:[0.95,0.72,0.40,0.45], shelter:[0,0,0,0]};   // 굴 불빛 빛깔 rgb · 세기(D 도 읽는다)
 TERR_U.uCv10T={value:(()=>{ const t=new THREE.DataTexture(new Uint8Array(4),1,1,THREE.RGBAFormat,THREE.UnsignedByteType); t.needsUpdate=true; return t; })()};   // 굴이 없는 동안은 1×1 빈 점
 TERR_U.uCv10R={value:[new THREE.Vector4(),new THREE.Vector4()]};   // x0 · z0 · 칸 걸음(m) · 가로+1024×세로(칸의 점 수)
@@ -77,23 +77,55 @@ bool cv10Smp(vec2 xz,int i,out vec4 o){
   o=acc/ws; return true;
 }
 /* A 192~254 — 큰 지형 모형 밑에 묻힌 땅만 비우는 칸(빈 데 안에 들거나 입구 마당 8 m 안 — 비스듬히 보면 모형 구멍 테 밑의 땅이 보였다 · 하늘 트임은 (A−192)/62 — 31-cave10.js cv10Sfc) */
-/* 땅 뚫기 문턱 0.75 — M 은 A=1 · 나머지는 0.5 이하라 쌍선형으로 읽은 A 가 0.75 를 넘는 선이 칸 가장자리와 맞는다(지시서의 0.9 는 가장자리가 한 칸 가까이 안으로 먹었다) */
-/* 큰 지형 모형의 구멍 — M(A=255)만. 묻힌 땅만 비우는 칸(A 192~254)은 모형을 안 뚫는다. 둘레 네 점의 'M 인가'를 쌍선형으로 섞어 0.5 로 자른다 */
+/* 구멍 테 — 둘레 3×3 점의 '뚫을 칸인가'(A >= th)를 이차 B-스플라인 무게로 섞어 0.5 로 자른다(2026-11-11). 예전엔 쌍선형 A 를 0.75(땅) · M 쌍선형을 0.5(모형)로 잘라
+   테가 0.5 m 칸대로 톱니졌다. B-스플라인 테는 곧은 데서 칸 경계(M 점과 바깥 점의 가운데)와 같고 · 볼록한 모서리는 안으로 둥글고 · 오목한 모서리에서 0.23 칸(0.12 m) 밖으로 나간다 —
+   껍데기 윗면은 M 을 한 칸 넓힌 데까지 있다(31-cave10.js cv10MK). 점 하나만 홀로 뚫을 칸이면(최대 0.56) 겨우 열린다 · M 은 열린 칸을 한 칸 넓힌 것이라 그런 데는 없다 */
+float cv10Bw(float t,int k){ return k==0?0.5*(0.5-t)*(0.5-t):(k==1?0.75-t*t:0.5*(0.5+t)*(0.5+t)); }
+float cv10Bs(vec2 xz,int i,float th){
+  vec4 B=uCv10B[i], R=uCv10R[i]; if(B.z<0.5) return 0.0;
+  float nz=floor(R.w/1024.0), nx=R.w-nz*1024.0; vec2 c=(xz-R.xy)/R.z;
+  if(c.x<-1.0||c.y<-1.0||c.x>nx||c.y>nz) return 0.0;
+  vec2 c0=floor(c+0.5), t=c-c0; float m=0.0;
+  for(int b=0;b<3;b++){ float wz=cv10Bw(t.y,b);
+    for(int a=0;a<3;a++){ vec2 q=clamp(c0+vec2(float(a-1),float(b-1)),vec2(0.0),vec2(nx-1.0,nz-1.0));
+      float A=texture2D(uCv10T,(q+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0)).a;
+      if(A>=th) m+=cv10Bw(t.x,a)*wz; } }
+  return m;
+}
+/* 큰 지형 모형의 구멍 — M(A=255)만. 묻힌 땅만 비우는 칸(A 192~254)은 모형을 안 뚫는다 */
 bool cv10HoleM(vec2 xz){
-  for(int i=0;i<2;i++){
-    vec4 B=uCv10B[i], R=uCv10R[i]; if(B.z<0.5) continue;
-    float nz=floor(R.w/1024.0), nx=R.w-nz*1024.0; vec2 c=(xz-R.xy)/R.z;
-    if(c.x<0.0||c.y<0.0||c.x>nx-1.0||c.y>nz-1.0) continue;
-    vec2 c0=floor(c), fr=c-c0; float m=0.0;
-    for(int k=0;k<4;k++){ vec2 d=vec2(float(k-(k/2)*2),float(k/2)); vec2 q=min(c0+d,vec2(nx-1.0,nz-1.0));
-      float a=texture2D(uCv10T,(q+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0)).a;
-      m+=(a>0.998?1.0:0.0)*(d.x>0.5?fr.x:1.0-fr.x)*(d.y>0.5?fr.y:1.0-fr.y); }
-    if(m>=0.5) return true; }
+  for(int i=0;i<2;i++){ if(cv10Bs(xz,i,0.998)>=0.5) return true; }
   return false;
 }
+/* 큰 모형 재질(geoMat — 37-geo-meshes.js)의 구멍 — 위 cv10HoleM 에 높이 · 면 방향을 더한다. 구멍 안이라도 바깥 테(빈 데가 아닌 M 칸)에서는 위를 보는 면(윗면)만 버리고
+   벼랑 면은 남긴다 · 빈 데 위에서는 바닥 −0.5 m 위의 것을 다 버린다. 예전엔 높이를 안 봐서 벼랑에 걸친 구멍이 벼랑 면을 통째로 뚫어 그 속(껍데기는 윗면 · 굴 벽뿐)으로 하늘이 비쳤다
+   (용암 굴 R 20 m — 지평선 아래 2.9만 화소 · 2026-11-11). ny = 면 법선 y(정규화) */
+/* 빈 데 아닌 점의 겉 높이 Hh(31-cave10.js 'tex' — R·B 16 비트 · 4 mm) 쌍선형. 넷 가운데 빈 데이거나 값이 없는 점이 있으면 거짓 */
+bool cv10Top(vec2 xz,int i,out float h){
+  vec4 B=uCv10B[i], R=uCv10R[i]; h=0.0;
+  float nz=floor(R.w/1024.0), nx=R.w-nz*1024.0; vec2 c=(xz-R.xy)/R.z;
+  if(c.x<0.0||c.y<0.0||c.x>nx-1.0||c.y>nz-1.0) return false;
+  vec2 c0=floor(c), fr=c-c0;
+  for(int k=0;k<4;k++){
+    vec2 d=vec2(float(k-(k/2)*2),float(k/2));
+    vec4 t=texture2D(uCv10T,(min(c0+d,vec2(nx-1.0,nz-1.0))+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0));
+    float hc=floor(t.r*255.0+0.5)*256.0+floor(t.b*255.0+0.5);
+    if(t.g>t.r+0.002||hc<0.5||hc>65534.5) return false;
+    h+=(d.x>0.5?fr.x:1.0-fr.x)*(d.y>0.5?fr.y:1.0-fr.y)*(B.x+hc*0.004-64.0); }
+  return true;
+}
+bool cv10HoleMP(vec3 p,float ny){
+  vec4 s; float h;
+  for(int i=0;i<2;i++){ if(cv10Bs(p.xz,i,0.998)<0.5) continue;
+    if(cv10Smp(p.xz,i,s)){ if(ny>0.35||p.y>s.x-0.5) return true; continue; }
+    /* 빈 데 아닌 바깥 테 — 껍데기 윗면(Hh − 0.03)과 겹치는 윗면만 버린다. 모형 윗면은 cv10Sfc 의 표(4.7 m 칸 쌍선형)와 −3.5 ~ +0.1 m 어긋나(2026-11-11 잰 값)
+       다 버리면 그 틈으로 비스듬한 선이 모형 속(뒷면)을 지나 하늘이 비쳤다: Hh 보다 0.01 m 넘게 높은 모형은 남겨 테를 덮고 · 0.15 m 넘게 낮은 것은 남겨 옆에서 드는 선을 받는다(위에서는 껍데기 윗면이 가린다) */
+    if(ny>0.35){ if(!cv10Top(p.xz,i,h)) return true; float dh=p.y-h; if(dh>-0.15&&dh<0.01) return true; } }
+  return false;
+}
+/* 땅 구멍 — M 과 묻힌 땅만 비우는 칸(A >= 0.75 · 192/255 = 0.753 · 나머지는 0.5 이하) */
 bool cv10Hole(vec2 xz){
-  vec4 t;
-  for(int i=0;i<2;i++){ if(cv10In(xz,i,t)&&t.a>=0.75) return true; }
+  for(int i=0;i<2;i++){ if(cv10Bs(xz,i,0.75)>=0.5) return true; }
   return false;
 }
 #endif
@@ -324,11 +356,19 @@ function cv10Pick(skip){
     for(let y=0;y<512;y++) dst.fill(0,(y*1024+k*512)*4,(y*1024+k*512+512)*4);
     if(!r){ B.set(0,0.25,0,k); continue; }
     const img=r.tex.image, nx=img.width, nz=img.height, st=Math.max(1,Math.ceil(Math.max(nx,nz)/512)), ne=Math.ceil(nx/st), me=Math.ceil(nz/st), src=img.data, ti=r.texInfo, S=nx>1?ti.w/(nx-1):0.5;
-    for(let j=0;j<me;j++) for(let i=0;i<ne;i++){ const so=((j*st)*nx+i*st)*4, d=(j*1024+k*512+i)*4; dst[d]=src[so]; dst[d+1]=src[so+1]; dst[d+2]=src[so+2]; dst[d+3]=src[so+3]; }
+    /* 솎을 때(st>1) RGB 는 점 표본 · A 는 둘레 ±(st−1) 점의 최댓값 — 점 표본은 M 칸을 놓쳐 오목한 모서리에 틈이 났다. 원래 M 점마다 둘러싼 솎은 점 넷이 다 뚫을 칸이 된다
+       (껍데기 윗면도 그만큼 넓다 — 31-cave10.js cv10MK 의 st) */
+    for(let j=0;j<me;j++) for(let i=0;i<ne;i++){ const so=((j*st)*nx+i*st)*4, d=(j*1024+k*512+i)*4; dst[d]=src[so]; dst[d+1]=src[so+1]; dst[d+2]=src[so+2];
+      let a=src[so+3]; if(st>1){ const i0=Math.max(0,i*st-st+1), i1=Math.min(nx-1,i*st+st-1), j0=Math.max(0,j*st-st+1), j1=Math.min(nz-1,j*st+st-1);
+        for(let jj=j0;jj<=j1;jj++) for(let ii=i0;ii<=i1;ii++){ const v=src[(jj*nx+ii)*4+3]; if(v>a) a=v; } }
+      dst[d+3]=a; }
     R.set(ti.x0,ti.z0,S*st,ne+1024*me); B.set(ti.base,ti.step,1,k);
     const gl=CV10_GLOW[r.c.kind]||CV10_GLOW.shelter; G.set(gl[0],gl[1],gl[2],gl[3]);
   }
   if(ch){ CV10C.atlas.needsUpdate=true; TERR_U.uCv10T.value=CV10C.atlas; }
+  /* 그림에 안 실린 굴은 껍데기(장식 자식까지)를 안 그린다 — 땅이 안 뚫려 땅이 덮어야 하는데, 껍데기 윗면은 heightAt 그대로라 그보다 거칠게 그려진 땅
+     (덧판 밖 본 땅 LOD — 잰 값 0.35 m 낮다) 위로 테두리가 주황 고리로 비쳤다(2026-11-11). 질의 · 걷기 · cv10Ray 는 격자 · 메시를 그대로 쓴다(보이기와 상관없다) */
+  for(const rec of CV10.built.values()) if(rec.mesh){ const v=rec===cur[0]||rec===cur[1]; if(rec.mesh.visible!==v) rec.mesh.visible=v; }
 }
 if(typeof CV10!=='undefined'){ CV10.onBuild.push(()=>cv10Pick()); CV10.onDrop.push(rec=>cv10Pick(rec)); }
 function updateCaves(){
