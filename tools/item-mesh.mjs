@@ -12,6 +12,9 @@
    ③ **빛깔 · 재질도 코드 모형에서** — STL 엔 빛깔이 없다. 세모마다 가장 가까운 코드 모형 부품의 재질(나무 · 돌 · 쇠 · 노끈)을 받고
       이웃 다수결 · 작은 섬 지우기로 얼룩을 없앤다. 재질마다 한 메시(잿불 감싸기 emberClad 가 쇠 재질 메시를 알아본다).
    ④ 각진 모서리(crease°)에서 정점을 갈라 법선을 따로 — 총의 모서리가 뭉개지지 않게.
+   ⑤ **사진 결** — 재질마다 결(나무 · 돌 · 노끈 · 쇠 · 검은 쇠 · 합성수지 · 국방색 — data-item-textures.js · tools/item-tex.mjs)을 고르고(TEX_OF ·
+      빛깔 갈래 · 설정 "tex"), 세모마다 법선이 가장 큰 축으로 상자 투영 — 그 축을 정점마다 담는다(축이 다른 세모 사이에선 정점을 가른다).
+      게임이 아이템 좌표의 나머지 두 축 ÷ 사진 한 장 길이로 UV 를 짓는다.
 
    설정 한 줄(tools/item-meshes.json): "<아이템 id>": {
      "src": "meshes/items/x.stl",   원본
@@ -23,10 +26,11 @@
      "remap": {"6b5442": "0x2a2c2f"}  받은 빛깔 가운데 몇을 바꾼다(부품 나눔은 그대로 — 나무 개머리를 검은 합성수지로)
      "crease": 35,                  모서리로 칠 각(°)
      "len": 1.0,                    긴 축 길이를 코드 모형의 몇 배로
-     "isle": 80                     세모 수 / isle 보다 작은 재질 얼룩은 둘레 재질로 지운다(작게 하면 더 크게 뭉친다)
+     "isle": 80,                    세모 수 / isle 보다 작은 재질 얼룩은 둘레 재질로 지운다(작게 하면 더 크게 뭉친다)
+     "tex": {"6b6f72": "steel"}     빛깔(remap 뒤) → 사진 결을 바꾼다 · "" 이면 그 빛깔은 맨 빛깔 · "tex": false 면 그 아이템 전부 맨 빛깔
    }
-   자료 꼴(ITEM_MESH[id]): {src, tris, fit:{R(3×3 · 원본 → 아이템), s, t, err}, mats:[{k:'w',c} | {k:'p'|'b',c,e,s,sp,d}],
-     parts:[{m 재질 번호, mn, mx, nv, nt, i32, b — 자리 u16×3 · 법선 i8×3(4 맞춤) · 번호 u16|u32}]} */
+   자료 꼴(ITEM_MESH[id]): {src, tris, fit:{R(3×3 · 원본 → 아이템), s, t, err}, mats:[{k:'w',c,t?} | {k:'p'|'b',c,e,s,sp,d,t?}] (t = 사진 결),
+     parts:[{m 재질 번호, mn, mx, nv, nt, i32, ax?, b — 자리 u16×3 · 법선 i8×3 · (ax 면) 투영 축 u8 · 번호 u16|u32 — 토막마다 4 맞춤}]} */
 import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
@@ -41,6 +45,27 @@ const HEAD = `/* data-item-meshes.js — CASTAWAY · 자료(base64) — 읽지 �
    사용자 STL(meshes/items/ — 레포 밖) → tools/item-mesh.mjs(QEM · 코드 모형에 맞춤 · 재질 받기) — 73-item-meshes.js 가 푼다
    설정은 tools/item-meshes.json · 다시 만들기: node tools/item-mesh.mjs */
 const ITEM_MESH=`;
+
+/* ── 사진 결 — 코드 모형 빛깔 → 결(data-item-textures.js 의 ITEM_TEX 열쇠). 표에 없으면 빛깔로 가른다 ── */
+const TEX_OF = {
+  wood: '6b5a3c 6b5442 5f4c3a 8a6a44 7a6a52', stone: '6b6f72 767b7e 7a756b 6d6a62 8c877c', rope: 'a89a68',
+  steel: '6e747a 5e646a 74797f b4b9be 8f959b c8ced4 5e6368 c3c7cb', gunmetal: '3a3d40 33363a 2e3134 2b2e30 565b61',
+  polymer: '2a2c2f', olive: '4a4f45', '': '8fb4c8',                       // '' = 맨 빛깔(조준경 유리)
+};
+const TEX_C = new Map(Object.entries(TEX_OF).flatMap(([k, v]) => v.split(' ').map(h => [parseInt(h, 16), k])));
+function texOf(c, over) {
+  if (over === false) return '';
+  const hx = c.toString(16).padStart(6, '0');
+  if (over && hx in over) return over[hx];
+  if (TEX_C.has(c)) return TEX_C.get(c);
+  const r = (c >> 16 & 255) / 255, g = (c >> 8 & 255) / 255, b = (c & 255) / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  const sat = mx === mn ? 0 : (mx - mn) / (1 - Math.abs(2 * l - 1));
+  let h = 0; if (mx !== mn) h = mx === r ? ((g - b) / (mx - mn) + 6) % 6 : mx === g ? (b - r) / (mx - mn) + 2 : (r - g) / (mx - mn) + 4; h *= 60;
+  if (sat < 0.12) return l < 0.30 ? 'gunmetal' : 'steel';
+  if (h >= 15 && h <= 55) return l > 0.45 ? 'rope' : 'wood';
+  if (h > 55 && h <= 160 && l < 0.45) return 'olive';
+  return '';
+}
 
 /* ── 원본 찾기 — 작업 트리(.claude/worktrees/…)엔 무시된 meshes/ 가 없다 ── */
 let MAIN = null;
@@ -260,43 +285,48 @@ function build(id, c) {
     const first = new Map(), to = mats.map((d, i) => { const k = JSON.stringify(d); if (!first.has(k)) first.set(k, i); return first.get(k); });
     for (let f = 0; f < nt; f++) lab[f] = to[lab[f]];
   }
+  mats = mats.map(d => { const t = texOf(d.c, c.tex); return t ? { ...d, t } : d; });
   const used = [...new Set(lab)].sort((a, b) => a - b), parts = [], outMats = [];
   for (const li of used) {
     const faces = []; for (let f = 0; f < nt; f++) if (lab[f] === li) faces.push(f);
+    const tex = !!mats[li].t, FX = f => {             // 상자 투영 축 — 법선이 가장 큰 축(사진 결이 없으면 하나로)
+      if (!tex) return 0; const x = Math.abs(FN[f * 3]), y = Math.abs(FN[f * 3 + 1]), z = Math.abs(FN[f * 3 + 2]);
+      return x >= y && x >= z ? 0 : y >= z ? 1 : 2; };
     const vf = new Map();                     // 원래 정점 → 그 정점을 쓰는 세모들
     for (const f of faces) for (let k = 0; k < 3; k++) { const v = I[f * 3 + k]; let a = vf.get(v); if (!a) vf.set(v, a = []); a.push(f); }
-    const VP = [], VN = [], corner = new Map();    // (세모, 꼭짓점) → 새 정점
+    const VP = [], VN = [], VA = [], corner = new Map();    // (세모, 꼭짓점) → 새 정점
     for (const [v, fs] of vf) {
-      const cl = [];                          // 무리: {n 합, fs}
+      const cl = [];                          // 무리: {n 합, fs, 투영 축}
       for (const f of fs) {
-        const n = [FN[f * 3], FN[f * 3 + 1], FN[f * 3 + 2]];
+        const n = [FN[f * 3], FN[f * 3 + 1], FN[f * 3 + 2]], ax = FX(f);
         let hit = null;
-        for (const q of cl) { const L = Math.hypot(...q.n) || 1; if ((q.n[0] * n[0] + q.n[1] * n[1] + q.n[2] * n[2]) / L >= cosC) { hit = q; break; } }
-        if (!hit) cl.push(hit = { n: [0, 0, 0], fs: [] });
+        for (const q of cl) { const L = Math.hypot(...q.n) || 1; if (q.ax === ax && (q.n[0] * n[0] + q.n[1] * n[1] + q.n[2] * n[2]) / L >= cosC) { hit = q; break; } }
+        if (!hit) cl.push(hit = { n: [0, 0, 0], fs: [], ax });
         for (let k = 0; k < 3; k++) hit.n[k] += n[k] * FA[f];
         hit.fs.push(f);
       }
       for (const q of cl) {
         const ni = VP.length / 3, L = Math.hypot(...q.n) || 1;
-        VP.push(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]); VN.push(q.n[0] / L, q.n[1] / L, q.n[2] / L);
+        VP.push(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]); VN.push(q.n[0] / L, q.n[1] / L, q.n[2] / L); VA.push(q.ax);
         for (const f of q.fs) for (let k = 0; k < 3; k++) if (I[f * 3 + k] === v) corner.set(f * 3 + k, ni);
       }
     }
     const nv = VP.length / 3, i32 = nv > 65535 ? 1 : 0, b = bbox(VP);
     const mn = b.mn.map(x => +x.toFixed(5)), mx = b.mx.map((x, k) => Math.max(+x.toFixed(5), mn[k] + 1e-5));
-    const pb4 = (nv * 6 + 3) & ~3, nb4 = (nv * 3 + 3) & ~3, buf = Buffer.alloc(pb4 + nb4 + faces.length * 3 * (i32 ? 4 : 2));
+    const pb4 = (nv * 6 + 3) & ~3, nb4 = (nv * 3 + 3) & ~3, ab4 = tex ? (nv + 3) & ~3 : 0, buf = Buffer.alloc(pb4 + nb4 + ab4 + faces.length * 3 * (i32 ? 4 : 2));
+    if (tex) for (let i = 0; i < nv; i++) buf.writeUInt8(VA[i], pb4 + nb4 + i);
     for (let i = 0; i < nv; i++) for (let k = 0; k < 3; k++) {
       buf.writeUInt16LE(Math.max(0, Math.min(65535, Math.round((VP[i * 3 + k] - mn[k]) / (mx[k] - mn[k]) * 65535))), (i * 3 + k) * 2);
       buf.writeInt8(Math.max(-127, Math.min(127, Math.round(VN[i * 3 + k] * 127))), pb4 + i * 3 + k);
     }
     faces.forEach((f, j) => { for (let k = 0; k < 3; k++) {
-      const v = corner.get(f * 3 + k), o = pb4 + nb4 + (j * 3 + k) * (i32 ? 4 : 2);
+      const v = corner.get(f * 3 + k), o = pb4 + nb4 + ab4 + (j * 3 + k) * (i32 ? 4 : 2);
       if (i32) buf.writeUInt32LE(v, o); else buf.writeUInt16LE(v, o);
     } });
-    parts.push({ m: outMats.length, mn, mx, nv, nt: faces.length, i32, b: buf.toString('base64') });
+    parts.push({ m: outMats.length, mn, mx, nv, nt: faces.length, i32, ...(tex ? { ax: 1 } : {}), b: buf.toString('base64') });
     outMats.push(mats[li]);
   }
-  const share = parts.map((p, i) => `${(p.nt / nt * 100).toFixed(0)}% ${JSON.stringify(outMats[i].c.toString(16))}`).join(' · ');
+  const share = parts.map((p, i) => `${(p.nt / nt * 100).toFixed(0)}% ${outMats[i].c.toString(16)}${outMats[i].t ? '→' + outMats[i].t : ''}`).join(' · ');
   console.log(`${id.padEnd(13)} ${path.basename(c.src)} · 세모 ${nt0} → ${nt}${best.hang ? ' · 총 위아래 뒤집음' : ''} · 맞춤 오차 ${(best.err / Math.max(...pb.ext) * 100).toFixed(2)}% · 재질 ${share} · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   return { src: path.basename(c.src), tris: nt, fit: { R, s: +s.toPrecision(6), t: t.map(v => +v.toFixed(5)), err: +(best.err / Math.max(...pb.ext)).toFixed(5) }, mats: outMats, parts };
 }
