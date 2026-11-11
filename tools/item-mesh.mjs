@@ -20,6 +20,7 @@
      "mirror": true,                좌우를 뒤집어 본다(48 돌림 중에서 찾는다)
      "flip": true,                  다 맞춘 뒤 긴 축으로 반 바퀴(위아래가 뒤집혀 보이면)
      "color": "0x2b2d30",           재질을 한 빛깔로(코드 모형 빛깔을 안 받는다)
+     "remap": {"6b5442": "0x2a2c2f"}  받은 빛깔 가운데 몇을 바꾼다(부품 나눔은 그대로 — 나무 개머리를 검은 합성수지로)
      "crease": 35,                  모서리로 칠 각(°)
      "len": 1.0,                    긴 축 길이를 코드 모형의 몇 배로
      "isle": 80                     세모 수 / isle 보다 작은 재질 얼룩은 둘레 재질로 지운다(작게 하면 더 크게 뭉친다)
@@ -252,6 +253,12 @@ function build(id, c) {
     const ax = P[b] - P[a], ay = P[b + 1] - P[a + 1], az = P[b + 2] - P[a + 2], bx = P[d] - P[a], by = P[d + 1] - P[a + 1], bz = P[d + 2] - P[a + 2];
     const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx, L = Math.hypot(nx, ny, nz) || 1;
     FN[f * 3] = nx / L; FN[f * 3 + 1] = ny / L; FN[f * 3 + 2] = nz / L; FA[f] = L / 2;
+  }
+  if (c.remap && !c.color) {                  // 받은 빛깔을 바꾼다(나무 개머리 → 검은 합성수지 …) · 같은 재질이 된 것은 한 메시로
+    const rm = new Map(Object.entries(c.remap).map(([a, b]) => [parseInt(a, 16), parseInt(b, 16)]));
+    mats = mats.map(d => rm.has(d.c) ? { k: 'w', c: rm.get(d.c) } : d);
+    const first = new Map(), to = mats.map((d, i) => { const k = JSON.stringify(d); if (!first.has(k)) first.set(k, i); return first.get(k); });
+    for (let f = 0; f < nt; f++) lab[f] = to[lab[f]];
   }
   const used = [...new Set(lab)].sort((a, b) => a - b), parts = [], outMats = [];
   for (const li of used) {

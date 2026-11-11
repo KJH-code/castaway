@@ -2,9 +2,9 @@
   "_": "손에 드는 것의 모형 — 아이템 id → 원본 STL(meshes/items/ · 레포 밖). 다시 만들기: node tools/item-mesh.mjs · 칸 뜻은 tools/item-mesh.mjs 머리말",
   "axe_stone":    {"src": "meshes/items/stone_axe.stl", "tris": 4000},
   "pick_stone":   {"src": "meshes/items/stone_pick.stl", "tris": 4000},
-  "shotgun":      {"src": "meshes/items/Benelli_M4.stl", "tris": 6000},
+  "shotgun":      {"src": "meshes/items/Benelli_M4.stl", "tris": 6000, "remap": {"6b5442": "0x2a2c2f"}},
   "smg":          {"src": "meshes/items/H&K_MP5A4.stl", "tris": 6000},
-  "rifle_semi":   {"src": "meshes/items/FN_SCAR-H.stl", "tris": 6000},
+  "rifle_semi":   {"src": "meshes/items/FN_SCAR-H.stl", "tris": 6000, "remap": {"5f4c3a": "0x2a2c2f"}},
   "rifle_sniper": {"src": "meshes/items/Accuracy_International_L96.stl", "tris": 6000},
-  "rifle_bolt":   {"src": "meshes/items/7,62-мм Снайперская винтовка Драгунова.stl", "tris": 6000}
+  "rifle_bolt":   {"src": "meshes/items/7,62-мм Снайперская винтовка Драгунова.stl", "tris": 6000, "remap": {"6b5442": "0x2a2c2f"}}
 }
