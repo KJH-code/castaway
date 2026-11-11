@@ -548,6 +548,7 @@ function plAfterUnder(seed){
     PLAT.cut=cut; }
   plReachBuild();
   plOres(mulberry32((seed^0x9a7ea3)>>>0));
+  if((P.tv|0)>=14&&typeof caveVeinsTrim==='function') caveVeinsTrim();   // 굴 광맥 수를 남은 제 광석에 맞춘다(10-worldgen.js — 굴 안 두 배 남짓)
   /* 다지류 둥지는 판 10 굴(31-cave10.js — 판 11 도 같이 쓴다)이 맡는다 · plDens 는 굴이 하나도 없을 때만 */
   if(!CAVES.length) plDens(mulberry32((seed^0x9a7ea4)>>>0));
 }
