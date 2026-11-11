@@ -150,6 +150,7 @@ const ITEMS={
   sphalerite: {n:'섬아연석',   kg:2.0,  c:0x5d4a52, use:'제련 → 아연. 구리와 합쳐 황동'},
   galena:     {n:'방연석',     kg:2.3,  c:0x585d66, use:'제련 → 납. 축전지의 극판이 된다'},
   cinnabar:   {n:'진사',       kg:1.8,  c:0xa03a32, use:'구우면 수은이 날아 나온다 — 분기공 둘레에만'},
+  magnetite:  {n:'자철석',     kg:3.2,  c:0x34343a, use:'제련 → 괴철. 늪철광보다 쇠가 많이 든 검은 광석 — 굴 속 광맥에만'},
 
   // 불
   tinder:     {n:'부싯깃',     kg:0.05, c:0xb8a86a, use:'불씨를 옮겨 붙이는 마른 풀뭉치'},
@@ -1018,6 +1019,7 @@ const MINE={
   zinc:   {item:'sphalerite', label:'섬아연석 캐기', dur:5.5, stam:10, tier:2, uses:[2,3]},
   galena: {item:'galena', label:'방연석 캐기', dur:5.8, stam:11, tier:2, uses:[2,3]},
   cinnabar:{item:'cinnabar', label:'진사 긁기', dur:4.2, stam:9, tier:1, uses:[2,4]},
+  magnetite:{item:'magnetite', label:'자철석 캐기', dur:5.6, stam:11, tier:2, uses:[2,4]},   // 지형 판 13 굴 광맥(10-worldgen.js caveVeins)
   // 화강암은 불에 달궈 균열이 생긴 뒤에야(tier 3 → 2) 떼어낼 수 있다
   granite:{item:'stone_block',label:'화강암 떼기', dur:6.0, stam:11, tier:3, uses:[3,6],
            fireset:0.35,   // 게임시간 21분 — 횃불이면 35분

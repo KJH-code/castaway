@@ -307,3 +307,7 @@ CLAUDE.md 에는 새로 생긴 '깨뜨리면 안 되는 것' · '같이 고칠 �
 - `muGet` 이 없는 표본을 Web Worker(`muWorker` — 빚는 함수들 `muPianoBuf` … `muDrumBuf` · `muBQ` · `muKS` 를 `toString()` 으로 옮겨 싣는다)에 맡기고 이번엔 null(`muPlay` 가 건너뛴다).
   열쇠('p60_1' · 'b40d' · 'gl70' · 'dkick' …)로 일꾼 쪽 `muMake` 가 같은 함수를 부른다 — **새 악기 표본 함수를 만들면 그 목록과 `muMake` 에도.** 곡 시작은 미리 빚기(`muWarm`)의 앞 몫이 다 올 때까지 기다린다(`MUS.pend`).
   일꾼이 안 뜨면(`MUS.wk=false`) 예전처럼 놀이 스레드에서. 피아노 한 음이 20~40 ms 씩 프레임을 멈췄다(숲 6초에 튄 프레임 108 가운데 84).
+
+## 자철석 · 풍부한 광맥(2026-11-11 · 사용자 결정 — 굴만의 이점)
+- 새 광물 자철석(`magnetite` · ITEMS · MINE 등급 2 · 사전 GEO · LUSTRE · MINERALS) — 판 13 굴 광맥에만(caves.md '굴 광맥(판 13)'). 제련로 '자철석 제련'(자철석 2 + 참숯 4 + 송풍관 → 괴철 2 · 1.4 시간 · 나무 단 '철기').
+- 풍부한 광맥(`p.rich` — 굴 깊은 방) — 캐는 횟수 두 배 · 1.15 배 크다. `docs/ITEMS.md` 는 다시 써야 한다(Electron 도구).
