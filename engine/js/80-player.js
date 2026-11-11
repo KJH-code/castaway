@@ -119,6 +119,16 @@ const GRAV=-22, WALK=4.3, RUN=7.4, CROUCH=2.0, SWIMSP=2.3, JUMP=7.6, JUMP_STAM=9
 const PL={pos:new THREE.Vector3(),vel:new THREE.Vector3(),yaw:0,pitch:0,
   grounded:false,crouch:false,run:false,swim:false,wade:0,
   hp:100,stam:100,oxy:100,food:100,water:100,ill:0,bob:0,dist:0,eye:EYE,lungeCd:0,under:false,cave:null,caveQ:null,cvUnder:false};   // under — 땅속에 있나(96-underworld.js 가 프레임마다 정한다)
+/* **몸 상태는 늘 수**(사용자 사진 2026-11-11 — 기력이 NaN 이 되자 줍기 · 따기가 통째로 안 됐다: `PL.stam>=2` 같은 비교가 NaN 이면 다 거짓이다).
+   NaN 은 한 번 들면 빠지지 않는다(더하고 빼도 NaN) — 수가 아닌 값을 넣으면 그 전 값을 지키고, 어디서 넣었는지 처음 한 번 콘솔에 남긴다
+   (null · undefined 는 옛 저장의 빠진 칸 — 그대로 둔다) */
+const PL_NUM=['hp','stam','oxy','food','water'], PL_NAN={said:{}, last:null};
+for(const k of PL_NUM){ let v=PL[k];
+  Object.defineProperty(PL,k,{enumerable:true, configurable:true, get(){ return v; },
+    set(n){ if(typeof n==='number'&&Number.isFinite(n)){ v=n; return; }
+      if(n===null||n===undefined) return;
+      PL_NAN.last={k, at:Date.now()};
+      if(!PL_NAN.said[k]){ PL_NAN.said[k]=1; console.error('[PL] '+k+' 에 수가 아닌 값('+n+') — 그 전 값 '+v+' 을 지킨다', new Error().stack); } } }); }
 const keys={};
 /* 뚫고 내려가기 — 이 시간 동안에는 DROP.y 아래의 지은 바닥만 밟는다.
    Ctrl+Space 로 지붕을 뚫고 내려올 때 쓴다. */
