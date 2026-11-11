@@ -29,3 +29,4 @@ music_preview/
 
 # 짐승 사진 원본(textures/organics/raw — 내려받은 참고 사진 · credits.jsonl 은 docs 로 옮긴다)
 textures/organics/raw/
+.claude/worktrees/
