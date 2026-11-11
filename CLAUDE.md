@@ -9,7 +9,7 @@
 - Three.js r128을 레포 안의 `engine/three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 71개(코드 56 + 자료 15 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 284개(설비 공정 38 포함 — 2026-11-04 바닷물 긷기 · 소금 졸이기를 더함)
+- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 73개(코드 57 + 자료 16 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 284개(설비 공정 38 포함 — 2026-11-04 바닷물 긷기 · 소금 졸이기를 더함)
 - 라이선스 GPL-3.0
 
 ## 폴더
@@ -17,7 +17,7 @@
 | 폴더 | 무엇 |
 |---|---|
 | `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
-| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 56개 + 자료 15개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
+| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 57개 + 자료 16개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
 | `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) |
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
@@ -64,7 +64,7 @@ python -m http.server 5173
 | `docs/notes/*.md` | **계통별 노트** — 무엇을 왜 그렇게 짰나 · 잰 값 · 같이 고칠 짝(아래 '계통별 노트') |
 | `presets/models/*.glb` | 몹 모델 — `bear_high` · `stormscale_wyrm` 은 아직 아무도 안 읽는다 · `azure_apocalypse` 는 애저 시험장(`docs/notes/arenas.md`) |
 
-**본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 71개(코드 56 + 자료 15).
+**본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 73개(코드 57 + 자료 16).
 js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
 나누면서 고쳐 쓴 것이 없다). 번호가 곧 불러오는 차례다 — **불러오는 순간 바로 도는 코드는 위 파일 것만 쓸 수 있다**(함수 안에서
 부르는 것은 어느 파일 것이든 된다). 새 계통은 `99-main.js` 바로 위에 새 파일로 넣는 것이 쉽다. 파일별 설명(영어)은 `CODEMAP.md`.
