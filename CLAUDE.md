@@ -9,7 +9,7 @@
 - Three.js r128을 레포 안의 `engine/three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 73개(코드 57 + 자료 16 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 284개(설비 공정 38 포함 — 2026-11-04 바닷물 긷기 · 소금 졸이기를 더함)
+- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 74개(코드 57 + 자료 17 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 284개(설비 공정 38 포함 — 2026-11-04 바닷물 긷기 · 소금 졸이기를 더함)
 - 라이선스 GPL-3.0
 
 ## 폴더
@@ -17,12 +17,12 @@
 | 폴더 | 무엇 |
 |---|---|
 | `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
-| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 57개 + 자료 16개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
+| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 57개 + 자료 17개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
 | `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) |
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`animals/`(짐승 STL → 뼈 · 털빛 · 몸짓 표 — `docs/notes/mobs.md` '들짐승') · `check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `sheep/rig.py`(Meshy 양 FBX 에 뼈 21 을 심어 GLB 로 — numpy 만 씀 · 쓰는 법은 파일 머리말) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `biome-bench.js`(**바이옴 · 상태마다 FPS 와 튄 프레임의 범인** — `desktop/node_modules/.bin/electron tools/biome-bench.js [자리,…] [초]` · 쓰는 법은 파일 머리말 · `docs/notes/perf.md` 2026-11-09) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `item-mesh.mjs`(**손에 드는 것의 사용자 모형** — STL 을 줄여 코드 모형에 맞추고(돌림 · 크기 · 위아래) 재질을 받아 `engine/js/data-item-meshes.js` 로 · 설정 `tools/item-meshes.json` · 쓰는 법은 파일 머리말) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `items-md-window.js`(**자원과 아이템 문서 `docs/ITEMS.md` 를 표에서 다시 쓴다** — `desktop/node_modules/.bin/electron tools/items-md-window.js` · 손으로 고치지 않는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md` · 시험장에 줄여 넣기 `python3 tools/azure/arena-data.py`) |
+| `tools/` | 검사·묶기 도구(`animals/`(짐승 STL → 뼈 · 털빛 · 몸짓 표 — `docs/notes/mobs.md` '들짐승') · `check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `sheep/rig.py`(Meshy 양 FBX 에 뼈 21 을 심어 GLB 로 — numpy 만 씀 · 쓰는 법은 파일 머리말) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `biome-bench.js`(**바이옴 · 상태마다 FPS 와 튄 프레임의 범인** — `desktop/node_modules/.bin/electron tools/biome-bench.js [자리,…] [초]` · 쓰는 법은 파일 머리말 · `docs/notes/perf.md` 2026-11-09) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `item-tex.mjs`(손에 드는 것의 사진 결 — ambientCG CC0 묶음을 sips 로 줄여 `engine/js/data-item-textures.js` 로 · 쓰는 법은 파일 머리말) · `item-mesh.mjs`(**손에 드는 것의 사용자 모형** — STL 을 줄여 코드 모형에 맞추고(돌림 · 크기 · 위아래) 재질을 받아 `engine/js/data-item-meshes.js` 로 · 설정 `tools/item-meshes.json` · 쓰는 법은 파일 머리말) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `items-md-window.js`(**자원과 아이템 문서 `docs/ITEMS.md` 를 표에서 다시 쓴다** — `desktop/node_modules/.bin/electron tools/items-md-window.js` · 손으로 고치지 않는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md` · 시험장에 줄여 넣기 `python3 tools/azure/arena-data.py`) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
@@ -64,7 +64,7 @@ python -m http.server 5173
 | `docs/notes/*.md` | **계통별 노트** — 무엇을 왜 그렇게 짰나 · 잰 값 · 같이 고칠 짝(아래 '계통별 노트') |
 | `presets/models/*.glb` | 몹 모델 — `bear_high` · `stormscale_wyrm` 은 아직 아무도 안 읽는다 · `azure_apocalypse` 는 애저 시험장(`docs/notes/arenas.md`) |
 
-**본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 73개(코드 57 + 자료 16).
+**본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 74개(코드 57 + 자료 17).
 js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
 나누면서 고쳐 쓴 것이 없다). 번호가 곧 불러오는 차례다 — **불러오는 순간 바로 도는 코드는 위 파일 것만 쓸 수 있다**(함수 안에서
 부르는 것은 어느 파일 것이든 된다). 새 계통은 `99-main.js` 바로 위에 새 파일로 넣는 것이 쉽다. 파일별 설명(영어)은 `CODEMAP.md`.
@@ -107,7 +107,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `66-decay.js` | 상하는 먹을 것 · 비에 꺼지는 불 |
 | `70-weapons.js` | `CREATURES` · 근접 판정 · `WEAPON_FX` · `emberClad` |
 | `72-gear.js` | 갑옷·투구·옷·짐 `GEAR` · `gearModel` |
-| `73-item-meshes.js` · `data-item-meshes.js` | **손에 드는 것을 사용자 모형으로** — STL(`meshes/items/` · 레포 밖) → `node tools/item-mesh.mjs`(설정 `tools/item-meshes.json`) → `ITEM_MESH` · `WEAPON_FX` 를 감싸 코드 모형 대신 그린다(가방 그림도) · 끄기 `ITEMMESH.on=false` · 자료는 base64 — 읽지 말 것 · `docs/notes/gameplay.md` '손에 드는 것의 모형' |
+| `73-item-meshes.js` · `data-item-meshes.js` · `data-item-textures.js` | **손에 드는 것을 사용자 모형으로**(재질마다 사진 결 — ambientCG CC0 · `node tools/item-tex.mjs <받은 폴더>`) — STL(`meshes/items/` · 레포 밖) → `node tools/item-mesh.mjs`(설정 `tools/item-meshes.json`) → `ITEM_MESH` · `WEAPON_FX` 를 감싸 코드 모형 대신 그린다(가방 그림도) · 끄기 `ITEMMESH.on=false` · 자료는 base64 — 읽지 말 것 · `docs/notes/gameplay.md` '손에 드는 것의 모형' |
 | `74-icons-guns.js` | `itemIcon` · 휘두르기 · `shoot` · 수류탄·조준경·로켓 · `castNet` · `useHeld` · `attack` |
 | `80-player.js` | 몹 예산 `MOBS` · `rollSpawns` · `PL` · `hurtPL` · 개발자 모드 · 눈의 경계 `eyeHit` · 벼랑 오르기 · `updatePlayer` · 소리 |
 | `82-hud.js` | 지도 핀 · `drawMap` · 나침반 · 성능 창 `PERF` · `updateHUD` · 벤치마크 |
