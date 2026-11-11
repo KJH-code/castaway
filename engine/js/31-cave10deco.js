@@ -7,6 +7,7 @@
      shelter 앞쪽의 떨어진 판돌 · 벽의 흰 소금꽃 점
      모든 굴 이마의 늘어진 덩굴 · 입구 둘레(땅) 고사리 · 이끼 · 입구 앞 너덜
    · 결정론 — 난수는 `mulberry32((c.seed^0xdec0)>>>0)` 하나(격자가 같으면 같은 장식) · `Math.random` 없음 · 딸 것의 열쇠는 'CV'+굴 씨+'_'+번호.
+     종유석 · 석순 · 용암 고드름 · 작은 석순은 사용자 모형 조각(`cvdPcPut` — 아래 '사용자 모형 조각')이고 그 고르기 · 돌림 · 흔들기만 따로 난수 `X.prnd`(0x57a1c)를 쓴다.
    · 그림 — 모두 `rec.mesh` 의 자식(propGroup · surfList 아님). 같은 재질끼리 하나로 합쳐 굴 하나에 그리기 호출 ≤ 5
      (바위 · 시트(양면 — 풀 · 덩굴 · 커튼 · 둑) · 물 · 빛나는 버섯 · 빛나는 점). 빛을 더하지 않는다 — 빛나는 것은 스스로 빛나는 재질.
    · 몸을 막는 것 — 기둥 · 반지름 0.25 넘는 석순 · 지름 0.6 m 넘는 돌은 `rec.cols`(걷기는 B 가 읽는다).
@@ -14,7 +15,7 @@
    · 옮긴 코드 — NW2 `PierfrancescoSoffritti/doodles` CaveMeshData.js(Apache-2.0)의 '밀도로 뿌리 자리를 검사'하는 생각 ·
      `ethanpil/marine-scene` 의 돌림 단면 식(종유석 0.26(1−v)^1.25 · 기둥 |2v−1|^1.7 — 식만 보고 다시 짰다). 라이선스 없는 코드는 읽기만 하고 베끼지 않았다.
    이름은 cv10Deco · cvd 로 시작한다(전역 이름이 겹치면 그 파일이 통째로 안 읽힌다). 설계와 잰 값은 docs/notes/caves.md '구현 메모(E)'. */
-const CVD={ hooked:false, mats:null, maxTri:30000, q:[], cur:null, tEnd:0, k:0, budget:2 };
+const CVD={ hooked:false, mats:null, maxTri:30000, dbg:false, q:[], cur:null, tEnd:0, k:0, budget:2 };
 const cvdT=()=>performance.now()>CVD.tEnd;      // 이번 틱의 시간이 다 됐나 — 장식 짓기는 제너레이터라 여기서 쉰다
 CV10.picks=[];
 
@@ -105,6 +106,134 @@ function cvdRev(A,x,y,z,ux,uy,uz,len,rf,SG,RG,cf,sh){
     const lo=o+(RG-1)*SG; for(let j=0;j<SG;j++){ A.i.push(lo+j,lo+(j+1)%SG,ap); A.tr++; } }
   return {v0,v1:A.p.length/3};
 }
+/* ── 사용자 모형 조각 — 종유석 · 석순 · 용암 고드름 · 작은 용암 석순(2026-11-11 사용자 요청 '그 모형을 종유석 석순으로 넣는데 렌덤 요소를') ──────────
+   큰 지형 모형 `cave_stalactites_and_stalagmites`(37-geo-meshes.js geoMeshGeo · near)는 서로 안 붙은 조각 79 개다 — 바닥(y≈0)에 선 것 27(g) · 천장(y≈1)에 매달린 것 22(c)만
+   쓰고(가운데 뜬 것 · 잔조각은 버림) 조각마다 '밑동이 y=0 · 끝이 y=1 · 가로 반지름 1' 로 고쳐 놓은 뒤(매달린 것은 위아래를 뒤집고 면 차례도 뒤집는다)
+   모서리 접기(QEM · 이웃 고리 조건 · 면이 뒤집히는 접기는 버림 · 밑동 면의 정점은 그 면을 안 떠난다)로 CVD_PC.T 단계까지 줄인 꼴을 처음 한 번 만든다.
+   놓기 — 자리 · 길이 · 굵기 · 빛깔 바탕은 예전 식(X.rnd) 그대로 · 조각 고르기 · 돌림 · 뒤집기 · 기울임 · 굵기 흔들기 · 빛깔 흔들기는 따로 난수 X.prnd 만 쓴다
+   (X.rnd 차례가 그대로라 자리 · 딸 것 열쇠가 예전과 같다). 세모 예산은 예전 원뿔의 세모 수(eq)로 세고(단계 cap 이 개수를 자르는 자리가 그대로) 늘어난 몫은 X.xtr 에 —
+   참 세모 합이 CVD.maxTri 를 넘으려 하면 더 거친 단계로 내린다. 자료가 없으면(null) 부른 쪽이 예전 원뿔(cvdRev)을 그린다. */
+const CVD_PC={ name:'cave_stalactites_and_stalagmites', T:[320,160,96,56,32,20,12], list:null };
+function cvdPcSplit(P,Cc,I){                                      // 모형 → 조각 [{up:g 이면 참, P,C,I,lock}] (밑동 y=0 · 끝 y=1 · 가로 반지름 1 · 차례는 밖에서 보아 반시계)
+  const nv=P.length/3, nt=I.length/3, par=new Int32Array(nv); for(let v=0;v<nv;v++) par[v]=v;
+  const fd=x=>{ while(par[x]!==x){ par[x]=par[par[x]]; x=par[x]; } return x; };
+  for(let t=0;t<nt;t++){ const a=fd(I[t*3]), b=fd(I[t*3+1]); par[b]=a; const c=fd(I[t*3+2]); par[c]=a; }
+  const comp=new Map(); for(let t=0;t<nt;t++){ const r=fd(I[t*3]); let l=comp.get(r); if(!l) comp.set(r,l=[]); l.push(t); }
+  const out=[];
+  for(const ts of comp.values()){ let y0=1e9, y1=-1e9; for(const t of ts) for(let e=0;e<3;e++){ const y=P[I[t*3+e]*3+1]; if(y<y0) y0=y; if(y>y1) y1=y; }
+    const up=y0<0.002, dn=y1>0.998; if(up===dn||ts.length<24) continue;           // 바닥에 선 것 · 천장에 매달린 것만
+    const map=new Map(), p=[], c=[], ix=[], lock=[];
+    for(const t of ts){ const tri=[I[t*3],I[t*3+1],I[t*3+2]]; if(dn){ const s=tri[1]; tri[1]=tri[2]; tri[2]=s; }   // 매달린 것은 위아래를 뒤집으니 차례도 뒤집는다
+      for(const v of tri){ let k=map.get(v); if(k===undefined){ k=p.length/3; map.set(v,k); const y=up?P[v*3+1]:1-P[v*3+1]; p.push(P[v*3],y,P[v*3+2]); c.push(Cc[v*3]); lock.push(y<0.0015?1:0); } ix.push(k); } }
+    let cx=0, cz=0, nb=0, hp=0, rp=0; for(let k=0;k<lock.length;k++){ if(lock[k]){ cx+=p[k*3]; cz+=p[k*3+2]; nb++; } if(p[k*3+1]>hp) hp=p[k*3+1]; }
+    if(!nb||hp<0.02) continue; cx/=nb; cz/=nb;
+    for(let k=0;k<lock.length;k++) rp=Math.max(rp,Math.hypot(p[k*3]-cx,p[k*3+2]-cz));
+    for(let k=0;k<lock.length;k++){ p[k*3]=(p[k*3]-cx)/rp; p[k*3+1]=lock[k]?0:p[k*3+1]/hp; p[k*3+2]=(p[k*3+2]-cz)/rp; }
+    out.push({up,P:p,C:c,I:ix,lock,asp:hp/rp}); }
+  return out;
+}
+/* 줄이기 — 모서리 접기(QEM). 이웃 고리 조건(두 끝의 공통 이웃이 둘)으로 닫힌 껍데기를 지키고 · 둘레 면의 법선이 0.2 아래로 돌면 버리고 · 정점 넷 밑으로는 안 간다.
+   밑동 면(lock)의 정점은 그 면 위에만 머문다(밑동과 옆이 만나면 밑동 쪽 자리로). 돌려주는 것: T 단계마다 하나(같은 세모 수는 하나로) — 세모 수 내림차순 */
+function cvdDecim(S,T){
+  const nv=S.P.length/3, F=Int32Array.from(S.I), nt=F.length/3, X=Float64Array.from(S.P), Cv=Float64Array.from(S.C), L=S.lock;
+  const Q=new Float64Array(nv*10), aliveF=new Uint8Array(nt).fill(1), aliveV=new Uint8Array(nv).fill(1), ver=new Int32Array(nv), vf=[];
+  for(let v=0;v<nv;v++) vf.push([]);
+  for(let f=0;f<nt;f++){ const a=F[f*3], b=F[f*3+1], c=F[f*3+2]; vf[a].push(f); vf[b].push(f); vf[c].push(f);
+    const ux=X[b*3]-X[a*3], uy=X[b*3+1]-X[a*3+1], uz=X[b*3+2]-X[a*3+2], wx=X[c*3]-X[a*3], wy=X[c*3+1]-X[a*3+1], wz=X[c*3+2]-X[a*3+2];
+    let nx=uy*wz-uz*wy, ny=uz*wx-ux*wz, nz=ux*wy-uy*wx; const l=Math.hypot(nx,ny,nz); if(l<1e-14) continue; nx/=l; ny/=l; nz/=l;
+    const d=-(nx*X[a*3]+ny*X[a*3+1]+nz*X[a*3+2]), w=l*0.5, q=[nx*nx,nx*ny,nx*nz,nx*d,ny*ny,ny*nz,ny*d,nz*nz,nz*d,d*d];
+    for(const v of [a,b,c]) for(let k=0;k<10;k++) Q[v*10+k]+=w*q[k]; }
+  const err=(a,b,x,y,z)=>{ const o=a*10, r=b*10, g=k=>Q[o+k]+Q[r+k];
+    return g(0)*x*x+2*g(1)*x*y+2*g(2)*x*z+2*g(3)*x+g(4)*y*y+2*g(5)*y*z+2*g(6)*y+g(7)*z*z+2*g(8)*z+g(9); };
+  const facesOf=v=>{ const l=vf[v].filter(f=>aliveF[f]); vf[v]=l; return l; };
+  const nbrs=v=>{ const s=new Set(); for(const f of facesOf(v)) for(let e=0;e<3;e++){ const u=F[f*3+e]; if(u!==v) s.add(u); } return s; };
+  const H=[], hpush=e=>{ H.push(e); let i=H.length-1; while(i>0){ const p=(i-1)>>1; if(H[p][0]<=H[i][0]) break; const t=H[p]; H[p]=H[i]; H[i]=t; i=p; } };
+  const hpop=()=>{ const top=H[0], last=H.pop(); if(H.length){ H[0]=last; let i=0; for(;;){ const l=2*i+1, r=l+1; let m=i; if(l<H.length&&H[l][0]<H[m][0]) m=l; if(r<H.length&&H[r][0]<H[m][0]) m=r; if(m===i) break; const t=H[m]; H[m]=H[i]; H[i]=t; i=m; } } return top; };
+  const cand=(a,b)=>{ const pa=[X[a*3],X[a*3+1],X[a*3+2]], pb=[X[b*3],X[b*3+1],X[b*3+2]], len2=(pa[0]-pb[0])**2+(pa[1]-pb[1])**2+(pa[2]-pb[2])**2;
+    const opts=L[a]&&!L[b]?[[a,b,pa]]:L[b]&&!L[a]?[[b,a,pb]]:[[a,b,pa],[b,a,pb],[a,b,[(pa[0]+pb[0])/2,(pa[1]+pb[1])/2,(pa[2]+pb[2])/2]]];
+    let best=null, bc=1e30; for(const o of opts){ const c=err(a,b,o[2][0],o[2][1],o[2][2]); if(c<bc-1e-15){ bc=c; best=o; } }
+    hpush([Math.max(0,bc)+1e-6*len2,best[0],best[1],best[2],ver[a],ver[b],a,b]); };
+  const pushAll=v=>{ for(const u of nbrs(v)) cand(v,u); };
+  const fn=(f,w,p)=>{ const P3=k=>{ const v=F[f*3+k]; return v===w?p:[X[v*3],X[v*3+1],X[v*3+2]]; }, a=P3(0), b=P3(1), c=P3(2);
+    const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2], wx=c[0]-a[0], wy=c[1]-a[1], wz=c[2]-a[2]; return [uy*wz-uz*wy, uz*wx-ux*wz, ux*wy-uy*wx]; };
+  const snap=()=>{ const map=new Int32Array(nv).fill(-1), p=[], c=[], ix=[], lk=[];
+    for(let f=0;f<nt;f++){ if(!aliveF[f]) continue; for(let e=0;e<3;e++){ const v=F[f*3+e]; if(map[v]<0){ map[v]=p.length/3; p.push(X[v*3],X[v*3+1],X[v*3+2]); c.push(Cv[v]); lk.push(L[v]); } ix.push(map[v]); } }
+    const n=new Float32Array(p.length);
+    for(let t=0;t<ix.length;t+=3){ const a=ix[t]*3, b=ix[t+1]*3, d=ix[t+2]*3, ux=p[b]-p[a], uy=p[b+1]-p[a+1], uz=p[b+2]-p[a+2], wx=p[d]-p[a], wy=p[d+1]-p[a+1], wz=p[d+2]-p[a+2];
+      const nx=uy*wz-uz*wy, ny=uz*wx-ux*wz, nz=ux*wy-uy*wx; for(const v of [a,b,d]){ n[v]+=nx; n[v+1]+=ny; n[v+2]+=nz; } }
+    for(let v=0;v<n.length;v+=3){ const l=Math.hypot(n[v],n[v+1],n[v+2])||1; n[v]/=l; n[v+1]/=l; n[v+2]/=l; }
+    return {p:new Float32Array(p),n,c:new Float32Array(c),i:new Uint16Array(ix),lock:new Uint8Array(lk),tr:ix.length/3,nv:p.length/3}; };
+  let nF=nt, nV=nv, ti=0; const out=[];
+  while(ti<T.length&&T[ti]>=nF) ti++;
+  if(nF<=T[0]) out.push(snap());
+  for(let v=0;v<nv;v++) pushAll(v);
+  while(ti<T.length&&H.length&&nV>4){ const e=hpop(), keep=e[1], rem=e[2], pos=e[3];
+    if(!aliveV[e[6]]||!aliveV[e[7]]||ver[e[6]]!==e[4]||ver[e[7]]!==e[5]) continue;
+    const fr=facesOf(rem), sh=fr.filter(f=>F[f*3]===keep||F[f*3+1]===keep||F[f*3+2]===keep); if(sh.length!==2) continue;
+    const nk=nbrs(keep), nr=nbrs(rem); let com=0; for(const u of nr) if(nk.has(u)) com++; if(com!==2) continue;
+    let ok=true; for(const f of facesOf(keep).concat(fr)){ if(sh.indexOf(f)>=0) continue;
+      const w=F[f*3]===rem||F[f*3+1]===rem||F[f*3+2]===rem?rem:keep, n0=fn(f,-1,null), n1=fn(f,w,pos), l0=Math.hypot(n0[0],n0[1],n0[2]), l1=Math.hypot(n1[0],n1[1],n1[2]);
+      if(l1<1e-12||n0[0]*n1[0]+n0[1]*n1[1]+n0[2]*n1[2]<0.2*l0*l1){ ok=false; break; } }
+    if(!ok) continue;
+    const mid=pos[0]!==X[keep*3]||pos[1]!==X[keep*3+1]||pos[2]!==X[keep*3+2];
+    if(mid) Cv[keep]=(Cv[keep]+Cv[rem])*0.5;
+    X[keep*3]=pos[0]; X[keep*3+1]=pos[1]; X[keep*3+2]=pos[2]; L[keep]=L[keep]&&L[rem]?1:L[keep]||L[rem];
+    for(let k=0;k<10;k++) Q[keep*10+k]+=Q[rem*10+k];
+    for(const f of sh){ aliveF[f]=0; nF--; }
+    for(const f of fr){ if(!aliveF[f]) continue; for(let k=0;k<3;k++) if(F[f*3+k]===rem) F[f*3+k]=keep; vf[keep].push(f); }
+    aliveV[rem]=0; nV--; ver[keep]++; ver[rem]++; pushAll(keep);
+    if(nF<=T[ti]){ out.push(snap()); while(ti<T.length&&T[ti]>=nF) ti++; } }
+  if(!out.length||out[out.length-1].tr>nF) out.push(snap());
+  return out;
+}
+function* cvdPcInit(){                                            // 처음 한 번 — 조각을 뜯어 단계마다 줄인다(조각마다 쉰다). 버려진 굴의 짓기에서 멈추면 다음 굴이 처음부터
+  let list=false;
+  try{ if(typeof GEO_MESH_DATA!=='undefined'&&GEO_MESH_DATA[CVD_PC.name]&&typeof geoMeshGeo==='function'){
+    const g=geoMeshGeo(CVD_PC.name,'near'), src=cvdPcSplit(g.attributes.position.array,g.attributes.color.array,g.index.array); list=[];
+    const t0=performance.now(); let mx=0;
+    for(const s of src){ if(cvdT()) yield; const t1=performance.now(), lods=cvdDecim({P:s.P,C:s.C,I:s.I,lock:s.lock.slice()},CVD_PC.T); list.push({up:s.up,asp:s.asp,L:lods}); mx=Math.max(mx,performance.now()-t1); }
+    CVD_PC.ms=performance.now()-t0; CVD_PC.msMax=mx;   // 처음 한 번 드는 시간(합 · 조각 하나의 가장 긴 것)
+    if(!list.some(p=>p.up)||!list.some(p=>!p.up)) list=false; } }
+  catch(e){ showErr('굴 장식 조각',e); list=false; }
+  CVD_PC.list=list;
+}
+/* 조각 하나를 놓는다 — pool 'g'(바닥에 선 것) · 'c'(매달린 것) · down 이면 끝이 아래(종유석 · 고드름). (x,y,z) 밑동 가운데 · H 길이 · R 가로 반지름 · eq 예전 원뿔의 세모 수 ·
+   want 바라는 세모 수 · o:{cf(t)→빛깔 · col 고정 빛깔 · lx,lz 끝 쪽 휨 · pair 짝(같은 조각 · 같은 돌림)} · 돌려주는 것 {v0,v1,pc}(정점 범위 · 고른 조각) 또는 null(자료 없음) */
+function cvdPcPut(X,A,pool,down,x,y,z,H,R,eq,want,o){
+  const PL_=CVD_PC.list; if(!PL_) return null;
+  const pr=X.prnd, up=pool==='g';
+  if(!X.pw) X.pw={}; let W=X.pw[pool];
+  if(!W){ W=X.pw[pool]=[]; for(let k=0;k<PL_.length;k++) if(PL_[k].up===up) W.push([k,0.04+Math.pow(pr(),3)]); }   // 굴마다의 몫 — 몇 조각이 많이 나온다
+  let s=0; for(const w of W) s+=w[1]; let r=pr()*s, k=W[W.length-1][0]; for(const w of W){ r-=w[1]; if(r<=0){ k=w[0]; break; } }
+  const yaw0=pr()*6.2831853, mir0=pr()<0.5?-1:1, ta=(3+5*pr())*0.0174533, td=pr()*6.2831853, th=0.7+0.6*pr(), ox=0.9+0.2*pr(), cj=0.92+0.16*pr();
+  const pair=o.pair, pk=pair?pair.k:k, yaw=pair?pair.yaw:yaw0, mir=pair?pair.mir:mir0, pc=PL_[pk];
+  const a=o.big?Math.min(1,th):th, sx=R*a*ox, sz=R*a/ox, sy=H;
+  let li=0; while(li<pc.L.length-1&&pc.L[li].tr>want) li++;
+  const real=()=>X.A.rock.tr+X.A.sheet.tr+X.A.water.tr+X.A.shr.tr+X.xtr;
+  while(li<pc.L.length-1&&real()+pc.L[li].tr-eq>CVD.maxTri) li++;
+  if(real()+pc.L[li].tr-eq>CVD.maxTri) return null;                // 가장 거친 단계도 넘치면 예전 원뿔로(참 세모 합이 maxTri 를 안 넘게)
+  const G=pc.L[li], cy=Math.cos(yaw), sy_=Math.sin(yaw), ca=Math.cos(ta), sa=Math.sin(ta), kx=Math.cos(td), kz=Math.sin(td);
+  /* M = 기울임(축 (kx,0,kz) 둘레 ta) × 돌림(위 축 yaw) */
+  const Ry=[cy,0,sy_, 0,1,0, -sy_,0,cy];
+  const Rt=[ca+kx*kx*(1-ca), -kz*sa, kx*kz*(1-ca),  kz*sa, ca, -kx*sa,  kz*kx*(1-ca), kx*sa, ca+kz*kz*(1-ca)];
+  const M=[]; for(let i=0;i<3;i++) for(let j=0;j<3;j++) M.push(Rt[i*3]*Ry[j]+Rt[i*3+1]*Ry[3+j]+Rt[i*3+2]*Ry[6+j]);
+  const v0=A.p.length/3, n=G.nv, P=G.p, N=G.n, Cg=G.c, fy=down?-1:1, lx=o.lx||0, lz=o.lz||0, V=new Float32Array(n*3);
+  for(let v=0;v<n;v++){ const px=P[v*3]*mir*sx, py=P[v*3+1]*sy, pz=P[v*3+2]*sz, t=P[v*3+1];
+    V[v*3]=M[0]*px+M[1]*py+M[2]*pz+lx*t*t; V[v*3+1]=(M[3]*px+M[4]*py+M[5]*pz)*fy; V[v*3+2]=M[6]*px+M[7]*py+M[8]*pz+lz*t*t; }
+  /* 밑동 맞추기 — 밑동 면의 정점마다 그 자리 바닥(석순) · 천장(종유석)보다 1 cm 안쪽에 들게(기울임 · 비탈로 뜨면 그만큼 더 묻는다) */
+  let dy=-1e9; for(let v=0;v<n;v++){ if(!G.lock[v]) continue; const sm=cv10Samp(X.rec,x+V[v*3],z+V[v*3+2]); if(sm.n<=0) continue;
+    const gap=down?sm.c-(y+V[v*3+1]):(y+V[v*3+1])-sm.f; if(gap>dy) dy=gap; }
+  const sft=dy>-0.01?(dy+0.01)*(down?1:-1):0;
+  for(let v=0;v<n;v++){ let nx=N[v*3]*mir/sx, ny=N[v*3+1]/sy, nz=N[v*3+2]/sz; const mx=M[0]*nx+M[1]*ny+M[2]*nz, my=(M[3]*nx+M[4]*ny+M[5]*nz)*fy, mz=M[6]*nx+M[7]*ny+M[8]*nz, l=Math.hypot(mx,my,mz)||1;
+    const t=P[v*3+1], col=o.col||o.cf(t), g=Cg[v]*cj;
+    A.p.push(x+V[v*3],y+V[v*3+1]+sft,z+V[v*3+2]); A.n.push(mx/l,my/l,mz/l); A.c.push(col[0]*g,col[1]*g,col[2]*g); }
+  const I=G.i, rev=(mir<0)!==down, i0=A.i.length;
+  for(let t=0;t<I.length;t+=3){ if(rev) A.i.push(v0+I[t],v0+I[t+2],v0+I[t+1]); else A.i.push(v0+I[t],v0+I[t+1],v0+I[t+2]); }
+  A.tr+=eq; X.xtr+=G.tr-eq;
+  if(X.pcs){ const u=X.pcs[down?'dn':'up']; u[pk]=(u[pk]||0)+1; X.pcs.n++; X.pcs.tri+=G.tr; if(dy>X.pcs.gap0) X.pcs.gap0=dy; if(dy>0.1) X.pcs.deep=(X.pcs.deep||0)+1;
+    if(X.pcs.dbg){ const b=[]; for(let v=0;v<n;v++) if(G.lock[v]) b.push(v0+v); X.pcs.dbg.push([v0,A.p.length/3,i0,A.i.length,down?1:0,b]); } }   // 시험(CVD.dbg) — 낱개마다 정점 · 세모 범위와 밑동 정점
+  return {v0,v1:A.p.length/3,pc:{k:pk,yaw,mir}};
+}
 /* 그물 한 장(양면 시트) — nodes[a][b]=[x,y,z] · cols[a][b]=[r,g,b] · nrm=[nx,ny,nz]  (a: 길이 방향 · b: 너비 방향) */
 function cvdGrid(A,nodes,cols,nrm){
   const v0=A.p.length/3, na=nodes.length, nb=nodes[0].length;
@@ -167,6 +296,7 @@ function cvdMoss(A,X,x,y,z,r,h,ux,uy,uz){
 function* cvdCtx(rec){
   const c=rec.c, nx=rec.nx, nz=rec.nz, n=nx*nz, F=rec.F, C=rec.C, Hh=rec.Hh, O=rec.O, M=rec.M;
   const X={rec,c,kind:c.kind,nx,nz,S:rec.S,x0:rec.x0,z0:rec.z0,F,C,Hh,O,M,D:rec.D,seed:c.seed|0,rnd:mulberry32((c.seed^0xdec0)>>>0),
+    prnd:mulberry32((c.seed^0x57a1c)>>>0), xtr:0, pcs:{up:{},dn:{},n:0,tri:0,gap0:-1e9,dbg:CVD.dbg?[]:null},   // prnd — 모형 조각 고르기 · 돌림 · 흔들기만(X.rnd 차례를 안 건드린다) · xtr — 조각이 예전 원뿔보다 더 쓴 세모
     A:{rock:cvdAcc(),sheet:cvdAcc(),water:cvdAcc(),shr:cvdAcc()}, gw:[], gold:[], items:[], log:[], cnt:{}, picks:[], cols:[], big:[], tri:null};
   const E=X.E=new Uint8Array(n), blocked=new Uint8Array(n);
   for(let j=0;j<nz;j++){ if((j&7)===7&&cvdT()) yield; for(let i=0;i<nx;i++){ const q=j*nx+i; E[q]=C[q]-F[q]>0.3?1:0; blocked[q]=1-E[q]; } }
@@ -211,8 +341,8 @@ function* cvdKarstSpeleo(X){
     const L=Math.min(2.0,0.2+1.8*Math.pow(rnd(),1.7))*(g>4.5?1.2:1), Lm=Math.min(L,2.0,g-2.2); if(Lm<0.2) continue;
     const r0=Math.min(0.22,Math.max(0.04,0.035+Lm*0.085*(0.6+0.8*rnd()))), tone=0.85+0.3*rnd(), ph=rnd()*6, cf=cvdCol(X,tone,0.7,ph), y0=o.c+bury(r0,o.sc), len=Lm+(y0-o.c);
     const lx=(rnd()-0.5)*0.1*Lm, lz=(rnd()-0.5)*0.1*Lm, x=o.x, z=o.z;
-    const it=cvdRev(A,x,y0,z,0,-1,0,len,t=>r0*Math.pow(1-t,1.25)*(1+0.1*Math.sin(t*11+ph))+0,8,6,cf,t=>[lx*t*t,0,lz*t*t]); it.acc=A;
-    const tipY=o.c-Lm; cvdLog(X,'stalactite',x,z,y0,tipY,r0); st.push({x,z,L:Lm,r:r0,f:o.f,c:o.c,g,wd:o.wd,d:o.d});
+    const it=cvdPcPut(X,A,'c',true,x,y0,z,len,r0*1.05,88,56+70*Lm,{cf,lx,lz})||cvdRev(A,x,y0,z,0,-1,0,len,t=>r0*Math.pow(1-t,1.25)*(1+0.1*Math.sin(t*11+ph))+0,8,6,cf,t=>[lx*t*t,0,lz*t*t]); it.acc=A;
+    const tipY=o.c-Lm; cvdLog(X,'stalactite',x,z,y0,tipY,r0); st.push({x,z,L:Lm,r:r0,f:o.f,c:o.c,g,wd:o.wd,d:o.d,pc:it.pc});
     if(Lm<=0.55&&r0<=0.1&&rnd()<0.4) cvdPick(X,'cvcalcite',x,tipY,z,tipY+0.04,0.18,it); }
   let nstraw=0;
   for(const q of cells){ if(cvdT()) yield; if(!X.ceil[q]||nstraw>=230||!cvdBudget(X,15500)) continue;             // 빨대 종유석 — 평평한 천장에 빽빽이
@@ -224,15 +354,15 @@ function* cvdKarstSpeleo(X){
       cvdRev(A,o.x,y0,o.z,0,-1,0,Lm+0.04+(y0-o.c-0.04),t=>r0*(1-0.55*t)*(t>=0.999?0:1),5,2,cf); nstraw++; cvdLog(X,'straw',o.x,o.z,y0,o.c-Lm,r0); if(!sp) sp=[o.x,o.z,o.c-Lm]; }
     if(sp) cvdPick(X,'cvstraw',sp[0],sp[2],sp[1],sp[2]+0.05,0.15,{acc:A,v0:sg0,v1:A.p.length/3}); }
   /* 석순 — 큰 종유석 밑에 60% · 가끔 혼자 */
-  const mk=(x,z,hMax,wantBig)=>{ const s=cv10Samp(X.rec,x,z); if(s.n<=0||s.open) return; const f=s.f, c=s.c, sl=0;
+  const mk=(x,z,hMax,wantBig,pair)=>{ const s=cv10Samp(X.rec,x,z); if(s.n<=0||s.open) return; const f=s.f, c=s.c, sl=0;
     let h=0.2+2.3*Math.pow(rnd(),1.8); h=Math.min(h,hMax); if(h<0.2) return;
     let r=Math.min(0.45,Math.max(0.1,0.09+h*0.12*(0.6+0.8*rnd()))), wd=X.wd[Math.round((x-X.x0)/X.S)+Math.round((z-X.z0)/X.S)*nx];
     const big=r>0.25;
     if(big&&!(wd>=1.4+r&&s.d>4&&cvdFar(X.big,x,z,2.8))) r=0.24;
     const tone=0.85+0.3*rnd(), ph=rnd()*6, cf=cvdCol(X,tone,0.6,ph), by=0.03+Math.min(0.07,r*0.3), r0=r;
-    const it=cvdRev(A,x,f-by,z,0,1,0,h+by,t=>r0*Math.sqrt(Math.max(0,1-Math.pow(t,2.4)))*(1+0.35*Math.pow(1-t,4)),8,6,cf); it.acc=A; cvdLog(X,'stalagmite',x,z,f-by,f+h,r);
+    const it=cvdPcPut(X,A,'g',false,x,f-by,z,h+by,r0*1.25,88,56+60*h,{cf,pair,big:r0>0.25})||cvdRev(A,x,f-by,z,0,1,0,h+by,t=>r0*Math.sqrt(Math.max(0,1-Math.pow(t,2.4)))*(1+0.35*Math.pow(1-t,4)),8,6,cf); it.acc=A; cvdLog(X,'stalagmite',x,z,f-by,f+h,r);   // 짝 — 종유석 밑의 석순은 그 조각을 위아래로 뒤집어(같은 돌림)
     if(r>0.25) cvdBlock(X,x,z,r*1.1,f,f+h); else if(h<=1.0&&rnd()<0.35) cvdPick(X,'cvcalcite',x,f,z,f+h*0.6,Math.max(0.2,r),it); };
-  for(const s of st){ if(cvdT()) yield; if(!cvdBudget(X,19000)) break; if(s.L>0.4&&rnd()<0.6) mk(s.x+(rnd()-0.5)*0.1,s.z+(rnd()-0.5)*0.1,s.g-s.L-0.35,false); }
+  for(const s of st){ if(cvdT()) yield; if(!cvdBudget(X,19000)) break; if(s.L>0.4&&rnd()<0.6) mk(s.x+(rnd()-0.5)*0.1,s.z+(rnd()-0.5)*0.1,s.g-s.L-0.35,false,s.pc); }
   for(const q of cells){ if(cvdT()) yield; if(!cvdBudget(X,19500)) break; if(rnd()>0.012) continue; cvdAt(X,q,rnd(),rnd(),o); if(o.c-o.f<2.6||o.sf>0.5) continue; mk(o.x,o.z,1.6,false); }
   /* 기둥 — 낮은 방 자리(천장−바닥 < 3.2). 낮은 자리가 없으면 가장 낮은 두어 곳 */
   const cand=[], colMk=(x,z,f,c,wd)=>{ const rmin=0.14+0.16*rnd(), rmax=rmin*(1.5+0.7*rnd()), ph=rnd()*6, cf=cvdCol(X,0.9+0.2*rnd(),0.8,ph), h=c-f+0.2;
@@ -314,12 +444,12 @@ function* cvdLavaTeeth(X){
   for(const q of cells){ if(cvdT()) yield; if(nt>=1300||!cvdBudget(X)) break; if(!X.ceil[q]) continue;                  // 용암 고드름 — 짧은 이빨 꼴, 천장에 빽빽이
     cvdAt(X,q,0.5,0.5,o); if(o.sc>0.8||rnd()>0.24*cvdCluster(X,o.x,o.z,4,4)) continue;
     for(let k=0;k<2;k++){ cvdAt(X,q,rnd(),rnd(),o); const L=0.03+0.12*Math.pow(rnd(),1.3), r0=0.012+0.018*rnd(), y0=o.c+0.03, t=0.7+0.5*rnd();
-      cvdRev(A,o.x,y0,o.z,0,-1,0,L+0.03,s=>r0*(1-s),5,1,()=>[0.30*t,0.21*t,0.17*t]); nt++; cvdLog(X,'tooth',o.x,o.z,y0,o.c-L,r0); } }
+      cvdPcPut(X,A,'c',true,o.x,y0,o.z,L+0.03,r0,5,L>0.12?20:12,{col:[0.30*t,0.21*t,0.17*t]})||cvdRev(A,o.x,y0,o.z,0,-1,0,L+0.03,s=>r0*(1-s),5,1,()=>[0.30*t,0.21*t,0.17*t]); nt++; cvdLog(X,'tooth',o.x,o.z,y0,o.c-L,r0); } }
   let ns=0;
   for(const q of cells){ if(cvdT()) yield; if(ns>=70||!cvdBudget(X)) break;                                          // 작은 용암 석순
     cvdAt(X,q,rnd(),rnd(),o); if(o.sf>0.4||rnd()>0.012) continue;
     const h=0.05+0.15*rnd(), r0=0.02+0.04*rnd(), by=0.03, t=0.8+0.4*rnd();
-    cvdRev(A,o.x,o.f-by,o.z,0,1,0,h+by,s=>r0*Math.sqrt(Math.max(0,1-Math.pow(s,2))),6,2,()=>[0.20*t,0.15*t,0.13*t]); ns++; cvdLog(X,'lavamite',o.x,o.z,o.f-by,o.f+h,r0); }
+    cvdPcPut(X,A,'g',false,o.x,o.f-by,o.z,h+by,r0,18,20,{col:[0.20*t,0.15*t,0.13*t]})||cvdRev(A,o.x,o.f-by,o.z,0,1,0,h+by,s=>r0*Math.sqrt(Math.max(0,1-Math.pow(s,2))),6,2,()=>[0.20*t,0.15*t,0.13*t]); ns++; cvdLog(X,'lavamite',o.x,o.z,o.f-by,o.f+h,r0); }
 }
 function* cvdRoots(X,pr,cap){                                    // 지붕이 얇은 데(땅−천장<4)에 천장을 뚫고 늘어진 나무뿌리
   const rnd=X.rnd, o={}, A=X.A.rock; let nr=0;
@@ -456,6 +586,7 @@ function* cvdGen(rec){
   rec.cols=rec.cols.filter(o=>!o.deco);
   const D=rec.deco={meshes:[],items:[],log:[],cnt:{},tris:0,draws:0,picks:[],ms:0,cols:[]};   // 짓기 시작할 때 먼저 세운다 — 붙인 자식은 버릴 때 반드시 떼어 낸다(cv10DecoDrop)
   const X=yield* cvdCtx(rec); yield;
+  if((kind==='karst'||kind==='lava')&&CVD_PC.list===null) yield* cvdPcInit();   // 모형 조각(처음 한 번)
   X.wd=yield* cvdChamfer(X,X.blocked); X.md=yield* cvdChamfer(X,rec.M); X.blocked=null; yield* cvdTris(X); yield;
   if(kind==='karst'){ yield* cvdKarstSpeleo(X); yield* cvdKarstFlow(X); yield* cvdGlow(X,12,0.30,8,0.05,420); yield* cvdRoots(X,0.05,10); }
   else if(kind==='lava'){ yield* cvdLavaTeeth(X); yield* cvdRubble(X,(o)=>o.d<7&&o.wd>0.2,0.30,1.0,60,1.0); yield* cvdRoots(X,0.14,40); yield* cvdWallDecals(X,'flake',70); yield* cvdWallDecals(X,'gold',220); }
@@ -483,7 +614,7 @@ function* cvdGen(rec){
   for(const it of X.items) it.mesh=accOf.get(it.acc);
   for(const col of X.cols) rec.cols.push(col);
   D.items=X.items; D.log=X.log; D.cnt=X.cnt; D.picks=X.picks; D.cols=X.cols; D.draws=D.meshes.length;
-  D.tris=X.A.rock.tr+X.A.sheet.tr+X.A.water.tr+X.A.shr.tr;
+  D.tris=X.A.rock.tr+X.A.sheet.tr+X.A.water.tr+X.A.shr.tr+X.xtr; D.trisEq=D.tris-X.xtr; D.pc=X.pcs;   // tris 참 세모 · trisEq 예산이 센 것(조각을 예전 원뿔 세모로) · pc 고른 조각(조각 번호 → 개수)
   /* 이미 따간 것은 숨기고, 아닌 것만 딸 것 목록에 */
   for(const it of X.items){ if(cvdTaken(it)) cvdSet(it,false); else CV10.picks.push(it.pick); }
 }
