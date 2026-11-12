@@ -847,7 +847,7 @@ function cv10Step(rec,t1){
           for(let m=b*128;m<e;m++){ const v=rec.ord[m], o=v*3, x=rec.vp[o], y=rec.vp[o+1], z=rec.vp[o+2], s=cv10Samp(rec,x,z);
             const vw=cv10V(rec,x,y,z), lower=vw>0.3?0.03:0; rec.wall[m]=vw>0.3?0:1;
             rec.pos[m*3]=x; rec.pos[m*3+1]=y-lower; rec.pos[m*3+2]=z; rec.nor[m*3]=rec.vnrm[o]; rec.nor[m*3+1]=rec.vnrm[o+1]; rec.nor[m*3+2]=rec.vnrm[o+2];
-            const d=s.d; rec.aDeep[m]=_cv10Smooth(2,16,d); rec.aSky[m]=Math.exp(-d/5);
+            const d=s.n<=0?cv10TopD(rec,x,z):s.d; rec.aDeep[m]=_cv10Smooth(2,16,d); rec.aSky[m]=Math.exp(-d/5);   // 윗면 꼭짓점(둘레에 빈 데 점 없음 · 땅과 맞닿는 테)은 가까운 빈 데 쪽 값 — 예전엔 d=1e9 라 입구 테 윗면이 검었다(aSky 0)
             rec.aFl[m]=Math.min(1,Math.max(0,(y-s.f)/Math.max(Math.min(s.c,s.h+1)-s.f,0.1))); } },t1,4)) { rec.msMesh+=performance.now()-T; return false; }
       rec.ph='tri'; rec.pr=0; rec.msMesh+=performance.now()-T; break; }
     /* 껍데기 다듬기 — 벽 꼭짓점에 Taubin(λ 0.5 · μ −0.53) 두 번(판 15 는 한 번 — smooth) · 법선은 세모에서 다시 센다(0.5 m 격자의 지느러미를 눕힌다) */
@@ -891,12 +891,20 @@ function cv10Step(rec,t1){
         for(let q=0;q<n;q++) if(M[q]) md[q]=0;
         for(let j=0;j<nz;j++) for(let i=0;i<nx;i++){ const q=j*nx+i; let v=md[q]; if(i>0&&md[q-1]+1<v) v=md[q-1]+1; if(j>0&&md[q-nx]+1<v) v=md[q-nx]+1; md[q]=v; }
         for(let j=nz-1;j>=0;j--) for(let i=nx-1;i>=0;i--){ const q=j*nx+i; let v=md[q]; if(i<nx-1&&md[q+1]+1<v) v=md[q+1]+1; if(j<nz-1&&md[q+nx]+1<v) v=md[q+nx]+1; md[q]=v; } }
-      const base=rec.vmin-1, td=rec.tdata;
+      if(!rec.rimD){ const rd=rec.rimD=new Float32Array(n).fill(1e9), d1=S, d2=S*1.4142135623730951;   // 땅 테 — M 까지의 거리(m · 여덟 이웃 두 번 훑기) · 모든 굴
+        for(let q=0;q<n;q++) if(M[q]) rd[q]=0;
+        for(let j=0;j<nz;j++) for(let i=0;i<nx;i++){ const q=j*nx+i; let v=rd[q]; if(i>0&&rd[q-1]+d1<v) v=rd[q-1]+d1; if(j>0){ if(rd[q-nx]+d1<v) v=rd[q-nx]+d1; if(i>0&&rd[q-nx-1]+d2<v) v=rd[q-nx-1]+d2; if(i<nx-1&&rd[q-nx+1]+d2<v) v=rd[q-nx+1]+d2; } rd[q]=v; }
+        for(let j=nz-1;j>=0;j--) for(let i=nx-1;i>=0;i--){ const q=j*nx+i; let v=rd[q]; if(i<nx-1&&rd[q+1]+d1<v) v=rd[q+1]+d1; if(j<nz-1){ if(rd[q+nx]+d1<v) v=rd[q+nx]+d1; if(i<nx-1&&rd[q+nx+1]+d2<v) v=rd[q+nx+1]+d2; if(i>0&&rd[q+nx-1]+d2<v) v=rd[q+nx-1]+d2; } rd[q]=v; } }
+      const base=rec.vmin-1, td=rec.tdata, rimD=rec.rimD, pn=c._n;
       if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ const q=j*nx+i, o=q*4, v=C[q]-F[q]>0.05; let r=0,g=0;
           if(v){ r=(F[q]-base)/0.25; g=(Math.min(C[q],Hh[q]+1)-base)/0.25; if(r>255||g>255) rec.texOver++; r=Math.min(255,Math.max(0,Math.round(r))); g=Math.min(255,Math.max(0,Math.round(g))); }
           const d=D[q]; td[o]=r; td[o+1]=g; td[o+2]=Math.round(255*_cv10Smooth(2,16,d)); td[o+3]=M[q]?255:Math.round(127*Math.exp(-d/5));
           if(!v){ const hc=Math.round((Hh[q]-base+64)/0.004), ok=hc>0&&hc<65535; td[o]=ok?hc>>8:0; td[o+1]=0; td[o+2]=ok?hc&255:0; }   // 빈 데 아닌 점 — 겉 높이 Hh 를 R·B 16 비트로(4 mm · G 0 이라 빈 데 시험 g>r 은 그대로 거짓 · 32-caves.js cv10Top)
-          if(!M[q]&&rec.Hb){ const hb=rec.Hb[q]; if(hb<Hh[q]-0.3&&((v&&hb>F[q]-0.3&&hb<C[q]+0.3)||rec.mdist[q]<=16)) td[o+3]=192+Math.round(62*Math.exp(-Math.min(d,60)/5)); } }  },t1)) { rec.msMesh+=performance.now()-T; return false; }
+          if(!M[q]&&rec.Hb){ const hb=rec.Hb[q]; if(hb<Hh[q]-0.3&&((v&&hb>F[q]-0.3&&hb<C[q]+0.3)||rec.mdist[q]<=16)) td[o+3]=192+Math.round(62*Math.exp(-Math.min(d,60)/5)); }
+          /* 땅 테(바위 칸 · A 0 이던 칸에만 1~126) — 구멍에서 너비 W(2.3~3.5 m · 잡음 가장자리) 안 · 상자 끝 1 m 전에 0. 땅 셰이더가 바위 → 자갈 → 부식토 → 풀로 칠한다(32-caves.js cv10HoleR).
+             A≥0.75(구멍) · 빈 데 칸(cv10Smp) · 겉 높이(cv10Top — R·B)는 그대로 */
+          if(!v&&!M[q]&&td[o+3]===0&&rimD[q]<3.5){ const x=rec.x0+i*S, z=rec.z0+j*S, nn=pn?pn(x/1.9+31.7,z/1.9+12.3)/0.5:0, W=3.5*(0.83+0.17*(nn<-1?-1:nn>1?1:nn)), eg=Math.min(i,nx-1-i,j,nz-1-j)*S;
+            const k=(1-_cv10Smooth(0,W,rimD[q]))*_cv10Smooth(1,2,eg); if(k>0.004) td[o+3]=Math.max(1,Math.min(126,Math.round(126*k))); } }  },t1)) { rec.msMesh+=performance.now()-T; return false; }
       rec.msMesh+=performance.now()-T; rec.ph='fin'; break; }
     case 'fin':{
       const T=performance.now();
@@ -911,7 +919,7 @@ function cv10Step(rec,t1){
       const mesh=new THREE.Mesh(geo,CV10.mat?CV10.mat(c.kind):cv10SeatMat(c.kind));
       mesh.matrixAutoUpdate=false; mesh.castShadow=false; mesh.receiveShadow=true; mesh.userData.lightRole='recv'; mesh.userData.cave=c;
       scene.add(mesh); rec.mesh=mesh; rec.verts=nv; rec.tris=rec.ni/3;
-      rec.tri=rec.wall=rec.vp=rec.vnrm=rec.idx=rec.rm=rec.ord=rec.pos=rec.nor=rec.aDeep=rec.aSky=rec.aFl=rec.tdata=rec.Hb=rec.mdist=null;
+      rec.tri=rec.wall=rec.vp=rec.vnrm=rec.idx=rec.rm=rec.ord=rec.pos=rec.nor=rec.aDeep=rec.aSky=rec.aFl=rec.tdata=rec.Hb=rec.mdist=rec.rimD=null;
       try{ LIGHT.dirtyAt(c.x,c.z,60); }catch(e){}
       rec.state='done'; rec.ph='done'; rec.onb=true;
       for(const f of CV10.onBuild){ try{ f(rec); }catch(e){ showErr('굴 onBuild',e); } }
@@ -922,6 +930,13 @@ function cv10Step(rec,t1){
   }
 }
 
+/* 윗면 꼭짓점의 '열린 데까지 거리' — 둘레 ±3 점(1.5 m) 빈 데 점의 D + 그 점까지 거리 가운데 가장 작은 것(없으면 1e9 — 구멍 둘레가 아닌 윗면은 안 보인다) */
+function cv10TopD(rec,x,z){
+  const S=rec.S, nx=rec.nx, nz=rec.nz, fi=(x-rec.x0)/S, fj=(z-rec.z0)/S, i0=Math.round(fi), j0=Math.round(fj); let best=1e9;
+  for(let dj=-3;dj<=3;dj++){ const j=j0+dj; if(j<0||j>=nz) continue; for(let di=-3;di<=3;di++){ const i=i0+di; if(i<0||i>=nx) continue; const q=j*nx+i;
+    if(!(rec.C[q]-rec.F[q]>0.05)||rec.D[q]>=1e8) continue; const v=rec.D[q]+Math.hypot(i-fi,j-fj)*S; if(v<best) best=v; } }
+  return best;
+}
 /* 빈 데 점만으로 쌍선형 — 모서리 넷 가운데 빈 데가 하나도 없으면 n=0 */
 const _cv10S={f:0,c:0,h:0,d:1e9,open:false,n:0};
 function cv10Samp(rec,x,z){

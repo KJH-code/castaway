@@ -271,6 +271,17 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         #ifdef CAVE_ON
         /* 굴 속(32-caves.js cvF · envPatch 가 main 첫머리에서 센다) — 풀·모래·낙엽·진흙 대신 굴 바닥: 자갈 사진 70% · 마른 흙 30% · 잿갈색.
            바위 밑동의 녹아들기(45-sky.js)도 같은 빛깔로 간다 */
+        /* 판 10 굴 입구 둘레 땅 테(32-caves.js cv10HoleR — TERR_HOLE 이 cv10RimG 에 둔다) — 구멍 쪽에서 바깥으로 바위 → 자갈 → 흙 · 낙엽 → 풀.
+           빛깔로 칠하지 않고 땅 사진 켜의 무게를 옮긴다(바위 4 · 자갈 5 · 낙엽 2 · 마른 흙 7 — 아래 GL). 경계는 세 크기의 잡음(큰 얼룩 n1 · 중간 n2 · 1.7 m nf)으로
+           들쭉날쭉하고, 자갈은 풀 속으로 섬처럼 번진다. 굴 쪽으로 갈수록 젖어 어둡다(사용자 요청 — 실제 사진처럼) */
+        float rimW=0.0;
+        if(cv10RimG>0.002){ float nf=texture2D(uNz,p/1.7+vec2(0.37,0.11)).g;
+          float rr=clamp(cv10RimG+(n1.r-0.5)*0.22+(n2.g-0.5)*0.26+(nf-0.5)*0.22,0.0,1.0);
+          float rk=smoothstep(0.64,0.86,rr+(nf-0.5)*0.18), gv=smoothstep(0.30,0.52,rr+(nf-0.5)*0.35)*(1.0-rk*0.6), hu=smoothstep(0.05,0.26,rr)*(1.0-gv);
+          steep=max(steep,rk); flat1=1.0-steep; grav=max(grav,gv);
+          mLeaf=max(mLeaf*(1.0-gv),hu*0.45*smoothstep(0.35,0.65,n2.r)); mSand*=1.0-max(gv,hu); mNeed*=1.0-gv; mMud*=1.0-gv; green*=1.0-max(gv,hu*0.9);
+          c=mix(c,vec3(0.231,0.184,0.133)*(0.85+0.30*n2.b),hu*0.35);          // 부식토 #3B2F22 쪽으로 바탕 빛만 조금(결은 사진)
+          rimW=smoothstep(0.45,1.0,rr); }
         if(cvF>0.002){ grav=mix(grav,0.70,cvF); mSand*=1.0-cvF; mLeaf*=1.0-cvF; mNeed*=1.0-cvF; mMud*=1.0-cvF; green*=1.0-cvF;
           c=mix(c,vec3(0.27,0.25,0.22)*(0.88+0.24*n2.b),cvF*0.9); }
         #endif
@@ -324,6 +335,9 @@ vec3 hexT(float L,vec2 uv,vec2 dx,vec2 dy){
         /* 모래는 사진 결을 반만 — 모래밭이 혼자 튀었다(사용자 지적). 대신 넓은 얼룩(젖은 데·마른 데)으로 바탕과 섞는다 */
         c*=mix(vec3(1.0),det*2.0,mix(1.0,0.6,smoothstep(50.0,160.0,vTD))*mix(1.0,0.50,wSand));    // 멀리선 조금 옅게
         c*=mix(1.0,0.84+0.30*n1.r+0.10*(n2.g-0.5),wSand);
+        #ifdef CAVE_ON
+        if(rimW>0.0){ float wet=rimW*(0.55+0.45*smoothstep(0.3,0.7,n2.a)); c*=mix(1.0,0.66,wet); c=mix(c,c*vec3(0.94,0.97,1.02),wet*0.5); }   // 굴 입구 쪽 땅 테는 젖어 어둡다(얼룩지게)
+        #endif
         /* **지층 벼랑**(2026-11-04 사용자 사진 — 바닷가 벼랑 · 골짜기 · 폭포 벽: 진짜 벼랑은 켜켜이 쌓인 지층이 깎여 드러난 면이다). 가파른 면(약 37° 넘게)은
            사진 결 덩이 대신 **지층**으로 칠한다: 켜(1.6~3 m · 섬 전체로 조금 기운다 · 켜마다 빛깔이 다르다) · 켜의 윗단은 볕을 받는 턱(밝다) · 아랫단은 처마 밑(짙다) ·
            세로 절리(2.5~4 m 마다 검은 금) · 바위 갈래는 큰 얼룩으로(검은 현무암 · 녹슨 사암 · 흰 석회암). 풀은 그 비탈 밑에서 또렷이 끊긴다 */
