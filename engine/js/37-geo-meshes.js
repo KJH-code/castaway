@@ -347,14 +347,24 @@ function geoMat(){
     sh.vertexShader=sh.vertexShader.replace('vRW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvRN=normal;\nvRV=(modelViewMatrix*vec4(transformed,1.0)).xyz;',
       '#ifdef USE_INSTANCING\nvRW=(modelMatrix*instanceMatrix*vec4(transformed,1.0)).xyz;\nvRN=mat3(instanceMatrix)*normal;\nvRV=(modelViewMatrix*instanceMatrix*vec4(transformed,1.0)).xyz;\n#else\nvRW=(modelMatrix*vec4(transformed,1.0)).xyz;\nvRN=normal;\nvRV=(modelViewMatrix*vec4(transformed,1.0)).xyz;\n#endif');
     if(typeof CV10_COMMON_GLSL!=='undefined'&&cv10On()){          // 지형 판 10 굴(판 10 부터 — 판 9 까지는 안 넣는다 · 프로그램 열쇠 'cv' 로 가른다) — 굴 자리 그림의 구멍(입구 마당 · 빛구멍)을 모형도 비운다(31-cave10.js cv10Sfc — 굴이 모형 윗면을 땅으로 삼는다)
-      for(const k of ['uCv10T','uCv10R','uCv10B','uCv10G']) sh.uniforms[k]=TERR_U[k];
-      sh.fragmentShader=CV10_COMMON_GLSL+sh.fragmentShader.replace(/void main\s*\(\)\s*\{/,'void main() {\n\tif(cv10HoleMP(vRW,normalize(vRN).y)) discard;'); }   // 벼랑 면은 남긴다(32-caves.js cv10HoleMP)
+      for(const k of ['uCv10T','uCv10R','uCv10B','uCv10G','uCv10Rim']) sh.uniforms[k]=TERR_U[k];
+      sh.fragmentShader='#define CV10_GEO\n'+CV10_COMMON_GLSL+sh.fragmentShader.replace(/void main\s*\(\)\s*\{/,'void main() {\n\tif(cv10HoleMPR(vRW,normalize(vRN).y)) discard;'); }   // 구멍 + 땅 테 세기(cv10RimG — 같은 읽기)   // 벼랑 면은 남긴다(32-caves.js cv10HoleMP)
     sh.fragmentShader='uniform float uSnow;\n'+sh.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
       ${TERR_U.uRk?'':'/*'}{ // 큰 결 — 바위 사진을 큰 배율(11 m)로 세 방향에서 한 번 더(넓은 풍화 얼룩 · 반복이 덜 보인다)
         vec3 gn0=normalize(vRN), tw0=pow(abs(gn0),vec3(4.0)); tw0/=tw0.x+tw0.y+tw0.z+1e-4;
         float ml0, ml1; geoLay(geoPick(geoW(vRW.xz),0.5),ml0,ml1);                       // 그 자리 바위의 사진으로(예전엔 면 방향마다 0 · 1 · 2 를 박아 윗면이 늘 사암 켜였다)
         vec3 mac=texture(uRk,vec3(vRW.zy/11.0,ml0)).rgb*tw0.x+texture(uRk,vec3(vRW.xz/11.0,ml1)).rgb*tw0.y+texture(uRk,vec3(vRW.xy/11.0,ml0)).rgb*tw0.z;
         diffuseColor.rgb*=mix(0.62+0.76*dot(mac,vec3(0.333)),1.0,smoothstep(300.0,1500.0,length(vRV))*0.8); }${TERR_U.uRk?'':'*/'}
+      #ifdef CV10_GEO
+      if(cv10RimG>0.002){ /* 판 10 굴 입구 둘레(32-caves.js cv10HoleMPR) — 바위 사진 위에 흙 때(부식토 #3B2F22 쪽 · 사진의 어두운 틈일수록 짙게) · 빛 받는 윗면의 이끼 얼룩 · 입구 쪽 젖어 어두움.
+           칠이 아니라 곱하기라 바위 결이 그대로 남는다 · 경계는 사진 밝기로 들쭉날쭉 */
+        vec3 gnr=normalize(vRN); float lr=clamp(dot(diffuseColor.rgb,vec3(0.333))*2.2,0.0,1.0), rr=clamp(cv10RimG+(lr-0.5)*0.30,0.0,1.0);
+        float dirt=smoothstep(0.08,0.55,rr)*(0.45+0.55*(1.0-lr));
+        diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(0.70,0.58,0.44),dirt*0.65);
+        float moss=smoothstep(0.55,0.85,gnr.y)*smoothstep(0.12,0.45,rr)*(1.0-smoothstep(0.80,1.0,rr))*smoothstep(0.35,0.65,lr);
+        diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(0.60,0.80,0.42),moss*0.55);
+        diffuseColor.rgb*=mix(1.0,0.68,smoothstep(0.45,1.0,rr)); }
+      #endif
       { /* 멀리서는 한 덩어리(2026-11-05 사용자 요청 '멀면 빛깔을 죽여 한 몸으로') — 300 m ~ 1.5 km 에 걸쳐 틈의 짙은 칠(정점 빛깔)을 걷고 · 빛깔을 뺀다
            (지질도의 사암 갈색 · 화강암 잿빛 · 모형마다의 빛깔이 멀리서 얼룩덜룩 갈려 보였다). 눈은 그 뒤에 얹는다 */
         float fd=smoothstep(300.0,1500.0,length(vRV));

@@ -62,6 +62,8 @@ function cv10BoxSfc(x,z){ for(const c of CV10.built.keys()){ const b=c.box; if(x
 function cv10On(){ return (P.tv|0)>=10; }
 /* 판 10 굴 고침 묶음(2026-11-10 review B) — 판 10(시험 섬)과 12 부터. 판 11 섬은 옛 저장이 같은 섬을 열도록 예전 그대로 */
 function cv10V2(){ const t=P.tv|0; return t===10||t>=12; }
+/* 판 15 — 굴 꼴을 실제처럼 울퉁불퉁하게(cv10Eval · 껍데기 다듬기 한 쌍). 판 14 이하 굴은 한 비트도 안 바뀐다 — cv10Prep 이 이 값을 굴 표(P.v15)로 받는다(그 안의 지역 이름 P 가 섬 인자를 가린다) */
+function cv10V15(){ return (P.tv|0)>=15; }
 function cv10Free(x,z,r,rv){
   const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2);
   if(gx<6||gz<6||gx>N-7||gz>N-7) return false;
@@ -74,17 +76,62 @@ function cv10Free(x,z,r,rv){
 
 /* ── 굴 부피 ─────────────────────────────────────────────────────────────────────────────────────────────────
    준비: 굴길 토막(같은 길 pid 끼리 묶음)과 방·빛구멍의 상자를 미리 구해 둔다(c._P — 저장에 안 든다). 한 점마다 상자 밖은 곧바로 거른다 */
+/* 판 15 — 종류마다 꼴의 진폭(메인이 사진을 보고 고르는 손잡이 한 곳). 값이 0 이면 그 몫은 판 14 와 같은 값이다(그 갈래를 아예 안 탄다).
+   원칙: 파장 2 m 넘는 굴곡만 꼴에 넣는다(더 잔 것은 껍데기 다듬기가 지운다 — 판 15 는 Taubin 한 쌍). 걷기 · 하늘 구멍 안전 제약은 cv10Eval 끝(cv10R15)에 */
+CV10.R={
+  karst:  {wall:0.08, ped:0.45, step:0.35, slab:0.5},  // 벽 u 잡음(비율 · 2.5 m — 설계 ±0.14~0.18 은 갇힌 틈(rec.unreach 28)과 지느러미(이웃 면 60° 넘는 몫 ×3.5)가 서서 ½ · 0.10 부터 갇힌 틈이 난다 · 바닥 쪽과 천장 쪽이 다른 높이를 읽는다) · 천장 펜던트(m · g>3 m 인 데만) · 켜 따른 천장 붕락 계단(±m · 3 m 칸) · 방 · 넓은 길 벽 쪽(u>0.5) 판상 덩이(최대 두께 m · 보로노이 2.2 m · 윗면 ±8°)
+  lava:   {wall:0.06, shelf:1, step:0.6, fall:0.5},    // 벽 u 잡음(4 m — 용암관은 매끈) · 선반 1~2 개 더(1 이면 u 0.80~0.88 · 0.08~0.15H) · 붕락 구간(n(s/18)>0.35)만 천장 계단(최대 m) · 채광창 밑 붕락 덩이(최대 m)
+  talus:  {wall:0.35, ceil:0, floor:0.25},             // 보로노이 두 겹(1.4 · 3.2 m — 씨 P.vs+16 · P.vs+32 · cv10H) 벽 평면(±m · 덩이 면 평평) · 천장(±m — 설계 ±0.8 은 입구 하늘 틈을 판 14 의 2559 → 2728 px 로 늘려 0 · 0 이면 2400) · 바닥 u>0.55(±m)
+  shelter:{back:0.06, lay:1, slab:0.3},                // 뒷벽(±D 비율 · 3 m — 설계 ±0.12 는 지느러미 ×1.7 이라 ½) · 켜 두께를 켜마다 0.6~1.6 m(1 이면 그대로 · 0 이면 굴마다 하나) · 낙반 판(최대 m · 0.1~0.3)
+  mouth:  {ceil:0.5, brow:0}                           // 입구 마당 천장을 각지게(±m · 보로노이 1.2 m) · 이마 두께 browT(±m — 설계 ±0.4 는 석회암 입구 하늘 틈을 판 14 의 4112 → 4252 px 로 늘려 0 · 0 이면 3959)
+};
+/* 판 15 — 굴 잡음(c._n)을 높이로 비튼 3차원 잡음(칸 1 · 대략 −1~1 로 자름) — 벽의 바닥 쪽과 천장 쪽이 다른 높이를 읽어 다른 굴곡이 되고(한 잡음이면 벽이 세로 기둥 꼴),
+   둘이 만나는 데(벽 가운데 높이)에서는 같은 높이를 읽어 이어진다 */
+const cv10N3=(n,x,y,z)=>{ const v=0.5*(n(x+0.6*y+3.1,z-0.45*y+5.3)+n(z-0.55*y+7.7,x+0.5*y+1.9))/0.35; return v<-1?-1:v>1?1:v; };
+const cv10N2=(n,x,z)=>{ const v=n(x,z)/0.5; return v<-1?-1:v>1?1:v; };
+/* 판 15 — 보로노이 칸 값(칸 크기 1 · 판 14 바위틈 천장과 같은 cv10H 꼴 — 자리 씨 sd · sd+1, 값 sd+2 · sd+3). 칸 안은 평평하고 경계 e(칸 단위) 폭에서 이웃 칸 값으로 매끈하게 넘어간다.
+   돌려주는 것은 공유 객체 — v(−1~1) · w(0~1) */
+const _cv10Vo={v:0,w:0};
+function cv10Vor(X,Z,sd,e){
+  const ix=Math.floor(X), iz=Math.floor(Z); let d1=1e9,d2=1e9,a1=0,a2=0,b1=0,b2=0;
+  for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const i=ix+dx, j=iz+dz, px=i+0.15+0.7*cv10H(i,j,sd), pz=j+0.15+0.7*cv10H(i,j,sd+1), d=(X-px)*(X-px)+(Z-pz)*(Z-pz);
+    if(d<d1){ d2=d1; a2=a1; b2=b1; d1=d; a1=cv10H(i,j,sd+2); b1=cv10H(i,j,sd+3); } else if(d<d2){ d2=d; a2=cv10H(i,j,sd+2); b2=cv10H(i,j,sd+3); } }
+  const t=0.5+0.5*smoothstep(0,e,Math.sqrt(d2)-Math.sqrt(d1));
+  _cv10Vo.v=(a2+(a1-a2)*t)*2-1; _cv10Vo.w=b2+(b1-b2)*t; return _cv10Vo;
+}
+/* 판 15 — 판상 덩이(보로노이 칸 하나에 판 하나 · 몫 fr 만큼의 칸에 · 두께 t0~t1 m · 윗면 ±8° 기울기) — 칸 크기 cs(m) · 경계 0.25 칸에서 이웃 판으로 매끈하게 */
+function cv10Slab(x,z,cs,sd,fr,t0,t1){
+  const X=x/cs, Z=z/cs, ix=Math.floor(X), iz=Math.floor(Z); let d1=1e9,d2=1e9,h1=0,h2=0;
+  for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const i=ix+dx, j=iz+dz, px=i+0.15+0.7*cv10H(i,j,sd), pz=j+0.15+0.7*cv10H(i,j,sd+1), d=(X-px)*(X-px)+(Z-pz)*(Z-pz);
+    if(d>=d2) continue;
+    let hv=0; if(cv10H(i,j,sd+2)<fr){ const a=cv10H(i,j,sd+4)*6.2832; hv=t0+(t1-t0)*cv10H(i,j,sd+3)+0.14*(2*cv10H(i,j,sd+5)-1)*((X-px)*Math.cos(a)+(Z-pz)*Math.sin(a))*cs; if(hv<0) hv=0; }
+    if(d<d1){ d2=d1; h2=h1; d1=d; h1=hv; } else { d2=d; h2=hv; } }
+  return h2+(h1-h2)*(0.5+0.5*smoothstep(0,0.25,Math.sqrt(d2)-Math.sqrt(d1)));
+}
 function cv10Prep(c){
   const P={G:[],R:[],S:[]}, byPid=new Map();
+  /* 판 15 — 이 굴의 꼴 진폭(ra: 받아들이기 늦은 시도(att≥4)는 ½ — cv10Layout) · aw 벽 비율 · wl 벽 잡음 칸(1/m) · tw 바위틈 벽 평면(m) */
+  P.v15=cv10V15(); P.aw=0; P.tw=0; P.wl=1;
+  if(P.v15){ const R=CV10.R[c.kind]||{}, ra=c._ra||1; P.ra=ra; P.rk=R; P.rm=CV10.R.mouth||{};
+    if(c.kind==='karst'){ P.aw=(R.wall||0)*ra; P.wl=1/2.5; }
+    else if(c.kind==='lava'){ P.aw=(R.wall||0)*ra; P.wl=1/4;
+      P.ls=[]; const ns=1+(cv10H(c.seed|0,7,0x15b1)<0.5?1:0);                 // 선반 더 — 1~2 개(굴마다 · 정수 해시)
+      for(let k=0;k<ns;k++) P.ls.push({u:0.80+0.08*cv10H(c.seed|0,k,0x15b2),h:0.08+0.07*cv10H(c.seed|0,k,0x15b3),o:37.1*k+11.3+5*cv10H(c.seed|0,k,0x15b4)}); }
+    else if(c.kind==='shelter'){ P.aw=2*(R.back||0)*ra; P.wl=1/3;               // 뒷벽 ±0.12D = 반너비(D/2)의 ±24%
+      const rm=c.rooms[0]; if(rm){ P.shx=rm.x; P.shz=rm.z; P.shD=2*rm.R; } else { P.shx=c.x; P.shz=c.z; P.shD=8; }
+      P.bkx=-Math.cos(c.yaw); P.bkz=-Math.sin(c.yaw); }                          // 뒤쪽(입구가 보는 쪽의 반대)
+    else if(c.kind==='talus'){ P.tw=(R.wall||0)*ra; P.tvor=(R.wall||0)>0||(R.ceil||0)>0||(R.floor||0)>0; }
+  }
+  const ew=P.aw*0.66, et=P.tw;                                                    // 판 15 — 벽이 밀려 나가는 만큼 미리 거르는 상자를 넓힌다(판 14 이하는 0)
   for(const g of c.segs){
-    const dx=g.bx-g.ax, dz=g.bz-g.az, len=Math.hypot(dx,dz)||1e-6, pq=CV10.PQ[g.prof]||CV10.PQ.tube, m=g.w*0.66+0.6;
+    const dx=g.bx-g.ax, dz=g.bz-g.az, len=Math.hypot(dx,dz)||1e-6, pq=CV10.PQ[g.prof]||CV10.PQ.tube, m=(ew||et)?g.w*(0.66+ew)+0.6+et:g.w*0.66+0.6;
     const e={ax:g.ax,az:g.az,ux:dx/len,uz:dz/len,len,p:pq[0],q:pq[1],w:g.w,H:g.h,ay:g.ay,by:g.by,s0:g.s0,out:!!g.out,lava:g.prof==='lava',
       pit:g.pit||0,tl:g.tl||0,tnx:g.tnx||0,tnz:g.tnz||0,
       x0:Math.min(g.ax,g.bx)-m,x1:Math.max(g.ax,g.bx)+m,z0:Math.min(g.az,g.bz)-m,z1:Math.max(g.az,g.bz)+m};
     const pid=g.pid|0; let G=byPid.get(pid); if(!G){ G={segs:[],x0:1e9,x1:-1e9,z0:1e9,z1:-1e9}; byPid.set(pid,G); P.G.push(G); }
     G.segs.push(e); G.x0=Math.min(G.x0,e.x0); G.x1=Math.max(G.x1,e.x1); G.z0=Math.min(G.z0,e.z0); G.z1=Math.max(G.z1,e.z1);
   }
-  for(const r of c.rooms){ const m=r.R*1.3+0.5; P.R.push({r,x0:r.x-m,x1:r.x+m,z0:r.z-m,z1:r.z+m}); }
+  for(const r of c.rooms){ const m=(ew||et)?r.R*1.3*(1+P.aw)+0.5+et:r.R*1.3+0.5; P.R.push({r,x0:r.x-m,x1:r.x+m,z0:r.z-m,z1:r.z+m}); }
   for(const m of c.mouths) if(m.sky){ const q=m.r*1.3+0.5; P.S.push({m,x0:m.x-q,x1:m.x+q,z0:m.z-q,z1:m.z+q}); }
   const fr=((c.seed>>>5)%100)/100;
   P.b=0.9+0.4*fr; P.off=((c.seed>>>9)%100)/100*P.b;                          // 켜 사이(m) · 켜의 기준 높이
@@ -96,20 +143,35 @@ function cv10Prep(c){
 }
 const _cvE=new Array(12), _cvA=new Float64Array(12), _cvU=new Float64Array(12);
 const _cv10None=(Y)=>({f:Y+0.1,c:Y-0.1,g:-0.2,s:0,open:false,u:1,h:NaN,fb:Y+0.1,rp:false});
+/* 판 15 — 뒷벽 무게(바위그늘 — 방 가운데에서 뒤쪽으로 0.05D~0.4D 에 걸쳐 0→1) */
+const cv10Back=(P,x,z)=>smoothstep(0.05*P.shD,0.4*P.shD,(x-P.shx)*P.bkx+(z-P.shz)*P.bkz);
+/* 판 15 — 벽 비율 s(u 를 s 로 나눈다 — s>1 이면 벽이 밖으로). y 는 그 기둥의 벽 쪽 높이(바닥 쪽이면 바닥 곡선 · 천장 쪽이면 천장 곡선) · t 높이 자리(0 바닥 가운데 · 0.5 벽 가운데 · 1 천장 가운데) ·
+   half 그 자리 반너비(m) · gw 들머리(s 4→10 m) · 뒷벽 무게. 바위틈은 덩이 면(보로노이 두 겹 — 아래 덩이 tL · 위 덩이 tU 가 벽 가운데 높이 둘레에서 평균으로 이어진다) */
+function cv10WallS(c,P,x,y,z,t,half,gw,tL,tU){
+  let s;
+  if(P.tw>0){ const vM=0.5*(tL+tU), v=t<0.5?tL+(vM-tL)*smoothstep(0.25,0.5,t):tU+(vM-tU)*smoothstep(0.75,0.5,t); s=1+P.tw*gw*v/half; }
+  else s=1+P.aw*gw*cv10N3(c._n,x*P.wl,y*P.wl,z*P.wl);
+  return s<0.72?0.72:s>1.3?1.3:s;                                     // 0.72~1.3 — 좁은 바위틈이 덩이에 막히지 않게 · 벽이 u 0.7 밖에 서게(cv10Eval 의 kb)
+}
 /* 한 점의 굴 — {f 바닥, c 천장, g=c−f(빈 데가 아니면 ≤0), s 주 입구로부터 길 거리, open 위가 하늘인가(그때 c=h+6), u 가로 자리(0 가운데 ~ 1 벽),
-   h 땅 높이, fb 단 · 선반을 뺀 바닥(비탈을 잴 때), rp 무너진 돌 비탈 위인가} */
+   h 땅 높이, fb 단 · 선반을 뺀 바닥(비탈을 잴 때), rp 무너진 돌 비탈 위인가}.
+   판 15(P.v15)는 벽 · 천장 · 바닥에 굴곡을 더한다(CV10.R) — 판 14 이하는 그 갈래를 하나도 안 타 값이 그대로다(uF=uC=u · um=1) */
 function cv10Eval(c,P,x,z){
   const n=c._n; let F_=0,C_=0,Fb=0,cnt=0,bg=-1e9,S=0,U=1,Yn=c.y,ub=1e9,inSky=false,rp=false;
+  const V15=P.v15, aw=P.aw, tw=P.tw; let Wd=0, sk=0, tL=0, tU=0;                // 판 15 — Wd 그 자리 굴길 너비(방은 지름) · sk 채광창 밑 무게 · tL/tU 바위틈 덩이 값(아래 · 위)
+  let wS=1;                                                            // 판 15 — 빛구멍 · 채광창 둘레(rd 1.2→2.0)는 굴곡을 끈다(구멍 테 밑 껍데기가 내려앉아 하늘 틈이 늘었다 — 바위틈)
+  if(V15) for(let si=0;si<P.S.length;si++){ const m=P.S[si].m, rd=Math.hypot(x-m.x,z-m.z)/m.r; if(rd<2){ const k=smoothstep(1.2,2.0,rd); if(k<wS) wS=k; } }
+  if(V15&&P.tvor){ const A=cv10Vor(x/1.4,z/1.4,P.vs+16,0.3), a1=A.v, a2=A.w*2-1, B=cv10Vor(x/3.2,z/3.2,P.vs+32,0.3).v; tL=0.6*a1+0.4*B; tU=0.6*a2+0.4*B; }
   for(let gi=0;gi<P.G.length;gi++){
     const G=P.G[gi]; if(x<G.x0||x>G.x1||z<G.z0||z>G.z1) continue;
-    let bu=1e9,be=null,ba=0,bqx=0,bqz=0,nc=0;
+    let bu=1e9,be=null,ba=0,bqx=0,bqz=0,nc=0,bwn=0;
     for(let si=0;si<G.segs.length;si++){
       const e=G.segs[si]; if(x<e.x0||x>e.x1||z<e.z0||z>e.z1) continue;
       const px=x-e.ax, pz=z-e.az; let a=px*e.ux+pz*e.uz; a=a<0?0:a>e.len?e.len:a;
       const qx=px-e.ux*a, qz=pz-e.uz*a, s=e.s0+a;
       let wN=e.w*(1+0.2*n(s/7+11.3,1.7)+0.1*n(s/2.3+4.9,8.3)); if(wN<e.w*0.55) wN=e.w*0.55;
       const u=Math.sqrt(qx*qx+qz*qz)/(wN*0.5);
-      if(u<bu){ bu=u; be=e; ba=a; bqx=qx; bqz=qz; }
+      if(u<bu){ bu=u; be=e; ba=a; bqx=qx; bqz=qz; bwn=wN; }
       if(nc<12){ _cvE[nc]=e; _cvA[nc]=a; _cvU[nc]=u; nc++; }
     }
     if(!be) continue;
@@ -120,35 +182,61 @@ function cv10Eval(c,P,x,z){
       const y=ek.out?cv10Sfc(ek.ax+ek.ux*ak,ek.az+ek.uz*ak)-0.2:ek.ay+(ek.by-ek.ay)*(ak/ek.len);
       sw+=wk; syc+=wk*y; sH+=wk*ek.H; }
     let yc=syc/sw;
-    if(bu>=1){ if(bu<ub){ ub=bu; Yn=yc; } continue; }
+    const um=aw>0?1+aw:tw>0?Math.min(1.3,1+tw/(0.5*bwn)):1;                          // 판 15 — 벽이 밀려 나갈 수 있는 데까지 본다(판 14 이하 1)
+    if(bu>=um){ if(bu<ub){ ub=bu; Yn=yc; } continue; }
     if(e.tl) yc+=e.tl*(bqx*e.tnx+bqz*e.tnz);
-    const u=bu, H=sH/sw, fl=0.5*(1-Math.sqrt(1-cv10Pow(u,e.p))), ce=0.5+0.5*Math.sqrt(1-cv10Pow(u,e.q)), w1=1-u;
+    const H=sH/sw; let uF=bu, uC=bu, uE=bu;
+    if(um>1){                                                            // 판 15 — 벽 굴곡: 바닥 쪽은 uF · 천장 쪽은 uC 로(다른 높이의 잡음)
+      const gw=(P.shx!==undefined?cv10Back(P,x,z):smoothstep(4,10,e.s0+ba))*wS;
+      if(gw>0){ const hw=0.5*bwn, kb=smoothstep(0.3,0.7,bu), sM=cv10WallS(c,P,x,yc+0.5*H,z,0.5,hw,gw,tL,tU), uM=bu*(1+(1/sM-1)*kb), u1=uM<1?uM:1;   // 벽 높이는 벽 가운데 높이의 비율로 민 u 에서 — 벽 끝(u1→1)에서 바닥 쪽 · 천장 쪽이 같은 높이를 읽어 이어진다
+        /* 잡음을 읽는 높이는 u 를 따라 천천히 바뀌는 0.5·u²(바닥 쪽) · 1−0.5·u²(천장 쪽) — 실제 단면 곡선(벽 끝에서 √ 로 가파르다)을 읽으면 u 를 따라 s 가 너무 빨리 바뀌어
+           벽이 앞뒤로 접혀 지느러미 · 갇힌 틈이 섰다. 벽 끝 둘레(높이 차 0.03~0.15)는 둘이 sM 으로 모여 한 자리에서 닫힌다 */
+        const tF=0.5*u1*u1, tC=1-tF, qF=smoothstep(0.03,0.15,0.5-tF), qC=qF;
+        const sF=qF>0?sM+(cv10WallS(c,P,x,yc+H*tF,z,tF,hw,gw,tL,tU)-sM)*qF:sM, sC=qC>0?sM+(cv10WallS(c,P,x,yc+H*tC,z,tC,hw,gw,tL,tU)-sM)*qC:sM;
+        uF=bu*(1+(1/sF-1)*kb); uC=bu*(1+(1/sC-1)*kb); uE=uF>uC?uF:uC; if(uE>1) uE=1; }   // u 0.3 안(가운데 길 바닥)은 그대로 · 0.7 밖은 u/s — 벽은 u=s 에 선다 · 가로 자리는 벽에 더 가까운 쪽(바닥 비탈 문 · 광석 u≤0.75 · 켜 무게)   // 가로 자리는 벽에 더 가까운 쪽(바닥 비탈 문 · 광석 u≤0.75 · 켜 무게가 벽 쪽 굴곡을 넉넉히 피한다)
+      if(uF>=1&&uC>=1){ if(bu<ub){ ub=bu; Yn=yc; } continue; }
+    }
+    const u=uE, uf=uF<1?uF:1, uc=uC<1?uC:1, fl=0.5*(1-Math.sqrt(1-cv10Pow(uf,e.p))), ce=0.5+0.5*Math.sqrt(1-cv10Pow(uc,e.q)), w1=1-uf, w1c=1-uc;
     let fb=yc+H*fl+w1*0.08*n(x/2+3.3,z/2+7.1), ff=fb, cc=yc+H*ce;
-    if(e.pit) ff-=e.pit*(1-smoothstep(0.3,0.38,u))*smoothstep(12,16,e.s0+ba);   // 열쇠 구멍 홈 — s 12~16 m 에 걸쳐 깊어진다(곧장 1.2~1.8 m 로 꺼지면 들어갈 수는 있어도 되돌아 오르지 못했다)
-    if(e.lava) ff+=0.18*H*smoothstep(0.70,0.74,u)*(1-smoothstep(0.86,1,u));
-    cc+=w1*(H*0.08*n(x/3+1.9,z/3+5.5)+0.15*n(x/1.1+9.1,z/1.1+4.4));
+    if(e.pit) ff-=e.pit*(1-smoothstep(0.3,0.38,uf))*smoothstep(12,16,e.s0+ba);   // 열쇠 구멍 홈 — s 12~16 m 에 걸쳐 깊어진다(곧장 1.2~1.8 m 로 꺼지면 들어갈 수는 있어도 되돌아 오르지 못했다)
+    if(e.lava) ff+=0.18*H*smoothstep(0.70,0.74,uf)*(1-smoothstep(0.86,1,uf));
+    if(V15&&e.lava&&P.ls){ const sp=e.s0+ba, gs=smoothstep(4,10,sp)*(P.rk.shelf||0)*P.ra;   // 판 15 — 용암 선반 1~2 개 더(u 0.80~0.88 · 0.08~0.15H · 길을 따라 나타났다 사라진다)
+      if(gs>0) for(const L of P.ls) ff+=gs*L.h*H*smoothstep(L.u-0.015,L.u+0.015,uf)*(1-smoothstep(0.93,1,uf))*smoothstep(-0.1,0.15,n(sp/15+L.o,L.o*1.7)); }
+    cc+=w1c*(H*0.08*n(x/3+1.9,z/3+5.5)+0.15*n(x/1.1+9.1,z/1.1+4.4));
     const g=cc-ff;
     if(cnt===0){ F_=ff; C_=cc; Fb=fb; } else { F_=cv10Smin(F_,ff,0.8); C_=cv10Smax(C_,cc,0.8); Fb=cv10Smin(Fb,fb,0.8); }
-    cnt++; if(g>bg){ bg=g; S=e.s0+ba; U=u; }
+    cnt++; if(g>bg){ bg=g; S=e.s0+ba; U=u; Wd=e.w; }
   }
   for(let ri=0;ri<P.R.length;ri++){
     const B_=P.R[ri]; if(x<B_.x0||x>B_.x1||z<B_.z0||z>B_.z1) continue;
     const r=B_.r, dx=x-r.x, dz=z-r.z, rr=Math.sqrt(dx*dx+dz*dz), ca=rr>1e-6?dx/rr:1, sa=rr>1e-6?dz/rr:0;
     const nb=1+0.15*n(ca*0.5+r.x*0.013+5.5,sa*0.5+r.z*0.013+2.2)+0.07*n(ca*1.4+r.z*0.011+7.7,sa*1.4+r.x*0.017+3.1);
-    const u=rr/(r.R*nb); if(u>=1) continue;
-    const w1=1-u, rub=Math.max(0,n(x/1.8+6.6,z/1.8+1.4)), pl=(r.gx||0)*dx+(r.gz||0)*dz;     // pl: 굴길 바닥의 비탈을 따라 방 전체를 기울인다(안 그러면 방 바닥이 비탈진 굴길 바닥보다 낮아 가장자리에서 툭 꺼진다)
+    const u0=rr/(r.R*nb), umR=aw>0?1+aw:tw>0?Math.min(1.3,1+tw/(r.R*nb)):1; if(u0>=umR) continue;
+    let uF=u0, uC=u0, uE=u0;
+    if(umR>1){                                                           // 판 15 — 방 벽도 굴길과 같은 굴곡
+      const gw=(P.shx!==undefined?cv10Back(P,x,z):smoothstep(4,10,r.s))*wS;
+      if(gw>0){ const hw=r.R*nb, kb=smoothstep(0.3,0.7,u0), sM=cv10WallS(c,P,x,r.y+0.5*r.H,z,0.5,hw,gw,tL,tU), uM=u0*(1+(1/sM-1)*kb), u1=uM<1?uM:1, tF=0.5*u1*u1, tC=1-tF;
+        const qF=smoothstep(0.03,0.15,0.5-tF), qC=qF;
+        const sF=qF>0?sM+(cv10WallS(c,P,x,r.y+r.H*tF,z,tF,hw,gw,tL,tU)-sM)*qF:sM, sC=qC>0?sM+(cv10WallS(c,P,x,r.y+r.H*tC,z,tC,hw,gw,tL,tU)-sM)*qC:sM;
+        uF=u0*(1+(1/sF-1)*kb); uC=u0*(1+(1/sC-1)*kb); uE=uF>uC?uF:uC; if(uE>1) uE=1; }
+      if(uF>=1&&uC>=1) continue;
+    }
+    const u=uE, uf=uF<1?uF:1, uc=uC<1?uC:1;
+    const w1=1-uf, w1c=1-uc, rub=Math.max(0,n(x/1.8+6.6,z/1.8+1.4)), pl=(r.gx||0)*dx+(r.gz||0)*dz;     // pl: 굴길 바닥의 비탈을 따라 방 전체를 기울인다(안 그러면 방 바닥이 비탈진 굴길 바닥보다 낮아 가장자리에서 툭 꺼진다)
     const Hf=Math.min(r.H,0.55*r.R);                                 // 바닥이 벽 쪽으로 오르는 높이는 방 크기에 맞춰 낮추고(비탈 한도) 나머지는 벽 바로 앞에서 오른다 — 벽에서 천장과 만나는 것은 그대로
-    const fb=r.y+pl+Hf*0.5*(1-Math.sqrt(1-u*u*u))+0.5*(r.H-Hf)*smoothstep(0.75,1,u)+w1*(0.1*rub*rub+0.07*n(x/2+3.3,z/2+7.1));
-    const cc=r.y+pl+r.H*(0.5+0.5*Math.sqrt(1-cv10Pow(u,1.5)))+w1*(r.H*0.08*n(x/3+1.9,z/3+5.5)+0.15*n(x/1.1+9.1,z/1.1+4.4));
+    const fb=r.y+pl+Hf*0.5*(1-Math.sqrt(1-uf*uf*uf))+0.5*(r.H-Hf)*smoothstep(0.75,1,uf)+w1*(0.1*rub*rub+0.07*n(x/2+3.3,z/2+7.1));
+    const cc=r.y+pl+r.H*(0.5+0.5*Math.sqrt(1-cv10Pow(uc,1.5)))+w1c*(r.H*0.08*n(x/3+1.9,z/3+5.5)+0.15*n(x/1.1+9.1,z/1.1+4.4));
     const g=cc-fb;
     if(cnt===0){ F_=fb; C_=cc; Fb=fb; } else { F_=cv10Smin(F_,fb,0.8); C_=cv10Smax(C_,cc,0.8); Fb=cv10Smin(Fb,fb,0.8); }
-    cnt++; if(g>bg){ bg=g; S=r.s; U=u; }
+    cnt++; if(g>bg){ bg=g; S=r.s; U=u; Wd=2*r.R; }
   }
+  const Us=U;                                                         // 판 15 — 채광창이 U 를 덮어쓰기 전 굴길 · 방의 가로 자리(바닥 덧붙임 제약)
   for(let si=0;si<P.S.length;si++){                                   // 천장 구멍(채광창 · 빛구멍) — 가운데에서 r(1+0.25n) 안은 하늘까지 열린 데
     const B_=P.S[si]; if(x<B_.x0||x>B_.x1||z<B_.z0||z>B_.z1) continue;
     const m=B_.m, dx=x-m.x, dz=z-m.z, rr=Math.sqrt(dx*dx+dz*dz), ca=rr>1e-6?dx/rr:1, sa=rr>1e-6?dz/rr:0;
     const rN=m.r*(1+0.25*n(ca*0.6+m.x*0.019+1.3,sa*0.6+m.z*0.023+8.8)), rd=rr/rN; if(rd>=1) continue;
     inSky=true; const hadC=cnt>0;
+    if(V15&&(m.s||0)>0){ const wk=1-smoothstep(0.55,0.9,rd); if(wk>sk) sk=wk; }   // 판 15 — 주 입구가 아닌 채광창 밑(붕락 덩이)
     /* 구멍 밑 바닥 — 큰 구멍(채광창)은 가장자리 안쪽에서 평평한 구멍 바닥(m.y)으로 바뀌고, 가장자리에서 굴길 바닥과 매끈하게 이어진다. 가운데 둘레는 무너진 돌로 조금 둔덕 */
     const rise=Math.min(0.4,0.05*m.r), bump=rise*smoothstep(0.3,0.6,rd)*(1-smoothstep(0.6,1,rd));
     if(cnt===0){ F_=m.y+bump; C_=F_+1; Fb=F_; }
@@ -164,7 +252,13 @@ function cv10Eval(c,P,x,z){
   if(cnt===0) return _cv10None(Yn);
   if(P.layer){                                                        // 켜 — 천장을 켜 선반 쪽으로 70% 당긴다(벽에서는 0)
     const g0=C_-F_, wgt=(1-U)*0.7*clamp((g0-2.4)/1.2,0,1);
-    if(wgt>0){ const q=(C_-P.off)/P.b, fq=q-Math.floor(q), lay=P.off+P.b*(Math.floor(q)+smoothstep(0.75,1,fq)); C_+=wgt*(lay-C_); }
+    if(wgt>0){
+      if(V15&&P.shx!==undefined&&(P.rk.lay||0)>0){                    // 판 15 바위그늘 — 켜 두께를 켜마다 0.6~1.6 m(켜 경계를 정수 해시로 ±J/2 흔든다 · J≤min(b−0.6, 1.6−b))
+        const b=P.b, J=Math.min(b-0.6,1.6-b)*Math.min(1,P.rk.lay)*P.ra, yb=i=>P.off+b*i+J*(cv10H(i,0,P.vs+48)-0.5);
+        let i=Math.floor((C_-P.off)/b); if(C_<yb(i)) i--; else if(C_>=yb(i+1)) i++;
+        const y0=yb(i), y1=yb(i+1), lay=y0+(y1-y0)*smoothstep(0.75,1,(C_-y0)/(y1-y0)); C_+=wgt*(lay-C_);
+      } else { const q=(C_-P.off)/P.b, fq=q-Math.floor(q), lay=P.off+P.b*(Math.floor(q)+smoothstep(0.75,1,fq)); C_+=wgt*(lay-C_); }
+    }
   }
   if(P.vor){                                                          // 바위틈 — 보로노이 덩이마다 천장 ±0.6 m(모난 면)
     const X=x/1.8, Z=z/1.8, ix=Math.floor(X), iz=Math.floor(Z); let bd=1e9,bv=0;
@@ -173,11 +267,45 @@ function cv10Eval(c,P,x,z){
     C_+=(1-U)*0.6*bv;
   }
   const h=cv10Sfc(x,z);
+  let bT=P.bT;
+  if(V15&&wS>0){ bT=cv10R15(c,P,x,z,h,S,U,Us,Wd,sk,tL,tU,F_,C_,_cv10R,wS); F_=_cv10R.f; C_=_cv10R.c; }
   let open=inSky;
-  if(!open&&h-C_<P.bT) open=true;
+  if(!open&&h-C_<bT) open=true;
   if(open) C_=h+6;
   if(F_>=h-0.1||C_-F_<=0.05) return _cv10None(Yn);
   return {f:F_,c:C_,g:C_-F_,s:S,open,u:U,h,fb:Fb,rp};
+}
+/* 판 15 — 굴 안쪽 굴곡(입구 마당 각진 천장 · 이마 · 펜던트 · 붕락 계단 · 판상 덩이 · 채광창 밑 덩이 · 바위틈 덩이 천장/바닥 · 낙반 판)과 안전 제약.
+   제약: 가운데 길(u<0.5) 바닥 덧붙임 ≤0.1 m · 천장 내림 ≤max(0, g−2.1) · 천장 올림 ≤max(0, h−C−덮개−0.3)(덮개 = max(browT, minCover+0.2) — 새 하늘 구멍 · 얇은 지붕 막기) ·
+   들머리 s<4 m 는 0(smoothstep(4,10,s) · 바위그늘은 뒷벽 쪽 무게). 바뀐 f · c 는 out 에 담고 이마 두께(browT)를 돌려준다 */
+const _cv10R={f:0,c:0};
+function cv10R15(c,P,x,z,h,S,U,Us,Wd,sk,tL,tU,F_,C_,out,wS){
+  const rk=P.rk, rm=P.rm, ra=P.ra*wS, n=c._n, sh=P.shx!==undefined, bk=sh?cv10Back(P,x,z)*wS:0, ge=sh?bk:smoothstep(4,10,S)*wS, g0=C_-F_, w1=U<1?1-U:0, wu=smoothstep(0.5,0.62,Us);
+  let dF=0, dC=0, bT=P.bT;
+  /* 입구 마당 — 천장을 각지게(보로노이 1.2 m) · 이마 두께를 들쭉날쭉(바위그늘은 앞쪽 · 그 밖은 s 4~11 m) */
+  const wy=sh?smoothstep(0.1*P.shD,-0.25*P.shD,(x-P.shx)*P.bkx+(z-P.shz)*P.bkz):smoothstep(4,7,S)*(1-smoothstep(11,15,S));
+  if(wy>0&&((rm.ceil||0)>0||(rm.brow||0)>0)){ const o=cv10Vor(x/1.2,z/1.2,P.vs+64,0.45), v=o.v, w=o.w*2-1;
+    dC+=(rm.ceil||0)*ra*wy*v*w1;
+    bT+=(rm.brow||0)*ra*w*(sh?wy:smoothstep(4,7,S)*(1-smoothstep(9,11,S))); }
+  if(c.kind==='karst'){
+    if((rk.ped||0)>0&&g0>3){ const p=cv10N2(n,x/2.2+17.3,z/2.2+4.1); if(p>0.25) dC-=rk.ped*ra*ge*(p-0.25)/0.75*smoothstep(3,3.6,g0)*w1; }   // 천장 펜던트(2 m 넘는 파장)
+    if((rk.step||0)>0){ const wl=w1*clamp((g0-2.4)/1.2,0,1); if(wl>0) dC+=rk.step*ra*ge*wl*cv10Vor(x/3,z/3,P.vs+80,0.35).v; }               // 켜를 따른 천장 붕락 계단(켜 당김과 같은 무게)
+    if((rk.slab||0)>0&&wu>0){ const wd=smoothstep(3.2,4.2,Wd)*smoothstep(1.0,1.6,g0); if(wd>0) dF+=ge*wu*wd*cv10Slab(x,z,2.2,P.vs+96,0.55,0.3*rk.slab*ra,rk.slab*ra); }   // 방 · 넓은 길 벽 쪽 판상 덩이
+  } else if(c.kind==='lava'){
+    if((rk.step||0)>0){ const wz=smoothstep(0.30,0.40,n(S/18+21.7,3.9)); if(wz>0) dC+=rk.step*ra*ge*wz*w1*(0.5+0.5*cv10Vor(x/2.5,z/2.5,P.vs+112,0.35).w); }   // 붕락 구간만 천장 계단 0.3~0.6 m
+    if((rk.fall||0)>0&&sk>0) dF+=ge*sk*cv10Slab(x,z,1.5,P.vs+128,0.6,0.3*rk.fall*ra,rk.fall*ra);                                         // 채광창 밑 붕락 덩이
+  } else if(c.kind==='talus'){
+    if((rk.ceil||0)>0) dC+=rk.ceil*ra*ge*w1*tU;                                                                                             // 덩이마다 천장 — 벽이 밀려 나간 덩이는 천장도 높다
+    if((rk.floor||0)>0) dF-=rk.floor*ra*ge*smoothstep(0.55,0.65,Us)*tL;                                                                   // 바닥 u>0.55
+  } else if(sh){
+    if((rk.slab||0)>0&&wu>0) dF+=bk*wu*cv10Slab(x,z,1.6,P.vs+144,0.45,rk.slab*ra/3,rk.slab*ra);                                          // 뒷벽 쪽 낙반 판 0.1~0.3 m
+  }
+  if(dF>0.1) dF=0.1+(dF-0.1)*wu;                                       // 가운데 길 바닥 덧붙임 ≤0.1 m
+  F_+=dF;
+  const g1=C_-F_;
+  if(dC<0){ const lim=g1>2.1?g1-2.1:0; if(dC<-lim) dC=-lim; }
+  else if(dC>0){ const lim=h-C_-Math.max(P.bT,((CV10.K[c.kind]||CV10.K.karst).minCover||0)+0.2)-0.3; dC=lim>0?(dC<lim?dC:lim):0; }
+  out.f=F_; out.c=C_+dC; return bT;
 }
 function cv10Field(c,x,z){
   const b=c.box;
@@ -483,6 +611,7 @@ function cv10Layout(c){
     const m0=c.mouths[0];
     c.x=m0.x; c.z=m0.z; c.y=m0.y; c.yaw=m0.yaw;
     if(kind==='shelter'){ c.y=m0.y; }
+    if(cv10V15()) c._ra=att>=4?0.5:1;                                  // 판 15 — 받아들이기에 막혀 늦게 붙는 시도는 꼴 진폭 ½(cv10Prep)
     cv10Finish(c);
     const st=cv10Stats(c,1,true);
     if(st.cells>150&&st.thin===0&&st.minCover>=K.minCover+0.1&&st.maxSlope<=0.30&&(kind!=='shelter'||st.open<=st.cells*0.8)&&cv10Reach(c).reach===c.rooms.length&&cv10Approach(c)) return true;
@@ -718,10 +847,10 @@ function cv10Step(rec,t1){
           for(let m=b*128;m<e;m++){ const v=rec.ord[m], o=v*3, x=rec.vp[o], y=rec.vp[o+1], z=rec.vp[o+2], s=cv10Samp(rec,x,z);
             const vw=cv10V(rec,x,y,z), lower=vw>0.3?0.03:0; rec.wall[m]=vw>0.3?0:1;
             rec.pos[m*3]=x; rec.pos[m*3+1]=y-lower; rec.pos[m*3+2]=z; rec.nor[m*3]=rec.vnrm[o]; rec.nor[m*3+1]=rec.vnrm[o+1]; rec.nor[m*3+2]=rec.vnrm[o+2];
-            const d=s.d; rec.aDeep[m]=_cv10Smooth(2,16,d); rec.aSky[m]=Math.exp(-d/5);
+            const d=s.n<=0?cv10TopD(rec,x,z):s.d; rec.aDeep[m]=_cv10Smooth(2,16,d); rec.aSky[m]=Math.exp(-d/5);   // 윗면 꼭짓점(둘레에 빈 데 점 없음 · 땅과 맞닿는 테)은 가까운 빈 데 쪽 값 — 예전엔 d=1e9 라 입구 테 윗면이 검었다(aSky 0)
             rec.aFl[m]=Math.min(1,Math.max(0,(y-s.f)/Math.max(Math.min(s.c,s.h+1)-s.f,0.1))); } },t1,4)) { rec.msMesh+=performance.now()-T; return false; }
       rec.ph='tri'; rec.pr=0; rec.msMesh+=performance.now()-T; break; }
-    /* 껍데기 다듬기 — 벽 꼭짓점에 Taubin(λ 0.5 · μ −0.53) 두 번 · 법선은 세모에서 다시 센다(0.5 m 격자의 지느러미를 눕힌다) */
+    /* 껍데기 다듬기 — 벽 꼭짓점에 Taubin(λ 0.5 · μ −0.53) 두 번(판 15 는 한 번 — smooth) · 법선은 세모에서 다시 센다(0.5 m 격자의 지느러미를 눕힌다) */
     case 'tri':{
       const T=performance.now(); if(!rec.tri) rec.tri=new Uint32Array(rec.ni);
       if(!cv10Rows(rec,Math.ceil(rec.ni/8192),b=>{ const e=Math.min(rec.ni,(b+1)*8192); for(let p=b*8192;p<e;p++) rec.tri[p]=rec.rm[rec.idx[p]]; },t1)) { rec.msMesh+=performance.now()-T; return false; }
@@ -737,15 +866,15 @@ function cv10Step(rec,t1){
           ad[fp[a]++]=c1; ad[fp[a]++]=c2; ad[fp[c1]++]=a; ad[fp[c1]++]=c2; ad[fp[c2]++]=a; ad[fp[c2]++]=c1; } },t1)) { rec.msMesh+=performance.now()-T; return false; }
       rec.fillp=null; rec.sp=0; rec.pos2=new Float32Array(rec.used*3); rec.ph='smooth'; rec.pr=0; rec.msMesh+=performance.now()-T; break; }
     case 'smooth':{
-      const T=performance.now(), dg=rec.deg, ad=rec.adj, P0=rec.pos, P1=rec.pos2, wl=rec.wall, nu=rec.used;
-      while(rec.sp<4){ const lam=(rec.sp&1)?-0.53:0.5, src=(rec.sp&1)?P1:P0, dst=(rec.sp&1)?P0:P1;
+      const T=performance.now(), dg=rec.deg, ad=rec.adj, P0=rec.pos, P1=rec.pos2, wl=rec.wall, nu=rec.used, NS=(c._P||cv10Prep(c)).v15?2:4;   // 판 15 는 한 쌍(파장 2 m 굴곡을 남긴다 — 두 쌍은 2 m 를 0.59 로 · 한 쌍은 0.76)
+      while(rec.sp<NS){ const lam=(rec.sp&1)?-0.53:0.5, src=(rec.sp&1)?P1:P0, dst=(rec.sp&1)?P0:P1;
         if(!cv10Rows(rec,Math.ceil(nu/1024),b=>{ const e=Math.min(nu,(b+1)*1024);
             for(let v=b*1024;v<e;v++){ const o=v*3, a=dg[v], z=dg[v+1];
               if(!wl[v]||z===a){ dst[o]=src[o]; dst[o+1]=src[o+1]; dst[o+2]=src[o+2]; continue; }
               let sx=0,sy=0,sz=0; for(let k=a;k<z;k++){ const w=ad[k]*3; sx+=src[w]; sy+=src[w+1]; sz+=src[w+2]; } const inv=1/(z-a);
               dst[o]=src[o]+lam*(sx*inv-src[o]); dst[o+1]=src[o+1]+lam*(sy*inv-src[o+1]); dst[o+2]=src[o+2]+lam*(sz*inv-src[o+2]); } },t1)) { rec.msMesh+=performance.now()-T; return false; }
-        rec.sp++; rec.pr=0; if(performance.now()>t1&&rec.sp<4){ rec.msMesh+=performance.now()-T; return false; } }
-      /* 네 번(P0→P1→P0→P1→P0)이라 결과는 P0 = rec.pos */
+        rec.sp++; rec.pr=0; if(performance.now()>t1&&rec.sp<NS){ rec.msMesh+=performance.now()-T; return false; } }
+      /* 짝수 번(네 번 P0→P1→P0→P1→P0 · 판 15 두 번 P0→P1→P0)이라 결과는 P0 = rec.pos */
       rec.pos2=null; rec.adj=null; rec.deg=null; rec.nor.fill(0); rec.ph='nrm'; rec.pr=0; rec.msMesh+=performance.now()-T; break; }
     case 'nrm':{
       const T=performance.now(), tr=rec.tri, P=rec.pos, N=rec.nor, nt=rec.ni/3;
@@ -762,12 +891,20 @@ function cv10Step(rec,t1){
         for(let q=0;q<n;q++) if(M[q]) md[q]=0;
         for(let j=0;j<nz;j++) for(let i=0;i<nx;i++){ const q=j*nx+i; let v=md[q]; if(i>0&&md[q-1]+1<v) v=md[q-1]+1; if(j>0&&md[q-nx]+1<v) v=md[q-nx]+1; md[q]=v; }
         for(let j=nz-1;j>=0;j--) for(let i=nx-1;i>=0;i--){ const q=j*nx+i; let v=md[q]; if(i<nx-1&&md[q+1]+1<v) v=md[q+1]+1; if(j<nz-1&&md[q+nx]+1<v) v=md[q+nx]+1; md[q]=v; } }
-      const base=rec.vmin-1, td=rec.tdata;
+      if(!rec.rimD){ const rd=rec.rimD=new Float32Array(n).fill(1e9), d1=S, d2=S*1.4142135623730951;   // 땅 테 — M 까지의 거리(m · 여덟 이웃 두 번 훑기) · 모든 굴
+        for(let q=0;q<n;q++) if(M[q]) rd[q]=0;
+        for(let j=0;j<nz;j++) for(let i=0;i<nx;i++){ const q=j*nx+i; let v=rd[q]; if(i>0&&rd[q-1]+d1<v) v=rd[q-1]+d1; if(j>0){ if(rd[q-nx]+d1<v) v=rd[q-nx]+d1; if(i>0&&rd[q-nx-1]+d2<v) v=rd[q-nx-1]+d2; if(i<nx-1&&rd[q-nx+1]+d2<v) v=rd[q-nx+1]+d2; } rd[q]=v; }
+        for(let j=nz-1;j>=0;j--) for(let i=nx-1;i>=0;i--){ const q=j*nx+i; let v=rd[q]; if(i<nx-1&&rd[q+1]+d1<v) v=rd[q+1]+d1; if(j<nz-1){ if(rd[q+nx]+d1<v) v=rd[q+nx]+d1; if(i<nx-1&&rd[q+nx+1]+d2<v) v=rd[q+nx+1]+d2; if(i>0&&rd[q+nx-1]+d2<v) v=rd[q+nx-1]+d2; } rd[q]=v; } }
+      const base=rec.vmin-1, td=rec.tdata, rimD=rec.rimD, pn=c._n;
       if(!cv10Rows(rec,nz,j=>{ for(let i=0;i<nx;i++){ const q=j*nx+i, o=q*4, v=C[q]-F[q]>0.05; let r=0,g=0;
           if(v){ r=(F[q]-base)/0.25; g=(Math.min(C[q],Hh[q]+1)-base)/0.25; if(r>255||g>255) rec.texOver++; r=Math.min(255,Math.max(0,Math.round(r))); g=Math.min(255,Math.max(0,Math.round(g))); }
           const d=D[q]; td[o]=r; td[o+1]=g; td[o+2]=Math.round(255*_cv10Smooth(2,16,d)); td[o+3]=M[q]?255:Math.round(127*Math.exp(-d/5));
           if(!v){ const hc=Math.round((Hh[q]-base+64)/0.004), ok=hc>0&&hc<65535; td[o]=ok?hc>>8:0; td[o+1]=0; td[o+2]=ok?hc&255:0; }   // 빈 데 아닌 점 — 겉 높이 Hh 를 R·B 16 비트로(4 mm · G 0 이라 빈 데 시험 g>r 은 그대로 거짓 · 32-caves.js cv10Top)
-          if(!M[q]&&rec.Hb){ const hb=rec.Hb[q]; if(hb<Hh[q]-0.3&&((v&&hb>F[q]-0.3&&hb<C[q]+0.3)||rec.mdist[q]<=16)) td[o+3]=192+Math.round(62*Math.exp(-Math.min(d,60)/5)); } }  },t1)) { rec.msMesh+=performance.now()-T; return false; }
+          if(!M[q]&&rec.Hb){ const hb=rec.Hb[q]; if(hb<Hh[q]-0.3&&((v&&hb>F[q]-0.3&&hb<C[q]+0.3)||rec.mdist[q]<=16)) td[o+3]=192+Math.round(62*Math.exp(-Math.min(d,60)/5)); }
+          /* 땅 테(바위 칸 · A 0 이던 칸에만 1~126) — 구멍에서 너비 W(2.3~3.5 m · 잡음 가장자리) 안 · 상자 끝 1 m 전에 0. 땅 셰이더가 바위 → 자갈 → 부식토 → 풀로 칠한다(32-caves.js cv10HoleR).
+             A≥0.75(구멍) · 빈 데 칸(cv10Smp) · 겉 높이(cv10Top — R·B)는 그대로 */
+          if(!v&&!M[q]&&td[o+3]===0&&rimD[q]<3.5){ const x=rec.x0+i*S, z=rec.z0+j*S, nn=pn?pn(x/1.9+31.7,z/1.9+12.3)/0.5:0, W=3.5*(0.83+0.17*(nn<-1?-1:nn>1?1:nn)), eg=Math.min(i,nx-1-i,j,nz-1-j)*S;
+            const k=(1-_cv10Smooth(0,W,rimD[q]))*_cv10Smooth(1,2,eg); if(k>0.004) td[o+3]=Math.max(1,Math.min(126,Math.round(126*k))); } }  },t1)) { rec.msMesh+=performance.now()-T; return false; }
       rec.msMesh+=performance.now()-T; rec.ph='fin'; break; }
     case 'fin':{
       const T=performance.now();
@@ -782,7 +919,7 @@ function cv10Step(rec,t1){
       const mesh=new THREE.Mesh(geo,CV10.mat?CV10.mat(c.kind):cv10SeatMat(c.kind));
       mesh.matrixAutoUpdate=false; mesh.castShadow=false; mesh.receiveShadow=true; mesh.userData.lightRole='recv'; mesh.userData.cave=c;
       scene.add(mesh); rec.mesh=mesh; rec.verts=nv; rec.tris=rec.ni/3;
-      rec.tri=rec.wall=rec.vp=rec.vnrm=rec.idx=rec.rm=rec.ord=rec.pos=rec.nor=rec.aDeep=rec.aSky=rec.aFl=rec.tdata=rec.Hb=rec.mdist=null;
+      rec.tri=rec.wall=rec.vp=rec.vnrm=rec.idx=rec.rm=rec.ord=rec.pos=rec.nor=rec.aDeep=rec.aSky=rec.aFl=rec.tdata=rec.Hb=rec.mdist=rec.rimD=null;
       try{ LIGHT.dirtyAt(c.x,c.z,60); }catch(e){}
       rec.state='done'; rec.ph='done'; rec.onb=true;
       for(const f of CV10.onBuild){ try{ f(rec); }catch(e){ showErr('굴 onBuild',e); } }
@@ -793,6 +930,13 @@ function cv10Step(rec,t1){
   }
 }
 
+/* 윗면 꼭짓점의 '열린 데까지 거리' — 둘레 ±3 점(1.5 m) 빈 데 점의 D + 그 점까지 거리 가운데 가장 작은 것(없으면 1e9 — 구멍 둘레가 아닌 윗면은 안 보인다) */
+function cv10TopD(rec,x,z){
+  const S=rec.S, nx=rec.nx, nz=rec.nz, fi=(x-rec.x0)/S, fj=(z-rec.z0)/S, i0=Math.round(fi), j0=Math.round(fj); let best=1e9;
+  for(let dj=-3;dj<=3;dj++){ const j=j0+dj; if(j<0||j>=nz) continue; for(let di=-3;di<=3;di++){ const i=i0+di; if(i<0||i>=nx) continue; const q=j*nx+i;
+    if(!(rec.C[q]-rec.F[q]>0.05)||rec.D[q]>=1e8) continue; const v=rec.D[q]+Math.hypot(i-fi,j-fj)*S; if(v<best) best=v; } }
+  return best;
+}
 /* 빈 데 점만으로 쌍선형 — 모서리 넷 가운데 빈 데가 하나도 없으면 n=0 */
 const _cv10S={f:0,c:0,h:0,d:1e9,open:false,n:0};
 function cv10Samp(rec,x,z){

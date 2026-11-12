@@ -42,6 +42,7 @@ TERR_U.uCv10T={value:(()=>{ const t=new THREE.DataTexture(new Uint8Array(4),1,1,
 TERR_U.uCv10R={value:[new THREE.Vector4(),new THREE.Vector4()]};   // x0 · z0 · 칸 걸음(m) · 가로+1024×세로(칸의 점 수)
 TERR_U.uCv10B={value:[new THREE.Vector4(),new THREE.Vector4()]};   // base · 높이 걸음(0.25) · 켜짐(0/1) · 칸 번호
 TERR_U.uCv10G={value:[new THREE.Vector4(),new THREE.Vector4()]};   // 굴 불빛 빛깔 rgb · 세기
+TERR_U.uCv10Rim={value:1};   // 땅 테(입구 둘레 바위 · 자갈 · 부식토) 세기 — CV10.rim=0 이면 끈다(cv10Pick 이 옮긴다 · 시험 A/B)
 /* 땅 구멍 셰이더와 envPatch 가 같이 쓴다 — 두 번 선언되지 않게 #ifndef 로 한 번만 */
 const CV10_COMMON_GLSL=`#ifndef CV10_DECL
 #define CV10_DECL
@@ -49,6 +50,8 @@ uniform sampler2D uCv10T;
 uniform vec4 uCv10R[2];
 uniform vec4 uCv10B[2];
 uniform vec4 uCv10G[2];
+uniform float uCv10Rim;
+float cv10RimG=0.0;
 bool cv10In(vec2 xz,int i,out vec4 t){
   vec4 B=uCv10B[i], R=uCv10R[i]; t=vec4(0.0);
   if(B.z<0.5) return false;
@@ -122,6 +125,45 @@ bool cv10HoleMP(vec3 p,float ny){
        다 버리면 그 틈으로 비스듬한 선이 모형 속(뒷면)을 지나 하늘이 비쳤다: Hh 보다 0.01 m 넘게 높은 모형은 남겨 테를 덮고 · 0.15 m 넘게 낮은 것은 남겨 옆에서 드는 선을 받는다(위에서는 껍데기 윗면이 가린다) */
     if(ny>0.35){ if(!cv10Top(p.xz,i,h)) return true; float dh=p.y-h; if(dh>-0.15&&dh<0.01) return true; } }
   return false;
+}
+/* 땅 셰이더 전용 구멍 + 땅 테 — cv10Hole 과 같은 3×3 읽기(새 읽기 없음)에서 테 세기를 같은 B-스플라인 무게로 섞어 cv10RimG 에 둔다(22-ground-textures.js 의 CAVE_ON 갈래가 읽는다).
+   칸마다 테 값: 구멍 칸(A≥0.75) 1 · 빈 데 칸(지붕 덮인 데 — A=127·exp(−D/5)) 1−smoothstep(0, 3.5, D) · 바위 칸 A·255/126(31-cave10.js 'tex' — 0 이면 테 밖) */
+bool cv10HoleR(vec2 xz){
+  bool hole=false; float rim=0.0;
+  for(int i=0;i<2;i++){
+    vec4 B=uCv10B[i], R=uCv10R[i]; if(B.z<0.5) continue;
+    float nz=floor(R.w/1024.0), nx=R.w-nz*1024.0; vec2 c=(xz-R.xy)/R.z;
+    if(c.x<-1.0||c.y<-1.0||c.x>nx||c.y>nz) continue;
+    vec2 c0=floor(c+0.5), t=c-c0; float m=0.0, r=0.0;
+    for(int b=0;b<3;b++){ float wz=cv10Bw(t.y,b);
+      for(int a=0;a<3;a++){ vec2 q=clamp(c0+vec2(float(a-1),float(b-1)),vec2(0.0),vec2(nx-1.0,nz-1.0));
+        vec4 T=texture2D(uCv10T,(q+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0)); float w=cv10Bw(t.x,a)*wz, a8=T.a*255.0;
+        if(T.a>=0.75){ m+=w; r+=w; }
+        else if(T.g>T.r+0.002) r+=w*(1.0-smoothstep(0.0,3.5,-5.0*log(max(a8,0.5)/127.0)));
+        else r+=w*min(1.0,a8/126.0); } }
+    if(m>=0.5) hole=true; rim=max(rim,r); }
+  cv10RimG=rim*uCv10Rim;
+  return hole;
+}
+/* 큰 모형 재질 전용 — cv10HoleMP 와 같은 구멍 판정에 땅 테 세기(cv10RimG)를 같은 3×3 읽기에서 더한다(새 읽기 없음 · 37-geo-meshes.js geoMat) */
+bool cv10HoleMPR(vec3 p,float ny){
+  vec4 s; float h; bool hole=false; float rim=0.0;
+  for(int i=0;i<2;i++){
+    vec4 B=uCv10B[i], R=uCv10R[i]; if(B.z<0.5) continue;
+    float nz=floor(R.w/1024.0), nx=R.w-nz*1024.0; vec2 c=(p.xz-R.xy)/R.z;
+    if(c.x<-1.0||c.y<-1.0||c.x>nx||c.y>nz) continue;
+    vec2 c0=floor(c+0.5), t=c-c0; float m=0.0, r=0.0;
+    for(int b=0;b<3;b++){ float wz=cv10Bw(t.y,b);
+      for(int a=0;a<3;a++){ vec2 q=clamp(c0+vec2(float(a-1),float(b-1)),vec2(0.0),vec2(nx-1.0,nz-1.0));
+        vec4 T=texture2D(uCv10T,(q+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0)); float w=cv10Bw(t.x,a)*wz, a8=T.a*255.0;
+        if(T.a>=0.998) m+=w;
+        if(T.a>=0.75) r+=w; else if(T.g>T.r+0.002) r+=w*(1.0-smoothstep(0.0,3.5,-5.0*log(max(a8,0.5)/127.0))); else r+=w*min(1.0,a8/126.0); } }
+    rim=max(rim,r);
+    if(hole||m<0.5) continue;
+    if(cv10Smp(p.xz,i,s)){ if(ny>0.35||p.y>s.x-0.5) hole=true; continue; }
+    if(ny>0.35){ if(!cv10Top(p.xz,i,h)) hole=true; else { float dh=p.y-h; if(dh>-0.15&&dh<0.01) hole=true; } } }
+  cv10RimG=rim*uCv10Rim;
+  return hole;
 }
 /* 땅 구멍 — M 과 묻힌 땅만 비우는 칸(A >= 0.75 · 192/255 = 0.753 · 나머지는 0.5 이하) */
 bool cv10Hole(vec2 xz){
@@ -366,6 +408,7 @@ function cv10Pick(skip){
     const gl=CV10_GLOW[r.c.kind]||CV10_GLOW.shelter; G.set(gl[0],gl[1],gl[2],gl[3]);
   }
   if(ch){ CV10C.atlas.needsUpdate=true; TERR_U.uCv10T.value=CV10C.atlas; }
+  TERR_U.uCv10Rim.value=CV10.rim===0?0:1;
   /* 그림에 안 실린 굴은 껍데기(장식 자식까지)를 안 그린다 — 땅이 안 뚫려 땅이 덮어야 하는데, 껍데기 윗면은 heightAt 그대로라 그보다 거칠게 그려진 땅
      (덧판 밖 본 땅 LOD — 잰 값 0.35 m 낮다) 위로 테두리가 주황 고리로 비쳤다(2026-11-11). 질의 · 걷기 · cv10Ray 는 격자 · 메시를 그대로 쓴다(보이기와 상관없다) */
   for(const rec of CV10.built.values()) if(rec.mesh){ const v=rec===cur[0]||rec===cur[1]; if(rec.mesh.visible!==v) rec.mesh.visible=v; }
