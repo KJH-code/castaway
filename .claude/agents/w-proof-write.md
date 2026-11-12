@@ -1,6 +1,6 @@
 ---
 name: w-proof-write
-description: orchestrate 증명 작성 워커. 정의·가정을 밝히고 단계마다 근거를 단 증명을 쓴다. orchestrate 플러그인의 모드 스킬(절약·기본)이 지시서와 함께 부를 때만 쓴다.
+description: orchestrate 증명 작성 워커. 정의·가정을 밝히고 단계마다 근거를 단 증명을 쓴다. kjh-lyj 플러그인의 모드 스킬(절약·기본)이 지시서와 함께 부를 때만 쓴다.
 tools: Read, Grep, Glob, Bash
 model: opus
 effort: xhigh

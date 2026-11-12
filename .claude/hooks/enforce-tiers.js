@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// orchestrate 플러그인: 모델 계층 강제 훅 (PreToolUse, Agent/Task 도구)
+// kjh-lyj 플러그인: 모델 계층 강제 훅 (PreToolUse, Agent/Task 도구)
 //
 // 1) 이 플러그인의 에이전트를 부르면서 model/effort를 넘기면 파일에 고정된 계층이
 //    덮어써지므로 거부한다. 예외: 대체용 model "inherit" (Fable 에이전트는 예외 없음).
@@ -9,11 +9,22 @@
 //
 // 에이전트 목록과 모델은 agents/*.md 머리말에서 직접 읽는다. 에이전트를 추가해도 이 파일은
 // 고칠 필요가 없다. 이 플러그인 에이전트가 아니면 아무것도 하지 않는다 (다른 작업에 간섭하지 않음).
+// "이 플러그인 에이전트" = subagent_type이 "<플러그인 이름>:<에이전트>" 꼴인 것만. 이름만 같은
+// 다른 플러그인·사용자 에이전트(예: other:checker, checker)는 건드리지 않는다.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
-const AGENTS_DIR = path.join(__dirname, '..', 'agents');
+const ROOT = path.join(__dirname, '..');
+const AGENTS_DIR = path.join(ROOT, 'agents');
+
+function pluginName() {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(ROOT, '.claude-plugin', 'plugin.json'), 'utf8'));
+    if (j && typeof j.name === 'string' && j.name) return j.name;
+  } catch { /* 아래 기본값 */ }
+  return 'kjh-lyj';
+}
 
 // agents/ 폴더를 못 읽을 때만 쓰는 목록 (이름 → 모델)
 const FALLBACK = {
@@ -80,13 +91,17 @@ process.stdin.on('end', () => {
 
   const ti = input.tool_input || {};
   const type = String(ti.subagent_type || '');
-  const base = type.includes(':') ? type.slice(type.lastIndexOf(':') + 1) : type;
+  const prefix0 = `${pluginName()}:`;
+  let base;
+  if (type.startsWith(prefix0)) base = type.slice(prefix0.length);
+  else if (!type.includes(':')) base = type;   // 이 레포(CASTAWAY): .claude/ 에 풀어 두어 이름 앞에 플러그인 이름이 안 붙는다
+  else process.exit(0);                         // 다른 플러그인 에이전트
   const agents = loadAgents();
   if (!agents.has(base)) process.exit(0);
 
   const agentModel = agents.get(base);
   const isFable = agentModel.includes('fable');
-  const prefix = `orchestrate 플러그인 훅: ${type} 에이전트`;
+  const prefix = `kjh-lyj 플러그인 훅: ${type} 에이전트`;
   const pair = OPUS_PAIR[base] || (base.endsWith('-fable') ? base.slice(0, -'-fable'.length) : 'su-prover');
 
   if (isFable && ti.model === 'inherit') {

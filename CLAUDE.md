@@ -239,15 +239,15 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 
 ### 분업 — 메인이 지휘하고 워커가 일한다(orchestrate)
 
-사용자 결정(2026-10-30 · 지금 플러그인 **v3.3.0** · 2026-11-10) — 사용자가 올린 orchestrate 플러그인을 플러그인이 아니라 `.claude/` 에 풀어 두었다(이름에 `orchestrate:` 가 안 붙는다):
-`.claude/skills/` — `mode`(새 작업마다 모드를 묻는 절차) · `lite`(절약) · `orchestrate`(기본) · `plus`(강화) · `super`(최대) · `fable`(극한 — Fable 5.2 · `ORCHESTRATE_FABLE=1` 일 때만) · `check`(독립 검증 `/check test·review·debug`) ·
+사용자 결정(2026-10-30 · 지금 플러그인 **KJH-LYJ 1.1.0** — orchestrate 3.3.0 의 후속 · 2026-11-12) — 사용자가 올린 플러그인을 플러그인이 아니라 `.claude/` 에 풀어 두었다(이름에 `kjh-lyj:` 가 안 붙는다 · 그래서 `enforce-tiers.js` 를 이름 앞에 플러그인 이름이 없는 에이전트도 받게 고쳤다):
+`.claude/skills/` — `mode`(새 작업마다 모드를 묻는 절차) · `lite`(절약) · `orchestrate`(기본) · `plus`(강화) · `super`(최대) · `fable`(극한 — Fable 5.2 · `ORCHESTRATE_FABLE=1` 일 때만) · `check`(독립 검증 `/check test·review·debug`) · `start`(읽기 → 인터뷰 → 계획 → 모드) · `reflect`(결정 · 버그 원인 · 교훈을 노트에 — **계통에 속하는 것은 그 계통 노트에**, 계통 밖만 `docs/notes/decisions.md` · `bugs.md` · `lessons.md`) · `memo`(`docs/notes/inbox.md`) ·
 `.claude/agents/`(역할마다 모델 · 노력이 파일에 고정된 `w-*` · `su-*` · `checker-test`(haiku xhigh) · `checker`(opus xhigh) · `checker-lite`(sonnet medium) · `*-fable`) ·
 `.claude/scripts/budget.js`(요금제별 주간 한도 추정 — `node .claude/scripts/budget.js --plan pro --compare --units 3`) ·
 훅 둘(`.claude/settings.json`) — `enforce-tiers.js`(**에이전트를 부를 때 `model` · `effort` 를 넘기면 거절** · `model:"inherit"` 만 허용 · Fable 은 `ORCHESTRATE_FABLE=1` 없이 거절) ·
 `ask-mode.js`(사용자 메시지마다 '새 작업이면 먼저 모드를 물어라'를 넣는다 — 끄기 `ORCHESTRATE_ASK_MODE=0`). **절차는 그 스킬을 따른다.** 이 레포에서 바꾼 셋(모든 모드에 같다):
 - **병합은 메인(Opus)이 한다**(사용자 결정) — 위 '작업 흐름'대로 늘 main 에 합친다(checker test 통과 · review 에 '실패' 없음이면). review 에 실패·의심이 있으면 그대로 보고하고 답을 기다린다.
   워커 · checker 는 푸시 · PR · 병합을 안 한다(워커는 제 작업 트리에 커밋까지).
-- **모드는 사용자가 고른다**(v3.3.0) — 새 작업이면 시작 전에 `mode` 스킬대로 묻는다(모드 없음 / 절약 / 기본 / 더 높은 모드 → 강화 / 최대 / 극한). 진행 중인 작업의 후속 · 순수 질문 · `/check` 는 안 묻는다.
+- **모드는 사용자가 고른다**(v3.3.0 부터) — 새 작업이면 시작 전에 `mode` 스킬대로 묻는다(모드 없음 / 절약 / 기본 / 더 높은 모드 → 강화 / 최대 / 극한). 진행 중인 작업의 후속 · 순수 질문 · `/check` 는 안 묻는다.
   모드 없음이면 메인이 직접 한다. 판단(설계 결정 · 원인 모를 디버깅 · 결과 해석 · 결정론 · 지형 판 · 정본/복사본)은 어느 모드에서나 메인이 쥔다.
 - **비용(메인이 정함)** — `general-purpose` 를 띄우는 고정 비용 **5.8만 토큰**(2026-10-30 · haiku · 한 줄 답 · CLAUDE.md 43 KB — 265 KB 때 18.9~19.3만).
   그래서 워커 · 검수는 이 레포 에이전트(일하는 것들은 각 파일 끝에 '이 레포(CASTAWAY)에서' 절)로 띄우고 general-purpose 는 그것이 안 잡힐 때만(그때만 `model` · `effort` 를 넘김 · 에이전트 파일을 막 만든 세션 — 그 세션에선 목록에 없다).
@@ -257,7 +257,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   목표 · 볼 경로 · 하지 말 것(`engine/js/data-*.js` · 전사 원문 · 10 MB 넘는 시험장은 통째로 말고 `grep … | cut -c1-200`) · 돌려줄 꼴과 길이를 넣는다.
 - 워커는 노트(`docs/notes/`)를 저절로 안 읽는다 — 지시서 '맥락'에 걸리는 규칙 · 같이 고칠 짝 · 노트 대목을 옮겨 적는다. 받은 결과 중 다음 결정에 쓰는 수치 · file:line 은
   메인이 한 번 확인한다. 답할 때 무엇을 어느 모델에 맡겼는지 한 줄로 밝힌다.
-- 플러그인을 새 판으로 바꿀 때: 새 파일로 갈고 위 셋 · 에이전트의 CASTAWAY 절 · 스킬 머리의 '이 레포에서' 줄 · `spec-template.md` 의 검사 · 커밋 칸을 다시 얹는다(옛 판과 `diff` 로 확인).
+- 플러그인을 새 판으로 바꿀 때: 새 파일로 갈고 위 셋 · 에이전트의 CASTAWAY 절 · 스킬 머리의 '이 레포에서' 줄 · `spec-template.md` 의 검사 · 커밋 칸 · `/플러그인이름:` 을 뺀 슬래시 명령 · `budget.js` 경로(`.claude/scripts/`) · `enforce-tiers.js` 의 이름 갈래를 다시 얹는다(옛 판 원본 ↔ 이 레포 판의 `diff -u` 를 새 판에 `patch` 로 — 2026-11-12 1.1.0 때 그렇게 했다 · 플러그인용 `hooks/hooks.json` 은 안 쓴다 — 훅은 `.claude/settings.json`).
 
 ## 계통별 노트(`docs/notes/`)
 
@@ -314,7 +314,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
   `>=10` 으로 판 10(비탈 굴)을 가리는 데는 판 11 도 걸린다 — 판 10 만이면 `===10`. 새 지형 코드를 판 11 에 더할 때는 `PLAT.on` 으로 가른다(옛 섬의 난수 차례를 안 건드리게).
 - **지형 판(`P.tv`)** — 2 는 침식 뒤에 피오르·골짜기·단구·절벽·산릉·탁상지를 새기고(`terrainFeatures`) 동굴(`caveSites` · 32-caves.js)과
   암벽(33-crags.js)을 둔다. **판이 없는 옛 저장은 1 로 읽혀 예전 섬이 한 비트도 안 달라진다**(배율 2·판 1 의 표고·소품이 main 과 같음을
-  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` · 주소 `?tv=` 의 한도(94-input.js)가 주는 값도 올린다(지금 15 — 15 는 판 10 굴 꼴을 실제처럼 울퉁불퉁하게(31-cave10.js `cv10Eval` · 종류마다 진폭 표 `CV10.R` 한 곳 · 껍데기 다듬기 한 쌍 · 판 14 이하 굴은 그대로 · caves) · 14 는 굴 광맥(`caveVeins` — 판 10 굴 안 광석 두 배 · 굴 종류마다 몰린 광종 · 깊은 방은 풍부한 광맥 `p.rich` · 굴에만 나는 자철석 · `p.vein` 은 plOres 가 안 옮긴다 · caves) · 13 은 바닷가를 모래 해변 · 바다 벼랑 둘로(10-worldgen.js `coastShape` · `coastSea` — 해변 앞 완만한 모래 턱 · 벼랑은 물가 한 칸에 곧게 서고 밑은 곧장 깊다 · terrain) · 12 는 판 10 굴 고침(`cv10V2` — 바위그늘엔 둥지 없음 · 접근로는 착륙 판정에서 뺌 · 판 10 시험 섬도 같이 · caves) · 11 은 층층 대지 섬(14-plateau.js) · 9 는 굴의 꼴(32-caves.js · 10-worldgen.js — 비탈 아래쪽 벽 바위를 처마 밑까지 · 고드름 꼴 종유석·석순 · 굴 광석 자리 `caveOreSpot`/`caveOreRelax` · 바위 속 빛나는 점·버섯 버리기 · 강이 지나는 굴 자리 버리기) · 8 은 옛 신전 둘(97-temples.js) · 대숲 바이옴(`B.BAMBOO` 13 — 활엽수림의 낮은 데 · 큰 얼룩) · 들판의 바위 솎기(`thinOpenRocks`) · 판판한 현무암 섬 · 4 는 바다 골짜기 `seaTrenches` · 5 는 바이옴 비탈 · 바닷가 · 지열 · 폭포 · 6 은 광석을 굴 속에만(`oreToCaves` — 늪철광만 늪에) · 바깥 광석과 낮은 땅 화강암 일부를 그 자리의 현무암 · 석회암(`karst`) · 사암으로(`surfaceRocks`) · 산허리가 방으로 솟는 굴 자리 버리기(`caveSites` 의 `bulge`) · 7 은 저수지 폭포(36-falls.js) · 땅속 세계(96-underworld.js)).
+  확인했다). 시드가 만드는 것을 바꾸는 일은 이 판 뒤에 둘 것 — 새 판을 만들면 `newIsland`·`farDrift` · 주소 `?tv=` 의 한도(94-input.js)가 주는 값도 올린다(지금 16 — 16 은 판 10 굴 꼴을 실제처럼 울퉁불퉁하게(31-cave10.js `cv10Eval` · 종류마다 진폭 표 `CV10.R` 한 곳 · 껍데기 다듬기 한 쌍 · 판 15 이하 굴은 그대로 · caves) · 15 는 강을 더 · 급류 · 폭포를 강에 잇기(14-plateau.js plSprings · plRapid · plWl rim — terrain · water) · 14 는 굴 광맥(`caveVeins` — 판 10 굴 안 광석 두 배 · 굴 종류마다 몰린 광종 · 깊은 방은 풍부한 광맥 `p.rich` · 굴에만 나는 자철석 · `p.vein` 은 plOres 가 안 옮긴다 · caves) · 13 은 바닷가를 모래 해변 · 바다 벼랑 둘로(10-worldgen.js `coastShape` · `coastSea` — 해변 앞 완만한 모래 턱 · 벼랑은 물가 한 칸에 곧게 서고 밑은 곧장 깊다 · terrain) · 12 는 판 10 굴 고침(`cv10V2` — 바위그늘엔 둥지 없음 · 접근로는 착륙 판정에서 뺌 · 판 10 시험 섬도 같이 · caves) · 11 은 층층 대지 섬(14-plateau.js) · 9 는 굴의 꼴(32-caves.js · 10-worldgen.js — 비탈 아래쪽 벽 바위를 처마 밑까지 · 고드름 꼴 종유석·석순 · 굴 광석 자리 `caveOreSpot`/`caveOreRelax` · 바위 속 빛나는 점·버섯 버리기 · 강이 지나는 굴 자리 버리기) · 8 은 옛 신전 둘(97-temples.js) · 대숲 바이옴(`B.BAMBOO` 13 — 활엽수림의 낮은 데 · 큰 얼룩) · 들판의 바위 솎기(`thinOpenRocks`) · 판판한 현무암 섬 · 4 는 바다 골짜기 `seaTrenches` · 5 는 바이옴 비탈 · 바닷가 · 지열 · 폭포 · 6 은 광석을 굴 속에만(`oreToCaves` — 늪철광만 늪에) · 바깥 광석과 낮은 땅 화강암 일부를 그 자리의 현무암 · 석회암(`karst`) · 사암으로(`surfaceRocks`) · 산허리가 방으로 솟는 굴 자리 버리기(`caveSites` 의 `bulge`) · 7 은 저수지 폭포(36-falls.js) · 땅속 세계(96-underworld.js)).
   새 지형 코드는 제 난수(`mulberry32(seed^상수)`)만 쓴다 — `placeResources` 의 난수 차례를 건드리지 않는다.
 - **`updateHUD`(82-hud.js) 안에서 일찍 `return` 하지 말 것** — 조준 표시 갈래에서 돌아가면 그 아래(가방 맞춤 · 도구 표시 · **제작 진행 막대**)가
   통째로 안 돈다. 숫돌을 보는 동안 막대가 멈춰 '안 만들어진다'는 베타 신고가 이것이었다. 갈래는 else-if 로 잇는다.
@@ -417,7 +417,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 들짐승 몸의 기울기 · 높이는 `aniTilt` 가 땅 네 점으로 정한다(`a.gp` · `a.gr`) — aniDraw 에서 `R.rotation.x/z` 를 덮어쓰지 말고 더할 것 · 새 몸 꼴(납작한 것)은 `flat` 갈래 · 사체를 새로 굴리면 띄우는 높이(`lift`)도(mobs).
 - 배 모양을 바꾸면 `shipBoxes` 치수도 · 불티 크기는 세계 길이로 · 폭발 불빛은 `BLAST_LIGHT` 하나를 계속 쓴다 · 화면 효과는 캠코더 셰이더 안에서(창 전체 `filter:drop-shadow` 금지 · gameplay).
 - 화면 밖 칸은 `visible` 대신 `setSeen`(층 `SEEN_LAYER` — 그림자 패스는 그대로 그린다 · 30-props.js) — `visible` 로 시야를 거르면 고개를 돌릴 때마다 해 그림자를 다시 그린다 · 화면 크기로 단계를 고르는 것은 창 높이 대신 `renderH()`(캠코더 그림판 · perf).
-- 대지 폭포 물길은 `fallsPlPath` 하나(그리기 `fallsBuildPl` · 벼랑 바위 걷기 `plFallsClear`) — 식을 바꾸면 둘이 같이 · 음악 표본 빚는 함수는 일꾼에 글로 옮긴다(`muWorker` — 바깥 이름 금지 · 새 악기는 그 목록과 `muMake` 열쇠에도 · gameplay).
+- 대지 폭포 물길은 `fallsPlPath` 하나(그리기 `fallsBuildPl` · 벼랑 바위 걷기 `plFallsClear`) — 식을 바꾸면 둘이 같이 · 판 15 는 갈래 물길 `fallsPlPath2`/`fallsPlStrands`(같은 둘이 쓴다 — 바꾸면 판 15 섬이 바뀐다 · water) · 음악 표본 빚는 함수는 일꾼에 글로 옮긴다(`muWorker` — 바깥 이름 금지 · 새 악기는 그 목록과 `muMake` 열쇠에도 · gameplay).
 - 셰이더 글 — 음수를 그대로 끼우지 말 것(`y-${-0.02}` → 괄호로) · GLSL 예약어 `patch` 를 변수로 쓰지 말 것 · 템플릿 글(백틱) 셰이더의 주석에 백틱 금지.
 - 몹을 본편에 들일 때 — 몸은 `scene` 에 숨겨 두고 돌려 쓴다 · `lightRole:'recv'` · 전역 이름 겹침은 '확인하는 법' 의 이어 붙이기 검사로 · 움직이면 `LIGHT.dirtyAt` · `q.slerpQuaternions(q0,q,w)` 에 자기를 넣지 말 것(r128 · mobs).
 - 애쉬스케일 `wClimb` 은 `wyv-sync` 가 안 옮긴다(wyvern · battle · night · siege 넷) · 본편 스킨워커 값은 아레나 `MP`/`SPD` 그대로(`MIM_P`/`MIM_SPD` — 아레나를 고치면 같이 · mobs).

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// orchestrate 플러그인: 주간 한도 사용량 추정기
+// kjh-lyj 플러그인: 주간 한도 사용량 추정기
 //
 // 근거: "AI Model Capability vs. Subscription Usage Limits" (2026-11-10 기준), Claude 모델만.
 //   사용률 = Artificial Analysis Intelligence Index v5.0.1 과제 1개의 API 비용
@@ -49,7 +49,7 @@ const SIZE = {
   'su-dedupe': 0.2, 'w-chore': 0.2, 'su-chore': 0.2,
 };
 
-// 모드: 절약(lite) · 기본(standard = orchestrate 스킬) · 강화(plus) · 최대(super)
+// 모드: 절약(lite) · 기본(standard = orchestrate 스킬) · 강화(plus) · 최대(super) · 극한(fable)
 const MODES = ['lite', 'standard', 'plus', 'super', 'fable'];
 const MODE_NAME = { lite: '절약', standard: '기본', plus: '강화', super: '최대', fable: '극한' };
 const MODE_ALIAS = {
@@ -61,11 +61,18 @@ const MODE_ALIAS = {
 };
 const PROOF_VERIFIERS = { lite: 1, standard: 1, plus: 2, super: 3, fable: 3 };
 const PROOF_MAX_ROUNDS = { lite: 2, standard: 3, plus: 3, super: 3, fable: 3 };
+// 첫 조각 실측에 쓰는 기본 호출 (구현 1번 + 그 단위 테스트). 모드마다 구현 에이전트가 다르다
+const PILOT_DEFAULT = {
+  lite: 'w-implement-lite:1', standard: 'w-implement:1',
+  plus: 'w-implement-opus:1,su-tester:1', super: 'su-builder:1,su-tester:1',
+  fable: 'su-builder-fable:1,su-tester:1',
+};
+const PILOT_TARGET = 2; // /usage 눈금이 1%라 조각 추정이 이 값 이상이어야 보정이 의미 있다
 
 const HELP = `쓰는 법:
-  node budget.js --plan <pro|max|ultra> --compare [--units 3]          모드 4개 비교 (코드)
-  node budget.js --plan <요금제> --preset proof --compare              모드 4개 비교 (증명)
-  node budget.js --plan <요금제> --preset <lite|standard|plus|super> --units N [모드별 옵션]
+  node budget.js --plan <pro|max|ultra> --compare [--units 3]          모드 5개 비교 (코드)
+  node budget.js --plan <요금제> --preset proof --compare              모드 5개 비교 (증명)
+  node budget.js --plan <요금제> --preset <lite|standard|plus|super|fable> --units N [모드별 옵션]
   node budget.js --plan <요금제> --preset proof --mode <모드> [--rounds R]
   node budget.js --plan <요금제> --calls "w-implement:3,checker-test:1,checker:1"
 모드별 옵션:
@@ -78,7 +85,8 @@ const HELP = `쓰는 법:
   --calls "이름:횟수[:크기]"   프리셋에 호출을 더하거나 직접 목록을 준다 (크기 기본값은 에이전트별 계수)
   --remaining <%>             남은 주간 한도(%). 넘칠 것 같으면 경고
   --pilot-measured <%>        첫 조각 실측치(/usage 주간 % 차이). 나머지를 이 비율로 보정
-  --pilot-calls "..."         실측한 조각의 호출 목록 (기본 "su-builder:1,su-tester:1")`;
+  --pilot-calls "..."         실측한 조각의 호출 목록 (기본: 모드의 구현 1번 + 테스트 1번)
+                              조각 추정이 2%보다 작으면 단위 몇 개를 묶어야 하는지 알려준다`;
 
 function parseArgs(argv) {
   const a = {};
@@ -129,7 +137,7 @@ function loadAgents() {
 function parseCalls(spec) {
   if (typeof spec !== 'string' || !spec.trim()) fail('--calls 가 비어 있습니다');
   return spec.split(',').map((s) => s.trim()).filter(Boolean).map((s) => {
-    const [rawName, count, size] = s.replace(/^orchestrate:/, '').split(':');
+    const [rawName, count, size] = s.replace(/^(?:kjh-lyj|orchestrate):/, '').split(':');
     const name = rawName.includes('/') ? rawName.slice(rawName.lastIndexOf('/') + 1) : rawName;
     const c = count === undefined ? 1 : num(count, `"${s}"의 횟수`);
     const z = size === undefined ? undefined : num(size, `"${s}"의 크기`);
@@ -139,7 +147,7 @@ function parseCalls(spec) {
 
 function getMode(v, name) {
   const m = MODE_ALIAS[String(v).toLowerCase()] || MODE_ALIAS[String(v)];
-  if (!m) fail(`${name} 은 lite, standard, plus, super 중 하나: ${v}`);
+  if (!m) fail(`${name} 은 lite, standard, plus, super, fable 중 하나: ${v}`);
   return m;
 }
 
@@ -148,7 +156,8 @@ function getMode(v, name) {
 //   절약  Haiku max (어려운 단위 Sonnet medium) / test + 가벼운 review(Sonnet medium)
 //   기본  Sonnet medium (쉬운 단위 Haiku max, 까다로운 단위 Opus medium) / test + review(Opus xhigh)
 //   강화  Opus medium, worktree / 단위 테스트 + 통합 test + 리뷰 2 + 상 지적 반박 검증
-//   최대  Opus xhigh (선택 Fable high), worktree / 설계 후보 3 + 리뷰 3 + 반박 검증 + 판정
+//   최대  Opus xhigh, worktree / 설계 후보 3 + 리뷰 3 + 반박 검증 + 판정
+//   극한  Fable high, worktree / Fable 설계 후보 3 + 리뷰 Opus 3·Fable 1 + 반박 검증 전부 + 판정
 function codeCalls(mode, a) {
   const n = (k, d, opt) => (a[k] === undefined ? d : num(a[k], `--${k}`, opt));
   const units = n('units', 3, { min: 1, int: true });
@@ -319,8 +328,9 @@ function printCompare(a, plan, agents) {
   for (const r of results) {
     const mid = (r.tot.lo + r.tot.hi) / 2;
     const ratio = baseMid > 0 ? mid / baseMid : 0;
-    const ratioText = r.mode === 'standard' ? '1배' : `약 ${ratio >= 1 ? ratio.toFixed(1) : ratio.toFixed(2)}배`;
     const naCalls = r.rows.filter((x) => x.na).reduce((k, x) => k + x.count, 0);
+    // 합계에서 뺀 호출이 있으면 배수가 실제보다 작게 나와 오해를 부른다
+    const ratioText = r.mode === 'standard' ? '1배' : (naCalls ? '— (한도 밖 호출 있음)' : `약 ${ratio >= 1 ? ratio.toFixed(1) : ratio.toFixed(2)}배`);
     const extra = naCalls ? `  + Fable 호출 ${fmt(naCalls)}회는 한도 밖 (Pro는 크레딧으로 따로 청구)` : '';
     console.log(pad(`${MODE_NAME[r.mode]}(${r.mode})`, 17) + pad(range(r.tot.lo, r.tot.hi), 16) + ratioText + extra);
   }
@@ -341,6 +351,7 @@ function main() {
 
   let calls;
   let title = '';
+  let presetMode = null;
   if (a.preset) {
     if (a.preset === 'proof') {
       const mode = getMode(a.mode === undefined ? 'super' : a.mode, '--mode');
@@ -348,6 +359,7 @@ function main() {
       title = `${MODE_NAME[mode]} 모드 증명`;
     } else {
       const mode = getMode(a.preset, '--preset');
+      presetMode = mode;
       calls = codeCalls(mode, a);
       title = `${MODE_NAME[mode]} 모드`;
     }
@@ -374,13 +386,31 @@ function main() {
   if (tot.na.length) console.log(`  합계에서 뺀 것: ${tot.na.join('; ')}`);
 
   const warnings = [];
+  // 실측 조각: 지정이 없으면 모드 기본값. 증명·직접 목록이면 --pilot-calls가 있을 때만
+  const pilotSpec = typeof a['pilot-calls'] === 'string' ? a['pilot-calls'] : (presetMode ? PILOT_DEFAULT[presetMode] : null);
+  if (pilotSpec && a['pilot-measured'] === undefined && presetMode && presetMode !== 'lite' && presetMode !== 'standard') {
+    const p = estimate(parseCalls(pilotSpec), agents, plan).tot;
+    const pm = (p.lo + p.hi) / 2;
+    if (pm > 0 && pm < PILOT_TARGET) {
+      const units = Number(a.units === undefined ? 3 : a.units);
+      const k = Math.ceil(PILOT_TARGET / pm);
+      const msg = k >= units
+        ? `실측 조각(${pilotSpec}) 추정이 ${range(p.lo, p.hi)}로 /usage 눈금(1%)에 비해 작다. 단위 ${units}개를 다 묶어도 ${PILOT_TARGET}%에 못 미치므로 실측 보정은 생략하고, 끝난 뒤 실제 차이만 보고한다.`
+        : `실측 조각(${pilotSpec}) 추정이 ${range(p.lo, p.hi)}로 /usage 눈금(1%)에 비해 작다. 첫 조각을 단위 ${k}개로 묶어 재고, --pilot-calls 횟수에 ${k}를 곱해 넘긴다.`;
+      console.log(`실측 계획: ${msg}`);
+    }
+  }
   if (a['pilot-measured'] !== undefined) {
     const measured = num(a['pilot-measured'], '--pilot-measured');
-    const pilotCalls = parseCalls(typeof a['pilot-calls'] === 'string' ? a['pilot-calls'] : 'su-builder:1,su-tester:1');
+    if (!pilotSpec) fail('--pilot-measured 에는 --preset(코드 모드) 또는 --pilot-calls 가 필요합니다');
+    const pilotCalls = parseCalls(pilotSpec);
     const p = estimate(pilotCalls, agents, plan).tot;
     const pilotMid = (p.lo + p.hi) / 2;
     if (measured < 1) {
       console.log(`실측 보정: 실측 ${measured}%는 /usage 눈금(1%)보다 작아 보정하지 않는다. 추정치를 그대로 쓴다.`);
+    } else if (measured < PILOT_TARGET) {
+      // /usage는 1% 눈금이라 1%로 읽힌 값의 실제는 0.5–1.5%. 계수가 ±50% 흔들린다
+      console.log(`실측 보정: 실측 ${measured}%는 실제로 ${Math.max(0, measured - 0.5)}–${measured + 0.5}%일 수 있어 계수가 크게 흔들린다(조각 추정 ${range(p.lo, p.hi)}). 보정하지 않는다. 다음엔 조각을 ${PILOT_TARGET}% 이상이 되게 잡는다.`);
     } else if (pilotMid > 0) {
       const k = measured / pilotMid;
       const restLo = Math.max(0, tot.lo - p.lo) * k;
