@@ -145,6 +145,26 @@ bool cv10HoleR(vec2 xz){
   cv10RimG=rim*uCv10Rim;
   return hole;
 }
+/* 큰 모형 재질 전용 — cv10HoleMP 와 같은 구멍 판정에 땅 테 세기(cv10RimG)를 같은 3×3 읽기에서 더한다(새 읽기 없음 · 37-geo-meshes.js geoMat) */
+bool cv10HoleMPR(vec3 p,float ny){
+  vec4 s; float h; bool hole=false; float rim=0.0;
+  for(int i=0;i<2;i++){
+    vec4 B=uCv10B[i], R=uCv10R[i]; if(B.z<0.5) continue;
+    float nz=floor(R.w/1024.0), nx=R.w-nz*1024.0; vec2 c=(p.xz-R.xy)/R.z;
+    if(c.x<-1.0||c.y<-1.0||c.x>nx||c.y>nz) continue;
+    vec2 c0=floor(c+0.5), t=c-c0; float m=0.0, r=0.0;
+    for(int b=0;b<3;b++){ float wz=cv10Bw(t.y,b);
+      for(int a=0;a<3;a++){ vec2 q=clamp(c0+vec2(float(a-1),float(b-1)),vec2(0.0),vec2(nx-1.0,nz-1.0));
+        vec4 T=texture2D(uCv10T,(q+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0)); float w=cv10Bw(t.x,a)*wz, a8=T.a*255.0;
+        if(T.a>=0.998) m+=w;
+        if(T.a>=0.75) r+=w; else if(T.g>T.r+0.002) r+=w*(1.0-smoothstep(0.0,3.5,-5.0*log(max(a8,0.5)/127.0))); else r+=w*min(1.0,a8/126.0); } }
+    rim=max(rim,r);
+    if(hole||m<0.5) continue;
+    if(cv10Smp(p.xz,i,s)){ if(ny>0.35||p.y>s.x-0.5) hole=true; continue; }
+    if(ny>0.35){ if(!cv10Top(p.xz,i,h)) hole=true; else { float dh=p.y-h; if(dh>-0.15&&dh<0.01) hole=true; } } }
+  cv10RimG=rim*uCv10Rim;
+  return hole;
+}
 /* 땅 구멍 — M 과 묻힌 땅만 비우는 칸(A >= 0.75 · 192/255 = 0.753 · 나머지는 0.5 이하) */
 bool cv10Hole(vec2 xz){
   for(int i=0;i<2;i++){ if(cv10Bs(xz,i,0.75)>=0.5) return true; }
