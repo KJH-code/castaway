@@ -216,6 +216,8 @@ vec3 cmTri(vec3 q,vec3 tw,float L){ vec3 r=vec3(0.0);
   if(tw.z>0.10) r+=texture(cmC,vec3(q.xy,L)).rgb*tw.z;
   return r/max(tw.x*step(0.10,tw.x)+tw.y*step(0.10,tw.y)+tw.z*step(0.10,tw.z),1e-3); }
 float cmLum(vec3 c){ return dot(c,vec3(0.30,0.59,0.11)); }
+/* 사진 결(평균 1) — 채도 sat 만큼 사진 빛깔 · 밝기 대비는 1.7 배(캠코더 저해상에서도 수 cm~수십 cm 결이 남게) */
+vec3 cmDt(vec3 rk,float fine,float sat){ vec3 d=mix(vec3(fine),rk,sat)*2.0; return max(vec3(0.05),vec3(1.0)+(d-vec3(1.0))*1.7); }
 /* 젖음 — 알베도 ×(1−0.45·w·공극) · 채도 +0.25w · 거칠기 → 0.08 · F0 → 0.02(물 막) */
 void cmWetF(inout vec3 c,inout float r,inout float f0,float w,float por){
   c*=1.0-0.45*w*por; float l=cmLum(c); c=max(vec3(0.0),vec3(l)+(c-vec3(l))*(1.0+0.25*w));
@@ -248,8 +250,9 @@ const CM_BODY=`#include <color_fragment>
     vec2 pd=ax?p.zy:(ay?p.xz:p.xy);
 #ifndef CM_NO_PHOTO
     /* 두 크기 사진 — 같은 사진을 2.7 배 크게 · 돌려 · 비켜 한 장 더 읽어 곱으로 겹친다(한 장 크기 되풀이가 안 보이게 · 수십 cm 얼룩은 큰 장이 준다) */
+    float fine2=0.5;
     vec3 rk2=texture(cmC,vec3(mat2(0.83,-0.56,0.56,0.83)*pd/(CM_RS*2.7)+vec2(0.37,0.71),CM_L)).rgb;
-    rk=mix(rk,clamp(rk*rk2*2.0,0.0,1.0),0.55+0.3*(Z1.r-0.5));
+    rk=mix(rk,clamp(rk*rk2*2.0,0.0,1.0),0.55+0.3*(Z1.r-0.5)); fine2=cmLum(rk2);
 #endif
     float big=Z1.g, mid=Z1.a, fine=cmLum(rk), jt=fine-0.5;                            // 잔 결은 사진 밝기로 · jt — 경계를 사진 결로 들쭉날쭉하게
     vec3 c, dt, zn=vec3(1.0,0.0,0.0);                                                // zn: 갈래(CM_DBG_ZONE) — 빨강 바탕 바위 · 초록 덧쌓임 · 파랑 바닥(진흙) · 노랑 이끼 · 녹조 · 테 · 자홍 얼룩(철 · 망간 · 산화 · 칠)
@@ -259,14 +262,15 @@ const CM_BODY=`#include <color_fragment>
     float fwY=max(fwidth(p.y),1e-4), fwH=max(fwidth(fh),1e-4);                       // 줄의 화면 너비(갈래 밖에서 센다)
 #if CM_KIND==0
     /* 석회암 용식 굴 — 맨 석회암 #9E9A90 60~80% · 진흙 10~30%(수위선 밑) · 유석 0~30%(절리 밑 · 중력 방향 · 젖음) · 망간 ≤3% · 철 ≤5% · 달우유 ≤2% */
-    dt=mix(vec3(fine),rk,0.35)*2.0;                                                  // 사진 결(평균 1)
+    dt=cmDt(rk,fine,0.35);                                                  // 사진 결(평균 1)
     c=CP_LIME*dt;
     /* 층리 줄 — 기하 켜(aLay: 켜 사이 b · 기준 off — 31-cave10.js 의 켜 선반과 같은 높이) · 켜마다 해시(있음 · 두께) · 얼룩으로 끊김 */
     float lb=max(vCmK.x,0.3), lq=(p.y-vCmK.y)/lb, lk=floor(lq+0.5); vec3 lh=cmH3(vec3(lk,vs,31.0));
     float ld=abs(lq-lk)*lb, lw=0.012+0.035*lh.y;
     float bed=step(lh.x,0.85)*smoothstep(0.30,0.55,Z1.r+0.25*lh.z+0.4*jt)*(1.0-smoothstep(lw-fwY,lw+fwY,ld+0.02*jt*(1.0+lh.y)))*(1.0-flo);
     vec4 sb=cmBand(p.y-vCmK.y,0.22*lb,cs*6.2832,vs+3.0);                             // 켜 안 잔 켜 — 휜 띠의 톤
-    c*=(0.93+0.14*sb.w)*(1.0-0.32*bed); Ht-=0.010*bed;
+    bed*=wal*smoothstep(0.35,0.6,Z1.a+0.5*jt);
+    c*=(0.95+0.10*sb.w)*(1.0-0.18*bed); Ht-=0.008*bed;
     /* 절리 — 거의 수직인 금 두 벌(x · z 쪽 · 간격 2~6 m 휨 · 금마다 있음 해시) */
     float jx=cmWarp(p.x+vs*0.37,4.0,cs*9.0), jz=cmWarp(p.z-vs*0.21,4.0,cs*5.0+1.7);
     float jpx=step(cmH(vec3(floor(jx+0.5),vs,41.0)),0.6), jpz=step(cmH(vec3(floor(jz+0.5),vs,43.0)),0.6);
@@ -276,41 +280,42 @@ const CM_BODY=`#include <color_fragment>
     /* 유석 — 절리 밑에서 중력 방향으로 늘어진 겹(세로로 늘인 잡음) · 꿀색 #D9A86C → 깨끗한 방해석 #F2EEE6 · 젖어 r 0.1 */
     vec4 S=texture(cmZ,vec3(p.x*1.25,p.y*0.085,p.z*1.25));                            // 세로로 늘인 잡음 — b 가로 0.4 · 세로 6 m · r 0.1 · 1.5 m
     float fs=S.b*0.65+S.r*0.35;
-    float dr=(1.0-smoothstep(0.25,1.1+0.6*Z1.r,jd+0.5*jt))*smoothstep(CM_QB45,CM_QB75,fs*0.8+Z1.b*0.2+0.15*jt)*(wal+cei*0.7)*smoothstep(0.15,0.45,fl);
+    float dr=(1.0-smoothstep(0.5,1.4+0.6*Z1.r,jd+0.6*jt))*smoothstep(CM_QB35,CM_QB55,fs*0.8+Z1.b*0.2+0.15*jt)*clamp(wal+cei,0.0,1.0)*smoothstep(0.10,0.35,fl);
+    c*=1.0-0.14*smoothstep(0.55,0.85,fs+0.2*jt)*wal;                                 // 물 흐른 자국(세로)
     c=mix(c,mix(CP_FLOH,CP_FLOW,smoothstep(0.35,0.75,S.r+0.3*(fl-0.5)))*mix(vec3(1.0),dt,0.35),dr); zn=mix(zn,vec3(0.0,1.0,0.0),dr);
     Ht+=0.015*dr*smoothstep(0.30,0.80,fs);
     rg=mix(rg,0.10,dr); f0=mix(f0,0.02,dr); wet=mix(wet,0.9,dr);
     /* 철 얼룩(벽) · 달우유(입구 쪽 천장) */
-    float fe=smoothstep(CM_QG90,CM_QG95+0.03,big)*smoothstep(0.4,0.6,Z1.r)*wal*(1.0-dr);
-    c=mix(c,CP_IRON*mix(vec3(1.0),dt,0.5),fe*0.7); zn=mix(zn,vec3(1.0,0.0,1.0),fe*0.7);
-    float mm=cei*smoothstep(0.10,0.40,sky)*smoothstep(CM_QB90,CM_QB95+0.03,Z1.b);
+    float fe=smoothstep(CM_QG75,CM_QG95,big+0.12*jt)*smoothstep(0.35,0.65,Z1.r)*wal*(1.0-dr)*0.45;
+    c=mix(c,CP_IRON*dt,fe); zn=mix(zn,vec3(1.0,0.0,1.0),fe);
+    float mm=cei*smoothstep(0.10,0.40,sky)*smoothstep(CM_QB85,CM_QB95+0.03,Z1.b+0.1*jt)*0.6;
     c=mix(c,CP_MOON,mm); zn=mix(zn,vec3(0.0,1.0,0.0),mm); rg=mix(rg,0.95,mm);
     /* 진흙 — 수위선(바닥 위 0.4~1.2 m · 굴마다 · 휜 가로 줄) 밑 벽 · 바닥 얼룩. 젖은 진흙 #4A3A2A(r 0.3) · 마른 #6B5640(r 0.95) */
     float wl=0.4+0.8*fract(cs*7.31)+0.18*(Z1.r-0.5)+0.06*(sb.w-0.5)+0.10*jt;
-    float mudW=(1.0-smoothstep(wl-0.04-fwH,wl+0.04,fh))*wal*smoothstep(0.30,0.45,Z1.a+0.15);
+    float mudW=(1.0-smoothstep(wl-0.18,wl+0.08,fh))*wal*smoothstep(0.30,0.55,Z1.a+0.15+0.3*jt)*0.6;   // 진흙 막 — 수위선 밑 · 위로 엷어짐
     float mudF=flo*smoothstep(CM_QR55,CM_QR70,Z1.r*0.7+mid*0.3+0.12*jt);
     float mud=max(mudW,mudF), mwt=smoothstep(0.55,0.75,Z1.r)*mud;
-    c=mix(c,mix(CP_MUD,CP_MUDW,mwt)*mix(vec3(1.0),dt,0.5),mud); zn=mix(zn,vec3(0.0,0.0,1.0),mud);
+    c=mix(c,mix(CP_MUD,CP_MUDW,mwt)*dt,mud); zn=mix(zn,vec3(0.0,0.0,1.0),mud);
     rg=mix(rg,mix(0.95,0.3,mwt),mud); wet=mix(wet,mwt,mud);
     float pud=smoothstep(0.66,0.74,Z1.r)*mudF;                                       // 고인 물 — 짙고 반들
     c*=1.0-0.35*pud; wet=mix(wet,1.0,pud); rel*=1.0-pud;
-    float mn=mud*smoothstep(CM_QA90,CM_QA95+0.03,mid)*smoothstep(0.45,0.6,Z1.b);   // 망간 피막 — 진흙 위
+    float mn=mud*smoothstep(CM_QA90,CM_QA95+0.03,mid+0.1*jt)*smoothstep(0.45,0.6,Z1.b)*0.7;   // 망간 피막 — 진흙 위
     c=mix(c,CP_MANG,mn); zn=mix(zn,vec3(1.0,0.0,1.0),mn);
 #elif CM_KIND==1
     /* 용암굴 — 현무암 #3A3836~#4F4A45 · 은빛 글레이즈(천장 · 굴마다 0~40%) · 입구 · 채광창 쪽 붉은 산화(길 20 m 로 엷어짐) · 흰 크러스트 · 금빛 매트 · 최고 자국 한 줄 · 흐름 줄 · 러너 · 밧줄 바닥 */
-    dt=mix(vec3(fine),rk,0.3)*2.0;
+    dt=cmDt(rk,fine,0.3);
     c=mix(CP_BAS0,CP_BAS1,smoothstep(CM_QG30,CM_QG70,big))*dt;
     vec4 S=texture(cmZ,vec3(p.x*1.6,p.y*0.05,p.z*1.6));                              // 세로로 늘인 잡음 — 러너 · 줄 흔들림
     /* 흐름 줄 — 바닥 위 높이(aFh)를 따라 2~5 줄(간격 0.1~1 m 휨 · 줄마다 해시) · 턱 밑 그늘 · 위 밝은 테 · 먼 데는 끈다 */
     float fy=fh+0.12*(Z1.b-0.5)+0.05*(S.g-0.5)+0.03*jt;
     vec4 fb=cmBand(fy,0.45,cs*6.2832,vs+5.0);
-    float fon=step(fb.x,0.7)*(1.0-smoothstep(2.2,3.2,fy))*step(0.15,fy)*wal*(1.0-smoothstep(0.08,0.25,fwH/0.45));
-    c*=1.0-0.38*fon*smoothstep(0.80,0.97,fb.y); c*=1.0+0.22*fon*smoothstep(0.0,0.05,fb.y)*smoothstep(0.14,0.05,fb.y);
+    float fon=step(fb.x,0.55)*smoothstep(0.3,0.55,Z1.a+0.4*jt)*(1.0-smoothstep(2.2,3.2,fy))*step(0.15,fy)*wal*(1.0-smoothstep(0.08,0.25,fwH/0.45));
+    c*=1.0-0.22*fon*smoothstep(0.70,0.97,fb.y); c*=1.0+0.10*fon*smoothstep(0.0,0.06,fb.y)*smoothstep(0.18,0.06,fb.y);
     Ht-=0.02*fon*smoothstep(0.80,0.97,fb.y);
     /* 최고 용암 자국 — 바닥 위 ≈0.6 m 노란 줄 하나(들쭉날쭉 · 끊김) */
-    float hm=abs(fy-(0.50+0.2*fract(cs*3.7)))-0.010-0.012*Z1.a;
-    float hk=(1.0-smoothstep(0.0,fwH+0.004,hm))*wal*step(0.40,Z1.r+0.15);
-    c=mix(c,CP_HIGH*mix(vec3(1.0),dt,0.5),hk*0.85); zn=mix(zn,vec3(0.0,1.0,0.0),hk*0.85);
+    float hm=abs(fy-(0.50+0.2*fract(cs*3.7)))-0.006-0.016*Z1.a*(0.5+fine);
+    float hk=(1.0-smoothstep(0.0,fwH+0.006,hm))*wal*smoothstep(0.35,0.6,Z1.r+0.3*jt)*0.5;
+    c=mix(c,CP_HIGH*dt,hk); zn=mix(zn,vec3(0.0,1.0,0.0),hk);
     /* 은빛 글레이즈 — 천장 · 윗벽 · 굴마다 몫 0~40%(분위수 문턱) · r 0.28 · F0 0.25 · 정반사가 바탕빛에 물든다 */
     float ga=0.4*fract(cs*13.7), gth=mix(CM_QG95,CM_QG55,ga/0.4);
     float gz=smoothstep(gth-0.04,gth+0.04,big*0.8+mid*0.2+0.1*jt)*(cei+wal*smoothstep(0.6,0.85,fl))*step(0.02,ga);
@@ -329,14 +334,14 @@ const CM_BODY=`#include <color_fragment>
     float mt=smoothstep(CM_QR95,CM_QR95+0.04,Z1.r)*smoothstep(0.55,0.65,mid)*wal;
     c=mix(c,CP_MATG,mt); zn=mix(zn,vec3(0.0,1.0,0.0),mt); rg=mix(rg,0.9,mt);
     /* 밧줄 무늬 바닥(파호이호이) — 흐름 쪽으로 볼록한 호 · 먼 데(줄이 화소보다 잘면) 끈다 */
-    vec2 r2=p.xz+vec2(Z1.r,Z1.a)*2.2;
-    float rpA=dot(r2,vec2(0.80,0.60))*7.0+length(r2-floor(r2/6.0)*6.0-3.0)*2.2, rf=1.0-smoothstep(0.6,1.6,fwidth(rpA));
-    float rp=smoothstep(-0.6,0.8,sin(rpA));
-    c*=mix(1.0,0.80+0.32*rp,flo*rf); Ht+=0.010*flo*rf*rp; zn=mix(zn,vec3(0.0,0.0,1.0),flo*(1.0-ox));
+    vec2 rq=p.xz+vec2(Z1.r,Z1.a)*2.2;
+    float rpA=dot(rq,vec2(0.80,0.60))*7.0+length(rq-floor(rq/6.0)*6.0-3.0)*2.2, rf=1.0-smoothstep(0.6,1.6,fwidth(rpA));
+    float rp=smoothstep(-0.6,0.8,sin(rpA+3.0*jt)), rpk=flo*rf*smoothstep(0.40,0.65,Z1.b+0.3*jt);   // 밧줄은 얼룩진 데만
+    c*=mix(1.0,0.90+0.16*rp,rpk); Ht+=0.015*rpk*rp; zn=mix(zn,vec3(0.0,0.0,1.0),flo*(1.0-ox));
     rel=mix(rel,0.35,cei);                                                           // 둥글고 매끈한 천장
 #elif CM_KIND==2
     /* 화강암 바위틈 — #9A958E(장석 · 석영 · 운모 반점은 사진 층에 구웠다) · 덩이 틈(JS 와 같은 1.8 m 칸) · 지의류(빛 받는 윗면만) · 물 흐른 검은 줄 */
-    dt=mix(vec3(fine),rk,0.6)*2.0;
+    dt=cmDt(rk,fine,0.6);
     c=CP_GRAN*dt;
     /* 덩이 틈 — 31-cave10.js cv10Eval 의 P.vor 와 같은 칸 · 같은 씨(cv10H(i,j,vs) · vs+1) — 천장 덩이의 모서리에 틈이 앉는다 */
     float bk=0.0;
@@ -344,12 +349,12 @@ const CM_BODY=`#include <color_fragment>
       for(int b=-1;b<=1;b++) for(int a=-1;a<=1;a++){ int i=int(ib.x)+a, j=int(ib.y)+b;
         float d=length(X-vec2(float(i)+0.15+0.7*cmJH(i,j,iv),float(j)+0.15+0.7*cmJH(i,j,iv+1)));
         if(d<d1){ d2=d1; d1=d; } else if(d<d2) d2=d; }
-      bk=(1.0-smoothstep(0.012,0.04+fwY*2.0,(d2-d1)*0.9))*(cei+wal*0.6); }
-    c*=1.0-0.55*bk; Ht-=0.03*bk; zn=mix(zn,vec3(1.0,0.0,1.0),bk*0.5);
+      bk=(1.0-smoothstep(0.006,0.03+fwY*2.0,(d2-d1)*0.9+0.01*jt))*(cei+wal*0.3)*smoothstep(0.3,0.6,Z1.a+0.5*jt); }
+    c*=1.0-0.28*bk; Ht-=0.02*bk; zn=mix(zn,vec3(1.0,0.0,1.0),bk*0.3);
     /* 지의류 — 회녹 #8C9A7E · 노랑 #C8B24A · sky>0.45 의 위를 보는 면만(틈 안 2~3 m 부터 0) · 둥근 반점 1~20 cm + 큰 덮개 */
     float lz=smoothstep(0.45,0.70,sky)*smoothstep(0.15,0.55,n.y);
     vec3 lgc=floor(p/0.16), lc=cmH3(lgc+vec3(vs,0.0,0.0)); float lr=0.02+0.06*lc.z*lc.z;
-    float li=lz*(1.0-smoothstep(lr-0.01,lr+0.005,length(p-(lgc+0.2+0.6*lc)*0.16)))*step(0.35,lc.x);
+    float li=lz*(1.0-smoothstep(lr-0.015,lr+0.01,length(p-(lgc+0.2+0.6*lc)*0.16)+0.01*jt))*step(0.35,lc.x)*0.7;
     li=max(li,lz*smoothstep(CM_QA70,CM_QA85,mid+0.15*jt)*0.8);
     c=mix(c,(lc.y<0.6?CP_LICG:CP_LICY)*mix(vec3(1.0),dt,0.4),li); zn=mix(zn,vec3(0.0,1.0,0.0),li); rg=mix(rg,0.95,li);
     /* 물 흐른 검은 줄 — 세로 · 벽 */
@@ -362,23 +367,26 @@ const CM_BODY=`#include <color_fragment>
       c=mix(c,fc,flo); zn=mix(zn,vec3(0.0,0.0,1.0),flo); }
 #else
     /* 사암 바위그늘 — 사층리 세트(1.5~4 m · 세트마다 #E6D8C3 · #C98A5A · #9A4E36) · 엽층 20~34° 간격 5~10 cm · 처마 끝 사막 칠(세로) · 염 꽃(처마 아랫면) · 샘 줄 + 녹조(수평 · 젖음) · 철 띠 */
-    dt=mix(vec3(fine),rk,0.5)*2.0;
+    dt=cmDt(rk,fine,0.5);
     float su=cmWarp(p.y-vCmK.y,2.6,cs*6.2832), sk=floor(su), sf=su-sk; vec3 sh=cmH3(vec3(sk,vs+7.0,17.0)), sh2=cmH3(vec3(sk,vs,53.0));
     vec3 s1=sh.x<0.35?CP_SSW:(sh.x<0.80?CP_SSO:CP_SSR), s2=sh.y<0.5?CP_SSW:CP_SSO;
+    vec3 sh0=cmH3(vec3(sk-1.0,vs+7.0,17.0)); vec3 s0=sh0.x<0.35?CP_SSW:(sh0.x<0.80?CP_SSO:CP_SSR);   // 아래 세트 — 경계에서 섞는다
+    s1=mix(s0,s1,smoothstep(0.0,0.12+0.08*Z1.a,sf+0.06*jt+0.04*(Z1.r-0.5)));
     c=mix(s1,s2,0.25*smoothstep(0.3,0.7,Z1.r))*dt;
     float sbd=min(sf,1.0-sf)*2.6+0.03*jt;                                                    // 세트 경계까지(m · 어림)
-    c*=1.0-0.25*(1.0-smoothstep(0.01,0.03+fwY,sbd))*(1.0-flo);
+    c*=1.0-0.12*(1.0-smoothstep(0.01,0.03+fwY,sbd))*(1.0-flo)*smoothstep(0.3,0.6,Z1.a+0.4*jt);
     /* 엽층 — 세트마다 방위 · 기울기 해시 · 먼 데(줄이 화소보다 잘면) 끈다 */
     float az=sh2.x*6.2832, lam=(p.y-tan(radians(20.0+14.0*sh2.y))*dot(p.xz,vec2(cos(az),sin(az))))/(0.05+0.05*sh2.z);
     float lk=1.0-smoothstep(0.25,0.6,fwidth(lam)), lm=abs(fract(lam)-0.5)*2.0;
-    c*=1.0-0.12*lk*smoothstep(0.70,0.95,lm)*(1.0-flo); Ht-=0.003*lk*smoothstep(0.70,0.95,lm);
+    c*=1.0-0.12*lk*smoothstep(0.70,0.95,lm)*(1.0-flo); Ht-=0.003*lk*smoothstep(0.70,0.95,lm)*(1.0-flo);
     vec4 S=texture(cmZ,vec3(p.x*0.9,p.y*0.03,p.z*0.9));                               // 세로로 늘인 잡음(사막 칠 줄)
     /* 사막 칠 — 처마 끝 · 바깥 벽에서 세로로(폭 · 길이 들쭉날쭉) · 검정 #2E2A28 · 적갈 #6A3B26 · r 0.6 */
     float vk=smoothstep(CM_QB80,CM_QB95,S.b*0.7+S.r*0.3+0.08*jt)*smoothstep(0.35,0.75,Z1.b)*smoothstep(0.15,0.5,sky)*wal;
     c=mix(c,(S.g<0.5?CP_VARK:CP_VARR)*mix(vec3(1.0),dt,0.3),vk*0.85); zn=mix(zn,vec3(1.0,0.0,1.0),vk*0.85); rg=mix(rg,0.6,vk);
     /* 철 띠(리제강) — 잡음 등고선을 휜 띠로 · 짙은 적갈 */
     float lv=cmWarp(big*7.0+mid*2.0,0.35,cs*4.0), ib=smoothstep(0.85,0.97,abs(fract(lv)-0.5)*2.0)*smoothstep(0.55,0.7,Z1.b)*(1.0-flo);
-    c=mix(c,CP_VARR*dt,ib*0.5); zn=mix(zn,vec3(1.0,0.0,1.0),ib*0.5);
+    ib*=0.18*smoothstep(0.6,0.8,big+0.3*jt);
+    c=mix(c,CP_VARR*dt,ib); zn=mix(zn,vec3(1.0,0.0,1.0),ib);
     /* 염 꽃 — 처마 아랫면 */
     float sa=cei*smoothstep(CM_QA75,CM_QA90,mid)*smoothstep(0.4,0.6,Z1.r);
     c=mix(c,CP_SALT,sa); zn=mix(zn,vec3(0.0,1.0,0.0),sa); rg=mix(rg,0.9,sa);
@@ -401,7 +409,7 @@ const CM_BODY=`#include <color_fragment>
     /* 빛 구역 — 입구 이끼(sky 높음) → 녹조막(sky 0.04~0.45) → 맨 바위 · 습도(젖음)는 안으로 오른다 */
     wet+=CM_HUM*vCv10Deep;
     float al=smoothstep(0.04,0.12,sky)*(1.0-smoothstep(0.30,0.45,sky))*smoothstep(0.35,0.60,mid*0.6+big*0.4)*(1.0-0.5*flo);
-    c=mix(c,CP_ALGA*mix(vec3(1.0),dt,0.3),al*0.45); zn=mix(zn,vec3(1.0,1.0,0.0),al*0.45);
+    c=mix(c,CP_ALGA*dt,al*0.30); zn=mix(zn,vec3(1.0,1.0,0.0),al*0.30);
     /* 이끼 — 하늘이 트인 입구 · 위를 보는 면 · 얼룩지게(안으로 들어가며 끊긴다) */
     float mw=CM_MOSS*smoothstep(0.08,0.55,sky)*(0.30+0.70*smoothstep(-0.2,0.7,n.y))*(1.0-0.75*flo)*smoothstep(0.45,0.66,big*0.7+mid*0.3+sky*0.15);   // 밟는 바닥엔 드물다
     if(mw>0.01){ vec3 mz=texture(cmC,vec3(pd/1.1,4.0)).rgb; float mk=clamp(mw,0.0,0.92); c=mix(c,vec3(0.24,0.33,0.12)*mz*2.0,mk); zn=mix(zn,vec3(1.0,1.0,0.0),mk); wet=mix(wet,0.07,mw); rg=mix(rg,0.9,mk); }
@@ -422,6 +430,7 @@ const CM_BODY=`#include <color_fragment>
 #endif
                                                               // 정점 가림(aAo — 오목한 데는 둘레 바위가 빛을 가린다)
     /* 미분 범프 — 무늬 높이 합 Ht 의 화면 미분으로 표면 기울기를 센다(Mikkelsen 표면 기울기). 미분은 갈래 밖에서 · 25 m 밖은 0 */
+    Ht+=(fine2-0.5)*0.06+(fine-0.5)*0.012;                                          // 사진 밝기를 높낮이로(큰 장 ±3 cm · 잔 결 ±6 mm) — 횃불에 결이 선다
 #ifdef CM_NO_BUMP
     vec3 nb=n;
 #else
@@ -441,7 +450,7 @@ const CM_BODY=`#include <color_fragment>
 #endif
     vec3 tv=cmTP-p, Lt=normalize(tv);                                                // 세계 좌표로 센다(램버트엔 cameraPosition 이 안 실린다 — 눈 · 횃불 자리는 cmTick 이 준다)
     vec3 Lr=normalize(mix(Lt,cmSun,smoothstep(0.2,0.8,sky)));
-    c*=1.0+clamp((dot(np,Lr)-dot(n,Lr))*1.5,-0.5,0.5);
+    c*=1.0+clamp((dot(np,Lr)-dot(n,Lr))*2.4,-0.65,0.65);
     c*=0.74+0.26*clamp(dot(np,n),0.0,1.0);                                            // 패인 데는 덜 본다
     diffuseColor.rgb=c;
     vec3 V=normalize(cmEye-p);
