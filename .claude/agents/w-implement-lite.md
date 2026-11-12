@@ -1,6 +1,6 @@
 ---
 name: w-implement-lite
-description: orchestrate 가벼운 구현 워커. 지시서가 바꿀 파일·함수·내용까지 정한 작은 단위(파일 1~3개)만 구현하고 커밋한다. 저장소 탐색이나 환경 설정이 필요한 일은 맡지 않는다. orchestrate 플러그인의 모드 스킬(절약·기본·강화)이 지시서와 함께 부를 때만 쓴다.
+description: orchestrate 가벼운 구현 워커. 지시서가 바꿀 파일·함수·내용까지 정한 작은 단위(파일 1~3개)만 구현하고 커밋한다. 저장소 탐색이나 환경 설정이 필요한 일은 맡지 않는다. kjh-lyj 플러그인의 모드 스킬(절약·기본)이 지시서와 함께 부를 때만 쓴다.
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: haiku
 effort: max

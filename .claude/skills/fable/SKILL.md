@@ -5,7 +5,7 @@ description: 극한 모드. 한도를 거의 신경 쓰지 않고 품질만 보�
 
 # fable — 극한 모드
 
-> 이 레포에서는 `/fable` 로 부른다(플러그인이 아니라 `orchestrate:` 가 안 붙는다 · 에이전트 이름도 그대로). **병합 규칙은 orchestrate 스킬 머리의 '이 레포에서 바꾼 셋' 1 을 따른다** — 메인이 test 통과 · review 에 실패 없음이면 main 에 합치고, 실패 · 의심이 있으면 보고하고 답을 기다린다(아래 '사용자 승인 없이 기본 브랜치에 병합하기'는 그 경우를 말한다).
+> 이 레포에서는 `/fable` 로 부른다(플러그인이 아니라 `kjh-lyj:` 가 안 붙는다 · 에이전트 이름도 그대로). **병합 규칙은 orchestrate 스킬 머리의 '이 레포에서 바꾼 셋' 1 을 따른다** — 메인이 test 통과 · review 에 실패 없음이면 main 에 합치고, 실패 · 의심이 있으면 보고하고 답을 기다린다(아래 '사용자 승인 없이 기본 브랜치에 병합하기'는 그 경우를 말한다).
 
 **최대 모드(`super` 스킬) 절차를 그대로 따르되, 아래 항목만 바꾼다.** 먼저 이 플러그인의 `skills/super/SKILL.md`를 읽는다. 최대 모드 문서의 "Fable을 쓰지 않는다"는 이 모드에서는 적용하지 않는다.
 
@@ -38,7 +38,7 @@ description: 극한 모드. 한도를 거의 신경 쓰지 않고 품질만 보�
 
 최대 모드 0단계에 아래를 더한다.
 
-1. `echo "$ORCHESTRATE_FABLE"`가 `1`이 아니면 시작하지 않는다. 훅이 Fable 에이전트를 막고, 워크플로 스크립트 안 호출은 훅이 못 보므로 메인이 직접 막는다. 사용자에게 `~/.claude/settings.json`의 `env`에 `"ORCHESTRATE_FABLE": "1"`을 넣고 Claude Code를 다시 시작하라고 알린다.
+1. `echo "$ORCHESTRATE_FABLE"`가 `1`(훅은 `on`·`true`·`yes`도 받는다)이 아니면 시작하지 않는다. 훅이 Fable 에이전트를 막고, 워크플로 스크립트 안 호출은 훅이 못 보므로 메인이 직접 막는다. 사용자에게 `~/.claude/settings.json`의 `env`에 `"ORCHESTRATE_FABLE": "1"`을 넣고 Claude Code를 다시 시작하라고 알린다.
 2. **Pro 요금제**면 Fable은 주간 한도가 아니라 사용량 크레딧으로 따로 청구된다는 것을 알리고, 그래도 진행할지 한 번 묻는다. 답이 없으면 진행하지 않는다.
 3. **Fable 몫**: Fable은 주간 한도의 절반까지만 쓸 수 있다. 예상치를 보여준다.
    ```bash
@@ -49,7 +49,7 @@ description: 극한 모드. 한도를 거의 신경 쓰지 않고 품질만 보�
 
 ## 실측
 
-최대 모드 2단계와 같이 첫 단위를 돌리고 `/usage` 차이로 보정한다.
+최대 모드 2단계와 같이 첫 단위를 돌리고 `/usage` 차이로 보정한다. Fable 구현 1번은 Max 기준 약 1.5%라 단위 하나로도 눈금(1%)에 잡히지만, 실측이 1%로 읽히면 계수가 크게 흔들린다. budget.js의 "실측 계획" 줄대로 2단위로 묶으면 더 정확하다.
 
 ```bash
 node .claude/scripts/budget.js --plan <요금제> --preset fable --units <단위 수> --pilot-measured <차이> --pilot-calls "su-builder-fable:1,su-tester:1"
