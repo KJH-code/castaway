@@ -23,12 +23,12 @@
    · 사진 · 법선 층 굽기(cmBake — 불러올 때 한 번 · 텍스처 읽기는 그대로): 화강암 결정 반점(사진 층 2) · 스캘럽(법선 0) · 용암 기공(법선 1) · 사암 벌집(법선 3)
    · 잡음 그림 분위수(cmQuant — CM_QR05 … CM_QA95 정의 · 몫을 면적으로 맞출 문턱)
    · 정점 속성 aFh(바닥 위 높이 m) · aLay(켜 b · off · 보로노이 씨 — c._P) · aAo(정점 법선 반구 8 방위 × 0.6 · 1.4 m 의 바위 몫 → 바탕 ×mix(0.5,1,aAo)) —
-     onBuild 가 일을 걸고 cmTick 이 프레임마다 0.7 ms 씩 굽는다(다 될 때까지 aAo 1 · aFh 0)
+     onBuild 가 일을 걸고 cmTick 이 프레임마다 0.6 ms 씩 굽는다(다 될 때까지 aAo 1 · aFh 0)
    · 해 · 구름 그림자는 껍데기의 sky<0.01 화소에서 안 읽는다(45-sky.js envPatch — 이 재질의 CM_SUNCUT 정의를 보고)
    · 디버그 정의(CMAT.dbg): CM_DBG_ALB 조명 없는 바탕 빛깔 · CM_DBG_ZONE 갈래(빨강 바탕 바위 · 초록 덧쌓임 · 파랑 바닥 · 노랑 이끼 · 땅 · 자홍 얼룩) */
 const CMAT={ mats:{}, tex:null, nrm:null, left:-1, ready:false, wt:[], geo:null, q:null, qd:'',
   torch:{value:new THREE.Vector4(0,0,0,0)}, tpos:{value:new THREE.Vector3()}, eye:{value:new THREE.Vector3()}, tcol:{value:new THREE.Vector3(1,0.56,0.25)},
-  ao:{q:[], f:-1, budget:0.7, max:0, n:0},
+  ao:{q:[], f:-1, budget:0.6, max:0, n:0},
   /* 종류마다: 사진 층 · 한 장의 크기(m) · 젖음 · (옛 번들 날카로움 sh — 쓰지 않음) · 이끼 몫 · 마른 거칠기 r · F0 · 공극(젖으면 어두워지는 몫) · 정반사 세기 */
   K:{ karst:{L:0,RS:1.7,wet:1.00,sh:90,moss:0.8,id:0,r:0.80,f0:0.04,por:0,ks:1}, lava:{L:1,RS:2.1,wet:0.046,sh:20,moss:1.15,id:1,r:0.90,f0:0.04,por:0,ks:1},
       talus:{L:2,RS:1.3,wet:0.45,sh:60,moss:0.9,id:2,r:0.70,f0:0.04,por:0,ks:1}, shelter:{L:3,RS:2.4,wet:0.009,sh:12,moss:0.3,id:3,r:0.90,f0:0.04,por:0,ks:1} } };
@@ -327,14 +327,23 @@ const CM_BODY=`#include <color_fragment>
     c=mix(c,mix(vCmBio,vec3(0.30,0.25,0.19),0.35)*(0.75+0.5*cmLum(rk)),gb*0.85); zn=mix(zn,vec3(1.0,1.0,0.0),gb*0.85);
     /* 젖음 · 거칠기 · F0 */
     float w=clamp(wet,0.0,1.0), rg=CM_R, f0=CM_F0;
+#ifndef CM_NO_WET
     cmWetF(c,rg,f0,w,CM_POR);
+#endif
     vec3 cAlb=c;                                                                     // 조명 없는 바탕 빛깔(CM_DBG_ALB)
-    c*=mix(0.5,1.0,ao);                                                              // 정점 가림(aAo — 오목한 데는 둘레 바위가 빛을 가린다)
+#ifndef CM_NO_AO
+    c*=mix(0.5,1.0,ao);
+#endif
+                                                              // 정점 가림(aAo — 오목한 데는 둘레 바위가 빛을 가린다)
     /* 미분 범프 — 무늬 높이 합 Ht 의 화면 미분으로 표면 기울기를 센다(Mikkelsen 표면 기울기). 미분은 갈래 밖에서 · 25 m 밖은 0 */
+#ifdef CM_NO_BUMP
+    vec3 nb=n;
+#else
     float hb=Ht*nrmK;
     vec3 dpx=dFdx(p), dpy=dFdy(p); float hx=dFdx(hb), hy=dFdy(hb);
     vec3 r1=cross(dpy,n), r2=cross(n,dpx); float det=dot(dpx,r1);
     vec3 nb=abs(det)>1e-12?normalize(abs(det)*n-sign(det)*(hx*r1+hy*r2)):n;
+#endif
     /* 결의 높낮이 — 법선 지도(많이 섞인 쪽 한 장) · 굴 속은 횃불 쪽, 입구는 해 쪽 볕이 금과 혹을 따라 갈린다 */
     vec3 np=nb;
 #ifndef CM_NO_NRM
@@ -350,17 +359,19 @@ const CM_BODY=`#include <color_fragment>
     c*=0.74+0.26*clamp(dot(np,n),0.0,1.0);                                            // 패인 데는 덜 본다
     diffuseColor.rgb=c;
     vec3 V=normalize(cmEye-p);
-    /* 정반사 — 사람이 든 횃불에서만(정규화 Blinn · Schlick). 세기 · 거리 감쇠는 램버트의 점광과 같은 식((1−d/거리)²) */
-    if(cmT.w>0.0){
+    /* 정반사 — 사람이 든 횃불에서만 · 젖은 데만(정규화 Blinn · Schlick). 세기 · 거리 감쇠는 램버트의 점광과 같은 식((1−d/거리)²) */
+#ifndef CM_NO_SPEC
+    if(cmT.w>0.0&&w>0.05){                                                           // 마른 거친 바위(r 0.7~0.9)의 정반사는 바탕의 수 % 라 안 센다
       vec3 Hh=normalize(Lt+V);
       float r4=rg*rg*rg*rg, sn=clamp(2.0/max(r4,1e-4)-2.0,1.0,256.0), nl=max(dot(np,Lt),0.0), nh=max(dot(np,Hh),0.0), vh=max(dot(V,Hh),0.0);
       float at=clamp(1.0-length(tv)/cmT.x,0.0,1.0); at*=at;
-      float Fs=f0+(1.0-f0)*pow(1.0-vh,5.0);
+      float x=1.0-vh, x2=x*x, Fs=f0+(1.0-f0)*x2*x2*x;
       totalEmissiveRadiance+=cmTC*(cmT.w*at*nl*(sn+8.0)*0.125*pow(nh,sn)*Fs*CM_KS);
     }
+#endif
     /* 하늘 번들 — 입구 쪽 젖은 면이 하늘을 비춘다(Schlick F(θ) · 젖음 · sky · 위로 되비치는 쪽만 · 거친 면은 덜) */
 #if NUM_HEMI_LIGHTS > 0
-    if(sky*w>0.002){ vec3 Rv=reflect(-V,np); float Fv=f0+(1.0-f0)*pow(1.0-max(dot(np,V),0.0),5.0);
+    if(sky*w>0.002){ vec3 Rv=reflect(-V,np); float x=1.0-max(dot(np,V),0.0), x2=x*x, Fv=f0+(1.0-f0)*x2*x2*x;
       totalEmissiveRadiance+=hemisphereLights[0].skyColor*(Fv*w*sky*(1.0-rg)*smoothstep(-0.1,0.6,Rv.y)); }
 #endif
 #if defined(CM_DBG_ALB)
@@ -420,7 +431,7 @@ const _cmAz=[0,1,2,3,4,5,6,7].map(k=>[Math.cos((k+0.5)*Math.PI/4),Math.sin((k+0.
 function cmRock(rec,x,y,z){ const s=cv10Samp(rec,x,z); if(y>=s.h) return 0; if(s.n<=0) return 1; return (y<s.f||y>s.c)?1:0; }
 function cmAoRun(J,t1){
   const P=J.pos, N=J.nor, ao=J.ao, fh=J.fh, rec=J.rec, nv=J.nv, EN=0.57357644, ET=0.81915204;   // 높이 35° — 반구를 코사인 무게로 고르게 본 평균 높이쯤
-  while(J.i<nv){ if(performance.now()>t1) break; const e=Math.min(nv,J.i+8);
+  while(J.i<nv){ if(performance.now()>t1) break; const e=Math.min(nv,J.i+2);   // 두 정점마다 시계를 본다(한 조각이 예산을 넘는 몫 ≤ 정점 둘 · 수 µs)
     for(let v=J.i;v<e;v++){ const o=v*3, x=P[o], y=P[o+1], z=P[o+2]; let nx=N[o], ny=N[o+1], nz=N[o+2];
       const s=cv10Samp(rec,x,z); fh[v]=s.n>0?Math.max(-1,Math.min(40,y-s.f)):0;
       /* 접선 틀 — 법선에 곧은 두 축 */
