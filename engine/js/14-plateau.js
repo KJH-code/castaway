@@ -17,7 +17,7 @@
      ⑦ **비탈길**(plRamps) — 대지마다 아래층에서 올라오는 너덜 비탈(무너진 돌이 쌓인 길) 하나~둘. 높은 대지일수록 좁고 가파르다
    시드가 정한다(제 난수 — mulberry32(seed^상수)). 판 11 밑의 섬은 이 파일을 안 쓴다(genBase … 예전 길 그대로) */
 "use strict";
-const PLAT={on:false, sp:[], spLen:0, lake:null, crown:-1, list:[], id:null, ramp:null, drops:[], paths:[], islet:null,
+const PLAT={on:false, sp:[], spLen:0, lake:null, crown:-1, list:[], id:null, ramp:null, drops:[], paths:[], rapids:[], islet:null,
   reach:null, caches:[], looks:[], dens:[], meshes:[], spot:new Set(), seen:new Set(), ws:1, lookT:0};
 const PL_TIER=[0,7,16,27,39], PL_LAKE=52;
 const ROCKY_BIG={granite:1,basalt:1,karst:1,sandstone:1};   // 벼랑에 남겨도 되는 큰 바위(그 밖의 잔것은 가파른 데서 걷는다)
@@ -66,7 +66,7 @@ const plGx=i=>(i%N-N/2)*CELL, plGz=i=>(((i/N)|0)-N/2)*CELL;
 
 /* ── 섬 만들기(genBase 대신 · 침식 없이) ── */
 function genPlateau(seed){
-  PLAT.on=true; PLAT.list.length=0; PLAT.drops.length=0; PLAT.paths.length=0; PLAT.islet=null; PLAT.ws=1;
+  PLAT.on=true; PLAT.list.length=0; PLAT.drops.length=0; PLAT.paths.length=0; PLAT.rapids.length=0; PLAT.islet=null; PLAT.ws=1;
   const rnd=mulberry32((seed^0x9a7ea0)>>>0), E=F.elev;
   const n1=makePerlin(seed), n2=makePerlin(seed^0x9e3779b9), n3=makePerlin(seed^0x85ebca6b);
   const nR=makePerlin((seed^0x51e7)>>>0), nW=makePerlin((seed^0x51e8)>>>0), nC=makePerlin((seed^0x51e9)>>>0), nE=makePerlin((seed^0x51ea)>>>0), nU=makePerlin((seed^0x51eb)>>>0);
@@ -113,7 +113,7 @@ function genPlateau(seed){
   /* 물목(호수에서 물이 넘쳐 나가는 쪽) — 등뼈 옆쪽 둘(양쪽에 하나씩) + 더러 하나둘 더 · 등뼈 방향(산)은 피한다 */
   { const perp=Math.atan2(Lp.tx,-Lp.tz), outs=[];
     for(const sd of [0,Math.PI]){ const c=perp+sd+(rnd()-0.5)*0.4;
-      if(rnd()<0.5){ const o=0.42+rnd()*0.16; outs.push(c-o,c+o); } else outs.push(c); }
+      if(rnd()<0.5){ const o=0.42+rnd()*0.16; outs.push(c-o,c+o); } else if(plMoreRivers()) outs.push(c-0.5,c+0.5); else outs.push(c); }   // 판 15 — 물목은 늘 양쪽에 둘씩(난수를 더 뽑지 않아 섬 꼴은 그대로)
     PLAT.lake.outs=outs.map(a=>Math.atan2(Math.sin(a),Math.cos(a))); }
   /* ③ 대지 더미 — 등뼈 양쪽 */
   const shelves=[];
@@ -219,7 +219,7 @@ function genPlateau(seed){
     let filled=0; for(let i=0;i<N*N;i++) if(E[i]<=0&&!sea[i]&&!R[i]){ E[i]=0.4+0.5*(nE(plGx(i)*0.05,plGz(i)*0.05)*0.5+0.5); filled++; }
     PLAT.filled=filled; }
   /* ⑥ 강 · ⑦ 비탈길 */
-  plRivers(mulberry32((seed^0x9a7ea1)>>>0));
+  plRivers(mulberry32((seed^0x9a7ea1)>>>0),seed);
   plRamps(mulberry32((seed^0x9a7ea2)>>>0));
   plFlow();
   PLAT.LAND=LAND;
@@ -244,14 +244,16 @@ function plCarve(pts,hw){
   let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9; for(const p of pts){ x0=Math.min(x0,p.x); x1=Math.max(x1,p.x); z0=Math.min(z0,p.z); z1=Math.max(z1,p.z); }
   const gx0=Math.max(1,Math.floor((x0-ext)/CELL+N/2)), gx1=Math.min(N-2,Math.ceil((x1+ext)/CELL+N/2)), gz0=Math.max(1,Math.floor((z0-ext)/CELL+N/2)), gz1=Math.min(N-2,Math.ceil((z1+ext)/CELL+N/2));
   for(let gz=gz0;gz<=gz1;gz++) for(let gx=gx0;gx<=gx1;gx++){ const i=gz*N+gx, x=(gx-N/2)*CELL, z=(gz-N/2)*CELL;
-    let bd=1e18, bw=0;
-    for(let k=0;k<pts.length-1;k++){ const a=pts[k], b=pts[k+1], dx=b.x-a.x, dz=b.z-a.z, L2=dx*dx+dz*dz||1; let t=((x-a.x)*dx+(z-a.z)*dz)/L2; t=t<0?0:t>1?1:t;
-      const qx=a.x+dx*t-x, qz=a.z+dz*t-z, d=qx*qx+qz*qz; if(d<bd){ bd=d; bw=a.w+(b.w-a.w)*t; } }
+    let bd=1e18, bw=0, lv=false;
+    for(let k=0;k<pts.length-1;k++){ const a=pts[k], b=pts[k+1], dx=b.x-a.x, dz=b.z-a.z, L2=dx*dx+dz*dz||1; let t=((x-a.x)*dx+(z-a.z)*dz)/L2; const tr=t; t=t<0?0:t>1?1:t;
+      const qx=a.x+dx*t-x, qz=a.z+dz*t-z, d=qx*qx+qz*qz; if(d<bd){ bd=d; bw=a.w+(b.w-a.w)*t; lv=!!(a.lv&&(k<pts.length-2||tr<0.97)); } }
     const d=Math.sqrt(bd); if(d>=ext) continue;
-    if(d<hw){ const bed=bw-0.85*(1-(d/hw)*(d/hw))-0.15; if(bed<E[i]) E[i]=bed; R[i]=1; Wl[i]=Wl[i]>0?Math.min(Wl[i],bw):bw; continue; }
+    if(pts.rim&&E[i]<bw-3) continue;                                              // 판 15 — 벼랑 밑 땅은 물길로 안 친다(입술 너머 칸이 허공의 물로 적혀 강물 판이 입술 앞 두 칸까지 잘렸다)
+    if(d<hw){ const bed=bw-(pts.dep||1)*(0.85*(1-(d/hw)*(d/hw))+0.15); if(bed<E[i]) E[i]=bed; R[i]=1; Wl[i]=Wl[i]>0?Math.min(Wl[i],bw):bw; continue; }
     if(R[i]) continue;
     const v=bw+0.3+(d-hw)*0.45; if(E[i]>v&&E[i]<bw+14) E[i]=v;                   // 골 — 둑에서 0.45 의 비탈로 올라간다(대지 윗면까지)
-    else if(d<hw+2.5&&E[i]<bw+0.2&&E[i]>bw-2.5) E[i]=bw+0.2; }                  // 둑 — 물이 넘쳐 보이지 않게
+    else if(d<hw+2.5&&E[i]<bw+0.2&&E[i]>bw-2.5) E[i]=bw+0.2;                     // 둑 — 물이 넘쳐 보이지 않게
+    else if(lv&&d<hw+3&&E[i]<bw+0.2&&E[i]>bw-8) E[i]=bw+0.2; }                   // 판 15 — 입술 앞(plWl rim 꼬리)은 벼랑 끝의 무른 비탈까지 둑을 쌓는다(물이 둑보다 높아 강물 판이 잘렸다) · 입술 너머 · 벼랑 밑은 안 건드린다
 }
 /* 소 — 폭포가 떨어지는 웅덩이 */
 function plPool(x,z,r,w){
@@ -262,11 +264,13 @@ function plPool(x,z,r,w){
     else if(d<r+3&&!R[i]&&E[i]<w+0.2) E[i]=w+0.2; }
 }
 /* 물높이 — 길을 따라 둘레 땅(반폭 안의 가장 낮은 데) − 0.55 를 넘지 않고 내려가기만 */
-function plWl(pts,hw,w0){
-  const E=F.elev; let w=w0;
+function plWl(pts,hw,w0,rim){
+  const E=F.elev; let w=w0, tl=0; const tail=new Float32Array(pts.length);       // tail — 길 끝(벼랑 입술)까지 남은 거리
+  for(let l=pts.length-2;l>=0;l--){ tl+=Math.hypot(pts[l+1].x-pts[l].x,pts[l+1].z-pts[l].z); tail[l]=tl; }
   for(let l=0;l<pts.length;l++){ const p=pts[l], q=pts[Math.min(pts.length-1,l+1)], r=pts[Math.max(0,l-1)], dx=q.x-r.x, dz=q.z-r.z, dl=Math.hypot(dx,dz)||1, nx=-dz/dl, nz=dx/dl;
+    if(rim&&tail[l]<12){ w-=0.004*CELL; p.w=w; p.lv=1; pts.rim=1; continue; }                   // 판 15 — 입술 앞 12 m 는 물높이를 그대로 끌고 간다(벼랑 끝의 무른 비탈이 물높이를 한 걸음씩 끌어내려 강물 판이 입술 앞에서 끊겼다) const p=pts[l], q=pts[Math.min(pts.length-1,l+1)], r=pts[Math.max(0,l-1)], dx=q.x-r.x, dz=q.z-r.z, dl=Math.hypot(dx,dz)||1, nx=-dz/dl, nz=dx/dl;
     /* 이미 판 물(소 · 다른 강)은 땅으로 안 친다 — 소를 판 뒤에 재면 소 바닥을 따라 물높이가 3 m 꺼졌다(물이 둑 밑에 숨어 마른 도랑으로 보였다) */
-    let lo=1e9; for(const s of [0,-1,1]){ const k=plGi(p.x+nx*s*hw*0.7,p.z+nz*s*hw*0.7); if(!F.river[k]) lo=Math.min(lo,E[k]); }
+    let lo=1e9; for(const s of [0,-1,1]){ const k=plGi(p.x+nx*s*hw*0.7,p.z+nz*s*hw*0.7); if(!F.river[k]&&!(rim&&E[k]<w-2.5)) lo=Math.min(lo,E[k]); }   // rim(판 15) — 벼랑 밑 땅은 둑으로 안 친다(물높이가 입술 앞 20~30 m 에서 15~35 m 꺼져 강과 폭포가 끊겼다)
     w=lo<1e9?Math.min(w-0.004*CELL,lo-0.55):w-0.004*CELL; p.w=w; }
   return w;
 }
@@ -310,12 +314,13 @@ function plDescend(sx,sz,w0,D2S){
   pts[0].x=sx; pts[0].z=sz;
   return pts;
 }
-function plRivers(rnd){
+function plRivers(rnd,seed){
   const L=PLAT.lake, E=F.elev, id=PLAT.id;
   /* 바다까지의 거리(칸) — 낮은 들에서 길을 잃지 않게 */
   const D2S=new Float32Array(N*N).fill(1e9), q=new Int32Array(N*N); let qh=0, qt=0;
   for(let i=0;i<N*N;i++) if(E[i]<=0){ D2S[i]=0; q[qt++]=i; }
   while(qh<qt){ const i=q[qh++], gx=i%N; for(const o of [-1,1,-N,N]){ const k=i+o; if(k<0||k>=N*N) continue; if((o===-1&&gx===0)||(o===1&&gx===N-1)) continue; if(D2S[k]>D2S[i]+1){ D2S[k]=D2S[i]+1; q[qt++]=k; } } }
+  PLAT.rr=mulberry32((seed^0x9a7ea7)>>>0);                                    // 판 15 — 급류를 고르는 제 난수
   for(const th of L.outs){
     const dx=Math.cos(th), dz=Math.sin(th);
     /* 호수 → 호수 대지 끝(물목) — 수면 그대로 */
@@ -324,30 +329,80 @@ function plRivers(rnd){
     const ex=L.x+dx*(t-2.5), ez=L.z+dz*(t-2.5), hw=4.6;
     const p0=[{x:L.x+dx*L.RL*0.8,z:L.z+dz*L.RL*0.8,w:PL_LAKE},{x:ex,z:ez,w:PL_LAKE-0.05}];
     plCarve(p0,hw); PLAT.paths.push({pts:p0,hw});
-    let cx=ex, cz=ez, w=PL_LAKE-0.05, odx=dx, odz=dz, hwc=hw, from=PLAT.crown;
-    for(let step=0;step<14;step++){
-      const ld=plLanding(cx,cz,odx,odz,w); if(!ld) break;
-      if(ld.sea){ PLAT.drops.push({x0:cx,z0:cz,w0:w,x1:ld.x,z1:ld.z,w1:0.2,hw:hwc,sea:1,from}); break; }
-      const li=ld.i, j=id[li], wp=Math.min(E[li],E[plGi(ld.x+3,ld.z)],E[plGi(ld.x-3,ld.z)],E[plGi(ld.x,ld.z+3)],E[plGi(ld.x,ld.z-3)])-0.6;
-      if(F.river[li]&&F.wlev[li]<w-2){ PLAT.drops.push({x0:cx,z0:cz,w0:w,x1:ld.x,z1:ld.z,w1:F.wlev[li],hw:hwc,from,join:1}); break; }   // 다른 강에 떨어진다
-      const rp=Math.max(4.5,hwc*1.15);
-      plPool(ld.x,ld.z,rp,wp);
-      PLAT.drops.push({x0:cx,z0:cz,w0:w,x1:ld.x,z1:ld.z,w1:wp,hw:hwc,rp,from});
-      hwc=Math.max(3.4,hwc*0.94);
-      if(j>=0&&!PLAT.list[j].crown){
-        const S=PLAT.list[j], ox=ld.x-L.x, oz=ld.z-L.z, ol=Math.hypot(ox,oz)||1;
-        const xi=plExit(j,ld.x,ld.z,(ox/ol+S.nx)*0.5,(oz/ol+S.nz)*0.5,rnd);
-        if(xi>=0){ const bx=plGx(xi), bz=plGz(xi), pts=plMeander(ld.x,ld.z,bx,bz,j,hwc,rnd);
-          w=plWl(pts,hwc,wp); plCarve(pts,hwc); PLAT.paths.push({pts,hw:hwc}); S.river=1;
-          const sx=bx-S.x, sz=bz-S.z, sl=Math.hypot(sx,sz)||1, tx=bx-pts[pts.length-2].x, tz=bz-pts[pts.length-2].z, tl=Math.hypot(tx,tz)||1;
-          odx=sx/sl*0.6+tx/tl*0.4; odz=sz/sl*0.6+tz/tl*0.4; const ol2=Math.hypot(odx,odz)||1; odx/=ol2; odz/=ol2;
-          cx=bx; cz=bz; from=j; continue; } }
-      /* 낮은 들(또는 산허리)이다 — 바다까지 */
-      const pts=plDescend(ld.x,ld.z,wp,D2S);
-      if(pts){ plWl(pts,hwc,wp); pts[pts.length-1].w=Math.min(pts[pts.length-1].w,0.2); plCarve(pts,hwc); PLAT.paths.push({pts,hw:hwc}); }
-      break;
-    }
+    plCourse(ex,ez,PL_LAKE-0.05,dx,dz,hw,PLAT.crown,rnd,D2S);
   }
+  if(plMoreRivers()) plSprings(mulberry32((seed^0x9a7ea6)>>>0),D2S);
+}
+/* 물길 — 벼랑 끝(cx,cz · 물높이 w · 바깥 od)에서 떨어져 소 → 아래 대지를 굽이쳐 건너 다시 떨어지기를 거듭하다 낮은 들을 지나 바다로 */
+function plCourse(cx,cz,w,odx,odz,hwc,from,rnd,D2S){
+  const L=PLAT.lake, E=F.elev, id=PLAT.id, v15=plMoreRivers();
+  for(let step=0;step<14;step++){
+    const ld=plLanding(cx,cz,odx,odz,w); if(!ld) break;
+    if(ld.sea){
+      if(v15&&w<2.5){ const pts=[{x:cx-odx*4,z:cz-odz*4,w},{x:cx,z:cz,w},{x:ld.x,z:ld.z,w:0.2}]; plCarve(pts,hwc); PLAT.paths.push({pts,hw:hwc}); break; }   // 판 15 — 물높이가 바다와 거의 같으면 폭포가 아니라 바다로 흘러든다(해수면 밑 '폭포'가 섰다)
+      PLAT.drops.push({x0:cx,z0:cz,w0:w,x1:ld.x,z1:ld.z,w1:0.2,hw:hwc,sea:1,from}); break; }
+    let li=ld.i, j=id[li], wp=Math.min(E[li],E[plGi(ld.x+3,ld.z)],E[plGi(ld.x-3,ld.z)],E[plGi(ld.x,ld.z+3)],E[plGi(ld.x,ld.z-3)])-0.6;
+    if(F.river[li]&&F.wlev[li]<w-2){ PLAT.drops.push({x0:cx,z0:cz,w0:w,x1:ld.x,z1:ld.z,w1:F.wlev[li],hw:hwc,from,join:1}); break; }   // 다른 강에 떨어진다
+    let ax=ld.x, az=ld.z, rapid=null;
+    /* 판 15 — 급류: 호수 대지 아래의 낮은 턱(16 m 밑)은 둘에 하나꼴로 폭포 대신 벼랑을 비스듬히 깎은 물길(기울기 0.42 남짓)로 내려간다(사용자 요청 '모든 고도차를 폭포로 메우지 말고 경사진 급류도') */
+    if(v15&&from!==PLAT.crown&&w-wp<16&&PLAT.rr()<0.5) rapid=plRapid(cx,cz,w,wp,odx,odz,hwc,Math.hypot(ld.x-cx,ld.z-cz));
+    const rp=Math.max(4.5,hwc*1.15);
+    if(rapid){ ax=rapid.x; az=rapid.z; wp=rapid.w; li=plGi(ax,az); j=id[li]; plPool(ax,az,rp*0.8,wp); }
+    else{ plPool(ld.x,ld.z,rp,wp); PLAT.drops.push({x0:cx,z0:cz,w0:w,x1:ld.x,z1:ld.z,w1:wp,hw:hwc,rp,from}); }
+    hwc=Math.max(3.4,hwc*0.94);
+    if(j>=0&&!PLAT.list[j].crown){
+      const S=PLAT.list[j], ox=ax-L.x, oz=az-L.z, ol=Math.hypot(ox,oz)||1;
+      const xi=plExit(j,ax,az,(ox/ol+S.nx)*0.5,(oz/ol+S.nz)*0.5,rnd);
+      if(xi>=0){ const bx=plGx(xi), bz=plGz(xi), pts=plMeander(ax,az,bx,bz,j,hwc,rnd);
+        w=plWl(pts,hwc,wp,v15); plCarve(pts,hwc); PLAT.paths.push({pts,hw:hwc}); S.river=1;
+        const sx=bx-S.x, sz=bz-S.z, sl=Math.hypot(sx,sz)||1, tx=bx-pts[pts.length-2].x, tz=bz-pts[pts.length-2].z, tl=Math.hypot(tx,tz)||1;
+        odx=sx/sl*0.6+tx/tl*0.4; odz=sz/sl*0.6+tz/tl*0.4; const ol2=Math.hypot(odx,odz)||1; odx/=ol2; odz/=ol2;
+        cx=bx; cz=bz; from=j; continue; } }
+    /* 낮은 들(또는 산허리)이다 — 바다까지 */
+    const pts=plDescend(ax,az,wp,D2S);
+    if(pts){ plWl(pts,hwc,wp); pts[pts.length-1].w=Math.min(pts[pts.length-1].w,0.2); plCarve(pts,hwc); PLAT.paths.push({pts,hw:hwc}); }
+    break;
+  }
+}
+/* 급류(판 15) — 벼랑 끝(cx,cz · 물높이 w)에서 바깥(od)으로 기울기 0.42 남짓에 맞춰 길게 깎아 내려간다. 둑은 plCarve 의 0.45 비탈 — 벼랑을 V 자 골로 가른다.
+   끝이 바다거나 물높이보다 높으면 null(폭포로 둔다) */
+function plRapid(cx,cz,w,wp,odx,odz,hw,dl){
+  const E=F.elev, H=w-wp, Lc=Math.max(dl+6,H/0.42), ex=cx+odx*Lc, ez=cz+odz*Lc, ei=plGi(ex,ez);
+  if(E[ei]<=0.6||F.river[ei]) return null;
+  const wE=Math.min(wp,Math.min(E[ei],E[plGi(ex+3,ez)],E[plGi(ex-3,ez)],E[plGi(ex,ez+3)],E[plGi(ex,ez-3)])-0.6);
+  if(wE>w-3) return null;
+  const pts=[{x:cx-odx*6,z:cz-odz*6,w},{x:cx,z:cz,w}], n=Math.max(4,Math.ceil(Lc/3));
+  for(let k=1;k<=n;k++){ const t=k/n, u=t*t*(3-2*t)*0.35+t*0.65; pts.push({x:cx+odx*Lc*t,z:cz+odz*Lc*t,w:w+(wE-w)*u}); }   // 마루에서 조금 무르게 꺾여 든다
+  const h2=hw*0.9; pts.dep=0.35;                                                 // 얕게(1.5 m 남짓) — 깊으면 가파른 물길이 검은 판으로 보였다
+  plCarve(pts,h2); PLAT.paths.push({pts,hw:h2,rapid:1}); PLAT.rapids.push({pts,hw:h2});
+  return {x:ex,z:ez,w:wE};
+}
+/* 판 15 — 강을 더(사용자 요청 2026-11-11 'increase numbers of rivers'): 호수 물목은 늘 양쪽에 둘씩 · 강이 안 지나는 대지 더미마다 맨 위 대지의
+   산 밑동에서 샘이 솟아(plSprings) 대지를 굽이쳐 건너 벼랑에서 떨어지기를 거듭하다 바다(또는 다른 강)로 */
+function plMoreRivers(){ return (P.tv|0)>=15; }
+function plSprings(rnd,D2S){
+  const E=F.elev, id=PLAT.id, list=PLAT.list, heads=[];
+  /* 더미 — 같은 쪽 · 같은 등뼈 자리(s)에서 세운 대지들. 맨 위(가장 높은 층)가 샘 자리 */
+  const tops=new Map();
+  list.forEach((S,j)=>{ if(S.crown) return; const k=S.side+'|'+S.s.toFixed(5), t=tops.get(k); if(t==null||list[t].tier<S.tier) tops.set(k,j); });
+  const order=[...tops.values()].sort((a,b)=>list[a].s-list[b].s||list[a].side-list[b].side);
+  for(const j of order){ const S=list[j];
+    if(S.river) continue;                                                        // 호수에서 온 강이 이미 지난다
+    /* 샘 — 대지 가운데에서 등뼈 쪽으로, 대지가 산허리에 묻히기 8 m 앞(산 밑동) */
+    let t=0; while(t<S.R*1.4){ const k=plGi(S.x-S.nx*(t+8),S.z-S.nz*(t+8)); if(id[k]!==j||F.river[k]) break; t+=2.5; }
+    const hx=S.x-S.nx*t, hz=S.z-S.nz*t, hi=plGi(hx,hz);
+    if(id[hi]!==j||F.river[hi]) continue;
+    if(heads.some(h=>Math.hypot(h.x-hx,h.z-hz)<120)) continue;
+    const hw=3.4+rnd()*0.6, wp=Math.min(E[hi],E[plGi(hx+3,hz)],E[plGi(hx-3,hz)],E[plGi(hx,hz+3)],E[plGi(hx,hz-3)])-0.6;
+    const xi=plExit(j,hx,hz,S.nx,S.nz,rnd); if(xi<0) continue;
+    const bx=plGx(xi), bz=plGz(xi); if(Math.hypot(bx-hx,bz-hz)<S.R*0.5) continue;
+    plPool(hx,hz,hw*1.3,wp);
+    const pts=plMeander(hx,hz,bx,bz,j,hw,rnd), w=plWl(pts,hw,wp,true); plCarve(pts,hw); PLAT.paths.push({pts,hw,spring:1}); S.river=1;
+    heads.push({x:hx,z:hz});
+    const sx=bx-S.x, sz=bz-S.z, sl=Math.hypot(sx,sz)||1, tx=bx-pts[pts.length-2].x, tz=bz-pts[pts.length-2].z, tl=Math.hypot(tx,tz)||1;
+    let odx=sx/sl*0.6+tx/tl*0.4, odz=sz/sl*0.6+tz/tl*0.4; const ol=Math.hypot(odx,odz)||1;
+    plCourse(bx,bz,w,odx/ol,odz/ol,hw,j,rnd,D2S); }
+  PLAT.springs=heads;
 }
 /* ⑦ 비탈길 — 대지마다 아래층에서 올라오는 너덜 비탈. 강 · 폭포 · 다른 비탈 곁은 피한다 */
 function plRamps(rnd){
@@ -433,13 +488,13 @@ function classifyPlateau(){
 function plFalls(){
   const S=CELL/GCELL; PLAT.ws=S;
   for(const d of PLAT.drops){
-    const x0=d.x0*S, z0=d.z0*S, y0=d.w0*S, x1=d.x1*S, z1=d.z1*S, y1=Math.max(0.2,d.w1*S);
+    const v2=plMoreRivers(), x0=d.x0*S, z0=d.z0*S, y0=d.w0*S, x1=d.x1*S, z1=d.z1*S, y1=v2&&d.sea?0:Math.max(0.2,d.w1*S);   // 판 15 — 바다로 떨어지는 폭포의 밑은 해수면(예전 0.85 m 위에 떴다)
     let ux=x0-x1, uz=z0-z1; const ul=Math.hypot(ux,uz)||1; ux/=ul; uz/=ul;
     let aF=0, aH=ul; for(let a=0;a<ul+40;a+=0.5){ const y=heightAt(x1+ux*a,z1+uz*a); if(y<y1+1.5) aF=a; if(y>y0-0.6){ aH=a; break; } }
     if(aH<aF+1) aH=aF+1;
     const w=clamp(d.hw*S*1.15,6,24);
     FALLS.list.push({res:1, pl:1, x0, z0, y0, x1, z1, y1, drop:y0-y1, w, dx:-ux, dz:-uz, px:x1, pz:z1, py:y1, Lc:aF, aF, aH, Rp:(d.rp||4)*S,
-                     rx:x0, rz:z0, rR:d.hw*S, ux, uz, Wc:w*0.8, sea:!!d.sea});
+                     rx:x0, rz:z0, rR:d.hw*S, ux, uz, Wc:w*0.8, sea:!!d.sea, v2});
   }
 }
 /* ── 산맥의 봉우리(큰 지형 모형 — 37-geo-meshes.js geoLandforms 가 판 11 이면 geoRange 대신 부른다) ──
@@ -509,8 +564,8 @@ function plFallsClear(){
   if(typeof CRAG==='undefined'||!CRAG.tiles||!CRAG.tiles.size||typeof fallsPlPath!=='function') return;
   const pts=[];
   for(const f of FALLS.list){ if(!f.pl) continue;
-    const P=fallsPlPath(f), tx=-f.uz, tz=f.ux;
-    for(let i=0;i<P.length;i+=2){ const [x,z,y]=[P[i][0],P[i][2],P[i][1]], hw=f.w*(0.55+0.2*i/P.length)+2;
+    const tx=-f.uz, tz=f.ux;                                                     // 판 15 — 갈래마다(갈래가 벌어져 흐른다)
+    for(const P of (f.v2?fallsPlStrands(f).map(q=>q.path):[fallsPlPath(f)])) for(let i=0;i<P.length;i+=2){ const [x,z,y]=[P[i][0],P[i][2],P[i][1]], hw=f.w*(0.55+0.2*i/P.length)+2;
       for(let o=-1;o<=1.001;o+=0.25) pts.push([x+tx*o*hw,z+tz*o*hw,y-0.5,2.5]); } }
   if(pts.length) PLAT.fallKill=plCragKill(pts);
 }
