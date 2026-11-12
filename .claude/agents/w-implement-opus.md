@@ -1,6 +1,6 @@
 ---
 name: w-implement-opus
-description: 구현 워커 (Opus medium). 강화 모드의 구현을 worktree 격리로 맡고, 기본 모드에서는 테스트가 얇거나 경계 처리가 까다로운 단위를 맡는다. 스펙이 확정된 기능을 지시서 범위 안에서 구현하고 커밋한다. orchestrate 플러그인의 모드 스킬(기본·강화)이 지시서와 함께 부를 때만 쓴다.
+description: 구현 워커 (Opus medium). 강화 모드의 구현을 worktree 격리로 맡고, 기본 모드에서는 테스트가 얇거나 경계 처리가 까다로운 단위를 맡는다. 스펙이 확정된 기능을 지시서 범위 안에서 구현하고 커밋한다. kjh-lyj 플러그인의 모드 스킬(기본·강화)이 지시서와 함께 부를 때만 쓴다.
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: opus
 effort: medium
