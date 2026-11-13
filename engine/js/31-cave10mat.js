@@ -688,7 +688,7 @@ const _cmAz=[0,1,2,3,4,5,6,7].map(k=>[Math.cos((k+0.5)*Math.PI/4),Math.sin((k+0.
 function cmRock(rec,x,y,z){ const s=cv10Samp(rec,x,z); if(y>=s.h) return 0; if(s.n<=0) return 1; return (y<s.f||y>s.c)?1:0; }
 function cmAoRun(J,t1){
   const P=J.pos, N=J.nor, ao=J.ao, fh=J.fh, su=J.su, rec=J.rec, nv=J.nv, EN=0.57357644, ET=0.81915204;   // 높이 35° — 반구를 코사인 무게로 고르게 본 평균 높이쯤
-  while(J.i<nv){ if(performance.now()>t1) break; const e=Math.min(nv,J.i+2);   // 두 정점마다 시계를 본다(한 조각이 예산을 넘는 몫 ≤ 정점 둘 · 수 µs)
+  while(J.i<nv){ if(performance.now()>t1) break; const e=J.i+1;   // (FX) 정점마다 시계를 본다(한 조각이 예산을 넘는 몫 ≤ 정점 하나 · 수 µs — 그보다 긴 튐은 GC · 처음 짜기)
     for(let v=J.i;v<e;v++){ const o=v*3, x=P[o], y=P[o+1], z=P[o+2]; let nx=N[o], ny=N[o+1], nz=N[o+2];
       /* (TX3) aFh — 안쪽 바닥 기준: 수평 법선(빈 데 쪽)으로 0 · 1 · 2 · 3 m 나간 점의 바닥(빈 데 기둥) 가운데 가장 낮은 것 위 높이(벽 정점의 '제 발밑'은 벽 자신이라 값이 튀었다).
          바닥 · 천장(수평 법선 0.2 밑)은 제자리만. aSu — 그 안쪽 점에서 길 거리 s · 가로 자리 u(cv10Field) */
