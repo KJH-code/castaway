@@ -725,7 +725,7 @@ function cmAoFlush(rec){
 }
 /* 굴 씨(aCs) · 켜(aLay) — 껍데기가 다 지어진 뒤(31-cave10.js onBuild) · 가림 · 바닥 위 높이는 일로 건다 */
 CV10.onBuild.push(rec=>{
-  const m=rec.mesh; if(!m||!m.geometry) return;
+  const m=rec.mesh; if(!m||!m.geometry||!cmOK()) return;   // (FX) WebGL1 · 사진 없음(단색 cv10SeatMat)이면 속성 · 굽기 일 · cmTick 을 걸지 않는다
   const g=m.geometry, nv=g.attributes.position.count, s=cv10H(rec.c.seed|0,71,0x5eed), P=rec.c._P||{b:1,off:0,vs:0}, lay=new Float32Array(nv*3);
   for(let v=0;v<nv;v++){ lay[v*3]=P.b||1; lay[v*3+1]=P.off||0; lay[v*3+2]=P.vs||0; }
   g.setAttribute('aCs',new THREE.BufferAttribute(new Float32Array(nv).fill(s),1));
