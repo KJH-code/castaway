@@ -368,7 +368,7 @@ const CM_BODY=`#include <color_fragment>
     vec3 sT=vec3(1.0);                                                               // 정반사 빛깔(글레이즈는 바탕빛에 물든다)
     float fh=vCmA.y, cs=vCmK.w, vs=floor(vCmK.z+0.5), dS=-5.0*log(max(sky,1e-4));    // fh 바닥 위 높이 m · cs 굴 씨 · vs 보로노이 씨 · dS 열린 데까지 m(aSky=exp(−d/5) 를 되돌림)
     float fwY=max(fwidth(p.y),1e-4), fwH=max(fwidth(fh),1e-4);
-    float lvOK=step(-1.5,fh)*(1.0-smoothstep(2.0,3.0,fwH/fwY));                    // (TX3) 수위 무늬 문 — 굽기 전(−2) · 기준 바닥이 뛰는 데는 끈다
+    float fhOK=step(-1.5,fh), lvOK=fhOK*(1.0-smoothstep(2.0,3.0,fwH/fwY));         // (TX3) 수위 무늬 문 — 굽기 전(−2) · 기준 바닥이 뛰는 데는 끈다 · (FX) fhOK 굽기 전만 끈다(바닥 젖음 · 고인 물 · 망간)
     vec2 su=vCmS;                                                                    // 길 거리 s(m) · 가로 자리 u                       // 줄의 화면 너비(갈래 밖에서 센다)
 #if CM_KIND==0
     /* (TX4) 석회암 용식 굴 — 원인 사슬: 켜 진 석회암 + 절리 두 벌 → 물은 젖은 절리 · 켜 틈으로 → 그 밑에 유석 / 큰물 → 수위 밑 진흙(욕조 테) · 선반 윗면 진흙 → 진흙 위 망간 / 입구 쪽 응결 → 달우유.
@@ -425,13 +425,13 @@ const CM_BODY=`#include <color_fragment>
     float mudW=wal*lvOK*wlOn*(1.0-smoothstep(-0.012,0.004,0.0-bel+0.01*hp))*mix(0.85,smoothstep(0.42,0.62,Z1.r-0.3*hp),smoothstep(0.05,0.35,bel));
     float mudL=wal*smoothstep(0.30,0.50,n.y)*smoothstep(-0.15*(0.15),0.15*(0.15),Z1.a-0.35)*0.8;
     float mudF=flo*smoothstep(-0.06,0.06,0.55*Z1.r+0.45*(1.0-ao)-0.40+0.15*(0.5-mid)+0.18*(S.g-0.5)+0.12*(Z1.a-0.5)+0.10*(0.5-fine2));
-    float mud=max(max(mudW,mudL),mudF), mwt=mud*(1.0-smoothstep(0.0,0.6,fh))*smoothstep(0.45,0.70,Z1.r);
+    float mud=max(max(mudW,mudL),mudF), mwt=mud*fhOK*(1.0-smoothstep(0.0,0.6,fh))*smoothstep(0.45,0.70,Z1.r);
     c=mix(c,mix(CP_MUD,CP_MUDW,mwt)*mix(vec3(1.0),dt,0.8),mud*mix(1.0,0.55,flo)); Ht-=0.02*mudF; c*=1.0-0.10*mudF; zn=mix(zn,vec3(0.0,0.0,1.0),mud);
     rg=mix(rg,mix(0.95,0.3,mwt),mud); wet=mix(wet,mwt,mud); pr=mix(pr,0.0,mud);
-    float pud=flo*mudF*smoothstep(-0.15*(0.05),0.15*(0.05),Z1.r-0.76)*(1.0-smoothstep(0.05,0.3,fh));   // 고인 물 — 가장 낮은 바닥에만
+    float pud=flo*mudF*smoothstep(-0.15*(0.05),0.15*(0.05),Z1.r-0.76)*fhOK*(1.0-smoothstep(0.05,0.3,fh));   // 고인 물 — 가장 낮은 바닥에만
     c*=1.0-0.15*pud; wet=mix(wet,1.0,pud); rel*=1.0-pud; rg=mix(rg,0.05,pud);
     float mn=mudW*(1.0-smoothstep(0.01,0.04,bel))*step(0.4,fract(su.x*0.2+cs*7.0))*0.8;   // 망간 — 수위선 욕조 테(구간 40%)
-    mn=max(mn,mudF*(1.0-smoothstep(0.0,0.1,fh))*smoothstep(-0.15*(0.03),0.15*(0.03),mid-CM_QA90)*0.6);
+    mn=max(mn,mudF*fhOK*(1.0-smoothstep(0.0,0.1,fh))*smoothstep(-0.15*(0.03),0.15*(0.03),mid-CM_QA90)*0.6);
     c=mix(c,CP_MANG*mix(vec3(1.0),dt,0.5),mn); zn=mix(zn,vec3(1.0,0.0,1.0),mn);
     rel*=1.0-0.8*max(flo,mud);
 #elif CM_KIND==1
