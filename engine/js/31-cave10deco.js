@@ -780,13 +780,13 @@ function* cvd16Run(X,K){
   if(K.cone){ let anyO=false; for(let q=0;q<nx*nz;q++) if(X.O[q]&&E[q]){ anyO=true; break; }
     const od=anyO?yield* cvdChamfer(X,X.O):null;
     for(let j=1;j<nz-1;j++){ if((j&7)===7&&cvdT()) yield; for(let i=1;i<nx-1;i++){ const q=j*nx+i; if(!E[q]||X.O[q]) continue; const d=od?od[q]:X.D[q];
-      if(d>=2&&d<=6&&X.wd[q]>=0.25&&X.wd[q]<=2.0) cone.push(q); } } }
+      if(d>=2&&d<=6&&X.wd[q]>=0.2&&X.wd[q]<=1.0) cone.push(q); } } }
   st.cand.push(cone.length);
-  for(let k=0;k<60&&st.cone<(K.cone||0)&&cone.length&&room();k++){ if(cvdT()) yield;
+  for(let k=0;k<120&&st.cone<(K.cone||0)&&cone.length&&room();k++){ if(cvdT()) yield;
     const q=cone[(rnd()*cone.length)|0], x=X.x0+((q%nx)+rnd())*S, z=X.z0+(((q/nx)|0)+rnd())*S, fc=gIn(x,z); if(fc===null){ rj('co'); continue; }
-    const Rc=0.6+0.35*rnd(), h=0.30+0.15*rnd(); let ok=aisle(x,z,Rc*0.5), gmin=fc, nv=0;   // 벽에 반쯤 묻힌 원뿔 — 길 쪽 절반 반지름까지는 aisle 을 지킨다
+    const Rc=0.6+0.35*rnd(), h=0.30+0.15*rnd(); if(!aisle(x,z,Rc*0.3)){ rj('ca'); continue; } let ok=true, gmin=fc, nv=0;   // 벽에 반쯤 묻힌 원뿔 — 길 쪽 절반 반지름까지는 aisle 을 지킨다
     for(let a=0;a<8&&ok;a++){ const an=a/8*6.2832, gg=gIn(x+Math.cos(an)*Rc,z+Math.sin(an)*Rc); if(gg===null) continue; nv++; if(Math.abs(gg-fc)>0.25) ok=false; else gmin=Math.min(gmin,gg); }   // 부드러운 둔덕이라 바닥 차 0.25 m 까지 — 밑을 0.1 m 묻는다
-    if(nv<4) ok=false;
+    if(nv<3) ok=false;
     if(!ok){ rj('cn'); continue; }
     const y0=gmin-0.1, it=cvdRev(A,x,y0,z,0,1,0,h+(fc-y0),t=>Rc*Math.pow(1-t,1.05)*(t>=0.999?0:1),10,3,t=>[0.24+0.04*t,0.18+0.03*t,0.12+0.02*t]);
     for(let v=it.v0;v<it.v1;v++){ const vx=A.p[v*3], vz=A.p[v*3+2], hh=((Math.imul(Math.round(vx*31)|0,73856093)^Math.imul(Math.round(vz*31)|0,83492791))>>>0)/4294967296;
