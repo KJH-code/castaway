@@ -27,7 +27,7 @@
    · 해 · 구름 그림자는 껍데기의 sky<0.01 화소에서 안 읽는다(45-sky.js envPatch — 이 재질의 CM_SUNCUT 정의를 보고)
    · 디버그 정의(CMAT.dbg): CM_DBG_ALB 조명 없는 바탕 빛깔 · CM_DBG_ZONE 갈래(빨강 바탕 바위 · 초록 덧쌓임 · 파랑 바닥 · 노랑 이끼 · 땅 · 자홍 얼룩) */
 const CMAT={ mats:{}, tex:null, nrm:null, left:-1, ready:false, wt:[], geo:null, q:null, qd:'',
-  torch:{value:new THREE.Vector4(0,0,0,0)}, tpos:{value:new THREE.Vector3()}, eye:{value:new THREE.Vector3()}, tcol:{value:new THREE.Vector3(1,0.56,0.25)},
+  torch:{value:new THREE.Vector4(0,0,0,0)}, tpos:{value:new THREE.Vector3()}, tpv:{value:new THREE.Vector3(1e9,1e9,1e9)}, eye:{value:new THREE.Vector3()}, tcol:{value:new THREE.Vector3(1,0.56,0.25)},
   ao:{q:[], f:-1, budget:0.6, max:0, n:0},
   /* 종류마다: 사진 층 · 한 장의 크기(m) · 젖음 · (옛 번들 날카로움 sh — 쓰지 않음) · 이끼 몫 · 마른 거칠기 r · F0 · 공극(젖으면 어두워지는 몫) · 정반사 세기 */
   /* (U2) wet 바탕 젖음 · hum 안으로 오르는 젖음(aDeep 곱) */
@@ -176,6 +176,7 @@ varying float vCv10Sky, vCv10Deep;
 varying vec3 vCmW, vCmN, vCmBio;
 varying vec4 vCmA, vCmK;
 varying float vCmD;
+uniform vec3 cmTPv;
 uniform sampler2D cmElev; uniform vec2 cmGrid; uniform sampler2D cmBio; uniform float cmBioN, cmCell;
 float cmE(vec2 g){ vec4 t=texelFetch(cmElev,ivec2(clamp(g,vec2(0.0),vec2(cmGrid.x-1.0))),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*1200.0-100.0; }
 `;
@@ -256,7 +257,7 @@ const CM_BODY=`#include <color_fragment>
 #endif
     float big=Z1.g, mid=Z1.a, fine=cmLum(rk), jt=fine-0.5;                            // 잔 결은 사진 밝기로 · jt — 경계를 사진 결로 들쭉날쭉하게
     vec3 c, dt, zn=vec3(1.0,0.0,0.0);                                                // zn: 갈래(CM_DBG_ZONE) — 빨강 바탕 바위 · 초록 덧쌓임 · 파랑 바닥(진흙) · 노랑 이끼 · 녹조 · 테 · 자홍 얼룩(철 · 망간 · 산화 · 칠)
-    float wet=CM_WET, rel=1.0, Ht=0.0, rg=CM_R, f0=CM_F0;                            // wet: 젖음(0~1 로 자른다) · rel: 법선 지도 세기 · Ht: 무늬 높이 합(m — 미분 범프) · rg · f0: 거칠기 · F0
+    float wet=CM_WET, rel=1.0, Ht=0.0, rg=CM_R, f0=CM_F0, pr=CM_POR, sss=0.0;                            // wet: 젖음(0~1 로 자른다) · rel: 법선 지도 세기 · Ht: 무늬 높이 합(m — 미분 범프) · rg · f0: 거칠기 · F0
     vec3 sT=vec3(1.0);                                                               // 정반사 빛깔(글레이즈는 바탕빛에 물든다)
     float fh=vCmA.y, cs=vCmK.w, vs=floor(vCmK.z+0.5), dS=-5.0*log(max(sky,1e-4));    // fh 바닥 위 높이 m · cs 굴 씨 · vs 보로노이 씨 · dS 열린 데까지 m(aSky=exp(−d/5) 를 되돌림)
     float fwY=max(fwidth(p.y),1e-4), fwH=max(fwidth(fh),1e-4);                       // 줄의 화면 너비(갈래 밖에서 센다)
@@ -402,77 +403,94 @@ const CM_BODY=`#include <color_fragment>
       fc=mix(fc,fc*0.62,dl); wet=mix(wet,0.8,dl*flo);
       c=mix(c,fc,flo); zn=mix(zn,vec3(0.0,0.0,1.0),flo); }
 #endif
-    /* 여러 크기 — 몇 m 구간 톤 · 채도 ±6%(Z1.b 6 m · big 3 m) · 오목한 데(aAo 낮음)엔 때 · 진흙이 앉아 어둡고 누렇다 · 거칠기도 얼룩진다 */
+    /* 여러 크기 — 몇 m 구간 톤 · 채도 ±6%(Z1.b 6 m · big 3 m) */
     { float tn=(Z1.b-0.5)*0.24+(big-0.5)*0.12, lc=cmLum(c); c=max(vec3(0.0),vec3(lc)+(c-vec3(lc))*(1.0+0.6*tn))*(1.0+0.5*tn); }
-    c=mix(c,c*vec3(0.62,0.55,0.47),clamp((1.0-ao)*1.2,0.0,0.6));
-    rg=clamp(rg*(0.85+0.3*mid+0.2*jt),0.05,1.0);
-    /* 빛 구역 — 입구 이끼(sky 높음) → 녹조막(sky 0.04~0.45) → 맨 바위 · 습도(젖음)는 안으로 오른다 */
+    /* (TX1 빛 틀) 화소 하나가 덮는 길이 fp(m) — 잔 결 · 중간 결 높낮이를 화소 크기로 끈다(화소보다 잔 높낮이를 미분하면 결이 아니라 잡음이다) · 미분은 갈래 밖 */
+    vec3 dpx=dFdx(p), dpy=dFdy(p); float fp=max(length(dpx),length(dpy));
+    float kMi=1.0-smoothstep(0.004,0.012,fp), kMe=1.0-smoothstep(0.012,0.040,fp);
+    float cav=clamp((0.5-fine2)*1.6+max(0.0,0.0-Ht)*30.0,0.0,1.0);                 // 잔 오목 0~1(큰 장 사진의 어두운 데 · 무늬 홈)
+    float edg=clamp((fine2-0.55)*2.2,0.0,1.0)*ao;                                   // 닳은 모서리
+    c=mix(c,c*vec3(0.62,0.55,0.47),clamp((1.0-ao)*1.2+cav*0.35,0.0,0.7));          // 오목한 데엔 때 · 진흙(aAo 낮음 + 잔 오목)
+    c*=1.0+0.08*edg;
+    rg=clamp(rg*(0.85+0.3*mid+0.2*jt)-0.10*edg,0.05,1.0);
+    /* 빛 구역 — 입구 이끼(sky 높음) → 녹조막(sky 0.04~0.45) → 맨 바위 · 습도(젖음)는 안으로 오른다 · 젖음은 높낮이로 끊는다(낮은 데 · 오목한 데부터 젖는다) */
     wet+=CM_HUM*vCv10Deep;
+    float w=clamp(wet,0.0,1.0);
+    w*=mix(1.0,smoothstep(0.25,0.60,w+0.6*(0.5-fine2)+0.25*cav),0.85);
     float al=smoothstep(0.04,0.12,sky)*(1.0-smoothstep(0.30,0.45,sky))*smoothstep(0.35,0.60,mid*0.6+big*0.4)*(1.0-0.5*flo);
     c=mix(c,CP_ALGA*dt,al*0.30); zn=mix(zn,vec3(1.0,1.0,0.0),al*0.30);
     /* 이끼 — 하늘이 트인 입구 · 위를 보는 면 · 얼룩지게(안으로 들어가며 끊긴다) */
     float mw=CM_MOSS*smoothstep(0.08,0.55,sky)*(0.30+0.70*smoothstep(-0.2,0.7,n.y))*(1.0-0.75*flo)*smoothstep(0.45,0.66,big*0.7+mid*0.3+sky*0.15);   // 밟는 바닥엔 드물다
-    if(mw>0.01){ vec3 mz=texture(cmC,vec3(pd/1.1,4.0)).rgb; float mk=clamp(mw,0.0,0.92); c=mix(c,vec3(0.24,0.33,0.12)*mz*2.0,mk); zn=mix(zn,vec3(1.0,1.0,0.0),mk); wet=mix(wet,0.07,mw); rg=mix(rg,0.9,mk); }
+    if(mw>0.01){ vec3 mz=texture(cmC,vec3(pd/1.1,4.0)).rgb; float mk=clamp(mw,0.0,0.92); c=mix(c,vec3(0.24,0.33,0.12)*mz*2.0,mk); zn=mix(zn,vec3(1.0,1.0,0.0),mk); w=mix(w,0.07,mw); rg=mix(rg,0.9,mk); }
     /* 입구 테 — 땅 테와 같은 팔레트(CMAT.RIM): 풀(그 자리 바이옴) → 낙엽 → 부식토 → 자갈 → 바위. ru 는 땅 겉 밑 깊이 · 열린 데까지 거리 · 잡음(경계를 곧게 두지 않는다) */
     float ru=max(0.0,-vCmA.w)/2.5+dS/4.0+(mid-0.5)*0.45+(Z1.r-0.5)*0.2;
     float rw=smoothstep(-0.2,0.35,n.y)*(1.0-smoothstep(0.95,1.25,ru))*step(-4.0,vCmA.w)*smoothstep(0.02,0.10,sky);
     vec3 rc=mix(vCmBio,CR_LITTER,smoothstep(0.10,0.22,ru));
     rc=mix(rc,CR_HUMUS,smoothstep(0.30,0.42,ru)); rc=mix(rc,CR_GRAVEL,smoothstep(0.62,0.75,ru));
     c=mix(c,rc*mix(vec3(1.0),dt,0.4),rw); zn=mix(zn,vec3(1.0,1.0,0.0),rw); rg=mix(rg,0.95,rw);
-    /* 젖음 · 거칠기 · F0 */
-    float w=clamp(wet,0.0,1.0);
+    /* 젖음 · 거칠기 · F0 — 젖으면 공극 pr 만큼 어두워진다 */
 #ifndef CM_NO_WET
-    cmWetF(c,rg,f0,w,CM_POR);
+    cmWetF(c,rg,f0,w,pr);
 #endif
     vec3 cAlb=c;                                                                     // 조명 없는 바탕 빛깔(CM_DBG_ALB)
-#ifndef CM_NO_AO
-    c*=mix(0.5,1.0,ao);
+    /* 가림 셋 — 둘레빛 · 정점 광원(세게) · 횃불(약하게) · 정반사(오목한 데는 가린다) */
+#ifdef CM_NO_AO
+    float occA=1.0, occD=1.0, occS=1.0;
+#else
+    float occA=mix(0.35,1.0,ao*ao)*(1.0-0.55*cav), occD=mix(0.70,1.0,ao)*(1.0-0.30*cav), occS=clamp(ao*1.3-0.3,0.0,1.0)*(1.0-0.7*cav);
 #endif
-                                                              // 정점 가림(aAo — 오목한 데는 둘레 바위가 빛을 가린다)
-    /* 미분 범프 — 무늬 높이 합 Ht 의 화면 미분으로 표면 기울기를 센다(Mikkelsen 표면 기울기). 미분은 갈래 밖에서 · 25 m 밖은 0 */
-    Ht+=(fine2-0.5)*0.06+(fine-0.5)*0.012;                                          // 사진 밝기를 높낮이로(큰 장 ±3 cm · 잔 결 ±6 mm) — 횃불에 결이 선다
+    /* 미분 범프 — 무늬 높이 합 Ht 의 화면 미분으로 표면 기울기를 센다(Mikkelsen 표면 기울기). 사진 밝기를 높낮이로(큰 장 ±3 cm · 잔 결 ±6 mm — 화소보다 잘면 끈다) · 25 m 밖은 0 */
+    Ht+=(fine2-0.5)*0.06*kMe+(fine-0.5)*0.012*kMi;
 #ifdef CM_NO_BUMP
     vec3 nb=n;
 #else
-    float hb=Ht*nrmK;
-    vec3 dpx=dFdx(p), dpy=dFdy(p); float hx=dFdx(hb), hy=dFdy(hb);
+    float hb=Ht*nrmK, hx=dFdx(hb), hy=dFdy(hb);
     vec3 r1=cross(dpy,n), r2=cross(n,dpx); float det=dot(dpx,r1);
     vec3 nb=abs(det)>1e-12?normalize(abs(det)*n-sign(det)*(hx*r1+hy*r2)):n;
 #endif
-    /* 결의 높낮이 — 법선 지도(많이 섞인 쪽 한 장) · 굴 속은 횃불 쪽, 입구는 해 쪽 볕이 금과 혹을 따라 갈린다 */
-    vec3 np=nb;
+    /* 결의 높낮이 — 법선 지도(많이 섞인 쪽 한 장) · 화소가 법선 지도 텍셀보다 크면 안 읽는다(먼 화소의 읽기 −1) */
+    float kN=nrmK*(1.0-smoothstep(0.006,0.020,fp)); vec3 np=nb;
 #ifndef CM_NO_NRM
-    if(nrmK>0.0){
+    if(kN>0.02){
       vec3 t=texture(cmN,vec3(pd/CM_RS,CM_L)).rgb*2.0-1.0;
       vec3 bt=ax?vec3(nb.x,t.y+nb.y,t.x+nb.z):(ay?vec3(t.x+nb.x,nb.y,t.y+nb.z):vec3(t.x+nb.x,t.y+nb.y,nb.z));
-      np=normalize(mix(nb,normalize(bt),0.75*rel*nrmK));
+      np=normalize(mix(nb,normalize(bt),0.75*rel*kN));
     }
 #endif
-    vec3 tv=cmTP-p, Lt=normalize(tv);                                                // 세계 좌표로 센다(램버트엔 cameraPosition 이 안 실린다 — 눈 · 횃불 자리는 cmTick 이 준다)
-    vec3 Lr=normalize(mix(Lt,cmSun,smoothstep(0.2,0.8,sky)));
-    c*=1.0+clamp((dot(np,Lr)-dot(n,Lr))*2.4,-0.65,0.65);
-    c*=0.74+0.26*clamp(dot(np,n),0.0,1.0);                                            // 패인 데는 덜 본다
-    diffuseColor.rgb=c;
-    vec3 V=normalize(cmEye-p);
-    /* 정반사 — 사람이 든 횃불에서만 · 젖은 데만(정규화 Blinn · Schlick). 세기 · 거리 감쇠는 램버트의 점광과 같은 식((1−d/거리)²) */
+    vec3 tv=cmTP-p; float tl=length(tv); vec3 Lt=tv/max(tl,1e-4), V=normalize(cmEye-p);   // 세계 좌표로 센다(램버트엔 cameraPosition 이 안 실린다 — 눈 · 횃불 자리는 cmTick 이 준다)
+    float at=clamp(1.0-tl/max(cmT.x,1e-3),0.0,1.0); at*=at;                          // 램버트 점광과 같은 거리 감쇠((1−d/거리)²)
+    float sbk=smoothstep(0.2,0.8,sky);                                              // 입구 — 해 쪽 결(옛 어림은 여기만)
+    vec3 cD=c*occA*(0.74+0.26*clamp(dot(np,n),0.0,1.0))*(1.0+sbk*clamp((dot(np,cmSun)-dot(n,cmSun))*1.5,-0.5,0.5));
+#ifdef CM_PXT
+    /* 횃불 난반사를 화소에서 — 정점 묶음에서 횃불을 뺐다(cv10Mat 의 lights_lambert_vertex 손질) · 유석만 감싸기(sss — 반투명 방해석) */
+    float nlp=max(dot(np,Lt),0.0), nlT=mix(nlp,(nlp+0.30)/1.30,sss);
+    totalEmissiveRadiance+=c*occD*cmTC*(cmT.w*at*nlT);
+#else
+    cD*=1.0+(1.0-sbk)*clamp((dot(np,Lt)-dot(n,Lt))*2.4,-0.65,0.65);                 // 옛 길(정점 빛에 곱하는 어림)
+#endif
+    diffuseColor.rgb=cD;
+    /* 정반사 — 사람이 든 횃불에서만 · 젖었거나 매끈한 데(정규화 Blinn · Schlick). 물막은 잔 결을 메운다 · 화소 안 법선 흩어짐 sg2 로 거칠기를 넓힌다(튀는 점 대신 번들) */
+    vec3 ns=normalize(mix(np,nb,0.7*w));
+    float sg2=min(0.25,0.5*(dot(dFdx(ns),dFdx(ns))+dot(dFdy(ns),dFdy(ns))));
+    float gls=max(w,1.0-smoothstep(0.35,0.70,rg));
 #ifndef CM_NO_SPEC
-    if(cmT.w>0.0&&w>0.05){                                                           // 마른 거친 바위(r 0.7~0.9)의 정반사는 바탕의 수 % 라 안 센다
-      vec3 Hh=normalize(Lt+V);
-      float r4=rg*rg*rg*rg, sn=clamp(2.0/max(r4,1e-4)-2.0,1.0,256.0), nl=max(dot(np,Lt),0.0), nh=max(dot(np,Hh),0.0), vh=max(dot(V,Hh),0.0);
-      float at=clamp(1.0-length(tv)/cmT.x,0.0,1.0); at*=at;
-      float x=1.0-vh, x2=x*x, Fs=f0+(1.0-f0)*x2*x2*x;
-      totalEmissiveRadiance+=cmTC*sT*(cmT.w*at*nl*(sn+8.0)*0.125*pow(nh,sn)*Fs*CM_KS);
+    if(cmT.w>0.0&&gls>0.03){
+      vec3 Hh=normalize(Lt+V); float a2=min(1.0,rg*rg*rg*rg+sg2), sn=clamp(2.0/a2-2.0,1.0,160.0);
+      float nl=max(dot(ns,Lt),0.0), nh=max(dot(ns,Hh),0.0), x=1.0-max(dot(V,Hh),0.0), x2=x*x, Fs=f0+(1.0-f0)*x2*x2*x;
+      totalEmissiveRadiance+=cmTC*sT*(cmT.w*at*nl*(sn+8.0)*0.125*pow(nh,sn)*Fs*CM_KS*gls*occS);
     }
 #endif
-    /* 하늘 번들 — 입구 쪽 젖은 면이 하늘을 비춘다(Schlick F(θ) · 젖음 · sky · 위로 되비치는 쪽만 · 거친 면은 덜) */
+    /* 하늘 번들 — 입구 쪽 젖었거나 매끈한 면이 하늘을 비춘다(Schlick F(θ) · sky · 위로 되비치는 쪽만 · 거친 면은 덜 · 오목한 데는 가림) */
 #if NUM_HEMI_LIGHTS > 0
-    if(sky*w>0.002){ vec3 Rv=reflect(-V,np); float x=1.0-max(dot(np,V),0.0), x2=x*x, Fv=f0+(1.0-f0)*x2*x2*x;
-      totalEmissiveRadiance+=hemisphereLights[0].skyColor*(Fv*w*sky*(1.0-rg)*smoothstep(-0.1,0.6,Rv.y)); }
+    if(sky*gls>0.002){ vec3 Rv=reflect(-V,ns); float x=1.0-max(dot(ns,V),0.0), x2=x*x, Fv=f0+(1.0-f0)*x2*x2*x;
+      totalEmissiveRadiance+=hemisphereLights[0].skyColor*(Fv*gls*sky*(1.0-rg)*smoothstep(-0.1,0.6,Rv.y)*occS); }
 #endif
 #if defined(CM_DBG_ALB)
     diffuseColor.rgb=vec3(0.0); totalEmissiveRadiance=cAlb;
 #elif defined(CM_DBG_ZONE)
     diffuseColor.rgb=vec3(0.0); totalEmissiveRadiance=zn;
+#elif defined(CM_DBG_LGT)
+    diffuseColor.rgb=vec3(0.0); totalEmissiveRadiance=vec3(w,rg,cav);
 #endif
   }
 #endif`;
@@ -484,7 +502,7 @@ function cv10Mat(kind){
   cmPhotos();
   const m=new THREE.MeshLambertMaterial({color:0xffffff});
   const gl=(typeof CV10_GLOW!=='undefined'&&(CV10_GLOW[key]||CV10_GLOW.shelter))||[0,0,0,0];
-  const U={cmC:CMAT.tex, cmN:CMAT.nrm, cmZ:cmNoise3(), cmT:CMAT.torch, cmTP:CMAT.tpos, cmEye:CMAT.eye, cmTC:CMAT.tcol, cmSun:TERR_U.uSunDir,
+  const U={cmC:CMAT.tex, cmN:CMAT.nrm, cmZ:cmNoise3(), cmT:CMAT.torch, cmTP:CMAT.tpos, cmTPv:CMAT.tpv, cmEye:CMAT.eye, cmTC:CMAT.tcol, cmSun:TERR_U.uSunDir,
     cmElev:WATER_U.uElev, cmGrid:WATER_U.uGrid, cmBio:TERR_U.uBio, cmBioN:TERR_U.uBioN, cmCell:TERR_U.uCell,
     uCv10Glow:{value:new THREE.Vector4(gl[0],gl[1],gl[2],gl[3])}};
   /* CM_SUNCUT — envPatch(45-sky.js)가 이 정의를 보고 sky<0.01 화소에서 해 · 구름 그림자를 안 읽는다(옛 재질을 같은 페이지에서 견줄 때 옛 길이 그대로 남게) */
@@ -493,7 +511,12 @@ function cv10Mat(kind){
   m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,U);
     sh.vertexShader=CM_VERT+sh.vertexShader.replace('#include <begin_vertex>',CM_VMAIN);
-    sh.fragmentShader=D+CM_FRAG+sh.fragmentShader.replace('#include <color_fragment>',CM_BODY);
+    /* (TX1) 횃불 난반사는 화소에서(CM_PXT) — 정점 묶음의 점광 고리에서 횃불 자리(눈 좌표 cmTPv)의 빛만 0 으로. 이 재질에만 · 묶음 꼴이 예상과 다르면 옛 길 */
+    const LV=THREE.ShaderChunk.lights_lambert_vertex, G='getPointDirectLightIrradiance( pointLights[ i ], geometry, directLight );';
+    const pxt=!/CM_NO_PXT/.test(CMAT.dbg||'')&&LV.split(G).length===2&&sh.vertexShader.split('#include <lights_lambert_vertex>').length===2;
+    if(pxt) sh.vertexShader=sh.vertexShader.replace('#include <lights_lambert_vertex>',LV.replace(G,G+'\n\t\tdirectLight.color *= step( 0.001, distance( pointLights[ i ].position, cmTPv ) );'));
+    CMAT.pxt=pxt;
+    sh.fragmentShader=(pxt?'#define CM_PXT\n':'')+D+CM_FRAG+sh.fragmentShader.replace('#include <color_fragment>',CM_BODY);
   };
   const dk=CMAT.dbg||''; m.customProgramCacheKey=()=>'cv10mat-'+key+dk;
   envPatch(m);
@@ -515,8 +538,9 @@ function cmPrecompGeo(){
 function cmTick(r,s,cam){
   const t=typeof torchLight!=='undefined'&&torchLight, v=CMAT.torch.value;
   if(cam) CMAT.eye.value.setFromMatrixPosition(cam.matrixWorld);
-  if(t&&t.visible&&t.intensity>0){ v.set(t.distance||26,0,0,t.intensity); CMAT.tpos.value.setFromMatrixPosition(t.matrixWorld); CMAT.tcol.value.set(t.color.r,t.color.g,t.color.b); }
-  else v.w=0;
+  if(t&&t.visible&&t.intensity>0){ v.set(t.distance||26,0,0,t.intensity); CMAT.tpos.value.setFromMatrixPosition(t.matrixWorld); CMAT.tcol.value.set(t.color.r,t.color.g,t.color.b);
+    if(cam) CMAT.tpv.value.copy(CMAT.tpos.value).applyMatrix4(cam.matrixWorldInverse); }   // 눈 좌표 — three 가 올리는 pointLights[i].position 과 같은 값
+  else{ v.w=0; CMAT.tpv.value.set(1e9,1e9,1e9); }
   const A=CMAT.ao; if(A.q.length&&r&&r.info){ const f=r.info.render.frame; if(f!==A.f){ A.f=f; cmAoWork(A.budget); } }
 }
 /* ── 정점 속성 굽기(aAo · aFh) — 굴 격자(31-cave10.js cv10Samp)만 읽는다. 같은 굴은 늘 같은 값(짓는 차례 · 프레임과 상관없다) ──────────────
