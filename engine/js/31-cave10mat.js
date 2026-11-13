@@ -30,9 +30,11 @@ const CMAT={ mats:{}, tex:null, nrm:null, left:-1, ready:false, wt:[], geo:null,
   torch:{value:new THREE.Vector4(0,0,0,0)}, tpos:{value:new THREE.Vector3()}, tpv:{value:new THREE.Vector3(1e9,1e9,1e9)}, eye:{value:new THREE.Vector3()}, tcol:{value:new THREE.Vector3(1,0.56,0.25)},
   ao:{q:[], f:-1, budget:0.6, max:0, n:0},
   /* 종류마다: 사진 층 · 한 장의 크기(m) · 젖음 · (옛 번들 날카로움 sh — 쓰지 않음) · 이끼 몫 · 마른 거칠기 r · F0 · 공극(젖으면 어두워지는 몫) · 정반사 세기 */
-  /* (U2) wet 바탕 젖음 · hum 안으로 오르는 젖음(aDeep 곱) */
-  K:{ karst:{L:0,RS:1.7,wet:0.35,sh:90,moss:0.8,id:0,r:0.80,f0:0.04,por:0.3,ks:1,hum:0.30}, lava:{L:1,RS:2.1,wet:0.03,sh:20,moss:1.15,id:1,r:0.90,f0:0.04,por:0.1,ks:1,hum:0.08},
-      talus:{L:2,RS:1.3,wet:0.20,sh:60,moss:0.9,id:2,r:0.70,f0:0.04,por:0.2,ks:1,hum:0.25}, shelter:{L:3,RS:2.4,wet:0.0,sh:12,moss:0.3,id:3,r:0.90,f0:0.04,por:0.3,ks:1,hum:0.03} },
+  /* (U2) wet 바탕 젖음 · hum 안으로 오르는 젖음(aDeep 곱)
+     (TX2) 사진 층 — L 벽 · LF 바닥 · LC 천장 · LM 큰 장(층 번호는 CMAT.SRC) · KM 큰 장 배율 · SU · SV 벽 uv 늘림 · rot 벽 uv 돌림(도 — lava 는 사진 결 −49.5° 를 수평으로) ·
+     KA · KB 바탕 · 큰 장 결 세기 · SAT · SATB 사진 빛깔 몫 · JV uv 밀기의 세로 몫(켜가 있는 종류는 0) · hex 평균 빛깔(CM_DBG_BASE 검사) */
+  K:{ karst:{LF:5,LC:0,LM:7,KM:3.3,SU:0.6,SV:1,rot:0,KA:1.0,KB:0.8,SAT:0.5,SATB:0.5,JV:0,hex:'CP_LIME',L:0,RS:1.7,wet:0.35,sh:90,moss:0.8,id:0,r:0.80,f0:0.04,por:0.3,ks:1,hum:0.30}, lava:{LF:7,LC:6,LM:0,KM:3.0,SU:0.5,SV:1,rot:-49.5,KA:1.0,KB:0.7,SAT:0.15,SATB:0.15,JV:1,hex:'(0.5*(CP_BAS0+CP_BAS1))',L:1,RS:2.1,wet:0.03,sh:20,moss:1.15,id:1,r:0.90,f0:0.04,por:0.1,ks:1,hum:0.08},
+      talus:{LF:7,LC:2,LM:0,KM:2.6,SU:1,SV:1,rot:0,KA:0.9,KB:0.8,SAT:0.2,SATB:0.2,JV:1,hex:'CP_GRAN',L:2,RS:1.3,wet:0.20,sh:60,moss:0.9,id:2,r:0.70,f0:0.04,por:0.2,ks:1,hum:0.25}, shelter:{LF:8,LC:8,LM:9,KM:2.7,SU:0.6,SV:1,rot:0,KA:1.0,KB:0.9,SAT:0.9,SATB:1.0,JV:0,hex:'CP_SSW',L:3,RS:2.4,wet:0.0,sh:12,moss:0.3,id:3,r:0.90,f0:0.04,por:0.3,ks:1,hum:0.03} },
   /* (U2) 빛깔 — 실제 동굴 사실표(hex/255 를 바탕값으로 · 출력 부호화 없음). 셰이더에는 CP_이름 으로 든다 */
   PAL:{ LIME:'#9E9A90', MUD:'#6B5640', MUDW:'#4A3A2A', FLOH:'#D9A86C', FLOW:'#F2EEE6', MANG:'#2A2622', IRON:'#A0522D', MOON:'#F4F2EC',
         BAS0:'#3A3836', BAS1:'#4F4A45', GLAZ:'#8A8C90', OXID:'#8B3A24', CRUS:'#E8E4DA', MATG:'#C9A85A', HIGH:'#D8C46A',
@@ -43,40 +45,114 @@ const CMAT={ mats:{}, tex:null, nrm:null, left:-1, ready:false, wt:[], geo:null,
 const cmV3=h=>{ const v=parseInt(h.slice(1),16); return 'vec3('+[(v>>16)&255,(v>>8)&255,v&255].map(x=>(x/255).toFixed(4)).join(',')+')'; };
 const cmPalDefs=()=>Object.keys(CMAT.PAL).map(k=>'#define CP_'+k+' '+cmV3(CMAT.PAL[k])).join('\n')+'\n'+Object.keys(CMAT.RIM).map(k=>'#define CR_'+k+' '+cmV3(CMAT.RIM[k])).join('\n')+'\n';
 
-/* 사진 올리기 — 다 풀리기 전에는 한 점짜리(중간 회색 · 곧게 선 법선) */
+/* 사진 올리기(TX2 — 층 표 CMAT.SRC · 레포 안 사진 열 장) — 다 풀리기 전에는 한 점짜리(중간 회색 · 곧게 선 법선).
+   층마다 원본 c(빛깔) · n(법선 — 없으면 밝기에서 깊이 hd m 로 짓는다) · rs 한 장 크기 m(굽기의 m→화소) · blur 얼룩 걷기(1 통째 · 2 줄 평균은 남김) · cg 색 변이 · tg 중간 대역 대비 목표 · bake 굽기.
+   원본: R = ROCK_JPG/ROCK_NRM(data-rock-textures.js · 22-ground-textures.js rockPhotoInit 과 같은 그림) · G = GND_JPG(data-ground-textures.js — 법선 없음) · C = CAVE_JPG/CAVE_NRM.
+   땅 · 바위 사진을 갈면 굴도 바뀐다(같이 고칠 짝). R · G 가 없으면 굴 사진 여섯 장으로 물러난다(CMAT.FB) */
+CMAT.SRC=[
+  {nm:'R6 rock_boulder_dry · karst 벽 · 천장',  c:['R',6], n:['R',6], rs:1.7, blur:1, cg:0.6,  tg:0.13, bake:'scallop'},
+  {nm:'C1 Rock047 · lava 벽',                   c:['C',1], n:['C',1], rs:2.1, blur:0, cg:0.25, tg:0.14, bake:'pore'},
+  {nm:'C2 Rock028 · talus 바탕',                c:['C',2], n:['C',2], rs:1.3, blur:1, cg:0.3,  tg:0.13, bake:'crystal'},
+  {nm:'R1 cliff_side · shelter 벽(켜)',          c:['R',1], n:['R',1], rs:2.4, blur:2, cg:1.0,  tg:0.14, bake:'honey'},
+  {nm:'C4 Rock036 · 이끼',                      c:['C',4], n:['C',4], rs:1.1, moss:1},
+  {nm:'G6 brown_mud_03 · karst 바닥 · 진흙',     c:['G',6], n:null,    rs:1.7, blur:1, cg:0.5,  tg:0.14, hd:0.015},
+  {nm:'R4 seaside_rock · lava 천장',             c:['R',4], n:['R',4], rs:2.1, blur:0, cg:0.3,  tg:0.08, bake:'pore'},
+  {nm:'R7 rock_05 · lava · talus 바닥 · 큰 장',   c:['R',7], n:['R',7], rs:1.7, blur:0, cg:0.4,  tg:0.14},
+  {nm:'G0 sand_01 · 유석 · shelter 바닥 · 천장',  c:['G',0], n:null,    rs:2.4, blur:1, cg:0.5,  tg:0.08, hd:0.008},
+  {nm:'C3 Rock052 · shelter 큰 장',              c:['C',3], n:['C',3], rs:2.4, blur:0, cg:1.2,  tg:0.10} ];
+CMAT.FB={R6:0,R1:3,R4:1,R7:2,G6:5,G0:3};
+CMAT.stat=[]; CMAT.loadMs=0;
+function cmSrc(s){ if(!s) return null; const [a,i]=s;
+  if(a==='R'&&typeof ROCK_JPG!=='undefined'&&ROCK_JPG[i]) return {c:ROCK_JPG[i],n:typeof ROCK_NRM!=='undefined'?ROCK_NRM[i]:null};
+  if(a==='G'&&typeof GND_JPG!=='undefined'&&GND_JPG[i]) return {c:GND_JPG[i],n:null};
+  const k=a==='C'?i:CMAT.FB[a+i]; return {c:CAVE_JPG[k],n:CAVE_NRM[k]}; }
 function cmPhotos(){
   if(CMAT.tex||typeof CAVE_JPG==='undefined'||typeof THREE.DataTexture2DArray!=='function') return;
-  const n=CAVE_JPG.length, S=512, flat=new Uint8Array(4*n);
+  const L=CMAT.SRC, n=L.length, S=512, flat=new Uint8Array(4*n);
   for(let i=0;i<n;i++) flat.set([128,128,255,255],i*4);
   CMAT.tex={value:gndArrayTex(new Uint8Array(4*n).fill(128),1,n)};
   CMAT.nrm={value:gndArrayTex(flat,1,n)};
-  CMAT.left=2;
-  const load=(list,nrm,uni)=>{
-    const data=new Uint8Array(S*S*4*n); let left=n;
-    /* 밉맵은 한 장만 읽는다(LinearMipmapNearest — 두 장 섞기는 텍스처 읽기가 두 배 · 굴 속은 화면이 다 껍데기다) */
-    const done=()=>{ const old=uni.value; uni.value=gndArrayTex(data,S,n); uni.value.minFilter=THREE.LinearMipmapNearestFilter; old.dispose(); if(--CMAT.left===0){ CMAT.ready=true; for(const f of CMAT.wt) f(); CMAT.wt.length=0; } };
-    list.forEach((src,k)=>{
-      const im=new Image(), o=k*S*S*4;
-      im.onerror=()=>{ for(let i=0;i<S*S;i++) data.set(nrm?[128,128,255,255]:[128,128,128,255],o+i*4); if(--left===0) done(); };
-      im.onload=()=>{
-        const cv2=document.createElement('canvas'); cv2.width=cv2.height=S;
-        const g=cv2.getContext('2d'); g.drawImage(im,0,0,S,S);
-        const px=g.getImageData(0,0,S,S).data;
-        try{ cmBake(k,nrm,px,S); }catch(e){ if(typeof showErr==='function') showErr('굴 사진 굽기',e); }
-        if(nrm) data.set(px,o);
-        else{ let L=0; for(let i=0;i<px.length;i+=4) L+=0.30*px[i]+0.59*px[i+1]+0.11*px[i+2];
-          const kk=127.5/(L/(S*S)||1);
-          for(let i=0;i<px.length;i+=4){ data[o+i]=Math.min(255,px[i]*kk); data[o+i+1]=Math.min(255,px[i+1]*kk); data[o+i+2]=Math.min(255,px[i+2]*kk); data[o+i+3]=255; } }
-        if(--left===0) done();
-      };
-      im.src=src;
-    });
-  };
-  load(CAVE_JPG,false,CMAT.tex); load(CAVE_NRM,true,CMAT.nrm);
+  const cd=new Uint8Array(S*S*4*n), nd=new Uint8Array(S*S*4*n); let left=n;
+  const pix=im=>{ const cv2=document.createElement('canvas'); cv2.width=cv2.height=S; const g=cv2.getContext('2d'); g.drawImage(im,0,0,S,S); return g.getImageData(0,0,S,S).data; };
+  /* 밉맵은 한 장만 읽는다(LinearMipmapNearest — 두 장 섞기는 텍스처 읽기가 두 배 · 굴 속은 화면이 다 껍데기다) · 빛깔만 비등방 4 */
+  const done=()=>{
+    const o1=CMAT.tex.value, o2=CMAT.nrm.value;
+    const t1=gndArrayTex(cd,S,n), t2=gndArrayTex(nd,S,n); t1.minFilter=t2.minFilter=THREE.LinearMipmapNearestFilter;
+    if(renderer&&renderer.capabilities) t1.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());
+    CMAT.tex.value=t1; CMAT.nrm.value=t2; o1.dispose(); o2.dispose();
+    CMAT.ready=true; for(const f of CMAT.wt) f(); CMAT.wt.length=0; };
+  const fin=()=>{ if(--left===0) done(); };
+  L.forEach((T,k)=>{ const src=cmSrc(T.c), sn=cmSrc(T.n), o=k*S*S*4; let cpx=null, npx=null, need=sn&&sn.n?2:1;
+    /* 굽기 · 손질은 일을 셋으로 나눠 한 번에 오래 멈추지 않게(빛깔 굽기 → 손질 → 법선 굽기 · 사이마다 setTimeout) */
+    const go=()=>{ if(--need>0) return;
+      if(!cpx){ cpx=new Uint8ClampedArray(S*S*4); for(let i=0;i<S*S*4;i+=4){ cpx[i]=cpx[i+1]=cpx[i+2]=128; cpx[i+3]=255; } }
+      if(!npx){ npx=new Uint8ClampedArray(S*S*4); for(let i=0;i<S*S*4;i+=4){ npx[i]=npx[i+1]=128; npx[i+2]=255; npx[i+3]=255; } }
+      const st={nm:T.nm}, r1=v=>Math.round(v*10)/10, step=(f,key,nx)=>{ const t0=performance.now();
+        try{ f(); }catch(e){ if(typeof showErr==='function') showErr('굴 사진 손질',e); }
+        st[key]=r1(performance.now()-t0); CMAT.loadMs+=st[key]; if(nx) setTimeout(nx,0); else{ cd.set(cpx,o); nd.set(npx,o); CMAT.stat[k]=st; fin(); } };
+      step(()=>cmBake(T,false,cpx,S),'bakeC',()=>step(()=>{ Object.assign(st,T.moss?cmNormMoss(cpx,S):cmNorm(cpx,S,T)); if(T.hd) cmNrmLum(npx,cpx,S,T.rs/S,T.hd); },'ms',
+        ()=>step(()=>cmNormSt(st,S),'msSt',()=>step(()=>cmBake(T,true,npx,S),'bakeN',null)))); };
+    const img=(s,f)=>{ const im=new Image(); im.onload=()=>{ f(pix(im)); go(); }; im.onerror=()=>go(); im.src=s; };
+    if(src&&src.c) img(src.c,p=>{ cpx=p; }); else go();
+    if(need===2) img(sn.n,p=>{ npx=p; });
+  });
 }
+/* ── 사진 손질(cmNorm — 불러올 때 한 번): ① 얼룩 걷기(감아 도는 상자 흐림 반지름 32 두 번 = LP · px −= LP − 평균 · blur 2 는 LP − 그 줄의 LP 평균만 — 세로 켜 차례를 남긴다)
+   ② hex 고정(채널 평균 → 127.5 — 평균 빛깔은 셰이더의 hex 가 준다) ③ 색 변이 cg(L = 0.30R+0.59G+0.11B · c = L + (c−L)·cg)
+   ④ 대비 맞추기(중간 대역 σm = √(var(상자 8) − var(상자 64))/127.5 · g = clamp(tg/σm, 0.6, 2.2)) · 자른 뒤 채널 평균을 한 번 더 127.5 로. 잰 값은 CMAT.stat[층] */
+function cmBox(a,S,r,tmp){   // 감아 도는 상자 흐림(가로 · 세로 한 번씩) — 제자리 · 감는 자리는 표로 · 세로는 줄 단위(열 합을 끌고 간다 — 캐시)
+  const w=1/(2*r+1), b=tmp||new Float32Array(S*S), ad=new Int32Array(S), sb=new Int32Array(S), cs=new Float32Array(S);
+  for(let x=0;x<S;x++){ ad[x]=(x+r+1)%S; sb[x]=((x-r)%S+S)%S; }
+  for(let y=0;y<S;y++){ const o=y*S; let s=0; for(let k=-r;k<=r;k++) s+=a[o+((k%S)+S)%S];
+    for(let x=0;x<S;x++){ b[o+x]=s*w; s+=a[o+ad[x]]-a[o+sb[x]]; } }
+  for(let k=-r;k<=r;k++){ const o=(((k%S)+S)%S)*S; for(let x=0;x<S;x++) cs[x]+=b[o+x]; }
+  for(let y=0;y<S;y++){ const o=y*S, oa=ad[y]*S, os=sb[y]*S; for(let x=0;x<S;x++){ a[o+x]=cs[x]*w; cs[x]+=b[oa+x]-b[os+x]; } }
+  return a; }
+/* 4×4 평균으로 줄인 그림(감아 도는 큰 흐림 · 큰 대역 분산은 이것으로 — 64 px 대역은 줄여도 같다) · 쌍선형으로 되키우기 */
+function cmDown4(a,S){ const s=S>>2, o=new Float32Array(s*s);
+  for(let y=0;y<S;y++){ const yr=(y>>2)*s, r=y*S; for(let x=0;x<S;x++) o[yr+(x>>2)]+=a[r+x]; }
+  for(let i=0;i<s*s;i++) o[i]*=1/16; return o; }
+function cmUp4(o,S){ const s=S>>2, a=new Float32Array(S*S), i0=new Int32Array(S), i1=new Int32Array(S), wu=new Float32Array(S);
+  for(let x=0;x<S;x++){ const fx=(x+0.5)/4-0.5, k=Math.floor(fx); wu[x]=fx-k; i0[x]=((k%s)+s)%s; i1[x]=(k+1)%s; }
+  for(let y=0;y<S;y++){ const v=wu[y], ja=i0[y]*s, jb=i1[y]*s, r=y*S;
+    for(let x=0;x<S;x++){ const u=wu[x], p=i0[x], q=i1[x]; a[r+x]=(o[ja+p]*(1-u)+o[ja+q]*u)*(1-v)+(o[jb+p]*(1-u)+o[jb+q]*u)*v; } }
+  return a; }
+/* 대역 대비(σ/127.5) — 잔(<8 px) · 중간(8~64) · 큰(>64). 상자 64 는 4×4 로 줄인 그림의 상자 16 */
+function cmBandSt(Lc,S){ const n=S*S, b8=Float32Array.from(Lc); cmBox(b8,S,4);
+  const d=cmDown4(Lc,S), s=S>>2; cmBox(d,s,8);
+  let m=0; for(let i=0;i<n;i++) m+=Lc[i]; m/=n; let vF=0,v8=0,v64=0;
+  for(let i=0;i<n;i++){ const f=Lc[i]-b8[i], g=b8[i]-m; vF+=f*f; v8+=g*g; }
+  for(let i=0;i<s*s;i++){ const g=d[i]-m; v64+=g*g; }
+  vF/=n; v8/=n; v64/=s*s; return {sF:Math.sqrt(vF)/127.5, sM:Math.sqrt(Math.max(0,v8-v64))/127.5, sBig:Math.sqrt(v64)/127.5}; }
+function cmNorm(px,S,T){
+  const n=S*S, ch=[0,1,2].map(c=>{ const a=new Float32Array(n); for(let i=0,j=c;i<n;i++,j+=4) a[i]=px[j]; return a; });
+  const mean=a=>{ let s=0; for(let i=0;i<n;i++) s+=a[i]; return s/n; };
+  /* ① 얼룩 걷기 — 4×4 로 줄여 상자 반지름 8 두 번(= 원래 크기 반지름 32 두 번) 뒤 쌍선형으로 되키운 것이 LP */
+  if(T.blur){ const s=S>>2;
+    for(const a of ch){ const d=cmDown4(a,S); cmBox(d,s,8); cmBox(d,s,8); const lp=cmUp4(d,S);
+      if(T.blur===2){ for(let y=0;y<S;y++){ let rm=0; const o=y*S; for(let x=0;x<S;x++) rm+=lp[o+x]; rm/=S; for(let x=0;x<S;x++) a[o+x]-=lp[o+x]-rm; } }
+      else{ const m=mean(lp); for(let i=0;i<n;i++) a[i]-=lp[i]-m; } } }
+  const fix=()=>{ for(const a of ch){ const k=127.5/(mean(a)||1); for(let i=0;i<n;i++) a[i]*=k; } };
+  fix();
+  const Lc=new Float32Array(n), A=ch[0], B=ch[1], C=ch[2], cg=T.cg;
+  for(let i=0;i<n;i++){ const l=0.30*A[i]+0.59*B[i]+0.11*C[i]; Lc[i]=l; A[i]=l+(A[i]-l)*cg; B[i]=l+(B[i]-l)*cg; C[i]=l+(C[i]-l)*cg; }
+  const s0=cmBandSt(Lc,S), g=Math.max(0.6,Math.min(2.2,T.tg/Math.max(s0.sM,1e-4)));
+  for(const a of ch) for(let i=0;i<n;i++){ const v=127.5+(a[i]-127.5)*g; a[i]=v<0?0:v>255?255:v; }
+  fix();
+  const mu=[0,0,0];
+  for(let i=0,j=0;i<n;i++,j+=4){ px[j]=A[i]; px[j+1]=B[i]; px[j+2]=C[i]; px[j+3]=255; mu[0]+=px[j]; mu[1]+=px[j+1]; mu[2]+=px[j+2]; Lc[i]=0.30*px[j]+0.59*px[j+1]+0.11*px[j+2]; }
+  const r3=v=>Math.round(v*1000)/1000;
+  return {mu:mu.map(v=>r3(v/n)), g:r3(g), sM0:r3(s0.sM), _L:Lc}; }
+function cmNormSt(st,S){ if(!st._L) return; const s1=cmBandSt(st._L,S), r3=v=>Math.round(v*1000)/1000; st.sF=r3(s1.sF); st.sM=r3(s1.sM); st.sBig=r3(s1.sBig); delete st._L; }
+/* 이끼 층 — 예전처럼 밝기만 평균 0.5 로(풀빛이 필요하다) */
+function cmNormMoss(px,S){ let L=0; for(let i=0;i<px.length;i+=4) L+=0.30*px[i]+0.59*px[i+1]+0.11*px[i+2];
+  const kk=127.5/(L/(S*S)||1); for(let i=0;i<px.length;i+=4){ px[i]=Math.min(255,px[i]*kk); px[i+1]=Math.min(255,px[i+1]*kk); px[i+2]=Math.min(255,px[i+2]*kk); px[i+3]=255; }
+  return {mu:null,moss:1}; }
+/* 법선 지도가 없는 층(땅 사진) — 손질한 빛깔의 밝기를 높이로(±hd m) 보고 기울기를 법선 층에 더한다 */
+function cmNrmLum(npx,cpx,S,ps,hd){ const h=new Float32Array(S*S); for(let i=0;i<S*S;i++) h[i]=((0.30*cpx[i*4]+0.59*cpx[i*4+1]+0.11*cpx[i*4+2])/127.5-1)*hd; cmNrmAdd(npx,h,S,ps); }
 /* ── 사진 · 법선 층 굽기(cmBake) — 잔 결(<2 m 의 꼴은 셰이더 몫)을 불러올 때 한 번 사진 층에 싣는다. 텍스처 읽기 수는 그대로 · 밉맵은 gndArrayTex 가 짓는다.
    무늬는 512² 그림 안에서 이어 붙게(칸 번호를 감아 돈다) · 난수는 정수 섞기(cmH2 — 지형 · 자원과 상관없는 그림이라 시드 차례를 안 건드린다).
-   크기는 층의 한 장 크기(K.RS m / 512 화소)로 m 를 화소로 옮긴다 — 층 0 석회암 · 1 현무암 · 2 화강암 · 3 사암 */
+   크기는 층의 한 장 크기(CMAT.SRC[층].rs m / 512 화소)로 m 를 화소로 옮긴다 — 굽기 갈래는 층 표의 bake(crystal 빛깔 · scallop · pore · honey 법선) */
 const cmH2=(i,j,s)=>{ let h=Math.imul(i|0,374761393)^Math.imul(j|0,668265263)^Math.imul((s|0)+1,1274126177); h=Math.imul(h^(h>>>13),1103515245); return ((h^(h>>>16))>>>0)/4294967296; };
 /* 이어 붙는 보로노이 — 가로 nx · 세로 ny 칸(칸 단위 거리라 nx≠ny 면 늘인 칸) · 화소마다 fn(i, F1, F2, 씨 번호, 씨까지 du, dv) */
 function cmVor(S,nx,ny,sd,fn){
@@ -102,9 +178,10 @@ function cmNrmAdd(px,h,S,ps){
       const nz=Math.max(px[i+2]/127.5-1,0.05), sx=(px[i]/127.5-1)/nz-gx, sy=(px[i+1]/127.5-1)/nz-gy, l=Math.sqrt(sx*sx+sy*sy+1);
       px[i]=Math.round((sx/l+1)*127.5); px[i+1]=Math.round((sy/l+1)*127.5); px[i+2]=Math.round((1/l+1)*127.5); } }
 }
-function cmBake(L,nrm,px,S){
-  const ps=(L===0?CMAT.K.karst.RS:L===1?CMAT.K.lava.RS:L===2?CMAT.K.talus.RS:CMAT.K.shelter.RS)/S;
-  if(!nrm&&L===2){
+function cmBake(T,nrm,px,S){
+  const ps=T.rs/S, B=T.bake;
+  if(!B) return;
+  if(!nrm&&B==='crystal'){
     /* 화강암 결정 반점 — 장석 #B89A8A 27% · 석영 #D8D6D0 27% · 운모 #2B2A28 9% · 나머지는 사진 그대로. 알갱이 2~15 mm: 잔 칸(≈ 8 mm)과
        굵은 칸(≈ 25 mm — 장석 반정)을 겹쳐 잔 칸의 35% 는 굵은 칸의 갈래를 따른다. 사진 결(밝기)을 반쯤 남긴다 · 평균 밝기는 뒤의 맞춤이 0.5 로 되돌린다 */
     const nf=Math.max(8,Math.round(S*ps/0.008)), nc=Math.max(4,Math.round(S*ps/0.025)), cls=new Int8Array(S*S);
@@ -113,24 +190,24 @@ function cmBake(L,nrm,px,S){
     const COL=[[184,154,138],[216,214,208],[43,42,40]];
     let Lm=0; for(let i=0;i<px.length;i+=4) Lm+=0.30*px[i]+0.59*px[i+1]+0.11*px[i+2]; Lm=Lm/(S*S)||128;
     cmVor(S,nf,nf,0x6a5,(i,f1,f2,id)=>{ const k=cmH2(id,3,0x6a7)<0.35?cls[i]:kind(cmH2(id,5,0x6a9)); if(k>2) return;
-      const o=i*4, l=(0.30*px[o]+0.59*px[o+1]+0.11*px[o+2])/Lm, e=Math.min(1,(f2-f1)*6), a=0.55*e, C=COL[k], m=0.7+0.3*l;
+      const o=i*4, l=(0.30*px[o]+0.59*px[o+1]+0.11*px[o+2])/Lm, e=Math.min(1,(f2-f1)*6), a=0.35*e, C=COL[k], m=0.7+0.3*l;
       px[o]=px[o]*(1-a)+C[0]*m*a; px[o+1]=px[o+1]*(1-a)+C[1]*m*a; px[o+2]=px[o+2]*(1-a)+C[2]*m*a; });
     return;
   }
   if(!nrm) return;
   const h=new Float32Array(S*S);
-  if(L===0){
+  if(B==='scallop'){
     /* 스캘럽 — 물이 판 접시 꼴 오목(5~30 cm · 가로로 늘인 칸 1.5:1 · 물이 오는 쪽(-u)이 가파르다) · 깊이 1.5 cm */
     const nx=Math.max(2,Math.round(S*ps/0.21)), ny=Math.max(2,Math.round(S*ps/0.14));
     cmVor(S,nx,ny,0x5ca1,(i,f1,f2,id,du)=>{ const t=Math.min(1,(f2-f1)/0.6), as=1+0.45*Math.max(-1,Math.min(1,du*2));
       h[i]=-0.015*(0.6+0.8*cmH2(id,1,0x5ca3))*(1-(1-t)*(1-t))*as; });
-  }else if(L===1){
+  }else if(B==='pore'){
     /* 용암 기공 — 둥근 구멍(지름 5~14 mm) 면적 6% 쯤 · 깊이 = 반지름의 반 */
     const n=Math.round(S*S*0.06/(Math.PI*2.2*2.2));
     for(let k=0;k<n;k++){ const cx=cmH2(k,1,0x7a1)*S, cy=cmH2(k,2,0x7a1)*S, r=0.006/ps*Math.exp(0.45*(cmH2(k,3,0x7a1)*2-1))*(0.6+0.4*cmH2(k,4,0x7a1)), d=0.5*r*ps, R=Math.ceil(r);
       for(let b=-R;b<=R;b++) for(let a=-R;a<=R;a++){ const q=(a*a+b*b)/(r*r); if(q>=1) continue; const x=((Math.floor(cx)+a)%S+S)%S, y=((Math.floor(cy)+b)%S+S)%S, v=-d*(1-q);
         if(v<h[y*S+x]) h[y*S+x]=v; } }
-  }else if(L===3){
+  }else if(B==='honey'){
     /* 사암 벌집 풍화 — 2~6 cm 칸 · 칸 사이 얇은 둑 · 얼룩(값잡음)진 데만 · 깊이 8 mm */
     const nc=Math.max(4,Math.round(S*ps/0.038)), mk=cmVN(S,4,0x3b1);
     cmVor(S,nc,nc,0x3b3,(i,f1,f2,id)=>{ const m=Math.min(1,Math.max(0,(mk[i]-0.52)/0.16)); if(m<=0) return; const t=Math.min(1,(f2-f1)/0.5);
@@ -210,15 +287,15 @@ float cmWarp(float y,float t,float ph){ float u=y/t; return u+0.3*sin(1.3*u+ph)+
 vec4 cmBand(float y,float t,float ph,float sd){ float u=cmWarp(y,t,ph), k=floor(u); vec3 h=cmH3(vec3(k,sd,17.0)); return vec4(h.x,u-k,h.y,h.z); }
 /* 띠 줄 — 있음 몫 pr 안의 띠만 · 띠 안 자리가 두께(th×(0.5+해시)) 안이면 1 · 가장자리는 fw(화면 미분) 만큼 흐리게 · cut(cmZ 얼룩 0~1)으로 끊는다 */
 float cmBandLine(vec4 b,float pr,float th,float fw,float cut){ float w=th*(0.5+b.z); return step(b.x,pr)*cut*(1.0-smoothstep(w-fw,w+fw,b.y)); }
-/* 삼면 투영 — 무게가 작은 면(0.10 밑)은 안 읽는다(굴 속 화소가 화면을 다 덮어 읽는 수가 곧 프레임이다) */
-vec3 cmTri(vec3 q,vec3 tw,float L){ vec3 r=vec3(0.0);
-  if(tw.x>0.10) r+=texture(cmC,vec3(q.zy,L)).rgb*tw.x;
-  if(tw.y>0.10) r+=texture(cmC,vec3(q.xz,L)).rgb*tw.y;
-  if(tw.z>0.10) r+=texture(cmC,vec3(q.xy,L)).rgb*tw.z;
+/* 삼면 투영(TX2) — 벽 면(X · Z)은 층 L · 위아래 면(Y)은 층 LY(바닥 CM_LF · 천장 CM_LC) · uv 는 밖에서 센 것(벽은 종류마다 돌림 · 늘림 CM_M) · 무게 0.10 밑 면은 안 읽는다(굴 속 화소가 화면을 다 덮어 읽는 수가 곧 프레임이다) */
+vec3 cmTri(vec2 uX,vec2 uY,vec2 uZ,vec3 tw,float L,float LY){ vec3 r=vec3(0.0);
+  if(tw.x>0.10) r+=texture(cmC,vec3(uX,L)).rgb*tw.x;
+  if(tw.y>0.10) r+=texture(cmC,vec3(uY,LY)).rgb*tw.y;
+  if(tw.z>0.10) r+=texture(cmC,vec3(uZ,L)).rgb*tw.z;
   return r/max(tw.x*step(0.10,tw.x)+tw.y*step(0.10,tw.y)+tw.z*step(0.10,tw.z),1e-3); }
+/* 사진이 정하는 가장자리 — f 문턱에서의 거리(안쪽 +) · w 넘어가는 너비 · hp 사진 높이 대용(평균 0) · k 사진 몫(낮은 데를 메우는 것 −, 높은 데를 덮는 것 +) */
+float cmHB(float f,float w,float hp,float k){ return smoothstep(0.35,0.65,f/w+0.5+k*hp); }
 float cmLum(vec3 c){ return dot(c,vec3(0.30,0.59,0.11)); }
-/* 사진 결(평균 1) — 채도 sat 만큼 사진 빛깔 · 밝기 대비는 1.7 배(캠코더 저해상에서도 수 cm~수십 cm 결이 남게) */
-vec3 cmDt(vec3 rk,float fine,float sat){ vec3 d=mix(vec3(fine),rk,sat)*2.0; return max(vec3(0.05),vec3(1.0)+(d-vec3(1.0))*1.7); }
 /* 젖음 — 알베도 ×(1−0.45·w·공극) · 채도 +0.25w · 거칠기 → 0.08 · F0 → 0.02(물 막) */
 void cmWetF(inout vec3 c,inout float r,inout float f0,float w,float por){
   c*=1.0-0.45*w*por; float l=cmLum(c); c=max(vec3(0.0),vec3(l)+(c-vec3(l))*(1.0+0.25*w));
@@ -230,17 +307,14 @@ const CM_BODY=`#include <color_fragment>
   {
     vec3 p=vCmW, n=normalize(vCmN)*(gl_FrontFacing?1.0:-1.0);
     float dist=vCmD, nearK=clamp(1.0-dist/40.0,0.0,1.0), nrmK=clamp(1.0-dist/25.0,0.0,1.0), sky=vCv10Sky, fl=vCmA.x, ao=vCmA.z;
-    vec3 tw=pow(abs(n),vec3(4.0)); tw/=tw.x+tw.y+tw.z+1e-4;
+    /* (TX2) 투영 무게는 면의 참 법선으로 — 매끈한 정점 법선과 26° 안이면 그대로 · 45° 넘게 어긋나면 면 법선(가파른 턱에 위 투영이 걸려 사진이 세로로 늘어나던 것) · 미분은 갈래 밖 */
+    vec3 dpx=dFdx(p), dpy=dFdy(p), ngr=cross(dpx,dpy); vec3 ng=dot(ngr,ngr)>1e-20?normalize(ngr):n; ng*=dot(ng,n)<0.0?(0.0-1.0):1.0;
+    vec3 nt=normalize(mix(n,ng,1.0-smoothstep(0.70,0.90,dot(n,ng))));
+    vec3 tw=pow(abs(nt),vec3(4.0)); tw/=tw.x+tw.y+tw.z+1e-4;
     float flo=smoothstep(0.35,0.75,n.y)*(1.0-smoothstep(0.30,0.55,fl));            // 바닥
     float cei=smoothstep(0.25,0.70,-n.y);                                            // 천장
     float wal=clamp(1.0-flo-cei,0.0,1.0);                                            // 벽
-    vec3 q=p/CM_RS;
-#ifdef CM_NO_PHOTO
-    vec3 rk=vec3(0.5);
-#else
-    vec3 rk=cmTri(q,tw,CM_L);
-#endif
-    /* 잡음은 3 차원 잡음 그림(cmZ — 32³ · 채널마다 칸 크기가 다르다: r 1/8 · g 1/4 · b 1/2 · a 1/16 판) 한 번에 넷씩 읽는다(예전 값잡음 함수는 화소마다 수십 번 sin 을 셌다) */
+    /* 잡음은 3 차원 잡음 그림(cmZ — 32³ · 채널마다 칸 크기가 다르다: r 1/8 · g 1/4 · b 1/2 · a 1/16 판) 한 번에 넷씩 읽는다 */
 #ifdef CM_NO_NOISE
     vec4 Z1=vec4(0.5);
 #else
@@ -249,21 +323,30 @@ const CM_BODY=`#include <color_fragment>
     /* 많이 섞인 면 하나 — 법선 지도 · 이끼 · 큰 사진은 이 면에서 한 장만 읽는다 */
     bool ax=tw.x>tw.y&&tw.x>tw.z, ay=!ax&&tw.y>tw.z;
     vec2 pd=ax?p.zy:(ay?p.xz:p.xy);
-#ifndef CM_NO_PHOTO
-    /* 두 크기 사진 — 같은 사진을 2.7 배 크게 · 돌려 · 비켜 한 장 더 읽어 곱으로 겹친다(한 장 크기 되풀이가 안 보이게 · 수십 cm 얼룩은 큰 장이 준다) */
-    float fine2=0.5;
-    vec3 rk2=texture(cmC,vec3(mat2(0.83,-0.56,0.56,0.83)*pd/(CM_RS*2.7)+vec2(0.37,0.71),CM_L)).rgb;
-    rk=mix(rk,clamp(rk*rk2*2.0,0.0,1.0),0.55+0.3*(Z1.r-0.5)); fine2=cmLum(rk2);
+    /* 사진 uv — 벽은 CM_M(돌림 × 늘림) · 잡음으로 살짝 민다(되풀이 숨기기 · 켜가 있는 종류는 가로만) · 위아래 면 층은 바닥 · 천장 따로 */
+    vec2 jv=(Z1.ra-0.5)*0.25*vec2(1.0,CM_JV);
+    vec2 uX=CM_M*vec2(p.z,p.y)/CM_RS+jv, uZ=CM_M*vec2(p.x,p.y)/CM_RS+jv, uY=p.xz/CM_RS+jv;
+    float LY=n.y>0.0?CM_LF:CM_LC;
+#ifdef CM_NO_PHOTO
+    vec3 rk=vec3(0.5), rk2=vec3(0.5);
+#else
+    vec3 rk=cmTri(uX,uY,uZ,tw,CM_L,LY);
+    /* 큰 장 — 다른 사진(층 CM_LM)을 CM_KM 배 크게 · 돌려 · 비켜 한 장 더(같은 금이 크게 한 번 더 서지 않게 · 수십 cm 얼룩은 큰 장이 준다) */
+    vec3 rk2=texture(cmC,vec3(mat2(0.83,-0.56,0.56,0.83)*pd/(CM_RS*CM_KM)+vec2(0.37,0.71),CM_LM)).rgb;
 #endif
-    float big=Z1.g, mid=Z1.a, fine=cmLum(rk), jt=fine-0.5;                            // 잔 결은 사진 밝기로 · jt — 경계를 사진 결로 들쭉날쭉하게
-    vec3 c, dt, zn=vec3(1.0,0.0,0.0);                                                // zn: 갈래(CM_DBG_ZONE) — 빨강 바탕 바위 · 초록 덧쌓임 · 파랑 바닥(진흙) · 노랑 이끼 · 녹조 · 테 · 자홍 얼룩(철 · 망간 · 산화 · 칠)
+    /* 평균을 지키는 섞기 — 사진은 불러올 때 채널 평균 0.5(cmNorm)라 E[dt]=1 → 바탕의 평균 = hex 그대로 · 사진은 결만 바꾼다 */
+    vec3 dA=rk*2.0-1.0, dB=rk2*2.0-1.0; float lA=cmLum(dA), lB=cmLum(dB);
+    vec3 dt=max(vec3(0.08),vec3(1.0)+CM_KA*mix(vec3(lA),dA,CM_SAT)+CM_KB*mix(vec3(lB),dB,CM_SATB));
+    float hp=0.6*lA+0.4*lB;                                                          // 사진 높이 대용(평균 0) — 가장자리를 사진이 정하게(cmHB)
+    float fine=0.5+0.5*lA, fine2=0.5+0.5*lB, jt=fine-0.5, big=Z1.g, mid=Z1.a;      // 잔 결 · 큰 장 밝기 · jt — 경계를 사진 결로 들쭉날쭉하게
+    vec3 c, zn=vec3(1.0,0.0,0.0);                                                // zn: 갈래(CM_DBG_ZONE) — 빨강 바탕 바위 · 초록 덧쌓임 · 파랑 바닥(진흙) · 노랑 이끼 · 녹조 · 테 · 자홍 얼룩(철 · 망간 · 산화 · 칠)
     float wet=CM_WET, rel=1.0, Ht=0.0, rg=CM_R, f0=CM_F0, pr=CM_POR, sss=0.0;                            // wet: 젖음(0~1 로 자른다) · rel: 법선 지도 세기 · Ht: 무늬 높이 합(m — 미분 범프) · rg · f0: 거칠기 · F0
     vec3 sT=vec3(1.0);                                                               // 정반사 빛깔(글레이즈는 바탕빛에 물든다)
     float fh=vCmA.y, cs=vCmK.w, vs=floor(vCmK.z+0.5), dS=-5.0*log(max(sky,1e-4));    // fh 바닥 위 높이 m · cs 굴 씨 · vs 보로노이 씨 · dS 열린 데까지 m(aSky=exp(−d/5) 를 되돌림)
     float fwY=max(fwidth(p.y),1e-4), fwH=max(fwidth(fh),1e-4);                       // 줄의 화면 너비(갈래 밖에서 센다)
 #if CM_KIND==0
     /* 석회암 용식 굴 — 맨 석회암 #9E9A90 60~80% · 진흙 10~30%(수위선 밑) · 유석 0~30%(절리 밑 · 중력 방향 · 젖음) · 망간 ≤3% · 철 ≤5% · 달우유 ≤2% */
-    dt=cmDt(rk,fine,0.35);                                                  // 사진 결(평균 1)
+                                                  // 사진 결(평균 1)
     c=CP_LIME*dt;
     /* 층리 줄 — 기하 켜(aLay: 켜 사이 b · 기준 off — 31-cave10.js 의 켜 선반과 같은 높이) · 켜마다 해시(있음 · 두께) · 얼룩으로 끊김 */
     float lb=max(vCmK.x,0.3), lq=(p.y-vCmK.y)/lb, lk=floor(lq+0.5); vec3 lh=cmH3(vec3(lk,vs,31.0));
@@ -304,7 +387,7 @@ const CM_BODY=`#include <color_fragment>
     c=mix(c,CP_MANG,mn); zn=mix(zn,vec3(1.0,0.0,1.0),mn);
 #elif CM_KIND==1
     /* 용암굴 — 현무암 #3A3836~#4F4A45 · 은빛 글레이즈(천장 · 굴마다 0~40%) · 입구 · 채광창 쪽 붉은 산화(길 20 m 로 엷어짐) · 흰 크러스트 · 금빛 매트 · 최고 자국 한 줄 · 흐름 줄 · 러너 · 밧줄 바닥 */
-    dt=cmDt(rk,fine,0.3);
+
     c=mix(CP_BAS0,CP_BAS1,smoothstep(CM_QG30,CM_QG70,big))*dt;
     vec4 S=texture(cmZ,vec3(p.x*1.6,p.y*0.05,p.z*1.6));                              // 세로로 늘인 잡음 — 러너 · 줄 흔들림
     /* 흐름 줄 — 바닥 위 높이(aFh)를 따라 2~5 줄(간격 0.1~1 m 휨 · 줄마다 해시) · 턱 밑 그늘 · 위 밝은 테 · 먼 데는 끈다 */
@@ -342,7 +425,7 @@ const CM_BODY=`#include <color_fragment>
     rel=mix(rel,0.35,cei);                                                           // 둥글고 매끈한 천장
 #elif CM_KIND==2
     /* 화강암 바위틈 — #9A958E(장석 · 석영 · 운모 반점은 사진 층에 구웠다) · 덩이 틈(JS 와 같은 1.8 m 칸) · 지의류(빛 받는 윗면만) · 물 흐른 검은 줄 */
-    dt=cmDt(rk,fine,0.6);
+
     c=CP_GRAN*dt;
     /* 덩이 틈 — 31-cave10.js cv10Eval 의 P.vor 와 같은 칸 · 같은 씨(cv10H(i,j,vs) · vs+1) — 천장 덩이의 모서리에 틈이 앉는다 */
     float bk=0.0;
@@ -363,12 +446,12 @@ const CM_BODY=`#include <color_fragment>
     float stk=smoothstep(CM_QB85,CM_QB95+0.02,S.b*0.7+S.r*0.3)*wal*smoothstep(0.3,0.6,Z1.b);
     c=mix(c,c*0.35,stk*0.8); zn=mix(zn,vec3(1.0,0.0,1.0),stk*0.8); wet=mix(wet,0.6,stk);
     /* 바닥 — 흙과 자갈(16 cm 바둑판은 지웠다) */
-    if(flo>0.01){ vec3 md=texture(cmC,vec3(p.xz/1.3,5.0)).rgb; float ml=cmLum(md);
+    if(flo>0.01){ vec3 md=0.5*dt; float ml=cmLum(md);
       vec3 fc=mix(vec3(0.37,0.33,0.29)*mix(vec3(ml),md,0.4)*2.0,CP_GRAN*dt*0.85,smoothstep(0.40,0.60,ml));
       c=mix(c,fc,flo); zn=mix(zn,vec3(0.0,0.0,1.0),flo); }
 #else
     /* 사암 바위그늘 — 사층리 세트(1.5~4 m · 세트마다 #E6D8C3 · #C98A5A · #9A4E36) · 엽층 20~34° 간격 5~10 cm · 처마 끝 사막 칠(세로) · 염 꽃(처마 아랫면) · 샘 줄 + 녹조(수평 · 젖음) · 철 띠 */
-    dt=cmDt(rk,fine,0.5);
+
     float su=cmWarp(p.y-vCmK.y,2.6,cs*6.2832), sk=floor(su), sf=su-sk; vec3 sh=cmH3(vec3(sk,vs+7.0,17.0)), sh2=cmH3(vec3(sk,vs,53.0));
     vec3 s1=sh.x<0.35?CP_SSW:(sh.x<0.80?CP_SSO:CP_SSR), s2=sh.y<0.5?CP_SSW:CP_SSO;
     vec3 sh0=cmH3(vec3(sk-1.0,vs+7.0,17.0)); vec3 s0=sh0.x<0.35?CP_SSW:(sh0.x<0.80?CP_SSO:CP_SSR);   // 아래 세트 — 경계에서 섞는다
@@ -397,7 +480,7 @@ const CM_BODY=`#include <color_fragment>
     c=mix(c,mix(CP_SEEP,CP_ALGA,smoothstep(0.1,0.4,sky)*smoothstep(0.4,0.6,mid))*mix(vec3(1.0),dt,0.3),se); zn=mix(zn,vec3(0.0,1.0,0.0),se);
     wet=mix(wet,0.9,se); rg=mix(rg,0.2,se);
     /* 바닥 — 마른 먼지 · 처마 물방울 선(젖은 띠 0.3 m — 열린 데 바로 안쪽) */
-    if(flo>0.01){ vec3 md=texture(cmC,vec3(p.xz/1.3,5.0)).rgb; float ml=cmLum(md);
+    if(flo>0.01){ vec3 md=0.5*dt; float ml=cmLum(md);
       vec3 fc=mix(vec3(0.66,0.56,0.44),vec3(0.75,0.65,0.52),mid)*mix(vec3(ml),md,0.5)*2.0;
       float dl=smoothstep(0.86,0.93,sky)*(1.0-smoothstep(0.975,0.995,sky));
       fc=mix(fc,fc*0.62,dl); wet=mix(wet,0.8,dl*flo);
@@ -406,7 +489,7 @@ const CM_BODY=`#include <color_fragment>
     /* 여러 크기 — 몇 m 구간 톤 · 채도 ±6%(Z1.b 6 m · big 3 m) */
     { float tn=(Z1.b-0.5)*0.24+(big-0.5)*0.12, lc=cmLum(c); c=max(vec3(0.0),vec3(lc)+(c-vec3(lc))*(1.0+0.6*tn))*(1.0+0.5*tn); }
     /* (TX1 빛 틀) 화소 하나가 덮는 길이 fp(m) — 잔 결 · 중간 결 높낮이를 화소 크기로 끈다(화소보다 잔 높낮이를 미분하면 결이 아니라 잡음이다) · 미분은 갈래 밖 */
-    vec3 dpx=dFdx(p), dpy=dFdy(p); float fp=max(length(dpx),length(dpy));
+    float fp=max(length(dpx),length(dpy));
     float kMi=1.0-smoothstep(0.004,0.012,fp), kMe=1.0-smoothstep(0.012,0.040,fp);
     float cav=clamp((0.5-fine2)*1.6+max(0.0,0.0-Ht)*30.0,0.0,1.0);                 // 잔 오목 0~1(큰 장 사진의 어두운 데 · 무늬 홈)
     float edg=clamp((fine2-0.55)*2.2,0.0,1.0)*ao;                                   // 닳은 모서리
@@ -452,7 +535,8 @@ const CM_BODY=`#include <color_fragment>
     float kN=nrmK*(1.0-smoothstep(0.006,0.020,fp)); vec3 np=nb;
 #ifndef CM_NO_NRM
     if(kN>0.02){
-      vec3 t=texture(cmN,vec3(pd/CM_RS,CM_L)).rgb*2.0-1.0;
+      vec3 t=texture(cmN,vec3(ax?uX:(ay?uY:uZ),ay?LY:CM_L)).rgb*2.0-1.0;
+      if(!ay) t.xy=transpose(CM_M)*t.xy;                                             // 벽 uv 의 돌림 · 늘림을 되돌려 얹는다
       vec3 bt=ax?vec3(nb.x,t.y+nb.y,t.x+nb.z):(ay?vec3(t.x+nb.x,nb.y,t.y+nb.z):vec3(t.x+nb.x,t.y+nb.y,nb.z));
       np=normalize(mix(nb,normalize(bt),0.75*rel*kN));
     }
@@ -489,6 +573,8 @@ const CM_BODY=`#include <color_fragment>
     diffuseColor.rgb=vec3(0.0); totalEmissiveRadiance=cAlb;
 #elif defined(CM_DBG_ZONE)
     diffuseColor.rgb=vec3(0.0); totalEmissiveRadiance=zn;
+#elif defined(CM_DBG_BASE)
+    diffuseColor.rgb=vec3(0.0); totalEmissiveRadiance=CM_HEX*dt;
 #elif defined(CM_DBG_LGT)
     diffuseColor.rgb=vec3(0.0); totalEmissiveRadiance=vec3(w,rg,cav);
 #endif
@@ -506,7 +592,11 @@ function cv10Mat(kind){
     cmElev:WATER_U.uElev, cmGrid:WATER_U.uGrid, cmBio:TERR_U.uBio, cmBioN:TERR_U.uBioN, cmCell:TERR_U.uCell,
     uCv10Glow:{value:new THREE.Vector4(gl[0],gl[1],gl[2],gl[3])}};
   /* CM_SUNCUT — envPatch(45-sky.js)가 이 정의를 보고 sky<0.01 화소에서 해 · 구름 그림자를 안 읽는다(옛 재질을 같은 페이지에서 견줄 때 옛 길이 그대로 남게) */
-  const D=`#define CM_KIND ${K.id}\n#define CM_L ${K.L.toFixed(1)}\n#define CM_RS ${K.RS.toFixed(2)}\n#define CM_WET ${K.wet.toFixed(3)}\n#define CM_SH ${K.sh.toFixed(1)}\n#define CM_MOSS ${K.moss.toFixed(2)}\n`+
+  const ra=K.rot*Math.PI/180, cr=Math.cos(ra), sr=Math.sin(ra), f4=v=>'('+v.toFixed(4)+')';
+  const DX=`#define CM_LF ${K.LF.toFixed(1)}\n#define CM_LC ${K.LC.toFixed(1)}\n#define CM_LM ${K.LM.toFixed(1)}\n#define CM_KM ${K.KM.toFixed(2)}\n#define CM_KA ${K.KA.toFixed(3)}\n#define CM_KB ${K.KB.toFixed(3)}\n`+
+    `#define CM_SAT ${K.SAT.toFixed(3)}\n#define CM_SATB ${K.SATB.toFixed(3)}\n#define CM_JV ${K.JV.toFixed(1)}\n#define CM_HEX ${K.hex}\n`+
+    `#define CM_M mat2(${f4(cr*K.SU)},${f4(sr*K.SU)},${f4(-sr*K.SV)},${f4(cr*K.SV)})\n`;
+  const D=DX+`#define CM_KIND ${K.id}\n#define CM_L ${K.L.toFixed(1)}\n#define CM_RS ${K.RS.toFixed(2)}\n#define CM_WET ${K.wet.toFixed(3)}\n#define CM_SH ${K.sh.toFixed(1)}\n#define CM_MOSS ${K.moss.toFixed(2)}\n`+
     `#define CM_R ${K.r.toFixed(3)}\n#define CM_F0 ${K.f0.toFixed(3)}\n#define CM_POR ${K.por.toFixed(3)}\n#define CM_KS ${K.ks.toFixed(3)}\n#define CM_HUM ${K.hum.toFixed(3)}\n#define CM_SUNCUT\n`+CMAT.qd+cmPalDefs()+(CMAT.dbg||'');
   m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,U);
