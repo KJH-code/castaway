@@ -388,8 +388,18 @@ const CM_BODY=`#include <color_fragment>
       for(int t=0;t<=1;t++){ float kk=k0+float(t);
         vec3 h=cmH3(vec3(kk,float(i)+vs*2.0,floor(lk/(3.0+2.0*float(i)))+41.0)); float cx=kk+0.5+0.7*(h.y-0.5), d=abs(u-cx)*2.2;
         if(h.x<0.55&&d<jd){ jd=d; jh=h.y; jwz=h.z; } } }
+#if CM_JN==0
+    /* (FX) 가짜 절리 한 벌 — 절리를 끈 채(CMAT.joints 0)로도 유석 · 방해석 맥이 서게: 굴 씨 방위로 돌린 가로 좌표 2.2 m 칸마다 해시 한 번(금 자리 0.3~0.7 칸 · 있음 0.55 · 젖음 jwz) ·
+       이웃 칸은 안 본다 — 대신 칸 가장자리 0.25 m 안에서 jd 를 멀리 밀어 부채가 칸 끝에서 툭 잘리지 않게 잦아든다. 금 선(어둠 · 홈)은 안 그린다 */
+    { float a=cs*6.2832; vec2 dr2=vec2(cos(a),sin(a));
+      float u=(dot(p.xz,dr2)+0.2*(fract(cs*3.1)-0.5)*p.y)/2.2, kk=floor(u), fu=u-kk;
+      vec3 h=cmH3(vec3(kk,vs*2.0,floor(lk/3.0)+41.0)); float cx=0.5+0.4*(h.y-0.5), ed=min(fu,1.0-fu)*2.2;
+      if(h.x<0.55){ jd=abs(fu-cx)*2.2+2.0*(1.0-smoothstep(0.0,0.25,ed)); jh=h.y; jwz=h.z; } }
+#endif
     float jpro=jh*jh, jw=0.004+0.03*jpro, jl=(1.0-smoothstep(jw,jw+0.01+fwY,jd+0.004*jt))*clamp(wal+cei,0.0,1.0);
+#if CM_JN>0
     c*=1.0-0.03*jl*(0.3+0.7*jpro); Ht-=0.035*jl*(0.3+0.7*jpro);
+#endif
     float vein=jl*step(0.88,fract(jh*13.7)); c=mix(c,CP_FLOW*dt,vein*0.6); rg=mix(rg,0.45,vein);
     /* 유석 — 젖은 금(굴마다: 마른 0.05 · 보통 0.4 · 화려 0.8) 밑 · 위 켜 경계에서 아래로 넓어지는 부채 · 길이 0.6~2.6 켜 · 두께 t 에서 빛깔(가장자리 갈색 → 꿀색 → 흰) */
     float tier=fract(cs*3.3), wsh=tier<0.35?0.05:(tier<0.80?0.40:0.80), wetJ=step(jwz,wsh);
