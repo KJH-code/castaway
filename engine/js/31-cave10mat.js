@@ -219,14 +219,18 @@ function cmBake(T,nrm,px,S){
    난수는 정수 섞기(지형 · 자원과 상관없는 그림이라 시드 차례를 안 건드린다) */
 function cmNoise3(){
   if(CMAT.nz) return CMAT.nz;
-  const S=32, d=new Uint8Array(S*S*S*4), H=(i,j,k,c)=>{ let h=Math.imul(i,374761393)^Math.imul(j,668265263)^Math.imul(k,2147483647)^Math.imul(c+1,1274126177); h=Math.imul(h^(h>>>13),1103515245); return ((h^(h>>>16))>>>0)/4294967296; };
-  const sm=t=>t*t*(3-2*t), C=[4,8,16,2];
-  for(let c=0;c<4;c++){ const cs=C[c], n=S/cs;
-    for(let z=0;z<S;z++) for(let y=0;y<S;y++) for(let x=0;x<S;x++){
-      const fx=x/cs, fy=y/cs, fz=z/cs, i=Math.floor(fx), j=Math.floor(fy), k=Math.floor(fz), u=sm(fx-i), v=sm(fy-j), w=sm(fz-k);
-      const g=(a,b,e)=>H((i+a)%n,(j+b)%n,(k+e)%n,c);
-      const val=((g(0,0,0)*(1-u)+g(1,0,0)*u)*(1-v)+(g(0,1,0)*(1-u)+g(1,1,0)*u)*v)*(1-w)+((g(0,0,1)*(1-u)+g(1,0,1)*u)*(1-v)+(g(0,1,1)*(1-u)+g(1,1,1)*u)*v)*w;
-      d[((z*S+y)*S+x)*4+c]=Math.round(val*255); } }
+  const S=64, d=new Uint8Array(S*S*S*4), H=(i,j,k,c)=>{ let h=Math.imul(i,374761393)^Math.imul(j,668265263)^Math.imul(k,2147483647)^Math.imul(c+1,1274126177); h=Math.imul(h^(h>>>13),1103515245); return ((h^(h>>>16))>>>0)/4294967296; };
+  const sm=t=>t*t*(3-2*t), C=[8,16,32,4], val=new Float32Array(S*S*S);
+  /* 한 옥타브 — 격자(n³) 값을 먼저 세고 칸 안은 smoothstep 보간 · 감아 돈다 */
+  const oct=(cs,c,amp)=>{ const n=S/cs, L=new Float32Array(n*n*n); for(let k=0;k<n;k++) for(let j=0;j<n;j++) for(let i=0;i<n;i++) L[(k*n+j)*n+i]=H(i,j,k,c);
+    const g=(i,j,k)=>L[((k%n)*n+(j%n))*n+(i%n)];
+    for(let z=0;z<S;z++){ const fz=z/cs, k=Math.floor(fz), w=sm(fz-k);
+      for(let y=0;y<S;y++){ const fy=y/cs, j=Math.floor(fy), v=sm(fy-j);
+        for(let x=0;x<S;x++){ const fx=x/cs, i=Math.floor(fx), u=sm(fx-i);
+          val[(z*S+y)*S+x]+=amp*(((g(i,j,k)*(1-u)+g(i+1,j,k)*u)*(1-v)+(g(i,j+1,k)*(1-u)+g(i+1,j+1,k)*u)*v)*(1-w)+((g(i,j,k+1)*(1-u)+g(i+1,j,k+1)*u)*(1-v)+(g(i,j+1,k+1)*(1-u)+g(i+1,j+1,k+1)*u)*v)*w); } } } };
+  for(let c=0;c<4;c++){ val.fill(0); oct(C[c],c,1);
+    if(c<2){ oct(C[c]>>1,c+8,0.5); for(let i=0;i<val.length;i++) val[i]/=1.5; }   // 반 진폭 옥타브 — 등고선이 둥근 덩이로만 서지 않게
+    for(let i=0;i<val.length;i++) d[i*4+c]=Math.round(val[i]*255); }
   cmQuant(d);
   const t=new THREE.DataTexture3D(d,S,S,S); t.format=THREE.RGBAFormat; t.type=THREE.UnsignedByteType;
   t.wrapS=t.wrapT=t.wrapR=THREE.RepeatWrapping; t.minFilter=t.magFilter=THREE.LinearFilter; t.generateMipmaps=false; t.unpackAlignment=1; t.needsUpdate=true;
@@ -248,6 +252,8 @@ CMAT.wait=()=>{ cmPhotos(); return (CMAT.ready||!CMAT.tex)?Promise.resolve():new
 
 /* ── 셰이더 글 ────────────────────────────────────────────────────────────────────────────────────────────── */
 const CM_VERT=`attribute float aSky, aDeep, aFl, aCs, aFh, aAo;
+attribute vec2 aSu;
+varying vec2 vCmS;
 attribute vec3 aLay;
 varying float vCv10Sky, vCv10Deep;
 varying vec3 vCmW, vCmN, vCmBio;
@@ -264,9 +270,10 @@ const CM_VMAIN=`#include <begin_vertex>
     vCv10Sky=aSky; vCv10Deep=aDeep;
     vec2 mg=w4.xz/cmGrid.y+cmGrid.x*0.5, mf=fract(mg); mg=floor(mg);
     float gh=w4.y-mix(mix(cmE(mg),cmE(mg+vec2(1.0,0.0)),mf.x),mix(cmE(mg+vec2(0.0,1.0)),cmE(mg+vec2(1.0,1.0)),mf.x),mf.y);
-    vCmA=vec4(aFl,aFh,aAo,gh); vCmK=vec4(aLay,aCs);
+    vCmA=vec4(aFl,aFh,aAo,gh); vCmK=vec4(aLay,aCs); vCmS=aSu;
     vCmBio=texture2D(cmBio,(w4.xz/cmCell+cmBioN*0.5+0.5)/cmBioN).rgb; }`;
 const CM_FRAG=`varying float vCv10Sky, vCv10Deep;
+varying vec2 vCmS;
 uniform vec4 uCv10Glow;
 varying vec3 vCmW, vCmN, vCmBio;
 varying vec4 vCmA, vCmK;
@@ -343,7 +350,9 @@ const CM_BODY=`#include <color_fragment>
     float wet=CM_WET, rel=1.0, Ht=0.0, rg=CM_R, f0=CM_F0, pr=CM_POR, sss=0.0;                            // wet: 젖음(0~1 로 자른다) · rel: 법선 지도 세기 · Ht: 무늬 높이 합(m — 미분 범프) · rg · f0: 거칠기 · F0
     vec3 sT=vec3(1.0);                                                               // 정반사 빛깔(글레이즈는 바탕빛에 물든다)
     float fh=vCmA.y, cs=vCmK.w, vs=floor(vCmK.z+0.5), dS=-5.0*log(max(sky,1e-4));    // fh 바닥 위 높이 m · cs 굴 씨 · vs 보로노이 씨 · dS 열린 데까지 m(aSky=exp(−d/5) 를 되돌림)
-    float fwY=max(fwidth(p.y),1e-4), fwH=max(fwidth(fh),1e-4);                       // 줄의 화면 너비(갈래 밖에서 센다)
+    float fwY=max(fwidth(p.y),1e-4), fwH=max(fwidth(fh),1e-4);
+    float lvOK=step(-1.5,fh)*(1.0-smoothstep(2.0,3.0,fwH/fwY));                    // (TX3) 수위 무늬 문 — 굽기 전(−2) · 기준 바닥이 뛰는 데는 끈다
+    vec2 su=vCmS;                                                                    // 길 거리 s(m) · 가로 자리 u                       // 줄의 화면 너비(갈래 밖에서 센다)
 #if CM_KIND==0
     /* 석회암 용식 굴 — 맨 석회암 #9E9A90 60~80% · 진흙 10~30%(수위선 밑) · 유석 0~30%(절리 밑 · 중력 방향 · 젖음) · 망간 ≤3% · 철 ≤5% · 달우유 ≤2% */
                                                   // 사진 결(평균 1)
@@ -452,7 +461,7 @@ const CM_BODY=`#include <color_fragment>
 #else
     /* 사암 바위그늘 — 사층리 세트(1.5~4 m · 세트마다 #E6D8C3 · #C98A5A · #9A4E36) · 엽층 20~34° 간격 5~10 cm · 처마 끝 사막 칠(세로) · 염 꽃(처마 아랫면) · 샘 줄 + 녹조(수평 · 젖음) · 철 띠 */
 
-    float su=cmWarp(p.y-vCmK.y,2.6,cs*6.2832), sk=floor(su), sf=su-sk; vec3 sh=cmH3(vec3(sk,vs+7.0,17.0)), sh2=cmH3(vec3(sk,vs,53.0));
+    float ssu=cmWarp(p.y-vCmK.y,2.6,cs*6.2832), sk=floor(ssu), sf=ssu-sk; vec3 sh=cmH3(vec3(sk,vs+7.0,17.0)), sh2=cmH3(vec3(sk,vs,53.0));
     vec3 s1=sh.x<0.35?CP_SSW:(sh.x<0.80?CP_SSO:CP_SSR), s2=sh.y<0.5?CP_SSW:CP_SSO;
     vec3 sh0=cmH3(vec3(sk-1.0,vs+7.0,17.0)); vec3 s0=sh0.x<0.35?CP_SSW:(sh0.x<0.80?CP_SSO:CP_SSR);   // 아래 세트 — 경계에서 섞는다
     s1=mix(s0,s1,smoothstep(0.0,0.12+0.08*Z1.a,sf+0.06*jt+0.04*(Z1.r-0.5)));
@@ -621,7 +630,7 @@ function cmPrecompGeo(){
   const g=new THREE.BufferGeometry(), z9=new Float32Array(9);
   g.setAttribute('position',new THREE.Float32BufferAttribute(z9,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(z9.slice(),3));
   for(const a of ['aDeep','aSky','aFl','aCs','aFh','aAo']) g.setAttribute(a,new THREE.Float32BufferAttribute(new Float32Array(3),1));
-  g.setAttribute('aLay',new THREE.Float32BufferAttribute(new Float32Array(9),3));
+  g.setAttribute('aLay',new THREE.Float32BufferAttribute(new Float32Array(9),3)); g.setAttribute('aSu',new THREE.Float32BufferAttribute(new Float32Array(6),2));
   return CMAT.geo=g;
 }
 /* 횃불 값 · 정점 가림 굽기 — 껍데기를 그리기 직전(mesh.onBeforeRender). 굽기는 그리기 한 번(renderer.info.render.frame)에 한 번만 · CMAT.ao.budget ms 까지 */
@@ -639,10 +648,15 @@ function cmTick(r,s,cam){
 const _cmAz=[0,1,2,3,4,5,6,7].map(k=>[Math.cos((k+0.5)*Math.PI/4),Math.sin((k+0.5)*Math.PI/4)]);
 function cmRock(rec,x,y,z){ const s=cv10Samp(rec,x,z); if(y>=s.h) return 0; if(s.n<=0) return 1; return (y<s.f||y>s.c)?1:0; }
 function cmAoRun(J,t1){
-  const P=J.pos, N=J.nor, ao=J.ao, fh=J.fh, rec=J.rec, nv=J.nv, EN=0.57357644, ET=0.81915204;   // 높이 35° — 반구를 코사인 무게로 고르게 본 평균 높이쯤
+  const P=J.pos, N=J.nor, ao=J.ao, fh=J.fh, su=J.su, rec=J.rec, nv=J.nv, EN=0.57357644, ET=0.81915204;   // 높이 35° — 반구를 코사인 무게로 고르게 본 평균 높이쯤
   while(J.i<nv){ if(performance.now()>t1) break; const e=Math.min(nv,J.i+2);   // 두 정점마다 시계를 본다(한 조각이 예산을 넘는 몫 ≤ 정점 둘 · 수 µs)
     for(let v=J.i;v<e;v++){ const o=v*3, x=P[o], y=P[o+1], z=P[o+2]; let nx=N[o], ny=N[o+1], nz=N[o+2];
-      const s=cv10Samp(rec,x,z); fh[v]=s.n>0?Math.max(-1,Math.min(40,y-s.f)):0;
+      /* (TX3) aFh — 안쪽 바닥 기준: 수평 법선(빈 데 쪽)으로 0 · 1 · 2 · 3 m 나간 점의 바닥(빈 데 기둥) 가운데 가장 낮은 것 위 높이(벽 정점의 '제 발밑'은 벽 자신이라 값이 튀었다).
+         바닥 · 천장(수평 법선 0.2 밑)은 제자리만. aSu — 그 안쪽 점에서 길 거리 s · 가로 자리 u(cv10Field) */
+      const hl=Math.hypot(nx,nz), hx=hl>0.2?nx/hl:0, hz=hl>0.2?nz/hl:0; let fm=1e9, sx=x, sz=z;
+      for(let t=0;t<(hl>0.2?4:1);t++){ const qx=x+hx*t, qz=z+hz*t, s=cv10Samp(rec,qx,qz); if(s.n>0&&s.f<fm){ fm=s.f; } if(s.n>0&&sx===x&&sz===z&&t>0){ sx=qx; sz=qz; } }
+      fh[v]=fm<1e8?Math.max(-1,Math.min(40,y-fm)):0;
+      { const F=cv10Field(rec.c,sx,sz); su[v*2]=F.g>0?F.s:0; su[v*2+1]=F.g>0?F.u:1; }
       /* 접선 틀 — 법선에 곧은 두 축 */
       let ax=0,ay=1,az=0; if(Math.abs(ny)>0.9){ ax=1; ay=0; }
       let tx=ay*nz-az*ny, ty=az*nx-ax*nz, tz=ax*ny-ay*nx; const tl=Math.hypot(tx,ty,tz)||1; tx/=tl; ty/=tl; tz/=tl;
@@ -659,7 +673,7 @@ function cmAoWork(ms){
   while(A.q.length&&performance.now()<t1){ const J=A.q[0];
     if(!J.rec.mesh||J.rec.mesh.geometry!==J.g){ A.q.shift(); continue; }        // 다 굽기 전에 버린 굴
     const T=performance.now(), done=cmAoRun(J,t1); J.ms+=performance.now()-T;
-    if(done){ J.g.attributes.aAo.needsUpdate=true; J.g.attributes.aFh.needsUpdate=true; J.rec.aoMs=J.ms; A.q.shift(); }
+    if(done){ J.g.attributes.aAo.needsUpdate=true; J.g.attributes.aFh.needsUpdate=true; J.g.attributes.aSu.needsUpdate=true; J.rec.aoMs=J.ms; A.q.shift(); }
     if(performance.now()>=t1) break; }
   const dt=performance.now()-t0; A.n++; if(dt>A.max) A.max=dt; if(dt>1) A.over=(A.over||0)+1; return dt;
 }
@@ -677,9 +691,9 @@ CV10.onBuild.push(rec=>{
   for(let v=0;v<nv;v++){ lay[v*3]=P.b||1; lay[v*3+1]=P.off||0; lay[v*3+2]=P.vs||0; }
   g.setAttribute('aCs',new THREE.BufferAttribute(new Float32Array(nv).fill(s),1));
   g.setAttribute('aLay',new THREE.BufferAttribute(lay,3));
-  const ao=new Float32Array(nv).fill(1), fh=new Float32Array(nv);
-  g.setAttribute('aAo',new THREE.BufferAttribute(ao,1)); g.setAttribute('aFh',new THREE.BufferAttribute(fh,1));
+  const ao=new Float32Array(nv).fill(1), fh=new Float32Array(nv).fill(-2), su=new Float32Array(nv*2);   // aFh 굽기 전 −2 — 셰이더가 수위 무늬를 끈다(lvOK)
+  g.setAttribute('aAo',new THREE.BufferAttribute(ao,1)); g.setAttribute('aFh',new THREE.BufferAttribute(fh,1)); g.setAttribute('aSu',new THREE.BufferAttribute(su,2));
   CMAT.ao.q=CMAT.ao.q.filter(J=>J.rec!==rec);
-  CMAT.ao.q.push({rec,g,pos:g.attributes.position.array,nor:g.attributes.normal.array,ao,fh,nv,i:0,ms:0});
+  CMAT.ao.q.push({rec,g,pos:g.attributes.position.array,nor:g.attributes.normal.array,ao,fh,su,nv,i:0,ms:0});
   m.onBeforeRender=cmTick;
 });
