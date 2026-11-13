@@ -61,7 +61,7 @@ CMAT.SRC=[
   {nm:'G0 sand_01 · 유석 · shelter 바닥 · 천장',  c:['G',0], n:null,    rs:2.4, blur:1, cg:0.5,  tg:0.08, hd:0.008},
   {nm:'C3 Rock052 · shelter 큰 장',              c:['C',3], n:['C',3], rs:2.4, blur:0, cg:1.2,  tg:0.10} ];
 CMAT.FB={R6:0,R1:3,R4:1,R7:2,G6:5,G0:3};
-CMAT.stat=[]; CMAT.loadMs=0; CMAT.aniso=1;
+CMAT.stat=[]; CMAT.loadMs=0; CMAT.aniso=1; CMAT.joints=0;   // karst 절리 벌 수(프레임 — 0 이면 끔 · 1~2)
 function cmSrc(s){ if(!s) return null; const [a,i]=s;
   if(a==='R'&&typeof ROCK_JPG!=='undefined'&&ROCK_JPG[i]) return {c:ROCK_JPG[i],n:typeof ROCK_NRM!=='undefined'?ROCK_NRM[i]:null};
   if(a==='G'&&typeof GND_JPG!=='undefined'&&GND_JPG[i]) return {c:GND_JPG[i],n:null};
@@ -383,7 +383,7 @@ const CM_BODY=`#include <color_fragment>
     Ht-=grv*(0.01+0.04*proU); c*=1.0-0.22*proU*exp(0.0-dUp/(0.03+0.05*proU))*bwk;
     /* 절리(프레임 때문에 한 벌만 — 둘째 벌은 i<2) — 방위는 굴 씨에서(세계 축에 안 묶임) · 간격 2.2 m 로그정규 어림(칸 자리 흔들기 + 있음 0.55) · 금은 2~6 켜마다 끊기고 비켜 다시 선다 · 젖은 금(굴마다 몫) */
     float jd=9.0, jh=0.0, jwz=1.0;
-    for(int i=0;i<1;i++){ float a=cs*6.2832+float(i)*(1.05+0.5*fract(cs*7.1)); vec2 dr2=vec2(cos(a),sin(a));
+    for(int i=0;i<CM_JN;i++){ float a=cs*6.2832+float(i)*(1.05+0.5*fract(cs*7.1)); vec2 dr2=vec2(cos(a),sin(a));
       float u=(dot(p.xz,dr2)+0.2*(fract(cs*(3.1+float(i)))-0.5)*p.y)/2.2, k0=floor(u-0.5);
       for(int t=0;t<=1;t++){ float kk=k0+float(t);
         vec3 h=cmH3(vec3(kk,float(i)+vs*2.0,floor(lk/(3.0+2.0*float(i)))+41.0)); float cx=kk+0.5+0.7*(h.y-0.5), d=abs(u-cx)*2.2;
@@ -634,7 +634,7 @@ function cv10Mat(kind){
   const DX=`#define CM_LF ${K.LF.toFixed(1)}\n#define CM_LC ${K.LC.toFixed(1)}\n#define CM_LM ${K.LM.toFixed(1)}\n#define CM_KM ${K.KM.toFixed(2)}\n#define CM_KA ${K.KA.toFixed(3)}\n#define CM_KB ${K.KB.toFixed(3)}\n`+
     `#define CM_SAT ${K.SAT.toFixed(3)}\n#define CM_SATB ${K.SATB.toFixed(3)}\n#define CM_JV ${K.JV.toFixed(1)}\n#define CM_HEX ${K.hex}\n`+
     `#define CM_M mat2(${f4(cr*K.SU)},${f4(sr*K.SU)},${f4(-sr*K.SV)},${f4(cr*K.SV)})\n`;
-  const D=DX+`#define CM_KIND ${K.id}\n#define CM_L ${K.L.toFixed(1)}\n#define CM_RS ${K.RS.toFixed(2)}\n#define CM_WET ${K.wet.toFixed(3)}\n#define CM_SH ${K.sh.toFixed(1)}\n#define CM_MOSS ${K.moss.toFixed(2)}\n`+
+  const D=DX+`#define CM_JN ${CMAT.joints|0}\n#define CM_KIND ${K.id}\n#define CM_L ${K.L.toFixed(1)}\n#define CM_RS ${K.RS.toFixed(2)}\n#define CM_WET ${K.wet.toFixed(3)}\n#define CM_SH ${K.sh.toFixed(1)}\n#define CM_MOSS ${K.moss.toFixed(2)}\n`+
     `#define CM_R ${K.r.toFixed(3)}\n#define CM_F0 ${K.f0.toFixed(3)}\n#define CM_POR ${K.por.toFixed(3)}\n#define CM_KS ${K.ks.toFixed(3)}\n#define CM_HUM ${K.hum.toFixed(3)}\n#define CM_SUNCUT\n`+CMAT.qd+cmPalDefs()+(CMAT.dbg||'');
   m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,U);
