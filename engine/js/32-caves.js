@@ -152,12 +152,16 @@ bool cv10HoleMPR(vec3 p,float ny){
     vec4 B=uCv10B[i], R=uCv10R[i]; if(B.z<0.5) continue;
     float nz=floor(R.w/1024.0), nx=R.w-nz*1024.0; vec2 c=(p.xz-R.xy)/R.z;
     if(c.x<-1.0||c.y<-1.0||c.x>nx||c.y>nz) continue;
-    vec2 c0=floor(c+0.5), t=c-c0; float m=0.0, r=0.0;
+    vec2 c0=floor(c+0.5), t=c-c0; float m=0.0, r=0.0, hs=0.0, hw=0.0;
     for(int b=0;b<3;b++){ float wz=cv10Bw(t.y,b);
       for(int a=0;a<3;a++){ vec2 q=clamp(c0+vec2(float(a-1),float(b-1)),vec2(0.0),vec2(nx-1.0,nz-1.0));
         vec4 T=texture2D(uCv10T,(q+vec2(0.5+float(i)*512.0,0.5))/vec2(1024.0,512.0)); float w=cv10Bw(t.x,a)*wz, a8=T.a*255.0;
         if(T.a>=0.998) m+=w;
-        if(T.a>=0.75) r+=w; else if(T.g>T.r+0.002) r+=w*(1.0-smoothstep(0.0,3.5,-5.0*log(max(a8,0.5)/127.0))); else r+=w*min(1.0,a8/126.0); } }
+        if(T.a>=0.75) r+=w; else if(T.g>T.r+0.002) r+=w*(1.0-smoothstep(0.0,3.5,-5.0*log(max(a8,0.5)/127.0))); else r+=w*min(1.0,a8/126.0);
+        /* (FX) 그 칸의 겉 높이 — 빈 데 아닌 칸은 R·B(cv10Top 과 같은 풀기) · 빈 데 칸은 천장(G — 겉 + 1 m 에서 자른 값) */
+        float hc=floor(T.r*255.0+0.5)*256.0+floor(T.b*255.0+0.5);
+        if(T.g>T.r+0.002){ hs+=w*(B.x+T.g*255.0*B.y); hw+=w; } else if(hc>0.5&&hc<65534.5){ hs+=w*(B.x+hc*0.004-64.0); hw+=w; } } }
+    if(hw>0.01) r*=1.0-smoothstep(0.0,3.0,abs(p.y-hs/hw));                          // (FX) 테는 입구 높이 근처만 — 입구 위 벼랑 면이 세로 띠로 어두워지지 않게
     rim=max(rim,r);
     if(hole||m<0.5) continue;
     if(cv10Smp(p.xz,i,s)){ if(ny>0.35||p.y>s.x-0.5) hole=true; continue; }
