@@ -748,7 +748,7 @@ function* cvd16Run(X,K){
       const h=((Math.imul(Math.round(vx*23)|0,73856093)^Math.imul(Math.round(vy*23)|0,19349663)^Math.imul(Math.round(vz*23)|0,83492791))>>>0)/4294967296;
       const ny=N[v*3+1], mk=K.moss*lit*cvdSS(0.35,0.85,ny)*(0.45+0.9*h)*cvdSS(0.2,0.5,cvdNoise(X,vx,vz,1.3,9)), gk=Math.max(0,1-(vy-(fc+gx*(vx-x)+gz*(vz-z)))/0.14)*0.55, mo=0.78+0.40*h;
       for(let k=0;k<3;k++){ let col=C[v*3+k]*mo; col+=(K.mc[k]-col)*Math.min(1,mk); col+=([0.27,0.21,0.15][k]-col)*gk; C[v*3+k]=col; } }
-    st.n++; const tp=[]; for(let t=Li;t<A.i.length;t++){ const a=A.i[t]*3; tp.push(P[a],P[a+1],P[a+2]); }   // 시험용 세모 자리(조각 줄이기 cvdPcCap 이 정점 번호를 옮기므로 번호 대신)
+    st.n++; const tp=CV10.dbg?[]:null; if(tp) for(let t=Li;t<A.i.length;t++){ const a=A.i[t]*3; tp.push(P[a],P[a+1],P[a+2]); }   // 시험용 세모 자리(시험 깃발 CV10.dbg 일 때만)(조각 줄이기 cvdPcCap 이 정점 번호를 옮기므로 번호 대신)
     const o={x,z,R,inside,tp,top,fc}; st.list.push(o); it.acc=A; o.it=it;
     cvdLog(X,'fall',x,z,fc,top,R,!inside,fc);
     if(inside&&R>=0.3) cvdBlock(X,x,z,R*0.85,fc,top);

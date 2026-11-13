@@ -23,18 +23,18 @@
    · 사진 · 법선 층 굽기(cmBake — 불러올 때 한 번 · 텍스처 읽기는 그대로): 화강암 결정 반점(사진 층 2) · 스캘럽(법선 0) · 용암 기공(법선 1) · 사암 벌집(법선 3)
    · 잡음 그림 분위수(cmQuant — CM_QR05 … CM_QA95 정의 · 몫을 면적으로 맞출 문턱)
    · 정점 속성 aFh(바닥 위 높이 m) · aLay(켜 b · off · 보로노이 씨 — c._P) · aAo(정점 법선 반구 8 방위 × 0.6 · 1.4 m 의 바위 몫 → 바탕 ×mix(0.5,1,aAo)) —
-     onBuild 가 일을 걸고 cmTick 이 프레임마다 0.6 ms 씩 굽는다(다 될 때까지 aAo 1 · aFh 0)
+     onBuild 가 일을 걸고 cmTick 이 프레임마다 0.6 ms 씩 굽는다(다 될 때까지 aAo 1 · aFh −2 — 셰이더가 수위 · 진흙 젖음 무늬를 끈다)
    · 해 · 구름 그림자는 껍데기의 sky<0.01 화소에서 안 읽는다(45-sky.js envPatch — 이 재질의 CM_SUNCUT 정의를 보고)
    · 디버그 정의(CMAT.dbg): CM_DBG_ALB 조명 없는 바탕 빛깔 · CM_DBG_ZONE 갈래(빨강 바탕 바위 · 초록 덧쌓임 · 파랑 바닥 · 노랑 이끼 · 땅 · 자홍 얼룩) */
 const CMAT={ mats:{}, tex:null, nrm:null, left:-1, ready:false, wt:[], geo:null, q:null, qd:'',
   torch:{value:new THREE.Vector4(0,0,0,0)}, tpos:{value:new THREE.Vector3()}, tpv:{value:new THREE.Vector3(1e9,1e9,1e9)}, eye:{value:new THREE.Vector3()}, tcol:{value:new THREE.Vector3(1,0.56,0.25)},
   ao:{q:[], f:-1, budget:0.6, max:0, n:0},
-  /* 종류마다: 사진 층 · 한 장의 크기(m) · 젖음 · (옛 번들 날카로움 sh — 쓰지 않음) · 이끼 몫 · 마른 거칠기 r · F0 · 공극(젖으면 어두워지는 몫) · 정반사 세기 */
+  /* 종류마다: 사진 층 · 한 장의 크기(m) · 젖음 · 이끼 몫 · 마른 거칠기 r · F0 · 공극(젖으면 어두워지는 몫) · 정반사 세기 */
   /* (U2) wet 바탕 젖음 · hum 안으로 오르는 젖음(aDeep 곱)
      (TX2) 사진 층 — L 벽 · LF 바닥 · LC 천장 · LM 큰 장(층 번호는 CMAT.SRC) · KM 큰 장 배율 · SU · SV 벽 uv 늘림 · rot 벽 uv 돌림(도 — lava 는 사진 결 −49.5° 를 수평으로) ·
      KA · KB 바탕 · 큰 장 결 세기 · SAT · SATB 사진 빛깔 몫 · JV uv 밀기의 세로 몫(켜가 있는 종류는 0) · hex 평균 빛깔(CM_DBG_BASE 검사) */
-  K:{ karst:{LF:5,LC:0,LM:7,KM:3.3,SU:0.6,SV:1,rot:0,KA:1.0,KB:0.8,SAT:0.5,SATB:0.5,JV:0,hex:'CP_LIME',L:0,RS:1.7,wet:0.30,sh:90,moss:0.8,id:0,r:0.78,f0:0.045,por:0.70,ks:1,hum:0.22}, lava:{LF:7,LC:6,LM:0,KM:3.0,SU:0.5,SV:1,rot:-49.5,KA:1.0,KB:0.7,SAT:0.15,SATB:0.15,JV:1,hex:'(0.5*(CP_BAS0+CP_BAS1))',L:1,RS:2.1,wet:0.03,sh:20,moss:1.15,id:1,r:0.90,f0:0.04,por:0.40,ks:1,hum:0.08},
-      talus:{LF:7,LC:2,LM:0,KM:2.6,SU:1,SV:1,rot:0,KA:0.9,KB:0.8,SAT:0.2,SATB:0.2,JV:1,hex:'CP_GRAN',L:2,RS:1.3,wet:0.40,sh:60,moss:0.9,id:2,r:0.68,f0:0.045,por:0.55,ks:1,hum:0.25}, shelter:{LF:8,LC:8,LM:9,KM:2.7,SU:0.6,SV:1,rot:0,KA:1.0,KB:0.6,SAT:0.9,SATB:0.6,JV:0,hex:'CP_SSW',L:3,RS:2.4,wet:0.0,sh:12,moss:0.3,id:3,r:0.90,f0:0.035,por:1.00,ks:1,hum:0.03} },
+  K:{ karst:{LF:5,LC:0,LM:7,KM:3.3,SU:0.6,SV:1,rot:0,KA:1.0,KB:0.8,SAT:0.5,SATB:0.5,JV:0,hex:'CP_LIME',L:0,RS:1.7,wet:0.30,moss:0.8,id:0,r:0.78,f0:0.045,por:0.70,ks:1,hum:0.22}, lava:{LF:7,LC:6,LM:0,KM:3.0,SU:0.5,SV:1,rot:-49.5,KA:1.0,KB:0.7,SAT:0.15,SATB:0.15,JV:1,hex:'(0.5*(CP_BAS0+CP_BAS1))',L:1,RS:2.1,wet:0.03,moss:1.15,id:1,r:0.90,f0:0.04,por:0.40,ks:1,hum:0.08},
+      talus:{LF:7,LC:2,LM:0,KM:2.6,SU:1,SV:1,rot:0,KA:0.9,KB:0.8,SAT:0.2,SATB:0.2,JV:1,hex:'CP_GRAN',L:2,RS:1.3,wet:0.40,moss:0.9,id:2,r:0.68,f0:0.045,por:0.55,ks:1,hum:0.25}, shelter:{LF:8,LC:8,LM:9,KM:2.7,SU:0.6,SV:1,rot:0,KA:1.0,KB:0.6,SAT:0.9,SATB:0.6,JV:0,hex:'CP_SSW',L:3,RS:2.4,wet:0.0,moss:0.3,id:3,r:0.90,f0:0.035,por:1.00,ks:1,hum:0.03} },
   /* (U2) 빛깔 — 실제 동굴 사실표(hex/255 를 바탕값으로 · 출력 부호화 없음). 셰이더에는 CP_이름 으로 든다 */
   PAL:{ LIME:'#9E9A90', MUD:'#6B5640', MUDW:'#4A3A2A', FLOH:'#D9A86C', FLOW:'#F2EEE6', MANG:'#2A2622', IRON:'#A0522D', MOON:'#F4F2EC',
         BAS0:'#3A3836', BAS1:'#4F4A45', GLAZ:'#8A8C90', OXID:'#8B3A24', CRUS:'#E8E4DA', MATG:'#C9A85A', HIGH:'#D8C46A',
@@ -74,7 +74,7 @@ function cmPhotos(){
   CMAT.nrm={value:gndArrayTex(flat,1,n)};
   const cd=new Uint8Array(S*S*4*n), nd=new Uint8Array(S*S*4*n); let left=n;
   const pix=im=>{ const cv2=document.createElement('canvas'); cv2.width=cv2.height=S; const g=cv2.getContext('2d'); g.drawImage(im,0,0,S,S); return g.getImageData(0,0,S,S).data; };
-  /* 밉맵은 한 장만 읽는다(LinearMipmapNearest — 두 장 섞기는 텍스처 읽기가 두 배 · 굴 속은 화면이 다 껍데기다) · 빛깔만 비등방 4 */
+  /* 밉맵은 한 장만 읽는다(LinearMipmapNearest — 두 장 섞기는 텍스처 읽기가 두 배 · 굴 속은 화면이 다 껍데기다) · 비등방은 빛깔만 CMAT.aniso(기본 1 — 끔) */
   const done=()=>{
     const o1=CMAT.tex.value, o2=CMAT.nrm.value;
     const t1=gndArrayTex(cd,S,n), t2=gndArrayTex(nd,S,n); t1.minFilter=t2.minFilter=THREE.LinearMipmapNearestFilter;
@@ -142,7 +142,7 @@ function cmNorm(px,S,T){
   const mu=[0,0,0];
   for(let i=0,j=0;i<n;i++,j+=4){ px[j]=A[i]; px[j+1]=B[i]; px[j+2]=C[i]; px[j+3]=255; mu[0]+=px[j]; mu[1]+=px[j+1]; mu[2]+=px[j+2]; Lc[i]=0.30*px[j]+0.59*px[j+1]+0.11*px[j+2]; }
   const r3=v=>Math.round(v*1000)/1000;
-  return {mu:mu.map(v=>r3(v/n)), g:r3(g), sM0:r3(s0.sM), _L:Lc}; }
+  const o={mu:mu.map(v=>r3(v/n)), g:r3(g), sM0:r3(s0.sM)}; if(CV10.dbg) o._L=Lc; return o; }   // _L(대역 통계 cmNormSt 용)은 시험 깃발 CV10.dbg 일 때만
 function cmNormSt(st,S){ if(!st._L) return; const s1=cmBandSt(st._L,S), r3=v=>Math.round(v*1000)/1000; st.sF=r3(s1.sF); st.sM=r3(s1.sM); st.sBig=r3(s1.sBig); delete st._L; }
 /* 이끼 층 — 예전처럼 밝기만 평균 0.5 로(풀빛이 필요하다) */
 function cmNormMoss(px,S){ let L=0; for(let i=0;i<px.length;i+=4) L+=0.30*px[i]+0.59*px[i+1]+0.11*px[i+2];
@@ -215,7 +215,7 @@ function cmBake(T,nrm,px,S){
   }else return;
   cmNrmAdd(px,h,S,ps);
 }
-/* 3 차원 잡음 그림 32³ — 칸 크기가 다른 이어 붙는 값잡음 넷(r 4 · g 8 · b 16 · a 2 칸점). 실수 텍스처 금지(헤드리스가 0 을 읽는다) — 8 비트로 담는다.
+/* 3 차원 잡음 그림 64³ — 칸 크기가 다른 이어 붙는 값잡음 넷(r 4 · g 8 · b 16 · a 2 칸점). 실수 텍스처 금지(헤드리스가 0 을 읽는다) — 8 비트로 담는다.
    난수는 정수 섞기(지형 · 자원과 상관없는 그림이라 시드 차례를 안 건드린다) */
 function cmNoise3(){
   if(CMAT.nz) return CMAT.nz;
@@ -321,7 +321,7 @@ const CM_BODY=`#include <color_fragment>
     float flo=smoothstep(0.35,0.75,n.y)*(1.0-smoothstep(0.30,0.55,fl));            // 바닥
     float cei=smoothstep(0.25,0.70,-n.y);                                            // 천장
     float wal=clamp(1.0-flo-cei,0.0,1.0);                                            // 벽
-    /* 잡음은 3 차원 잡음 그림(cmZ — 32³ · 채널마다 칸 크기가 다르다: r 1/8 · g 1/4 · b 1/2 · a 1/16 판) 한 번에 넷씩 읽는다 */
+    /* 잡음은 3 차원 잡음 그림(cmZ — 64³ · 채널마다 칸 크기가 다르다: r 1/8 · g 1/4 · b 1/2 · a 1/16 판) 한 번에 넷씩 읽는다 */
 #ifdef CM_NO_NOISE
     vec4 Z1=vec4(0.5);
 #else
@@ -644,7 +644,7 @@ function cv10Mat(kind){
   const DX=`#define CM_LF ${K.LF.toFixed(1)}\n#define CM_LC ${K.LC.toFixed(1)}\n#define CM_LM ${K.LM.toFixed(1)}\n#define CM_KM ${K.KM.toFixed(2)}\n#define CM_KA ${K.KA.toFixed(3)}\n#define CM_KB ${K.KB.toFixed(3)}\n`+
     `#define CM_SAT ${K.SAT.toFixed(3)}\n#define CM_SATB ${K.SATB.toFixed(3)}\n#define CM_JV ${K.JV.toFixed(1)}\n#define CM_HEX ${K.hex}\n`+
     `#define CM_M mat2(${f4(cr*K.SU)},${f4(sr*K.SU)},${f4(-sr*K.SV)},${f4(cr*K.SV)})\n`;
-  const D=DX+`#define CM_JN ${CMAT.joints|0}\n#define CM_KIND ${K.id}\n#define CM_L ${K.L.toFixed(1)}\n#define CM_RS ${K.RS.toFixed(2)}\n#define CM_WET ${K.wet.toFixed(3)}\n#define CM_SH ${K.sh.toFixed(1)}\n#define CM_MOSS ${K.moss.toFixed(2)}\n`+
+  const D=DX+`#define CM_JN ${CMAT.joints|0}\n#define CM_KIND ${K.id}\n#define CM_L ${K.L.toFixed(1)}\n#define CM_RS ${K.RS.toFixed(2)}\n#define CM_WET ${K.wet.toFixed(3)}\n#define CM_MOSS ${K.moss.toFixed(2)}\n`+
     `#define CM_R ${K.r.toFixed(3)}\n#define CM_F0 ${K.f0.toFixed(3)}\n#define CM_POR ${K.por.toFixed(3)}\n#define CM_KS ${K.ks.toFixed(3)}\n#define CM_HUM ${K.hum.toFixed(3)}\n#define CM_SUNCUT\n`+CMAT.qd+cmPalDefs()+(CMAT.dbg||'');
   m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,U);
@@ -656,7 +656,8 @@ function cv10Mat(kind){
     CMAT.pxt=pxt;
     sh.fragmentShader=(pxt?'#define CM_PXT\n':'')+D+CM_FRAG+sh.fragmentShader.replace('#include <color_fragment>',CM_BODY);
   };
-  const dk=CMAT.dbg||''; m.customProgramCacheKey=()=>'cv10mat-'+key+dk;
+  /* 열쇠에 절리 벌 수 · 비등방을 넣는다 — 손잡이(CMAT.joints · aniso)를 바꾼 뒤 재질을 다시 만들면(delete CMAT.mats[k]) 새 셰이더를 받는다. 놀이 중에 바꾸면 재질을 다시 만들어야 먹는다 */
+  const dk=(CMAT.dbg||'')+'-j'+(CMAT.joints|0)+'-a'+(CMAT.aniso|0); m.customProgramCacheKey=()=>'cv10mat-'+key+dk;
   envPatch(m);
   return CMAT.mats[key]=m;
 }

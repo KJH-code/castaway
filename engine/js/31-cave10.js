@@ -62,7 +62,7 @@ function cv10BoxSfc(x,z){ for(const c of CV10.built.keys()){ const b=c.box; if(x
 function cv10On(){ return (P.tv|0)>=10; }
 /* 판 10 굴 고침 묶음(2026-11-10 review B) — 판 10(시험 섬)과 12 부터. 판 11 섬은 옛 저장이 같은 섬을 열도록 예전 그대로 */
 function cv10V2(){ const t=P.tv|0; return t===10||t>=12; }
-/* 판 16 — 굴 꼴을 실제처럼 울퉁불퉁하게(cv10Eval · 껍데기 다듬기 한 쌍). 판 16 이하 굴은 한 비트도 안 바뀐다 — cv10Prep 이 이 값을 굴 표(P.v16)로 받는다(그 안의 지역 이름 P 가 섬 인자를 가린다) */
+/* 판 16 — 굴 꼴을 실제처럼 울퉁불퉁하게(cv10Eval · 껍데기 다듬기 한 쌍). 판 15 이하 굴은 한 비트도 안 바뀐다 — cv10Prep 이 이 값을 굴 표(P.v16)로 받는다(그 안의 지역 이름 P 가 섬 인자를 가린다) */
 function cv10V16(){ return (P.tv|0)>=16; }
 function cv10Free(x,z,r,rv){
   const gx=Math.round(x/CELL+N/2), gz=Math.round(z/CELL+N/2);
@@ -76,7 +76,7 @@ function cv10Free(x,z,r,rv){
 
 /* ── 굴 부피 ─────────────────────────────────────────────────────────────────────────────────────────────────
    준비: 굴길 토막(같은 길 pid 끼리 묶음)과 방·빛구멍의 상자를 미리 구해 둔다(c._P — 저장에 안 든다). 한 점마다 상자 밖은 곧바로 거른다 */
-/* 판 16 — 종류마다 꼴의 진폭(메인이 사진을 보고 고르는 손잡이 한 곳). **값을 바꾸면 저장된 판 16 섬의 굴 · 광석 · 둥지 · 덩이 · 줍기 열쇠가 달라진다 — 바꿀 때는 판 17 뒤로.** 값이 0 이면 그 몫은 판 16 이하와 같은 값이다(그 갈래를 아예 안 탄다).
+/* 판 16 — 종류마다 꼴의 진폭(메인이 사진을 보고 고르는 손잡이 한 곳). **값을 바꾸면 저장된 판 16 섬의 굴 · 광석 · 둥지 · 덩이 · 줍기 열쇠가 달라진다 — 바꿀 때는 판 17 뒤로.** 값이 0 이면 그 몫은 판 15 이하와 같은 값이다(그 갈래를 아예 안 탄다).
    원칙: 파장 2 m 넘는 굴곡만 꼴에 넣는다(더 잔 것은 껍데기 다듬기가 지운다 — 판 16 는 Taubin 한 쌍). 걷기 · 하늘 구멍 안전 제약은 cv10Eval 끝(cv10R15)에 */
 CV10.R={
   karst:  {wall:0.08, ped:0.45, step:0.35, slab:0.5},  // 벽 u 잡음(비율 · 2.5 m — 설계 ±0.14~0.18 은 갇힌 틈(rec.unreach 28)과 지느러미(이웃 면 60° 넘는 몫 ×3.5)가 서서 ½ · 0.10 부터 갇힌 틈이 난다 · 바닥 쪽과 천장 쪽이 다른 높이를 읽는다) · 천장 펜던트(m · g>3 m 인 데만) · 켜 따른 천장 붕락 계단(±m · 3 m 칸) · 방 · 넓은 길 벽 쪽(u>0.5) 판상 덩이(최대 두께 m · 보로노이 2.2 m · 윗면 ±8°)
@@ -122,7 +122,7 @@ function cv10Prep(c){
       P.bkx=-Math.cos(c.yaw); P.bkz=-Math.sin(c.yaw); }                          // 뒤쪽(입구가 보는 쪽의 반대)
     else if(c.kind==='talus'){ P.tw=(R.wall||0)*ra; P.tvor=(R.wall||0)>0||(R.ceil||0)>0||(R.floor||0)>0; }
   }
-  const ew=P.aw*0.66, et=P.tw;                                                    // 판 16 — 벽이 밀려 나가는 만큼 미리 거르는 상자를 넓힌다(판 16 이하는 0)
+  const ew=P.aw*0.66, et=P.tw;                                                    // 판 16 — 벽이 밀려 나가는 만큼 미리 거르는 상자를 넓힌다(판 15 이하는 0)
   for(const g of c.segs){
     const dx=g.bx-g.ax, dz=g.bz-g.az, len=Math.hypot(dx,dz)||1e-6, pq=CV10.PQ[g.prof]||CV10.PQ.tube, m=(ew||et)?g.w*(0.66+ew)+0.6+et:g.w*0.66+0.6;
     const e={ax:g.ax,az:g.az,ux:dx/len,uz:dz/len,len,p:pq[0],q:pq[1],w:g.w,H:g.h,ay:g.ay,by:g.by,s0:g.s0,out:!!g.out,lava:g.prof==='lava',
@@ -155,7 +155,7 @@ function cv10WallS(c,P,x,y,z,t,half,gw,tL,tU){
 }
 /* 한 점의 굴 — {f 바닥, c 천장, g=c−f(빈 데가 아니면 ≤0), s 주 입구로부터 길 거리, open 위가 하늘인가(그때 c=h+6), u 가로 자리(0 가운데 ~ 1 벽),
    h 땅 높이, fb 단 · 선반을 뺀 바닥(비탈을 잴 때), rp 무너진 돌 비탈 위인가}.
-   판 16(P.v16)는 벽 · 천장 · 바닥에 굴곡을 더한다(CV10.R) — 판 16 이하는 그 갈래를 하나도 안 타 값이 그대로다(uF=uC=u · um=1) */
+   판 16(P.v16)는 벽 · 천장 · 바닥에 굴곡을 더한다(CV10.R) — 판 15 이하는 그 갈래를 하나도 안 타 값이 그대로다(uF=uC=u · um=1) */
 function cv10Eval(c,P,x,z){
   const n=c._n; let F_=0,C_=0,Fb=0,cnt=0,bg=-1e9,S=0,U=1,Yn=c.y,ub=1e9,inSky=false,rp=false;
   const V16=P.v16, aw=P.aw, tw=P.tw; let Wd=0, sk=0, tL=0, tU=0;                // 판 16 — Wd 그 자리 굴길 너비(방은 지름) · sk 채광창 밑 무게 · tL/tU 바위틈 덩이 값(아래 · 위)
@@ -182,7 +182,7 @@ function cv10Eval(c,P,x,z){
       const y=ek.out?cv10Sfc(ek.ax+ek.ux*ak,ek.az+ek.uz*ak)-0.2:ek.ay+(ek.by-ek.ay)*(ak/ek.len);
       sw+=wk; syc+=wk*y; sH+=wk*ek.H; }
     let yc=syc/sw;
-    const um=aw>0?1+aw:tw>0?Math.min(1.3,1+tw/(0.5*bwn)):1;                          // 판 16 — 벽이 밀려 나갈 수 있는 데까지 본다(판 16 이하 1)
+    const um=aw>0?1+aw:tw>0?Math.min(1.3,1+tw/(0.5*bwn)):1;                          // 판 16 — 벽이 밀려 나갈 수 있는 데까지 본다(판 15 이하 1)
     if(bu>=um){ if(bu<ub){ ub=bu; Yn=yc; } continue; }
     if(e.tl) yc+=e.tl*(bqx*e.tnx+bqz*e.tnz);
     const H=sH/sw; let uF=bu, uC=bu, uE=bu;

@@ -128,6 +128,7 @@ bool cv10HoleMP(vec3 p,float ny){
 }
 /* 땅 셰이더 전용 구멍 + 땅 테 — cv10Hole 과 같은 3×3 읽기(새 읽기 없음)에서 테 세기를 같은 B-스플라인 무게로 섞어 cv10RimG 에 둔다(22-ground-textures.js 의 CAVE_ON 갈래가 읽는다).
    칸마다 테 값: 구멍 칸(A≥0.75) 1 · 빈 데 칸(지붕 덮인 데 — A=127·exp(−D/5)) 1−smoothstep(0, 3.5, D) · 바위 칸 A·255/126(31-cave10.js 'tex' — 0 이면 테 밖) */
+/* (판 9 이하에서도 땅 · 램버트 셰이더에 cv10HoleR · cv10HoleMPR 글이 든다 — 굴이 없으면 uCv10B.z 0 이라 곧장 넘어가 결과가 같다(hash9 같음) · 그래서 가르지 않는다) */
 bool cv10HoleR(vec2 xz){
   bool hole=false; float rim=0.0;
   for(int i=0;i<2;i++){
