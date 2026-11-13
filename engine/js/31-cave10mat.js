@@ -396,7 +396,7 @@ const CM_BODY=`#include <color_fragment>
     vec4 S=texture(cmZ,vec3(p.x*1.25,p.y*0.085,p.z*1.25));                            // 세로로 늘인 잡음 — 기둥 · 길이
     float Lf=lb*(0.6+2.0*S.g), dyy=min(dUp,3.0), fan=0.25+0.35*dyy;
     float drw=wetJ*(1.0-smoothstep(fan*0.5,fan,jd+0.25*(S.r-0.5)))*(1.0-smoothstep(0.6*Lf,Lf,dUp))*clamp(wal+cei,0.0,1.0)*(1.0-flo);
-    float dr=cmHB(drw-0.5,0.5,hp,0.5)*step(0.02,drw);
+    float dr=smoothstep(-0.15*(0.5),0.15*(0.5),drw-0.5)*step(0.02,drw);
     float dry=smoothstep(0.15,0.5,sky);
     vec3 fcol=mix(vec3(0.612,0.420,0.243),CP_FLOH,smoothstep(0.25,0.55,drw));
     fcol=mix(fcol,CP_FLOW,smoothstep(0.70,0.95,drw)*smoothstep(0.35,0.75,S.r));
@@ -407,21 +407,21 @@ const CM_BODY=`#include <color_fragment>
     float fe=step(0.9,lhU.z)*(1.0-smoothstep(0.1,0.15+0.5*S.g,dUp))*smoothstep(0.55,0.75,S.b)*wal*(1.0-dr)*0.35;
     c*=mix(vec3(1.0),CP_IRON/CP_LIME,fe); zn=mix(zn,vec3(1.0,0.0,1.0),fe);
     /* 달우유 — 입구 쪽 천장(dS 3~15 m) 오목한 데 */
-    float mm=cei*smoothstep(3.0,5.0,dS)*(1.0-smoothstep(12.0,15.0,dS))*(1.0-smoothstep(0.85,0.95,ao))*cmHB(Z1.b-CM_QB85,0.06,hp,0.5)*0.6;
+    float mm=cei*smoothstep(3.0,5.0,dS)*(1.0-smoothstep(12.0,15.0,dS))*(1.0-smoothstep(0.85,0.95,ao))*smoothstep(-0.15*(0.06),0.15*(0.06),Z1.b-CM_QB85)*0.6;
     c=mix(c,CP_MOON*(0.85+0.3*fine),mm); zn=mix(zn,vec3(0.0,1.0,0.0),mm); rg=mix(rg,0.95,mm);
     /* 진흙 — (a) 바닥의 낮은 데(가림 · 사진 낮은 데부터) (b) 수위 밑 벽: 위 가장자리 또렷 · 줄 밑 짙고 아래로 얼룩 (c) 선반 · 턱 윗면. 수위는 굴마다 0.4~1.2 m · 길 따라 이어지다 끊김 */
     float wl=0.4+0.8*fract(cs*7.31), wlOn=step(0.3,cmH(vec3(floor(su.x/9.0+fract(cs*3.1)),vs,59.0)));
     float bel=wl-fh;
     float mudW=wal*lvOK*wlOn*(1.0-smoothstep(-0.012,0.004,0.0-bel+0.01*hp))*mix(0.85,smoothstep(0.42,0.62,Z1.r-0.3*hp),smoothstep(0.05,0.35,bel));
-    float mudL=wal*smoothstep(0.30,0.50,n.y)*cmHB(Z1.a-0.35,0.15,hp,0.0-0.5)*0.8;
-    float mudF=flo*cmHB(0.55*Z1.r+0.45*(1.0-ao)-0.40+0.15*(0.5-mid),0.12,hp,0.0-0.5);
+    float mudL=wal*smoothstep(0.30,0.50,n.y)*smoothstep(-0.15*(0.15),0.15*(0.15),Z1.a-0.35)*0.8;
+    float mudF=flo*smoothstep(-0.15*(0.12),0.15*(0.12),0.55*Z1.r+0.45*(1.0-ao)-0.40+0.15*(0.5-mid));
     float mud=max(max(mudW,mudL),mudF), mwt=mud*(1.0-smoothstep(0.0,0.6,fh))*smoothstep(0.45,0.70,Z1.r);
     c=mix(c,mix(CP_MUD,CP_MUDW,mwt)*mix(vec3(1.0),dt,0.8),mud); zn=mix(zn,vec3(0.0,0.0,1.0),mud);
     rg=mix(rg,mix(0.95,0.3,mwt),mud); wet=mix(wet,mwt,mud); pr=mix(pr,0.0,mud);
-    float pud=flo*mudF*cmHB(Z1.r-0.76,0.05,hp,0.0-0.6)*(1.0-smoothstep(0.05,0.3,fh));   // 고인 물 — 가장 낮은 바닥에만
+    float pud=flo*mudF*smoothstep(-0.15*(0.05),0.15*(0.05),Z1.r-0.76)*(1.0-smoothstep(0.05,0.3,fh));   // 고인 물 — 가장 낮은 바닥에만
     c*=1.0-0.15*pud; wet=mix(wet,1.0,pud); rel*=1.0-pud; rg=mix(rg,0.05,pud);
     float mn=mudW*(1.0-smoothstep(0.01,0.04,bel))*step(0.4,fract(su.x*0.2+cs*7.0))*0.8;   // 망간 — 수위선 욕조 테(구간 40%)
-    mn=max(mn,mudF*(1.0-smoothstep(0.0,0.1,fh))*cmHB(mid-CM_QA90,0.03,hp,0.0-0.4)*0.6);
+    mn=max(mn,mudF*(1.0-smoothstep(0.0,0.1,fh))*smoothstep(-0.15*(0.03),0.15*(0.03),mid-CM_QA90)*0.6);
     c=mix(c,CP_MANG*mix(vec3(1.0),dt,0.5),mn); zn=mix(zn,vec3(1.0,0.0,1.0),mn);
     rel*=1.0-0.8*max(flo,mud);
 #elif CM_KIND==1
