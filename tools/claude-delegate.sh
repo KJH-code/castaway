@@ -76,7 +76,8 @@ run_claude() { # $1=worktree  $2=prompt  [$3=session_id]  -> stdout: json
 }
 
 json_field() { # $1=json $2=field
-  python3 -c 'import json,sys; d=json.loads(sys.argv[1]); v=d.get(sys.argv[2],""); print("" if v is None or v is False else ("true" if v is True else v))' "$1" "$2" 2>/dev/null || true
+  # node 로 읽는다(Windows Git Bash 에는 python3 가 없기 쉽다 · node 는 이 레포 검사에 어차피 있어야 한다)
+  node -e 'let d={};try{d=JSON.parse(process.argv[1])}catch(e){};const v=d[process.argv[2]];console.log(v==null||v===false?"":v===true?"true":String(v))' "$1" "$2" 2>/dev/null || true
 }
 
 # 스크립트가 직접 하는 검사(토큰 0) — 보조 Claude 가 돌렸다고 한 것과 별개로 한 번 더
