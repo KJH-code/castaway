@@ -37,12 +37,12 @@ function cvdInit(){
         sh.fragmentShader='varying vec4 vSp;\nvarying vec3 vSpP;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
   if(vSp.w>1.5){ float kd=floor(vSp.w), sd=vSp.w-kd, an=atan(vSpP.z-vSp.y,vSpP.x-vSp.x), t=clamp(vSp.z,0.0,1.0), ph=sd*37.0, nG=5.0+floor(sd*5.0);
     float g1=0.5+0.5*cos(nG*an+ph+1.4*sin(t*6.0+ph)), g2=0.5+0.5*cos(2.0*nG*an+ph*1.7+2.0*sin(t*9.0+ph*0.7));
-    float rid=clamp(0.70*g1*g1+0.30*g2,0.0,1.0);
+    float rid=clamp(0.80*g1+0.20*g2,0.0,1.0);
     float kn=0.0; for(int q=0;q<4;q++){ float rt=0.10+0.75*fract(sd*(3.1+1.7*float(q))), d=(t-rt)/(kd>3.5?0.07:0.035); kn+=exp(0.0-d*d)*step(float(q),1.0+2.0*fract(sd*5.3)); }
     float eg=kd>3.5?0.5+0.5*cos(t*6.2832*(2.0+floor(sd*3.0))):0.5;
-    vec3 c=diffuseColor.rgb; float l=dot(c,vec3(0.30,0.59,0.11)); c=mix(vec3(l),c,0.55);
+    vec3 c=diffuseColor.rgb; float l=dot(c,vec3(0.30,0.59,0.11)); c=mix(vec3(l),c,0.55); c=mix(c,vec3(l)*vec3(1.06,1.0,0.88),0.30*rid);   // 등은 크림 쪽으로
     float ct=kd>2.5&&kd<3.5?0.55:1.0;
-    c*=(kd>2.5&&kd<3.5?1.0:0.68)*(1.0+ct*(-0.55+0.75*rid+0.22*kn+0.14*(eg-0.5)+0.30*smoothstep(0.86,1.0,t)+0.15*sin(an*3.0+ph*2.0)));   // 석회암은 0.68 배 — 횃불 가까이서 하얗게 타면 홈이 안 보였다
+    c*=(kd>2.5&&kd<3.5?1.0:0.68)*(1.0+ct*(-0.24+0.34*rid+0.14*kn+0.10*(eg-0.5)+0.22*smoothstep(0.86,1.0,t)+0.10*sin(an*2.0+ph*2.0+1.5*sin(t*3.0+ph))))   // (FX 13) 대비 절반 · 넓고 부드러운 세로 얼룩(청동 원뿔처럼 보였다);   // 석회암은 0.68 배 — 횃불 가까이서 하얗게 타면 홈이 안 보였다
     diffuseColor.rgb=max(c,vec3(0.0)); }`); };
       m.customProgramCacheKey=()=>'cvdrock-sp'; }
     for(const k of ['rock','sheet','water']) envPatch(CVD.mats[k]);   // 굴 속 어둠 · 굴 불빛(CAVE_GLSL)을 받게 — 장식은 LIGHT 배역 훑기에 안 걸려 예전엔 깊은 데에서도 밖처럼 밝았다(독립 검수 C3)
@@ -296,7 +296,7 @@ function cvdPcPut(X,A,pool,down,x,y,z,H,R,eq,want,o){
       const t=G.p[v*3+1], an=Math.atan2(G.p[v*3+2],G.p[v*3]*mir), gr=0.5+0.5*Math.cos(nG*an+gPh+1.3*Math.sin(t*5+gPh)), rg=ringF(t), tw=Math.min(1,t/0.08)*Math.min(1,(1-t)/0.08);
       const fla=fl*Math.pow(Math.max(0,1-t/0.18),2), dd=rad*(fla+tw*(0.05*rg-0.06*gr*gr));
       /* 기울기: 마디(길이 쪽 미분) · 홈(각도 쪽 미분) — 축 방향 · 둘레 방향으로 법선을 민다 */
-      const dR=(ringF(Math.min(1,t+0.01))-ringF(Math.max(0,t-0.01)))/0.02*0.05*rad/Math.max(H,0.05)*tw, dG=-0.06*2*gr*(-0.5*nG*Math.sin(nG*an+gPh+1.3*Math.sin(t*5+gPh)))*tw;
+      const dR=(ringF(Math.min(1,t+0.01))-ringF(Math.max(0,t-0.01)))/0.02*0.05*rad/Math.max(H,0.05)*tw, dG=-0.018*2*gr*(-0.5*nG*Math.sin(nG*an+gPh+1.3*Math.sin(t*5+gPh)))*tw;
       const tx=-Math.sin(an)*mir, tz=Math.cos(an), wx=M[0]*tx+M[2]*tz, wy=(M[3]*tx+M[5]*tz)*fy, wz=M[6]*tx+M[8]*tz;
       mx-=dR*ax*fy+dG*wx; my-=dR*ay*fy+dG*wy; mz-=dR*az*fy+dG*wz; l=Math.hypot(mx,my,mz)||1; mx/=l; my/=l; mz/=l;
       const c0=o.col||o.cf(t), g=(0.5+0.5*Cg[v])*cj*(1-0.14*gr*tw)*(1+0.06*rg)*(1+0.10*Math.max(0,(t-0.9)/0.1)), st=1+0.08*Math.sin(an*3+gPh*2)+0.05*Math.sin(an*7-gPh);   // 오목함은 반만 · 홈은 짙게 · 마디 · 끝은 밝게 · 세로 줄무늬
