@@ -404,17 +404,21 @@ const CM_BODY=`#include <color_fragment>
 #endif
     float vein=jl*step(0.88,fract(jh*13.7)); c=mix(c,CP_FLOW*dt,vein*0.6); rg=mix(rg,0.45,vein);
     /* 유석 — 젖은 금(굴마다: 마른 0.05 · 보통 0.4 · 화려 0.8) 밑 · 위 켜 경계에서 아래로 넓어지는 부채 · 길이 0.6~2.6 켜 · 두께 t 에서 빛깔(가장자리 갈색 → 꿀색 → 흰) */
-    float tier=fract(cs*3.3), wsh=tier<0.35?0.05:(tier<0.80?0.40:0.80), wetJ=step(jwz,wsh);
+    float tier=fract(cs*3.3), wsh=tier<0.35?0.05:(tier<0.80?0.40:0.80), wetJ=step(jwz,wsh)*fhOK;
     vec4 S=texture(cmZ,vec3(p.x*1.25,p.y*0.085,p.z*1.25));                            // 세로로 늘인 잡음 — 기둥 · 길이
     /* (FX 10) 덧쌓인 막 — 위는 좁은 목(20 cm) · 아래로 넓어지는 부채(3 m 에서 ~1.9 m · FX 11 넓힘) · 가장자리는 잡음 · 사진 결로 들쭉날쭉 · 크림~꿀빛(주황 금지 — 흰 #F2EEE6 0.6 : 꿀 #D9A86C 0.4 쪽) · 볼록 1~3 cm */
-    float Lf=lb*(1.0+2.4*S.g)*jL, dyy=min(dUp,3.0), fan=0.20+0.55*dyy;
-    float drw=wetJ*(1.0-smoothstep(fan*0.45,fan,jd+0.22*(S.r-0.5)+0.12*hp+0.10*(Z1.a-0.5)))*(1.0-smoothstep(0.5*Lf,Lf,dUp+0.3*(S.b-0.5)*lb))*clamp(wal+cei,0.0,1.0)*(1.0-flo);
+    /* (FX 12) 켜마다 dUp 로 세면 켜를 지날 때마다 목이 다시 좁아져 세모가 겹겹(전나무 꼴)이었다 → 칸마다 시작 높이(바닥 위 1.4~4.2 m)에서 잰 거리 ds 로 하나의 막 ·
+       옆 가장자리는 세로로 늘인 잡음으로 물결 · 아래 끝은 둥근 혀(가운데가 길다) · 안쪽은 세로 주름 */
+    float hs=1.4+2.8*fract(jwz*7.3+jh*3.1), ds=hs-fh, dsc=clamp(ds,0.0,3.5), Lf=(1.2+2.6*S.g)*jL, fan=0.18+0.50*dsc;
+    float ew=jd+0.30*fan*(S.r-0.5)+0.18*fan*(S.b-0.5)+0.08*hp, ex=ew/max(fan,1e-3);
+    float drw=wetJ*(1.0-smoothstep(0.55,1.0,ex))*smoothstep(-0.10,0.12,ds+0.10*(Z1.a-0.5))*(1.0-smoothstep(0.55*Lf,Lf,ds+0.45*Lf*ex*ex+0.25*(S.b-0.5)))*clamp(wal+cei,0.0,1.0)*(1.0-flo);
     float dr=smoothstep(0.08,0.45,drw);
     float dry=smoothstep(0.15,0.5,sky);
     vec3 fcol=mix(mix(CP_FLOH,CP_FLOW,0.45),mix(CP_FLOH,CP_FLOW,0.75),smoothstep(0.40,0.90,drw)*smoothstep(0.30,0.70,S.r));
     fcol*=1.0-0.10*(1.0-dry)*smoothstep(0.5,0.9,S.g);                               // 젖은 데만 조금 짙게
     c=mix(c,fcol*mix(vec3(1.0),dt,0.5),dr); zn=mix(zn,vec3(0.0,1.0,0.0),dr);
-    Ht+=dr*(0.01+0.02*smoothstep(0.30,0.90,drw))+0.006*dr*(S.r-0.5);
+    float fold=sin(ew*(31.0+9.0*jh)+6.0*S.g);                                       // 세로 주름(가로 자리로 도는 줄 · 길이 쪽은 잡음으로만 굽는다)
+    c*=1.0+dr*(0.07*fold); Ht+=dr*(0.01+0.02*smoothstep(0.30,0.90,drw)+0.006*fold)+0.006*dr*(S.r-0.5);
     rg=mix(rg,mix(0.10,0.45,dry),dr); f0=mix(f0,mix(0.02,0.05,dry),dr); wet=mix(wet,mix(0.9,0.12,dry),dr); pr=mix(pr,0.25,dr); sss=dr;
     /* 철 — 철분 켜 경계(10%) 밑 녹물 줄(곱 · 불투명 0.35) */
     float fe=step(0.9,lhU.z)*(1.0-smoothstep(0.1,0.15+0.5*S.g,dUp))*smoothstep(0.55,0.75,S.b)*wal*(1.0-dr)*0.35;
