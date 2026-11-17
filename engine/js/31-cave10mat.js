@@ -407,9 +407,9 @@ const CM_BODY=`#include <color_fragment>
     float tier=fract(cs*3.3), wsh=tier<0.35?0.05:(tier<0.80?0.40:0.80), wetJ=step(jwz,wsh)*fhOK;
     vec4 S=texture(cmZ,vec3(p.x*1.25,p.y*0.085,p.z*1.25));                            // 세로로 늘인 잡음 — 기둥 · 길이
     /* (FX 10) 덧쌓인 막 — 위는 좁은 목(20 cm) · 아래로 넓어지는 부채(3 m 에서 ~1.9 m · FX 11 넓힘) · 가장자리는 잡음 · 사진 결로 들쭉날쭉 · 크림~꿀빛(주황 금지 — 흰 #F2EEE6 0.6 : 꿀 #D9A86C 0.4 쪽) · 볼록 1~3 cm */
-    /* (FX 12) 켜마다 dUp 로 세면 켜를 지날 때마다 목이 다시 좁아져 세모가 겹겹(전나무 꼴)이었다 → 칸마다 시작 높이(바닥 위 0.9~3.3 m)에서 잰 거리 ds 로 하나의 막 ·
+    /* (FX 12) 켜마다 dUp 로 세면 켜를 지날 때마다 목이 다시 좁아져 세모가 겹겹(전나무 꼴)이었다 → 칸마다 시작 높이(바닥 위 2.5~7.5 m — 높은 벽에서 바닥 쪽으로)에서 잰 거리 ds 로 하나의 막 ·
        옆 가장자리는 세로로 늘인 잡음으로 물결 · 아래 끝은 둥근 혀(가운데가 길다) · 안쪽은 세로 주름 */
-    float hs=0.9+2.4*fract(jwz*7.3+jh*3.1), ds=hs-fh, dsc=clamp(ds,0.0,3.5), Lf=(1.6+2.6*S.g)*jL, fan=0.28+0.60*dsc;
+    float hs=2.5+5.0*fract(jwz*7.3+jh*3.1), ds=hs-fh, dsc=clamp(ds,0.0,4.0), Lf=(2.5+4.0*S.g)*jL, fan=0.30+0.50*dsc;
     float ew=jd+0.30*fan*(S.r-0.5)+0.18*fan*(S.b-0.5)+0.08*hp, ex=ew/max(fan,1e-3);
     float drw=wetJ*(1.0-smoothstep(0.55,1.0,ex))*smoothstep(-0.10,0.12,ds+0.10*(Z1.a-0.5))*(1.0-smoothstep(0.55*Lf,Lf,ds+0.45*Lf*ex*ex+0.25*(S.b-0.5)))*clamp(wal+cei,0.0,1.0)*(1.0-flo);
     float dr=smoothstep(0.08,0.45,drw);

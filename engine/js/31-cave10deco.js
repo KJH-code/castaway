@@ -29,13 +29,13 @@ function cvdInit(){
       shr  :new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide}),
       gold :new THREE.PointsMaterial({vertexColors:true,size:0.035,sizeAttenuation:true})   // 빛을 안 받는 점 — 빛깔에 그 자리 굴 깊이만큼 어둠을 구워 넣는다(아래 · review C)
     };
-    /* (FX 12) 종유석 · 석순 · 고드름의 흘러내린 결 — 조각 정점이 aSp(둘레 cos · sin · 길이 t · 2+씨(석회 매달림) · 3+씨(용암) · 4+씨(석회 석순))를 싣고
+    /* (FX 12) 종유석 · 석순 · 고드름의 흘러내린 결 — 조각 정점이 aSp(축 밑동 세계 x · z · 길이 t · 2+씨(석회 매달림) · 3+씨(용암) · 4+씨(석회 석순))를 싣고
        조각 셰이더가 화소마다 세로 홈 · 골(홈 짙게 · 등 밝게) · 마디 · 혹 · 끝 밝음 · 세로 줄무늬를 그린다(조각 정점이 성겨 정점으로는 홈이 안 선다 · 빛은 정점에서 세는 램버트라 빛깔로).
        aSp 가 없는 메시(미리 짜기 견본)는 기본값 (0,0,0,1) — w<1.5 라 손대지 않는다 */
     { const m=CVD.mats.rock; m.onBeforeCompile=sh=>{
-        sh.vertexShader='attribute vec4 aSp;\nvarying vec4 vSp;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n  vSp=aSp;');
-        sh.fragmentShader='varying vec4 vSp;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
-  if(vSp.w>1.5){ float kd=floor(vSp.w), sd=vSp.w-kd, an=atan(vSp.y,vSp.x), t=clamp(vSp.z,0.0,1.0), ph=sd*37.0, nG=5.0+floor(sd*5.0);
+        sh.vertexShader='attribute vec4 aSp;\nvarying vec4 vSp;\nvarying vec3 vSpP;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n  vSp=aSp; vSpP=(modelMatrix*vec4(transformed,1.0)).xyz;');
+        sh.fragmentShader='varying vec4 vSp;\nvarying vec3 vSpP;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  if(vSp.w>1.5){ float kd=floor(vSp.w), sd=vSp.w-kd, an=atan(vSpP.z-vSp.y,vSpP.x-vSp.x), t=clamp(vSp.z,0.0,1.0), ph=sd*37.0, nG=5.0+floor(sd*5.0);
     float g1=0.5+0.5*cos(nG*an+ph+1.4*sin(t*6.0+ph)), g2=0.5+0.5*cos(2.0*nG*an+ph*1.7+2.0*sin(t*9.0+ph*0.7));
     float rid=clamp(0.70*g1*g1+0.30*g2,0.0,1.0);
     float kn=0.0; for(int q=0;q<4;q++){ float rt=0.10+0.75*fract(sd*(3.1+1.7*float(q))), d=(t-rt)/(kd>3.5?0.07:0.035); kn+=exp(0.0-d*d)*step(float(q),1.0+2.0*fract(sd*5.3)); }
@@ -301,7 +301,7 @@ function cvdPcPut(X,A,pool,down,x,y,z,H,R,eq,want,o){
       mx-=dR*ax*fy+dG*wx; my-=dR*ay*fy+dG*wy; mz-=dR*az*fy+dG*wz; l=Math.hypot(mx,my,mz)||1; mx/=l; my/=l; mz/=l;
       const c0=o.col||o.cf(t), g=(0.5+0.5*Cg[v])*cj*(1-0.14*gr*tw)*(1+0.06*rg)*(1+0.10*Math.max(0,(t-0.9)/0.1)), st=1+0.08*Math.sin(an*3+gPh*2)+0.05*Math.sin(an*7-gPh);   // 오목함은 반만 · 홈은 짙게 · 마디 · 끝은 밝게 · 세로 줄무늬
       const kt=kst?[0.86+0.20*t,0.80+0.22*t,0.66+0.36*t]:[1,1,1];
-      acc.s.push(Math.cos(an),Math.sin(an),t,spW);
+      acc.s.push(x,z,t,spW);   // 축 밑동의 세계 x · z — 둘레 각은 셰이더가 화소 자리에서 센다(조각의 본디 좌표는 축이 원점이 아니라 각이 거의 안 돌았다)
       acc.p.push(x+V[0]+mx*dd,y+V[1]+dy+my*dd,z+V[2]+mz*dd); acc.n.push(mx,my,mz); acc.c.push(c0[0]*g*st*kt[0],c0[1]*g*st*kt[1],c0[2]*g*st*kt[2]); }
     const I=G.i, rev=(mir<0)!==down;
     for(let t=0;t<I.length;t+=3){ if(rev) acc.i.push(v0+I[t],v0+I[t+2],v0+I[t+1]); else acc.i.push(v0+I[t],v0+I[t+1],v0+I[t+2]); }
