@@ -34,12 +34,12 @@ const CMAT={ mats:{}, tex:null, nrm:null, left:-1, ready:false, wt:[], geo:null,
      (TX2) 사진 층 — L 벽 · LF 바닥 · LC 천장 · LM 큰 장(층 번호는 CMAT.SRC) · KM 큰 장 배율 · SU · SV 벽 uv 늘림 · rot 벽 uv 돌림(도 — lava 는 사진 결 −49.5° 를 수평으로) ·
      KA · KB 바탕 · 큰 장 결 세기 · SAT · SATB 사진 빛깔 몫 · JV uv 밀기의 세로 몫(켜가 있는 종류는 0) · hex 평균 빛깔(CM_DBG_BASE 검사) */
   K:{ karst:{LF:5,LC:0,LM:7,KM:3.3,SU:0.6,SV:1,rot:0,KA:0.62,KB:0.9,FH:0.005,SAT:0.5,SATB:0.5,JV:0,hex:'CP_LIME',L:0,RS:1.7,wet:0.30,moss:0.8,id:0,r:0.78,f0:0.045,por:0.70,ks:1,hum:0.22}, lava:{LF:7,LC:6,LM:0,KM:3.0,SU:0.5,SV:1,rot:-49.5,KA:1.0,KB:0.7,SAT:0.15,SATB:0.15,JV:1,hex:'(0.5*(CP_BAS0+CP_BAS1))',L:1,RS:2.1,wet:0.03,moss:1.15,id:1,r:0.90,f0:0.04,por:0.40,ks:1,hum:0.08},
-      talus:{LF:7,LC:2,LM:0,KM:2.6,SU:1,SV:1,rot:0,KA:0.9,KB:0.8,SAT:0.2,SATB:0.2,JV:1,hex:'CP_GRAN',L:2,RS:1.3,wet:0.40,moss:0.9,id:2,r:0.68,f0:0.045,por:0.55,ks:1,hum:0.25}, shelter:{LF:8,LC:8,LM:9,KM:2.7,SU:0.6,SV:1,rot:0,KA:0.62,KB:0.75,FH:0.005,SAT:0.9,SATB:0.6,JV:0,hex:'CP_SSW',L:3,RS:2.4,wet:0.0,moss:0.3,id:3,r:0.90,f0:0.035,por:1.00,ks:1,hum:0.03} },
+      talus:{LF:7,LC:2,LM:0,KM:2.6,SU:1,SV:1,rot:0,KA:0.9,KB:0.8,SAT:0.2,SATB:0.2,JV:1,hex:'CP_GRAN',L:2,RS:1.3,wet:0.40,moss:0.9,id:2,r:0.68,f0:0.045,por:0.55,ks:1,hum:0.25}, shelter:{LF:8,LC:8,LM:9,KM:2.7,SU:0.6,SV:1,rot:0,KA:0.62,KB:0.75,FH:0.005,SAT:0.45,SATB:0.35,JV:0,hex:'CP_SSW',L:3,RS:2.4,wet:0.0,moss:0.3,id:3,r:0.90,f0:0.035,por:1.00,ks:1,hum:0.03} },
   /* (U2) 빛깔 — 실제 동굴 사실표(hex/255 를 바탕값으로 · 출력 부호화 없음). 셰이더에는 CP_이름 으로 든다 */
   PAL:{ LIME:'#9E9A90', MUD:'#6B5640', MUDW:'#4A3A2A', FLOH:'#D9A86C', FLOW:'#F2EEE6', MANG:'#2A2622', IRON:'#A0522D', MOON:'#F4F2EC',
         BAS0:'#3A3836', BAS1:'#4F4A45', GLAZ:'#8A8C90', OXID:'#8B3A24', CRUS:'#E8E4DA', MATG:'#C9A85A', HIGH:'#D8C46A',
         GRAN:'#9A958E', LICG:'#8C9A7E', LICY:'#C8B24A',
-        SSW:'#E6D8C3', SSO:'#C98A5A', SSR:'#9A4E36', VARK:'#2E2A28', VARR:'#6A3B26', SALT:'#F0EEE8', SEEP:'#5F5A4E', ALGA:'#4E5A3A' },
+        SSW:'#E4DCCD', SSO:'#C9A27A', SSR:'#9A6650', VARK:'#2E2A28', VARR:'#6A3B26', SALT:'#F0EEE8', SEEP:'#5F5A4E', ALGA:'#4E5A3A' },
   /* (U2) 입구 테 팔레트 — 풀(그 자리 바이옴 빛깔) → 낙엽 → 부식토 → 자갈 → 바위. 땅 테(U4 — 땅 셰이더 cvF)가 같은 값을 쓴다. 셰이더에는 CR_이름 */
   RIM:{ LITTER:'#5A4630', HUMUS:'#3B2F22', GRAVEL:'#857D70' } };
 const cmV3=h=>{ const v=parseInt(h.slice(1),16); return 'vec3('+[(v>>16)&255,(v>>8)&255,v&255].map(x=>(x/255).toFixed(4)).join(',')+')'; };
