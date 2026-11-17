@@ -29,6 +29,22 @@ function cvdInit(){
       shr  :new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide}),
       gold :new THREE.PointsMaterial({vertexColors:true,size:0.035,sizeAttenuation:true})   // 빛을 안 받는 점 — 빛깔에 그 자리 굴 깊이만큼 어둠을 구워 넣는다(아래 · review C)
     };
+    /* (FX 12) 종유석 · 석순 · 고드름의 흘러내린 결 — 조각 정점이 aSp(둘레 cos · sin · 길이 t · 2+씨(석회 매달림) · 3+씨(용암) · 4+씨(석회 석순))를 싣고
+       조각 셰이더가 화소마다 세로 홈 · 골(홈 짙게 · 등 밝게) · 마디 · 혹 · 끝 밝음 · 세로 줄무늬를 그린다(조각 정점이 성겨 정점으로는 홈이 안 선다 · 빛은 정점에서 세는 램버트라 빛깔로).
+       aSp 가 없는 메시(미리 짜기 견본)는 기본값 (0,0,0,1) — w<1.5 라 손대지 않는다 */
+    { const m=CVD.mats.rock; m.onBeforeCompile=sh=>{
+        sh.vertexShader='attribute vec4 aSp;\nvarying vec4 vSp;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n  vSp=aSp;');
+        sh.fragmentShader='varying vec4 vSp;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  if(vSp.w>1.5){ float kd=floor(vSp.w), sd=vSp.w-kd, an=atan(vSp.y,vSp.x), t=clamp(vSp.z,0.0,1.0), ph=sd*37.0, nG=5.0+floor(sd*5.0);
+    float g1=0.5+0.5*cos(nG*an+ph+1.4*sin(t*6.0+ph)), g2=0.5+0.5*cos(2.0*nG*an+ph*1.7+2.0*sin(t*9.0+ph*0.7));
+    float rid=clamp(0.70*g1*g1+0.30*g2,0.0,1.0);
+    float kn=0.0; for(int q=0;q<4;q++){ float rt=0.10+0.75*fract(sd*(3.1+1.7*float(q))), d=(t-rt)/(kd>3.5?0.07:0.035); kn+=exp(0.0-d*d)*step(float(q),1.0+2.0*fract(sd*5.3)); }
+    float eg=kd>3.5?0.5+0.5*cos(t*6.2832*(2.0+floor(sd*3.0))):0.5;
+    vec3 c=diffuseColor.rgb; float l=dot(c,vec3(0.30,0.59,0.11)); c=mix(vec3(l),c,0.55);
+    float ct=kd>2.5&&kd<3.5?0.55:1.0;
+    c*=1.0+ct*(-0.42+0.62*rid+0.20*kn+0.10*(eg-0.5)+0.30*smoothstep(0.86,1.0,t)+0.12*sin(an*3.0+ph*2.0));
+    diffuseColor.rgb=max(c,vec3(0.0)); }`); };
+      m.customProgramCacheKey=()=>'cvdrock-sp'; }
     for(const k of ['rock','sheet','water']) envPatch(CVD.mats[k]);   // 굴 속 어둠 · 굴 불빛(CAVE_GLSL)을 받게 — 장식은 LIGHT 배역 훑기에 안 걸려 예전엔 깊은 데에서도 밖처럼 밝았다(독립 검수 C3)
   }
   if(typeof FLORA_PICK!=='undefined'&&!FLORA_PICK.cvcalcite)
@@ -273,7 +289,9 @@ function cvdPcPut(X,A,pool,down,x,y,z,H,R,eq,want,o){
   const rad=Math.max(sx,sz), nG=5+Math.floor(fh(1)*5), gPh=fh(2)*6.2832, rT=[0.18+0.2*fh(3),0.42+0.2*fh(4),0.66+0.2*fh(5)], rW=0.035+0.03*fh(6), kst=X.kind==='karst';
   const ax=M[1], ay=M[4]*fy, az=M[7], fl=lim?0:0.10;
   const ringF=t=>{ let r=0; for(let q=0;q<3;q++){ const d=(t-rT[q])/rW; r+=Math.exp(-d*d)*(0.6+0.4*Math.sin(q*2.1+gPh)); } return r; };
+  const spW=(X.kind==='lava'?3:(down?2:4))+0.999*fh(7);
   const emit=(acc,lj)=>{ const G=pc.L[lj], n=G.nv, N=G.n, Cg=G.c, v0=acc.p.length/3, i0=acc.i.length, V=[0,0,0];
+    if(!acc.s) acc.s=[]; while(acc.s.length<v0*4) acc.s.push(0,0,0,0);   // aSp — 앞 정점들은 0(결 없음)
     for(let v=0;v<n;v++){ xf(G,sx,sz,v,V); const nx=N[v*3]*mir/sx, ny=N[v*3+1]/sy, nz=N[v*3+2]/sz; let mx=M[0]*nx+M[1]*ny+M[2]*nz, my=(M[3]*nx+M[4]*ny+M[5]*nz)*fy, mz=M[6]*nx+M[7]*ny+M[8]*nz; let l=Math.hypot(mx,my,mz)||1; mx/=l; my/=l; mz/=l;
       const t=G.p[v*3+1], an=Math.atan2(G.p[v*3+2],G.p[v*3]*mir), gr=0.5+0.5*Math.cos(nG*an+gPh+1.3*Math.sin(t*5+gPh)), rg=ringF(t), tw=Math.min(1,t/0.08)*Math.min(1,(1-t)/0.08);
       const fla=fl*Math.pow(Math.max(0,1-t/0.18),2), dd=rad*(fla+tw*(0.05*rg-0.06*gr*gr));
@@ -283,6 +301,7 @@ function cvdPcPut(X,A,pool,down,x,y,z,H,R,eq,want,o){
       mx-=dR*ax*fy+dG*wx; my-=dR*ay*fy+dG*wy; mz-=dR*az*fy+dG*wz; l=Math.hypot(mx,my,mz)||1; mx/=l; my/=l; mz/=l;
       const c0=o.col||o.cf(t), g=(0.5+0.5*Cg[v])*cj*(1-0.14*gr*tw)*(1+0.06*rg)*(1+0.10*Math.max(0,(t-0.9)/0.1)), st=1+0.08*Math.sin(an*3+gPh*2)+0.05*Math.sin(an*7-gPh);   // 오목함은 반만 · 홈은 짙게 · 마디 · 끝은 밝게 · 세로 줄무늬
       const kt=kst?[0.86+0.20*t,0.80+0.22*t,0.66+0.36*t]:[1,1,1];
+      acc.s.push(Math.cos(an),Math.sin(an),t,spW);
       acc.p.push(x+V[0]+mx*dd,y+V[1]+dy+my*dd,z+V[2]+mz*dd); acc.n.push(mx,my,mz); acc.c.push(c0[0]*g*st*kt[0],c0[1]*g*st*kt[1],c0[2]*g*st*kt[2]); }
     const I=G.i, rev=(mir<0)!==down;
     for(let t=0;t<I.length;t+=3){ if(rev) acc.i.push(v0+I[t],v0+I[t+2],v0+I[t+1]); else acc.i.push(v0+I[t],v0+I[t+1],v0+I[t+2]); }
@@ -312,12 +331,12 @@ function* cvdPcCap(X){
   const nl=L.map(r=>r.li), cone=new Uint8Array(L.length), trOf=(r,lj)=>PL_[r.pk].L[lj].tr;
   for(let moved=true;over>0&&moved;){ moved=false; for(let k=0;k<L.length&&over>0;k++){ const r=L[k]; if(nl[k]<PL_[r.pk].L.length-1){ over-=trOf(r,nl[k])-trOf(r,nl[k]+1); nl[k]++; moved=true; } } }
   for(let k=L.length-1;k>=0&&over>0;k--){ if(!L[k].cone) continue; over-=trOf(L[k],nl[k])-L[k].eq; cone[k]=1; }
-  const P=[], N=[], C=[], I=[], bV=[], bD=[]; let vO=0, iO=0, dv=0, xtr=0;
-  const copy=(v0,v1,i0,i1,d)=>{ for(let k=v0*3;k<v1*3;k++){ P.push(A.p[k]); N.push(A.n[k]); C.push(A.c[k]); } for(let k=i0;k<i1;k++) I.push(A.i[k]+d); };
+  const P=[], N=[], C=[], I=[], Sp=[], bV=[], bD=[]; let vO=0, iO=0, dv=0, xtr=0; const As=A.s||[];
+  const copy=(v0,v1,i0,i1,d)=>{ for(let k=v0*3;k<v1*3;k++){ P.push(A.p[k]); N.push(A.n[k]); C.push(A.c[k]); } for(let k=v0*4;k<v1*4;k++) Sp.push(As[k]||0); for(let k=i0;k<i1;k++) I.push(A.i[k]+d); };
   for(let k=0;k<L.length;k++){ if((k&63)===63&&cvdT()) yield; const r=L[k];
     copy(vO,r.v0,iO,r.i0,dv); const nv0=P.length/3, ni0=I.length;
     if(!cone[k]&&nl[k]===r.li) copy(r.v0,r.v1,r.i0,r.i1,dv);
-    else { const t=cvdAcc(); if(cone[k]) r.cone(t); else r.emit(t,nl[k]); for(let q=0;q<t.p.length;q++){ P.push(t.p[q]); N.push(t.n[q]); C.push(t.c[q]); } for(const q of t.i) I.push(q+nv0); }
+    else { const t=cvdAcc(); if(cone[k]) r.cone(t); else r.emit(t,nl[k]); for(let q=0;q<t.p.length;q++){ P.push(t.p[q]); N.push(t.n[q]); C.push(t.c[q]); } const ts=t.s||[]; for(let q=0;q<t.p.length/3*4;q++) Sp.push(ts[q]||0); for(const q of t.i) I.push(q+nv0); }
     if(!cone[k]) xtr+=trOf(r,nl[k])-r.eq;
     vO=r.v1; iO=r.i1; dv=P.length/3-r.v1; bV.push(r.v1); bD.push(dv);
     if(cone[k]&&!r.isCone){ for(const p of r.picks){ p.y-=r.dy; p.ay-=r.dy; }   // 원뿔은 밑동을 안 민다 — 겨눔점 · 몸 막이를 원뿔 기준으로(열쇠는 그대로 · H3)
@@ -326,7 +345,7 @@ function* cvdPcCap(X){
   copy(vO,A.p.length/3,iO,A.i.length,dv);
   const mapB=b=>{ let lo=0, hi=bV.length-1, d=0; while(lo<=hi){ const m=(lo+hi)>>1; if(bV[m]<=b){ d=bD[m]; lo=m+1; } else hi=m-1; } return b+d; };   // 옛 정점 번호(범위 끝) → 새 번호
   for(const it of X.items) if(it.acc===A){ it.v0=mapB(it.v0); it.v1=mapB(it.v1); }
-  A.p=P; A.n=N; A.c=C; A.i=I; X.xtr=xtr;
+  A.p=P; A.n=N; A.c=C; A.i=I; A.s=Sp; X.xtr=xtr;
   if(X.pcs){ X.pcs.capped=1; X.pcs.cones=(X.pcs.cones||0)+cone.reduce((s,v)=>s+v,0); }
 }
 /* 그물 한 장(양면 시트) — nodes[a][b]=[x,y,z] · cols[a][b]=[r,g,b] · nrm=[nx,ny,nz]  (a: 길이 방향 · b: 너비 방향) */
@@ -868,6 +887,7 @@ function* cvdGen(rec){
     g.setAttribute('position',new THREE.BufferAttribute(yield* cvdTyped(Float32Array,A.p),3));
     g.setAttribute('normal',new THREE.BufferAttribute(yield* cvdTyped(Float32Array,A.n),3));
     g.setAttribute('color',new THREE.BufferAttribute(yield* cvdTyped(Float32Array,A.c),3));
+    if(A.s&&A.s.length){ while(A.s.length<A.p.length/3*4) A.s.push(0,0,0,0); g.setAttribute('aSp',new THREE.BufferAttribute(yield* cvdTyped(Float32Array,A.s),4)); }   // (FX 12) 조각 결
     g.setIndex(new THREE.BufferAttribute(yield* cvdTyped(A.p.length/3>65535?Uint32Array:Uint16Array,A.i),1));
     g.computeBoundingSphere(); yield;
     const m=new THREE.Mesh(g,mat); m.matrixAutoUpdate=false; m.userData.cvDeco=1; if(lr) m.userData.lightRole=lr; if(mat===mats.water) m.renderOrder=2; parent.add(m); D.meshes.push(m); accOf.set(A,m); }
