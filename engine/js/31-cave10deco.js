@@ -42,7 +42,7 @@ function cvdInit(){
     float eg=kd>3.5?0.5+0.5*cos(t*6.2832*(2.0+floor(sd*3.0))):0.5;
     vec3 c=diffuseColor.rgb; float l=dot(c,vec3(0.30,0.59,0.11)); c=mix(vec3(l),c,0.55);
     float ct=kd>2.5&&kd<3.5?0.55:1.0;
-    c*=1.0+ct*(-0.42+0.62*rid+0.20*kn+0.10*(eg-0.5)+0.30*smoothstep(0.86,1.0,t)+0.12*sin(an*3.0+ph*2.0));
+    c*=(kd>2.5&&kd<3.5?1.0:0.68)*(1.0+ct*(-0.55+0.75*rid+0.22*kn+0.14*(eg-0.5)+0.30*smoothstep(0.86,1.0,t)+0.15*sin(an*3.0+ph*2.0)));   // 석회암은 0.68 배 — 횃불 가까이서 하얗게 타면 홈이 안 보였다
     diffuseColor.rgb=max(c,vec3(0.0)); }`); };
       m.customProgramCacheKey=()=>'cvdrock-sp'; }
     for(const k of ['rock','sheet','water']) envPatch(CVD.mats[k]);   // 굴 속 어둠 · 굴 불빛(CAVE_GLSL)을 받게 — 장식은 LIGHT 배역 훑기에 안 걸려 예전엔 깊은 데에서도 밖처럼 밝았다(독립 검수 C3)
