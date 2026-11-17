@@ -95,7 +95,7 @@ function* cvdChamfer(X,src){                                     // src[q]=1 인
   return d;
 }
 /* 종류별 바탕 빛깔 b · 띠 빛깔 a (방해석 크림 + 철분 주황 / 용암 검정 + 붉은 산화 / 화강암 회색 + 분홍 / 사암 황갈 + 붉은 켜) */
-const CVD_PAL={ karst:{b:[0.80,0.74,0.62],a:[0.66,0.42,0.24]}, lava:{b:[0.17,0.155,0.15],a:[0.32,0.18,0.13]}, talus:{b:[0.50,0.47,0.43],a:[0.46,0.42,0.37]}, shelter:{b:[0.78,0.60,0.40],a:[0.64,0.36,0.22]} };
+const CVD_PAL={ karst:{b:[0.80,0.74,0.62],a:[0.66,0.42,0.24]}, lava:{b:[0.17,0.155,0.15],a:[0.32,0.18,0.13]}, talus:{b:[0.40,0.375,0.345],a:[0.37,0.34,0.30]}, shelter:{b:[0.78,0.60,0.40],a:[0.64,0.36,0.22]} };
 function cvdCol(X,tone,band,ph){                                 // (t,j)→[r,g,b] — t 가 길이 방향. 띠가 그 위를 지난다
   const P=CVD_PAL[X.kind]||CVD_PAL.talus, b=P.b, a=P.a;
   return (t)=>{ const m=Math.min(0.7,Math.max(0,Math.sin(t*9+ph)-0.4)*band), k=tone*(1-0.12*t);
