@@ -477,10 +477,11 @@ const CM_BODY=`#include <color_fragment>
 #elif CM_KIND==2
     /* (TX4) 화강암 바위틈 — 덩이마다 다른 돌(톤 · 풍화 빛 · 사진 자리 — 머리에서 tb*) · 틈 셋(실금 · 빈틈 · 메워진 틈) · 덩이마다 지의류 덮개 · 틈에서 내린 물때 */
     c=tbC*dt;
-    float bk=1.0-smoothstep(0.0,tbW+fwY*2.0,tbE*1.8+0.01*jt);                       // 틈(덩이 경계까지 m 어림)
+    /* (FX 11) 틈 — 그은 금 대신 폭 있는 부드러운 그늘(가림 · 폭 = 틈 너비 + 4~10 cm · 대비 낮게 · 0.75 m 잡음으로 끊김) */
+    float bkw=tbW+0.04+0.06*Z1.r, bk=(1.0-smoothstep(0.0,bkw+fwY*2.0,tbE*1.8+0.02*jt))*smoothstep(0.25,0.55,Z1.a+0.2*jt);
     bk*=(cei+wal*0.6+flo*0.3);
-    if(tbT<0.30){ c*=1.0-0.10*bk; Ht-=0.005*bk; }
-    else if(tbT<0.80){ c*=1.0-0.05*bk-0.03*(1.0-smoothstep(0.0,0.04+tbW,tbE*1.8)); Ht-=(0.03+0.05*tbP)*bk; }
+    if(tbT<0.30){ c*=1.0-0.05*bk; Ht-=0.003*bk; }
+    else if(tbT<0.80){ c*=1.0-0.08*bk*bk; Ht-=(0.01+0.02*tbP)*bk; }
     else{ float fz=1.0-smoothstep(0.0,0.05+0.07*tbP,tbE*1.8); c=mix(c,vec3(0.353,0.275,0.188)*mix(vec3(1.0),dt,0.6),fz*0.5); Ht-=0.01*fz; zn=mix(zn,vec3(0.0,0.0,1.0),fz); rg=mix(rg,0.95,fz); }
     c*=1.0+0.06*step(0.5,tbH.z)*(1.0-smoothstep(0.05,0.15,tbE*1.8));               // 오래된 덩이 — 가장자리가 닳아 밝다
     zn=mix(zn,vec3(1.0,0.0,1.0),bk*0.3);
@@ -508,8 +509,9 @@ const CM_BODY=`#include <color_fragment>
     vec3 sc=mix(mix(CP_SSW,CP_SSO,clamp(ts*2.0,0.0,1.0)),CP_SSR,clamp(ts*2.0-1.0,0.0,1.0));
     c=sc*dt*(0.95+0.10*cmH(vec3(lk,vs,19.0)));
     float sbd=min(sf,1.0-sf)*2.0*lb, spro=pow(cmH(vec3(sk,vs,23.0)),2.5);
-    float sbv=(1.0-smoothstep(0.0,0.02+0.03*spro+fwY,sbd))*(1.0-flo);
-    c*=1.0-0.05*sbv-0.15*spro*exp(0.0-dUp/0.05)*(1.0-flo)*step(0.5,1.0-sf); Ht-=0.03*sbv*(0.3+0.7*spro);
+    /* (FX 11) 세트 경계 — 석회암 켜 턱처럼: 가는 금 대신 턱 밑 부드러운 그늘(폭 4~14 cm · 대비 낮게 · 잡음으로 끊김) */
+    float sgw=0.04+0.10*spro, sbv=(1.0-smoothstep(0.0,sgw,sbd))*(1.0-flo)*smoothstep(0.30,0.60,Z1.a+0.25*(fine-0.5));
+    c*=1.0-0.03*sbv-0.08*spro*exp(0.0-dUp/sgw)*(1.0-flo)*step(0.5,1.0-sf); Ht-=0.006*sbv*(0.3+0.7*spro);
     /* 엽층 — 굴의 바람 방향 ±25° · 기울기 20~34° 가 세트 밑으로 갈수록 눕는다 · 톤 ±4% 와 잔 턱(먼 데는 끈다) */
     vec3 sh2=cmH3(vec3(sk,vs,53.0)); float az=fract(cs*2.9)*6.2832+(sh2.x-0.5)*0.87, dip=radians(20.0+14.0*sh2.y)*(0.3+0.7*smoothstep(0.0,0.6,sf));
     float lam=(p.y-tan(dip)*dot(p.xz,vec2(cos(az),sin(az))))/(0.03+0.05*sh2.z);
