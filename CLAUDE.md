@@ -422,6 +422,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 몹을 본편에 들일 때 — 몸은 `scene` 에 숨겨 두고 돌려 쓴다 · `lightRole:'recv'` · 전역 이름 겹침은 '확인하는 법' 의 이어 붙이기 검사로 · 움직이면 `LIGHT.dirtyAt` · `q.slerpQuaternions(q0,q,w)` 에 자기를 넣지 말 것(r128 · mobs).
 - 애쉬스케일 `wClimb` 은 `wyv-sync` 가 안 옮긴다(wyvern · battle · night · siege 넷) · 본편 스킨워커 값은 아레나 `MP`/`SPD` 그대로(`MIM_P`/`MIM_SPD` — 아레나를 고치면 같이 · mobs).
 - 굴 속(지형 판 10)에서 땅 높이를 쓰는 새 놀이는 `heightAt` 대신 `groundY(x,z,y)` · 걷기 · 눈은 `caveHere`(좁은 질의 · `cv10Q` 는 넉넉해 벽 속까지 받는다 · 80-player.js · caves).
+- 굴 껍데기 무늬(31-cave10mat.js)는 줄을 빛깔 선으로 긋지 않는다(턱 · 경계는 폭 있는 그늘 · 잡음으로 끊김 — 가는 검은 선이 됐다) · 굴 장식 조각의 `aSp`(종유석 결 — 장식 바위 재질 `cvdrock-sp`)는 `cvdPcCap` 다시 엮기가 같이 옮긴다 · 유석은 아직 칠(입체 꼴은 다음 단계 · caves '굴을 실제처럼').
 - battle ↔ night ↔ azure_night 는 글자 그대로 · 다지류 모듈과 총 꾸러미는 crawler ↔ battle 글자 그대로(arenas).
 
 ## 함정
