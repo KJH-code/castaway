@@ -267,10 +267,23 @@ function cvdPcPut(X,A,pool,down,x,y,z,H,R,eq,want,o){
     need+=0.01; if(need<=0) sft=0; else if(need<=cap) sft=need; }
   if(sft<0){ if(X.pcs) X.pcs.cone=(X.pcs.cone||0)+1; return null; }
   Rk/=0.7; const sx=R*Rk*a*ox, sz=R*Rk*a/ox, dy=down?sft:-sft;
+  /* (FX 11) 흘러내린 결 — 길이 방향 홈(각도 nG 개) · 자란 마디(가로 볼록 고리 셋 · 불규칙) · 뿌리 퍼짐 · 끝 밝음 · 세로 줄무늬 얼룩(석회암은 뿌리 짙은 꿀 → 끝 크림).
+     해시는 밑동 자리에서(X.rnd · X.prnd 를 더 안 뽑는다 — 열쇠 · 자리 · 몸 막이 그대로) · 변위는 법선 쪽 · 기울기는 법선에 얹는다(홈 · 마디가 횃불에 선다) */
+  const fh=(k)=>{ let h=Math.imul(Math.round(x*97)|0,374761393)^Math.imul(Math.round(z*97)|0,668265263)^Math.imul(k+1,1274126177); h=Math.imul(h^(h>>>13),1103515245); return ((h^(h>>>16))>>>0)/4294967296; };
+  const rad=Math.max(sx,sz), nG=5+Math.floor(fh(1)*5), gPh=fh(2)*6.2832, rT=[0.18+0.2*fh(3),0.42+0.2*fh(4),0.66+0.2*fh(5)], rW=0.035+0.03*fh(6), kst=X.kind==='karst';
+  const ax=M[1], ay=M[4]*fy, az=M[7], fl=lim?0:0.10;
+  const ringF=t=>{ let r=0; for(let q=0;q<3;q++){ const d=(t-rT[q])/rW; r+=Math.exp(-d*d)*(0.6+0.4*Math.sin(q*2.1+gPh)); } return r; };
   const emit=(acc,lj)=>{ const G=pc.L[lj], n=G.nv, N=G.n, Cg=G.c, v0=acc.p.length/3, i0=acc.i.length, V=[0,0,0];
-    for(let v=0;v<n;v++){ xf(G,sx,sz,v,V); const nx=N[v*3]*mir/sx, ny=N[v*3+1]/sy, nz=N[v*3+2]/sz; const mx=M[0]*nx+M[1]*ny+M[2]*nz, my=(M[3]*nx+M[4]*ny+M[5]*nz)*fy, mz=M[6]*nx+M[7]*ny+M[8]*nz, l=Math.hypot(mx,my,mz)||1;
-      const t=G.p[v*3+1], col=o.col||o.cf(t), g=(0.5+0.5*Cg[v])*cj;                              // 오목함은 반만(그대로 곱하면 예전 원뿔보다 15% 넘게 어두웠다)
-      acc.p.push(x+V[0],y+V[1]+dy,z+V[2]); acc.n.push(mx/l,my/l,mz/l); acc.c.push(col[0]*g,col[1]*g,col[2]*g); }
+    for(let v=0;v<n;v++){ xf(G,sx,sz,v,V); const nx=N[v*3]*mir/sx, ny=N[v*3+1]/sy, nz=N[v*3+2]/sz; let mx=M[0]*nx+M[1]*ny+M[2]*nz, my=(M[3]*nx+M[4]*ny+M[5]*nz)*fy, mz=M[6]*nx+M[7]*ny+M[8]*nz; let l=Math.hypot(mx,my,mz)||1; mx/=l; my/=l; mz/=l;
+      const t=G.p[v*3+1], an=Math.atan2(G.p[v*3+2],G.p[v*3]*mir), gr=0.5+0.5*Math.cos(nG*an+gPh+1.3*Math.sin(t*5+gPh)), rg=ringF(t), tw=Math.min(1,t/0.08)*Math.min(1,(1-t)/0.08);
+      const fla=fl*Math.pow(Math.max(0,1-t/0.18),2), dd=rad*(fla+tw*(0.05*rg-0.06*gr*gr));
+      /* 기울기: 마디(길이 쪽 미분) · 홈(각도 쪽 미분) — 축 방향 · 둘레 방향으로 법선을 민다 */
+      const dR=(ringF(Math.min(1,t+0.01))-ringF(Math.max(0,t-0.01)))/0.02*0.05*rad/Math.max(H,0.05)*tw, dG=-0.06*2*gr*(-0.5*nG*Math.sin(nG*an+gPh+1.3*Math.sin(t*5+gPh)))*tw;
+      const tx=-Math.sin(an)*mir, tz=Math.cos(an), wx=M[0]*tx+M[2]*tz, wy=(M[3]*tx+M[5]*tz)*fy, wz=M[6]*tx+M[8]*tz;
+      mx-=dR*ax*fy+dG*wx; my-=dR*ay*fy+dG*wy; mz-=dR*az*fy+dG*wz; l=Math.hypot(mx,my,mz)||1; mx/=l; my/=l; mz/=l;
+      const c0=o.col||o.cf(t), g=(0.5+0.5*Cg[v])*cj*(1-0.14*gr*tw)*(1+0.06*rg)*(1+0.10*Math.max(0,(t-0.9)/0.1)), st=1+0.08*Math.sin(an*3+gPh*2)+0.05*Math.sin(an*7-gPh);   // 오목함은 반만 · 홈은 짙게 · 마디 · 끝은 밝게 · 세로 줄무늬
+      const kt=kst?[0.86+0.20*t,0.80+0.22*t,0.66+0.36*t]:[1,1,1];
+      acc.p.push(x+V[0]+mx*dd,y+V[1]+dy+my*dd,z+V[2]+mz*dd); acc.n.push(mx,my,mz); acc.c.push(c0[0]*g*st*kt[0],c0[1]*g*st*kt[1],c0[2]*g*st*kt[2]); }
     const I=G.i, rev=(mir<0)!==down;
     for(let t=0;t<I.length;t+=3){ if(rev) acc.i.push(v0+I[t],v0+I[t+2],v0+I[t+1]); else acc.i.push(v0+I[t],v0+I[t+1],v0+I[t+2]); }
     acc.tr+=eq; return {v0,v1:acc.p.length/3,i0,i1:acc.i.length}; };
