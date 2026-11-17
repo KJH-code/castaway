@@ -33,8 +33,8 @@ const CMAT={ mats:{}, tex:null, nrm:null, left:-1, ready:false, wt:[], geo:null,
   /* (U2) wet 바탕 젖음 · hum 안으로 오르는 젖음(aDeep 곱)
      (TX2) 사진 층 — L 벽 · LF 바닥 · LC 천장 · LM 큰 장(층 번호는 CMAT.SRC) · KM 큰 장 배율 · SU · SV 벽 uv 늘림 · rot 벽 uv 돌림(도 — lava 는 사진 결 −49.5° 를 수평으로) ·
      KA · KB 바탕 · 큰 장 결 세기 · SAT · SATB 사진 빛깔 몫 · JV uv 밀기의 세로 몫(켜가 있는 종류는 0) · hex 평균 빛깔(CM_DBG_BASE 검사) */
-  K:{ karst:{LF:5,LC:0,LM:7,KM:3.3,SU:0.6,SV:1,rot:0,KA:0.62,KB:0.9,FH:0.005,SAT:0.5,SATB:0.5,JV:0,hex:'CP_LIME',L:0,RS:1.7,wet:0.30,moss:0.8,id:0,r:0.78,f0:0.045,por:0.70,ks:1,hum:0.22}, lava:{LF:7,LC:6,LM:0,KM:3.0,SU:0.5,SV:1,rot:-49.5,KA:1.0,KB:0.7,SAT:0.15,SATB:0.15,JV:1,hex:'(0.5*(CP_BAS0+CP_BAS1))',L:1,RS:2.1,wet:0.03,moss:1.15,id:1,r:0.90,f0:0.04,por:0.40,ks:1,hum:0.08},
-      talus:{LF:7,LC:2,LM:0,KM:2.6,SU:1,SV:1,rot:0,KA:0.9,KB:0.8,SAT:0.2,SATB:0.2,JV:1,hex:'CP_GRAN',L:2,RS:1.3,wet:0.40,moss:0.9,id:2,r:0.68,f0:0.045,por:0.55,ks:1,hum:0.25}, shelter:{LF:8,LC:8,LM:9,KM:2.7,SU:0.6,SV:1,rot:0,KA:0.62,KB:0.75,FH:0.005,SAT:0.25,SATB:0.20,JV:0,hex:'CP_SSW',L:3,RS:2.4,wet:0.0,moss:0.3,id:3,r:0.90,f0:0.035,por:1.00,ks:1,hum:0.03} },
+  K:{ karst:{LF:5,LC:0,LM:7,KM:3.3,SU:0.6,SV:1,rot:0,KA:0.62,KB:0.9,FH:0.005,DT:0.55,SAT:0.5,SATB:0.5,JV:0,hex:'CP_LIME',L:0,RS:1.7,wet:0.30,moss:0.8,id:0,r:0.78,f0:0.045,por:0.70,ks:1,hum:0.22}, lava:{LF:7,LC:6,LM:0,KM:3.0,SU:0.5,SV:1,rot:-49.5,KA:1.0,KB:0.7,SAT:0.15,SATB:0.15,JV:1,hex:'(0.5*(CP_BAS0+CP_BAS1))',L:1,RS:2.1,wet:0.03,moss:1.15,id:1,r:0.90,f0:0.04,por:0.40,ks:1,hum:0.08},
+      talus:{LF:7,LC:2,LM:0,KM:2.6,SU:1,SV:1,rot:0,KA:0.9,KB:0.8,SAT:0.2,SATB:0.2,JV:1,hex:'CP_GRAN',L:2,RS:1.3,wet:0.40,moss:0.9,id:2,r:0.68,f0:0.045,por:0.55,ks:1,hum:0.25}, shelter:{LF:8,LC:8,LM:9,KM:2.7,SU:0.6,SV:1,rot:0,KA:0.62,KB:0.75,FH:0.005,DT:0.60,SAT:0.25,SATB:0.20,JV:0,hex:'CP_SSW',L:3,RS:2.4,wet:0.0,moss:0.3,id:3,r:0.90,f0:0.035,por:1.00,ks:1,hum:0.03} },
   /* (U2) 빛깔 — 실제 동굴 사실표(hex/255 를 바탕값으로 · 출력 부호화 없음). 셰이더에는 CP_이름 으로 든다 */
   PAL:{ LIME:'#9E9A90', MUD:'#6B5640', MUDW:'#4A3A2A', FLOH:'#D9A86C', FLOW:'#F2EEE6', MANG:'#2A2622', IRON:'#A0522D', MOON:'#F4F2EC',
         BAS0:'#3A3836', BAS1:'#4F4A45', GLAZ:'#8A8C90', OXID:'#8B3A24', CRUS:'#E8E4DA', MATG:'#C9A85A', HIGH:'#D8C46A',
@@ -360,7 +360,7 @@ const CM_BODY=`#include <color_fragment>
 #endif
     /* 평균을 지키는 섞기 — 사진은 불러올 때 채널 평균 0.5(cmNorm)라 E[dt]=1 → 바탕의 평균 = hex 그대로 · 사진은 결만 바꾼다 */
     vec3 dA=rk*2.0-1.0, dB=rk2*2.0-1.0; float lA=cmLum(dA), lB=cmLum(dB);
-    vec3 dt=max(vec3(0.08),vec3(1.0)+CM_KA*mix(vec3(lA),dA,CM_SAT)+CM_KB*mix(vec3(lB),dB,CM_SATB));
+    vec3 dt=max(vec3(CM_DTMIN),vec3(1.0)+CM_KA*mix(vec3(lA),dA,CM_SAT)+CM_KB*mix(vec3(lB),dB,CM_SATB));
     float hp=0.6*lA+0.4*lB;                                                          // 사진 높이 대용(평균 0) — 가장자리를 사진이 정하게(cmHB)
     float fine=0.5+0.5*lA, fine2=0.5+0.5*lB, jt=fine-0.5, big=Z1.g, mid=Z1.a;      // 잔 결 · 큰 장 밝기 · jt — 경계를 사진 결로 들쭉날쭉하게
     vec3 c, zn=vec3(1.0,0.0,0.0);                                                // zn: 갈래(CM_DBG_ZONE) — 빨강 바탕 바위 · 초록 덧쌓임 · 파랑 바닥(진흙) · 노랑 이끼 · 녹조 · 테 · 자홍 얼룩(철 · 망간 · 산화 · 칠)
@@ -651,7 +651,7 @@ function cv10Mat(kind){
   /* CM_SUNCUT — envPatch(45-sky.js)가 이 정의를 보고 sky<0.01 화소에서 해 · 구름 그림자를 안 읽는다(옛 재질을 같은 페이지에서 견줄 때 옛 길이 그대로 남게) */
   const ra=K.rot*Math.PI/180, cr=Math.cos(ra), sr=Math.sin(ra), f4=v=>'('+v.toFixed(4)+')';
   const DX=`#define CM_LF ${K.LF.toFixed(1)}\n#define CM_LC ${K.LC.toFixed(1)}\n#define CM_LM ${K.LM.toFixed(1)}\n#define CM_KM ${K.KM.toFixed(2)}\n#define CM_KA ${K.KA.toFixed(3)}\n#define CM_KB ${K.KB.toFixed(3)}\n`+
-    `#define CM_FINEH ${(K.FH===undefined?0.012:K.FH).toFixed(4)}\n#define CM_SAT ${K.SAT.toFixed(3)}\n#define CM_SATB ${K.SATB.toFixed(3)}\n#define CM_JV ${K.JV.toFixed(1)}\n#define CM_HEX ${K.hex}\n`+
+    `#define CM_DTMIN ${(K.DT||0.08).toFixed(3)}\n#define CM_FINEH ${(K.FH===undefined?0.012:K.FH).toFixed(4)}\n#define CM_SAT ${K.SAT.toFixed(3)}\n#define CM_SATB ${K.SATB.toFixed(3)}\n#define CM_JV ${K.JV.toFixed(1)}\n#define CM_HEX ${K.hex}\n`+
     `#define CM_M mat2(${f4(cr*K.SU)},${f4(sr*K.SU)},${f4(-sr*K.SV)},${f4(cr*K.SV)})\n`;
   const D=DX+`#define CM_JN ${CMAT.joints|0}\n#define CM_KIND ${K.id}\n#define CM_L ${K.L.toFixed(1)}\n#define CM_RS ${K.RS.toFixed(2)}\n#define CM_WET ${K.wet.toFixed(3)}\n#define CM_MOSS ${K.moss.toFixed(2)}\n`+
     `#define CM_R ${K.r.toFixed(3)}\n#define CM_F0 ${K.f0.toFixed(3)}\n#define CM_POR ${K.por.toFixed(3)}\n#define CM_KS ${K.ks.toFixed(3)}\n#define CM_HUM ${K.hum.toFixed(3)}\n#define CM_SUNCUT\n`+CMAT.qd+cmPalDefs()+(CMAT.dbg||'');
