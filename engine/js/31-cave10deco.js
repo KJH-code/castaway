@@ -600,11 +600,13 @@ function cvdWallPt(X,o){                                          // 벽 세모 
   let nx=N[a]*q+N[b]*u+N[c]*w, ny=N[a+1]*q+N[b+1]*u+N[c+1]*w, nz=N[a+2]*q+N[b+2]*u+N[c+2]*w; const nl=Math.hypot(nx,ny,nz)||1; nx*=T.sign/nl; ny*=T.sign/nl; nz*=T.sign/nl;
   o.x=P[a]*q+P[b]*u+P[c]*w; o.y=P[a+1]*q+P[b+1]*u+P[c+1]*w; o.z=P[a+2]*q+P[b+2]*u+P[c+2]*w; o.nx=nx; o.ny=ny; o.nz=nz; return true;
 }
-function cvdDisc(A,x,y,z,nx,ny,nz,r,col,ox,oy){                         // 벽에 붙은 여섯 모 납작한 딱지
+function cvdDisc(A,x,y,z,nx,ny,nz,r,col,ox,oy,emb){                     // 벽에 붙은 여섯 모 납작한 딱지 · emb 면 반쯤 묻힌 껍질(가운데 6 mm 위 · 가장자리 8 mm 밑 · 반지름 들쭉날쭉 — 자리 해시)
   const l=Math.hypot(nx,ny,nz)||1; nx/=l; ny/=l; nz/=l; let ex,ey,ez; if(Math.abs(ny)<0.9){ ex=-nz; ey=0; ez=nx; } else { ex=0; ey=nz; ez=-ny; } const el=Math.hypot(ex,ey,ez)||1; ex/=el; ey/=el; ez/=el;
   const fx=ny*ez-nz*ey, fy=nz*ex-nx*ez, fz=nx*ey-ny*ex, o=A.p.length/3; x+=ex*ox+fx*oy; y+=ey*ox+fy*oy; z+=ez*ox+fz*oy;
-  A.p.push(x+nx*0.012,y+ny*0.012,z+nz*0.012); A.n.push(nx,ny,nz); A.c.push(col[0],col[1],col[2]);
-  for(let j=0;j<6;j++){ const an=j/6*6.2832, ca=Math.cos(an)*r*(0.8+0.4*((j*7)%3)/2), sa=Math.sin(an)*r*(0.8+0.4*((j*5)%3)/2); A.p.push(x+ex*ca+fx*sa,y+ey*ca+fy*sa,z+ez*ca+fz*sa); A.n.push(nx,ny,nz); A.c.push(col[0]*0.9,col[1]*0.9,col[2]*0.9); }
+  const hc=emb?0.006:0.012, he=emb?-0.008:0, hs=emb?(Math.imul(Math.round(x*131)|0,374761393)^Math.imul(Math.round(z*131)|0,668265263)):0;
+  A.p.push(x+nx*hc,y+ny*hc,z+nz*hc); A.n.push(nx,ny,nz); A.c.push(col[0],col[1],col[2]);
+  for(let j=0;j<6;j++){ const jr=emb?0.55+0.9*(((Math.imul(hs^(j*2654435761),1103515245)>>>8)&255)/255):1, an=j/6*6.2832, ca=Math.cos(an)*r*(0.8+0.4*((j*7)%3)/2)*jr, sa=Math.sin(an)*r*(0.8+0.4*((j*5)%3)/2)*jr;
+    A.p.push(x+ex*ca+fx*sa+nx*he,y+ey*ca+fy*sa+ny*he,z+ez*ca+fz*sa+nz*he); A.n.push(nx,ny,nz); A.c.push(col[0]*0.9,col[1]*0.9,col[2]*0.9); }
   for(let j=0;j<6;j++){ A.i.push(o,o+1+j,o+1+(j+1)%6); A.tr++; }
 }
 function* cvdWallDecals(X,kind,n){                                 // 'flake' 용암 광물 딱지 · 'salt' 소금꽃 · 'gold' 금빛 점
@@ -613,9 +615,9 @@ function* cvdWallDecals(X,kind,n){                                 // 'flake' �
     if(cvdNoise(X,o.x,o.z,3,5)<0.45) continue;                    // 얼룩져 모여 있다
     if(kind==='gold'){ X.gold.push(o.x+o.nx*0.02,o.y+o.ny*0.02,o.z+o.nz*0.02); X.cnt.gold=(X.cnt.gold||0)+1; made++; continue; }
     const dg0=A.p.length/3;
-    for(let m=0,mm=3+((rnd()*4)|0);m<mm;m++){ const ox=(rnd()-0.5)*0.35, oy=(rnd()-0.5)*0.35, r=0.03+0.07*rnd();
-      const col=kind==='salt'?[0.93,0.92,0.88]:(rnd()<0.5?[0.88,0.86,0.78]:[0.86,0.74,0.26]);
-      cvdDisc(A,o.x,o.y,o.z,o.nx,o.ny,o.nz,r,col,ox,oy); }
+    for(let m=0,mm=3+((rnd()*4)|0);m<mm;m++){ const ox=(rnd()-0.5)*0.35, oy=(rnd()-0.5)*0.35, r0=rnd(), r=kind==='salt'?0.03+0.07*r0:0.015+0.035*r0;   // (FX 11) 딱지는 작게(뽑는 수는 그대로)
+      const col=kind==='salt'?[0.93,0.92,0.88]:(rnd()<0.5?[0.56,0.55,0.52]:[0.60,0.57,0.47]);   // 흐린 흰 회색 석고 껍질 · 엷은 노랑(알베도 0.5~0.6 · 채도 낮게)
+      cvdDisc(A,o.x,o.y,o.z,o.nx,o.ny,o.nz,r,col,ox,oy,kind!=='salt'); }
     made++; cvdLog(X,kind==='salt'?'salt':'flake',o.x+o.nx*0.15,o.z+o.nz*0.15,o.y,o.y,0.1); cvdPick(X,kind==='salt'?'cvsalt':'cvflake',o.x,o.y,o.z,o.y,0.3,{acc:A,v0:dg0,v1:A.p.length/3}); }
 }
 function* cvdWallMoss(X,dMax,n){                                   // 입구 쪽 벽 이끼(어스름이 드는 데)
