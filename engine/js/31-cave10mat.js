@@ -379,10 +379,11 @@ const CM_BODY=`#include <color_fragment>
     vec3 lh=cmH3(vec3(lk,vs,31.0)), lhU=cmH3(vec3(lk+1.0,vs,31.0)); float hbk=lh.x;
     float dUp=(1.0-lf)*lb, proU=pow(lhU.y,2.5), bwk=smoothstep(0.15,0.5,sqrt(max(0.0,1.0-n.y*n.y)))*(1.0-flo);
     c*=0.94+0.12*hbk;
-    float gw=0.01+0.04*proU, grv=(1.0-smoothstep(0.0,gw+fwY,dUp))*bwk;
-    Ht-=grv*(0.01+0.04*proU); c*=1.0-0.22*proU*exp(0.0-dUp/(0.03+0.05*proU))*bwk;
+    /* (FX 10) 켜 턱 — 예전엔 1~5 cm 홈(Ht 계단) + 짙은 그늘이 화면에 가는 검은 가로 선으로 그어졌다 → 턱 밑 부드러운 그늘(폭 4~14 cm · 대비 낮게 · 0.75 m 잡음으로 끊김)과 완만한 턱 */
+    float gw=0.04+0.10*proU, gbk=smoothstep(0.30,0.60,Z1.a+0.25*jt)*bwk;
+    Ht-=gbk*(0.003+0.010*proU)*(1.0-smoothstep(0.0,gw,dUp)); c*=1.0-0.09*proU*exp(0.0-dUp/gw)*gbk;
     /* 절리(프레임 때문에 한 벌만 — 둘째 벌은 i<2) — 방위는 굴 씨에서(세계 축에 안 묶임) · 간격 2.2 m 로그정규 어림(칸 자리 흔들기 + 있음 0.55) · 금은 2~6 켜마다 끊기고 비켜 다시 선다 · 젖은 금(굴마다 몫) */
-    float jd=9.0, jh=0.0, jwz=1.0;
+    float jd=9.0, jh=0.0, jwz=1.0, jL=1.0;
     for(int i=0;i<CM_JN;i++){ float a=cs*6.2832+float(i)*(1.05+0.5*fract(cs*7.1)); vec2 dr2=vec2(cos(a),sin(a));
       float u=(dot(p.xz,dr2)+0.2*(fract(cs*(3.1+float(i)))-0.5)*p.y)/2.2, k0=floor(u-0.5);
       for(int t=0;t<=1;t++){ float kk=k0+float(t);
@@ -391,10 +392,11 @@ const CM_BODY=`#include <color_fragment>
 #if CM_JN==0
     /* (FX) 가짜 절리 한 벌 — 절리를 끈 채(CMAT.joints 0)로도 유석 · 방해석 맥이 서게: 굴 씨 방위로 돌린 가로 좌표 2.2 m 칸마다 해시 한 번(금 자리 0.3~0.7 칸 · 있음 0.55 · 젖음 jwz) ·
        이웃 칸은 안 본다 — 대신 칸 가장자리 0.25 m 안에서 jd 를 멀리 밀어 부채가 칸 끝에서 툭 잘리지 않게 잦아든다. 금 선(어둠 · 홈)은 안 그린다 */
-    { float a=cs*6.2832; vec2 dr2=vec2(cos(a),sin(a));
-      float u=(dot(p.xz,dr2)+0.2*(fract(cs*3.1)-0.5)*p.y)/2.2, kk=floor(u), fu=u-kk;
-      vec3 h=cmH3(vec3(kk,vs*2.0,floor(lk/3.0)+41.0)); float cx=0.5+0.4*(h.y-0.5), ed=min(fu,1.0-fu)*2.2;
-      if(h.x<0.55){ jd=abs(fu-cx)*2.2+2.0*(1.0-smoothstep(0.0,0.25,ed)); jh=h.y; jwz=h.z; } }
+    /* (FX 10) 칸 간격을 단조 휨으로 1.2~4.3 m(기울기 0.44~1.56 · 칸마다 다르게) · 칸마다 있음 · 젖음 · 길이(0.4~1.6 배) */
+    { float a=cs*6.2832, ph=cs*17.0; vec2 dr2=vec2(cos(a),sin(a));
+      float x=(dot(p.xz,dr2)+0.2*(fract(cs*3.1)-0.5)*p.y)/1.9, u=x+0.2*sin(1.3*x+ph)+0.08*sin(3.7*x+ph), du=1.0/1.9;   // 칸 → m 은 고른 칸 너비로 어림(휨의 기울기를 셈하면 cos 둘 — 프레임)
+      float kk=floor(u), fu=u-kk; vec3 h=cmH3(vec3(kk,vs*2.0,floor(lk/3.0)+41.0)); float cx=0.5+0.4*(h.y-0.5), ed=min(fu,1.0-fu)/du;
+      if(h.x<0.45+0.35*fract(h.y*5.3+cs)){ jd=abs(fu-cx)/du+2.0*(1.0-smoothstep(0.0,0.25,ed)); jh=h.y; jwz=h.z; jL=0.6+1.0*fract(h.z*7.7+h.y*3.1); } }
 #endif
     float jpro=jh*jh, jw=0.004+0.03*jpro, jl=(1.0-smoothstep(jw,jw+0.01+fwY,jd+0.004*jt))*clamp(wal+cei,0.0,1.0);
 #if CM_JN>0
@@ -404,14 +406,15 @@ const CM_BODY=`#include <color_fragment>
     /* 유석 — 젖은 금(굴마다: 마른 0.05 · 보통 0.4 · 화려 0.8) 밑 · 위 켜 경계에서 아래로 넓어지는 부채 · 길이 0.6~2.6 켜 · 두께 t 에서 빛깔(가장자리 갈색 → 꿀색 → 흰) */
     float tier=fract(cs*3.3), wsh=tier<0.35?0.05:(tier<0.80?0.40:0.80), wetJ=step(jwz,wsh);
     vec4 S=texture(cmZ,vec3(p.x*1.25,p.y*0.085,p.z*1.25));                            // 세로로 늘인 잡음 — 기둥 · 길이
-    float Lf=lb*(0.6+2.0*S.g), dyy=min(dUp,3.0), fan=0.25+0.35*dyy;
-    float drw=wetJ*(1.0-smoothstep(fan*0.5,fan,jd+0.25*(S.r-0.5)))*(1.0-smoothstep(0.6*Lf,Lf,dUp))*clamp(wal+cei,0.0,1.0)*(1.0-flo);
-    float dr=smoothstep(-0.15*(0.5),0.15*(0.5),drw-0.5)*step(0.02,drw);
+    /* (FX 10) 덧쌓인 막 — 위는 좁은 목(12 cm) · 아래로 넓어지는 부채(3 m 에서 ~1.4 m) · 가장자리는 잡음 · 사진 결로 들쭉날쭉 · 크림~꿀빛(주황 금지 — 흰 #F2EEE6 0.6 : 꿀 #D9A86C 0.4 쪽) · 볼록 1~3 cm */
+    float Lf=lb*(0.6+2.0*S.g)*jL, dyy=min(dUp,3.0), fan=0.12+0.42*dyy;
+    float drw=wetJ*(1.0-smoothstep(fan*0.45,fan,jd+0.22*(S.r-0.5)+0.12*hp+0.10*(Z1.a-0.5)))*(1.0-smoothstep(0.5*Lf,Lf,dUp+0.3*(S.b-0.5)*lb))*clamp(wal+cei,0.0,1.0)*(1.0-flo);
+    float dr=smoothstep(0.12,0.50,drw);
     float dry=smoothstep(0.15,0.5,sky);
-    vec3 fcol=mix(vec3(0.612,0.420,0.243),CP_FLOH,smoothstep(0.25,0.55,drw));
-    fcol=mix(fcol,CP_FLOW,smoothstep(0.70,0.95,drw)*smoothstep(0.35,0.75,S.r));
-    c=mix(c,fcol*mix(vec3(1.0),dt,0.6),dr); zn=mix(zn,vec3(0.0,1.0,0.0),dr);
-    Ht+=0.015*dr*(S.r-0.5)+0.01*dr;
+    vec3 fcol=mix(mix(CP_FLOH,CP_FLOW,0.45),mix(CP_FLOH,CP_FLOW,0.75),smoothstep(0.40,0.90,drw)*smoothstep(0.30,0.70,S.r));
+    fcol*=1.0-0.10*(1.0-dry)*smoothstep(0.5,0.9,S.g);                               // 젖은 데만 조금 짙게
+    c=mix(c,fcol*mix(vec3(1.0),dt,0.5),dr); zn=mix(zn,vec3(0.0,1.0,0.0),dr);
+    Ht+=dr*(0.01+0.02*smoothstep(0.30,0.90,drw))+0.006*dr*(S.r-0.5);
     rg=mix(rg,mix(0.10,0.45,dry),dr); f0=mix(f0,mix(0.02,0.05,dry),dr); wet=mix(wet,mix(0.9,0.12,dry),dr); pr=mix(pr,0.25,dr); sss=dr;
     /* 철 — 철분 켜 경계(10%) 밑 녹물 줄(곱 · 불투명 0.35) */
     float fe=step(0.9,lhU.z)*(1.0-smoothstep(0.1,0.15+0.5*S.g,dUp))*smoothstep(0.55,0.75,S.b)*wal*(1.0-dr)*0.35;
@@ -430,7 +433,7 @@ const CM_BODY=`#include <color_fragment>
     rg=mix(rg,mix(0.95,0.3,mwt),mud); wet=mix(wet,mwt,mud); pr=mix(pr,0.0,mud);
     float pud=flo*mudF*smoothstep(-0.15*(0.05),0.15*(0.05),Z1.r-0.76)*fhOK*(1.0-smoothstep(0.05,0.3,fh));   // 고인 물 — 가장 낮은 바닥에만
     c*=1.0-0.15*pud; wet=mix(wet,1.0,pud); rel*=1.0-pud; rg=mix(rg,0.05,pud);
-    float mn=mudW*(1.0-smoothstep(0.01,0.04,bel))*step(0.4,fract(su.x*0.2+cs*7.0))*0.8;   // 망간 — 수위선 욕조 테(구간 40%)
+    float mn=mudW*(1.0-smoothstep(0.02,0.14,bel))*smoothstep(0.35,0.60,Z1.a+0.2*jt)*step(0.4,fract(su.x*0.2+cs*7.0))*0.35;   // (FX 10) 수위선 망간 — 가는 검은 줄 대신 부드러운 띠(대비 낮게 · 끊김)   // 망간 — 수위선 욕조 테(구간 40%)
     mn=max(mn,mudF*fhOK*(1.0-smoothstep(0.0,0.1,fh))*smoothstep(-0.15*(0.03),0.15*(0.03),mid-CM_QA90)*0.6);
     c=mix(c,CP_MANG*mix(vec3(1.0),dt,0.5),mn); zn=mix(zn,vec3(1.0,0.0,1.0),mn);
     rel*=1.0-0.8*max(flo,mud);
