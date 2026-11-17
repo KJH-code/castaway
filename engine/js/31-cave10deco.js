@@ -42,7 +42,7 @@ function cvdInit(){
     float eg=kd>3.5?0.5+0.5*cos(t*6.2832*(2.0+floor(sd*3.0))):0.5;
     vec3 c=diffuseColor.rgb; float l=dot(c,vec3(0.30,0.59,0.11)); c=mix(vec3(l),c,0.55); c=mix(c,vec3(l)*vec3(1.06,1.0,0.88),0.30*rid);   // 등은 크림 쪽으로
     float ct=kd>2.5&&kd<3.5?0.55:1.0;
-    c*=(kd>2.5&&kd<3.5?1.0:0.68)*(1.0+ct*(-0.24+0.34*rid+0.14*kn+0.10*(eg-0.5)+0.22*smoothstep(0.86,1.0,t)+0.10*sin(an*2.0+ph*2.0+1.5*sin(t*3.0+ph))))   // (FX 13) 대비 절반 · 넓고 부드러운 세로 얼룩(청동 원뿔처럼 보였다);   // 석회암은 0.68 배 — 횃불 가까이서 하얗게 타면 홈이 안 보였다
+    c*=(kd>2.5&&kd<3.5?1.0:0.68)*(1.0+ct*(-0.24+0.34*rid+0.14*kn+0.10*(eg-0.5)+0.22*smoothstep(0.86,1.0,t)+0.10*sin(an*2.0+ph*2.0+1.5*sin(t*3.0+ph))));   // 석회암은 0.68 배 — 횃불 가까이서 하얗게 타면 홈이 안 보였다   // (FX 13) 대비 절반 · 넓고 부드러운 세로 얼룩(청동 원뿔처럼 보였다)
     diffuseColor.rgb=max(c,vec3(0.0)); }`); };
       m.customProgramCacheKey=()=>'cvdrock-sp'; }
     for(const k of ['rock','sheet','water']) envPatch(CVD.mats[k]);   // 굴 속 어둠 · 굴 불빛(CAVE_GLSL)을 받게 — 장식은 LIGHT 배역 훑기에 안 걸려 예전엔 깊은 데에서도 밖처럼 밝았다(독립 검수 C3)
