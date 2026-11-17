@@ -396,7 +396,7 @@ const CM_BODY=`#include <color_fragment>
     { float a=cs*6.2832, ph=cs*17.0; vec2 dr2=vec2(cos(a),sin(a));
       float x=(dot(p.xz,dr2)+0.2*(fract(cs*3.1)-0.5)*p.y)/1.9, u=x+0.2*sin(1.3*x+ph)+0.08*sin(3.7*x+ph), du=1.0/1.9;   // 칸 → m 은 고른 칸 너비로 어림(휨의 기울기를 셈하면 cos 둘 — 프레임)
       float kk=floor(u), fu=u-kk; vec3 h=cmH3(vec3(kk,vs*2.0,floor(lk/3.0)+41.0)); float cx=0.5+0.4*(h.y-0.5), ed=min(fu,1.0-fu)/du;
-      if(h.x<0.45+0.35*fract(h.y*5.3+cs)){ jd=abs(fu-cx)/du+2.0*(1.0-smoothstep(0.0,0.25,ed)); jh=h.y; jwz=h.z; jL=0.6+1.0*fract(h.z*7.7+h.y*3.1); } }
+      if(h.x<0.62+0.30*fract(h.y*5.3+cs)){ jd=abs(fu-cx)/du+2.0*(1.0-smoothstep(0.0,0.25,ed)); jh=h.y; jwz=h.z; jL=0.6+1.0*fract(h.z*7.7+h.y*3.1); } }
 #endif
     float jpro=jh*jh, jw=0.004+0.03*jpro, jl=(1.0-smoothstep(jw,jw+0.01+fwY,jd+0.004*jt))*clamp(wal+cei,0.0,1.0);
 #if CM_JN>0
@@ -406,10 +406,10 @@ const CM_BODY=`#include <color_fragment>
     /* 유석 — 젖은 금(굴마다: 마른 0.05 · 보통 0.4 · 화려 0.8) 밑 · 위 켜 경계에서 아래로 넓어지는 부채 · 길이 0.6~2.6 켜 · 두께 t 에서 빛깔(가장자리 갈색 → 꿀색 → 흰) */
     float tier=fract(cs*3.3), wsh=tier<0.35?0.05:(tier<0.80?0.40:0.80), wetJ=step(jwz,wsh);
     vec4 S=texture(cmZ,vec3(p.x*1.25,p.y*0.085,p.z*1.25));                            // 세로로 늘인 잡음 — 기둥 · 길이
-    /* (FX 10) 덧쌓인 막 — 위는 좁은 목(12 cm) · 아래로 넓어지는 부채(3 m 에서 ~1.4 m) · 가장자리는 잡음 · 사진 결로 들쭉날쭉 · 크림~꿀빛(주황 금지 — 흰 #F2EEE6 0.6 : 꿀 #D9A86C 0.4 쪽) · 볼록 1~3 cm */
-    float Lf=lb*(0.6+2.0*S.g)*jL, dyy=min(dUp,3.0), fan=0.12+0.42*dyy;
+    /* (FX 10) 덧쌓인 막 — 위는 좁은 목(20 cm) · 아래로 넓어지는 부채(3 m 에서 ~1.9 m · FX 11 넓힘) · 가장자리는 잡음 · 사진 결로 들쭉날쭉 · 크림~꿀빛(주황 금지 — 흰 #F2EEE6 0.6 : 꿀 #D9A86C 0.4 쪽) · 볼록 1~3 cm */
+    float Lf=lb*(1.0+2.4*S.g)*jL, dyy=min(dUp,3.0), fan=0.20+0.55*dyy;
     float drw=wetJ*(1.0-smoothstep(fan*0.45,fan,jd+0.22*(S.r-0.5)+0.12*hp+0.10*(Z1.a-0.5)))*(1.0-smoothstep(0.5*Lf,Lf,dUp+0.3*(S.b-0.5)*lb))*clamp(wal+cei,0.0,1.0)*(1.0-flo);
-    float dr=smoothstep(0.12,0.50,drw);
+    float dr=smoothstep(0.08,0.45,drw);
     float dry=smoothstep(0.15,0.5,sky);
     vec3 fcol=mix(mix(CP_FLOH,CP_FLOW,0.45),mix(CP_FLOH,CP_FLOW,0.75),smoothstep(0.40,0.90,drw)*smoothstep(0.30,0.70,S.r));
     fcol*=1.0-0.10*(1.0-dry)*smoothstep(0.5,0.9,S.g);                               // 젖은 데만 조금 짙게
