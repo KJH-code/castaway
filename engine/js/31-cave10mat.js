@@ -469,10 +469,10 @@ const CM_BODY=`#include <color_fragment>
     vec3 oxc=mix(vec3(0.420,0.290,0.200),CP_OXID,ok);
     c=mix(c,c*oxc/(0.5*(CP_BAS0+CP_BAS1)),0.5*ox); zn=mix(zn,vec3(1.0,0.0,1.0),ox); rg=mix(rg,0.88,ox);
     /* 흰 크러스트 · 금빛 세균 매트 — 합 5% 밑 */
-    float cr=cmHB(mid-CM_QA95,0.02,hp,0.5)*smoothstep(0.5,0.6,Z1.r)*(cei+wal*smoothstep(0.5,0.8,fl));
-    c=mix(c,CP_CRUS*(0.8+0.4*fine2),cr); zn=mix(zn,vec3(0.0,1.0,0.0),cr); rg=mix(rg,0.9,cr); wet*=1.0-cr;
+    float cr=cmHB(mid-CM_QA95-0.02,0.015,hp,0.5)*smoothstep(0.55,0.7,Z1.r)*smoothstep(0.55,0.75,fine)*(cei+wal*smoothstep(0.5,0.8,fl))*0.45;   // (FX 12) 크러스트 — 작게 · 성기게 · 흐리게
+    c=mix(c,mix(c,CP_CRUS*0.75,0.7)*(0.8+0.4*fine2),cr); zn=mix(zn,vec3(0.0,1.0,0.0),cr); rg=mix(rg,0.9,cr); wet*=1.0-cr;
     float mt=cmHB(Z1.r-CM_QR95,0.02,hp,0.5)*smoothstep(0.55,0.65,mid)*wal*smoothstep(8.0,12.0,dS);
-    c=mix(c,CP_MATG*(0.8+0.4*fine2),mt); zn=mix(zn,vec3(0.0,1.0,0.0),mt); rg=mix(rg,0.9,mt); wet*=1.0-mt;
+    mt*=0.35*smoothstep(0.5,0.7,fine); c=mix(c,mix(c,CP_MATG*0.7,0.6)*(0.8+0.4*fine2),mt);   // (FX 12) 금빛 매트 — 흐리게 · 잘게 zn=mix(zn,vec3(0.0,1.0,0.0),mt); rg=mix(rg,0.9,mt); wet*=1.0-mt;
     /* 밧줄 바닥 — 길 좌표: 위상 s·k − A(1−u²) (흐름 쪽으로 볼록한 호) · 굴길 가운데(u<0.6) · s 따라 밭과 매끈한 판이 번갈아 */
     float rpA=(su.x-1.4*(1.0-su.y*su.y)+0.3*(Z1.r-0.5))*(6.2832/0.14), rf=1.0-smoothstep(0.6,1.6,fwidth(rpA));
     float rp=smoothstep(-0.6,0.8,sin(rpA+3.0*jt)), rpk=flo*rf*(1.0-smoothstep(0.5,0.7,su.y))*smoothstep(0.35,0.65,cmH(vec3(floor(su.x/4.0),vs,71.0))+0.3*(Z1.b-0.5));
