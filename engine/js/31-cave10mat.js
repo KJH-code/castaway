@@ -321,6 +321,12 @@ void cmWetF(inout vec3 c,inout float r,inout float f0,float w,float por){
 /* 조각 본문 — color_fragment 뒤. diffuseColor 를 고치고 정반사(횃불) · 하늘 번들을 totalEmissiveRadiance 에 더한다 */
 const CM_BODY=`#include <color_fragment>
 #ifndef CM_NO_ALL
+#ifdef CM_FSO
+  /* (FS 값) 덮개가 다 덮은 껍데기 세모(aFc 1 — 세 꼭짓점이 막 속)는 덮개에 가려 안 보인다 — 무늬 · 빛을 세지 않는다(SwiftShader 는 앞을 먼저 그려도 뒤 화소를 셌다) */
+  if(vCmF>0.999){ vec3 cb=CP_LIME*0.55, tv=cmTP-vCmW; float tl=length(tv), at=clamp(1.0-tl/max(cmT.x,1e-3),0.0,1.0);   // 막이 접힌 틈으로 비칠 때 검지 않게 — 횃불 램버트만
+    diffuseColor.rgb=cb; totalEmissiveRadiance+=cb*cmTC*(cmT.w*at*at*max(dot(normalize(vCmN)*(gl_FrontFacing?1.0:-1.0),tv/max(tl,1e-4)),0.0)); }
+  else
+#endif
   {
     vec3 p=vCmW, n=normalize(vCmN)*(gl_FrontFacing?1.0:-1.0);
     float dist=vCmD, nearK=clamp(1.0-dist/40.0,0.0,1.0), nrmK=clamp(1.0-dist/14.0,0.0,1.0), sky=vCv10Sky, fl=vCmA.x, ao=vCmA.z;
