@@ -29,8 +29,10 @@ const CVFS={ on:true, budget:1.0, maxTri:30000, k:3, cell:8, q:[], cur:null, tEn
     /* 사진의 비(p4 1 : 0.84 : 0.62 · p1 · p2 1 : 0.62 : 0.32)는 따뜻한 관광 조명이 든 값이라 횃불((1, 0.56, 0.25))을 한 번 더 곱하면 R 만 넘쳐 납작한 주황이 됐다 —
        바탕은 거의 무채(석회암 CP_LIME 쯤) · 꿀 쪽만 채도를 남긴다 · 휘도는 fcol(0.80) 대신 0.50 · 0.45 — 껍데기는 가림 · 오목 · 젖음으로 바탕이 0.4~0.5 까지
        내려가는데 덮개는 그 짐이 없다. 잰 값(굴 9 · 벽 2.5 m · 횃불): 바탕 (0.58,0.54,0.47) 에서 덮개 화소 평균 (219,117,44) ↔ 같은 자리 껍데기 (189,128,56) — 덮개가 더 밝고 더 붉었다 */
-    alb:[0.50,0.50,0.46],         // 얇은 데 · 크림(1 : 1 : 0.92 — 횃불 앞에서 1 : 0.6 : 0.25 쯤)
-    albT:[0.52,0.44,0.32],        // 두꺼운 데 · 꿀(1 : 0.85 : 0.62) — 홈 골 · 굵은 줄 · 턱 그늘도 이쪽으로
+    /* (3차) 그려진 빛깔로 맞췄다 — 목표: 벽 2.5 m 덮개 화소 평균 선형 비 G/R 0.62~0.75 · B/R 0.38~0.50(사진 p1 1 : 0.70 : 0.46).
+       잰 값(굴 9 · 횃불): (0.50,0.50,0.46) → 0.58 · 0.25 / (0.40,0.48,0.66) → 0.64 · 0.36 / 아래 값 → 0.66 · 0.42. 횃불이 (1, 0.56, 0.25)라 바탕은 차가워야 한다 */
+    alb:[0.36,0.46,0.74],         // 얇은 데
+    albT:[0.40,0.45,0.60],        // 두꺼운 데(조금 덜 차갑게 — 그려지면 더 따뜻하다)
     thick:[0.05,0.25],            // 크림 → 꿀로 넘어가는 두께
     sigA:[2.0,6.0,14.0],          // 흡수(1/m) — 투과 빛깔이 두께대로 짙어진다(Beer–Lambert)
     mfp:0.008,                    // 산란 거리(m) — 투과 감쇠
@@ -50,6 +52,13 @@ function cvfsGrid(cells,ents){ let cap=4096; while(cap<cells*2) cap*=2; const ke
   return {cap,keys,head:new Int32Array(cap),cnt:0,nx:new Int32Array(Math.max(1024,ents)),val:new Int32Array(Math.max(1024,ents)),n:0}; }
 const cvfsGSlot=(G,k)=>{ const m=G.cap-1, K=G.keys; let i=(Math.imul(k>>>0,0x9e3779b1)^Math.imul(Math.floor(k/4294967296)|0,0x85ebca77))&m;
   while(K[i]!==-1&&K[i]!==k) i=(i+1)&m; return i; };
+/* 열쇠 → 수 표(열린 주소 · 미리 크게) — 점 열쇠 · 변 셈에 Map 대신(커질 때 다시 해시하는 튐) */
+function cvfsTab(n){ let cap=4096; while(cap<n*2) cap*=2; const keys=new Float64Array(cap); keys.fill(-1); return {cap,keys,val:new Int32Array(cap),cnt:0}; }
+function cvfsTSlot(T,k){ if(T.cnt*10>=T.cap*7){ const ok=T.keys, ov=T.val, oc=T.cap; T.cap*=2; T.keys=new Float64Array(T.cap); T.keys.fill(-1); T.val=new Int32Array(T.cap);
+    for(let q=0;q<oc;q++) if(ok[q]!==-1){ const s2=cvfsGSlot(T,ok[q]); T.keys[s2]=ok[q]; T.val[s2]=ov[q]; } }
+  return cvfsGSlot(T,k); }
+/* 자라는 형 배열(두 배씩 — 옮기는 일은 드물다) */
+const cvfsGrow=(a,n)=>{ if(n<=a.length) return a; let c=a.length*2; while(c<n) c*=2; const b=new a.constructor(c); b.set(a); return b; };
 const cvfsGHead=(G,k)=>{ const i=cvfsGSlot(G,k); return G.keys[i]===k?G.head[i]:-1; };
 function cvfsGAdd(G,k,v){
   if(G.n>=G.val.length){ const c=G.val.length*2, a=new Int32Array(c), b=new Int32Array(c); a.set(G.nx); b.set(G.val); G.nx=a; G.val=b; }
@@ -264,10 +273,11 @@ function cvfsH(X,x,y,z,nx,ny,nz,fh,kap,o){
     h*=1-SH.lobe*0.4+SH.lobe*1.4*cvfsVN(x/SH.lobeC,y/SH.lobeC,z/SH.lobeC,X.S.sd^0x10be);   // 볼록 덩이(평균 ≈ +30% · 0.8~1.5 배)
     const sl=cvfsSS(0.25,0.40,ny)*(1-cvfsSS(0.70,0.85,ny));                                     // 비탈 테라스 — 둥근 턱
     if(sl>0){ const sp=SH.terSp[0]+(SH.terSp[1]-SH.terSp[0])*cvfsVN(x/3,0.5,z/3,X.S.sd^0x7e7), u=y/sp+0.8*cvfsVN(x/2,y/2,z/2,X.S.sd^0x7e9), f=u-Math.floor(u);
-      h*=1+SH.terA*sl*(cvfsSS(0,0.18,f)*(1-cvfsSS(0.18,1,f))-0.4); }
-    const eye=cvfsSS(SH.eye[0]-0.2,SH.eye[0],fh)*(1-cvfsSS(SH.eye[1],SH.eye[1]+0.2,fh)), flo=Math.max(cvfsSS(0.45,0.65,ny),1-cvfsSS(0.15,0.35,fh));
+      h*=1+SH.terA*sl*(cvfsSS(0,0.35,f)*(1-cvfsSS(0.35,1,f))-0.4); }   // 턱이 솟는 몫을 넓게(꺾임을 덜게)
+    const eye=cvfsSS(SH.eye[0]-0.6,SH.eye[0],fh)*(1-cvfsSS(SH.eye[1],SH.eye[1]+0.6,fh)),   // 상한이 바뀌는 띠를 0.6 m 로(0.2 m 였을 때 눈높이 위 2.2~2.4 m 에 막이 꺾인 가는 가로 줄이 섰다)
+      flo=Math.max(cvfsSS(0.45,0.65,ny),1-cvfsSS(0.15,0.35,fh));
     let cap=SH.capW+(SH.capEye-SH.capW)*eye; cap=cap+(SH.capFl-cap)*flo; if(kap>1e-6) cap=Math.min(cap,SH.curv/kap);
-    o.h=Math.max(Math.min(h,cap),SH.hIn); o.e=em; o.s=ss/s4; o.w=Math.max(sw/s4,0.85*flo); o.out=0; o.in=true; }
+    o.h=Math.max(cv10Smin(h,cap,0.04),SH.hIn); o.e=em; o.s=ss/s4; o.w=Math.max(sw/s4,0.85*flo); o.out=0; o.in=true; }   // 상한은 부드러운 최소로(꺾임 없이 붙는다)
   else{ o.out=out; o.h=SH.bury*cvfsSS(0,SH.buryW,out); }
   return o;
 }
@@ -291,8 +301,11 @@ function* cvfsTess(X){
       if(cvfsT()) yield; }
     cand.sort((a,b)=>a-b); CVFS.ph='close';
     /* 점 — 열쇠: 꼭짓점 −(v+1) · 변 (작은 번호, 큰 번호, 작은 쪽에서 i) · 세모 안 nv²·8 + t·16 + i·4 + j */
-    const pk=new Map(), PB=[], PN=[], PA=[], PH=[], PF=[], PT=[], PV=[]; const o={};
-    const evalPt=(key,t,b0,b1,b2,va,vb,vc)=>{ let id=pk.get(key); if(id!==undefined) return id; id=PH.length/1; pk.set(key,id);
+    /* 점 자료는 미리 잡은 형 배열(자라면 두 배) — JS 배열 push 가 GC 로 조각 시간을 튀게 했다 */
+    const est=Math.max(1024,Math.ceil(cand.length*(k+1)*(k+2)/2*1.6)), pk=cvfsTab(est); let np=0;
+    let PB=new Float64Array(est*3), PN=new Float64Array(est*3), PA=new Float32Array(est*3), PH=new Float64Array(est), PF=new Float32Array(est*4), PT=new Int32Array(est), PV=new Int32Array(est); const o={};
+    const evalPt=(key,t,b0,b1,b2,va,vb,vc)=>{ const kk=key<0?2251799813685248-key:key, sl=cvfsTSlot(pk,kk); if(pk.keys[sl]===kk) return pk.val[sl]; const id=np++; pk.keys[sl]=kk; pk.val[sl]=id; pk.cnt++;
+      if(np>PH.length){ PB=cvfsGrow(PB,np*3); PN=cvfsGrow(PN,np*3); PA=cvfsGrow(PA,np*3); PH=cvfsGrow(PH,np); PF=cvfsGrow(PF,np*4); PT=cvfsGrow(PT,np); PV=cvfsGrow(PV,np); }
       const x=P[va*3]*b0+P[vb*3]*b1+P[vc*3]*b2, y=P[va*3+1]*b0+P[vb*3+1]*b1+P[vc*3+1]*b2, z=P[va*3+2]*b0+P[vb*3+2]*b1+P[vc*3+2]*b2;
       let nx=N[va*3]*b0+N[vb*3]*b1+N[vc*3]*b2, ny=N[va*3+1]*b0+N[vb*3+1]*b1+N[vc*3+1]*b2, nz=N[va*3+2]*b0+N[vb*3+2]*b1+N[vc*3+2]*b2; const nl=(Math.hypot(nx,ny,nz)||1)*X.sign; nx/=nl; ny/=nl; nz/=nl;
       const hl=Math.hypot(nx,nz), s=hl>0.2?cv10Samp(rec,x+nx/hl*0.5,z+nz/hl*0.5):cv10Samp(rec,x,z), fh=s.n>0?y-s.f:0;
@@ -302,33 +315,33 @@ function* cvfsTess(X){
       cvfsH(X,x,y,z,nx,ny,nz,fh,kap,o);
       let h=o.h, inn=o.in; if(bnd){ h=SH.bury; inn=false; }
       const sk=X.sky, dp=X.deep, ao=X.ao;
-      PB.push(x,y,z); PN.push(nx,ny,nz); PH.push(h); PF.push(h>0?o.e:0,h>0?o.s:0,h>0?o.w:0,inn?0:o.out);
-      PA.push(sk[va]*b0+sk[vb]*b1+sk[vc]*b2, dp[va]*b0+dp[vb]*b1+dp[vc]*b2, ao?ao[va]*b0+ao[vb]*b1+ao[vc]*b2:1); PT.push(t); PV.push(key<0?va:-1);
+      PB[id*3]=x; PB[id*3+1]=y; PB[id*3+2]=z; PN[id*3]=nx; PN[id*3+1]=ny; PN[id*3+2]=nz; PH[id]=h; PF[id*4]=h>0?o.e:0; PF[id*4+1]=h>0?o.s:0; PF[id*4+2]=h>0?o.w:0; PF[id*4+3]=inn?0:o.out;
+      PA[id*3]=sk[va]*b0+sk[vb]*b1+sk[vc]*b2; PA[id*3+1]=dp[va]*b0+dp[vb]*b1+dp[vc]*b2; PA[id*3+2]=ao?ao[va]*b0+ao[vb]*b1+ao[vc]*b2:1; PT[id]=t; PV[id]=key<0?va:-1;
       return id; };
+    const edPt=(t,a,b,ia)=>{ const lo=a<b?a:b, hi=a<b?b:a, ii=a<b?ia:k-ia; return evalPt((lo*nv+hi)*8+ii,t,(k-ii)/k,ii/k,0,lo,hi,hi); };   // 변 위의 점(작은 번호에서 ii)
     /* 세모 t 의 (i,j) 점 — A=I[t*3] 무게 (k−i−j) · B i · C j */
     const ptOf=(t,i,j)=>{ const A=I[t*3], B=I[t*3+1], C=I[t*3+2], m=k-i-j;
       if(i===0&&j===0) return evalPt(-(A+1),t,1,0,0,A,A,A); if(i===k) return evalPt(-(B+1),t,1,0,0,B,B,B); if(j===k) return evalPt(-(C+1),t,1,0,0,C,C,C);
-      const ed=(a,b,ia)=>{ const lo=a<b?a:b, hi=a<b?b:a, ii=a<b?ia:k-ia; return evalPt((lo*nv+hi)*8+ii,t,(k-ii)/k,ii/k,0,lo,hi,hi); };
-      if(j===0) return ed(A,B,i); if(i===0) return ed(A,C,j); if(m===0) return ed(B,C,j);
+      if(j===0) return edPt(t,A,B,i); if(i===0) return edPt(t,A,C,j); if(m===0) return edPt(t,B,C,j);
       return evalPt(nv*nv*8+t*16+i*4+j,t,m/k,i/k,j/k,A,B,C); };
-    const inS=new Uint8Array(X.nt), set=[], Q=cand.slice(); let qi=0, nb=[];
+    const inS=new Uint8Array(X.nt), set=[], Q=cand.slice(), ptB=new Int32Array((k+1)*(k+1)); let qi=0, nb=[];
     while(qi<Q.length){ const t=Q[qi++]; if(inS[t]) continue; inS[t]=1; set.push(t);
       if(cvfsT()) yield;
-      const pt=[]; for(let j=0;j<=k;j++) for(let i=0;i+j<=k;i++) pt[j*(k+1)+i]=ptOf(t,i,j);
-      const A=I[t*3], B=I[t*3+1], C=I[t*3+2], eg=[[A,B,i=>pt[i]],[A,C,j=>pt[j*(k+1)]],[B,C,j=>pt[j*(k+1)+(k-j)]]];
-      for(const [a,b,f] of eg){ let pos=false; for(let q=0;q<=k;q++) if(PH[f(q)]>0){ pos=true; break; }
+      for(let j=0;j<=k;j++) for(let i=0;i+j<=k;i++) ptB[j*(k+1)+i]=ptOf(t,i,j);
+      for(let e=0;e<3;e++){ const a=I[t*3+(e===2?1:0)], b=I[t*3+(e===0?1:2)]; let pos=false;   // 변 AB(j 0) · AC(i 0) · BC(i+j k)
+        for(let q=0;q<=k;q++){ const id=e===0?ptB[q]:(e===1?ptB[q*(k+1)]:ptB[q*(k+1)+(k-q)]); if(PH[id]>0){ pos=true; break; } }
         if(!pos) continue; nb.length=0; cvfsEdgeN(X,a,b,nb); for(const t2 of nb) if(!inS[t2]) Q.push(t2); } }
     set.sort((a,b)=>a-b); CVFS.ph='tris';
     /* 작은 세모 — 세 점이 다 h≤0 이면 버린다 · 감는 차례는 껍데기와 같다(앞면이 빈 데 쪽) */
-    const tri=[], own=[];
+    let tri=new Int32Array(Math.max(3072,set.length*k*k*3)), own=new Int32Array(Math.max(1024,set.length*k*k)), nq=0;   // 작은 세모(형 배열)
     for(const t of set){ for(let j=0;j<k;j++) for(let i=0;i+j<k;i++){
         const a=ptOf(t,i,j), b=ptOf(t,i+1,j), c=ptOf(t,i,j+1);
-        if(PH[a]>0||PH[b]>0||PH[c]>0){ tri.push(a,b,c); own.push(t); }
-        if(i+j<k-1){ const d=ptOf(t,i+1,j+1); if(PH[b]>0||PH[d]>0||PH[c]>0){ tri.push(b,d,c); own.push(t); } } }
+        if(PH[a]>0||PH[b]>0||PH[c]>0){ if(nq*3+3>tri.length){ tri=cvfsGrow(tri,nq*3+3); own=cvfsGrow(own,nq+1); } tri[nq*3]=a; tri[nq*3+1]=b; tri[nq*3+2]=c; own[nq++]=t; }
+        if(i+j<k-1){ const d=ptOf(t,i+1,j+1); if(PH[b]>0||PH[d]>0||PH[c]>0){ if(nq*3+3>tri.length){ tri=cvfsGrow(tri,nq*3+3); own=cvfsGrow(own,nq+1); } tri[nq*3]=b; tri[nq*3+1]=d; tri[nq*3+2]=c; own[nq++]=t; } } }
       if(cvfsT()) yield; }
-    const ntri=tri.length/3;
+    const ntri=nq; tri=tri.subarray(0,nq*3); own=own.subarray(0,nq);
     if(ntri>CVFS.maxTri&&tries<9){ if(X.k>2) X.k--; else X.nUse=Math.max(1,Math.floor(X.nUse*0.85)); continue; }
-    Object.assign(X,{set,tri,own,PB,PN,PH,PF,PA,PT,PV,ntri,cand:cand.length});
+    Object.assign(X,{set,tri,own,PB:PB.subarray(0,np*3),PN:PN.subarray(0,np*3),PH:PH.subarray(0,np),PF:PF.subarray(0,np*4),PA:PA.subarray(0,np*3),PT:PT.subarray(0,np),PV:PV.subarray(0,np),ntri,cand:cand.length});
     return;
   }
 }
@@ -348,8 +361,8 @@ function* cvfsMesh(X){
   yield;
   /* 막 시험 — 열린 모서리(작은 세모 하나만 가진 변) 가운데 한 끝이라도 h>0 · 밑점이 껍데기 세모 평면에서 벗어난 것(f32 자리 − h·보간 법선) · 막 안쪽 두께 최솟값 */
   const st={open:0,openPos:0,baseOff:0,baseMax:0,hInMin:1e9,flip,hMax:0};
-  { const em=new Map(); for(let q=0;q<tri.length;q+=3){ if((q%3072)===0&&q&&cvfsT()) yield; for(let e=0;e<3;e++){ const a=tri[q+e], b=tri[q+(e+1)%3], k2=a<b?a*np+b:b*np+a; em.set(k2,(em.get(k2)||0)+1); } }
-    let c2=0; for(const [k2,n] of em){ if((++c2&4095)===0&&cvfsT()) yield; if(n!==1) continue; st.open++; const a=Math.floor(k2/np), b=k2-a*np; if(PH[a]>0||PH[b]>0) st.openPos++; } }
+  { const em=cvfsTab(tri.length); for(let q=0;q<tri.length;q+=3){ if((q%3072)===0&&q&&cvfsT()) yield; for(let e=0;e<3;e++){ const a=tri[q+e], b=tri[q+(e+1)%3], k2=a<b?a*np+b:b*np+a, sl=cvfsTSlot(em,k2); if(em.keys[sl]!==k2){ em.keys[sl]=k2; em.val[sl]=0; em.cnt++; } em.val[sl]++; } }
+    for(let sl=0;sl<em.cap;sl++){ if((sl&8191)===0&&sl&&cvfsT()) yield; const k2=em.keys[sl]; if(k2===-1||em.val[sl]!==1) continue; st.open++; const a=Math.floor(k2/np), b=k2-a*np; if(PH[a]>0||PH[b]>0) st.openPos++; } }
   yield;
   const f32=new Float32Array(3), P=X.P, I=X.I;
   for(let p=0;p<np;p++){ if((p&4095)===0&&p&&cvfsT()) yield; const h=PH[p]; if(h>0){ if(h<st.hInMin) st.hInMin=h; if(h>st.hMax) st.hMax=h; }
@@ -403,16 +416,36 @@ uniform mediump sampler3D cmZ;
 uniform vec4 cmT; uniform vec3 cmTP, cmTC, cmEye;
 float fsLum(vec3 c){ return dot(c,vec3(0.30,0.59,0.11)); }
 float fsWarp(float u,float ph){ return u+0.3*sin(1.3*u+ph)+0.12*sin(3.7*u+ph); }
-/* 벽 무늬 한 벌 — 가로 u · 세로 y(세계 고정 축) · A = (잔 홈 · 굵은 골 · 석회암 사진 결 · 성장 띠) · B = (홈 몫 잡음 · 띠 끊김 · 잔 잡음 둘).
-   잔 홈 2~4 cm(사인 + 잡음 휨) · 굵은 골 10~25 cm · 사진(층 0 — 껍데기 karst 벽 사진)은 가로 0.45 · 세로 1.3 m 한 장(흐름 쪽에 늘인 방해석 결) · 띠는 세로 7.5 cm 칸 · 가로 0.75 m */
+/* 정수 해시(pcg3d) — 칸 번호마다 0~1(sin 해시는 세계 좌표 수천 m 에서 망가진다) */
+uvec3 fsPcg(uvec3 v){ v=v*1664525u+1013904223u; v.x+=v.y*v.z; v.y+=v.z*v.x; v.z+=v.x*v.y; v^=v>>16u; v.x+=v.y*v.z; v.y+=v.z*v.x; v.z+=v.x*v.y; return v; }
+vec3 fsH3(float a,float b,float s){ return vec3(fsPcg(uvec3(ivec3(int(a),int(b),int(s)))))*(1.0/4294967296.0); }
+/* 1 차원 보로노이 홈 — 칸 st(씨 흔들기 jit)마다 둥근 골 하나. x = 골 꼴(−1 골 밑 ~ 0 칸 경계의 등) · y = 칸 너비(m) */
+vec2 fsGroove(float u,float st,float jit,float sd){
+  float c=floor(u/st), d1=9.0, d2=9.0;
+  for(int k=-1;k<=1;k++){ float ci=c+float(k), x=(ci+0.5+jit*(fsH3(ci,sd,3.0).x-0.5))*st, d=abs(u-x);
+    if(d<d1){ d2=d1; d1=d; } else if(d<d2) d2=d; }
+  float t=d1/max(d1+d2,1e-5);
+  return vec2(0.0-(1.0-4.0*t*t),d1+d2);
+}
+/* 벽 무늬 한 벌 — 가로 u · 세로 y(세계 고정 축). A = (잔 홈 높이 · 굵은 골 높이 · 석회암 사진 결 · 성장 띠) · B = (낮은 잡음 넷).
+   잔 홈: 1 차원 보로노이(칸 1~6 cm) · 굵은 골: 보로노이(칸 7~30 cm — 규칙 간격 없음) · 칸 경계는 낮은 잡음으로 휜다(휨 기울기 < 0.7 — 위상이 거꾸로 돌지 않게) ·
+   홈은 흐름 따라 생겼다 사라졌다(세기 잡음 0~1) · 깊이는 칸 너비에 비례 · 사진(층 0)은 가로 0.5 · 세로 0.8 m 한 장 · 성장 띠는 세로 15 cm 칸 · 가로 0.5 m(수평에 가깝다) */
 void fsWall(float u,float y,float kF,out vec4 A,out vec4 B){
-  vec4 G=texture(cmZ,vec3(u/0.36,y/7.0,0.37)), Gs=texture(cmZ,vec3(u/2.4,y/30.0,0.71));
-  float fph=u/0.03+1.5*G.g+3.0*G.b+1.5*Gs.r;
-  float fineF=mix(G.a-0.5,0.5*sin(6.2832*fph),0.7*kF)+0.35*(G.r-0.5);
-  float cg=0.5+0.5*sin(6.2832*(u/0.17+1.6*Gs.b+2.0*Gs.g+0.5*Gs.a+0.6*G.b));   // 휨 잡음의 기울기는 u/0.17 보다 작게(G.g 9 cm 칸을 크게 얹으면 위상이 거꾸로 돌아 골이 지워졌다)
-  float phl=fsLum(texture(cmC,vec3(u/0.45,y/1.3+0.37*Gs.r,0.0)).rgb)*2.0-1.0;
-  float bnd=texture(cmZ,vec3(u/12.0,y/1.2+0.4*G.g,0.29)).a;
-  A=vec4(fineF,(smoothstep(0.15,0.85,cg)-0.5)*mix(0.45,1.0,smoothstep(0.3,0.7,Gs.b)),phl,bnd); B=vec4(Gs.a,Gs.g,G.g,G.b);   // 굵은 골의 깊이는 잡음으로 흔든다
+  vec4 Gl=texture(cmZ,vec3(u/3.0,y/4.0,0.53)), Gm=texture(cmZ,vec3(u/1.0,y/1.5,0.61));
+  float uw=u+0.06*(Gl.a-0.5)+0.12*(Gl.r-0.5);
+  vec2 gf=fsGroove(uw,0.035,0.85,11.0), gc=fsGroove(uw+0.25*(Gl.b-0.5),0.17,0.85,23.0);
+  float fineS=smoothstep(0.30,0.70,Gl.g+0.35*(Gm.r-0.5)), coarseS=smoothstep(0.30,0.70,Gl.b+0.25*(Gm.g-0.5));
+  float Hfine=gf.x*min(gf.y,0.06)*0.18*fineS*kF, Hco=gc.x*min(gc.y,0.30)*0.11*coarseS;
+  float phl=fsLum(texture(cmC,vec3(u/0.5,y/0.8,0.0)).rgb)*2.0-1.0;
+  float bnd=texture(cmZ,vec3(u/8.0,y/2.4+0.2*Gl.r,0.29)).a;
+  A=vec4(Hfine,Hco,phl,bnd); B=vec4(Gl.a,Gm.a,Gl.b,Gm.b);
+}
+/* 2 차원 보로노이(바닥 미세 휴석 칸) — x F1 · y F2(칸 단위) · z 칸 해시 */
+vec3 fsVor2(vec2 q,float sd){
+  vec2 ib=floor(q); float d1=9.0, d2=9.0, hz=0.0;
+  for(int b=-1;b<=1;b++) for(int a=-1;a<=1;a++){ vec2 c=ib+vec2(float(a),float(b)); vec3 hh=fsH3(c.x,c.y,sd); float d=length(q-c-0.05-0.9*hh.xy);
+    if(d<d1){ d2=d1; d1=d; hz=hh.z; } else if(d<d2) d2=d; }
+  return vec3(d1,d2,hz);
 }
 `;
 /* 조각 본문 — color_fragment 뒤. 바탕 · 무늬 · 범프 → diffuseColor(정점 빛은 감싸기로 받는다) · 횃불 난반사(감싸기) · 투과 · 정반사 → totalEmissiveRadiance */
@@ -421,7 +454,7 @@ const CVFS_BODY=`#include <color_fragment>
     vec3 p=vFsW, n0=normalize(vFsN)*(gl_FrontFacing?1.0:-1.0);
     float h=max(vFsA.x,0.0), ed=vFsA.y, sF=vFsA.z, wt=clamp(vFsA.w,0.0,1.0), ao=vFsO, dist=vFsD;
     vec3 dpx=dFdx(p), dpy=dFdy(p);
-    float fp=max(length(dpx),length(dpy)), kF=1.0-smoothstep(0.003,0.008,fp), kMi=1.0-smoothstep(0.004,0.012,fp), kMe=1.0-smoothstep(0.012,0.040,fp), nrmK=clamp(1.0-dist/14.0,0.0,1.0);
+    float fp=max(length(dpx),length(dpy)), kF=1.0-smoothstep(0.005,0.012,fp), kMi=1.0-smoothstep(0.004,0.012,fp), kMe=1.0-smoothstep(0.012,0.040,fp), nrmK=clamp(1.0-dist/14.0,0.0,1.0);
     float flo=smoothstep(0.45,0.75,n0.y), wal=1.0-flo;
     vec4 Z=texture(cmZ,p/6.0);                                                       // 큰 얼룩 r 0.75 · g 1.5 · b 3 · a 0.375 m
     /* 벽 무늬는 세계 고정 축 두 벌(가로 = x 또는 z · 세로 = y)로 세어 법선 쪽 무게로 섞는다 — 화소마다 바뀌는 흐름 틀에 세계 좌표(수백 m)를 투영하면
@@ -429,42 +462,41 @@ const CVFS_BODY=`#include <color_fragment>
     float wx=smoothstep(0.30,0.70,n0.z*n0.z/(n0.x*n0.x+n0.z*n0.z+1e-5));
     vec4 Ax, Bx, Az, Bz; fsWall(p.x,p.y,kF,Ax,Bx); fsWall(p.z,p.y,kF,Az,Bz);
     vec4 WA=mix(Az,Ax,wx), WB=mix(Bz,Bx,wx);
-    float fineF=WA.x, coarseF=WA.y, phl=WA.z*wal, bnd=WA.w;
     vec3 an=abs(n0); vec2 pd=an.x>an.y&&an.x>an.z?p.zy:(an.y>an.z?p.xz:p.xy);
     float gr=fsLum(texture(cmC,vec3(pd/0.9,8.0)).rgb)*2.0-1.0;                        // 잔 알갱이(층 8 sand)
-    float fluK=wal*smoothstep(0.30,0.55,WB.x+0.25*(1.0-abs(n0.y)));                  // 홈이 서는 몫(가파른 벽 · 잡음으로 끊김)
-    float Hf=fluK*(0.004*fineF*kMi+0.014*coarseF*kMe);
-    /* (p2) 둥근 턱 — 가로로 겹겹(간격 8~22 cm · 단조 휨) · 볼록 덩이 몫에만 */
-    float tu=fsWarp(p.y/0.15+2.0*Z.g+0.8*WB.w,Z.b*6.0), tf=fract(tu);
-    float lip=smoothstep(0.0,0.22,tf)*(1.0-smoothstep(0.22,1.0,tf));
-    float dbl=fract(0.22-tf), shd=smoothstep(0.0,0.06,dbl)*(1.0-smoothstep(0.16,0.55,dbl));
-    float terK=wal*smoothstep(0.55,0.80,Z.b+0.25*(smoothstep(0.06,0.20,h)-0.5)+0.5*(n0.y-0.10))*smoothstep(0.30,0.62,Z.a+0.35*(WB.z-0.5))*(1.0-smoothstep(0.3,0.7,fwidth(tu)));
+    float phF=fsLum(texture(cmC,vec3(pd/0.6,0.0)).rgb)*2.0-1.0;                       // 바닥 거친 껍질 결(층 0)
+    float phl=mix(phF,WA.z,wal);
+    /* 홈 — 빛깔 교대 없이 범프(법선)로만 · 골 밑만 가림으로 ×0.85 */
+    float fluK=wal*smoothstep(0.10,0.40,1.0-abs(n0.y))*mix(0.55,1.0,WB.x);
+    float Hf=fluK*(WA.x*kMi+WA.y*kMe), occG=smoothstep(0.004,0.014,0.0-Hf);
+    /* (p2) 둥근 턱 — 범프만 · 볼록 덩이 몫에만 */
+    float tu=fsWarp(p.y/0.15+2.0*Z.g+0.8*WB.z,Z.b*6.0), tf=fract(tu);
+    float lip=smoothstep(0.0,0.30,tf)*(1.0-smoothstep(0.30,1.0,tf));
+    float terK=wal*smoothstep(0.55,0.80,Z.b+0.25*(smoothstep(0.06,0.20,h)-0.5)+0.5*(n0.y-0.10))*smoothstep(0.30,0.62,Z.a+0.35*(WB.y-0.5))*(1.0-smoothstep(0.3,0.7,fwidth(tu)));
     float Hter=terK*(lip-0.4)*0.008*kMe;
-    /* (B2) 바닥 미세 휴석 — 잡음을 얹은 높이의 등고선(가로 간격 3~10 cm) · 아래 가장자리에 둥근 둑(밝은 테) · 둑 뒤(위쪽)는 고인 데(짙고 젖음) · 둑 밑 폭 있는 그늘 */
-    float gh=p.y+0.20*(Z.a-0.5)+0.08*(Z.r-0.5)+0.02*(Z.b-0.5), gu=gh/0.06+1.5*Z.g,                                                             // 간격은 위상 휨으로(세계 높이를 잡음으로 나누지 않는다)
-    gf=fract(gu), gw=fwidth(gu);
-    float dam=smoothstep(0.0,0.12,gf)*(1.0-smoothstep(0.22,0.42,gf)), pool=smoothstep(0.35,0.55,gf)*(1.0-smoothstep(0.78,0.92,gf)), dsh=smoothstep(0.80,1.0,gf);   // 둑 · 고인 데 · 그늘 모두 폭 있게(가는 등고선 줄이 되지 않게)
-    float gK=flo*(1.0-smoothstep(0.4,0.9,gw))*smoothstep(0.20,0.45,Z.g+0.3*(Z.r-0.5));
-    float Hg=gK*(dam*0.006-dsh*0.003)*kMe;
+    /* (B) 바닥 미세 휴석 칸 — 2 차원 보로노이(칸 ≈ 8 cm · 4~12 cm) · 테두리는 둥글게 솟은 밝은 둑(폭 2~4 cm) · 칸 속은 짙고 젖음 · 거친 껍질 결 */
+    vec3 vr=fsVor2(p.xz/0.08+vec2(0.7*(Z.r-0.5),0.7*(Z.a-0.5)),41.0);
+    float vE=(vr.y-vr.x)*0.08, rimV=1.0-smoothstep(0.004,0.022,vE), innV=smoothstep(0.010,0.030,vE);
+    float gK=flo*(1.0-smoothstep(0.006,0.016,fp))*smoothstep(0.20,0.45,Z.g+0.3*(Z.r-0.5));
+    float Hg=gK*(rimV*0.006-innV*0.0015);
     /* 높이 합 — 홈 · 턱 · 둑 · 사진 · 알갱이 */
     float Ht=Hf+Hter+Hg+phl*0.0025*kMi+gr*0.0008*kMi;
-    /* (A3) 빛깔 — 성장 띠(흐름 따라 1~5 cm 켜 · 크림 · 황갈 · 꿀 · 잡음으로 끊김 · 폭 있는 띠) · 골 · 오목은 갈색 · 등 · 볼록은 크림 */
-    float bcut=smoothstep(0.35,0.65,WB.y+0.3*(Z.a-0.5));
-    vec3 TAN=mix(FS_ALB,FS_ALBT,0.55)*vec3(0.95,0.92,0.88), BRN=FS_ALBT*vec3(0.72,0.58,0.44);
+    /* 빛깔 — 바탕(크림 → 두꺼운 데 꿀) · 사진 결 · 성장 띠(가로 · ±8 % · 끊김) · 골 밑 가림 · 큰 얼룩 */
     float tk=smoothstep(FS_THK0,FS_THK1,h+0.04*(Z.r-0.5));
     vec3 c=mix(FS_ALB,FS_ALBT,tk*0.7);
-    c=mix(c,mix(mix(FS_ALB,TAN,smoothstep(0.30,0.48,bnd)),FS_ALBT,smoothstep(0.58,0.76,bnd)),0.30*bcut*wal);
-    float cav=clamp(0.0-Hf*70.0-0.35*shd*terK,0.0,1.0), bul=clamp(Hf*55.0,0.0,1.0);   // 턱(Hter)은 빛깔에 안 싣는다 — 턱 끝이 밝은 가는 가로 줄이 됐다
-    c=mix(c,BRN,0.95*cav); c=mix(c,FS_ALB*1.10,0.45*bul); c*=1.0+0.22*coarseF*fluK;
-    c*=clamp(0.95+0.55*phl,0.65,1.25)*(1.0+(0.20+0.14*flo)*gr*kMi)*(1.0+0.20*(Z.g-0.5));
-    c=mix(c,BRN,0.45*gK*pool); c*=1.0+0.10*gK*dam-0.22*gK*dsh;
+    float bcut=smoothstep(0.30,0.70,Z.a+0.3*(WB.w-0.5));
+    c*=1.0+0.32*(WA.w-0.5)*bcut*wal;
+    c*=1.0-0.15*occG;
+    c*=clamp(0.95+0.45*phl,0.70,1.20)*(1.0+(0.15+0.20*flo)*gr*kMi)*(1.0+0.18*(Z.g-0.5));
+    c*=1.0+0.14*gK*rimV-0.20*gK*innV;
     /* 가장자리 — 막이 바위에 닿는 데는 그늘 · 바닥 판 가장자리 25 cm 는 짙고 젖게(껍데기 aFc 자국과 이어진다) */
     float rimF=flo*(1.0-smoothstep(0.0,0.25,ed+0.05*(Z.a-0.5)));
     c*=0.72+0.28*smoothstep(0.0,0.07,ed+0.02*(Z.a-0.5));
-    { float l=fsLum(c); c=mix(vec3(l),c,0.70); }                                       // 채도 낮게(사진 p1 · p2 의 황갈 · 크림)
-    /* (C) 젖음 — 바탕 어둡게는 막 전체에 조금 · 물막 반짝임(wS)은 바닥 · 고인 데 · 골에만 */
+    { float l=fsLum(c); c=mix(vec3(l),c,0.70); }
+    /* 젖음 — 바탕 어둡게는 막 전체에 조금 · 물막 반짝임(wS)은 바닥 · 휴석 칸 속 · 벽은 사진 결 · 잡음으로 끊긴 작은 점만 */
     float w=clamp(wt*(0.6+0.6*Z.b),0.0,1.0);
-    float wS=clamp(max(max(flo*w,gK*pool),max(rimF,fluK*smoothstep(0.1,0.6,cav)*w*0.7)),0.0,1.0);
+    float spot=smoothstep(0.72,0.86,texture(cmZ,p*1.6).a+0.25*phl);
+    float wS=clamp(max(max(flo*w,gK*innV),max(rimF,wal*w*spot*0.8)),0.0,1.0);
     float wD=clamp(0.45*w+0.55*wS,0.0,1.0);
     c*=mix(1.0,FS_WETD,wD); { float l=fsLum(c); c=max(vec3(0.0),vec3(l)+(c-vec3(l))*(1.0+FS_WETSAT*wD)); }
     Ht*=1.0-0.6*wS*flo;
