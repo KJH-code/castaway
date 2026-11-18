@@ -259,6 +259,10 @@ varying float vCv10Sky, vCv10Deep;
 varying vec3 vCmW, vCmN, vCmBio;
 varying vec4 vCmA, vCmK;
 varying float vCmD;
+#ifdef CM_FSO
+attribute float aFc;
+varying float vCmF;
+#endif
 uniform vec3 cmTPv;
 uniform sampler2D cmElev; uniform vec2 cmGrid; uniform sampler2D cmBio; uniform float cmBioN, cmCell;
 float cmE(vec2 g){ vec4 t=texelFetch(cmElev,ivec2(clamp(g,vec2(0.0),vec2(cmGrid.x-1.0))),0); return (t.r*255.0*256.0+t.g*255.0)/65535.0*1200.0-100.0; }
@@ -271,6 +275,9 @@ const CM_VMAIN=`#include <begin_vertex>
     vec2 mg=w4.xz/cmGrid.y+cmGrid.x*0.5, mf=fract(mg); mg=floor(mg);
     float gh=w4.y-mix(mix(cmE(mg),cmE(mg+vec2(1.0,0.0)),mf.x),mix(cmE(mg+vec2(0.0,1.0)),cmE(mg+vec2(1.0,1.0)),mf.x),mf.y);
     vCmA=vec4(aFl,aFh,aAo,gh); vCmK=vec4(aLay,aCs); vCmS=aSu;
+#ifdef CM_FSO
+    vCmF=aFc;
+#endif
     vCmBio=texture2D(cmBio,(w4.xz/cmCell+cmBioN*0.5+0.5)/cmBioN).rgb; }`;
 const CM_FRAG=`varying float vCv10Sky, vCv10Deep;
 varying vec2 vCmS;
@@ -278,6 +285,9 @@ uniform vec4 uCv10Glow;
 varying vec3 vCmW, vCmN, vCmBio;
 varying vec4 vCmA, vCmK;
 varying float vCmD;
+#ifdef CM_FSO
+varying float vCmF;
+#endif
 uniform mediump sampler2DArray cmC;
 uniform mediump sampler2DArray cmN;
 uniform vec4 cmT; uniform vec3 cmTP, cmTC, cmSun, cmEye;
@@ -409,6 +419,7 @@ const CM_BODY=`#include <color_fragment>
     /* (FX 10) 덧쌓인 막 — 위는 좁은 목(20 cm) · 아래로 넓어지는 부채(3 m 에서 ~1.9 m · FX 11 넓힘) · 가장자리는 잡음 · 사진 결로 들쭉날쭉 · 크림~꿀빛(주황 금지 — 흰 #F2EEE6 0.6 : 꿀 #D9A86C 0.4 쪽) · 볼록 1~3 cm */
     /* (FX 12) 켜마다 dUp 로 세면 켜를 지날 때마다 목이 다시 좁아져 세모가 겹겹(전나무 꼴)이었다 → 칸마다 시작 높이(바닥 위 2.5~7.5 m — 높은 벽에서 바닥 쪽으로)에서 잰 거리 ds 로 하나의 막 ·
        옆 가장자리는 세로로 늘인 잡음으로 물결 · 아래 끝은 둥근 혀(가운데가 길다) · 안쪽은 세로 주름 */
+#ifndef CM_FSO
     float hs=2.5+5.0*fract(jwz*7.3+jh*3.1), ds=hs-fh, dsc=clamp(ds,0.0,4.0), Lf=(2.5+4.0*S.g)*jL, fan=(0.30+0.50*dsc)*(0.6+0.8*fract(jh*5.1+cs));   // (FX 13) 막마다 크기를 크게 흔든다
     float ew=jd+0.30*fan*(S.r-0.5)+0.18*fan*(S.b-0.5)+0.08*hp, ex=ew/max(fan,1e-3);
     float drw=wetJ*(1.0-smoothstep(0.35,1.15,ex))*smoothstep(-0.10,0.12,ds+0.10*(Z1.a-0.5))*(1.0-smoothstep(0.55*Lf,Lf,ds+0.45*Lf*ex*ex+0.25*(S.b-0.5)))*clamp(wal+cei,0.0,1.0)*(1.0-flo);
@@ -420,6 +431,12 @@ const CM_BODY=`#include <color_fragment>
     float fold=sin(ew*(31.0+9.0*jh)+6.0*S.g);                                       // 세로 주름(가로 자리로 도는 줄 · 길이 쪽은 잡음으로만 굽는다)
     c*=1.0+dr*(0.07*fold); Ht+=dr*(0.01+0.02*smoothstep(0.30,0.90,drw)+0.006*fold)+0.006*dr*(S.r-0.5);
     rg=mix(rg,mix(0.10,0.45,dry),dr); f0=mix(f0,mix(0.02,0.05,dry),dr); wet=mix(wet,mix(0.9,0.12,dry),dr); pr=mix(pr,0.25,dr); sss=dr;
+#else
+    /* (FS) 입체 유석 덮개가 서는 굴(31-cave10flow.js · CVFS.on) — 칠한 부채는 통째로 끈다(덮개와 자리가 다른 식이라 남기면 유령 꼴이 된다).
+       덮개 둘레(aFc — 덮개 안 1 · 밖 0.35 m 에서 0)는 젖은 물 자국으로 조금 어둡게(맞닿는 선을 숨긴다) */
+    float dr=0.0;
+    { float wm=vCmF*fhOK; c*=1.0-0.10*wm; wet=mix(wet,0.85,0.7*wm); rg=mix(rg,0.25,0.6*wm); }
+#endif
     /* 철 — 철분 켜 경계(10%) 밑 녹물 줄(곱 · 불투명 0.35) */
     float fe=step(0.9,lhU.z)*(1.0-smoothstep(0.1,0.15+0.5*S.g,dUp))*smoothstep(0.55,0.75,S.b)*wal*(1.0-dr)*0.35;
     c*=mix(vec3(1.0),CP_IRON/CP_LIME,fe); zn=mix(zn,vec3(1.0,0.0,1.0),fe);
@@ -641,7 +658,9 @@ const CM_BODY=`#include <color_fragment>
 /* ── 재질 — 종류마다 하나 ────────────────────────────────────────────────────────────────────────────────── */
 function cv10Mat(kind){
   const K=CMAT.K[kind]||CMAT.K.talus, key=CMAT.K[kind]?kind:'talus';
-  if(CMAT.mats[key]) return CMAT.mats[key];
+  /* (FS) 석회암 굴은 입체 유석 덮개(31-cave10flow.js — 이 파일보다 뒤에 읽히니 부를 때 본다)가 켜져 있으면 칠한 유석을 끈다(CM_FSO) · 켬/끔이 바뀌면 새 재질 */
+  const fso=key==='karst'&&typeof CVFS!=='undefined'&&!!CVFS.on;
+  if(CMAT.mats[key]&&!!CMAT.mats[key].userData.fso===fso) return CMAT.mats[key];
   cmPhotos();
   const m=new THREE.MeshLambertMaterial({color:0xffffff});
   const gl=(typeof CV10_GLOW!=='undefined'&&(CV10_GLOW[key]||CV10_GLOW.shelter))||[0,0,0,0];
@@ -654,10 +673,10 @@ function cv10Mat(kind){
     `#define CM_DTMIN ${(K.DT||0.08).toFixed(3)}\n#define CM_FINEH ${(K.FH===undefined?0.012:K.FH).toFixed(4)}\n#define CM_SAT ${K.SAT.toFixed(3)}\n#define CM_SATB ${K.SATB.toFixed(3)}\n#define CM_JV ${K.JV.toFixed(1)}\n#define CM_HEX ${K.hex}\n`+
     `#define CM_M mat2(${f4(cr*K.SU)},${f4(sr*K.SU)},${f4(-sr*K.SV)},${f4(cr*K.SV)})\n`;
   const D=DX+`#define CM_JN ${CMAT.joints|0}\n#define CM_KIND ${K.id}\n#define CM_L ${K.L.toFixed(1)}\n#define CM_RS ${K.RS.toFixed(2)}\n#define CM_WET ${K.wet.toFixed(3)}\n#define CM_MOSS ${K.moss.toFixed(2)}\n`+
-    `#define CM_R ${K.r.toFixed(3)}\n#define CM_F0 ${K.f0.toFixed(3)}\n#define CM_POR ${K.por.toFixed(3)}\n#define CM_KS ${K.ks.toFixed(3)}\n#define CM_HUM ${K.hum.toFixed(3)}\n#define CM_SUNCUT\n`+CMAT.qd+cmPalDefs()+(CMAT.dbg||'');
+    `#define CM_R ${K.r.toFixed(3)}\n#define CM_F0 ${K.f0.toFixed(3)}\n#define CM_POR ${K.por.toFixed(3)}\n#define CM_KS ${K.ks.toFixed(3)}\n#define CM_HUM ${K.hum.toFixed(3)}\n#define CM_SUNCUT\n`+(fso?'#define CM_FSO\n':'')+CMAT.qd+cmPalDefs()+(CMAT.dbg||'');
   m.onBeforeCompile=sh=>{
     Object.assign(sh.uniforms,U);
-    sh.vertexShader=CM_VERT+sh.vertexShader.replace('#include <begin_vertex>',CM_VMAIN);
+    sh.vertexShader=(fso?'#define CM_FSO\n':'')+CM_VERT+sh.vertexShader.replace('#include <begin_vertex>',CM_VMAIN);
     /* (TX1) 횃불 난반사는 화소에서(CM_PXT) — 정점 묶음의 점광 고리에서 횃불 자리(눈 좌표 cmTPv)의 빛만 0 으로. 이 재질에만 · 묶음 꼴이 예상과 다르면 옛 길 */
     const LV=THREE.ShaderChunk.lights_lambert_vertex, G='getPointDirectLightIrradiance( pointLights[ i ], geometry, directLight );';
     const pxt=!/CM_NO_PXT/.test(CMAT.dbg||'')&&LV.split(G).length===2&&sh.vertexShader.split('#include <lights_lambert_vertex>').length===2;
@@ -666,7 +685,7 @@ function cv10Mat(kind){
     sh.fragmentShader=(pxt?'#define CM_PXT\n':'')+D+CM_FRAG+sh.fragmentShader.replace('#include <color_fragment>',CM_BODY);
   };
   /* 열쇠에 절리 벌 수 · 비등방을 넣는다 — 손잡이(CMAT.joints · aniso)를 바꾼 뒤 재질을 다시 만들면(delete CMAT.mats[k]) 새 셰이더를 받는다. 놀이 중에 바꾸면 재질을 다시 만들어야 먹는다 */
-  const dk=(CMAT.dbg||'')+'-j'+(CMAT.joints|0)+'-a'+(CMAT.aniso|0); m.customProgramCacheKey=()=>'cv10mat-'+key+dk;
+  const dk=(CMAT.dbg||'')+'-j'+(CMAT.joints|0)+'-a'+(CMAT.aniso|0)+(fso?'-f1':'-f0'); m.customProgramCacheKey=()=>'cv10mat-'+key+dk; m.userData.fso=fso;
   envPatch(m);
   return CMAT.mats[key]=m;
 }
@@ -678,7 +697,7 @@ function cmPrecompGeo(){
   if(CMAT.geo) return CMAT.geo;
   const g=new THREE.BufferGeometry(), z9=new Float32Array(9);
   g.setAttribute('position',new THREE.Float32BufferAttribute(z9,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(z9.slice(),3));
-  for(const a of ['aDeep','aSky','aFl','aCs','aFh','aAo']) g.setAttribute(a,new THREE.Float32BufferAttribute(new Float32Array(3),1));
+  for(const a of ['aDeep','aSky','aFl','aCs','aFh','aAo','aFc']) g.setAttribute(a,new THREE.Float32BufferAttribute(new Float32Array(3),1));
   g.setAttribute('aLay',new THREE.Float32BufferAttribute(new Float32Array(9),3)); g.setAttribute('aSu',new THREE.Float32BufferAttribute(new Float32Array(6),2));
   return CMAT.geo=g;
 }
@@ -742,6 +761,7 @@ CV10.onBuild.push(rec=>{
   g.setAttribute('aLay',new THREE.BufferAttribute(lay,3));
   const ao=new Float32Array(nv).fill(1), fh=new Float32Array(nv).fill(-2), su=new Float32Array(nv*2);   // aFh 굽기 전 −2 — 셰이더가 수위 무늬를 끈다(lvOK)
   g.setAttribute('aAo',new THREE.BufferAttribute(ao,1)); g.setAttribute('aFh',new THREE.BufferAttribute(fh,1)); g.setAttribute('aSu',new THREE.BufferAttribute(su,2));
+  if(rec.c.kind==='karst') g.setAttribute('aFc',new THREE.BufferAttribute(new Float32Array(nv),1));   // (FS) 덮개 둘레 몫 — 0 으로 미리 세우고 값은 덮개를 다 지은 뒤 쓴다(그려진 뒤 새 속성을 붙이지 않게 · 31-cave10flow.js)
   CMAT.ao.q=CMAT.ao.q.filter(J=>J.rec!==rec);
   CMAT.ao.q.push({rec,g,pos:g.attributes.position.array,nor:g.attributes.normal.array,ao,fh,su,nv,i:0,ms:0});
   m.onBeforeRender=cmTick;
