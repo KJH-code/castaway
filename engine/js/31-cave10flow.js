@@ -334,6 +334,9 @@ function* cvfsTess(X){
     set.sort((a,b)=>a-b); CVFS.ph='tris';
     /* 작은 세모 — 세 점이 다 h≤0 이면 버린다 · 감는 차례는 껍데기와 같다(앞면이 빈 데 쪽) */
     let tri=new Int32Array(Math.max(3072,set.length*k*k*3)), own=new Int32Array(Math.max(1024,set.length*k*k)), nq=0;   // 작은 세모(형 배열)
+    /* 다 덮인 껍데기 세모 — 나눈 점이 모두 h ≥ 1 cm(막이 묻힌 데가 없다). 껍데기는 꼭짓점 aFc 셋이 다 1 인 세모를 안 그리듯 칠하니(CM_FSO) 그 세모는 반드시 다 덮여야 한다 */
+    const full=new Uint8Array(X.nt);
+    for(const t of set){ if(cvfsT()) yield; let ok=1; for(let j=0;j<=k&&ok;j++) for(let i=0;i+j<=k;i++) if(PH[ptOf(t,i,j)]<0.01){ ok=0; break; } full[t]=ok; }
     for(const t of set){ for(let j=0;j<k;j++) for(let i=0;i+j<k;i++){
         const a=ptOf(t,i,j), b=ptOf(t,i+1,j), c=ptOf(t,i,j+1);
         if(PH[a]>0||PH[b]>0||PH[c]>0){ if(nq*3+3>tri.length){ tri=cvfsGrow(tri,nq*3+3); own=cvfsGrow(own,nq+1); } tri[nq*3]=a; tri[nq*3+1]=b; tri[nq*3+2]=c; own[nq++]=t; }
@@ -341,7 +344,7 @@ function* cvfsTess(X){
       if(cvfsT()) yield; }
     const ntri=nq; tri=tri.subarray(0,nq*3); own=own.subarray(0,nq);
     if(ntri>CVFS.maxTri&&tries<9){ if(X.k>2) X.k--; else X.nUse=Math.max(1,Math.floor(X.nUse*0.85)); continue; }
-    Object.assign(X,{set,tri,own,PB:PB.subarray(0,np*3),PN:PN.subarray(0,np*3),PH:PH.subarray(0,np),PF:PF.subarray(0,np*4),PA:PA.subarray(0,np*3),PT:PT.subarray(0,np),PV:PV.subarray(0,np),ntri,cand:cand.length});
+    Object.assign(X,{full,set,tri,own,PB:PB.subarray(0,np*3),PN:PN.subarray(0,np*3),PH:PH.subarray(0,np),PF:PF.subarray(0,np*4),PA:PA.subarray(0,np*3),PT:PT.subarray(0,np),PV:PV.subarray(0,np),ntri,cand:cand.length});
     return;
   }
 }
@@ -373,7 +376,8 @@ function* cvfsMesh(X){
   X.test=st; yield; CVFS.ph='chunk';
   /* 껍데기 aFc — 덮개 안 1 · 밖 ring m 에서 0(꼭짓점 점만 · 나머지는 0 그대로) */
   const g=rec.mesh.geometry, fc=g.attributes.aFc;
-  if(fc){ const A=fc.array; A.fill(0); for(let p=0;p<np;p++){ const v=X.PV[p]; if(v<0) continue; A[v]=PH[p]>0?1:1-cvfsSS(0,SH.ring,X.PF[p*4+3]); } X.fcPend=true; }
+  if(fc){ const A=fc.array; A.fill(0); for(let p=0;p<np;p++){ const v=X.PV[p]; if(v<0) continue; let all=1; for(let q=X.deg[v];q<X.deg[v+1];q++) if(!X.full[X.vt[q]]){ all=0; break; }
+      A[v]=PH[p]>0?(all?1:0.98):1-cvfsSS(0,SH.ring,X.PF[p*4+3]); } X.fcPend=true; }   // aFc 1 은 둘레 세모가 모두 다 덮였을 때만(아니면 0.98 — 젖은 자국은 그대로 · 건너뛰기만 막는다)
   /* 덩이 — 껍데기 세모 무게중심의 8 m 칸 · 열쇠 차례로 */
   const ch=new Map(), cs=CVFS.cell;
   for(let q=0;q<X.own.length;q++){ if((q&4095)===0&&q&&cvfsT()) yield; const t=X.own[q], a=I[t*3]*3, b=I[t*3+1]*3, c=I[t*3+2]*3;
