@@ -38,9 +38,9 @@ function cvdInit(){
         const PL=(typeof CVFS!=='undefined'&&CVFS.OPT&&CVFS.OPT.pal)||[[0.5,0.5,0.5],[0.5,0.5,0.5],[0.5,0.5,0.5],[0.5,0.5,0.5]], v3=a=>'vec3('+a.map(x=>(+x).toFixed(4)).join(',')+')';
         /* 겉칠 화소는 덮개처럼 화소에서 횃불 빛을 센다(장식은 정점 램버트라 같은 팔레트가 덜 따뜻했다) — 껍데기 · 덮개와 같은 횃불 유니폼(CMAT · cmTick 이 채운다) */
         const CO=(typeof CVFS!=='undefined'&&CVFS.OPT&&CVFS.OPT.coat)||{amb:0.15,k:1,s:[[0.7,0.7,0.7],[0.7,0.7,0.7],[0.7,0.7,0.7]]};
-        if(typeof CMAT!=='undefined') Object.assign(sh.uniforms,{cmT:CMAT.torch, cmTP:CMAT.tpos, cmTC:CMAT.tcol});
+        if(typeof CMAT!=='undefined') Object.assign(sh.uniforms,{cmT:CMAT.torch, cmTP:CMAT.tpos, cmTC:CMAT.tcol, cmZ:(typeof cmNoise3==='function'?cmNoise3():{value:null})});   // cmZ — 겉칠 세로 줄기 잡음(덮개 · 껍데기와 같은 3 차원 잡음)
         sh.vertexShader='attribute vec4 aSp;\nattribute vec2 aFo;\nvarying vec4 vSp;\nvarying vec3 vSpP, vSpN;\nvarying vec2 vFo;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n  transformed+=objectNormal*(aFo.x*(0.012+0.028*aFo.x+0.02*step(1.5,aSp.w)*step(floor(aSp.w),2.5)*smoothstep(0.82,1.0,aSp.z))); vFo=aFo; vSpN=mat3(modelMatrix)*objectNormal;\n  vSp=aSp; vSpP=(modelMatrix*vec4(transformed,1.0)).xyz;');   // 종유석(2+씨) 끝 18 % 는 2 cm 더 — 둥근 방울
-        sh.fragmentShader='varying vec4 vSp;\nvarying vec3 vSpP, vSpN;\nvarying vec2 vFo;\nuniform vec4 cmT;\nuniform vec3 cmTP, cmTC;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+        sh.fragmentShader='varying vec4 vSp;\nvarying vec3 vSpP, vSpN;\nvarying vec2 vFo;\nuniform vec4 cmT;\nuniform vec3 cmTP, cmTC;\nuniform mediump sampler3D cmZ;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
   if(vSp.w>1.5){ float kd=floor(vSp.w), sd=vSp.w-kd, an=atan(vSpP.z-vSp.y,vSpP.x-vSp.x), t=clamp(vSp.z,0.0,1.0), ph=sd*37.0, nG=5.0+floor(sd*5.0);
     float g1=0.5+0.5*cos(nG*an+ph+1.4*sin(t*6.0+ph)), g2=0.5+0.5*cos(2.0*nG*an+ph*1.7+2.0*sin(t*9.0+ph*0.7));
     float rid=clamp(0.80*g1+0.20*g2,0.0,1.0);
@@ -50,12 +50,17 @@ function cvdInit(){
     float ct=kd>2.5&&kd<3.5?0.55:1.0;
     c*=(kd>2.5&&kd<3.5?1.0:0.68)*(1.0+ct*(-0.24+0.34*rid+0.14*kn+0.10*(eg-0.5)+0.22*smoothstep(0.86,1.0,t)+0.10*sin(an*2.0+ph*2.0+1.5*sin(t*3.0+ph))));   // 석회암은 0.68 배 — 횃불 가까이서 하얗게 타면 홈이 안 보였다   // (FX 13) 대비 절반 · 넓고 부드러운 세로 얼룩(청동 원뿔처럼 보였다)
     diffuseColor.rgb=max(c,vec3(0.0)); }
-  if(vFo.x>0.002){ float kf=vFo.y, an2=atan(vSpP.z-vSp.y,vSpP.x-vSp.x);
+  if(vFo.x>0.002){ float kf=vFo.y, kd2=floor(vSp.w), t2=clamp(vSp.z,0.0,1.0), pc=1.0-clamp(kf,0.0,1.0);
     vec3 fc=mix(mix(mix(${v3(PL[0])},${v3(PL[1])},clamp(kf,0.0,1.0)),${v3(PL[2])},clamp(kf-1.0,0.0,1.0)),${v3(PL[3])},clamp(kf-2.0,0.0,1.0));
-    float st=vSp.w>1.5?0.5+0.5*cos(9.0*an2+2.0*sin(vSpP.y*3.0)):0.5, tp=vSp.w>1.5&&floor(vSp.w)<2.5?smoothstep(0.80,1.0,clamp(vSp.z,0.0,1.0)):0.0;
-    fc*=(0.80+0.34*st)*(1.0+0.12*tp)*mix(mix(${v3(CO.s[0])},${v3(CO.s[1])},clamp(kf,0.0,1.0)),${v3(CO.s[2])},clamp(kf-1.0,0.0,1.0));   // 흘러내린 세로 결 · 종유석 끝 방울은 조금 밝게
-    { float bq=vSpP.y/0.035+1.5*sin(an2*2.0+vSpP.x*3.0), tn=0.5+0.5*sin(bq*1.7+2.3*sin(bq*0.37));   // 성장 켜 띠(가로 고리 · 폭 들쭉날쭉) · 끝 쪽 호박 — 흰 · 회색일수록 진하게
-      fc=mix(fc,fc*${v3((typeof CVFS!=='undefined'&&CVFS.OPT&&CVFS.OPT.amb)||[1.02,0.80,0.56])},(0.6*smoothstep(0.50,0.85,tn)+0.4*tp)*mix(0.50,1.0,1.0-clamp(kf,0.0,1.0))); }
+    /* 흘러내린 세로 줄기(덮개와 같은 원리) — 세계 좌표 비등방 잡음(가로 4~8 cm · 세로 0.5~1 m · 조각 씨로 민다 · 둘레 각도를 안 써서 이음매 없음) · 골은 호박 · 등은 흰 결정빛 */
+    vec4 cn=textureLod(cmZ,vec3(vSpP.x*1.6+3.7*fract(vSp.w),vSpP.z*1.6+1.9*fract(vSp.w),vSpP.y*0.12),0.0);
+    float sv=0.6*cn.a+0.4*cn.r, tp=vSp.w>1.5&&kd2<2.5?smoothstep(0.80,1.0,t2):0.0;
+    /* 성장 켜 띠는 아래 끝 쪽 몇 줄만 — 종유석은 끝 쪽 · 석순은 밑동 쪽 */
+    float bz=vSp.w>1.5?(kd2<2.5?smoothstep(0.60,0.90,t2):(kd2>3.5?1.0-smoothstep(0.10,0.35,t2):0.0)):0.0;
+    fc*=(0.86+0.28*smoothstep(0.35,0.65,sv))*(1.0+0.12*tp)*mix(mix(${v3(CO.s[0])},${v3(CO.s[1])},clamp(kf,0.0,1.0)),${v3(CO.s[2])},clamp(kf-1.0,0.0,1.0));
+    { float bq=vSpP.y/0.03+4.8*(cn.g-0.5), tn=0.5+0.5*sin(bq*1.7+2.3*sin(bq*0.37));
+      fc=mix(fc,fc*${v3((typeof CVFS!=='undefined'&&CVFS.OPT&&CVFS.OPT.amb)||[1.02,0.80,0.56])},clamp(0.55*(1.0-smoothstep(0.36,0.44,sv))+0.6*smoothstep(0.50,0.85,tn)*bz+0.4*tp,0.0,1.0)*mix(0.50,1.0,pc));
+      fc=mix(fc,fc*1.18,smoothstep(0.56,0.65,sv)*mix(0.3,0.6,pc)); }
     float cw=smoothstep(0.0,1.0,vFo.x); vec3 nW=normalize(vSpN)*(gl_FrontFacing?1.0:-1.0), tv=cmTP-vSpP; float tl=length(tv), at=clamp(1.0-tl/max(cmT.x,1e-3),0.0,1.0); at*=at;
     vec3 E=clamp((vec3(dot(nW,tv/max(tl,1e-4)))+vec3(0.40,0.26,0.19))/vec3(1.40,1.26,1.19),0.0,1.0);
     diffuseColor.rgb=mix(diffuseColor.rgb,fc*${CO.amb.toFixed(3)},cw);   // 정점 빛(둘레빛)은 조금만 남기고
