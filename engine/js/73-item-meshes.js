@@ -12,26 +12,12 @@
      빛깔은 흰빛(사진 빛깔 그대로)에서 아이템 빛깔 ÷ 사진 평균 쪽으로 tint 만큼. 사진 결 재질은 WMAT 이 아니라 잿불 감싸기(emberClad)가 쇠로 못 알아본다.
      셰이더 손질은 없다 — 40-light.js 의 envPatch 가 장면의 재질을 다 손질하고 map · normalMap 을 그대로 둔다.
    ========================================================================== */
-const ITEMMESH={on:true, geo:{}, mats:{}, tex:{}};
-/* 사진 — 처음 부를 때 data URL 을 풀어 둔다(이 파일을 읽을 때 다 불러 둔다 — 섬을 짓는 동안 풀린다).
-   풀리면 그 사진을 쓰는 아이템의 가방 그림을 비워 다시 그리게 한다(풀리기 전에 그린 그림은 사진이 없다) */
-function itemTex(kind){
-  if(ITEMMESH.tex[kind]) return ITEMMESH.tex[kind];
-  const T=ITEM_TEX[kind], mk=url=>{
-    if(ITEMMESH.tex[url]) return ITEMMESH.tex[url];                // 같은 사진을 쓰는 결끼리(합성수지 · 국방색) 한 텍스처
-    const img=new Image(), t=ITEMMESH.tex[url]=new THREE.Texture(img);
-    t.wrapS=t.wrapT=THREE.RepeatWrapping;
-    img.onload=()=>{ t.needsUpdate=true;
-      if(typeof ITEM_ICON!=='undefined') for(const id in ITEM_MESH) if(ITEM_MESH[id].mats.some(d=>d.t&&ITEM_TEX[d.t]&&(ITEM_TEX[d.t].map===url||ITEM_TEX[d.t].nrm===url))) delete ITEM_ICON[id]; };
-    img.src=url; return t; };
-  return ITEMMESH.tex[kind]={map:mk(T.map), nrm:mk(T.nrm)};
-}
-if(typeof ITEM_TEX!=='undefined') for(const k in ITEM_TEX) itemTex(k);
+const ITEMMESH={on:true, geo:{}, mats:{}};      // 사진 텍스처는 73-photo.js 의 photoTex 가 쥔다
 function itemMeshMat(d){
   const T=d.t&&typeof ITEM_TEX!=='undefined'&&ITEM_TEX[d.t];
   if(T){
     const key='t|'+d.t+'|'+d.c; if(ITEMMESH.mats[key]) return ITEMMESH.mats[key];
-    const X=itemTex(d.t), c=new THREE.Color(d.c), k=T.tint||0, f=i=>1+(Math.min(8,[c.r,c.g,c.b][i]/Math.max(T.mean[i],0.01))-1)*k;
+    const X=photoTex(d.t), c=new THREE.Color(d.c), k=T.tint||0, f=i=>1+(Math.min(8,[c.r,c.g,c.b][i]/Math.max(T.mean[i],0.01))-1)*k;
     const an=typeof renderer!=='undefined'&&renderer?Math.min(4,renderer.capabilities.getMaxAnisotropy()):1;
     X.map.anisotropy=X.nrm.anisotropy=an;
     return ITEMMESH.mats[key]=new THREE.MeshPhongMaterial({color:new THREE.Color(f(0),f(1),f(2)), map:X.map, normalMap:X.nrm,

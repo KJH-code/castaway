@@ -1993,6 +1993,7 @@ function makeShip(){
   const g=new THREE.Group(); SHIP.navs=[];
   const P=(c,sh)=>new THREE.MeshPhongMaterial({color:c,specular:0x777777,shininess:sh||40});
   const HULL=P(0x7d858f), DARK=P(0x3e444c,20), PANEL=P(0x5f6770,30), ACC=P(0xc0762a,30);
+  if(typeof photoPatch==='function'){ photoPatch(HULL,'steel',{size:1.6,tint:1}); photoPatch(PANEL,'steel',{size:1.2,tint:1}); photoPatch(DARK,'gunmetal',{size:1.0,tint:1}); }   // 판금 결(73-photo.js)
   const Y=3.2;                                                   // 동체 중심 높이
   // 동체 — 앞은 둥글게 모이고 뒤는 넓게 끝나는 돌림체를 z 축으로 눕힌다
   const prof=[[0,-7.2],[0.9,-6.8],[1.7,-5.8],[2.2,-4.2],[2.4,-1.5],[2.45,2.5],[2.3,4.8],[2.0,6.0],[0,6.0]]
