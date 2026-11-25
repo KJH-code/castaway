@@ -239,7 +239,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 
 ### 분업 — 메인이 지휘하고 워커가 일한다(orchestrate)
 
-사용자 결정(2026-10-30 · 지금 플러그인 **KJH-LYJ 1.1.0** — orchestrate 3.3.0 의 후속 · 2026-11-12) — 사용자가 올린 플러그인을 플러그인이 아니라 `.claude/` 에 풀어 두었다(이름에 `kjh-lyj:` 가 안 붙는다 · 그래서 `enforce-tiers.js` 를 이름 앞에 플러그인 이름이 없는 에이전트도 받게 고쳤다):
+사용자 결정(2026-10-30 · 지금 플러그인 **KJH-LYJ 1.3.0** — 2026-11-25 · 1.1.0 에서 올림: relay 워커(`.claude/relay/` · `scripts/relay-worker.js` · `route.js`) · 코드 모드 스킬 `code-mode`(`scripts/code-mode.js` — 켜기 전에 `check` · 이 클라우드 환경에선 `inactive`(효과 없음) · 켠 것은 `.claude/settings.local.json` 에만 · 커밋 안 함)) — 사용자가 올린 플러그인을 플러그인이 아니라 `.claude/` 에 풀어 두었다(이름에 `kjh-lyj:` 가 안 붙는다 · 그래서 `enforce-tiers.js` 를 이름 앞에 플러그인 이름이 없는 에이전트도 받게 고쳤다):
 `.claude/skills/` — `mode`(새 작업마다 모드를 묻는 절차) · `lite`(절약) · `orchestrate`(기본) · `plus`(강화) · `super`(최대) · `fable`(극한 — Fable 5.2 · `ORCHESTRATE_FABLE=1` 일 때만) · `check`(독립 검증 `/check test·review·debug`) · `start`(읽기 → 인터뷰 → 계획 → 모드) · `reflect`(결정 · 버그 원인 · 교훈을 노트에 — **계통에 속하는 것은 그 계통 노트에**, 계통 밖만 `docs/notes/decisions.md` · `bugs.md` · `lessons.md`) · `memo`(`docs/notes/inbox.md`) ·
 `.claude/agents/`(역할마다 모델 · 노력이 파일에 고정된 `w-*` · `su-*` · `checker-test`(haiku xhigh) · `checker`(opus xhigh) · `checker-lite`(sonnet medium) · `*-fable`) ·
 `.claude/scripts/budget.js`(요금제별 주간 한도 추정 — `node .claude/scripts/budget.js --plan pro --compare --units 3`) ·

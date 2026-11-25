@@ -35,6 +35,7 @@ orchestrate와 같은 원칙(메인이 지휘, 워커가 실행, 독립 검증)�
 | 증명 검증 ×3 관점 | `w-proof-verify` | opus | xhigh | 증명 트랙. orchestrate와 공용 |
 | 잡일 | `su-chore` | haiku | medium | 기계적 작업 |
 
+- **relay 를 쓰지 않는다.** 최대 · 극한은 한도보다 품질이 먼저라 `su-builder` 는 Agent(worktree)로 부른다(판단기도 su-* 워커는 Claude Code 로 보낸다).
 - 이 레포에서는 `.claude/agents/` 에 풀어 두어 에이전트 이름 앞에 플러그인 이름이 안 붙는다(`su-builder` 그대로).
 - **에이전트 타입을 지정했으면 `model`·`effort`를 같이 넘기지 않는다.** 호출 때 넘긴 값이 파일 설정보다 우선해서 계층이 덮어써진다. (Agent 도구 호출은 플러그인 훅이 막는다. 워크플로 스크립트 안의 호출은 훅이 못 보므로 스크립트를 쓸 때 직접 지킨다.)
 - 쓰지 않는 설정:

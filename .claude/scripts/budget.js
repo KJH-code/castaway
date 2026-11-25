@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // kjh-lyj 플러그인: 주간 한도 사용량 추정기
 //
-// 근거: "AI Model Capability vs. Subscription Usage Limits" (2026-11-10 기준), Claude 모델만.
+// 근거: 「AI 모델 성능 대비 구독 한도 사용량 분석」 v4 (2026-11-20 기준), Claude 모델만. (1.1.0 은 2026-11-10 자료)
 //   사용률 = Artificial Analysis Intelligence Index v5.0.1 과제 1개의 API 비용
 //            ÷ 그 모델의 주간 한도 API 환산 가치 × 100
 //   공식 수치가 아니다. 제3자 측정(SemiAnalysis, Theo)과 그로부터의 추정이다.
@@ -12,23 +12,23 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_AS_OF = '2026-11-10';
+const DATA_AS_OF = '2026-11-20';
 
 // Pro 주간 한도 대비, AA 과제 1개당 사용률(%) [낮은 값, 높은 값]
 const PER_TASK_PRO = {
-  opus: {   // 측정
-    max: [3.0, 3.8], xhigh: [1.8, 2.3], high: [1.0, 1.3], medium: [0.72, 0.93], low: [0.29, 0.37],
+  opus: {   // 측정 기반
+    max: [3.0, 5.9], xhigh: [1.8, 3.6], high: [1.0, 2.0], medium: [0.72, 1.4], low: [0.29, 0.58],
   },
   haiku: {  // 추정: 측정 없음, Opus와 같은 달러 풀이라고 가정. high는 비용 데이터가 없어 medium~xhigh로 둔다
-    max: [0.16, 0.16], xhigh: [0.096, 0.096], high: [0.035, 0.096], medium: [0.035, 0.035], low: [0.015, 0.015],
+    max: [0.16, 0.46], xhigh: [0.096, 0.28], high: [0.035, 0.28], medium: [0.035, 0.10], low: [0.015, 0.044],
   },
-  sonnet: { // 추정($200 요금제 측정을 비율로 줄임). 이 플러그인은 medium만 쓴다
-    max: [3.6, 5.3], xhigh: [1.5, 2.2], high: [0.58, 0.87], medium: [0.28, 0.41], low: [0.18, 0.27],
+  sonnet: { // 추정. 이 플러그인은 medium만 쓴다
+    max: [3.6, 7.7], xhigh: [1.5, 3.1], high: [0.58, 1.3], medium: [0.28, 0.60], low: [0.18, 0.39],
   },
 };
 // Max 주간 한도 '전체' 대비 Fable 5.2 사용률(%). 추정(계정 1개 측정). Pro에는 포함되지 않는다.
 const FABLE_PER_TASK_MAX = {
-  max: [3.8, 3.8], xhigh: [2.1, 2.1], high: [1.3, 1.3], medium: [0.54, 0.54], low: [0.44, 0.44],
+  max: [3.8, 4.9], xhigh: [2.1, 2.7], high: [1.3, 1.7], medium: [0.54, 0.70], low: [0.44, 0.57],
 };
 const STATUS = { opus: '측정', haiku: '추정(약한 가정)', sonnet: '추정', fable: '추정(계정 1개)' };
 const PLAN_MULT = { pro: 1, max: 5, ultra: 10 }; // Pro 대비 주간 한도 배수
@@ -36,8 +36,8 @@ const PLAN_NAME = { pro: 'Pro', max: 'Max', ultra: 'Ultra' };
 const FABLE_POOL = 50; // Fable은 주간 한도의 절반까지만
 
 // 호출 1번이 AA 과제 몇 개 크기인지 (가정). 첫 단위 실측(--pilot-measured)으로 보정한다.
-// 구현은 1.13: 코딩 에이전트 과제(Claude Code + Opus max, Pro 3.4–4.3%)가 AA 과제(3.0–3.8%)보다 약 13% 크다.
-const CODE = 1.13;
+// 구현은 1.24: 코딩 에이전트 과제(Claude Code + Opus max, Pro 3.7–7.4%, 지수 v2.1)가 AA 과제(3.0–5.9%)보다 약 24% 크다.
+const CODE = 1.24;
 const SIZE = {
   'su-builder': CODE, 'su-builder-fable': CODE, 'w-implement': CODE, 'w-implement-opus': CODE,
   'w-implement-lite': CODE,

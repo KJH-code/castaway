@@ -42,6 +42,8 @@ description: 강화 모드. 기본보다 구현 모델과 검증을 한 칸씩 �
 
 구현이 Opus medium인 이유: 같은 코딩 테스트에서 Opus가 Sonnet보다 나은 점은 경계 조건 처리였고, Opus high는 medium보다 통과가 늘지 않고 비용만 1.4배였다. 코드 수정 평가(FrontierCode 2.0)에서 크게 오르는 것은 high→xhigh(35.9→43.8%)라, xhigh는 최대 모드에 둔다.
 
+구현(`w-implement-opus`)은 기본 모드 「relay」 절대로 relay 를 먼저 써도 된다 — 각 단위의 worktree 안에서 `relay-worker.js --worker w-implement-opus` 로 부르고, 종료 코드 1 · 3 이면 Agent 로. 리뷰 · 반박 검증 · 정찰은 relay 를 쓰지 않는다(저장소를 넓게 읽어야 함).
+
 하위 세션은 사용자가 지정한 트랙만 기본 모드 「하위 세션」대로 띄운다.
 
 ## 0단계 — 준비와 동의

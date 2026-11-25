@@ -1,0 +1,28 @@
+# relay configuration. Paths use forward slashes; patterns are fnmatch globs.
+
+[context]
+max_chars = 60000            # total budget for one pack output
+max_file_chars = 40000       # larger files are omitted (reason: too_large)
+log_tail_chars = 8000
+map_chars = 6000             # repository map (functions/classes ranked for the task) in a full request
+# exclude = never sent (noise).  deny = never sent AND never written.
+exclude = ["node_modules/**", ".venv/**", "venv/**", "dist/**", "build/**",
+           "*.lock", "*.min.js", "*.png", "*.jpg", "*.zip", "*.pdf"]
+deny = [".env", ".env.*", "*.pem", "*.key", "id_rsa*", ".git/**", ".relay/**"]
+
+[hooks]
+post_apply = []              # e.g. ["ruff format .", "ruff check ."]
+test = ""                    # e.g. "pytest -x -q"; empty = skip tests
+test_quick = ""              # optional fast tests run first (e.g. only the changed module); empty = none
+syntax_check = true          # parse changed .py/.json/.toml/.js files before the tests
+timeout_sec = 300
+
+[git]
+auto_commit = true
+auto_branch = true
+branch_prefix = "relay/"
+allow_dirty = false
+
+[apply]
+allow_delete = false
+max_files_per_response = 30
