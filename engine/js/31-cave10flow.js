@@ -35,7 +35,8 @@ const CVFS={ on:true, budget:1.0, maxTri:30000, k:3, cell:8, q:[], cur:null, tEn
     albT:[0.40,0.45,0.60],        // 두꺼운 데(조금 덜 차갑게 — 그려지면 더 따뜻하다)
     /* (A) 굴마다 빛깔(겉흙 몫 → 정점 속성 aFk — 0 크림 · 1 황갈 · 2 꿀 · 3 적갈 · 사이는 섞음). 1 은 위 alb 그대로 · 두꺼운 데는 alb → albT 비를 곱한다.
        새 프로그램 없이(정의는 늘 같다 — 값은 정점마다). 비율 · 양은 실측 근거 없음(원리만) — 화소 비는 그려서 맞췄다 */
-    pal:[[0.26,0.45,0.82],[0.36,0.46,0.74],[0.337,0.37,0.49],[0.36,0.29,0.35]],
+    amb:[0.90,0.64,0.24],          // 호박 띠 곱(사진 p4 — 흰 · 크림 바탕 대비 휘도 ~0.8 · G/R −0.13 · B/R −0.4)
+    pal:[[0.28,0.50,1.10],[0.36,0.46,0.74],[0.337,0.37,0.49],[0.36,0.29,0.35]],
     /* (B) 장식 겉칠(31-cave10deco.js 가 읽는다) — 정점 빛 남길 몫 · 화소 횃불 세기 · 갈래마다 빛깔 배율(크림 · 황갈 · 꿀 — 같은 굴 덮개와 그려진 화소 비를 맞춤: 겉칠은 젖음 · 두께 · 가림이 없어 그대로면 밝고 옅었다) */
     coat:{amb:0.15,k:1.0,s:[[0.90,0.83,0.80],[0.67,0.62,0.56],[0.56,0.50,0.47]]},
     thick:[0.05,0.25],            // 크림 → 꿀로 넘어가는 두께
@@ -556,10 +557,10 @@ const CVFS_BODY=`#include <color_fragment>
 #endif
     float dl=length(n0.xz); vec2 dd=dl>1e-4?n0.xz/dl:vec2(1.0,0.0); float van=0.6*smoothstep(0.03,0.20,dl);   // 내리막(법선의 수평 몫) · 기울수록 길게
     vec3 vr=gK>0.0?fsVor2(p.xz/0.08+vec2(0.7*(Z.r-0.5),0.7*(Z.a-0.5)),41.0,dd,van):vec3(0.0,1.0,0.5);   // (값) 칸이 화소보다 작거나 벽이면 건너뛴다
-    float vE=(vr.y-vr.x)*0.08, rimV=1.0-smoothstep(0.004,0.022,vE), innV=smoothstep(0.010,0.030,vE);
+    float vE=(vr.y-vr.x)*0.08, rimV=1.0-smoothstep(0.004,0.030,vE), innV=smoothstep(0.010,0.030,vE);
     float rimA=0.5+0.9*fract(vr.z*5.37);                                               // 칸마다 둑 높이 · 밝기
     rimV*=rimA*mix(1.0,smoothstep(0.35,0.60,Z.a+0.5*(fract(vr.z*9.13)-0.5)),step(fract(vr.z*3.71),0.30));   // 30 % 칸은 둑이 군데군데 끊긴다
-    float Hg=gK*(rimV*0.006-innV*0.0015);
+    float Hg=gK*(rimV*0.0030-innV*0.0012);   // (값) 둑을 넓고 낮게 — 가까이서 둑 그늘이 가는 검은 테두리가 됐다
     /* 높이 합 — 홈 · 턱 · 둑 · 사진 · 알갱이 */
     float Ht=Hf+Hter+Hg+phl*0.0025*kMi+gr*0.0008*kMi;
     /* 빛깔 — 바탕(크림 → 두꺼운 데 꿀) · 사진 결 · 성장 띠(가로 · ±8 % · 끊김) · 골 밑 가림 · 큰 얼룩 */
@@ -575,29 +576,33 @@ const CVFS_BODY=`#include <color_fragment>
        ① 가장자리까지 거리 e 의 등고선을 따르는 성장 켜 띠 — 크림 · 흰 ↔ 꿀 · 호박(폭 1~5 cm 들쭉날쭉 · 잡음으로 휘고 끊김 · 경계는 띠 사이 섞기 · 가장자리 쪽일수록 호박)
        ② 흐름 쪽 줄기 — 굵은 골(물이 모이는 데)은 젖은 꿀 · 황갈 · 등은 흰 결정빛(줄기 세기는 흐름 따라 길게 · 군데군데)
        ③ 흰 분필 딱지(문밀크 · 팝콘 껍질) — 마르고 위를 보는 두꺼운 데 · 입구 쪽 */
-    float pa=mix(0.35,1.0,cr);
-    float bu=ed/0.028+2.2*Z.a+1.3*Z.r+0.8*WB.z, bk=floor(bu), fwB=fwidth(bu);
-    float tone=mix(fsH1(bk,53.0),fsH1(bk+1.0,53.0),smoothstep(0.25,0.75,bu-bk));
-    float bcut2=smoothstep(0.30,0.60,Z.b+0.35*(WB.y-0.5))*(1.0-smoothstep(0.35,0.90,fwB));
-    float ambK=smoothstep(0.45,0.85,tone)*(0.55+0.45*(1.0-smoothstep(0.0,0.18,ed)))*bcut2*pa;
-    c=mix(c,c*vec3(1.02,0.80,0.56),0.75*ambK); c*=1.0+0.14*(1.0-smoothstep(0.15,0.45,tone))*bcut2*pa;
-    float Hc=fluK*WA.y*kMe, sv=smoothstep(0.35,0.65,WB.x+0.3*(Z.g-0.5));
+    float pa=mix(0.50,1.0,cr);
+    /* 띠 폭 들쭉날쭉 — 거리 눈금을 잡음으로 늘이고(0.7~1.3 배) 칸마다 톤이 바뀌는 자리를 해시로(0.2~0.8) — 고른 등고선 줄무늬가 됐다 */
+    float bu=(ed*(0.7+0.6*Z.g))/0.045+2.2*Z.a+1.3*Z.r+0.8*WB.z, bk=floor(bu), fwB=fwidth(bu), bq=0.2+0.6*fsH1(bk,59.0);
+    float tone=mix(fsH1(bk,53.0),fsH1(bk+1.0,53.0),smoothstep(bq-0.18,bq+0.18,bu-bk));
+    float bcut2=(0.45+0.55*wal)*smoothstep(0.25,0.55,Z.b+0.35*(WB.y-0.5))*(1.0-smoothstep(0.35,0.90,fwB));
+    float ambK=smoothstep(0.55,0.85,tone)*(0.70+0.30*(1.0-smoothstep(0.0,0.18,ed)))*bcut2*pa;
+    c=mix(c,c*FS_AMB,ambK);   // (값) 띠 대비는 사진 p4 를 화소로 재서 맞춘다(흰 · 크림 ↔ 호박 — OPT.amb) c*=1.0+0.14*(1.0-smoothstep(0.15,0.45,tone))*bcut2*pa;
+    /* 줄기 세기는 줄기마다 따로(가로 9 cm 칸 해시 · 이웃과 부드럽게 섞음 · 잡음으로 밀어 폭 · 간격이 들쭉날쭉 — 고른 흰 세로 결이 됐다) */
+    float suu=mix(p.z,p.x,wx)/0.09+1.7*Z.a+0.9*Z.g, sk=floor(suu), sw2=smoothstep(0.30,0.85,mix(fsH1(sk,61.0),fsH1(sk+1.0,61.0),smoothstep(0.2,0.8,suu-sk)));
+    float Hc=fluK*WA.y*kMe, sv=smoothstep(0.35,0.65,WB.x+0.3*(Z.g-0.5))*sw2;
     c=mix(c,c*vec3(0.95,0.80,0.62),smoothstep(0.0,0.014,0.0-Hc)*sv*(0.30+0.35*pa)); c*=1.0+0.06*smoothstep(0.0,0.014,Hc)*sv*pa;   // 넓은 경사(좁으면 고른 흰 줄이 섰다)
-    float chalk=smoothstep(0.58,0.78,0.5*Z.r+0.25*(1.0+phl)+0.2*(Z.a-0.5))*(1.0-wt)*max(smoothstep(0.15,0.55,n0.y)*smoothstep(0.03,0.10,h),smoothstep(0.02,0.10,vCv10Sky))*pa;
-    c=mix(c,FS_P0*1.30,0.75*chalk);
+    float pop=smoothstep(0.35,0.75,texture(cmZ,p*7.0).a);   // 팝콘 알갱이(잔 얼룩)
+    float chalk=smoothstep(0.52,0.72,0.5*Z.r+0.25*(1.0+phl)+0.2*(Z.a-0.5))*(1.0-0.7*wt)*(0.55+0.45*pop)*max(smoothstep(0.15,0.55,n0.y)*smoothstep(0.03,0.10,h),smoothstep(0.02,0.10,vCv10Sky))*pa;
+    c=mix(c,FS_P0*1.55*(0.92+0.08*pop),0.85*chalk); Ht+=chalk*pop*0.0015*kMi;   // 분필 딱지 — 더 희고 무광 · 오돌토돌
     /* 가장자리 — 막이 바위에 닿는 데는 그늘 · 바닥 판 가장자리 25 cm 는 짙고 젖게(껍데기 aFc 자국과 이어진다) */
     float rimF=flo*(1.0-smoothstep(0.0,0.25,ed+0.05*(Z.a-0.5)));
     { float l=fsLum(c); c=mix(vec3(l),c,0.70); }
     /* (가장자리 — 사용자 요청 '경계가 이질적') 얇아지는 가장자리는 밑 바위가 비친다 — 막을 반투명으로 그려(투명 패스 · renderOrder −1 이라 물보다 먼저)
-       e 0 에서 불투명 0 → 15~40 cm(잡음)에서 1: 비치는 것은 껍데기 그 자체라 빛(둘레빛 가림 · 깊이 · 횃불)과 사진 결이 경계에서 그대로 이어진다.
+       e 0 에서 불투명 0.25~0.35 → 5~15 cm(잡음)에서 1: 비치는 것은 껍데기 그 자체라 빛(둘레빛 가림 · 깊이 · 횃불)과 사진 결이 경계에서 그대로 이어진다.
        얇은 쪽은 무늬 범프도 잦아들고 젖은 막 · 가장 바깥 1~3 cm 는 조금 솟은 밝은 테(실제 유석 끝의 작은 둑 — 선이 아니라 폭 있는 테) */
-    float tE=smoothstep(0.0,0.15+0.25*Z.g,ed+0.06*(Z.a-0.5)+0.04*(WB.x-0.5));
+    float tE=smoothstep(0.0,0.05+0.10*Z.g,ed+0.02*(Z.a-0.5)+0.015*(WB.x-0.5));
     float rimE=smoothstep(0.002,0.008,ed)*(1.0-smoothstep(0.012,0.030,ed+0.01*(Z.r-0.5)));
-    float aE=clamp(tE*tE*(3.0-2.0*tE)*0.85+0.15*tE+0.08*rimE,0.0,1.0);
+    float aE=clamp(mix(0.25+0.10*Z.r,1.0,tE)+0.08*rimE,0.0,1.0);   // (사용자 결정) 끝에서 0.25~0.35 부터 · 5~15 cm 에서 불투명 — 이음은 바위 쪽 번진 자국이 맡는다
     c*=1.0+0.08*rimE;
     Ht=Ht*tE+0.003*rimE;
     /* 젖음 — 바탕 어둡게는 막 전체에 조금 · 물막 반짝임(wS)은 바닥 · 휴석 칸 속 · 벽은 사진 결 · 잡음으로 끊긴 작은 점만 */
-    float w=clamp(wt*(0.6+0.6*Z.b),0.0,1.0);
+    float w=clamp(wt*(0.6+0.6*Z.b),0.0,1.0)*(1.0-0.8*chalk);
     float spot=0.0; if(wal*w>0.001) spot=smoothstep(0.72,0.86,texture(cmZ,p*1.6).a+0.25*phl);   // 벽 젖은 점(작은 점 — 사진 결로만 세면 세로로 늘어난 짙은 줄이 됐다)
     float wS=clamp(max(max(flo*w,gK*innV),max(rimF,wal*w*spot*0.8)),0.0,1.0);
     float wD=clamp(0.45*w+0.55*wS,0.0,1.0);
@@ -650,7 +655,7 @@ function cv10FlowMat(){
   const gl=(typeof CV10_GLOW!=='undefined'&&(CV10_GLOW.karst||CV10_GLOW.shelter))||[0,0,0,0];
   const U={cmC:CMAT.tex, cmZ:cmNoise3(), cmT:CMAT.torch, cmTP:CMAT.tpos, cmTPv:CMAT.tpv, cmEye:CMAT.eye, cmTC:CMAT.tcol, uCv10Glow:{value:new THREE.Vector4(gl[0],gl[1],gl[2],gl[3])}};
   const f=v=>'('+(+v).toFixed(4)+')';
-  const D=`#define FS_P0 ${cvfsV3(O.pal[0])}\n#define FS_P1 ${cvfsV3(O.pal[1])}\n#define FS_P2 ${cvfsV3(O.pal[2])}\n#define FS_P3 ${cvfsV3(O.pal[3])}\n#define FS_TKR ${cvfsV3(O.albT.map((v,i)=>v/O.alb[i]))}\n#define FS_THK0 ${f(O.thick[0])}\n#define FS_THK1 ${f(O.thick[1])}\n#define FS_SIGA ${cvfsV3(O.sigA)}\n#define FS_MFP ${f(O.mfp)}\n`+
+  const D=`#define FS_P0 ${cvfsV3(O.pal[0])}\n#define FS_AMB ${cvfsV3(O.amb)}\n#define FS_P1 ${cvfsV3(O.pal[1])}\n#define FS_P2 ${cvfsV3(O.pal[2])}\n#define FS_P3 ${cvfsV3(O.pal[3])}\n#define FS_TKR ${cvfsV3(O.albT.map((v,i)=>v/O.alb[i]))}\n#define FS_THK0 ${f(O.thick[0])}\n#define FS_THK1 ${f(O.thick[1])}\n#define FS_SIGA ${cvfsV3(O.sigA)}\n#define FS_MFP ${f(O.mfp)}\n`+
     `#define FS_WRAP ${cvfsV3(O.wrap)}\n#define FS_SOFT ${f(O.soft)}\n#define FS_TCOL ${cvfsV3(O.tcol)}\n#define FS_TDELTA ${f(O.tDelta)}\n#define FS_TPOW ${f(O.tPow)}\n#define FS_TK ${f(O.tK)}\n#define FS_EDGE ${f(O.edge)}\n`+
     `#define FS_RDRY ${f(O.rDry)}\n#define FS_RWET ${f(O.rWet)}\n#define FS_F0DRY ${f(O.f0Dry)}\n#define FS_F0WET ${f(O.f0Wet)}\n#define FS_WETD ${f(O.wetD)}\n#define FS_WETSAT ${f(O.wetSat)}\n#define CM_SUNCUT\n`+(CVFS.dbg||'');
   m.onBeforeCompile=sh=>{

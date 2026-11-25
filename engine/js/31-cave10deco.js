@@ -55,7 +55,7 @@ function cvdInit(){
     float st=vSp.w>1.5?0.5+0.5*cos(9.0*an2+2.0*sin(vSpP.y*3.0)):0.5, tp=vSp.w>1.5&&floor(vSp.w)<2.5?smoothstep(0.80,1.0,clamp(vSp.z,0.0,1.0)):0.0;
     fc*=(0.80+0.34*st)*(1.0+0.12*tp)*mix(mix(${v3(CO.s[0])},${v3(CO.s[1])},clamp(kf,0.0,1.0)),${v3(CO.s[2])},clamp(kf-1.0,0.0,1.0));   // 흘러내린 세로 결 · 종유석 끝 방울은 조금 밝게
     { float bq=vSpP.y/0.035+1.5*sin(an2*2.0+vSpP.x*3.0), tn=0.5+0.5*sin(bq*1.7+2.3*sin(bq*0.37));   // 성장 켜 띠(가로 고리 · 폭 들쭉날쭉) · 끝 쪽 호박 — 흰 · 회색일수록 진하게
-      fc=mix(fc,fc*vec3(1.02,0.80,0.56),(0.6*smoothstep(0.55,0.90,tn)+0.4*tp)*mix(0.35,1.0,1.0-clamp(kf,0.0,1.0))); }
+      fc=mix(fc,fc*${v3((typeof CVFS!=='undefined'&&CVFS.OPT&&CVFS.OPT.amb)||[1.02,0.80,0.56])},(0.6*smoothstep(0.50,0.85,tn)+0.4*tp)*mix(0.50,1.0,1.0-clamp(kf,0.0,1.0))); }
     float cw=smoothstep(0.0,1.0,vFo.x); vec3 nW=normalize(vSpN)*(gl_FrontFacing?1.0:-1.0), tv=cmTP-vSpP; float tl=length(tv), at=clamp(1.0-tl/max(cmT.x,1e-3),0.0,1.0); at*=at;
     vec3 E=clamp((vec3(dot(nW,tv/max(tl,1e-4)))+vec3(0.40,0.26,0.19))/vec3(1.40,1.26,1.19),0.0,1.0);
     diffuseColor.rgb=mix(diffuseColor.rgb,fc*${CO.amb.toFixed(3)},cw);   // 정점 빛(둘레빛)은 조금만 남기고
