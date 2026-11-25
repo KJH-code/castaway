@@ -12,8 +12,7 @@
    ========================================================================== */
 const TPV={on:true, d:0, dWant:3.3, side:0.5, up:0.3, aim:14};
 try{ TPV.on=localStorage.getItem('castaway.view')!=='1p'; }catch(e){}
-const PB={built:false, rig:null, mesh:null, line:null, bone:{}, rest:{}, dir:{}, hold:null, holdId:undefined, holdFx:null,
-  t:0, ph:0, lunge0:0, roll:-1, punch:null, chop:0, cur:null, tg:null, Lt:0.22, Ls:0.19, footH:0.11, hip0:0.52, shT:0};
+const PB={built:false, body:null, rig:null, bone:null, lunge0:0, shT:0};   // 사람의 몸(자세 상태는 PB.body — pbMakeBody)
 
 /* ── 재질 ── */
 function pbWeave(){                                    // 흰 천 — 평직 결(실이 엇갈려 지나간다) · 아주 옅게
@@ -54,10 +53,11 @@ function pbLineMat(){
   return m;
 }
 
-/* ── 짓기 ── */
-function pbBuild(){
-  if(PB.built) return true;
-  if(typeof PLAYER_MESH==='undefined'||typeof scene==='undefined'||!scene) return false;
+/* ── 짓기 — 지오메트리 · 재질 · 쉼 방향은 한 벌을 모든 몸이 나눠 쓴다(사람 · AI 플레이어 98-bots.js) ── */
+const PBK={geo:null, mats:null, line:null, R:null, dir:{}, Lt:0.22, Ls:0.19, footH:0.11, hip0:0.52, holdOfs:null, failed:false};
+function pbShared(){
+  if(PBK.geo) return true;
+  if(PBK.failed||typeof PLAYER_MESH==='undefined') return false;
   try{
     const D=PLAYER_MESH, nv=D.nv, raw=Uint8Array.from(atob(D.b),c=>c.charCodeAt(0)), buf=raw.buffer;
     const pb=(nv*6+3)&~3, nb=(nv*3+3)&~3, ub=nv*4, sb=nv*4;
@@ -76,43 +76,53 @@ function pbBuild(){
     geo.setIndex(new THREE.BufferAttribute(ix,1));
     for(const [st,cnt,m] of D.groups) geo.addGroup(st,cnt,m);
     geo.computeBoundingSphere();
-    /* 뼈 — 쉼 자세는 돌림 없이 자리만(그래서 마디 방향 = 세계 방향) */
-    const bones=[], R={};
-    for(const [n,p,at] of D.bones){
-      const b=new THREE.Bone(); b.name=n; PB.bone[n]=b; R[n]=new THREE.Vector3(at[0],at[1],at[2]);
-      if(p){ b.position.copy(R[n]).sub(R[p]); PB.bone[p].add(b); } else b.position.copy(R[n]);
-      bones.push(b);
-    }
-    PB.rest=R;
-    const rig=new THREE.Group(); rig.name='playerBody';
-    const mesh=new THREE.SkinnedMesh(geo,pbMats()); mesh.frustumCulled=false;
-    rig.add(mesh); rig.add(PB.bone.hips); rig.updateMatrixWorld(true);
-    mesh.bind(new THREE.Skeleton(bones));
-    const line=new THREE.SkinnedMesh(geo,pbLineMat()); line.frustumCulled=false; line.userData.lightRole='none';
-    line.bind(mesh.skeleton,mesh.bindMatrix); rig.add(line);
-    /* 마디의 쉼 방향 — 목표 방향으로 돌릴 때 쓴다 */
+    /* 뼈의 쉼 자리 — 돌림 없이 자리만(그래서 마디 방향 = 세계 방향) */
+    const R={}; for(const [n,,at] of D.bones) R[n]=new THREE.Vector3(at[0],at[1],at[2]);
     const d=(a,b)=>new THREE.Vector3().subVectors(b,a).normalize();
     const toe=s=>new THREE.Vector3(...D.toe[s]), tip=s=>new THREE.Vector3(...D.hand[s]);
     for(const s of ['L','R']){
-      PB.dir['upperArm'+s]=d(R['upperArm'+s],R['foreArm'+s]); PB.dir['foreArm'+s]=d(R['foreArm'+s],R['hand'+s]);
-      PB.dir['hand'+s]=d(R['hand'+s],tip(s));
-      PB.dir['thigh'+s]=d(R['thigh'+s],R['shin'+s]); PB.dir['shin'+s]=d(R['shin'+s],R['foot'+s]); PB.dir['foot'+s]=d(R['foot'+s],toe(s));
+      PBK.dir['upperArm'+s]=d(R['upperArm'+s],R['foreArm'+s]); PBK.dir['foreArm'+s]=d(R['foreArm'+s],R['hand'+s]);
+      PBK.dir['hand'+s]=d(R['hand'+s],tip(s));
+      PBK.dir['thigh'+s]=d(R['thigh'+s],R['shin'+s]); PBK.dir['shin'+s]=d(R['shin'+s],R['foot'+s]); PBK.dir['foot'+s]=d(R['foot'+s],toe(s));
     }
-    PB.Lt=R.thighR.distanceTo(R.shinR); PB.Ls=R.shinR.distanceTo(R.footR); PB.footH=R.footR.y; PB.hip0=R.hips.y;
-    /* 손에 든 것 — 주먹 가운데(손목 → 손끝의 0.42) */
-    PB.hold=new THREE.Group(); PB.hold.position.copy(tip('R')).sub(R.handR).multiplyScalar(0.42); PB.bone.handR.add(PB.hold);
-    rig.visible=false;
-    PB.rig=rig; PB.mesh=mesh; PB.line=line; scene.add(rig);
-    PB.cur=pbPose(); PB.tg=pbPose();
-    PB.built=true;
-  }catch(e){ console.error('[사람 몸]',e); PB.built=false; PB.failed=true; }
-  return PB.built;
+    PBK.Lt=R.thighR.distanceTo(R.shinR); PBK.Ls=R.shinR.distanceTo(R.footR); PBK.footH=R.footR.y; PBK.hip0=R.hips.y;
+    PBK.holdOfs=tip('R').sub(R.handR).multiplyScalar(0.42);            // 주먹 가운데(손목 → 손끝의 0.42)
+    PBK.R=R; PBK.mats=pbMats(); PBK.line=pbLineMat(); PBK.geo=geo;
+  }catch(e){ console.error('[사람 몸]',e); PBK.failed=true; }
+  return !!PBK.geo;
+}
+/* 몸 하나 — 뼈 · 껍데기 · 테두리 · 손에 든 것 자리 · 자세 상태. scene 에 붙이는 것은 부르는 쪽이 */
+function pbMakeBody(name){
+  const D=PLAYER_MESH, R=PBK.R, bone={}, bones=[];
+  for(const [n,p] of D.bones){
+    const b=new THREE.Bone(); b.name=n; bone[n]=b;
+    if(p){ b.position.copy(R[n]).sub(R[p]); bone[p].add(b); } else b.position.copy(R[n]);
+    bones.push(b);
+  }
+  const rig=new THREE.Group(); rig.name=name||'body';
+  const mesh=new THREE.SkinnedMesh(PBK.geo,PBK.mats); mesh.frustumCulled=false;
+  rig.add(mesh); rig.add(bone.hips); rig.updateMatrixWorld(true);
+  mesh.bind(new THREE.Skeleton(bones));
+  const line=new THREE.SkinnedMesh(PBK.geo,PBK.line); line.frustumCulled=false; line.userData.lightRole='none';
+  line.bind(mesh.skeleton,mesh.bindMatrix); rig.add(line);
+  const hold=new THREE.Group(); hold.position.copy(PBK.holdOfs); bone.handR.add(hold);
+  return {rig, mesh, line, bone, hold, holdId:undefined, holdFx:null, cur:pbPose(), tg:pbPose(), t:0, ph:0, roll:-1, punch:null, chop:0};
+}
+/* 몸짓을 고르는 상태 — 사람은 pbPlayerState 가 게임에서, AI 플레이어는 제 머리(98-bots.js)가 채운다 */
+function pbState(){ return {vel:new THREE.Vector3(), yaw:0, pitch:0, grounded:true, swim:false, crouch:false, dead:false, climb:false, gather:false,
+  held:null, rest:false, flash:false, eat:-1, swing:-1, harv:false, wave:false}; }
+function pbPlayerState(S){
+  S.vel.copy(PL.vel); S.yaw=PL.yaw; S.pitch=PL.pitch; S.grounded=PL.grounded; S.swim=PL.swim; S.crouch=PL.crouch; S.dead=PL.dead;
+  S.climb=typeof WALL!=='undefined'&&WALL.on; S.gather=typeof GATHER!=='undefined'&&GATHER.on;
+  S.held=weaponFxId||null; S.rest=!!(weaponFx&&weaponFx.userData.rest); S.flash=ATK.flash>0;
+  S.eat=USE_T>0?clamp(1-USE_T/USE_DUR,0,1):-1; S.swing=ATK.swing>0?1-ATK.swing/Math.max(0.01,ATK.swingMax):-1; S.harv=HARV.active; S.wave=false;
+  return S;
 }
 
 /* ── 자세 — 팔: [앞으로 든 각(아래 0 · 앞 π/2 · 위 π), 바깥으로 벌린 각, 팔꿈치 굽힘] · 다리: [허벅지 앞 각, 벌린 각, 무릎 굽힘] ── */
 function pbPose(){ return {lean:0, twist:0, side:0, hipY:0, autoH:1, roll:0, head:0, headY:0, chest:0, armR:[0.05,0.12,0.2], armL:[0.05,0.12,0.2], legR:[0,0.04,0.05], legL:[0,0.04,0.05], footR:0, footL:0}; }
 const _pbV=new THREE.Vector3(), _pbV2=new THREE.Vector3(), _pbQ=new THREE.Quaternion(), _pbQ2=new THREE.Quaternion(), _pbM=new THREE.Matrix4(),
-      _pbX=new THREE.Vector3(), _pbY=new THREE.Vector3(), _pbZ=new THREE.Vector3(), _pbE=new THREE.Euler();
+      _pbX=new THREE.Vector3(), _pbY=new THREE.Vector3(), _pbZ=new THREE.Vector3();
 /* 앞 각 p · 벌린 각 o 의 방향(몸 쪽 좌표 — 앞 −Z · 위 +Y · 몸의 오른쪽 +X) */
 function pbDir(p,o,side,out){ const c=Math.cos(o); return out.set(side*Math.sin(o),-Math.cos(p)*c,-Math.sin(p)*c); }
 /* 두 마디를 목표 방향으로 — 위 마디 b1 은 g1 을, 아래 마디 b2 는 g2 를(둘 다 b1 의 부모 좌표) */
@@ -122,26 +132,26 @@ function pbAim(b1,b2,r1,r2,g1,g2){
   b2.quaternion.setFromUnitVectors(r2,_pbV2);
 }
 
-/* ── 이 프레임의 목표 자세 ── */
-function pbTarget(dt){
-  const T=PB.tg, t=PB.t, v=PL.vel, sp=Math.hypot(v.x,v.z);
-  const fx=-Math.sin(PL.yaw), fz=-Math.cos(PL.yaw), fwd=v.x*fx+v.z*fz;
-  Object.assign(T,{lean:0.02, twist:0, side:0, hipY:0, autoH:1, roll:0, head:clamp(PL.pitch,-0.9,0.7)*0.55, headY:0, chest:0});
+/* ── 이 프레임의 목표 자세(몸 B · 상태 S) ── */
+function pbTarget(B,S,dt){
+  const T=B.tg, t=B.t, v=S.vel, sp=Math.hypot(v.x,v.z);
+  const fx=-Math.sin(S.yaw), fz=-Math.cos(S.yaw), fwd=v.x*fx+v.z*fz;
+  Object.assign(T,{lean:0.02, twist:0, side:0, hipY:0, autoH:1, roll:0, head:clamp(S.pitch,-0.9,0.7)*0.55, headY:0, chest:0});
   const A=(a,p,o,e)=>{ a[0]=p; a[1]=o; a[2]=e; }, L=(l,p,o,k)=>{ l[0]=p; l[1]=o; l[2]=k; };
   const breath=Math.sin(t*1.7);
   A(T.armR,0.06+0.02*breath,0.13,0.22); A(T.armL,0.06+0.02*breath,0.13,0.22);
-  L(T.legR,0,0.04,0.06); L(T.legL,0,0.04,0.06); T.lean=0.02+0.01*breath;
-  const held=weaponFxId&&ITEMS[weaponFxId]?ITEMS[weaponFxId]:null, HT=held&&held.tool||{};
-  const swimming=PL.swim, air=!PL.grounded&&!swimming&&!(typeof WALL!=='undefined'&&WALL.on);
+  L(T.legR,0,0.04,0.06); L(T.legL,0,0.04,0.06); T.lean=0.02+0.01*breath; T.footR=T.footL=0;
+  const held=S.held&&ITEMS[S.held]?ITEMS[S.held]:null, HT=held&&held.tool||{};
+  const swimming=S.swim, air=!S.grounded&&!swimming&&!S.climb;
   /* 걸음 위상 — 간 거리로(프레임과 상관없이) · 뒷걸음이면 거꾸로 */
   const a=clamp(sp/WALK,0,1.8), run=clamp((sp-WALK)/(RUN-WALK),0,1);
-  if(PL.grounded&&!swimming) PB.ph+=(fwd<-0.3?-1:1)*sp*dt/(0.62+0.09*sp)*Math.PI;
-  const s=Math.sin(PB.ph), c=Math.cos(PB.ph);
-  const kneeling=PL.grounded&&!swimming&&((PL.crouch&&sp<0.4)||(typeof GATHER!=='undefined'&&GATHER.on));
+  if(S.grounded&&!swimming) B.ph+=(fwd<-0.3?-1:1)*sp*dt/(0.62+0.09*sp)*Math.PI;
+  const s=Math.sin(B.ph), c=Math.cos(B.ph);
+  const kneeling=S.grounded&&!swimming&&((S.crouch&&sp<0.4)||S.gather);
 
-  if(PL.dead){                                                       // 쓰러짐 — 등을 대고 눕는다
+  if(S.dead){                                                        // 쓰러짐 — 등을 대고 눕는다
     T.lean=-1.5; T.hipY=-0.30; T.autoH=0; A(T.armR,0.4,0.9,0.3); A(T.armL,0.3,0.8,0.5); L(T.legR,0.15,0.1,0.2); L(T.legL,0.05,0.12,0.1);
-  }else if(typeof WALL!=='undefined'&&WALL.on){                      // 벼랑에 매달려 오르기
+  }else if(S.climb){                                                 // 벼랑에 매달려 오르기
     const w=Math.sin(t*5);
     A(T.armR,2.75+0.25*w,0.25,0.5); A(T.armL,2.75-0.25*w,0.25,0.5); L(T.legR,0.7+0.35*w,0.12,1.2); L(T.legL,0.7-0.35*w,0.12,1.2);
     T.lean=-0.1; T.autoH=0;
@@ -158,8 +168,8 @@ function pbTarget(dt){
   }else if(kneeling){                                                // 무릎 꿇기 — 오른 무릎을 땅에
     L(T.legR,0.05,0.06,1.6); L(T.legL,1.4,0.06,1.4); T.lean=0.18; T.footR=-1.0;
     A(T.armR,0.5,0.1,0.6); A(T.armL,0.95,0.05,1.3);
-    if(typeof GATHER!=='undefined'&&GATHER.on){ const g=Math.sin(t*6); A(T.armR,0.95+0.12*g,0.0,0.25+0.1*g); T.lean=0.4; T.head-=0.4; }
-  }else if(PL.crouch){                                               // 앉아 걷기
+    if(S.gather){ const g=Math.sin(t*6); A(T.armR,0.95+0.12*g,0.0,0.25+0.1*g); T.lean=0.4; T.head-=0.4; }
+  }else if(S.crouch){                                                // 앉아 걷기
     L(T.legR,0.95+0.38*s,0.08,1.45+0.45*Math.max(0,c)); L(T.legL,0.95-0.38*s,0.08,1.45+0.45*Math.max(0,-c));
     T.lean=0.38; A(T.armR,0.55-0.25*s,0.15,0.8); A(T.armL,0.55+0.25*s,0.15,0.8);
   }else if(sp>0.3){                                                  // 걷기 · 달리기
@@ -171,115 +181,120 @@ function pbTarget(dt){
   }
 
   /* 든 것 — 오른팔이 맡는다(주먹 · 구르기가 먼저) */
-  const gun=!!HT.gun, aimP=clamp(PL.pitch,-1.0,1.1);
-  if(!PL.dead&&!swimming&&!(typeof WALL!=='undefined'&&WALL.on)){
+  const gun=!!HT.gun, aimP=clamp(S.pitch,-1.0,1.1);
+  if(!S.dead&&!swimming&&!S.climb){
     if(gun){                                                         // 총 — 두 팔로 겨눈다(보는 곳으로)
       A(T.armR,Math.PI/2+aimP-0.15,-0.12,0.35); A(T.armL,Math.PI/2+aimP-0.05,-0.62,0.55); T.chest=aimP*0.3; T.twist=-0.12;
-      if(ATK.flash>0) T.armR[0]+=0.12, T.armL[0]+=0.08;               // 쏠 때 튄다
-    }else if(USE_T>0){                                               // 먹기 · 마시기 — 손을 입으로
-      const k=Math.sin(clamp(1-USE_T/USE_DUR,0,1)*Math.PI); A(T.armR,0.4+0.75*k,-0.2*k,0.4+1.9*k);
-    }else if(held&&(HT.weapon||HT.axe||HT.pick||HT.drill)&&(ATK.swing>0||HARV.active)){   // 휘두르기 · 캐기 — 들어 올렸다 내리친다
+      if(S.flash) T.armR[0]+=0.12, T.armL[0]+=0.08;                  // 쏠 때 튄다
+    }else if(S.eat>=0){                                              // 먹기 · 마시기 — 손을 입으로
+      const k=Math.sin(S.eat*Math.PI); A(T.armR,0.4+0.75*k,-0.2*k,0.4+1.9*k);
+    }else if(held&&(HT.weapon||HT.axe||HT.pick||HT.drill)&&(S.swing>=0||S.harv)){   // 휘두르기 · 캐기 — 들어 올렸다 내리친다
       let u;
-      if(ATK.swing>0) u=1-ATK.swing/Math.max(0.01,ATK.swingMax);
-      else { PB.chop=(PB.chop+dt*1.5)%1; u=PB.chop; }
+      if(S.swing>=0) u=S.swing;
+      else { B.chop=(B.chop+dt*1.5)%1; u=B.chop; }
       const style=HT.swing||'slash';
       if(style==='thrust'){ const k=u<0.35?u/0.35:1-(u-0.35)/0.65; A(T.armR,0.9+0.6*k,-0.1,1.6-1.5*k); T.twist=-0.3*k; }
       else{ const up=u<0.4?u/0.4:0, dn=u<0.4?0:(u-0.4)/0.6, e=dn*dn*(3-2*dn);
         A(T.armR,u<0.4?0.55+2.2*up:2.75-2.35*e,0.1,u<0.4?1.1+0.6*up:1.7-1.4*e); A(T.armL,0.5+0.9*(u<0.4?up:1-e),0.0,1.0);
         T.lean+=u<0.4?-0.08*up:0.25*e; T.twist=u<0.4?0.15*up:-0.2*e; }
-    }else if(held&&HT&&weaponFx&&weaponFx.userData.rest){            // 횃불 · 등잔 · 그물 — 앞에 세워 든다
-      A(T.armR,0.75,0.2,0.95);
-    }else if(held){ A(T.armR,0.45,0.15,0.95); }                      // 그 밖의 든 것 — 앞으로 든다
+    }else if(held&&S.rest){ A(T.armR,0.75,0.2,0.95); }              // 횃불 · 등잔 · 그물 — 앞에 세워 든다
+    else if(held){ A(T.armR,0.45,0.15,0.95); }                       // 그 밖의 든 것 — 앞으로 든다
+    if(S.wave&&!gun){ const w=Math.sin(t*9); A(T.armL,2.7,0.55+0.3*w,0.45); T.headY=0; }   // 손 흔들기(왼손 — 오른손엔 든 것이 있을 수 있다)
   }
   /* 주먹 — 당겼다가 곧게 뻗고 돌아온다 · 다른 팔은 얼굴을 막는다 */
-  if(PB.punch){
-    const P=PB.punch, u=clamp(P.t/P.dur,0,1), arm=P.side>0?T.armR:T.armL, other=P.side>0?T.armL:T.armR;
+  if(B.punch){
+    const P=B.punch, u=clamp(P.t/P.dur,0,1), arm=P.side>0?T.armR:T.armL, other=P.side>0?T.armL:T.armR;
     const k=u<0.22?0:(u<0.45?(u-0.22)/0.23:1-(u-0.45)/0.55), e=k*k*(3-2*k);
     A(arm,1.0+0.55*e,0.3-0.45*e,2.1-2.05*e); A(other,1.05,-0.15,2.0);
-    T.twist=P.side*0.35*e; T.lean+=0.06*e; if(PL.grounded&&!PL.crouch&&sp<0.3){ L(T.legR,P.side>0?-0.15:0.2,0.08,0.15); L(T.legL,P.side>0?0.2:-0.15,0.08,0.15); }
+    T.twist=P.side*0.35*e; T.lean+=0.06*e; if(S.grounded&&!S.crouch&&sp<0.3){ L(T.legR,P.side>0?-0.15:0.2,0.08,0.15); L(T.legL,P.side>0?0.2:-0.15,0.08,0.15); }
   }
   /* 구르기 — 돌진(Q)하면 앞으로 한 바퀴 · 몸을 옹송그린다 */
-  if(PB.roll>=0){
-    const u=PB.roll, e=u*u*(3-2*u);
+  if(B.roll>=0){
+    const u=B.roll, e=u*u*(3-2*u);
     T.roll=-e*Math.PI*2; T.autoH=0; T.hipY=0.1+0.4*Math.sin(Math.PI*u);
     L(T.legR,1.9,0.12,2.3); L(T.legL,1.9,0.12,2.3); A(T.armR,1.2,0.25,2.0); A(T.armL,1.2,0.25,2.0); T.lean=0.7; T.head=-0.6;
   }
 }
 
 /* ── 자세를 뼈에 ── */
-function pbApply(P){
-  const B=PB.bone, D=PB.dir;
+function pbApply(B,P){
+  const Bn=B.bone, D=PBK.dir;
   /* 엉덩이 높이 — 다리 각에서(디딘 발 · 꿇은 무릎 가운데 가장 낮은 것이 땅에 닿는다) */
-  let h=PB.hip0;
+  let h=PBK.hip0;
   if(P.autoH>0.5){
-    const reach=l=>{ const th=l[0], kn=l[2]; return Math.max(PB.Lt*Math.cos(th)+PB.Ls*Math.cos(th-kn)+PB.footH, PB.Lt*Math.cos(th)+0.06); };
+    const reach=l=>{ const th=l[0], kn=l[2]; return Math.max(PBK.Lt*Math.cos(th)+PBK.Ls*Math.cos(th-kn)+PBK.footH, PBK.Lt*Math.cos(th)+0.06); };
     h=Math.max(reach(P.legR),reach(P.legL));
   }
-  B.hips.position.y=h+P.hipY;
-  B.hips.rotation.set(-P.lean*0.55+P.roll,P.twist*0.4,0,'YXZ');
-  B.spine.rotation.set(-P.lean*0.25,P.twist*0.3,0,'YXZ');
-  B.chest.rotation.set(-P.lean*0.2+P.chest,P.twist*0.5,0,'YXZ');
-  B.neck.rotation.set(P.head*0.4+P.lean*0.35,-P.twist*0.5,0,'YXZ');
-  B.head.rotation.set(P.head*0.6+P.lean*0.4,P.headY,0,'YXZ');
+  Bn.hips.position.y=h+P.hipY;
+  Bn.hips.rotation.set(-P.lean*0.55+P.roll,P.twist*0.4,0,'YXZ');
+  Bn.spine.rotation.set(-P.lean*0.25,P.twist*0.3,0,'YXZ');
+  Bn.chest.rotation.set(-P.lean*0.2+P.chest,P.twist*0.5,0,'YXZ');
+  Bn.neck.rotation.set(P.head*0.4+P.lean*0.35,-P.twist*0.5+P.headY*0.4,0,'YXZ');
+  Bn.head.rotation.set(P.head*0.6+P.lean*0.4,P.headY*0.6,0,'YXZ');
   /* 팔 · 다리 — 몸 쪽 좌표의 목표는 부모(가슴 · 엉덩이) 좌표다(위 몸통 돌림을 이미 탄다) */
   for(const [s,sg] of [['R',1],['L',-1]]){
     const a=P['arm'+s], l=P['leg'+s];
     pbDir(a[0],a[1],sg,_pbX); pbDir(a[0]+a[2],a[1]*0.5,sg,_pbY);
-    pbAim(B['upperArm'+s],B['foreArm'+s],D['upperArm'+s],D['foreArm'+s],_pbX,_pbY);
-    B['hand'+s].quaternion.identity();
+    pbAim(Bn['upperArm'+s],Bn['foreArm'+s],D['upperArm'+s],D['foreArm'+s],_pbX,_pbY);
+    Bn['hand'+s].quaternion.identity();
     pbDir(l[0],l[1],sg,_pbX); pbDir(l[0]-l[2],l[1]*0.6,sg,_pbY);
-    pbAim(B['thigh'+s],B['shin'+s],D['thigh'+s],D['shin'+s],_pbX,_pbY);
+    pbAim(Bn['thigh'+s],Bn['shin'+s],D['thigh'+s],D['shin'+s],_pbX,_pbY);
     // 발 — 몸 쪽 좌표에서 앞으로 반듯이(꿇은 발은 발등을 땅에)
     const f=P['foot'+s]||0; _pbZ.set(0,Math.sin(-0.12+f),-Math.cos(-0.12+f));
-    _pbQ.copy(B['thigh'+s].quaternion).multiply(B['shin'+s].quaternion).invert(); _pbZ.applyQuaternion(_pbQ);
-    B['foot'+s].quaternion.setFromUnitVectors(D['foot'+s],_pbZ.normalize());
+    _pbQ.copy(Bn['thigh'+s].quaternion).multiply(Bn['shin'+s].quaternion).invert(); _pbZ.applyQuaternion(_pbQ);
+    Bn['foot'+s].quaternion.setFromUnitVectors(D['foot'+s],_pbZ.normalize());
   }
 }
 /* 든 것 — 주먹 축(아래팔을 몸의 오른쪽 축으로 90° 돌린 방향)이 물건의 +Y. 총은 아래팔 방향이 총열(+Y) */
-function pbHold(){
-  const id=weaponFxId||null;
-  if(PB.holdId!==id){
-    PB.holdId=id; if(PB.holdFx){ PB.hold.remove(PB.holdFx); PB.holdFx=null; }
+function pbHold(B,id){
+  id=id||null;
+  if(B.holdId!==id){
+    B.holdId=id; if(B.holdFx){ B.hold.remove(B.holdFx); B.holdFx=null; }
     const F=id&&WEAPON_FX[id];
-    if(F){ try{ const r=F(); r.mesh.position.y-=r.grip||0; const g=new THREE.Group(); g.add(r.mesh); PB.holdFx=g; PB.hold.add(g);
+    if(F){ try{ const r=F(); r.mesh.position.y-=r.grip||0; const g=new THREE.Group(); g.add(r.mesh); B.holdFx=g; B.hold.add(g);
       g.userData.gun=!!(ITEMS[id]&&ITEMS[id].tool&&ITEMS[id].tool.gun);
       g.traverse(o=>{ if(o.name==='flash'||o.name==='tip') o.visible=false; }); }catch(e){ console.warn('[사람 몸] 든 것',e); } }
   }
-  if(!PB.holdFx) return;
-  const B=PB.bone; PB.rig.updateMatrixWorld(true);
-  const e=_pbV.setFromMatrixPosition(B.foreArmR.matrixWorld), h=_pbV2.setFromMatrixPosition(B.handR.matrixWorld);
+  if(!B.holdFx) return;
+  const Bn=B.bone; B.rig.updateMatrixWorld(true);
+  const e=_pbV.setFromMatrixPosition(Bn.foreArmR.matrixWorld), h=_pbV2.setFromMatrixPosition(Bn.handR.matrixWorld);
   const f=_pbY.subVectors(h,e).normalize();                                        // 아래팔(세계)
-  const rt=_pbX.set(1,0,0).applyQuaternion(PB.rig.quaternion);                     // 몸의 오른쪽(세계)
+  const rt=_pbX.set(1,0,0).applyQuaternion(B.rig.quaternion);                      // 몸의 오른쪽(세계)
   const fist=_pbZ.copy(f).applyAxisAngle(rt,Math.PI/2); fist.addScaledVector(f,-fist.dot(f)).normalize();
   let X,Y,Zv;
-  if(PB.holdFx.userData.gun){ Y=f; Zv=fist; X=_pbV.crossVectors(Y,Zv).normalize(); }   // 총열 = 아래팔 · 위 = 주먹 축
+  if(B.holdFx.userData.gun){ Y=f; Zv=fist; X=_pbV.crossVectors(Y,Zv).normalize(); }   // 총열 = 아래팔 · 위 = 주먹 축
   else{ Y=fist; X=f; Zv=_pbV.crossVectors(X,Y).normalize(); }                          // 자루 = 주먹 축 · 날 = 아래팔 쪽
   _pbM.makeBasis(X,Y,Zv); _pbQ.setFromRotationMatrix(_pbM);
-  B.handR.getWorldQuaternion(_pbQ2); PB.hold.quaternion.copy(_pbQ2.invert().multiply(_pbQ));
+  Bn.handR.getWorldQuaternion(_pbQ2); B.hold.quaternion.copy(_pbQ2.invert().multiply(_pbQ));
+}
+/* 몸 하나를 한 프레임 — 구르기 · 주먹 시계 → 목표 자세 → 부드럽게 → 뼈 → 자리 → 든 것 */
+function pbStep(B,S,dt,x,y,z){
+  B.t+=dt;
+  if(B.roll>=0){ B.roll+=dt/0.55; if(B.roll>=1) B.roll=-1; }
+  if(B.punch){ B.punch.t+=dt; if(B.punch.t>=B.punch.dur) B.punch=null; }
+  pbTarget(B,S,dt);
+  const k=1-Math.exp(-dt*(B.roll>=0||B.punch?30:16)), C=B.cur, T=B.tg;
+  for(const n in T){ const v=T[n]; if(Array.isArray(v)) for(let i=0;i<v.length;i++) C[n][i]+=(v[i]-C[n][i])*k; else C[n]+=(v-C[n])*k; }
+  C.roll=T.roll; C.autoH=T.autoH;                                   // 구르기 각은 한 바퀴를 넘어가므로 그대로
+  pbApply(B,C);
+  B.rig.position.set(x,y,z); B.rig.rotation.set(0,S.yaw,0);
+  pbHold(B,S.held);
 }
 
-/* ── 매 프레임(99-main.js) ── */
+/* ── 사람 — 매 프레임(99-main.js) ── */
+const _pbS=pbState();
 function updatePlayerBody(dt){
   const want=(tpvActive()||flyMode)&&landed;
   if(!want){ if(PB.rig) PB.rig.visible=false; return; }
-  if(!PB.built&&!pbBuild()) return;
-  PB.t+=dt;
-  if(PL.lungeCd>PB.lunge0+0.3) PB.roll=0;                             // 돌진이 막 시작됐다
+  if(!PB.body){ if(!pbShared()) return; PB.body=pbMakeBody('playerBody'); PB.rig=PB.body.rig; PB.bone=PB.body.bone; scene.add(PB.rig); PB.built=true; }
+  const B=PB.body;
+  if(PL.lungeCd>PB.lunge0+0.3) B.roll=0;                              // 돌진이 막 시작됐다
   PB.lunge0=PL.lungeCd;
-  if(PB.roll>=0){ PB.roll+=dt/0.55; if(PB.roll>=1) PB.roll=-1; }
-  if(PB.punch){ PB.punch.t+=dt; if(PB.punch.t>=PB.punch.dur) PB.punch=null; }
-  pbTarget(dt);
-  /* 부드럽게 — 구르기 · 주먹은 빠르게 */
-  const k=1-Math.exp(-dt*(PB.roll>=0||PB.punch?30:16)), C=PB.cur, T=PB.tg;
-  for(const n in T){ const v=T[n]; if(Array.isArray(v)) for(let i=0;i<v.length;i++) C[n][i]+=(v[i]-C[n][i])*k; else C[n]+=(v-C[n])*k; }
-  C.roll=T.roll; C.autoH=T.autoH;                                   // 구르기 각은 한 바퀴를 넘어가므로 그대로
-  pbApply(C);
-  const r=PB.rig; r.visible=true;
   const y=(PL.camY!==undefined&&PL.grounded)?PL.camY:PL.pos.y;
-  r.position.set(PL.pos.x,y,PL.pos.z); r.rotation.set(0,PL.yaw,0);
-  pbHold();
+  pbStep(B,pbPlayerState(_pbS),dt,PL.pos.x,y,PL.pos.z);
+  B.rig.visible=true;
   /* 그림자 — dirtyAt 은 해 그림자를 통째로 다시 그린다: 움직이는 동안 초당 8번 · 서 있으면 초당 1번(숨 쉬기만) */
-  const busy=Math.hypot(PL.vel.x,PL.vel.y,PL.vel.z)>0.1||PB.roll>=0||PB.punch||ATK.swing>0||HARV.active||!PL.grounded;
+  const busy=Math.hypot(PL.vel.x,PL.vel.y,PL.vel.z)>0.1||B.roll>=0||B.punch||ATK.swing>0||HARV.active||!PL.grounded;
   PB.shT-=dt; if(PB.shT<=0){ PB.shT=busy?0.12:1.0; if(LIGHT.dirtyAt) LIGHT.dirtyAt(PL.pos.x,PL.pos.z,2); }
 }
 
@@ -289,12 +304,12 @@ function punch(side){
   if(PL.dead||ATK.cd>0||PL.stam<FIST.stam) return;
   ATK.cd=FIST.rate; PL.stam=clamp(PL.stam-FIST.stam,0,100);
   ATK.pend={w:null, W:FIST, style:'thrust', v:0, t:0.14};
-  PB.punch={side, t:0, dur:0.38};
+  if(PB.body) PB.body.punch={side, t:0, dur:0.38};
   sfx('swish');
 }
 
 /* ── 3인칭 카메라 — 그리는 동안만 어깨 뒤로(45-sky.js renderFrame) ── */
-function tpvActive(){ return TPV.on&&!flyMode&&landed&&!PB.failed&&typeof PLAYER_MESH!=='undefined'&&!(SCOPE.k>0.05); }
+function tpvActive(){ return TPV.on&&!flyMode&&landed&&!PBK.failed&&typeof PLAYER_MESH!=='undefined'&&!(SCOPE.k>0.05); }
 function tpvToggle(){ TPV.on=!TPV.on; try{ localStorage.setItem('castaway.view',TPV.on?'3p':'1p'); }catch(e){} toast(TPV.on?'3인칭':'1인칭'); }
 const _tpS={p:new THREE.Vector3(), q:new THREE.Quaternion(), f:new THREE.Vector3(), r:new THREE.Vector3(), b:new THREE.Vector3(), c:new THREE.Vector3(), a:new THREE.Vector3(), t:0};
 /* 카메라가 들어가면 안 되는 곳 — 땅 · 바위 · 큰 바위 · 바닷가 기둥(solidAt) · 나무 줄기와 세운 것(충돌 원 CGRID) */
