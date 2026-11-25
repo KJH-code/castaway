@@ -798,9 +798,21 @@ function caveVeins(seed){
     for(let k=0;k<n;k++){ const rm=c.rooms[k%c.rooms.length], deep=caveDeepRoom(c,rm);
       let u=rnd()*tw, kd=W[0][0]; for(const w of W){ u-=w[1]; if(u<0){ kd=w[0]; break; } }
       const s=(0.75+rnd()*0.2)*(deep?1.15:1), at=caveOreSpot(rm,(PROP_FOOT[kd]||1)*s,put.get(rm),rnd);
-      const p={k:kd,x:at[0],z:at[1],y:heightAt(at[0],at[1]),s,r:rnd()*Math.PI*2,cave:1,vein:1}; if(deep) p.rich=1;
+      const p={k:kd,x:at[0],z:at[1],y:heightAt(at[0],at[1]),s,r:rnd()*Math.PI*2,cave:1,vein:1,vc:CAVES.indexOf(c)}; if(deep) p.rich=1;
       PROPS.push(p); }
     c.ore=(c.ore|0)+n; c.vein=n; }
+}
+/* 판 14 — plOres(14-plateau.js) 뒤에 굴마다 광맥 수를 그 굴에 남은 제 광석 수에 맞춘다(굴 안이 두 배 남짓 — 사용자 결정 2026-11-11 '1.8~2.4 배').
+   plOres 는 굴 광석의 대부분(?ws=2 CASTAWAY 83%)을 땅속 방으로 옮겨, c.ore 의 절반을 더하면 77 → 302 · 3.9 배였다. 난수 없이 앞에서부터 남긴다
+   (광맥은 방을 돌아가며 놓였으니 앞의 것이 방마다 고르다) · 제 광석이 하나도 안 남은 굴도 광맥 하나는 남긴다 */
+function caveVeinsTrim(){
+  const rooms=[]; for(const c of CAVES) if(c.tv===10) for(const r of c.rooms) rooms.push([r,CAVES.indexOf(c)]);
+  if(!rooms.length) return;
+  const base=new Map(), seen=new Map();
+  for(const p of PROPS){ if(!p.cave||p.ug||p.vein) continue; let b=-1,bd=1e18; for(const [r,ci] of rooms){ const d=(r.x-p.x)*(r.x-p.x)+(r.z-p.z)*(r.z-p.z); if(d<bd){ bd=d; b=ci; } }
+    base.set(b,(base.get(b)||0)+1); }
+  PROPS=PROPS.filter(p=>{ if(!p.vein||p.vc===undefined) return true; const n=(seen.get(p.vc)||0)+1; seen.set(p.vc,n); return n<=Math.max(1,base.get(p.vc)||0); });
+  for(const [ci,n] of seen){ const c=CAVES[ci], k=Math.min(n,Math.max(1,base.get(ci)||0)); c.ore=(c.ore|0)-(c.vein|0)+k; c.vein=k; }
 }
 function caveDeepRoom(c,rm){ let inner=c.rooms[0]; for(const r of c.rooms) if((r.s||0)>(inner.s||0)) inner=r; return rm===inner||(rm.s||0)>64; }
 function caveVeinsDeep(){

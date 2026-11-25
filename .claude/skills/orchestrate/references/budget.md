@@ -24,8 +24,8 @@
 ## 스크립트
 
 ```bash
-node .claude/scripts/budget.js --plan pro --compare --units 3            # 모드 4개 비교 (코드)
-node .claude/scripts/budget.js --plan max --preset proof --compare       # 모드 4개 비교 (증명)
+node .claude/scripts/budget.js --plan pro --compare --units 3            # 모드 5개 비교 (코드)
+node .claude/scripts/budget.js --plan max --preset proof --compare       # 모드 5개 비교 (증명)
 node .claude/scripts/budget.js --plan pro --preset lite --units 4 --heavy 1
 node .claude/scripts/budget.js --plan pro --preset standard --units 3 --lite-units 1 --hard 1
 node .claude/scripts/budget.js --plan max --preset plus --units 3 --scouts 0 --design 1
@@ -90,8 +90,10 @@ node .claude/scripts/budget.js --plan pro --calls "w-implement:3,checker-test:1,
 ## 실측으로 보정하기
 
 1. 작업 직전 사용자에게 `/usage` 주간 사용률을 받는다.
-2. 첫 조각(super는 단위 하나)을 돌린 뒤 다시 받는다. 그 사이 메인도 같은 한도를 쓰니 메인은 기다리는 동안 다른 일을 하지 않는다.
-3. 차이를 `--pilot-measured`로 넣는다. 눈금이 1%라 차이가 1% 미만이면 보정하지 않는다(Max·Ultra에서 흔하다).
+2. 첫 조각을 돌린 뒤 다시 받는다. 그 사이 메인도 같은 한도를 쓰니 메인은 기다리는 동안 다른 일을 하지 않는다.
+   - 조각 크기: 프리셋을 돌리면 budget.js가 "실측 계획" 줄로 알려준다. /usage 눈금이 1%라 조각 추정이 2% 이상이 되도록 단위를 묶는다. Max에서 최대 모드 1단위(su-builder + 테스트)는 약 0.5%라 5단위가 필요하다. 다 묶어도 모자라면 보정을 생략하고 끝난 뒤 실제 차이만 보고한다.
+   - 기본 조각 호출은 모드마다 다르다(lite `w-implement-lite:1`, standard `w-implement:1`, plus `w-implement-opus:1,su-tester:1`, super `su-builder:1,su-tester:1`, fable `su-builder-fable:1,su-tester:1`). 단위를 k개 묶었으면 `--pilot-calls`의 횟수를 k배로 넘긴다.
+3. 차이를 `--pilot-measured`로 넣는다. 실측이 2% 미만이면(1%로 읽힌 값의 실제는 0.5–1.5%) 계수가 크게 흔들려서 보정하지 않는다.
 
 ## 한도를 아끼는 원칙
 

@@ -561,7 +561,7 @@ void patchCalc(vec3 pos){
    ④ 함몰 입구 · 바닷가 굴의 굴길(96-underworld.js — 처음 두 토막) — 굴 천장 밑의 땅 화소를 버려 비탈에 굴 입구가 열린다(높이 vy 를 아는 땅 셰이더만) */
 const TERR_HOLE=(sh,v,patch,vy)=>sh.replace(/void main\s*\(\)\s*\{/,()=>{
   const C10=typeof CV10_COMMON_GLSL!=='undefined';
-  return (C10?CV10_COMMON_GLSL:'')+'uniform vec2 uPC; uniform float uPR; uniform sampler2D uGeoM; uniform vec3 uGeoMG;'+(vy?' uniform vec4 uUdA[20]; uniform vec4 uUdB[20]; uniform vec4 uUdC[20]; uniform int uUdN;':'')+'\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;\n\tif(uGeoMG.z>0.5&&texture2D(uGeoM,('+v+'/uGeoMG.y+uGeoMG.x*0.5+0.5)/uGeoMG.x).r>0.5) discard;'+(C10?'\n\tif(cv10Hole('+v+')) discard;':'')
+  return (C10?CV10_COMMON_GLSL:'')+'uniform vec2 uPC; uniform float uPR; uniform sampler2D uGeoM; uniform vec3 uGeoMG;'+(vy?' uniform vec4 uUdA[20]; uniform vec4 uUdB[20]; uniform vec4 uUdC[20]; uniform int uUdN;':'')+'\nvoid main() {\n\tif(distance('+v+',uPC)'+(patch?'>=':'<')+'uPR) discard;\n\tif(uGeoMG.z>0.5&&texture2D(uGeoM,('+v+'/uGeoMG.y+uGeoMG.x*0.5+0.5)/uGeoMG.x).r>0.5) discard;'+(C10?'\n\tif('+(vy?'cv10HoleR':'cv10Hole')+'('+v+')) discard;':'')
   +(vy?'\n\tfor(int k=0;k<20;k++){ if(k>=uUdN) break; vec4 A=uUdA[k], Bq=uUdB[k], Cq=uUdC[k]; vec2 ab=A.zw-A.xy; float t0=dot('+v+'-A.xy,ab)/max(dot(ab,ab),1e-4); if(Bq.z<0.0&&t0<0.0) continue; float t=clamp(t0,0.0,1.0), w=abs(Bq.z)*(1.0+0.18*sin(t*Cq.x/9.0+Cq.y)); float d=length(A.xy+ab*t-'+v+');'
     +' if(d<w){ float u=d/w, f=mix(Bq.x,Bq.y,t), c=f+Bq.w*0.45+Bq.w*0.55*sqrt(max(0.0,1.0-u*u)), fl=f+(1.0-pow(max(0.0,1.0-pow(u,8.0)),0.25))*Bq.w*0.45; if('+vy+'<c+0.4&&'+vy+'>fl-0.3) discard; } }':''); });   // 바닥은 굴길처럼 가장자리에서 솟는다(underQ) — 예전엔 가운데 바닥 −2 m 까지 뚫어 옆에 틈이 나 섬 속이 보였다(2026-11-08)
 /* 그림자에 찍히는 땅 — 본 땅은 원 안을 버리고, 덧판은 제 정점 식으로 서서 원 밖을 버린다 */
@@ -1293,7 +1293,7 @@ const WATER_U={uTime:{value:0}, uSunDir:{value:new THREE.Vector3(0,1,0)},
   uSunCol:{value:new THREE.Color(1,1,1)}, uAmb:{value:new THREE.Color(0.3,0.35,0.4)},
   uSkyZ:{value:new THREE.Color(0.3,0.5,0.9)}, uSkyH:{value:new THREE.Color(0.7,0.8,0.9)},
   uElev:{value:null}, uGrid:{value:new THREE.Vector2(768,2.5)}, uBedB:{value:null},
-  uFoam:{value:null}, uLakeY:{value:-1e4}};   // uLakeY — 층층 대지 섬의 호수 수면(그 높이의 물은 호수 빛깔 · buildWater) · uFoam — 바다 거품의 결(96-foam.js foamTex)
+  uFoam:{value:null}, uLakeY:{value:-1e4}, uRapK:{value:0}};   // uRapK — 판 15: 가파른 강물(급류)의 흰 물을 더 일찍(기울기 0.3 부터)   // uLakeY — 층층 대지 섬의 호수 수면(그 높이의 물은 호수 빛깔 · buildWater) · uFoam — 바다 거품의 결(96-foam.js foamTex)
 function waterMat(river){
   /* 램버트로 세우는 까닭은 오직 그림자다 — 조명은 아래에서 손수 센다. 램버트여야 그림자 지도
      유니폼이 붙고 `envPatch` 가 구름 그림자(`cloudSh`)를 얹는다. 예전엔 MeshBasic 이라 물에
@@ -1334,6 +1334,7 @@ function waterMat(river){
     sh.fragmentShader=`uniform float uWT;
 uniform float uRiver;
 uniform float uLakeY;
+uniform float uRapK;
 varying float vEdge;
 uniform vec3 uSunDir;
 uniform vec3 uSunCol;
@@ -1540,7 +1541,7 @@ float plumeAt(vec2 xz){ vec2 g=xz/uGrid.y+uGrid.x*0.5; vec2 i=floor(g), f=g-i;
         float lace=texture2D(uNz,vWW.xz/2.3+vec2(uWT*0.013,0.0)).r*0.6+texture2D(uNz,vWW.xz/0.83+vec2(0.0,uWT*0.021)).g*0.4;
         float fringe=smoothstep(0.34+0.22*surf,0.02,d)*smoothstep(0.34,0.60,lace+0.22*surf);
         vec2 fdr=normalize(Ng.xz+vec2(1e-4));                             // 물이 흘러내리는 쪽(수면 법선이 눕는 쪽)
-        float rapid=smoothstep(0.05,0.22,1.0-Ng.y);                       // 물길이 가파를수록
+        float rapid=max(smoothstep(0.05,0.22,1.0-Ng.y),uRapK*smoothstep(0.025,0.09,1.0-Ng.y));   // 물길이 가파를수록 · 판 15 는 급류(기울기 0.3~0.45)도 희게
         vec2 fu=vec2(dot(vWW.xz,fdr)*0.30-uWT*0.55,dot(vWW.xz,vec2(-fdr.y,fdr.x))*1.5);
         float streak=texture2D(uNz,fu).b*0.65+texture2D(uNz,fu*2.3+0.4).a*0.35;
         fa=max(fringe*0.55,rapid*smoothstep(0.50,0.72,streak)*smoothstep(0.04,0.20,d))*0.8;
@@ -1753,18 +1754,22 @@ function buildWater(){
      비스듬히 떴고 · 강이 뚝 끊겼다). 폭포 마루의 둑은 아래 대지(수십 m 밑)라 그 '내릴 몫'이 물길을 거슬러 호수까지 번져, 수면이 바닥 6 cm 위로 꺼지고
      칸마다 3 m 넘게 기울어 판이 빠졌다. 폭포 마루는 물살 판(36-falls.js)이 덮는다 · 호수 칸은 늘 호수 수면 그대로 */
   const plW=typeof PLAT!=='undefined'&&PLAT.on, lakeM=plW?PLAT.lakeM:null, lakeL=plW?PL_LAKE*CELL/GCELL:0;
-  WATER_U.uLakeY.value=plW?lakeL:-1e4;
+  WATER_U.uLakeY.value=plW?lakeL:-1e4; WATER_U.uRapK.value=plW&&plMoreRivers()?1:0;
+  /* 판 15 — 바다로 떨어지는 폭포의 입술 둘레는 강어귀처럼 수위를 내리지 않는다(벼랑 발치의 바다가 '둑'이 되어 입술 앞 강물이 3~6 m 꺼졌다) */
+  const seaLip=new Uint8Array(N*N); if(plW&&typeof FALLS!=='undefined') for(const f of FALLS.list){ if(!f.v2||!f.sea) continue; const R=f.w*0.8+CELL*2;
+    for(let gz=Math.max(1,Math.floor((f.z0-R)/CELL+N/2));gz<=Math.min(N-2,Math.ceil((f.z0+R)/CELL+N/2));gz++) for(let gx=Math.max(1,Math.floor((f.x0-R)/CELL+N/2));gx<=Math.min(N-2,Math.ceil((f.x0+R)/CELL+N/2));gx++)
+      if(Math.hypot((gx+0.5-N/2)*CELL-f.x0,(gz+0.5-N/2)*CELL-f.z0)<R) seaLip[IDX(gx,gz)]=1; }
   const RL=new Float32Array(N*N), DD=new Float32Array(N*N), rcells=[];
   for(let z=1;z<N-1;z++) for(let x=1;x<N-1;x++){ const i=IDX(x,z); if(!F.river[i]) continue;
     let bank=1e9;                                      // 가장 낮은 둑 — 둑이 바다면 해수면(0)으로 친다
     for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const j=i+dz*N+dx; if(F.river[j]) continue; if(plW&&F.elev[j]>0.3) continue; const b=Math.max(F.elev[j],0); if(b<bank) bank=b; }
-    DD[i]=Math.max(0,F.wlev[i]-(bank-0.03)); rcells.push(i); }   // DD — 지을 때의 수위에서 얼마나 내려야 하나
+    DD[i]=seaLip[i]?0:Math.max(0,F.wlev[i]-(bank-0.03)); rcells.push(i); }   // DD — 지을 때의 수위에서 얼마나 내려야 하나
   /* 내린 몫을 물길을 따라 퍼뜨린다 — 한 칸 갈 때마다 10 cm 씩 덜 내린다(어귀의 1 m 내림이 50 m 쯤에 걸쳐 풀린다).
      수위 자체가 아니라 '내린 몫'을 퍼뜨리므로 산골짜기의 가파른 물길은 제 깊이를 그대로 지킨다 */
   for(let pass=0;pass<24;pass++){ let ch=0;
     for(let q=0;q<rcells.length;q++){ const i=pass&1?rcells[rcells.length-1-q]:rcells[q]; let hi=0;
       for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){ const j=i+dz*N+dx; if(j!==i&&F.river[j]&&DD[j]>hi) hi=DD[j]; }
-      if(hi-0.10>DD[i]+1e-4){ DD[i]=hi-0.10; ch++; } }
+      if(hi-0.10>DD[i]+1e-4&&!seaLip[i]){ DD[i]=hi-0.10; ch++; } }
     if(!ch) break; }
   if(lakeM) for(const i of rcells) if(lakeM[i]) DD[i]=0;
   for(const i of rcells){

@@ -1761,6 +1761,7 @@ function envPatch(m){
       uTLe:typeof TERR_U!=='undefined'?TERR_U.uTL:_noTL(), uTLg:typeof TLIT!=='undefined'?TLIT.G:{value:new THREE.Vector2(1,1)},
       uDew:typeof TERR_U!=='undefined'?TERR_U.uDew:{value:0}});
     const CM=CV&&/\bvCv10Sky\b/.test(sh.fragmentShader);   // D 의 바위 껍데기 재질(정점 값 vCv10Sky, vCv10Deep) - 굴 속 몫을 그림이 아니라 정점 값으로
+    const CMc=CM&&/#define CM_SUNCUT\b/.test(sh.fragmentShader);   // 껍데기 재질이 바라면(31-cave10mat.js) sky<0.01 화소는 해 · 구름 그림자를 안 읽는다 - 거기선 해 몫에 sky(<0.01)가 곱해져 어차피 거의 0 이다
     if(CV){ sh.uniforms.uCvN=TERR_U.uCvN; sh.uniforms.uCvA=TERR_U.uCvA; sh.uniforms.uCvB=TERR_U.uCvB;
       if(TERR_U.uCv10T){ sh.uniforms.uCv10T=TERR_U.uCv10T; sh.uniforms.uCv10R=TERR_U.uCv10R; sh.uniforms.uCv10B=TERR_U.uCv10B; sh.uniforms.uCv10G=TERR_U.uCv10G; } }
     if(melt&&typeof TERR_U!=='undefined'){ const MU={uElev:WATER_U.uElev, uGrid:WATER_U.uGrid, uBio:TERR_U.uBio, uBio2:TERR_U.uBio2, uBioN:TERR_U.uBioN, uCell:TERR_U.uCell, uNz:TERR_U.uNz};
@@ -1822,12 +1823,13 @@ float cloudSh(){
   float t=(texture2D(csFine,uv).r+texture2D(csCoarse,uv).r)*${CS_TAU.toFixed(1)};
   return mix(1.0,exp(-t),csOn*e.x*e.y)*tlE().r;                 // × 산 그림자(41-terrain-light.js)
 }
-`+sh.fragmentShader.replace('* getShadowMask();','* getShadowMask() * cloudSh()'+(CV?' * ( 1.0 - 0.9 * cvK ) * ( 1.0 - cvK10 )':'')+';')
+`+sh.fragmentShader.replace('* getShadowMask();',CMc?'* cmSunK;':'* getShadowMask() * cloudSh()'+(CV?' * ( 1.0 - 0.9 * cvK ) * ( 1.0 - cvK10 )':'')+';')
       /* 간접광(하늘빛)에 하늘 트임을 곱한다 — 골짜기·벼랑 밑은 하늘이 좁다. 벽에서 되비치는 몫 0.45 는 남긴다 */
       .replace('reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb );','reflectedLight.indirectDiffuse *= BRDF_Diffuse_Lambert( diffuseColor.rgb ) * ( 0.45 + 0.55 * tlE().g )'
         +(CV?' * ( 1.0 - 0.80 * cvK ) * ( 1.0 - 0.97 * cvK10 );\n\treflectedLight.indirectDiffuse += ( cvL + cvC10 * cvG10 * 0.35 ) * BRDF_Diffuse_Lambert( diffuseColor.rgb );':';'))
       /* 굴 속 몫은 main 첫머리에서 한 번 센다(땅 셰이더의 바닥 빛깔 · 아래 녹아들기가 cvF 를 읽는다) */
-      .replace('void main() {',CV?'void main() {\n\tcvEval(vec3(vCsXZ.x,vCsY,vCsXZ.y),normalize(vCsN+vec3(0.0,1e-5,0.0))*(gl_FrontFacing?1.0:-1.0));':'void main() {');
+      .replace('void main() {',CV?'void main() {\n\tcvEval(vec3(vCsXZ.x,vCsY,vCsXZ.y),normalize(vCsN+vec3(0.0,1e-5,0.0))*(gl_FrontFacing?1.0:-1.0));'
+        +(CMc?'\n\tfloat cmSunK = 0.0;\n\tif( vCv10Sky >= 0.01 ) cmSunK = getShadowMask() * cloudSh() * ( 1.0 - 0.9 * cvK ) * ( 1.0 - cvK10 );':''):'void main() {');
     /* 잎에 비쳐 드는 빛 — 잎은 얇아 볕의 일부가 뒤로 샌다. 보이는 면이 해를 등졌으면 반대쪽 면이 받은 볕의 0.4 를 더한다
        (양면 재질만 — 반대쪽 면의 몫 `vLambWB`/`vLambW` 가 이미 정점에서 세어져 있다). 잎 빛깔을 지나 나오니 연둣빛이다 */
     /* **잎 판의 덮개** — 그림을 잘라 그리는 잎(alphaTest)은 멀어져 작은 밉맵을 읽으면 알파가 평균으로 묽어져 문턱 밑으로 떨어지고, 잎이

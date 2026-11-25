@@ -501,6 +501,9 @@ async function generateWorld(){
                                     if(typeof GATHER!=='undefined'){ GATHER.p=null; GATHER.t=0; GATHER.on=false; }
                                     CREATURES.length=0; ATK.cd=0; ATK.swing=0; if(typeof boatsClear==='function') boatsClear();
                                     await phase('셰이더 준비',99); PRECOMP.rocks=precompRocks();   // 바위 재질(위 precompRocks — 날아가다 처음 보는 바위에서 멈추지 않게)
+                                    /* 판 10 굴 껍데기의 사진 손질 · 3 차원 잡음 그림(31-cave10mat.js — 잡음 64³ 만 ~150 ms 동기)은 섬을 짓는 동안 한 번(놀이 중 첫 굴에서 돌며 멈칫했다) ·
+                                       둘 다 한 번 지으면 남아(CMAT.tex · CMAT.nz) 다음 섬 · 놀이 중에는 다시 안 돈다 · 사진이 안 풀려도 20 초 뒤엔 그냥 간다 */
+                                    if(typeof cv10On==='function'&&cv10On()&&typeof cmOK==='function'&&cmOK()){ cmNoise3(); await Promise.race([CMAT.wait(),new Promise(r=>setTimeout(r,20000))]); }
                                     mobsBuild();                                                  // 몬스터 — 몸을 한 번 빚고(섬이 바뀌면 거두기만) · 세우는 것은 updateMobs(97-mobs.js)
 
   document.getElementById('iSeed').textContent=P.seed;

@@ -1,6 +1,6 @@
 ---
 name: w-experiment
-description: orchestrate 실험 실행 워커. 정해진 조건으로 실험을 돌리고 원자료·요약·조건을 기록한다. 환경 설정이 무거운 실험은 맡지 않는다. orchestrate 플러그인의 모드 스킬(절약·기본·강화)이 지시서와 함께 부를 때만 쓴다.
+description: orchestrate 실험 실행 워커. 정해진 조건으로 실험을 돌리고 원자료·요약·조건을 기록한다. 환경 설정이 무거운 실험은 맡지 않는다. kjh-lyj 플러그인의 모드 스킬(절약·기본·강화)이 지시서와 함께 부를 때만 쓴다.
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: haiku
 effort: max

@@ -1,6 +1,6 @@
 ---
 name: w-data
-description: orchestrate 데이터 처리 워커. 지시서에 정해진 처리만 하고 전후 행 수·결측치·단위를 보고한다. orchestrate 플러그인의 모드 스킬(절약·기본·강화)이 지시서와 함께 부를 때만 쓴다.
+description: orchestrate 데이터 처리 워커. 지시서에 정해진 처리만 하고 전후 행 수·결측치·단위를 보고한다. kjh-lyj 플러그인의 모드 스킬(절약·기본·강화)이 지시서와 함께 부를 때만 쓴다.
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: haiku
 effort: max

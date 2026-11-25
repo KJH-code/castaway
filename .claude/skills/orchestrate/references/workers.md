@@ -17,4 +17,4 @@
 
 코드 검증은 워커가 아니라 check 스킬 + `checker-test`(test) / `checker`(review·debug) / `checker-lite`(절약 모드의 가벼운 review) 에이전트가 맡는다. SKILL.md 4단계 참고. 강화·최대·극한 모드의 구현·리뷰 에이전트(`su-*`, `w-implement-opus`, `*-fable`)는 각 스킬 표에 있다.
 
-역할 설명을 바꾸려면 해당 에이전트 파일 본문을 고친다. 모델·노력을 바꾸면 이 표와 SKILL.md 3단계 표, `lite`·`plus` 스킬 표, README도 같이 고친다. 훅과 한도 추정기는 agents/ 폴더를 직접 읽으므로 따로 고칠 필요가 없다.
+역할 설명을 바꾸려면 해당 에이전트 파일 본문을 고친다. 모델·노력을 바꾸면 이 표와 SKILL.md 3단계 표, `lite`·`plus` 스킬 표, README도 같이 고친다. 훅과 한도 추정기는 agents/ 폴더를 직접 읽으므로 따로 고칠 필요가 없다(훅의 FALLBACK 목록만 agents/를 못 읽을 때를 위해 같이 고친다).

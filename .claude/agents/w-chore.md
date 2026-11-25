@@ -1,6 +1,6 @@
 ---
 name: w-chore
-description: orchestrate 잡일 워커. 파일 정리, 포맷 변환, 이름 바꾸기 같은 기계적인 일만 한다. orchestrate 플러그인의 모드 스킬(절약·기본·강화)이 지시서와 함께 부를 때만 쓴다.
+description: orchestrate 잡일 워커. 파일 정리, 포맷 변환, 이름 바꾸기 같은 기계적인 일만 한다. kjh-lyj 플러그인의 모드 스킬(절약·기본·강화)이 지시서와 함께 부를 때만 쓴다.
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: haiku
 effort: medium

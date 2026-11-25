@@ -1,5 +1,5 @@
 /* tools/shot-window.js — CASTAWAY
-   보이는 창에 게임을 띄우고, 준 JS 를 돌린 뒤 화면을 PNG 로 찍는다(숨은 시험 창은 화면을 못 찍는다).
+   투명한 창(opacity 0 · 마우스 안 받음 · 독에 안 뜸)에 게임을 띄우고, 준 JS 를 돌린 뒤 화면을 PNG 로 찍는다(show:false 인 창은 못 찍지만 투명한 창은 찍힌다).
 
      desktop/node_modules/.bin/electron tools/shot-window.js <out.png> ["섬이 다 지어진 뒤 돌릴 JS(비동기 가능 · 값을 돌려주면 찍힌다)"] [너비=1280] [높이=800]
 
@@ -15,7 +15,7 @@ if (process.env.CASTAWAY_UNCAP === '1') { app.commandLine.appendSwitch('disable-
 const OUT = process.argv[2] || 'shot.png', JS = process.argv[3] || '', W = +process.argv[4] || 1280, H = +process.argv[5] || 800;
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: W, height: H, useContentSize: true, show: false, backgroundColor: '#03060a', webPreferences: { backgroundThrottling: false } });
-  win.showInactive();
+  if (app.dock) app.dock.hide(); win.setOpacity(0); win.setIgnoreMouseEvents(true); win.showInactive();   // 보이지 않게 · 포커스를 안 뺏게(사용자 요청 2026-11-12 — 창이 떠서 화면을 가렸다) · 투명해도 capturePage 는 찍힌다
   const fail = setTimeout(() => { console.log('SHOT {"error":"timeout"}'); app.exit(1); }, 150000);
   try {
     await win.loadFile(path.join(process.env.CASTAWAY_GAME || path.join(__dirname, '..'), 'island_world.html'), { search: process.env.CASTAWAY_QUERY || '' });   // CASTAWAY_QUERY='ws=2' — 주소 뒤에 붙일 것

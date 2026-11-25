@@ -1,6 +1,6 @@
 ---
 name: w-implement
-description: 구현 워커 (Sonnet medium). 기본 모드의 기본 구현을 맡고, 절약 모드에서는 Haiku가 못 하는 단위(저장소 파악·명령 실행이 필요한 단위)를 맡는다. 스펙이 확정된 기능을 지시서 범위 안에서 구현하고 커밋한다. orchestrate 플러그인의 모드 스킬(절약·기본)이 지시서와 함께 부를 때만 쓴다.
+description: 구현 워커 (Sonnet medium). 기본 모드의 기본 구현을 맡고, 절약 모드에서는 Haiku가 못 하는 단위(저장소 파악·명령 실행이 필요한 단위)를 맡는다. 스펙이 확정된 기능을 지시서 범위 안에서 구현하고 커밋한다. kjh-lyj 플러그인의 모드 스킬(절약·기본)이 지시서와 함께 부를 때만 쓴다.
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: sonnet
 effort: medium
