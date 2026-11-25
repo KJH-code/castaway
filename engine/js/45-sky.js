@@ -24,6 +24,8 @@ skyScene.background=new THREE.Color(0x7d8f9b);
 const skyCam=new THREE.PerspectiveCamera(60,1,20,250000);
 let skyUnder=false;            // 물속이면 하늘 대신 물빛으로 칠한다
 function renderFrame(){
+  const tpv=typeof tpvBegin==='function'?tpvBegin():null;   // 3인칭 — 그리는 동안만 카메라를 어깨 뒤로(98-player-body.js · 놀이는 1인칭 눈으로 잰다)
+  try{
   skyCam.position.copy(camera.position);
   skyCam.quaternion.copy(camera.quaternion);
   if(skyCam.fov!==camera.fov||skyCam.aspect!==camera.aspect){
@@ -40,6 +42,7 @@ function renderFrame(){
   finally{ if(sm) surfUnmask(sm); }     // 그리다 던져도 가린 것을 되돌린다(안 그러면 다음 프레임이 거짓을 되돌릴 값으로 적어 땅 위가 영영 안 보인다)
   if(tape) camcEnd(skyUnder);           // 그림판을 화면에 테이프 화질로 옮긴다
   renderer.autoClear=true; skyUnder=false;
+  }finally{ if(tpv) tpvEnd(tpv); }
 }
 
 /* ── 달 ──────────────────────────────────────────────────────────────────
