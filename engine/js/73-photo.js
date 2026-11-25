@@ -7,7 +7,8 @@
        o.size  사진 한 장 길이(m — 없으면 사진 표의 값) · o.tint 0..1 — 1 이면 재질 빛깔을 지키고 사진의 무늬만(빛깔 × 사진 ÷ 평균),
                0 이면 사진 빛깔 그대로 · o.ns 법선 세기. 법선 사진은 해 쪽으로 밝기를 보태고 골을 어둡게 한다(30 m 안 — 램버트는 정점에서
                빛을 세 참 법선을 못 쓴다). 법선 · 해 방향은 물체 좌표로 옮겨 센다 — 돌린 상자도 결이 따라 돈다.
-     돌은 이미 게임 바위 사진이 있다 — 돌로 지은 것은 rockDetailPatch(22-ground-textures.js)를 쓴다.
+     들판의 바위 · 자갈 · 부싯돌 · 잔돌 · 신전 돌은 이미 게임 바위 사진(rockMat · rockDetailPatch)이다 — 손대지 않는다.
+     짓는 돌 · 설비의 돌('rock')은 Rock058 을 재질 빛깔로 물들여 쓴다.
    · WebGL2 가 아니면(transpose 가 없다) 손대지 않는다. 셰이더 하나(열쇠 'ph') — 결마다 값은 유니폼이다.
    ========================================================================== */
 const PHOTO={tex:{}};
@@ -66,6 +67,6 @@ function photoPatch(m,kind,o){
 /* 램버트 한 장에 사진 결 — 짓는 것 · 설비가 빛깔과 결로 부른다(결이 없으면 맨 램버트) */
 function photoLambert(c,kind,o,extra){
   const m=new THREE.MeshLambertMaterial(Object.assign({color:c},extra||{}));
-  if(kind==='rock') return typeof rockDetailPatch==='function'?rockDetailPatch(m,(o&&o.size)||0.8,(o&&o.moss)||0):m;
+  if(kind==='rock') return photoPatch(m,'stone',Object.assign({size:0.5,tint:1},o||{}));   // 다듬은 돌 — Rock058 을 그 빛깔로(게임 바위 사진 rockDetailPatch 는 낱개 메시에서 갈색 사암 장이 골라졌다)
   return kind?photoPatch(m,kind,o):m;
 }
