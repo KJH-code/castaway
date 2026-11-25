@@ -155,7 +155,7 @@ function templeSolid(x,z,y0,y1){
 let _tMat=null, _tSeaMat=null, _tWood=null;
 function templeMat(){ if(_tMat) return _tMat; const m=rockMat('templestone',0xc4bba6); m.vertexColors=true; m.userData.melt=0; m.userData.meltAttr=false; return _tMat=m; }
 function templeSeaMat(){ if(_tSeaMat) return _tSeaMat; const m=rockMat('templesea',0xc8c2b4); m.vertexColors=true; m.userData.melt=0; m.userData.meltAttr=false; return _tSeaMat=m; }
-function templeWood(){ return _tWood||(_tWood=new THREE.MeshLambertMaterial({color:0x6a4a2c})); }
+function templeWood(){ return _tWood||(_tWood=photoLambert(0x6a4a2c,'wood',{size:1.0})); }   // 나뭇결(73-photo.js)
 /* 줍는 자리 — 상자(chest) · 항아리(urn). 상자·항아리의 꼴은 따로 그린다 */
 function templePick(T,kind,lx,ly,lz,id,deep){
   const cs=Math.cos(T.yaw), sn=Math.sin(T.yaw), x=T.x+lx*cs+lz*sn, z=T.z-lx*sn+lz*cs, y=T.y+ly;

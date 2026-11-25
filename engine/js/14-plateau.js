@@ -721,7 +721,7 @@ function plCacheBuild(){
   for(const m of PLAT.meshes){ scene.remove(m); if(m.geometry&&m.userData.own) m.geometry.dispose(); } PLAT.meshes.length=0;
   if(!PLAT.on) return;
   /* 그리기 셋 — 상자 · 돌탑(땅 위) · 돌탑(땅속)을 인스턴스 하나씩으로(돌 하나하나가 그리기 한 번이면 170번이 는다) */
-  if(!PLAT.mat){ PLAT.mat={wood:new THREE.MeshLambertMaterial({color:0x6a4a2c}), stone:rockMat('cairn',0x8a857a), stoneU:rockMat('cairnug',0x7a756a)};
+  if(!PLAT.mat){ PLAT.mat={wood:photoLambert(0x6a4a2c,'wood',{size:0.8}), stone:rockMat('cairn',0x8a857a), stoneU:rockMat('cairnug',0x7a756a)};
     PLAT.mat.stone.userData.melt=0.25; PLAT.mat.stoneU.userData.melt=0; PLAT.mat.stoneU.userData.meltAttr=false; }
   if(!PLAT.geo){ const a=new THREE.BoxGeometry(0.9,0.5,0.6), b=new THREE.BoxGeometry(0.96,0.08,0.66); b.translate(0,0.28,0);
     PLAT.geo={crate:mergeParts([{g:a,x:0,y:0.25,z:0},{g:b,x:0,y:0.25,z:0}]), rock:new THREE.IcosahedronGeometry(1,1)}; }
