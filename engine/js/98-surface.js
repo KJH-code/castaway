@@ -76,6 +76,7 @@ function surfList(){
   if(typeof FISH!=='undefined') T(FISH.mesh), T(FISH.shad);
   if(typeof WILD!=='undefined') T(WILD.nestIM), T(WILD.hiveIM), T(WILD.birdIM), T(WILD.bugs), T(WILD.bugIM);
   if(typeof DEWD!=='undefined') T(DEWD.mesh);
+  if(typeof BOTS!=='undefined') T(BOTS.group);           // AI 플레이어(98-bots.js)
   for(const r of roots) surfWalk(r,out,seen,0);
   const res=[];
   for(const o of out){

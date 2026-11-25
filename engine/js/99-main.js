@@ -77,6 +77,7 @@ function loop(){
       updateGiantFalls(dt);       // 벤 노거수가 넘어간다 · 땅을 치면 화면이 흔들린다(사람 시점 다음에 얹는다 — 95-giants.js)
       updateMobs(dt);             // 몬스터 — 다지류 · 가고일 · 스킨워커 · 맞으면 화면이 흔들린다(사람 시점 다음에 얹는다 — 97-mobs.js)
       updatePlayerBody(dt);       // 사람 몸 — 3인칭 · 자유 카메라에서 보인다(98-player-body.js)
+      updateBots(dt);             // AI 플레이어 — 사람 둘레를 돌아다니며 놀이를 흉내(98-bots.js)
     }
     }                           // hold — 세상이 멈춘 동안은 위를 통째로 건너뛴다
     if(PO) tp=PERF.lap(4,tp);
