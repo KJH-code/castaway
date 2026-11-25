@@ -36,8 +36,11 @@ function cvdInit(){
         /* (유석 겉칠) aFo = (몫 0~1 · 그 굴 유석 빛깔 값 k) — 31-cave10flow.js 가 덮개를 다 지은 뒤 붙인다(없으면 0 — 손대지 않는다).
            몫만큼 법선 쪽으로 1~4 cm 부풀리고(정점 셰이더 — CPU 지오메트리는 그대로) 빛깔을 그 굴 유석 빛깔로 · 흘러내린 세로 결 · 젖은 톤 */
         const PL=(typeof CVFS!=='undefined'&&CVFS.OPT&&CVFS.OPT.pal)||[[0.5,0.5,0.5],[0.5,0.5,0.5],[0.5,0.5,0.5],[0.5,0.5,0.5]], v3=a=>'vec3('+a.map(x=>(+x).toFixed(4)).join(',')+')';
-        sh.vertexShader='attribute vec4 aSp;\nattribute vec2 aFo;\nvarying vec4 vSp;\nvarying vec3 vSpP;\nvarying vec2 vFo;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n  transformed+=objectNormal*(aFo.x*(0.012+0.028*aFo.x)); vFo=aFo;\n  vSp=aSp; vSpP=(modelMatrix*vec4(transformed,1.0)).xyz;');
-        sh.fragmentShader='varying vec4 vSp;\nvarying vec3 vSpP;\nvarying vec2 vFo;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+        /* 겉칠 화소는 덮개처럼 화소에서 횃불 빛을 센다(장식은 정점 램버트라 같은 팔레트가 덜 따뜻했다) — 껍데기 · 덮개와 같은 횃불 유니폼(CMAT · cmTick 이 채운다) */
+        const CO=(typeof CVFS!=='undefined'&&CVFS.OPT&&CVFS.OPT.coat)||{amb:0.15,k:1,s:[[0.7,0.7,0.7],[0.7,0.7,0.7],[0.7,0.7,0.7]]};
+        if(typeof CMAT!=='undefined') Object.assign(sh.uniforms,{cmT:CMAT.torch, cmTP:CMAT.tpos, cmTC:CMAT.tcol});
+        sh.vertexShader='attribute vec4 aSp;\nattribute vec2 aFo;\nvarying vec4 vSp;\nvarying vec3 vSpP, vSpN;\nvarying vec2 vFo;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n  transformed+=objectNormal*(aFo.x*(0.012+0.028*aFo.x+0.02*step(1.5,aSp.w)*step(floor(aSp.w),2.5)*smoothstep(0.82,1.0,aSp.z))); vFo=aFo; vSpN=mat3(modelMatrix)*objectNormal;\n  vSp=aSp; vSpP=(modelMatrix*vec4(transformed,1.0)).xyz;');   // 종유석(2+씨) 끝 18 % 는 2 cm 더 — 둥근 방울
+        sh.fragmentShader='varying vec4 vSp;\nvarying vec3 vSpP, vSpN;\nvarying vec2 vFo;\nuniform vec4 cmT;\nuniform vec3 cmTP, cmTC;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
   if(vSp.w>1.5){ float kd=floor(vSp.w), sd=vSp.w-kd, an=atan(vSpP.z-vSp.y,vSpP.x-vSp.x), t=clamp(vSp.z,0.0,1.0), ph=sd*37.0, nG=5.0+floor(sd*5.0);
     float g1=0.5+0.5*cos(nG*an+ph+1.4*sin(t*6.0+ph)), g2=0.5+0.5*cos(2.0*nG*an+ph*1.7+2.0*sin(t*9.0+ph*0.7));
     float rid=clamp(0.80*g1+0.20*g2,0.0,1.0);
@@ -49,9 +52,12 @@ function cvdInit(){
     diffuseColor.rgb=max(c,vec3(0.0)); }
   if(vFo.x>0.002){ float kf=vFo.y, an2=atan(vSpP.z-vSp.y,vSpP.x-vSp.x);
     vec3 fc=mix(mix(mix(${v3(PL[0])},${v3(PL[1])},clamp(kf,0.0,1.0)),${v3(PL[2])},clamp(kf-1.0,0.0,1.0)),${v3(PL[3])},clamp(kf-2.0,0.0,1.0));
-    float st=vSp.w>1.5?0.5+0.5*cos(9.0*an2+2.0*sin(vSpP.y*3.0)):0.5;
-    fc*=(0.84+0.26*st)*0.92*0.68;   // 0.68 — 장식 바위와 같은 까닭(횃불 가까이서 하얗게 넘친다 · 위 석회암 몫)
-    diffuseColor.rgb=mix(diffuseColor.rgb,fc,smoothstep(0.0,1.0,vFo.x)); }`); };
+    float st=vSp.w>1.5?0.5+0.5*cos(9.0*an2+2.0*sin(vSpP.y*3.0)):0.5, tp=vSp.w>1.5&&floor(vSp.w)<2.5?smoothstep(0.80,1.0,clamp(vSp.z,0.0,1.0)):0.0;
+    fc*=(0.80+0.34*st)*(1.0+0.12*tp)*mix(mix(${v3(CO.s[0])},${v3(CO.s[1])},clamp(kf,0.0,1.0)),${v3(CO.s[2])},clamp(kf-1.0,0.0,1.0));   // 흘러내린 세로 결 · 종유석 끝 방울은 조금 밝게
+    float cw=smoothstep(0.0,1.0,vFo.x); vec3 nW=normalize(vSpN)*(gl_FrontFacing?1.0:-1.0), tv=cmTP-vSpP; float tl=length(tv), at=clamp(1.0-tl/max(cmT.x,1e-3),0.0,1.0); at*=at;
+    vec3 E=clamp((vec3(dot(nW,tv/max(tl,1e-4)))+vec3(0.40,0.26,0.19))/vec3(1.40,1.26,1.19),0.0,1.0);
+    diffuseColor.rgb=mix(diffuseColor.rgb,fc*${CO.amb.toFixed(3)},cw);   // 정점 빛(둘레빛)은 조금만 남기고
+    totalEmissiveRadiance+=cw*fc*cmTC*(cmT.w*at*${CO.k.toFixed(3)})*E; }`); };   // 횃불은 화소에서(덮개와 같은 감쇠 · 빛깔마다 감싸기)
       m.customProgramCacheKey=()=>'cvdrock-sp'; }
     for(const k of ['rock','sheet','water']) envPatch(CVD.mats[k]);   // 굴 속 어둠 · 굴 불빛(CAVE_GLSL)을 받게 — 장식은 LIGHT 배역 훑기에 안 걸려 예전엔 깊은 데에서도 밖처럼 밝았다(독립 검수 C3)
   }

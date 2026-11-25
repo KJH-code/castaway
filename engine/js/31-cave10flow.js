@@ -35,7 +35,9 @@ const CVFS={ on:true, budget:1.0, maxTri:30000, k:3, cell:8, q:[], cur:null, tEn
     albT:[0.40,0.45,0.60],        // 두꺼운 데(조금 덜 차갑게 — 그려지면 더 따뜻하다)
     /* (A) 굴마다 빛깔(겉흙 몫 → 정점 속성 aFk — 0 크림 · 1 황갈 · 2 꿀 · 3 적갈 · 사이는 섞음). 1 은 위 alb 그대로 · 두꺼운 데는 alb → albT 비를 곱한다.
        새 프로그램 없이(정의는 늘 같다 — 값은 정점마다). 비율 · 양은 실측 근거 없음(원리만) — 화소 비는 그려서 맞췄다 */
-    pal:[[0.36,0.585,1.21],[0.36,0.46,0.74],[0.337,0.347,0.49],[0.36,0.29,0.35]],
+    pal:[[0.26,0.45,0.82],[0.36,0.46,0.74],[0.337,0.37,0.49],[0.36,0.29,0.35]],
+    /* (B) 장식 겉칠(31-cave10deco.js 가 읽는다) — 정점 빛 남길 몫 · 화소 횃불 세기 · 갈래마다 빛깔 배율(크림 · 황갈 · 꿀 — 같은 굴 덮개와 그려진 화소 비를 맞춤: 겉칠은 젖음 · 두께 · 가림이 없어 그대로면 밝고 옅었다) */
+    coat:{amb:0.15,k:1.0,s:[[0.90,0.83,0.80],[0.67,0.62,0.56],[0.56,0.50,0.47]]},
     thick:[0.05,0.25],            // 크림 → 꿀로 넘어가는 두께
     sigA:[2.0,6.0,14.0],          // 흡수(1/m) — 투과 빛깔이 두께대로 짙어진다(Beer–Lambert)
     mfp:0.008,                    // 산란 거리(m) — 투과 감쇠
@@ -513,6 +515,7 @@ const CVFS_BODY=`#include <color_fragment>
     vec3 p=vFsW, n0=normalize(vFsN)*(gl_FrontFacing?1.0:-1.0);
     float h=max(vFsA.x,0.0), ed=vFsA.y, sF=vFsA.z, wt=clamp(vFsA.w,0.0,1.0), ao=vFsO, dist=vFsD;
     vec3 dpx=dFdx(p), dpy=dFdy(p);
+    vec3 ngm=cross(dpx,dpy); ngm=dot(ngm,ngm)>1e-20?normalize(ngm):n0; ngm*=dot(ngm,n0)<0.0?(0.0-1.0):1.0;   // 꼴 법선(화면 미분 — 막 두께 기울기까지 든다)
     float fp=max(length(dpx),length(dpy)), kF=1.0-smoothstep(0.004,0.009,fp), kMi=1.0-smoothstep(0.004,0.012,fp), kMe=1.0-smoothstep(0.012,0.040,fp), nrmK=clamp(1.0-dist/14.0,0.0,1.0);
     float flo=smoothstep(0.45,0.75,n0.y), wal=1.0-flo;
     vec4 Z=vFsZ;                                                                  // 큰 얼룩 r 0.75 · g 1.5 · b 3 · a 0.375 m
@@ -545,7 +548,7 @@ const CVFS_BODY=`#include <color_fragment>
 #ifdef FS_NO_FLOOR
     float gK=0.0;
 #else
-    float gK=flo*(1.0-smoothstep(0.006,0.016,fp))*smoothstep(0.20,0.45,Z.g+0.3*(Z.r-0.5));
+    float gK=smoothstep(0.70,0.85,min(n0.y,ngm.y))*(1.0-smoothstep(0.006,0.016,fp))*smoothstep(0.20,0.45,Z.g+0.3*(Z.r-0.5));
 #endif
     float dl=length(n0.xz); vec2 dd=dl>1e-4?n0.xz/dl:vec2(1.0,0.0); float van=0.6*smoothstep(0.03,0.20,dl);   // 내리막(법선의 수평 몫) · 기울수록 길게
     vec3 vr=gK>0.0?fsVor2(p.xz/0.08+vec2(0.7*(Z.r-0.5),0.7*(Z.a-0.5)),41.0,dd,van):vec3(0.0,1.0,0.5);   // (값) 칸이 화소보다 작거나 벽이면 건너뛴다
@@ -608,6 +611,9 @@ const CVFS_BODY=`#include <color_fragment>
     vec3 Hv=normalize(Lt+V); float a2=min(1.0,rg*rg*rg*rg+sg2), sn=clamp(2.0/a2-2.0,1.0,80.0);
     float nls=max(dot(ns,Lt),0.0), nh=max(dot(ns,Hv),0.0), x=1.0-max(dot(V,Hv),0.0), x2=x*x, Fs=f0+(1.0-f0)*x2*x2*x;
     totalEmissiveRadiance+=cmTC*(cmT.w*at*nls*(sn+8.0)*0.125*exp2(sn*1.4427*(nh-1.0))*Fs*occS*mix(0.35,1.0,wS)); }
+#endif
+#ifdef FS_DBG_GK
+    diffuseColor.rgb=vec3(0.0); totalEmissiveRadiance=vec3(gK,ngm.y,n0.y);   // 시험 — 휴석 칸 몫 · 꼴 법선 y · 정점 법선 y
 #endif
   }`;
 const cvfsV3=a=>'vec3('+a.map(v=>(+v).toFixed(4)).join(',')+')';
