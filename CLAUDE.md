@@ -9,7 +9,7 @@
 - Three.js r128을 레포 안의 `engine/three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 78개(코드 59 + 자료 19 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 284개(설비 공정 38 포함 — 2026-11-04 바닷물 긷기 · 소금 졸이기를 더함)
+- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 79개(코드 60 + 자료 19 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 284개(설비 공정 38 포함 — 2026-11-04 바닷물 긷기 · 소금 졸이기를 더함)
 - 라이선스 GPL-3.0
 
 ## 폴더
@@ -17,7 +17,7 @@
 | 폴더 | 무엇 |
 |---|---|
 | `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
-| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 59개 + 자료 19개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
+| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 60개 + 자료 19개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
 | `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) |
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
@@ -64,7 +64,7 @@ python -m http.server 5173
 | `docs/notes/*.md` | **계통별 노트** — 무엇을 왜 그렇게 짰나 · 잰 값 · 같이 고칠 짝(아래 '계통별 노트') |
 | `presets/models/*.glb` | 몹 모델 — `bear_high` · `stormscale_wyrm` 은 아직 아무도 안 읽는다 · `azure_apocalypse` 는 애저 시험장(`docs/notes/arenas.md`) |
 
-**본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 78개(코드 59 + 자료 19).
+**본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 79개(코드 60 + 자료 19).
 js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
 나누면서 고쳐 쓴 것이 없다). 번호가 곧 불러오는 차례다 — **불러오는 순간 바로 도는 코드는 위 파일 것만 쓸 수 있다**(함수 안에서
 부르는 것은 어느 파일 것이든 된다). 새 계통은 `99-main.js` 바로 위에 새 파일로 넣는 것이 쉽다. 파일별 설명(영어)은 `CODEMAP.md`.
@@ -108,6 +108,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `66-decay.js` | 상하는 먹을 것 · 비에 꺼지는 불 |
 | `70-weapons.js` | `CREATURES` · 근접 판정 · `WEAPON_FX` · `emberClad` |
 | `72-gear.js` | 갑옷·투구·옷·짐 `GEAR` · `gearModel` |
+| `73-photo.js` | **사진 결**(ambientCG CC0 — `data-item-textures.js` 의 `ITEM_TEX`) 을 나눠 쓴다 — `photoTex` · `photoPatch(m,결,o)`(UV 없이 물체 좌표 세 방향 · 램버트 · 퐁) · `photoLambert(빛깔,결,o)` — 짓는 것(`BPHOTO`) · 설비 · 상자 · 보급선 · 대지 나무 · 신전 나무 · `docs/notes/gameplay.md` '들판의 것에 사진 결' |
 | `73-item-meshes.js` · `data-item-meshes.js` · `data-item-textures.js` | **손에 드는 것을 사용자 모형으로**(재질마다 사진 결 — ambientCG CC0 · `node tools/item-tex.mjs <받은 폴더>`) — STL(`meshes/items/` · 레포 밖) → `node tools/item-mesh.mjs`(설정 `tools/item-meshes.json`) → `ITEM_MESH` · `WEAPON_FX` 를 감싸 코드 모형 대신 그린다(가방 그림도) · 끄기 `ITEMMESH.on=false` · 자료는 base64 — 읽지 말 것 · `docs/notes/gameplay.md` '손에 드는 것의 모형' |
 | `74-icons-guns.js` | `itemIcon` · 휘두르기 · `shoot` · 수류탄·조준경·로켓 · `castNet` · `useHeld` · `attack` |
 | `80-player.js` | 몹 예산 `MOBS` · `rollSpawns` · `PL` · `hurtPL` · 개발자 모드 · 눈의 경계 `eyeHit` · 벼랑 오르기 · `updatePlayer` · 소리 |
@@ -410,6 +411,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 바위 칸 · 나무 칸의 가지는 가까울 때만 빚는다 — `t.m` · `p._batch` · `p._lb` 가 null 일 수 있다 · 프레임을 잴 때는 `QUAL.on=false`(perf).
 - 음악 마스터링 — 곡의 짜임을 바꾸면 곡마다 잰 크기(`MU_RMS0`)를 다시 잴 것 · 새 악기 길은 `MUS.ins` 표에 저역 덜기와 함께(gameplay).
 - 음악(98-music.js) — 새 곡은 `MU_SONGS` 한 줄 + `MU_ORDER` · 지역은 `musicRegion` · 처음 치기 전에 표본을 미리 빚는다(`muWarm` — 새 악기 표본을 만들면 거기에도) · 시험으로 오프라인 그리기를 할 때는 `MUS.off=true`(일정이 그 소리판을 건드린다 · gameplay).
+- 들판에 새로 세우는 나무 · 쇠 · 다듬은 돌 · 엮은 것은 맨 램버트 대신 `photoLambert(빛깔,'wood'|'stone'|'rock'|'rope'|'steel'|'gunmetal',o)`(73-photo.js) — 들판의 바위 · 자갈은 이미 게임 바위 사진(rockMat)이니 건드리지 말 것 · 새 결을 처음 보이는 재질은 처음 가까이 올 때 셰이더를 짠다(precompPlan 은 장면에 있는 것만 미리 짠다 · gameplay).
 - 손에 드는 것의 사용자 모형(`ITEM_MESH`)은 코드 모형(`WEAPON_FX`)의 상자 · 재질에 맞춰 구운 것이다 — 그 아이템의 코드 모형 꼴 · 빛깔을 바꾸면 `node tools/item-mesh.mjs <id>` 로 다시 굽는다 · 손에 든 것에서 이름으로 찾는 부품(`flash` · `tip` · `warhead`)을 새로 만들면 `itemMeshFx` 의 목록에도(gameplay).
 - 3인칭 카메라는 **그리는 동안만** 어깨 뒤로 간다(`tpvBegin`/`tpvEnd`) — 놀이(겨누기 · 캐기 · 줍기 · 짓기)는 `camera` 를 1인칭 눈으로 읽는다: renderFrame 밖에서 카메라를 옮기는 코드를 새로 넣지 말 것 · 사람 몸 재질은 `skinning:true` · 테두리 재질의 셰이더 갈고리(`pbLineMat`)를 고치면 `customProgramCacheKey` 도(gameplay).
 - 새 키는 `KB_ACTS` 에 한 줄 · `kbHit`/`keys.행동` 으로 읽는다(`e.code==='KeyX'` 금지) · **한 글쇠는 한 행동만**(사용자 요청 — 범위가 달라도 같은 기본 키 금지 · `kbSet`/`kbLoad` 가 겹친 칸을 비운다) · 조작을 바꾸면 `CONTROLS_GUIDE` ↔ `KB_OV` · 일시정지 글쇠 줄은 `<div><span>글쇠</span><em>설명</em></div>` 꼴(gameplay).

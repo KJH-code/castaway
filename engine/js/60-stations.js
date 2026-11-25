@@ -183,7 +183,7 @@ function placeFurnaceAt(px,py,pz){
   const grp=new THREE.Group();
   const clay =new THREE.MeshLambertMaterial({color:0x8a6d4e});
   const clay2=new THREE.MeshLambertMaterial({color:0x7a5f43});
-  const stone=new THREE.MeshLambertMaterial({color:0x74716a});
+  const stone=typeof photoLambert==='function'?photoLambert(0x74716a,'rock'):new THREE.MeshLambertMaterial({color:0x74716a});   // 게임 바위 사진(73-photo.js)
   const dark =new THREE.MeshBasicMaterial({color:0x1a0f08});
   const ember=new THREE.MeshBasicMaterial({color:0xff7a26});
 
@@ -348,8 +348,8 @@ function boxRenameEnd(save){
 function placeStoreAt(kind,px,py,pz,slots,label,ry){
   const grp=new THREE.Group();
   if(kind==='trash'){                           // 쓰레기통 — 아가리가 벌어진 어두운 통
-    const w=new THREE.MeshLambertMaterial({color:0x5a6258,side:THREE.DoubleSide}),
-          w2=new THREE.MeshLambertMaterial({color:0x353b34});
+    const w=photoLambert(0x5a6258,'gunmetal',{size:0.4,tint:1},{side:THREE.DoubleSide}),
+          w2=photoLambert(0x353b34,'gunmetal',{size:0.4,tint:1});
     const body=new THREE.Mesh(new THREE.CylinderGeometry(0.38,0.28,0.68,9,1,true),w);
     body.position.y=0.36; grp.add(body);
     const base=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.05,9),w2); base.position.y=0.04; grp.add(base);
@@ -362,27 +362,27 @@ function placeStoreAt(kind,px,py,pz,slots,label,ry){
     const dark=new THREE.Mesh(new THREE.CircleGeometry(0.34,9),new THREE.MeshBasicMaterial({color:0x0b0d0b}));
     dark.rotation.x=-Math.PI/2; dark.position.y=0.52; grp.add(dark);
   }else if(kind==='basket'){
-    const w=new THREE.MeshLambertMaterial({color:0x9a8a52});
+    const w=photoLambert(0x9a8a52,'rope',{size:0.12,tint:1});      // 엮은 바구니 — 노끈 결(73-photo.js)
     const body=new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.32,0.56,10,1,true),w);
     body.position.y=0.28; grp.add(body);
     for(let i=0;i<3;i++){                       // 테두리 띠
       const r=0.34+i*0.04;
       const ring=new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.05,10),
-        new THREE.MeshLambertMaterial({color:0x8a7a44}));
+        photoLambert(0x8a7a44,'rope',{size:0.08,tint:1}));
       ring.position.y=0.08+i*0.22; grp.add(ring);
     }
     const base=new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.33,0.05,10),w);
     base.position.y=0.03; grp.add(base);
   }else{
-    const w=new THREE.MeshLambertMaterial({color:0x5f4a33});
-    const w2=new THREE.MeshLambertMaterial({color:0x4d3b28});
+    const w=photoLambert(0x5f4a33,'wood',{size:0.6});            // 나무 상자 — 나뭇결 · 묶은 노끈은 노끈 결(73-photo.js)
+    const w2=photoLambert(0x4d3b28,'wood',{size:0.6});
     const body=new THREE.Mesh(new THREE.BoxGeometry(1.05,0.52,0.68),w);
     body.position.y=0.26; grp.add(body);
     const lid=new THREE.Mesh(new THREE.BoxGeometry(1.09,0.14,0.72),w2);
     lid.position.y=0.59; grp.add(lid);
     for(const sx of [-0.34,0,0.34]){            // 널을 묶은 노끈
       const b=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.56,0.72),
-        new THREE.MeshLambertMaterial({color:0xa89a68}));
+        photoLambert(0xa89a68,'rope',{size:0.06,tint:0.6}));
       b.position.set(sx,0.28,0); grp.add(b);
     }
   }

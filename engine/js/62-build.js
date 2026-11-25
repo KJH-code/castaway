@@ -172,7 +172,11 @@ function brickRowTex(){
     g.fillRect(i*64+3,4,58,40); for(let k=0;k<14;k++){ g.fillStyle='rgba(60,30,20,'+(0.05+0.10*rnd()).toFixed(2)+')'; g.fillRect(i*64+3+rnd()*54,4+rnd()*36,2+rnd()*5,1+rnd()*3); } }
   _brickRow=new THREE.CanvasTexture(c); _brickRow.wrapS=THREE.RepeatWrapping; return _brickRow;
 }
-const bmat=(c,half)=>{ if(typeof c!=='object') return new THREE.MeshLambertMaterial({color:c});
+/* 짓는 것의 사진 결(73-photo.js) — 단의 빛깔로 고른다: 초가의 가지 · 나무 단 → 나뭇결 · 초가의 이엉 → 노끈 결(엮은 풀) · 돌 단 → 게임 바위 사진 ·
+   벽돌 단의 귀틀 → 나뭇결(벽돌 메움은 벽돌 그림 그대로) */
+const BPHOTO={0x8a7550:['wood',{size:0.9}], 0x6b5a3c:['wood',{size:0.9}], 0x7d6a48:['wood',{size:0.9}], 0x6a3a2c:['wood',{size:0.9}],
+  0x9a8a52:['rope',{size:0.14,tint:1}], 0x74716a:['rock'], 0x82807a:['rock'], 0x6f6d67:['rock']};
+const bmat=(c,half)=>{ if(typeof c!=='object'){ const k=BPHOTO[c]; return k&&typeof photoLambert==='function'?photoLambert(c,k[0],k[1]):new THREE.MeshLambertMaterial({color:c}); }
   const t=half?brickRowTex().clone():brickRowTex(); if(half){ t.offset.x=1/12; t.needsUpdate=true; }   // 켜마다 반 장 어긋난다
   return new THREE.MeshLambertMaterial({color:c.c,map:t}); };
 function makeFound(C){
@@ -931,7 +935,7 @@ function placeWheel(){
 }
 function placeWheelAt(px,py,pz){
   const g=new THREE.Group();
-  const w=new THREE.MeshLambertMaterial({color:0x5f4a33});
+  const w=photoLambert(0x5f4a33,'wood',{size:0.6});
   const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,0.5,8),w);
   hub.rotation.z=Math.PI/2; hub.position.y=1.25; g.add(hub);
   const rim=new THREE.Group();
@@ -940,7 +944,7 @@ function placeWheelAt(px,py,pz){
     const sp2=new THREE.Mesh(new THREE.BoxGeometry(0.07,2.2,0.07),w);
     sp2.position.set(0,0,0); sp2.rotation.x=a; rim.add(sp2);
     const pad=new THREE.Mesh(new THREE.BoxGeometry(0.52,0.30,0.06),
-      new THREE.MeshLambertMaterial({color:0x4d3b28}));
+      photoLambert(0x4d3b28,'wood',{size:0.6}));
     pad.position.set(0,Math.cos(a)*1.12,Math.sin(a)*1.12);
     pad.rotation.x=a; rim.add(pad);
   }
@@ -1010,15 +1014,15 @@ function placeSteamAt(x,y,z){
 function placeDynamoAt(px,py,pz){
   const g=new THREE.Group();
   const body=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.62,0.62),
-    new THREE.MeshLambertMaterial({color:0x6b5a3c}));
+    photoLambert(0x6b5a3c,'wood',{size:0.6}));
   body.position.y=0.31; g.add(body);
   for(let i=0;i<5;i++){
     const c=new THREE.Mesh(new THREE.TorusGeometry(0.22,0.035,5,10),
-      new THREE.MeshLambertMaterial({color:0xb87333}));
+      photoLambert(0xb87333,'steel',{size:0.2,tint:1}));
     c.rotation.y=Math.PI/2; c.position.set(-0.3+i*0.15,0.34,0); g.add(c);
   }
   const mg=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.3,0.5),
-    new THREE.MeshLambertMaterial({color:0x5a5f66}));
+    photoLambert(0x5a5f66,'gunmetal',{size:0.3,tint:1}));
   mg.position.set(0.34,0.36,0); g.add(mg);
   g.rotation.y=Math.random()*6.283;
   g.position.set(px,py,pz); scene.add(g);
@@ -1044,8 +1048,8 @@ const powered=()=>DYNAMOS.some(turnsDynamo);
 const LATHES=[];
 function placeLatheAt(px,py,pz){
   const g=new THREE.Group();
-  const wm=new THREE.MeshLambertMaterial({color:0x6b5a3c});
-  const sm=new THREE.MeshLambertMaterial({color:0x6e747a});
+  const wm=photoLambert(0x6b5a3c,'wood',{size:0.6});
+  const sm=photoLambert(0x6e747a,'steel',{size:0.4,tint:1});
   const bed=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.18,0.55),wm);
   bed.position.y=0.78; g.add(bed);
   for(const x of [-0.85,0.85]){
@@ -1124,15 +1128,15 @@ function placeAnvil(free){
 function placeAnvilAt(px,py,pz){
   const grp=new THREE.Group();
   const stump=new THREE.Mesh(new THREE.CylinderGeometry(0.44,0.52,0.72,9),
-    new THREE.MeshLambertMaterial({color:0x4a3a29}));
+    photoLambert(0x4a3a29,'wood',{size:0.6}));
   stump.position.y=0.36; grp.add(grp.userData.s=stump);
   const face=new THREE.Mesh(hearthStone(0.42),
-    new THREE.MeshLambertMaterial({color:0x8a8880}));
+    photoLambert(0x8a8880,'rock'));
   face.position.y=0.86; face.scale.set(1.25,0.52,0.95);
   face.rotation.y=Math.random()*6.283; grp.add(face);
   for(let i=0;i<3;i++){                       // 발치에 굴러다니는 쇠똥
     const sl=new THREE.Mesh(hearthStone(0.13),
-      new THREE.MeshLambertMaterial({color:0x3a332c}));
+      photoLambert(0x3a332c,'rock'));
     const a=Math.random()*6.283, r=0.7+Math.random()*0.5;
     sl.position.set(Math.cos(a)*r,0.08,Math.sin(a)*r);
     sl.scale.set(1,0.6,1); grp.add(sl);
@@ -1158,7 +1162,7 @@ function placeGrindstone(free){
 function placeGrindstoneAt(px,py,pz){
   const spot={x:px,y:py,z:pz};
   const grp=new THREE.Group();
-  const smat=new THREE.MeshLambertMaterial({color:0x7d7a72});
+  const smat=photoLambert(0x7d7a72,'rock');
   for(let i=0;i<3;i++){
     const st=new THREE.Mesh(hearthStone(0.26),smat);
     const a=i/3*Math.PI*2;
@@ -1167,7 +1171,7 @@ function placeGrindstoneAt(px,py,pz){
     grp.add(st);
   }
   const slab=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.22,0.95),
-    new THREE.MeshLambertMaterial({color:0x8a8880}));
+    photoLambert(0x8a8880,'rock'));
   slab.position.y=0.46; slab.rotation.y=Math.random()*0.5-0.25;
   grp.add(slab);
   grp.position.set(spot.x,spot.y,spot.z); scene.add(grp);
@@ -1618,7 +1622,7 @@ function initTorchFx(){
   c1.position.y=-0.02;
   const c2=new THREE.Object3D();
   const stick=new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.02,0.42,4),
-    new THREE.MeshLambertMaterial({color:0x4a3a29}));
+    photoLambert(0x4a3a29,'wood',{size:0.6}));
   stick.position.y=-0.2;
   torchFlame.add(c1); torchFlame.add(c2); torchFlame.add(stick);
   torchFlame.position.set(0.36,-0.34,-0.55);
