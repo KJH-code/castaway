@@ -33,8 +33,11 @@ function cvdInit(){
        조각 셰이더가 화소마다 세로 홈 · 골(홈 짙게 · 등 밝게) · 마디 · 혹 · 끝 밝음 · 세로 줄무늬를 그린다(조각 정점이 성겨 정점으로는 홈이 안 선다 · 빛은 정점에서 세는 램버트라 빛깔로).
        aSp 가 없는 메시(미리 짜기 견본)는 기본값 (0,0,0,1) — w<1.5 라 손대지 않는다 */
     { const m=CVD.mats.rock; m.onBeforeCompile=sh=>{
-        sh.vertexShader='attribute vec4 aSp;\nvarying vec4 vSp;\nvarying vec3 vSpP;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n  vSp=aSp; vSpP=(modelMatrix*vec4(transformed,1.0)).xyz;');
-        sh.fragmentShader='varying vec4 vSp;\nvarying vec3 vSpP;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+        /* (유석 겉칠) aFo = (몫 0~1 · 그 굴 유석 빛깔 값 k) — 31-cave10flow.js 가 덮개를 다 지은 뒤 붙인다(없으면 0 — 손대지 않는다).
+           몫만큼 법선 쪽으로 1~4 cm 부풀리고(정점 셰이더 — CPU 지오메트리는 그대로) 빛깔을 그 굴 유석 빛깔로 · 흘러내린 세로 결 · 젖은 톤 */
+        const PL=(typeof CVFS!=='undefined'&&CVFS.OPT&&CVFS.OPT.pal)||[[0.5,0.5,0.5],[0.5,0.5,0.5],[0.5,0.5,0.5],[0.5,0.5,0.5]], v3=a=>'vec3('+a.map(x=>(+x).toFixed(4)).join(',')+')';
+        sh.vertexShader='attribute vec4 aSp;\nattribute vec2 aFo;\nvarying vec4 vSp;\nvarying vec3 vSpP;\nvarying vec2 vFo;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n  transformed+=objectNormal*(aFo.x*(0.012+0.028*aFo.x)); vFo=aFo;\n  vSp=aSp; vSpP=(modelMatrix*vec4(transformed,1.0)).xyz;');
+        sh.fragmentShader='varying vec4 vSp;\nvarying vec3 vSpP;\nvarying vec2 vFo;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
   if(vSp.w>1.5){ float kd=floor(vSp.w), sd=vSp.w-kd, an=atan(vSpP.z-vSp.y,vSpP.x-vSp.x), t=clamp(vSp.z,0.0,1.0), ph=sd*37.0, nG=5.0+floor(sd*5.0);
     float g1=0.5+0.5*cos(nG*an+ph+1.4*sin(t*6.0+ph)), g2=0.5+0.5*cos(2.0*nG*an+ph*1.7+2.0*sin(t*9.0+ph*0.7));
     float rid=clamp(0.80*g1+0.20*g2,0.0,1.0);
@@ -43,7 +46,12 @@ function cvdInit(){
     vec3 c=diffuseColor.rgb; float l=dot(c,vec3(0.30,0.59,0.11)); c=mix(vec3(l),c,0.55); c=mix(c,vec3(l)*vec3(1.06,1.0,0.88),0.30*rid);   // 등은 크림 쪽으로
     float ct=kd>2.5&&kd<3.5?0.55:1.0;
     c*=(kd>2.5&&kd<3.5?1.0:0.68)*(1.0+ct*(-0.24+0.34*rid+0.14*kn+0.10*(eg-0.5)+0.22*smoothstep(0.86,1.0,t)+0.10*sin(an*2.0+ph*2.0+1.5*sin(t*3.0+ph))));   // 석회암은 0.68 배 — 횃불 가까이서 하얗게 타면 홈이 안 보였다   // (FX 13) 대비 절반 · 넓고 부드러운 세로 얼룩(청동 원뿔처럼 보였다)
-    diffuseColor.rgb=max(c,vec3(0.0)); }`); };
+    diffuseColor.rgb=max(c,vec3(0.0)); }
+  if(vFo.x>0.002){ float kf=vFo.y, an2=atan(vSpP.z-vSp.y,vSpP.x-vSp.x);
+    vec3 fc=mix(mix(mix(${v3(PL[0])},${v3(PL[1])},clamp(kf,0.0,1.0)),${v3(PL[2])},clamp(kf-1.0,0.0,1.0)),${v3(PL[3])},clamp(kf-2.0,0.0,1.0));
+    float st=vSp.w>1.5?0.5+0.5*cos(9.0*an2+2.0*sin(vSpP.y*3.0)):0.5;
+    fc*=(0.84+0.26*st)*0.92*0.68;   // 0.68 — 장식 바위와 같은 까닭(횃불 가까이서 하얗게 넘친다 · 위 석회암 몫)
+    diffuseColor.rgb=mix(diffuseColor.rgb,fc,smoothstep(0.0,1.0,vFo.x)); }`); };
       m.customProgramCacheKey=()=>'cvdrock-sp'; }
     for(const k of ['rock','sheet','water']) envPatch(CVD.mats[k]);   // 굴 속 어둠 · 굴 불빛(CAVE_GLSL)을 받게 — 장식은 LIGHT 배역 훑기에 안 걸려 예전엔 깊은 데에서도 밖처럼 밝았다(독립 검수 C3)
   }
@@ -911,6 +919,7 @@ function cvdSet(it,vis){                                          // 정점 범�
   const pos=it.mesh.geometry.attributes.position, a=pos.array;
   if(!vis){ it.saved=a.slice(it.v0*3,it.v1*3); const x=a[it.v0*3], y=a[it.v0*3+1], z=a[it.v0*3+2]; for(let v=it.v0;v<it.v1;v++){ a[v*3]=x; a[v*3+1]=y; a[v*3+2]=z; } }
   else if(it.saved){ a.set(it.saved,it.v0*3); it.saved=null; }
+  { const fo=it.mesh.geometry.attributes.aFo; if(fo){ const b=fo.array; if(!vis){ it.savedFo=b.slice(it.v0*2,it.v1*2); for(let v=it.v0;v<it.v1;v++) b[v*2]=0; } else if(it.savedFo){ b.set(it.savedFo,it.v0*2); it.savedFo=null; } fo.needsUpdate=true; } }   // 유석 겉칠(31-cave10flow.js) — 접어 숨긴 조각이 부풀어 보이지 않게
   pos.needsUpdate=true; it.vis=vis;
   const k=CV10.picks.indexOf(it.pick); if(vis){ if(k<0) CV10.picks.push(it.pick); } else if(k>=0) CV10.picks.splice(k,1);
 }
