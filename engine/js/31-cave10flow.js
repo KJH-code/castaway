@@ -8,7 +8,7 @@
      덮인 껍데기 세모(+ h>0 인 변을 가진 이웃 — 닫힐 때까지)를 k×k 로 나눠(변 위의 점은 나눠 쓴다) 밑점(껍데기 세모 평면 위) + 보간 법선 × h 로 띄운다 · 세 점이 다 h≤0 인 작은 세모는 버린다
      → 막의 열린 모서리는 늘 두 끝이 묻힌 데에만 생긴다
    · 그리기 — 램버트 + onBeforeCompile + envPatch(직접 — 섬을 다 지은 뒤 만드는 재질) · 빛 투과(빛깔마다 감싸기 · 얇은 가장자리의 호박빛 비침) · 화소 무늬(세로 홈 결 · 둥근 턱 · 바닥 미세 휴석)
-     · renderOrder −1(껍데기보다 먼저 — 덮인 껍데기 화소는 깊이 시험에서 떨어진다) · 8 m 덩이로 나눠 한 프레임에 하나씩 붙인다
+     · 투명 패스(얇은 가장자리가 비친다 · diffuseColor.a) · renderOrder −1(투명 가운데 맨 먼저 — 물 · 불티보다 앞) · 8 m 덩이로 나눠 한 프레임에 하나씩 붙인다
    · 결정론 — 제 해시(cv10H(정수, 정수, c.seed^상수)) · 흐름마다 mulberry32((c.seed^0xf105^열쇠)>>>0) 만 쓴다. X.rnd · X.prnd · Math.random 없음 ·
      결과는 짓는 차례 · 시간 조각 · 예산과 상관없다 · 굴 격자 · 껍데기 position/normal/index · rec.cols · CV10.picks · 장식은 읽기만 한다(줍기 · 몸 막기 없음 — 껍데기 겉으로 친다)
    이름은 cvfs · CVFS · cv10Flow 로 시작한다(전역 이름이 겹치면 그 파일이 통째로 안 읽힌다). 설계는 docs/notes/caves.md */
@@ -399,8 +399,12 @@ function* cvfsMesh(X){
   X.test=st; yield; CVFS.ph='chunk';
   /* 껍데기 aFc — 덮개 안 1 · 밖 ring m 에서 0(꼭짓점 점만 · 나머지는 0 그대로) */
   const g=rec.mesh.geometry, fc=g.attributes.aFc;
-  if(fc){ const A=fc.array; A.fill(0); for(let p=0;p<np;p++){ const v=X.PV[p]; if(v<0) continue; let all=1; for(let q=X.deg[v];q<X.deg[v+1];q++) if(!X.full[X.vt[q]]){ all=0; break; }
-      A[v]=(PH[p]>0&&all)?1:Math.min(0.98,PH[p]>0?0.98:1-cvfsSS(0,SH.ring,X.PF[p*4+3])); } X.fcPend=true; }   // aFc 1 은 둘레 세모가 모두 다 덮였을 때만(아니면 0.98 — 젖은 자국은 그대로 · 건너뛰기만 막는다)
+  if(fc){ const A=fc.array; A.fill(0); for(let p=0;p<np;p++){ if((p&4095)===0&&p&&cvfsT()) yield; const v=X.PV[p]; if(v<0) continue; let all=1; for(let q=X.deg[v];q<X.deg[v+1];q++) if(!X.full[X.vt[q]]){ all=0; break; }
+      let hl=0; if(!(PH[p]>0)){ const bx=X.PB[p*3], by=X.PB[p*3+1], bz=X.PB[p*3+2], R=SH.ring*(0.6+1.1*cvfsVN(bx/0.5,by/0.5,bz/0.5,X.S.sd^0x4a1)), o2=X.ho||(X.ho={});
+        hl=1-cvfsSS(0,R,X.PF[p*4+3]);
+        if(X.PF[p*4+3]<1.2){ cvfsH(X,bx,by+0.45,bz,X.PN[p*3],X.PN[p*3+1],X.PN[p*3+2],1.5,0,o2); const st=cvfsSS(0.45,0.70,cvfsVN(bx/0.25,by/3,bz/0.25,X.S.sd^0x4a3));   // 흐름 아래로 번진 혀 — 0.45 m 위가 막 속이거나 가까우면(줄기 몇 가닥)
+          hl=Math.max(hl,(1-cvfsSS(0,R*1.5,o2.in?0:o2.out))*st*0.85); } }
+      A[v]=(PH[p]>0&&all)?1:Math.min(0.98,PH[p]>0?0.98:hl); } X.fcPend=true; }   // aFc 1 은 둘레 세모가 모두 다 덮였을 때만(아니면 0.98 — 젖은 자국은 그대로 · 건너뛰기만 막는다)
   if(fc){ const A=fc.array; let bad=0, one=0; for(let v=0;v<A.length;v++){ if(A[v]<=0.999) continue; one++; for(let q=X.deg[v];q<X.deg[v+1];q++) if(!X.full[X.vt[q]]){ bad++; break; } } X.test.fcBad=bad; X.test.fcOne=one; }   // 시험 — aFc 1 인데 둘레가 다 덮이지 않은 꼭짓점(0 이어야)
   /* 덩이 — 껍데기 세모 무게중심의 8 m 칸 · 열쇠 차례로 */
   const ch=new Map(), cs=CVFS.cell;
@@ -567,10 +571,31 @@ const CVFS_BODY=`#include <color_fragment>
     c*=1.0-0.15*occG*(1.0-0.6*cr);
     c*=clamp(0.95+0.45*(1.0-0.4*cr)*phl,0.70,1.20)*(1.0+(0.15+0.20*flo)*gr*kMi)*(1.0+0.18*(Z.g-0.5));
     c*=1.0+0.14*gK*rimV-0.20*gK*innV;
+    /* (무늬 · 사진 p4 · p2 — 사용자 요청) 한 흐름 안에서도 빛깔이 여럿 · 흰 · 회색 굴일수록 대비 크게(pa) · 꿀 · 적갈 굴은 짙은 빛 안의 엷은 띠.
+       ① 가장자리까지 거리 e 의 등고선을 따르는 성장 켜 띠 — 크림 · 흰 ↔ 꿀 · 호박(폭 1~5 cm 들쭉날쭉 · 잡음으로 휘고 끊김 · 경계는 띠 사이 섞기 · 가장자리 쪽일수록 호박)
+       ② 흐름 쪽 줄기 — 굵은 골(물이 모이는 데)은 젖은 꿀 · 황갈 · 등은 흰 결정빛(줄기 세기는 흐름 따라 길게 · 군데군데)
+       ③ 흰 분필 딱지(문밀크 · 팝콘 껍질) — 마르고 위를 보는 두꺼운 데 · 입구 쪽 */
+    float pa=mix(0.35,1.0,cr);
+    float bu=ed/0.028+2.2*Z.a+1.3*Z.r+0.8*WB.z, bk=floor(bu), fwB=fwidth(bu);
+    float tone=mix(fsH1(bk,53.0),fsH1(bk+1.0,53.0),smoothstep(0.25,0.75,bu-bk));
+    float bcut2=smoothstep(0.30,0.60,Z.b+0.35*(WB.y-0.5))*(1.0-smoothstep(0.35,0.90,fwB));
+    float ambK=smoothstep(0.45,0.85,tone)*(0.55+0.45*(1.0-smoothstep(0.0,0.18,ed)))*bcut2*pa;
+    c=mix(c,c*vec3(1.02,0.80,0.56),0.75*ambK); c*=1.0+0.14*(1.0-smoothstep(0.15,0.45,tone))*bcut2*pa;
+    float Hc=fluK*WA.y*kMe, sv=smoothstep(0.35,0.65,WB.x+0.3*(Z.g-0.5));
+    c=mix(c,c*vec3(0.95,0.80,0.62),smoothstep(0.0,0.014,0.0-Hc)*sv*(0.30+0.35*pa)); c*=1.0+0.06*smoothstep(0.0,0.014,Hc)*sv*pa;   // 넓은 경사(좁으면 고른 흰 줄이 섰다)
+    float chalk=smoothstep(0.58,0.78,0.5*Z.r+0.25*(1.0+phl)+0.2*(Z.a-0.5))*(1.0-wt)*max(smoothstep(0.15,0.55,n0.y)*smoothstep(0.03,0.10,h),smoothstep(0.02,0.10,vCv10Sky))*pa;
+    c=mix(c,FS_P0*1.30,0.75*chalk);
     /* 가장자리 — 막이 바위에 닿는 데는 그늘 · 바닥 판 가장자리 25 cm 는 짙고 젖게(껍데기 aFc 자국과 이어진다) */
     float rimF=flo*(1.0-smoothstep(0.0,0.25,ed+0.05*(Z.a-0.5)));
-    c*=0.72+0.28*smoothstep(0.0,0.07,ed+0.02*(Z.a-0.5));
     { float l=fsLum(c); c=mix(vec3(l),c,0.70); }
+    /* (가장자리 — 사용자 요청 '경계가 이질적') 얇아지는 가장자리는 밑 바위가 비친다 — 막을 반투명으로 그려(투명 패스 · renderOrder −1 이라 물보다 먼저)
+       e 0 에서 불투명 0 → 15~40 cm(잡음)에서 1: 비치는 것은 껍데기 그 자체라 빛(둘레빛 가림 · 깊이 · 횃불)과 사진 결이 경계에서 그대로 이어진다.
+       얇은 쪽은 무늬 범프도 잦아들고 젖은 막 · 가장 바깥 1~3 cm 는 조금 솟은 밝은 테(실제 유석 끝의 작은 둑 — 선이 아니라 폭 있는 테) */
+    float tE=smoothstep(0.0,0.15+0.25*Z.g,ed+0.06*(Z.a-0.5)+0.04*(WB.x-0.5));
+    float rimE=smoothstep(0.002,0.008,ed)*(1.0-smoothstep(0.012,0.030,ed+0.01*(Z.r-0.5)));
+    float aE=clamp(tE*tE*(3.0-2.0*tE)*0.85+0.15*tE+0.08*rimE,0.0,1.0);
+    c*=1.0+0.08*rimE;
+    Ht=Ht*tE+0.003*rimE;
     /* 젖음 — 바탕 어둡게는 막 전체에 조금 · 물막 반짝임(wS)은 바닥 · 휴석 칸 속 · 벽은 사진 결 · 잡음으로 끊긴 작은 점만 */
     float w=clamp(wt*(0.6+0.6*Z.b),0.0,1.0);
     float spot=0.0; if(wal*w>0.001) spot=smoothstep(0.72,0.86,texture(cmZ,p*1.6).a+0.25*phl);   // 벽 젖은 점(작은 점 — 사진 결로만 세면 세로로 늘어난 짙은 줄이 됐다)
@@ -588,6 +613,7 @@ const CVFS_BODY=`#include <color_fragment>
     float occA=mix(0.35,1.0,ao*ao), occD=mix(0.70,1.0,ao), occS=clamp(ao*1.3-0.3,0.0,1.0);
     /* 정점 빛(감싸기)에 화소 결 — 둘레빛 가림 · 범프가 정점 법선에서 기운 만큼 */
     diffuseColor.rgb=c*occA*(0.70+0.30*clamp(dot(nd,n0),0.0,1.0));
+    diffuseColor.a=aE;
     /* 횃불 — 정점 묶음에서 뺐으니 여기서(껍데기와 같은 유니폼 · 같은 감쇠 (1−d/거리)²) · 빛깔마다 감싸기 */
     vec3 tv=cmTP-p; float tl=length(tv); vec3 Lt=tv/max(tl,1e-4), V=normalize(cmEye-p);
     float at=clamp(1.0-tl/max(cmT.x,1e-3),0.0,1.0); at*=at;
@@ -620,7 +646,7 @@ const cvfsV3=a=>'vec3('+a.map(v=>(+v).toFixed(4)).join(',')+')';
 function cv10FlowMat(){
   if(CVFS.mat) return CVFS.mat;
   cmPhotos();
-  const O=CVFS.OPT, m=new THREE.MeshLambertMaterial({color:0xffffff});
+  const O=CVFS.OPT, m=new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,depthWrite:true});   // 얇은 가장자리가 비치게(diffuseColor.a)
   const gl=(typeof CV10_GLOW!=='undefined'&&(CV10_GLOW.karst||CV10_GLOW.shelter))||[0,0,0,0];
   const U={cmC:CMAT.tex, cmZ:cmNoise3(), cmT:CMAT.torch, cmTP:CMAT.tpos, cmTPv:CMAT.tpv, cmEye:CMAT.eye, cmTC:CMAT.tcol, uCv10Glow:{value:new THREE.Vector4(gl[0],gl[1],gl[2],gl[3])}};
   const f=v=>'('+(+v).toFixed(4)+')';

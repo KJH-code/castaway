@@ -444,7 +444,9 @@ const CM_BODY=`#include <color_fragment>
     /* (FS) 입체 유석 덮개가 서는 굴(31-cave10flow.js · CVFS.on) — 칠한 부채는 통째로 끈다(덮개와 자리가 다른 식이라 남기면 유령 꼴이 된다).
        덮개 둘레(aFc — 덮개 안 1 · 밖 0.35 m 에서 0)는 젖은 물 자국으로 조금 어둡게(맞닿는 선을 숨긴다) */
     float dr=0.0;
-    { float wm=vCmF*fhOK; c*=1.0-0.10*wm; wet=mix(wet,0.85,0.7*wm); rg=mix(rg,0.25,0.6*wm); }
+    { float wm=vCmF*fhOK; c*=1.0-0.10*wm; wet=mix(wet,0.85,0.7*wm); rg=mix(rg,0.25,0.6*wm);
+      /* (경계 — 사용자 요청) 덮개 밖 번진 자국은 엷은 방해석 막도 — 조금 밝게 · 사진 대비 덜 · 결 매끈하게(덮개의 얇은 가장자리와 이어진다) */
+      float fm=smoothstep(0.0,0.9,vCmF)*fhOK, cl=dot(c,vec3(0.3,0.59,0.11)); c=mix(c,mix(vec3(cl),c,0.60)*1.10,0.65*fm); Ht*=1.0-0.5*fm; }
 #endif
     /* 철 — 철분 켜 경계(10%) 밑 녹물 줄(곱 · 불투명 0.35) */
     float fe=step(0.9,lhU.z)*(1.0-smoothstep(0.1,0.15+0.5*S.g,dUp))*smoothstep(0.55,0.75,S.b)*wal*(1.0-dr)*0.35;
