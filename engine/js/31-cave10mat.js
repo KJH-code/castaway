@@ -323,7 +323,10 @@ const CM_BODY=`#include <color_fragment>
 #ifndef CM_NO_ALL
 #ifdef CM_FSO
   /* (FS 값) 덮개가 다 덮은 껍데기 세모(aFc 1 — 세 꼭짓점이 막 속)는 덮개에 가려 안 보인다 — 무늬 · 빛을 세지 않는다(SwiftShader 는 앞을 먼저 그려도 뒤 화소를 셌다) */
-  if(vCmF>0.999){ vec3 cb=CP_LIME*0.55, tv=cmTP-vCmW; float tl=length(tv), at=clamp(1.0-tl/max(cmT.x,1e-3),0.0,1.0);   // 막이 접힌 틈으로 비칠 때 검지 않게 — 횃불 램버트만
+  /* 갈래 조건은 세모마다 한결같다 — 세 꼭짓점 aFc 가 모두 1 인 세모만(그 세모 안 · 보조 화소까지 vCmF 1 · fwidth 0). 다른 세모는 vCmF 가 기울어 fwidth>0 이라
+     한 화소 넷 묶음이 늘 같은 갈래로 가니 본문의 미분(dFdx · fwidth)이 갈리는 갈래 속에서 셈 되지 않는다. fwidth 는 갈래 밖에서 */
+  float cmFw=fwidth(vCmF);
+  if(vCmF>0.9999&&cmFw<1e-6){ vec3 cb=CP_LIME*0.55, tv=cmTP-vCmW; float tl=length(tv), at=clamp(1.0-tl/max(cmT.x,1e-3),0.0,1.0);   // 막이 접힌 틈으로 비칠 때 검지 않게 — 횃불 램버트만
     diffuseColor.rgb=cb; totalEmissiveRadiance+=cb*cmTC*(cmT.w*at*at*max(dot(normalize(vCmN)*(gl_FrontFacing?1.0:-1.0),tv/max(tl,1e-4)),0.0)); }
   else
 #endif
@@ -667,6 +670,7 @@ function cv10Mat(kind){
   /* (FS) 석회암 굴은 입체 유석 덮개(31-cave10flow.js — 이 파일보다 뒤에 읽히니 부를 때 본다)가 켜져 있으면 칠한 유석을 끈다(CM_FSO) · 켬/끔이 바뀌면 새 재질 */
   const fso=key==='karst'&&typeof CVFS!=='undefined'&&!!CVFS.on;
   if(CMAT.mats[key]&&!!CMAT.mats[key].userData.fso===fso) return CMAT.mats[key];
+  if(CMAT.mats[key]){ CMAT.mats[key].dispose(); delete CMAT.mats[key]; }   // 켬/끔(cvfsSet)으로 바뀐 옛 재질은 버린다(쌓이지 않게)
   cmPhotos();
   const m=new THREE.MeshLambertMaterial({color:0xffffff});
   const gl=(typeof CV10_GLOW!=='undefined'&&(CV10_GLOW[key]||CV10_GLOW.shelter))||[0,0,0,0];

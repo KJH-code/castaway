@@ -48,28 +48,30 @@ const cvfsOn=()=>CVFS.on&&typeof cmOK==='function'&&cmOK();
 const cvfsCK=(ix,iy,iz)=>((ix+32768)*65536+(iy+32768))*65536+(iz+32768);
 /* 칸 → 목록(사슬) — 칸마다 배열을 만들면 굴 하나에 수십만 개의 작은 배열이 생겨 GC 가 조각 시간을 튀게 했고(4~9.5 ms),
    Map 으로 머리를 두면 커질 때 다시 해시하는 한 번이 수십 ms 였다(마른 굴 ctx 72 ms) → 미리 크게 잡은 열린 주소 해시(형 배열) + 형 배열 사슬 */
-function cvfsGrid(cells,ents){ let cap=4096; while(cap<cells*2) cap*=2; const keys=new Float64Array(cap); keys.fill(-1);
+function cvfsGrid(cells,ents){ let cap=4096; while(cap<cells*2) cap*=2; const keys=new Float64Array(cap);   // 빈 칸은 0(열쇠는 늘 > 0 — 채우기 없이 새 형 배열 그대로)
   return {cap,keys,head:new Int32Array(cap),cnt:0,nx:new Int32Array(Math.max(1024,ents)),val:new Int32Array(Math.max(1024,ents)),n:0}; }
 const cvfsGSlot=(G,k)=>{ const m=G.cap-1, K=G.keys; let i=(Math.imul(k>>>0,0x9e3779b1)^Math.imul(Math.floor(k/4294967296)|0,0x85ebca77))&m;
-  while(K[i]!==-1&&K[i]!==k) i=(i+1)&m; return i; };
+  while(K[i]!==0&&K[i]!==k) i=(i+1)&m; return i; };
 /* 열쇠 → 수 표(열린 주소 · 미리 크게) — 점 열쇠 · 변 셈에 Map 대신(커질 때 다시 해시하는 튐) */
-function cvfsTab(n){ let cap=4096; while(cap<n*2) cap*=2; const keys=new Float64Array(cap); keys.fill(-1); return {cap,keys,val:new Int32Array(cap),cnt:0}; }
-function cvfsTSlot(T,k){ if(T.cnt*10>=T.cap*7){ const ok=T.keys, ov=T.val, oc=T.cap; T.cap*=2; T.keys=new Float64Array(T.cap); T.keys.fill(-1); T.val=new Int32Array(T.cap);
-    for(let q=0;q<oc;q++) if(ok[q]!==-1){ const s2=cvfsGSlot(T,ok[q]); T.keys[s2]=ok[q]; T.val[s2]=ov[q]; } }
+function cvfsTab(n){ let cap=4096; while(cap<n*2) cap*=2; const keys=new Float64Array(cap); return {cap,keys,val:new Int32Array(cap),cnt:0}; }
+function cvfsTSlot(T,k){ if(T.cnt*10>=T.cap*7){ const ok=T.keys, ov=T.val, oc=T.cap; T.cap*=2; T.keys=new Float64Array(T.cap); T.val=new Int32Array(T.cap);
+    for(let q=0;q<oc;q++) if(ok[q]!==0){ const s2=cvfsGSlot(T,ok[q]); T.keys[s2]=ok[q]; T.val[s2]=ov[q]; } }
   return cvfsGSlot(T,k); }
 /* 자라는 형 배열(두 배씩 — 옮기는 일은 드물다) */
 const cvfsGrow=(a,n)=>{ if(n<=a.length) return a; let c=a.length*2; while(c<n) c*=2; const b=new a.constructor(c); b.set(a); return b; };
 const cvfsGHead=(G,k)=>{ const i=cvfsGSlot(G,k); return G.keys[i]===k?G.head[i]:-1; };
 function cvfsGAdd(G,k,v){
   if(G.n>=G.val.length){ const c=G.val.length*2, a=new Int32Array(c), b=new Int32Array(c); a.set(G.nx); b.set(G.val); G.nx=a; G.val=b; }
-  if(G.cnt*10>=G.cap*7){ const ok=G.keys, oh=G.head, oc=G.cap; G.cap*=2; G.keys=new Float64Array(G.cap); G.keys.fill(-1); G.head=new Int32Array(G.cap);   // 드물게 — 어림이 모자랄 때만
-    for(let q=0;q<oc;q++) if(ok[q]!==-1){ const s2=cvfsGSlot(G,ok[q]); G.keys[s2]=ok[q]; G.head[s2]=oh[q]; } }
-  const i=cvfsGSlot(G,k); if(G.keys[i]===-1){ G.keys[i]=k; G.head[i]=-1; G.cnt++; }
+  if(G.cnt*10>=G.cap*7){ const ok=G.keys, oh=G.head, oc=G.cap; G.cap*=2; G.keys=new Float64Array(G.cap); G.head=new Int32Array(G.cap);   // 드물게 — 어림이 모자랄 때만
+    for(let q=0;q<oc;q++) if(ok[q]!==0){ const s2=cvfsGSlot(G,ok[q]); G.keys[s2]=ok[q]; G.head[s2]=oh[q]; } }
+  const i=cvfsGSlot(G,k); if(G.keys[i]===0){ G.keys[i]=k; G.head[i]=-1; G.cnt++; }
   G.nx[G.n]=G.head[i]; G.val[G.n]=v; G.head[i]=G.n++; }
 function* cvfsCtx(rec){
   const g=rec.mesh.geometry, P=g.attributes.position.array, N=g.attributes.normal.array, I=g.index.array, nv=g.attributes.position.count, nt=I.length/3;
   const X={rec,c:rec.c,P,N,I,nv,nt,sky:g.attributes.aSky.array,deep:g.attributes.aDeep.array,ao:g.attributes.aAo?g.attributes.aAo.array:null,
-    FN:new Float32Array(nt*3), cells:cvfsGrid(nt*4,nt*12), deg:new Int32Array(nv+1), vt:null, kap:new Float32Array(nv), bv:new Uint8Array(nv), sign:1, eLen:0};
+    FN:new Float32Array(nt*3), cells:null, deg:new Int32Array(nv+1), vt:null, kap:new Float32Array(nv), bv:new Uint8Array(nv), sign:1, eLen:0};
+  /* 큰 형 배열은 제 조각에서(짓기 튐 — ctx 12.6 ms) · 칸 수 어림 — 껍데기 겉넓이(m²) × 2 쯤이라 nt/2 면 넉넉하다(예전 nt×4 는 30 배 컸다) */
+  yield; X.cells=cvfsGrid(nt>>1,nt*10); yield;
   const FN=X.FN, cells=X.cells, M=0.35; let el=0, en=0;
   for(let t=0;t<nt;t++){ if((t&15)===0&&t&&cvfsT()) yield;
     const a=I[t*3]*3, b=I[t*3+1]*3, c=I[t*3+2]*3;
@@ -81,19 +83,20 @@ function* cvfsCtx(rec){
     for(let ix=x0;ix<=x1;ix++) for(let iy=y0;iy<=y1;iy++) for(let iz=z0;iz<=z1;iz++) cvfsGAdd(cells,cvfsCK(ix,iy,iz),t);
     X.deg[I[t*3]+1]++; X.deg[I[t*3+1]+1]++; X.deg[I[t*3+2]+1]++; }
   X.eLen=el/Math.max(1,en);
-  yield; const dg=X.deg; for(let v=0;v<nv;v++) dg[v+1]+=dg[v];
-  const vt=X.vt=new Int32Array(dg[nv]), fp=dg.slice(0,nv);
-  for(let t=0;t<nt;t++){ vt[fp[I[t*3]]++]=t; vt[fp[I[t*3+1]]++]=t; vt[fp[I[t*3+2]]++]=t; }
-  yield;
+  yield; const dg=X.deg; for(let v=0;v<nv;v++){ if((v&8191)===8191&&cvfsT()) yield; dg[v+1]+=dg[v]; }
+  yield; const vt=X.vt=new Int32Array(dg[nv]), fp=dg.slice(0,nv); yield;
+  for(let t=0;t<nt;t++){ if((t&2047)===2047&&cvfsT()) yield; vt[fp[I[t*3]]++]=t; vt[fp[I[t*3+1]]++]=t; vt[fp[I[t*3+2]]++]=t; }
+  yield; const wall=new Int32Array(nt); let nwall=0;
   /* 꼭짓점 굽이 κ(변마다 |Δn|/|Δp| 의 큰 값) · 껍데기 가장자리 변(세모 하나만 가진 변)의 꼭짓점 */
   for(let t=0;t<nt;t++){ if((t&63)===0&&t&&cvfsT()) yield;
     for(let e=0;e<3;e++){ const a=I[t*3+e], b=I[t*3+(e+1)%3], pa=a*3, pb=b*3;
       const dp=Math.hypot(P[pa]-P[pb],P[pa+1]-P[pb+1],P[pa+2]-P[pb+2]), dn=Math.hypot(N[pa]-N[pb],N[pa+1]-N[pb+1],N[pa+2]-N[pb+2]), k=dp>1e-6?dn/dp:0;
       if(k>X.kap[a]) X.kap[a]=k; if(k>X.kap[b]) X.kap[b]=k;
-      if(cvfsEdgeN(X,a,b)<2){ X.bv[a]=1; X.bv[b]=1; } } }
+      if(cvfsEdgeN(X,a,b)<2){ X.bv[a]=1; X.bv[b]=1; } }
+    if(Math.abs(FN[t*3+1])<0.6) wall[nwall++]=t; }
   /* 법선이 굴 안쪽을 보는지 — 벽 세모 예순 개의 안쪽 0.3 m 가 빈 데인지 투표(31-cave10deco.js cvdTris 와 같은 법) */
-  let vote=0, nw=0; const wall=[]; for(let t=0;t<nt;t++) if(Math.abs(FN[t*3+1])<0.6) wall.push(t);
-  for(let k=0;k<Math.min(60,wall.length);k++){ const t=wall[(k*wall.length/60)|0], a=I[t*3]*3, mx=P[a], my=P[a+1], mz=P[a+2], nx=N[a], nz=N[a+2];
+  let vote=0, nw=0;
+  for(let k=0;k<Math.min(60,nwall);k++){ const t=wall[(k*nwall/60)|0], a=I[t*3]*3, mx=P[a], my=P[a+1], mz=P[a+2], nx=N[a], nz=N[a+2];
     const s1=cv10Samp(rec,mx+nx*0.3,mz+nz*0.3), in1=s1.n>0&&my>s1.f&&my<s1.c, s2=cv10Samp(rec,mx-nx*0.3,mz-nz*0.3), in2=s2.n>0&&my>s2.f&&my<s2.c; vote+=(in1?1:0)-(in2?1:0); nw++; }
   X.sign=vote>=0?1:-1;
   return X;
@@ -290,9 +293,10 @@ function* cvfsTess(X){
     CVFS.ph='seg'; X.fl=flows; X.segC=yield* cvfsSegCells(X,flows); CVFS.ph='cand'; X.stamp=0; const nf=flows.length;
     X.bd=new Float64Array(nf); X.bi=new Int32Array(nf); X.bt=new Float64Array(nf); X.stm=new Int32Array(nf); X.tch=new Int32Array(nf);
     /* 후보 — 흐름 마디 칸에 든 세모 가운데 무게중심이 마디에서 (너비 + 끝 혀 + 세모 반지름) 안 */
+    yield;
     const mark=new Uint8Array(X.nt), cand=[];
     const SG=X.segC, CG=X.cells;
-    for(let sl=0;sl<SG.cap;sl++){ const ck=SG.keys[sl]; if(ck===-1) continue; const s0=SG.head[sl], t0=cvfsGHead(CG,ck); if(t0<0){ if((sl&255)===0&&cvfsT()) yield; continue; }
+    for(let sl=0;sl<SG.cap;sl++){ const ck=SG.keys[sl]; if(ck===0) continue; const s0=SG.head[sl], t0=cvfsGHead(CG,ck); if(t0<0){ if((sl&255)===0&&cvfsT()) yield; continue; }
       for(let qt=t0;qt>=0;qt=CG.nx[qt]){ const t=CG.val[qt]; if(mark[t]) continue; if(cvfsT()) yield; const a=I[t*3]*3, b=I[t*3+1]*3, c=I[t*3+2]*3, mx=(P[a]+P[b]+P[c])/3, my=(P[a+1]+P[b+1]+P[c+1])/3, mz=(P[a+2]+P[b+2]+P[c+2])/3;
         const rr=Math.sqrt(Math.max((P[a]-mx)**2+(P[a+1]-my)**2+(P[a+2]-mz)**2,(P[b]-mx)**2+(P[b+1]-my)**2+(P[b+2]-mz)**2,(P[c]-mx)**2+(P[c+1]-my)**2+(P[c+2]-mz)**2));
         for(let qs=s0;qs>=0;qs=SG.nx[qs]){ const id=SG.val[qs], fi=(id/4096)|0, i=id-fi*4096, p=flows[fi].pts, A=p[i], B=p[i+1], R=Math.max(A.w,B.w)*(1+flows[fi].ext)+rr+0.05;
@@ -302,7 +306,7 @@ function* cvfsTess(X){
     cand.sort((a,b)=>a-b); CVFS.ph='close';
     /* 점 — 열쇠: 꼭짓점 −(v+1) · 변 (작은 번호, 큰 번호, 작은 쪽에서 i) · 세모 안 nv²·8 + t·16 + i·4 + j */
     /* 점 자료는 미리 잡은 형 배열(자라면 두 배) — JS 배열 push 가 GC 로 조각 시간을 튀게 했다 */
-    const est=Math.max(1024,Math.ceil(cand.length*(k+1)*(k+2)/2*1.6)), pk=cvfsTab(est); let np=0;
+    const est=Math.max(1024,Math.ceil(cand.length*(k+1)*(k+2)/2*1.6)), pk=cvfsTab(est*2); let np=0;   // pk 를 두 배로 — 닫기가 후보보다 넓어져도 다시 해시(한 번에 10 ms 넘게)가 안 나게
     let PB=new Float64Array(est*3), PN=new Float64Array(est*3), PA=new Float32Array(est*3), PH=new Float64Array(est), PF=new Float32Array(est*4), PT=new Int32Array(est), PV=new Int32Array(est); const o={};
     const evalPt=(key,t,b0,b1,b2,va,vb,vc)=>{ const kk=key<0?2251799813685248-key:key, sl=cvfsTSlot(pk,kk); if(pk.keys[sl]===kk) return pk.val[sl]; const id=np++; pk.keys[sl]=kk; pk.val[sl]=id; pk.cnt++;
       if(np>PH.length){ PB=cvfsGrow(PB,np*3); PN=cvfsGrow(PN,np*3); PA=cvfsGrow(PA,np*3); PH=cvfsGrow(PH,np); PF=cvfsGrow(PF,np*4); PT=cvfsGrow(PT,np); PV=cvfsGrow(PV,np); }
@@ -324,6 +328,7 @@ function* cvfsTess(X){
       if(i===0&&j===0) return evalPt(-(A+1),t,1,0,0,A,A,A); if(i===k) return evalPt(-(B+1),t,1,0,0,B,B,B); if(j===k) return evalPt(-(C+1),t,1,0,0,C,C,C);
       if(j===0) return edPt(t,A,B,i); if(i===0) return edPt(t,A,C,j); if(m===0) return edPt(t,B,C,j);
       return evalPt(nv*nv*8+t*16+i*4+j,t,m/k,i/k,j/k,A,B,C); };
+    yield;
     const inS=new Uint8Array(X.nt), set=[], Q=cand.slice(), ptB=new Int32Array((k+1)*(k+1)); let qi=0, nb=[];
     while(qi<Q.length){ const t=Q[qi++]; if(inS[t]) continue; inS[t]=1; set.push(t);
       if(cvfsT()) yield;
@@ -335,6 +340,7 @@ function* cvfsTess(X){
     /* 작은 세모 — 세 점이 다 h≤0 이면 버린다 · 감는 차례는 껍데기와 같다(앞면이 빈 데 쪽) */
     let tri=new Int32Array(Math.max(3072,set.length*k*k*3)), own=new Int32Array(Math.max(1024,set.length*k*k)), nq=0;   // 작은 세모(형 배열)
     /* 다 덮인 껍데기 세모 — 나눈 점이 모두 h ≥ 1 cm(막이 묻힌 데가 없다). 껍데기는 꼭짓점 aFc 셋이 다 1 인 세모를 안 그리듯 칠하니(CM_FSO) 그 세모는 반드시 다 덮여야 한다 */
+    yield;
     const full=new Uint8Array(X.nt);
     for(const t of set){ if(cvfsT()) yield; let ok=1; for(let j=0;j<=k&&ok;j++) for(let i=0;i+j<=k;i++) if(PH[ptOf(t,i,j)]<0.01){ ok=0; break; } full[t]=ok; }
     for(const t of set){ for(let j=0;j<k;j++) for(let i=0;i+j<k;i++){
@@ -352,9 +358,9 @@ function* cvfsTess(X){
 /* ── 메시 — 법선 · 8 m 덩이 · 껍데기 aFc ─────────────────────────────────────────────────────────────────────── */
 function* cvfsMesh(X){
   const SH=CVFS.SH, np=X.PH.length, PB=X.PB, PN=X.PN, PH=X.PH, tri=X.tri, rec=X.rec;
-  CVFS.ph='mesh'; const pos=new Float64Array(np*3);
+  CVFS.ph='mesh'; yield; const pos=new Float64Array(np*3); yield;
   for(let p=0;p<np;p++){ if((p&4095)===0&&p&&cvfsT()) yield; const h=PH[p]; pos[p*3]=PB[p*3]+PN[p*3]*h; pos[p*3+1]=PB[p*3+1]+PN[p*3+1]*h; pos[p*3+2]=PB[p*3+2]+PN[p*3+2]*h; }
-  const nrm=new Float64Array(np*3); let flip=0;
+  yield; const nrm=new Float64Array(np*3); let flip=0; yield;
   for(let q=0;q<tri.length;q+=3){ if((q%6144)===0&&q&&cvfsT()) yield; const a=tri[q]*3, b=tri[q+1]*3, c=tri[q+2]*3;
     const ux=pos[b]-pos[a], uy=pos[b+1]-pos[a+1], uz=pos[b+2]-pos[a+2], vx=pos[c]-pos[a], vy=pos[c+1]-pos[a+1], vz=pos[c+2]-pos[a+2];
     const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
@@ -364,8 +370,9 @@ function* cvfsMesh(X){
   yield;
   /* 막 시험 — 열린 모서리(작은 세모 하나만 가진 변) 가운데 한 끝이라도 h>0 · 밑점이 껍데기 세모 평면에서 벗어난 것(f32 자리 − h·보간 법선) · 막 안쪽 두께 최솟값 */
   const st={open:0,openPos:0,baseOff:0,baseMax:0,hInMin:1e9,flip,hMax:0};
-  { const em=cvfsTab(tri.length); for(let q=0;q<tri.length;q+=3){ if((q%3072)===0&&q&&cvfsT()) yield; for(let e=0;e<3;e++){ const a=tri[q+e], b=tri[q+(e+1)%3], k2=a<b?a*np+b:b*np+a, sl=cvfsTSlot(em,k2); if(em.keys[sl]!==k2){ em.keys[sl]=k2; em.val[sl]=0; em.cnt++; } em.val[sl]++; } }
-    for(let sl=0;sl<em.cap;sl++){ if((sl&8191)===0&&sl&&cvfsT()) yield; const k2=em.keys[sl]; if(k2===-1||em.val[sl]!==1) continue; st.open++; const a=Math.floor(k2/np), b=k2-a*np; if(PH[a]>0||PH[b]>0) st.openPos++; } }
+  /* 변 수 ≈ 작은 세모 × 1.5 */
+  yield; { const em=cvfsTab(tri.length*2/3); yield; for(let q=0;q<tri.length;q+=3){ if((q%3072)===0&&q&&cvfsT()) yield; for(let e=0;e<3;e++){ const a=tri[q+e], b=tri[q+(e+1)%3], k2=a<b?a*np+b:b*np+a, sl=cvfsTSlot(em,k2); if(em.keys[sl]!==k2){ em.keys[sl]=k2; em.val[sl]=0; em.cnt++; } em.val[sl]++; } }
+    for(let sl=0;sl<em.cap;sl++){ if((sl&8191)===0&&sl&&cvfsT()) yield; const k2=em.keys[sl]; if(k2===0||em.val[sl]!==1) continue; st.open++; const a=Math.floor(k2/np), b=k2-a*np; if(PH[a]>0||PH[b]>0) st.openPos++; } }
   yield;
   const f32=new Float32Array(3), P=X.P, I=X.I;
   for(let p=0;p<np;p++){ if((p&4095)===0&&p&&cvfsT()) yield; const h=PH[p]; if(h>0){ if(h<st.hInMin) st.hInMin=h; if(h>st.hMax) st.hMax=h; }
@@ -377,7 +384,8 @@ function* cvfsMesh(X){
   /* 껍데기 aFc — 덮개 안 1 · 밖 ring m 에서 0(꼭짓점 점만 · 나머지는 0 그대로) */
   const g=rec.mesh.geometry, fc=g.attributes.aFc;
   if(fc){ const A=fc.array; A.fill(0); for(let p=0;p<np;p++){ const v=X.PV[p]; if(v<0) continue; let all=1; for(let q=X.deg[v];q<X.deg[v+1];q++) if(!X.full[X.vt[q]]){ all=0; break; }
-      A[v]=PH[p]>0?(all?1:0.98):1-cvfsSS(0,SH.ring,X.PF[p*4+3]); } X.fcPend=true; }   // aFc 1 은 둘레 세모가 모두 다 덮였을 때만(아니면 0.98 — 젖은 자국은 그대로 · 건너뛰기만 막는다)
+      A[v]=(PH[p]>0&&all)?1:Math.min(0.98,PH[p]>0?0.98:1-cvfsSS(0,SH.ring,X.PF[p*4+3])); } X.fcPend=true; }   // aFc 1 은 둘레 세모가 모두 다 덮였을 때만(아니면 0.98 — 젖은 자국은 그대로 · 건너뛰기만 막는다)
+  if(fc){ const A=fc.array; let bad=0, one=0; for(let v=0;v<A.length;v++){ if(A[v]<=0.999) continue; one++; for(let q=X.deg[v];q<X.deg[v+1];q++) if(!X.full[X.vt[q]]){ bad++; break; } } X.test.fcBad=bad; X.test.fcOne=one; }   // 시험 — aFc 1 인데 둘레가 다 덮이지 않은 꼭짓점(0 이어야)
   /* 덩이 — 껍데기 세모 무게중심의 8 m 칸 · 열쇠 차례로 */
   const ch=new Map(), cs=CVFS.cell;
   for(let q=0;q<X.own.length;q++){ if((q&4095)===0&&q&&cvfsT()) yield; const t=X.own[q], a=I[t*3]*3, b=I[t*3+1]*3, c=I[t*3+2]*3;
@@ -438,7 +446,7 @@ float fsH1(float a,float s){ return fract(a*0.618); }
 #else
 float fsH1(float a,float s){ uint h=uint(int(a))*0x9E3779B1u^uint(int(s))*0x85EBCA77u; h^=h>>15u; h*=0x2C1B3C6Du; h^=h>>12u; return float(h)*(1.0/4294967296.0); }
 #endif
-vec2 fsH2(vec2 c,float s){ uint h=uint(int(c.x))*0x9E3779B1u^uint(int(c.y))*0x85EBCA77u^uint(int(s))*0xC2B2AE3Du; h^=h>>15u; h*=0x2C1B3C6Du; h^=h>>12u; uint g=h*0x297A2D39u; g^=g>>15u; return vec2(float(h),float(g))*(1.0/4294967296.0); }
+vec3 fsH2(vec2 c,float s){ uint h=uint(int(c.x))*0x9E3779B1u^uint(int(c.y))*0x85EBCA77u^uint(int(s))*0xC2B2AE3Du; h^=h>>15u; h*=0x2C1B3C6Du; h^=h>>12u; uint g=h*0x297A2D39u; g^=g>>15u; uint e=g*0x165667B1u; e^=e>>13u; return vec3(float(h),float(g),float(e))*(1.0/4294967296.0); }
 /* 1 차원 보로노이 홈 — 칸 st(씨 흔들기 jit)마다 둥근 골 하나. x = 골 꼴(−1 골 밑 ~ 0 칸 경계의 등) · y = 칸 너비(m) */
 vec2 fsGroove(float u,float st,float jit,float sd){
   /* 가장 가까운 씨 둘(둘레 세 칸) — 끼고 있는 두 씨만 보면 씨 자리에서 깊이(칸 너비 비례)가 뛰어 가는 검은 줄이 섰다 */
@@ -470,10 +478,13 @@ void fsWall(float u,float y,float kF,float kMe,vec2 gx,vec2 gy,vec4 Zc,vec4 Gl,o
   A=vec4(Hfine,Hco,phl,bnd); B=vec4(Gl.a,Zc.a,Gl.b,Zc.b);
 }
 /* 2 차원 보로노이(바닥 미세 휴석 칸) — x F1 · y F2(칸 단위) · z 칸 해시 */
-vec3 fsVor2(vec2 q,float sd){
+/* (바닥 휴석 칸) 칸마다 무게(0.65~1.35 · 12 % 는 1.5 — 큰 칸)로 나눈 거리(곱 무게 보로노이 — 칸 크기가 들쭉날쭉) ·
+   내리막 dd 쪽으로 an 만큼 늘인 거리(칸이 흐름 아래로 길어진다 — 씨까지의 작은 벡터에만 쓰니 세계 좌표 정밀도와 상관없다) */
+vec3 fsVor2(vec2 q,float sd,vec2 dd,float an){
   vec2 ib=floor(q); float d1=9.0, d2=9.0, hz=0.0;
-  for(int b=-1;b<=1;b++) for(int a=-1;a<=1;a++){ vec2 c=ib+vec2(float(a),float(b)); vec2 hh=fsH2(c,sd); float d=length(q-c-0.05-0.9*hh);
-    if(d<d1){ d2=d1; d1=d; } else if(d<d2) d2=d; }
+  for(int b=-1;b<=1;b++) for(int a=-1;a<=1;a++){ vec2 c=ib+vec2(float(a),float(b)); vec3 hh=fsH2(c,sd); vec2 v=q-c-0.05-0.9*hh.xy; float al=dot(v,dd);
+    float d=sqrt(max(dot(v,v)-an*al*al,0.0))/(hh.z<0.12?1.5:0.65+0.7*hh.z);
+    if(d<d1){ d2=d1; d1=d; hz=hh.z; } else if(d<d2) d2=d; }
   return vec3(d1,d2,hz);
 }
 `;
@@ -517,8 +528,11 @@ const CVFS_BODY=`#include <color_fragment>
 #else
     float gK=flo*(1.0-smoothstep(0.006,0.016,fp))*smoothstep(0.20,0.45,Z.g+0.3*(Z.r-0.5));
 #endif
-    vec3 vr=gK>0.0?fsVor2(p.xz/0.08+vec2(0.7*(Z.r-0.5),0.7*(Z.a-0.5)),41.0):vec3(0.0,1.0,0.0);   // (값) 칸이 화소보다 작거나 벽이면 건너뛴다
+    float dl=length(n0.xz); vec2 dd=dl>1e-4?n0.xz/dl:vec2(1.0,0.0); float van=0.6*smoothstep(0.03,0.20,dl);   // 내리막(법선의 수평 몫) · 기울수록 길게
+    vec3 vr=gK>0.0?fsVor2(p.xz/0.08+vec2(0.7*(Z.r-0.5),0.7*(Z.a-0.5)),41.0,dd,van):vec3(0.0,1.0,0.5);   // (값) 칸이 화소보다 작거나 벽이면 건너뛴다
     float vE=(vr.y-vr.x)*0.08, rimV=1.0-smoothstep(0.004,0.022,vE), innV=smoothstep(0.010,0.030,vE);
+    float rimA=0.5+0.9*fract(vr.z*5.37);                                               // 칸마다 둑 높이 · 밝기
+    rimV*=rimA*mix(1.0,smoothstep(0.35,0.60,Z.a+0.5*(fract(vr.z*9.13)-0.5)),step(fract(vr.z*3.71),0.30));   // 30 % 칸은 둑이 군데군데 끊긴다
     float Hg=gK*(rimV*0.006-innV*0.0015);
     /* 높이 합 — 홈 · 턱 · 둑 · 사진 · 알갱이 */
     float Ht=Hf+Hter+Hg+phl*0.0025*kMi+gr*0.0008*kMi;
@@ -616,7 +630,7 @@ function cvfsPrecompGeo(){
 /* ── 짓기 · 돌리기 · 버리기 ──────────────────────────────────────────────────────────────────────────────────── */
 function* cvfsGen(rec){
   /* 기다림 — 장식(휴석 웅덩이 기록)과 가림 굽기(aAo)가 끝날 때까지(읽기만 한다) */
-  while(rec.decoGen||!rec.deco||(CMAT.ao.q.some(J=>J.rec===rec))) yield 'wait';
+  while(rec.decoGen||!rec.deco||(CMAT.ao.q.some(J=>J.rec===rec))){ if(!rec.decoGen&&!rec.deco) return; yield 'wait'; }   // 장식이 던져 버려졌으면(cv10DecoDrop — deco null) 덮개도 안 짓는다(끝없이 기다리지 않게)
   const T0={ms:0};
   CVFS.ph='ctx'; const X=yield* cvfsCtx(rec); yield;
   CVFS.ph='seep'; const seeps=yield* cvfsSeeps(X); yield; CVFS.ph='trace';
