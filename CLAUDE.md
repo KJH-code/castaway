@@ -9,7 +9,7 @@
 - Three.js r128을 레포 안의 `engine/three.min.js`(603KB)에서 `<script src>`로 로드.
   게임에는 번들러·패키지 매니저·`node_modules` 없음. **바깥으로 나가지 않으므로 오프라인에서도 뜬다**
 - **데스크톱 판은 `desktop/`**(Electron 44 · electron-builder 26) — 게임을 감싸는 껍데기일 뿐이고 npm 은 이 폴더 안에만 있다(아래 '데스크톱 판')
-- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 76개(코드 58 + 자료 18 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 284개(설비 공정 38 포함 — 2026-11-04 바닷물 긷기 · 소금 졸이기를 더함)
+- 본편은 `island_world.html`(뼈대) + `presets/presets.js` + `engine/css/game.css` + `engine/js/*.js` 78개(코드 59 + 자료 19 — 몬스터 모델 다섯 포함)로 나뉘어 있다(보통 스크립트 · 차례대로 불러옴 — 아래 '파일 지도') · 아이템 367종 · 레시피 284개(설비 공정 38 포함 — 2026-11-04 바닷물 긷기 · 소금 졸이기를 더함)
 - 라이선스 GPL-3.0
 
 ## 폴더
@@ -17,12 +17,12 @@
 | 폴더 | 무엇 |
 |---|---|
 | `island_world.html` | 게임을 여는 파일(뼈대) — 이것만 맨 위에 둔다 |
-| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 58개 + 자료 18개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
+| `engine/` | **게임 엔진** — `three.min.js`(Three.js r128) · `css/game.css` · `js/*.js`(본편 코드 59개 + 자료 19개) · `native/`(C 로 짠 계산 토막과 그 빌드 결과) |
 | `presets/` | **프리셋** — 코드가 아닌 값·자료 묶음: `presets.js`(그래픽·섬 프리셋 — 설정 창이 고른다) · `models/`(몹 모델 .glb) |
 | `beta/` | **베타 시험장** — `*_arena.html`(전투·구름·농성 시험장) · `build_sandbox.html` · `_v.html`. 본편과 따로 뜨는 한 파일짜리들이다 |
 | `env/` | **가상 환경** — 빌드에만 쓰는 도구(C 컴파일러 · 파이썬 가상 환경)를 받는 스크립트. 받아 온 것 자체는 레포에 안 담는다(`env/README.md`) |
 | `desktop/` | 데스크톱 판(Electron 껍데기) |
-| `tools/` | 검사·묶기 도구(`animals/`(짐승 STL → 뼈 · 털빛 · 몸짓 표 — `docs/notes/mobs.md` '들짐승') · `check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `sheep/rig.py`(Meshy 양 FBX 에 뼈 21 을 심어 GLB 로 — numpy 만 씀 · 쓰는 법은 파일 머리말) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `biome-bench.js`(**바이옴 · 상태마다 FPS 와 튄 프레임의 범인** — `desktop/node_modules/.bin/electron tools/biome-bench.js [자리,…] [초]` · 쓰는 법은 파일 머리말 · `docs/notes/perf.md` 2026-11-09) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `item-tex.mjs`(손에 드는 것의 사진 결 — ambientCG CC0 묶음을 sips 로 줄여 `engine/js/data-item-textures.js` 로 · 쓰는 법은 파일 머리말) · `item-mesh.mjs`(**손에 드는 것의 사용자 모형** — STL 을 줄여 코드 모형에 맞추고(돌림 · 크기 · 위아래) 재질을 받아 `engine/js/data-item-meshes.js` 로 · 설정 `tools/item-meshes.json` · 쓰는 법은 파일 머리말) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `claude-delegate.sh`(**보조 계정 Claude 에게 일을 맡기기** — 사용자 컴퓨터에서 · 새 브랜치 + 작업 폴더에서 `claude -p` · 이 레포 규칙을 지시 앞에 붙이고 모드 질문 훅은 끈다 · 끝나면 문법 · 이어 붙이기 검사 · 쓰는 법은 파일 머리말) · `items-md-window.js`(**자원과 아이템 문서 `docs/ITEMS.md` 를 표에서 다시 쓴다** — `desktop/node_modules/.bin/electron tools/items-md-window.js` · 손으로 고치지 않는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md` · 시험장에 줄여 넣기 `python3 tools/azure/arena-data.py`) |
+| `tools/` | 검사·묶기 도구(`animals/`(짐승 STL → 뼈 · 털빛 · 몸짓 표 — `docs/notes/mobs.md` '들짐승') · `check-syntax` · `smoke` · `probe` · `build_single.py` · `serve.py`) · `sheep/rig.py`(Meshy 양 FBX 에 뼈 21 을 심어 GLB 로 — numpy 만 씀 · 쓰는 법은 파일 머리말) · `garg-rig.mjs`(가고일 뼈 가중치를 세고 공용 구역을 다섯 시험장에 옮긴다) · `wyv-sync.mjs`(애쉬스케일 자세 구역을 battle·night·siege 와 본편 `97-wyvern.js` 에 옮긴다) · `bear-rig.mjs`(아르크토스 뼈 가중치를 세고 공용 구역을 다섯 시험장과 본편 `97-mob-rigs.js` 에 옮긴다) · `biome-bench.js`(**바이옴 · 상태마다 FPS 와 튄 프레임의 범인** — `desktop/node_modules/.bin/electron tools/biome-bench.js [자리,…] [초]` · 쓰는 법은 파일 머리말 · `docs/notes/perf.md` 2026-11-09) · `bench-window.js`(**보이는 창에서 FPS 재기** — `desktop/node_modules/.bin/electron tools/bench-window.js`) · `tri-census.js`(**무엇이 프레임을 먹는지** — 상륙 자리 네 방위의 삼각형을 계통별로 · 그림자 몫까지 — `node tools/probe.mjs island_world.html --run tools/tri-census.js`) · `item-tex.mjs`(손에 드는 것의 사진 결 — ambientCG CC0 묶음을 sips 로 줄여 `engine/js/data-item-textures.js` 로 · 쓰는 법은 파일 머리말) · `item-mesh.mjs`(**손에 드는 것의 사용자 모형** — STL 을 줄여 코드 모형에 맞추고(돌림 · 크기 · 위아래) 재질을 받아 `engine/js/data-item-meshes.js` 로 · 설정 `tools/item-meshes.json` · 쓰는 법은 파일 머리말) · `player-mesh.mjs`(**사람 몸** — Meshy FBX(`fbx.mjs` 가 읽는다)를 세우고 줄이고 뼈 자리를 모양에서 재어 무게 · 재질을 굽는다 · `--debug` 면 `.ci-tmp/player-debug.json`) · `make-font.py`(디지털 글꼴 `engine/css/font.css` 를 다시 짓는다) · `claude-delegate.sh`(**보조 계정 Claude 에게 일을 맡기기** — 사용자 컴퓨터에서 · 새 브랜치 + 작업 폴더에서 `claude -p` · 이 레포 규칙을 지시 앞에 붙이고 모드 질문 훅은 끈다 · 끝나면 문법 · 이어 붙이기 검사 · 쓰는 법은 파일 머리말) · `items-md-window.js`(**자원과 아이템 문서 `docs/ITEMS.md` 를 표에서 다시 쓴다** — `desktop/node_modules/.bin/electron tools/items-md-window.js` · 손으로 고치지 않는다) · `azure/`(Meshy 몹 모델 애저 아포칼립스를 받침 떼고 · 20만 세모로 줄이고 · 다시 칠하고 · 뼈 심어 GLB 로 — `sh tools/azure/run.sh` · 자세한 것은 `tools/azure/README.md` · 시험장에 줄여 넣기 `python3 tools/azure/arena-data.py`) |
 | `docs/` | 설계 문서 · 개발 대화 원문 · 그래픽 엔진 조사 |
 
 ## 실행
@@ -64,7 +64,7 @@ python -m http.server 5173
 | `docs/notes/*.md` | **계통별 노트** — 무엇을 왜 그렇게 짰나 · 잰 값 · 같이 고칠 짝(아래 '계통별 노트') |
 | `presets/models/*.glb` | 몹 모델 — `bear_high` · `stormscale_wyrm` 은 아직 아무도 안 읽는다 · `azure_apocalypse` 는 애저 시험장(`docs/notes/arenas.md`) |
 
-**본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 76개(코드 58 + 자료 18).
+**본편은 나뉘어 있다** — `island_world.html`(281줄 · HTML 뼈대뿐) + `engine/css/game.css` + `engine/js/*.js` 78개(코드 59 + 자료 19).
 js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**다(모듈은 `file://` 에서 안 뜬다 · 보통 스크립트는 전역 하나를 나눠 써서
 나누면서 고쳐 쓴 것이 없다). 번호가 곧 불러오는 차례다 — **불러오는 순간 바로 도는 코드는 위 파일 것만 쓸 수 있다**(함수 안에서
 부르는 것은 어느 파일 것이든 된다). 새 계통은 `99-main.js` 바로 위에 새 파일로 넣는 것이 쉽다. 파일별 설명(영어)은 `CODEMAP.md`.
@@ -132,6 +132,7 @@ js 는 **ES 모듈이 아니라 차례대로 불러오는 보통 스크립트**�
 | `98-music.js` | 지형마다 한 곡(열두 곡 — 화성 진행 · 리듬 꼴만 정하고 즉석에서 짓는다) · 악기 표본 빚기(피아노 배음 · 줄 · 실로폰 · 북) · 관악기 합성 · 날씨(맑음 · 비) · 음악 듣기(설정 창 `pJuke`) — `docs/notes/gameplay.md` |
 | `98-savanna.js` | 사바나 풀밭 `SAV` — 덤불 땅 · 메마른 풀밭의 빽빽한 금빛 풀(사람 둘레 110 m · 바람 물결 · 뽑으면 풀잎) |
 | `98-surface.js` | 땅속에 완전히 들어가 있는 동안 땅 위를 가림(`SURF` · `surfList`) |
+| `98-player-body.js` · `data-player-mesh.js` | **사람 몸 · 3인칭** — 사용자 FBX(`meshes/player/Player1.fbx` · 레포 밖) → `node tools/player-mesh.mjs` → `PLAYER_MESH`(뼈 17 · 바지/셔츠/살갗) · 목표 방향으로 짓는 몸짓(`pbTarget` → `pbApply`) · 든 것(`pbHold`) · 주먹 `punch` · 3인칭 카메라는 그릴 때만(`tpvBegin`/`tpvEnd` — 45-sky.js renderFrame) · 자료는 base64 — 읽지 말 것 · `docs/notes/gameplay.md` '사람 몸 · 3인칭' |
 | `99-main.js` | `loop` · 게임을 켜는 줄 |
 
 함수는 이름으로 찾는 편이 빠르다: `grep -n "^const ITEMS\|^function updateSky" engine/js/*.js`.
@@ -410,6 +411,7 @@ node tools/probe.mjs island_world.html --do "hurtPL(40,'시험')" PL.hp
 - 음악 마스터링 — 곡의 짜임을 바꾸면 곡마다 잰 크기(`MU_RMS0`)를 다시 잴 것 · 새 악기 길은 `MUS.ins` 표에 저역 덜기와 함께(gameplay).
 - 음악(98-music.js) — 새 곡은 `MU_SONGS` 한 줄 + `MU_ORDER` · 지역은 `musicRegion` · 처음 치기 전에 표본을 미리 빚는다(`muWarm` — 새 악기 표본을 만들면 거기에도) · 시험으로 오프라인 그리기를 할 때는 `MUS.off=true`(일정이 그 소리판을 건드린다 · gameplay).
 - 손에 드는 것의 사용자 모형(`ITEM_MESH`)은 코드 모형(`WEAPON_FX`)의 상자 · 재질에 맞춰 구운 것이다 — 그 아이템의 코드 모형 꼴 · 빛깔을 바꾸면 `node tools/item-mesh.mjs <id>` 로 다시 굽는다 · 손에 든 것에서 이름으로 찾는 부품(`flash` · `tip` · `warhead`)을 새로 만들면 `itemMeshFx` 의 목록에도(gameplay).
+- 3인칭 카메라는 **그리는 동안만** 어깨 뒤로 간다(`tpvBegin`/`tpvEnd`) — 놀이(겨누기 · 캐기 · 줍기 · 짓기)는 `camera` 를 1인칭 눈으로 읽는다: renderFrame 밖에서 카메라를 옮기는 코드를 새로 넣지 말 것 · 사람 몸 재질은 `skinning:true` · 테두리 재질의 셰이더 갈고리(`pbLineMat`)를 고치면 `customProgramCacheKey` 도(gameplay).
 - 새 키는 `KB_ACTS` 에 한 줄 · `kbHit`/`keys.행동` 으로 읽는다(`e.code==='KeyX'` 금지) · **한 글쇠는 한 행동만**(사용자 요청 — 범위가 달라도 같은 기본 키 금지 · `kbSet`/`kbLoad` 가 겹친 칸을 비운다) · 조작을 바꾸면 `CONTROLS_GUIDE` ↔ `KB_OV` · 일시정지 글쇠 줄은 `<div><span>글쇠</span><em>설명</em></div>` 꼴(gameplay).
 - 새 제작법은 `tier` 가 `TIER_ORDER` 에 있어야 나무에 선다 · 손에 든 것의 `ITEMS[id].tool` 은 없을 수 있다(`(…tool||{})` · gameplay).
 - 숲의 나무(`FLORA_KIND` 의 far 종류)를 새로 더하면 `FLORA_FELL` 에도 한 줄(도끼로 벤다 · `tr` 자국 반지름) · 벤 그루는 `FLORA.taken` 의 `'X'+열쇠` 와 `FLORA.fell` 둘로 — 그루를 담는 새 길을 만들면 `FLORA.fell` 을 거를 것 · 도끼 · 곡괭이 머리는 `bladeTurn` 이 자루 축으로 돌린다(새 휘두르기 결은 `BLADE_B` 에도 · gameplay).

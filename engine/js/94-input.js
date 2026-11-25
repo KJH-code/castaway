@@ -107,6 +107,8 @@ addEventListener('keydown',e=>{
     else if(PL.cvUnder) toast('굴 속에서는 지을 수 없다');                  // 지형 판 10 굴 속(80-player.js cavePlace)
     else enterBuild(null);
   }
+  if(kbHit(e,'view')&&!e.repeat) tpvToggle();                       // 시점 — 3인칭 ↔ 1인칭(98-player-body.js)
+  if((kbHit(e,'punchR')||kbHit(e,'punchL'))&&!e.repeat&&landed&&!paused&&!uiOpen()&&!BUILD.on) punch(kbHit(e,'punchR')?1:-1);   // 주먹 — P 오른 · O 왼
   if(kbHit(e,'reload')){                       // 재장전
     const w=equippedWeapon(), W=w&&ITEMS[w.id].tool;
     if(w&&W.gun&&RELOAD.t<=0) startReload(w,W);
