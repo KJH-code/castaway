@@ -38,10 +38,12 @@ function cvdInit(){
         const PL=(typeof CVFS!=='undefined'&&CVFS.OPT&&CVFS.OPT.pal)||[[0.5,0.5,0.5],[0.5,0.5,0.5],[0.5,0.5,0.5],[0.5,0.5,0.5]], v3=a=>'vec3('+a.map(x=>(+x).toFixed(4)).join(',')+')';
         /* 겉칠 화소는 덮개처럼 화소에서 횃불 빛을 센다(장식은 정점 램버트라 같은 팔레트가 덜 따뜻했다) — 껍데기 · 덮개와 같은 횃불 유니폼(CMAT · cmTick 이 채운다) */
         const CO=(typeof CVFS!=='undefined'&&CVFS.OPT&&CVFS.OPT.coat)||{amb:0.15,k:1,s:[[0.7,0.7,0.7],[0.7,0.7,0.7],[0.7,0.7,0.7]]};
-        if(typeof CMAT!=='undefined') Object.assign(sh.uniforms,{cmT:CMAT.torch, cmTP:CMAT.tpos, cmTC:CMAT.tcol, cmZ:(typeof cmNoise3==='function'?cmNoise3():{value:null})});   // cmZ — 겉칠 세로 줄기 잡음(덮개 · 껍데기와 같은 3 차원 잡음)
+        if(typeof CMAT!=='undefined') Object.assign(sh.uniforms,{cmT:CMAT.torch, cmTP:CMAT.tpos, cmTC:CMAT.tcol, cmEye:CMAT.eye, cmZ:(typeof cmNoise3==='function'?cmNoise3():{value:null})});   // cmZ — 겉칠 세로 줄기 잡음(덮개 · 껍데기와 같은 3 차원 잡음)
         sh.vertexShader='attribute vec4 aSp;\nattribute vec2 aFo;\nvarying vec4 vSp;\nvarying vec3 vSpP, vSpN;\nvarying vec2 vFo;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n  transformed+=objectNormal*(aFo.x*(0.012+0.028*aFo.x+0.02*step(1.5,aSp.w)*step(floor(aSp.w),2.5)*smoothstep(0.82,1.0,aSp.z))); vFo=aFo; vSpN=mat3(modelMatrix)*objectNormal;\n  vSp=aSp; vSpP=(modelMatrix*vec4(transformed,1.0)).xyz;');   // 종유석(2+씨) 끝 18 % 는 2 cm 더 — 둥근 방울
-        sh.fragmentShader='varying vec4 vSp;\nvarying vec3 vSpP, vSpN;\nvarying vec2 vFo;\nuniform vec4 cmT;\nuniform vec3 cmTP, cmTC;\nuniform mediump sampler3D cmZ;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+        sh.fragmentShader='varying vec4 vSp;\nvarying vec3 vSpP, vSpN;\nvarying vec2 vFo;\nuniform vec4 cmT;\nuniform vec3 cmTP, cmTC, cmEye;\nuniform mediump sampler3D cmZ;\nfloat cvdH1(float a){ uint h=uint(int(a))*0x9E3779B1u; h^=h>>15u; h*=0x2C1B3C6Du; h^=h>>12u; return float(h)*(1.0/4294967296.0); }\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  float spFw=fwidth(vSpP.y);
   if(vSp.w>1.5){ float kd=floor(vSp.w), sd=vSp.w-kd, an=atan(vSpP.z-vSp.y,vSpP.x-vSp.x), t=clamp(vSp.z,0.0,1.0), ph=sd*37.0, nG=5.0+floor(sd*5.0);
+   if(kd>2.5&&kd<3.5){
     float g1=0.5+0.5*cos(nG*an+ph+1.4*sin(t*6.0+ph)), g2=0.5+0.5*cos(2.0*nG*an+ph*1.7+2.0*sin(t*9.0+ph*0.7));
     float rid=clamp(0.80*g1+0.20*g2,0.0,1.0);
     float kn=0.0; for(int q=0;q<4;q++){ float rt=0.10+0.75*fract(sd*(3.1+1.7*float(q))), d=(t-rt)/(kd>3.5?0.07:0.035); kn+=exp(0.0-d*d)*step(float(q),1.0+2.0*fract(sd*5.3)); }
@@ -49,8 +51,50 @@ function cvdInit(){
     vec3 c=diffuseColor.rgb; float l=dot(c,vec3(0.30,0.59,0.11)); c=mix(vec3(l),c,0.55); c=mix(c,vec3(l)*vec3(1.06,1.0,0.88),0.30*rid);   // 등은 크림 쪽으로
     float ct=kd>2.5&&kd<3.5?0.55:1.0;
     c*=(kd>2.5&&kd<3.5?1.0:0.68)*(1.0+ct*(-0.24+0.34*rid+0.14*kn+0.10*(eg-0.5)+0.22*smoothstep(0.86,1.0,t)+0.10*sin(an*2.0+ph*2.0+1.5*sin(t*3.0+ph))));   // 석회암은 0.68 배 — 횃불 가까이서 하얗게 타면 홈이 안 보였다   // (FX 13) 대비 절반 · 넓고 부드러운 세로 얼룩(청동 원뿔처럼 보였다)
-    diffuseColor.rgb=max(c,vec3(0.0)); }
-  if(vFo.x>0.002){ float kf=vFo.y, kd2=floor(vSp.w), t2=clamp(vSp.z,0.0,1.0), pc=1.0-clamp(kf,0.0,1.0);
+    diffuseColor.rgb=max(c,vec3(0.0));
+   } else {
+    /* (석회암 종유석 · 석순 · 기둥 — 사용자 요청 '종유석 표면 무늬') 2 매달림 · 4 석순 · 5 기둥(아래 석순 · 위 종유석 · 가운데 굵은 세로 골).
+       u = 물이 흘러 내려가는 쪽으로 잰 자리(종유석 밑동 0 → 끝 1 · 석순 밑동 0 → 꼭대기 1 · 기둥은 가운데 쪽이 끝).
+       ① 길이 따라 빛깔 — 종유석 밑동(천장 쪽)은 먼지 낀 회갈 · 몸통은 그 굴 유석 빛깔(aFo.y = 굴 갈래 + 1 · 없으면 정점 빛깔) · 끝은 희고 젖음(물막 반짝임 · 얇은 끝은 횃불이 뒤면 호박빛 비침)
+       ② 흘러내린 세로 결 — 둘레 각의 (cos, sin) 과 높이로 3 차원 잡음을 읽는다(이음매 없음 · 높이 따라 결이 끊기고 굽는다)
+       ③ 성장 테 — 높이 1~4 cm 간격(잡음으로 들쭉날쭉) · 테마다 해시 톤 · 경계는 넓게 섞음(가는 선 없음) · 석순은 3~10 cm 의 둥근 켜를 위 밝음 · 아래 그늘로
+       ④ 작은 혹 · 오돌토돌 — 잔 잡음. 마른 데는 무광(정반사 없음) — 결이 세면 청동 · 약하면 민무늬였다: 결 ±15 % · 테 ±9 % · 채도는 낮게 */
+    float stc=step(kd,2.5), sgm=step(3.5,kd)*step(kd,4.5), pil=step(4.5,kd);
+    float u=stc>0.5?t:(sgm>0.5?t:(t<0.5?t*2.0:(1.0-t)*2.0)), up=pil>0.5?step(0.5,t):stc;
+    vec4 N=textureLod(cmZ,vec3(0.25*cos(an)+3.7*sd,0.25*sin(an)+1.9*sd,vSpP.y*0.35),0.0);
+    vec4 Nf=textureLod(cmZ,vec3(0.9*cos(an)+1.3*sd,0.9*sin(an)+2.9*sd,vSpP.y*1.4),0.0);
+    /* 빛 — 겉칠과 같은 법(굴 유석 빛깔 팔레트 × 겉칠 배율 · 정점 빛은 조금만 · 횃불은 화소에서 빛깔마다 감싸기): 정점 램버트에 따뜻한 정점 빛깔이면
+       횃불 가까이 R 이 넘쳐 결이 다 묻힌 주황 원뿔(청동)이 됐다. 겉칠이 덮인 몫(cw)만큼은 아래 겉칠이 칠한다 */
+    float kc=vFo.y>0.5?vFo.y-1.0:0.0, cw0=vFo.x>0.002?smoothstep(0.0,1.0,vFo.x):0.0;
+    vec3 c=mix(mix(mix(${v3(PL[0])},${v3(PL[1])},clamp(kc,0.0,1.0)),${v3(PL[2])},clamp(kc-1.0,0.0,1.0)),${v3(PL[3])},clamp(kc-2.0,0.0,1.0))*mix(mix(${v3(CO.s[0])},${v3(CO.s[1])},clamp(kc,0.0,1.0)),${v3(CO.s[2])},clamp(kc-1.0,0.0,1.0));
+    float dust=up*(1.0-smoothstep(0.05,0.40,u))*(1.0-pil*0.5);
+    c=mix(c,c*vec3(0.80,0.70,0.58)*0.70,0.75*dust);
+    float soil=(1.0-up)*(1.0-smoothstep(0.0,0.16,u))*(1.0-pil*0.6);
+    c=mix(c,c*vec3(0.70,0.56,0.42),soil);
+    float sv=0.55*N.r+0.45*N.a, gro=pil*(1.0-smoothstep(0.15,0.40,abs(t-0.5)));
+    c*=0.80+0.40*smoothstep(0.30,0.68,sv)+gro*0.24*(smoothstep(0.35,0.60,N.g)-0.5);
+    c=mix(c,c*${v3((typeof CVFS!=='undefined'&&CVFS.OPT&&CVFS.OPT.amb)||[1.02,0.80,0.56])},0.55*(1.0-smoothstep(0.30,0.42,sv))*(1.0-dust));
+    float rb=vSpP.y/(0.016+0.022*N.g)+2.0*(N.b-0.5), rk=floor(rb), rf=rb-rk;
+    float rt=mix(cvdH1(rk),cvdH1(rk+1.0),smoothstep(0.30,0.70,rf)), rK=1.0-smoothstep(0.006,0.016,spFw);
+    c*=1.0+0.22*(rt-0.5)*rK*(1.0-gro);
+    float sb=vSpP.y/(0.045+0.05*N.g)+1.5*(N.r-0.5), sf=fract(sb), sK=(1.0-up)*smoothstep(0.12,0.30,u)*(1.0-smoothstep(0.80,0.95,u))*(1.0-smoothstep(0.010,0.030,spFw));
+    c*=1.0+sK*(0.30*(smoothstep(0.0,0.35,sf)*(1.0-smoothstep(0.35,1.0,sf))-0.40)+0.10*(cvdH1(floor(sb)+7.0)-0.5));
+    c*=1.0+0.10*(Nf.a-0.5)+0.06*smoothstep(0.62,0.78,Nf.r);
+    float tip=smoothstep(0.80,0.97,u)*(1.0-pil);
+    c=mix(c,${v3(PL[0])}*1.15,0.60*tip);
+    c=max(c,vec3(0.0));
+    vec3 nW=normalize(vSpN)*(gl_FrontFacing?1.0:-1.0), tv=cmTP-vSpP; float tl=length(tv); vec3 Lt=tv/max(tl,1e-4);
+    float at=clamp(1.0-tl/max(cmT.x,1e-3),0.0,1.0); at*=at;
+    vec3 E=clamp((vec3(dot(nW,Lt))+vec3(0.40,0.26,0.19))/vec3(1.40,1.26,1.19),0.0,1.0);
+    diffuseColor.rgb=mix(diffuseColor.rgb,c*${CO.amb.toFixed(3)},1.0-cw0);
+    totalEmissiveRadiance+=(1.0-cw0)*c*cmTC*(cmT.w*at*${CO.k.toFixed(3)})*E;
+    if(tip>0.01&&cmT.w>0.0){ vec3 V=normalize(cmEye-vSpP);
+      float nh=max(dot(nW,normalize(Lt+V)),0.0), fr=0.03+0.97*pow(1.0-max(dot(nW,V),0.0),5.0);
+      totalEmissiveRadiance+=cmTC*(cmT.w*at*tip*(pow(nh,60.0)*6.0*fr+0.5*pow(max(dot(V,0.0-Lt),0.0),3.0)*vec3(1.0,0.55,0.12)*stc));
+    }
+   }
+  }
+  if(vFo.x>0.002){ float kf=max(vFo.y-1.0,0.0), kd2=floor(vSp.w), t2=clamp(vSp.z,0.0,1.0), pc=1.0-clamp(kf,0.0,1.0);
     vec3 fc=mix(mix(mix(${v3(PL[0])},${v3(PL[1])},clamp(kf,0.0,1.0)),${v3(PL[2])},clamp(kf-1.0,0.0,1.0)),${v3(PL[3])},clamp(kf-2.0,0.0,1.0));
     /* 흘러내린 세로 줄기(덮개와 같은 원리) — 세계 좌표 비등방 잡음(가로 4~8 cm · 세로 0.5~1 m · 조각 씨로 민다 · 둘레 각도를 안 써서 이음매 없음) · 골은 호박 · 등은 흰 결정빛 */
     vec4 cn=textureLod(cmZ,vec3(vSpP.x*1.6+3.7*fract(vSp.w),vSpP.z*1.6+1.9*fract(vSp.w),vSpP.y*0.12),0.0);
@@ -501,7 +545,9 @@ function* cvdKarstSpeleo(X){
   for(const q of cells){ if(cvdT()) yield; if(!cvdBudget(X,19500)) break; if(rnd()>0.012) continue; cvdAt(X,q,rnd(),rnd(),o); if(o.c-o.f<2.6||o.sf>0.5) continue; mk(o.x,o.z,1.6,false); }
   /* 기둥 — 낮은 방 자리(천장−바닥 < 3.2). 낮은 자리가 없으면 가장 낮은 두어 곳 */
   const cand=[], colMk=(x,z,f,c,wd)=>{ const rmin=0.14+0.16*rnd(), rmax=rmin*(1.5+0.7*rnd()), ph=rnd()*6, cf=cvdCol(X,0.9+0.2*rnd(),0.8,ph), h=c-f+0.2;
-      const it=cvdRev(A,x,f-0.1,z,0,1,0,h,t=>rmin+(rmax-rmin)*Math.pow(Math.abs(2*t-1),1.7),10,8,cf); it.acc=A;
+      const pv0=A.p.length/3, it=cvdRev(A,x,f-0.1,z,0,1,0,h,t=>rmin+(rmax-rmin)*Math.pow(Math.abs(2*t-1),1.7),10,8,cf); it.acc=A;
+      { const pv1=A.p.length/3, sw=5+((Math.imul(Math.round(x*97)|0,374761393)^Math.imul(Math.round(z*97)|0,668265263))>>>8)%997/1000;   // (무늬) 기둥 결 — aSp(축 밑동 x · z · 높이 비 · 5+씨) · 해시는 자리에서(난수를 더 안 뽑는다)
+        if(!A.s) A.s=[]; while(A.s.length<pv0*4) A.s.push(0,0,0,0); for(let v=pv0;v<pv1;v++) A.s.push(x,z,Math.min(1,Math.max(0,(A.p[v*3+1]-(f-0.1))/h)),sw); }
       cvdLog(X,'column',x,z,f-0.1,c+0.1,rmax); cvdBlock(X,x,z,(rmin+rmax)*0.5*1.15,f,c); };
   for(const q of cells){ if(cvdT()) yield; if(!X.ceil[q]) continue; cvdAt(X,q,0.5,0.5,o); const g=o.c-o.f; if(o.wd<1.6||o.d<4||g>4.4||o.sf>0.35||o.sc>0.35) continue;
     if(g<3.2){ if(rnd()<0.05*cvdCluster(X,o.x,o.z,8,3)&&cvdFar(X.big,o.x,o.z,3.2)){ colMk(o.x,o.z,o.f,o.c,o.wd); } } else cand.push({q,g,x:o.x,z:o.z,f:o.f,c:o.c,wd:o.wd}); }

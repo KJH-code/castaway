@@ -35,7 +35,7 @@ const CVFS={ on:true, budget:1.0, maxTri:30000, k:3, cell:8, q:[], cur:null, tEn
     albT:[0.40,0.45,0.60],        // 두꺼운 데(조금 덜 차갑게 — 그려지면 더 따뜻하다)
     /* (A) 굴마다 빛깔(겉흙 몫 → 정점 속성 aFk — 0 크림 · 1 황갈 · 2 꿀 · 3 적갈 · 사이는 섞음). 1 은 위 alb 그대로 · 두꺼운 데는 alb → albT 비를 곱한다.
        새 프로그램 없이(정의는 늘 같다 — 값은 정점마다). 비율 · 양은 실측 근거 없음(원리만) — 화소 비는 그려서 맞췄다 */
-    amb:[0.90,0.64,0.24],          // 호박 띠 곱(사진 p4 — 흰 · 크림 바탕 대비 휘도 ~0.8 · G/R −0.13 · B/R −0.4)
+    amb:[0.80,0.56,0.21],          // 호박 띠 곱(사진 p4 — 흰 · 크림 바탕 대비 휘도 ~0.8 · G/R −0.13 · B/R −0.4)
     pal:[[0.28,0.50,1.10],[0.36,0.46,0.74],[0.337,0.37,0.49],[0.36,0.29,0.35]],
     /* (B) 장식 겉칠(31-cave10deco.js 가 읽는다) — 정점 빛 남길 몫 · 화소 횃불 세기 · 갈래마다 빛깔 배율(크림 · 황갈 · 꿀 — 같은 굴 덮개와 그려진 화소 비를 맞춤: 겉칠은 젖음 · 두께 · 가림이 없어 그대로면 밝고 옅었다) */
     coat:{amb:0.15,k:1.0,s:[[0.90,0.83,0.80],[0.67,0.62,0.56],[0.56,0.50,0.47]]},
@@ -489,16 +489,18 @@ vec2 fsGroove(float u,float st,float jit,float sd){
    홈은 흐름 따라 생겼다 사라졌다(세기 잡음 0~1) · 깊이는 칸 너비에 비례 · 사진(층 0)은 가로 0.5 · 세로 0.8 m 한 장 · 성장 띠는 세로 15 cm 칸 · 가로 0.5 m(수평에 가깝다) */
 /* (값) 갈래 안에서 불러도 되게 — cmZ 는 밉맵이 없고(미분 불필요) 사진(cmC · 밉맵)은 바깥에서 센 미분(gx · gy = (du, dy) 의 화면 미분)으로 textureGrad ·
    화소가 잔 홈 칸보다 크면(kF 0) 잔 홈 · 굵은 골 칸보다 크면(kMe 0) 그 보로노이를 건너뛴다(어차피 0 을 곱한다) */
-void fsWall(float u,float y,float kF,float kMe,vec2 gx,vec2 gy,vec4 Zc,vec4 Gl,out vec4 A,out vec4 B){
+void fsWall(float u,float y,float kF,float kMe,vec2 gx,vec2 gy,vec4 Zc,vec4 Gl,vec4 Fm,out vec4 A,out vec4 B){
   // (값) Gl(가로 3 · 세로 4 m 판의 낮은 잡음)은 정점에서 읽어 온다(vFsGx · vFsGz) — 화소마다 3 차원 읽기가 없다   // (값) 3 차원 잡음 읽기는 이것 하나 — 세기 · 끊김의 둘째 잡음은 바깥의 큰 얼룩 Zc 를 쓴다
-  float uw=u+0.06*(Gl.a-0.5)+0.12*(Gl.r-0.5);
-#ifdef FS_NO_GROOVE
+  /* (판자 결 — 사용자 판정) 홈이 흐름 따라 끊기고 · 갈라지고 · 굽게: Fm = (잔 홈 켬 · 굵은 골 켬 · 칸 경계 휨 m · 0) — 흐름 좌표 잡음(바깥 SN)에서 온다.
+     켬은 흐름 쪽 0.3~1.2 m 조각으로 0~1 · 휨은 흐름 길이 쪽으로 1~2.5 m 물결(가로 기울기 < 0.4 — 위상이 거꾸로 돌지 않게) · 꺼진 칸은 보로노이를 안 센다 */
+  float uw=u+0.06*(Gl.a-0.5)+0.12*(Gl.r-0.5)+Fm.z;
+  float fineS=smoothstep(0.30,0.70,Gl.g+0.35*(Zc.r-0.5))*Fm.x, coarseS=smoothstep(0.30,0.70,Gl.b+0.25*(Zc.g-0.5))*Fm.y;
   vec2 gf=vec2(0.0), gc=vec2(0.0);
-#else
-  vec2 gf=fsGroove(uw,0.035,0.85,11.0), gc=fsGroove(uw+0.25*(Gl.b-0.5),0.17,0.85,23.0);
+#ifndef FS_NO_GROOVE
+  if(fineS*kF>0.001) gf=fsGroove(uw,0.035,0.85,11.0);
+  if(coarseS*kMe>0.001) gc=fsGroove(uw+0.25*(Gl.b-0.5),0.17,0.85,23.0);
 #endif
-  float fineS=smoothstep(0.30,0.70,Gl.g+0.35*(Zc.r-0.5)), coarseS=smoothstep(0.30,0.70,Gl.b+0.25*(Zc.g-0.5));
-  float Hfine=gf.x*min(gf.y,0.06)*0.18*fineS*kF, Hco=gc.x*min(gc.y,0.30)*0.11*coarseS;
+  float Hfine=gf.x*min(gf.y,0.06)*0.13*fineS*kF, Hco=gc.x*min(gc.y,0.30)*0.11*coarseS;
 #ifdef FS_NO_PHL
   float phl=0.0;
 #else
@@ -532,12 +534,19 @@ const CVFS_BODY=`#include <color_fragment>
        법선이 0.001 만 흔들려도 가로 자리가 수십 cm 뛰어 무늬가 화소 잡음 · 물결무늬가 됐다 */
     float wx=smoothstep(0.40,0.60,n0.z*n0.z/(n0.x*n0.x+n0.z*n0.z+1e-5));   // (값) 섞임 띠를 좁게(두 축을 다 세는 몫 27 % → 13 %)
     /* (값) 바닥(wal 0)은 벽 무늬를 안 센다 · 한 축의 무게가 1(섞임 띠 밖)이면 그 축 하나만 — 두 번은 섞임 띠에서만 */
+    float fS=vFsF.x, fD=vFsF.y, fW=max(vFsF.z,0.03);
+    /* 흐름 좌표 잡음 — 잡음 한 장(주기 1)의 a 칸 = s 0.6 m · d 9 cm, r 칸 = s 1.25 m · d 18 cm, g 칸 = s 2.5 m · d 36 cm. 정점 잡음으로 가로로 굽이치고 세 번째 좌표는 큰 얼룩(흐름마다 다른 무늬).
+       잡음 칸이 화소보다 잘아지면(멀리 · 흐름이 합치는 데) 그 칸을 뺀다 */
+    vec3 sq=vec3(fS*0.10+0.2*Z.g,fD*0.69+0.25*Z.g+0.1*Z.b,0.45*Z.b+0.2*Z.g);
+    float sr=max(fwidth(sq.x),fwidth(sq.y)), kSa=1.0-smoothstep(0.012,0.030,sr), kSr=1.0-smoothstep(0.025,0.060,sr);
+    vec4 SN=texture(cmZ,sq);
+    vec4 Fm=vec4(smoothstep(0.38,0.62,SN.a),smoothstep(0.42,0.60,SN.r),0.20*(SN.g-0.47)+0.08*(SN.r-0.49),0.0);
     vec4 WA=vec4(0.0,0.0,0.0,0.5), WB=vec4(0.5);
 #ifndef FS_NO_WALL
     if(wal>0.001){
-      if(wx>0.999) fsWall(p.x,p.y,kF,kMe,dpx.xy,dpy.xy,Z,vFsGx,WA,WB);
-      else if(wx<0.001) fsWall(p.z,p.y,kF,kMe,dpx.zy,dpy.zy,Z,vFsGz,WA,WB);
-      else { vec4 Ax, Bx, Az, Bz; fsWall(p.x,p.y,kF,kMe,dpx.xy,dpy.xy,Z,vFsGx,Ax,Bx); fsWall(p.z,p.y,kF,kMe,dpx.zy,dpy.zy,Z,vFsGz,Az,Bz); WA=mix(Az,Ax,wx); WB=mix(Bz,Bx,wx); }
+      if(wx>0.999) fsWall(p.x,p.y,kF,kMe,dpx.xy,dpy.xy,Z,vFsGx,Fm,WA,WB);
+      else if(wx<0.001) fsWall(p.z,p.y,kF,kMe,dpx.zy,dpy.zy,Z,vFsGz,Fm,WA,WB);
+      else { vec4 Ax, Bx, Az, Bz; fsWall(p.x,p.y,kF,kMe,dpx.xy,dpy.xy,Z,vFsGx,Fm,Ax,Bx); fsWall(p.z,p.y,kF,kMe,dpx.zy,dpy.zy,Z,vFsGz,Fm,Az,Bz); WA=mix(Az,Ax,wx); WB=mix(Bz,Bx,wx); }
     }
 #endif
     vec3 an=abs(n0); vec2 pd=an.x>an.y&&an.x>an.z?p.zy:(an.y>an.z?p.xz:p.xy);
@@ -583,14 +592,8 @@ const CVFS_BODY=`#include <color_fragment>
           (예전엔 가장자리까지 거리 e 의 등고선을 막 전체에 그어 흐름 가운데에 닫힌 타원 고리가 섰다 — 나무 옹이 · 마노)
        ③ 흰 분필 딱지(문밀크 · 팝콘) — 마르고 볼록한 윗면 · 두꺼운 등 · 흐름 윗목 · 입구 쪽에 5~30 cm 얼룩(자리 몫은 덮는 넓이로 · 흐릿하게 칠하지 않고 진하게) */
     float pa=mix(0.50,1.0,cr);
-    float fS=vFsF.x, fD=vFsF.y, fW=max(vFsF.z,0.03);
-    /* 흐름 좌표 잡음 — 잡음 한 장(주기 1)의 a 칸 = s 0.6 m · d 9 cm, r 칸 = s 1.25 m · d 18 cm, g 칸 = s 2.5 m · d 36 cm. 정점 잡음으로 가로로 굽이치고 세 번째 좌표는 큰 얼룩(흐름마다 다른 무늬).
-       잡음 칸이 화소보다 잘아지면(멀리 · 흐름이 합치는 데) 그 칸을 뺀다 */
-    vec3 sq=vec3(fS*0.10+0.2*Z.g,fD*0.69+0.25*Z.g+0.1*Z.b,0.45*Z.b+0.2*Z.g);
-    float sr=max(fwidth(sq.x),fwidth(sq.y)), kSa=1.0-smoothstep(0.012,0.030,sr), kSr=1.0-smoothstep(0.025,0.060,sr);
-    vec4 SN=texture(cmZ,sq);
     float sv=0.482+0.55*(SN.r-0.49)*kSr+0.45*(SN.g-0.47);
-    float sAmb=max(0.32*(1.0-smoothstep(0.38,0.46,sv)),0.85*(1.0-smoothstep(0.26,0.33,SN.a))*smoothstep(0.40,0.56,SN.g)*kSa), sWht=smoothstep(0.56,0.62,sv);
+    float sAmb=max(0.60*(1.0-smoothstep(0.38,0.47,sv)),0.85*(1.0-smoothstep(0.28,0.36,SN.a))*smoothstep(0.40,0.56,SN.g)*kSa), sWht=smoothstep(0.56,0.62,sv);
     Ht+=(sv-0.482)*0.003*kMi*wal;
     /* 가장자리 띠 — 띠 사이 3~5 cm(잡음) · 띠마다 해시 톤(호박 · 크림 · 흰) · 줄기 잡음으로 띠 번호가 밀려 띠가 끊기고 이어진다 */
     float eL=0.11+0.15*smoothstep(0.30,0.70,Z.a+0.4*(Z.r-0.5));
@@ -608,22 +611,20 @@ const CVFS_BODY=`#include <color_fragment>
     /* 굵은 골(물이 모이는 데)은 젖은 꿀 쪽 · 등은 조금 밝게 — 줄기 잡음의 넓은 칸으로 군데군데 · 엷게(골은 세계 세로 축이라 모든 골을 칠하면 판자 결처럼 고른 세로 줄이 섰다) */
     float Hc=fluK*WA.y*kMe, sv2=smoothstep(0.35,0.65,WB.x+0.3*(Z.g-0.5))*smoothstep(0.45,0.70,SN.g);
     c=mix(c,c*vec3(0.95,0.80,0.62),smoothstep(0.0,0.014,0.0-Hc)*sv2*(0.12+0.18*pa)); c*=1.0+0.06*smoothstep(0.0,0.014,Hc)*sv2*pa;
-    /* 분필 딱지 — 자리 몫 czn(윗면 · 입구 · 마르고 두꺼운 데 · 흐름 윗목 · 흰 줄기)이 클수록 문턱이 낮아져 덮는 넓이가 넓다(5~30 %) · 얼룩은 10~30 cm 덩이(잔 잡음을 문턱에 많이 넣으면 화소 튀김처럼 부서졌다) · 속은 팝콘 알갱이로 오돌토돌.
-       얼룩 잡음은 주기(0.9 장/m)가 보이지 않게 큰 정점 잡음으로 민다 */
-    float dry=smoothstep(0.35,0.75,1.0-wt)*mix(0.55,1.0,1.0-smoothstep(0.3,2.0,fS));
-    float czn=max(max(smoothstep(0.15,0.55,n0.y),smoothstep(0.02,0.10,vCv10Sky)),dry)*smoothstep(0.015,0.06,h);
-    czn=clamp(czn+0.40*wK,0.0,1.0)*mix(0.55,1.0,cr);
+    /* 분필 딱지(사용자 판정 — 흰 페인트를 튀긴 위장 무늬 같았다) — 드물게(덮개 화소의 3~8 % · 크림 굴 쪽) · 뭉친 덩이 20~60 cm · 가장자리는 10~20 cm 에 걸쳐
+       흩어진 팝콘 알갱이로 흐려진다(또렷한 테두리 없음) · 자리는 마르고 위를 보는 볼록한 윗면(처마 위 포함) · 입구 쪽만(벽 몸통 · 줄기 · 젖은 골엔 거의 없다) ·
+       흰빛은 바탕보다 조금만 밝게 · 무광 · 오돌토돌. 얼룩 잡음은 주기(0.45 장/m)가 보이지 않게 큰 정점 잡음으로 민다 */
+    float czn=max(smoothstep(0.30,0.70,n0.y)*smoothstep(0.03,0.09,h),0.8*smoothstep(0.03,0.12,vCv10Sky))*smoothstep(0.40,0.80,1.0-wt)*mix(0.35,1.0,cr);
     float chalk=0.0;
     /* (값) 자리 몫이 없는 화소는 딱지 잡음 둘을 안 읽는다(갈래 안이라 textureLod) */
     if(czn>0.05){
       vec4 PV=textureLod(cmZ,p*7.0,0.0);
       float pop=smoothstep(0.35,0.75,PV.a), grn=PV.r+0.5*(PV.a-0.49)*kMi;
-      vec4 Zc=textureLod(cmZ,p*0.9+vec3(1.4*Z.b+0.5*Z.r,0.7*Z.g,1.4*Z.b-0.5*Z.r),0.0);
-      float cf=0.55*Zc.g+0.35*Zc.r+0.10*Zc.a;
-      /* 덮는 몫 dn(얼룩 잡음의 문턱 — 4~8 cm 에 걸쳐 오르내림)을 알갱이(1~2 cm 팝콘)로 끊어 가장자리가 흩어진 알갱이로 녹는다 — 매끈한 문턱이면 오려 붙인 흰 딱지 같았다 */
-      float T=0.665-0.13*czn, dn=smoothstep(T-0.06,T+0.02,cf)*smoothstep(0.05,0.30,czn);
-      chalk=clamp((dn-(grn-0.30)*2.0)*6.0,0.0,1.0)*step(0.001,dn);
-      c=mix(c,FS_P0*1.50*(0.80+0.12*pop+0.08*smoothstep(0.35,0.65,PV.r)),0.90*chalk); Ht+=chalk*(pop-0.3)*0.003*kMi;
+      vec4 Zc=textureLod(cmZ,p*0.45+vec3(1.4*Z.b+0.5*Z.r,0.7*Z.g,1.4*Z.b-0.5*Z.r),0.0);
+      float cf=0.60*Zc.g+0.30*Zc.r+0.10*Zc.a;
+      float T=0.64-0.10*czn, dn=smoothstep(T-0.10,T+0.04,cf)*smoothstep(0.05,0.40,czn);
+      chalk=clamp((dn-(grn-0.30)*1.6)*2.5,0.0,1.0)*dn;
+      c=mix(c,max(c*1.12,FS_P0*1.10)*(0.84+0.10*pop+0.06*smoothstep(0.35,0.65,PV.r)),0.85*chalk); Ht+=chalk*(pop-0.4)*0.0035*kMi;
     }
     /* 가장자리 — 막이 바위에 닿는 데는 그늘 · 바닥 판 가장자리 25 cm 는 짙고 젖게(껍데기 aFc 자국과 이어진다) */
     float rimF=flo*(1.0-smoothstep(0.0,0.25,ed+0.05*(Z.a-0.5)));
@@ -737,7 +738,8 @@ function* cvfsCoat(X,rec){
   const drips=X.fl.filter(F=>F.end==='drip').map(F=>{ const e=F.pts[F.pts.length-1]; return {x:e.x,y:e.y,z:e.z,w:e.w,fk:F.fk}; }), o={}, out=[];
   for(const m of D.meshes){ if(m.material!==CVD.mats.rock) continue; yield;
     const g=m.geometry, P=g.attributes.position.array, n=P.length/3, A=new Float32Array(n*2); let any=0;
-    for(let v=0;v<n;v++){ if((v&127)===0&&cvfsT()) yield; cvfsCoatAt(X,P[v*3],P[v*3+1],P[v*3+2],drips,o); if(o.c>0.002){ A[v*2]=o.c; A[v*2+1]=o.k; any=1; } }
+    for(let v=0;v<n;v++){ if((v&127)===0&&cvfsT()) yield; cvfsCoatAt(X,P[v*3],P[v*3+1],P[v*3+2],drips,o); if(o.c>0.002){ A[v*2]=o.c; A[v*2+1]=o.k+1; any=1; } else A[v*2+1]=X.S.k+1; }   // y = 굴 유석 빛깔 갈래 + 1(겉칠 없는 종유석 · 석순도 몸통 빛깔을 읽는다 · 0 은 모름)
+    any=any||(g.attributes.aSp&&g.attributes.aSp.count>0)?1:0;
     if(!any) continue;
     for(const it of D.items) if(it.mesh===m&&it.vis===false){ it.savedFo=A.slice(it.v0*2,it.v1*2); for(let v=it.v0;v<it.v1;v++) A[v*2]=0; }   // 이미 딴(접어 숨긴) 조각은 0 — 되살릴 때 cvdSet 이 돌려놓는다
     g.setAttribute('aFo',new THREE.BufferAttribute(A,2)); out.push({g,keep:null}); }
